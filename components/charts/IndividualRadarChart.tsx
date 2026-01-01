@@ -79,8 +79,8 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
                         pointHoverBackgroundColor: '#fff',
                         pointHoverBorderColor: '#4f46e5',
                         borderWidth: 2.5,
-                        pointRadius: 4, // Larger points for clarity
-                        pointHoverRadius: 6
+                        pointRadius: 3, 
+                        pointHoverRadius: 5
                     }]
                 },
                 options: {
@@ -89,7 +89,7 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
                     devicePixelRatio: window.devicePixelRatio || 2, // High resolution for PDF
                     animation: false, 
                     layout: {
-                        padding: 30 // [FIX] 라벨 잘림 방지를 위해 패딩 대폭 증가 (기존 15 -> 30)
+                        padding: 20 // [FIX] Increased padding to ensure labels are not cut off in PDF
                     },
                     scales: {
                         r: {
@@ -97,7 +97,7 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
                             grid: { color: 'rgba(0,0,0,0.1)' },
                             pointLabels: {
                                 font: { 
-                                    size: 11, // 폰트 크기 유지
+                                    size: 10, 
                                     family: "'Pretendard', sans-serif", 
                                     weight: '700' 
                                 },

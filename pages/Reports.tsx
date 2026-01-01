@@ -25,7 +25,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
     // Bulk Generation State
     const [generatingRecord, setGeneratingRecord] = useState<WorkerRecord | null>(null);
+    const [generatingHistory, setGeneratingHistory] = useState<WorkerRecord[]>([]); // [NEW] History context
     const bulkReportRef = useRef<HTMLDivElement>(null);
+    const abortRef = useRef<boolean>(false);
 
     // 공종 목록 추출
     const teams = useMemo(() => ['전체', ...Array.from(new Set(workerRecords.map(r => r.jobField))).sort()], [workerRecords]);
@@ -39,7 +41,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         if (filterLevel !== '전체') {
             result = result.filter(r => r.safetyLevel === filterLevel);
         }
-        return result.sort((a,b) => a.safetyScore - b.safetyScore);
+        // 최신 데이터 기준 정렬 (이름순)
+        return result.sort((a,b) => a.name.localeCompare(b.name));
     }, [workerRecords, activeTab, selectedTeam, filterLevel]);
 
     const handleBulkDownloadPDF = async () => {
@@ -49,9 +52,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         const jspdf = (window as any).jspdf;
         if (!html2canvas || !jspdf) return alert('PDF 라이브러리 로드 중입니다. 잠시 후 시도해주세요.');
 
-        if (!confirm(`${selectedTeam === '전체' ? '전체 팀' : selectedTeam + ' 팀'}의 근로자 ${filteredRecords.length}명에 대한\n정밀 리포트를 일괄 생성하시겠습니까?\n(시간이 소요될 수 있습니다)`)) return;
+        if (!confirm(`${selectedTeam === '전체' ? '전체 팀' : selectedTeam + ' 팀'}의 근로자 ${filteredRecords.length}명에 대한\n정밀 리포트를 일괄 생성하시겠습니까?\n(예상 소요시간: 약 ${Math.ceil(filteredRecords.length * 1.5)}초)`)) return;
 
         setIsGenerating(true);
+        abortRef.current = false;
         setBulkProgress({ current: 0, total: filteredRecords.length });
 
         const jsPDF = jspdf.jsPDF ? jspdf.jsPDF : jspdf;
@@ -59,33 +63,55 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
         try {
             for (let i = 0; i < filteredRecords.length; i++) {
+                if (abortRef.current) break;
+
                 const record = filteredRecords[i];
+                
+                // [NEW] Find history for this specific worker to render trend charts correctly
+                const workerHistory = workerRecords.filter(r => 
+                    r.name === record.name && 
+                    (r.teamLeader || '미지정') === (record.teamLeader || '미지정')
+                );
+
                 setGeneratingRecord(record);
+                setGeneratingHistory(workerHistory);
                 setBulkProgress({ current: i + 1, total: filteredRecords.length });
 
-                // React Render & Chart Animation Wait
+                // React Render & Chart Animation Wait (Critical for Chart.js)
                 await new Promise(resolve => setTimeout(resolve, 800));
 
-                if (bulkReportRef.current) {
+                if (bulkReportRef.current && !abortRef.current) {
                     const canvas = await html2canvas(bulkReportRef.current, { 
-                        scale: 2, 
+                        scale: 2, // Balance between quality and file size
                         useCORS: true, 
                         logging: false, 
                         backgroundColor: '#ffffff' 
                     });
-                    const imgData = canvas.toDataURL('image/png', 0.9);
+                    const imgData = canvas.toDataURL('image/jpeg', 0.9); // Use JPEG for smaller file size in bulk
                     
                     if (i > 0) pdf.addPage();
-                    pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+                    pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
                 }
             }
-            pdf.save(`PSI_BulkReport_${selectedTeam}_${new Date().toISOString().slice(0,10)}.pdf`);
+
+            if (!abortRef.current) {
+                pdf.save(`PSI_BulkReport_${selectedTeam}_${new Date().toISOString().slice(0,10)}.pdf`);
+            } else {
+                alert('생성이 취소되었습니다.');
+            }
         } catch (e) {
             console.error(e);
             alert('일괄 생성 중 오류가 발생했습니다.');
         } finally {
             setIsGenerating(false);
             setGeneratingRecord(null);
+            setGeneratingHistory([]);
+        }
+    };
+
+    const cancelGeneration = () => {
+        if(confirm("일괄 생성을 중단하시겠습니까?")) {
+            abortRef.current = true;
         }
     };
 
@@ -134,27 +160,32 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     <div className="flex items-center gap-2 text-xs font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg">
                         <span>대상 인원: {filteredRecords.length}명</span>
                     </div>
-                    <button 
-                        onClick={handleBulkDownloadPDF} 
-                        disabled={isGenerating} 
-                        className={`px-5 py-2.5 text-white font-black rounded-xl shadow-lg transition-all flex items-center gap-2 ${isGenerating ? 'bg-slate-400 cursor-wait' : 'bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5'}`}
-                    >
-                        {isGenerating ? (
-                            <span className="flex items-center">
-                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    {isGenerating ? (
+                        <div className="flex items-center gap-2">
+                            <div className="text-xs font-black text-indigo-600 animate-pulse bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100">
                                 생성 중... ({bulkProgress.current}/{bulkProgress.total})
-                            </span>
-                        ) : (
-                            <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg> 팀별 일괄 PDF 생성</>
-                        )}
-                    </button>
+                            </div>
+                            <button onClick={cancelGeneration} className="px-4 py-2 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-300">
+                                취소
+                            </button>
+                        </div>
+                    ) : (
+                        <button 
+                            onClick={handleBulkDownloadPDF} 
+                            className={`px-5 py-2.5 text-white font-black rounded-xl shadow-lg transition-all flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5`}
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg> 
+                            팀별 일괄 PDF 생성
+                        </button>
+                    )}
                 </div>
             </div>
 
             {/* Hidden Rendering Area for Bulk Generation */}
-            <div className="fixed top-0 left-[-9999px] overflow-hidden" aria-hidden="true">
+            {/* Using left-[-9999px] to keep it in DOM for html2canvas but invisible to user */}
+            <div className="fixed top-0 left-[-9999px] overflow-hidden opacity-0 pointer-events-none" aria-hidden="true">
                 {isGenerating && generatingRecord && (
-                    <ReportTemplate record={generatingRecord} history={[generatingRecord]} ref={bulkReportRef} />
+                    <ReportTemplate record={generatingRecord} history={generatingHistory} ref={bulkReportRef} />
                 )}
             </div>
 
