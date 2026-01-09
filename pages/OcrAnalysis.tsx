@@ -38,6 +38,7 @@ const getFlag = (nationality: string) => {
     if (n.includes('카자흐스탄')) return '🇰🇿';
     if (n.includes('네팔')) return '🇳🇵';
     if (n.includes('미얀마')) return '🇲🇲';
+    if (n.includes('한국') || n.includes('korea') || n.includes('대한민국')) return '🇰🇷';
     return ''; 
 };
 

@@ -11,27 +11,16 @@ interface QRCodeProps {
 
 const QRCodeComponent: React.FC<QRCodeProps> = ({ record, onLoad }) => {
     const containerRef = useRef<HTMLDivElement>(null);
-    const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
 
     useEffect(() => {
-        let timer: ReturnType<typeof setTimeout>;
-        let retryCount = 0;
-        const MAX_RETRIES = 30; // 네트워크 느린 환경 대비 증가
-
         const generate = () => {
             const element = containerRef.current;
             if (!element) return;
 
             const QRCodeLib = (window as any).QRCode;
             if (!QRCodeLib) {
-                if (retryCount < MAX_RETRIES) {
-                    retryCount++;
-                    timer = setTimeout(generate, 100); 
-                } else {
-                    console.error("QRCode library missing.");
-                    setStatus('error');
-                    if (onLoad) onLoad(false); 
-                }
+                console.error("QRCode library missing.");
+                if (onLoad) onLoad(false); 
                 return;
             }
 
@@ -47,34 +36,26 @@ const QRCodeComponent: React.FC<QRCodeProps> = ({ record, onLoad }) => {
                     height: 128,
                     colorDark: "#000000",
                     colorLight: "#ffffff",
-                    correctLevel: QRCodeLib.CorrectLevel ? QRCodeLib.CorrectLevel.L : 1 // 복잡도 낮춰 인식률 향상
+                    correctLevel: QRCodeLib.CorrectLevel ? QRCodeLib.CorrectLevel.L : 1 
                 });
                 
-                setStatus('success');
-                // DOM 렌더링 안정화 대기
-                setTimeout(() => {
-                    if (onLoad) onLoad(true);
-                }, 50);
+                // DOM 렌더링 완료 간주
+                if (onLoad) onLoad(true);
 
             } catch (e) {
                 console.error("QR Error:", e);
-                setStatus('error');
-                // Fallback Text display
                 element.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;"><span style="font-size:8px;font-weight:bold;color:red;">QR ERROR</span><span style="font-size:6px;">${record.id.slice(-4)}</span></div>`;
-                if (onLoad) onLoad(true); // 에러지만 렌더링은 끝난것으로 간주
+                if (onLoad) onLoad(true); 
             }
         };
 
         // UI 블로킹 방지를 위한 미세 지연
-        timer = setTimeout(generate, Math.random() * 200);
-        
+        const timer = setTimeout(generate, Math.random() * 100);
         return () => clearTimeout(timer);
     }, [record, onLoad]);
 
     return (
-        <div ref={containerRef} className="w-full h-full flex items-center justify-center overflow-hidden bg-white">
-            {status === 'loading' && <div className="w-4 h-4 border-2 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>}
-        </div>
+        <div ref={containerRef} className="w-full h-full flex items-center justify-center overflow-hidden bg-white"></div>
     );
 };
 
@@ -124,7 +105,7 @@ const getRoleBadge = (record: WorkerRecord) => {
 };
 
 // [컴포넌트] 안전모 스티커 (A4 최적화: 90mm x 60mm)
-const PremiumSticker: React.FC<{ worker: WorkerRecord; onLoad: () => void }> = ({ worker, onLoad }) => {
+const PremiumSticker: React.FC<{ worker: WorkerRecord }> = ({ worker }) => {
     const s = getGradeStyle(worker.safetyLevel);
     const roles = getRoleBadge(worker);
     const mainRole = roles.length > 0 ? roles[0] : worker.jobField;
@@ -156,7 +137,7 @@ const PremiumSticker: React.FC<{ worker: WorkerRecord; onLoad: () => void }> = (
                         <p className="text-xs font-bold text-slate-500 mt-1 truncate">{mainRole} | {worker.jobField}</p>
                     </div>
                     <div className="w-[19mm] h-[19mm] bg-white border border-slate-200 rounded p-0.5 shrink-0">
-                        <QRCodeComponent record={worker} onLoad={onLoad} />
+                        <QRCodeComponent record={worker} />
                     </div>
                 </div>
 
@@ -178,7 +159,7 @@ const PremiumSticker: React.FC<{ worker: WorkerRecord; onLoad: () => void }> = (
 };
 
 // [컴포넌트] 스마트 사원증 (A4 최적화: 54mm x 86mm)
-const PremiumIDCard: React.FC<{ worker: WorkerRecord; onLoad: () => void }> = ({ worker, onLoad }) => {
+const PremiumIDCard: React.FC<{ worker: WorkerRecord }> = ({ worker }) => {
     const s = getGradeStyle(worker.safetyLevel);
     const roles = getRoleBadge(worker);
 
@@ -236,7 +217,7 @@ const PremiumIDCard: React.FC<{ worker: WorkerRecord; onLoad: () => void }> = ({
                         <p className="text-[8px] font-bold text-slate-800">2026.01.01</p>
                     </div>
                     <div className="w-[14mm] h-[14mm] bg-white p-0.5 border border-slate-200 rounded">
-                        <QRCodeComponent record={worker} onLoad={onLoad} />
+                        <QRCodeComponent record={worker} />
                     </div>
                 </div>
             </div>
@@ -250,10 +231,6 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
     const [workersToPrint, setWorkersToPrint] = useState<WorkerRecord[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     
-    // [시스템] 인쇄 준비 상태 관리 (Atomic Counter)
-    const [loadedCount, setLoadedCount] = useState(0);
-    const [isReadyToPrint, setIsReadyToPrint] = useState(false);
-
     const latestRecords = useMemo(() => {
         const map = new Map<string, WorkerRecord>();
         workerRecords.forEach(r => {
@@ -271,28 +248,10 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
         if (targetWorkers.length === 0) return alert('발급할 근로자 데이터가 없습니다.');
         setWorkersToPrint(targetWorkers);
         setPrintType(type);
-        setLoadedCount(0);
-        setIsReadyToPrint(false);
         setIsPrintMode(true);
     };
 
-    // [시스템] QR 로드 콜백
-    const handleQRLoad = (success: boolean) => {
-        setLoadedCount(prev => prev + 1);
-    };
-
-    useEffect(() => {
-        if (isPrintMode && workersToPrint.length > 0) {
-            // 모든 QR이 로드되었는지 체크 (100% 완료 시에만 인쇄 허용)
-            if (loadedCount >= workersToPrint.length) {
-                setIsReadyToPrint(true);
-            }
-        }
-    }, [loadedCount, isPrintMode, workersToPrint.length]);
-
     if (isPrintMode) {
-        const progressPercent = workersToPrint.length > 0 ? Math.min(100, Math.round((loadedCount / workersToPrint.length) * 100)) : 0;
-
         return (
             <div className="fixed inset-0 bg-slate-100 z-[3000] overflow-y-auto font-sans">
                 {/* Print Control Header */}
@@ -306,45 +265,29 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                         </div>
                         <div>
                             <h2 className="text-2xl font-black text-slate-900">
-                                {printType === 'sticker' ? '안전모 스티커 일괄 발급' : '스마트 사원증 일괄 발급'}
+                                {printType === 'sticker' ? '안전모 스티커' : '스마트 사원증'} 인쇄 미리보기
                             </h2>
-                            <div className="flex items-center gap-3 mt-1">
-                                <span className={`text-xs font-bold px-2 py-0.5 rounded ${isReadyToPrint ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
-                                    {isReadyToPrint ? '준비 완료 (Ready)' : `데이터 생성 중... (${loadedCount}/${workersToPrint.length})`}
-                                </span>
-                                <div className="w-32 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                    <div className={`h-full transition-all duration-300 ${isReadyToPrint ? 'bg-green-500' : 'bg-indigo-500'}`} style={{ width: `${progressPercent}%` }}></div>
-                                </div>
-                            </div>
+                            <p className="text-slate-500 text-sm font-bold">
+                                화면에 QR코드와 사진이 모두 보이면 [인쇄 시작]을 누르세요.
+                            </p>
                         </div>
                     </div>
                     
-                    {/* Print Settings Guide */}
                     <div className="hidden lg:flex flex-col items-end text-right mr-6">
-                        <p className="text-xs font-bold text-rose-500 animate-pulse">⚠️ 인쇄 시 '배경 그래픽' 옵션을 꼭 켜주세요!</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">용지 크기: A4 / 여백: 없음(권장) 또는 기본</p>
+                        <p className="text-xs font-bold text-rose-500 animate-pulse">⚠️ 인쇄 설정에서 '배경 그래픽'을 꼭 켜주세요!</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">용지 크기: A4 / 여백: 없음(권장)</p>
                     </div>
 
                     <div className="flex gap-3">
                         <button onClick={() => setIsPrintMode(false)} className="px-6 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors text-sm">
-                            나가기
+                            닫기
                         </button>
                         <button 
                             onClick={() => window.print()} 
-                            disabled={!isReadyToPrint}
-                            className={`px-8 py-3 rounded-xl font-black shadow-lg transition-all flex items-center gap-2 text-sm
-                                ${isReadyToPrint 
-                                    ? 'bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-0.5 active:scale-95 cursor-pointer shadow-indigo-200' 
-                                    : 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                                }`}
+                            className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-black shadow-lg hover:bg-indigo-700 hover:-translate-y-0.5 active:scale-95 cursor-pointer shadow-indigo-200 flex items-center gap-2 text-sm"
                         >
-                            {!isReadyToPrint && <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
-                            {isReadyToPrint ? (
-                                <>
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                                    인쇄 시작
-                                </>
-                            ) : '처리 중...'}
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                            인쇄 시작 (Print)
                         </button>
                     </div>
                 </div>
@@ -352,18 +295,13 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                 {/* Print Preview Area */}
                 <div className="p-8 flex flex-col items-center min-h-screen bg-slate-100 print:bg-white print:p-0">
                     <div className="bg-white p-0 w-[210mm] min-h-[297mm] shadow-2xl print:shadow-none print:w-full print:h-auto overflow-hidden relative">
-                         {/* Watermark for preview only */}
-                         <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none no-print z-0">
-                            <span className="text-[100px] font-black -rotate-45">PREVIEW MODE</span>
-                         </div>
-                        
                         {/* A4 Grid Layout */}
                         <div className={`relative z-10 w-full h-full p-[10mm] grid content-start ${printType === 'sticker' ? "grid-cols-2 gap-x-[10mm] gap-y-[10mm]" : "grid-cols-3 gap-x-[5mm] gap-y-[10mm]"}`}>
                             {workersToPrint.map(w => (
                                 <div key={w.id} className="flex justify-center items-start break-inside-avoid page-break-inside-avoid">
                                     {printType === 'sticker' 
-                                        ? <PremiumSticker worker={w} onLoad={() => handleQRLoad(true)} /> 
-                                        : <PremiumIDCard worker={w} onLoad={() => handleQRLoad(true)} />
+                                        ? <PremiumSticker worker={w} /> 
+                                        : <PremiumIDCard worker={w} />
                                     }
                                 </div>
                             ))}
@@ -398,7 +336,7 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                         <h3 className="text-4xl lg:text-5xl font-black mb-4 tracking-tight leading-tight">근로자 보안 패스<br/>통합 발급 센터</h3>
                         <p className="text-slate-400 font-medium text-lg leading-relaxed max-w-xl">
                             현장의 안전 수준을 시각화하는 <span className="text-indigo-300 font-bold">스마트 스티커</span>와 <span className="text-indigo-300 font-bold">ID 카드</span>를 발급합니다.<br/>
-                            고속 QR 엔진이 적용되어 대량 인쇄 시에도 데이터 누락이 없습니다.
+                            대량 인쇄 시에는 '인쇄 미리보기' 화면에서 QR코드 생성을 확인 후 출력하세요.
                         </p>
                     </div>
                     <div className="flex gap-5 shrink-0">

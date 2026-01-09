@@ -74,17 +74,20 @@ const updateSchema = {
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 const LANGUAGE_POLICY = `
-**언어 정책 (매우 중요 - 엄격 준수)**:
-분석 대상의 **국적(Nationality)**에 따라 반드시 해당 모국어로 번역된 필드(_native)를 채워야 한다.
-- **중국(China)** -> 중국어 간체 (Simplified Chinese)
-- **베트남(Vietnam)** -> 베트남어 (Vietnamese)
-- **태국(Thailand)** -> 태국어 (Thai)
-- **우즈베키스탄(Uzbekistan)** -> 우즈베크어 (Uzbek)
-- **인도네시아(Indonesia)** -> 인도네시아어 (Indonesian)
-- **몽골(Mongolia)** -> 몽골어 (Mongolian)
-- **캄보디아(Cambodia)** -> 크메르어 (Khmer)
-- **러시아/카자흐스탄** -> 러시아어 (Russian)
-- **한국(Korea)** -> 한국어 (Korean) (native 필드도 한국어로 전문적으로 재기술)
+**언어 및 국적 표준화 정책 (엄격 준수)**:
+1. **국적 표기 통일**: 분석 대상의 국적(Nationality)이 '한국', 'Korea', 'South Korea', 'ROK' 등으로 식별될 경우, 반드시 **'대한민국'**으로 저장하라.
+   그 외 국가는 통용되는 한글 명칭을 사용한다 (예: 베트남, 중국, 태국, 우즈베키스탄 등).
+
+2. **모국어 필드(_native)**:
+   - **대한민국** -> 한국어 (Korean) (native 필드도 한국어로 전문적으로 재기술)
+   - **중국** -> 중국어 간체 (Simplified Chinese)
+   - **베트남** -> 베트남어 (Vietnamese)
+   - **태국** -> 태국어 (Thai)
+   - **우즈베키스탄** -> 우즈베크어 (Uzbek)
+   - **인도네시아** -> 인도네시아어 (Indonesian)
+   - **몽골** -> 몽골어 (Mongolian)
+   - **캄보디아** -> 크메르어 (Khmer)
+   - **러시아/카자흐스탄** -> 러시아어 (Russian)
 
 **번역 지침**:
 단순 직역이 아닌, 건설 현장에서 통용되는 '안전 전문 용어'로 의역하라.

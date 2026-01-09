@@ -1,9 +1,10 @@
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord } from '../types';
 import { ReportTemplate } from '../components/ReportTemplate';
 
 type ReportType = 'worker-report' | 'team-report';
+type GenMode = 'combined-pdf' | 'individual-pdf' | 'individual-img';
 
 interface ReportsProps {
     workerRecords?: WorkerRecord[];
@@ -19,13 +20,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const [isGenerating, setIsGenerating] = useState(false);
     const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
     
-    // 팀 리포트용 상태
+    // 생성 옵션
     const [selectedTeam, setSelectedTeam] = useState('전체');
     const [filterLevel, setFilterLevel] = useState('전체');
+    const [genMode, setGenMode] = useState<GenMode>('individual-pdf'); // Default: 개별 PDF(ZIP)
 
     // Bulk Generation State
     const [generatingRecord, setGeneratingRecord] = useState<WorkerRecord | null>(null);
-    const [generatingHistory, setGeneratingHistory] = useState<WorkerRecord[]>([]); // [NEW] History context
+    const [generatingHistory, setGeneratingHistory] = useState<WorkerRecord[]>([]);
     const bulkReportRef = useRef<HTMLDivElement>(null);
     const abortRef = useRef<boolean>(false);
 
@@ -45,63 +47,137 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         return result.sort((a,b) => a.name.localeCompare(b.name));
     }, [workerRecords, activeTab, selectedTeam, filterLevel]);
 
-    const handleBulkDownloadPDF = async () => {
+    // 렌더링 안정화 대기 함수 (시간을 늘려 안정성 확보)
+    const waitForRender = async (ms: number = 1500) => {
+        await new Promise(resolve => setTimeout(resolve, ms)); 
+    };
+
+    const handleGenerate = async () => {
         if (filteredRecords.length === 0) return alert('출력할 대상이 없습니다.');
+
+        // 1. 라이브러리 체크 (클릭 시점에 확인)
+        const w = window as any;
+        const missingLibs = [];
+        if (!w.html2canvas) missingLibs.push('html2canvas');
+        if (!w.jspdf) missingLibs.push('jspdf');
+        if (!w.JSZip) missingLibs.push('JSZip');
+        if (!w.saveAs) missingLibs.push('FileSaver');
+        if (!w.Chart) missingLibs.push('Chart.js');
+
+        if (missingLibs.length > 0) {
+            return alert(`필수 라이브러리가 로드되지 않았습니다.\n(누락: ${missingLibs.join(', ')})\n\n인터넷 연결을 확인하거나 페이지를 새로고침(F5) 해주세요.`);
+        }
         
-        const html2canvas = (window as any).html2canvas;
-        const jspdf = (window as any).jspdf;
-        if (!html2canvas || !jspdf) return alert('PDF 라이브러리 로드 중입니다. 잠시 후 시도해주세요.');
+        const modeLabels: Record<GenMode, string> = {
+            'combined-pdf': '통합 PDF 파일 (1개)',
+            'individual-pdf': '개별 PDF 파일 (ZIP 압축)',
+            'individual-img': '개별 이미지 파일 (ZIP 압축)'
+        };
 
-        if (!confirm(`${selectedTeam === '전체' ? '전체 팀' : selectedTeam + ' 팀'}의 근로자 ${filteredRecords.length}명에 대한\n정밀 리포트를 일괄 생성하시겠습니까?\n(예상 소요시간: 약 ${Math.ceil(filteredRecords.length * 1.5)}초)`)) return;
+        if (!confirm(`${selectedTeam === '전체' ? '전체 팀' : selectedTeam + ' 팀'}의 근로자 ${filteredRecords.length}명에 대해\n[${modeLabels[genMode]}] 생성을 시작하시겠습니까?\n\n* 주의: 생성 중에는 화면을 닫지 말고 기다려주세요.`)) return;
 
+        // 2. 초기화
         setIsGenerating(true);
         abortRef.current = false;
         setBulkProgress({ current: 0, total: filteredRecords.length });
 
-        const jsPDF = jspdf.jsPDF ? jspdf.jsPDF : jspdf;
-        const pdf = new jsPDF('p', 'mm', 'a4');
+        // 라이브러리 인스턴스 준비
+        const JSZip = w.JSZip;
+        const saveAs = w.saveAs;
+        const html2canvas = w.html2canvas;
+        const jspdf = w.jspdf;
+
+        // ZIP 및 PDF 초기화
+        const zip = new JSZip();
+        const timestamp = new Date().toISOString().slice(0,10).replace(/-/g, '');
+        const folderName = `PSI_${selectedTeam}_${timestamp}`;
+        const folder = zip.folder(folderName);
+        
+        let masterPdf: any = null;
+        if (genMode === 'combined-pdf') {
+            const jsPDF = jspdf.jsPDF ? jspdf.jsPDF : jspdf;
+            masterPdf = new jsPDF('p', 'mm', 'a4');
+        }
 
         try {
+            // 3. 순차 생성 루프
             for (let i = 0; i < filteredRecords.length; i++) {
                 if (abortRef.current) break;
 
                 const record = filteredRecords[i];
-                
-                // [NEW] Find history for this specific worker to render trend charts correctly
                 const workerHistory = workerRecords.filter(r => 
                     r.name === record.name && 
                     (r.teamLeader || '미지정') === (record.teamLeader || '미지정')
                 );
 
+                // UI 업데이트 (렌더링 트리거)
                 setGeneratingRecord(record);
                 setGeneratingHistory(workerHistory);
                 setBulkProgress({ current: i + 1, total: filteredRecords.length });
 
-                // React Render & Chart Animation Wait (Critical for Chart.js)
-                await new Promise(resolve => setTimeout(resolve, 800));
+                // DOM 렌더링 완료 대기 (중요: 차트 애니메이션 및 이미지 로딩 시간 확보)
+                await waitForRender(1200);
 
                 if (bulkReportRef.current && !abortRef.current) {
-                    const canvas = await html2canvas(bulkReportRef.current, { 
-                        scale: 2, // Balance between quality and file size
-                        useCORS: true, 
-                        logging: false, 
-                        backgroundColor: '#ffffff' 
-                    });
-                    const imgData = canvas.toDataURL('image/jpeg', 0.9); // Use JPEG for smaller file size in bulk
-                    
-                    if (i > 0) pdf.addPage();
-                    pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+                    try {
+                        // 캡처 실행
+                        const canvas = await html2canvas(bulkReportRef.current, { 
+                            scale: 2, // 해상도 2배
+                            useCORS: true, 
+                            logging: false, 
+                            backgroundColor: '#ffffff',
+                            allowTaint: true,
+                            scrollY: 0, 
+                            scrollX: 0,
+                            windowWidth: 794, // A4 pixel width (approx) at 96 DPI
+                            windowHeight: 1123
+                        });
+
+                        const fileNameBase = `${record.name}_${record.jobField}`;
+
+                        // 모드별 저장 로직
+                        if (genMode === 'combined-pdf') {
+                            const imgData = canvas.toDataURL('image/jpeg', 0.85);
+                            if (i > 0) masterPdf.addPage();
+                            masterPdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+                        } 
+                        else if (genMode === 'individual-pdf') {
+                            const imgData = canvas.toDataURL('image/jpeg', 0.85);
+                            const jsPDF = jspdf.jsPDF ? jspdf.jsPDF : jspdf;
+                            const tempPdf = new jsPDF('p', 'mm', 'a4');
+                            tempPdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+                            const pdfBlob = tempPdf.output('blob');
+                            folder.file(`${fileNameBase}.pdf`, pdfBlob);
+                        } 
+                        else if (genMode === 'individual-img') {
+                            const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+                            if (blob) folder.file(`${fileNameBase}.jpg`, blob);
+                        }
+                    } catch (err) {
+                        console.error(`[Error] ${record.name} 처리 중 오류:`, err);
+                    }
                 }
+                
+                // 브라우저 응답 없음 방지를 위한 미세 딜레이
+                await new Promise(r => setTimeout(r, 100));
             }
 
+            // 4. 최종 저장
             if (!abortRef.current) {
-                pdf.save(`PSI_BulkReport_${selectedTeam}_${new Date().toISOString().slice(0,10)}.pdf`);
+                if (genMode === 'combined-pdf') {
+                    masterPdf.save(`${folderName}.pdf`);
+                } else {
+                    const content = await zip.generateAsync({ type: "blob" });
+                    saveAs(content,(`${folderName}.zip`));
+                }
+                alert('생성이 완료되었습니다. 다운로드 폴더를 확인해주세요.');
             } else {
-                alert('생성이 취소되었습니다.');
+                alert('작업이 중단되었습니다.');
             }
-        } catch (e) {
-            console.error(e);
-            alert('일괄 생성 중 오류가 발생했습니다.');
+
+        } catch (e: any) {
+            console.error("Critical Error:", e);
+            alert(`오류가 발생했습니다: ${e.message}\n브라우저 메모리가 부족할 수 있습니다. 페이지를 새로고침 후 다시 시도해주세요.`);
         } finally {
             setIsGenerating(false);
             setGeneratingRecord(null);
@@ -110,7 +186,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     };
 
     const cancelGeneration = () => {
-        if(confirm("일괄 생성을 중단하시겠습니까?")) {
+        if(confirm("작업을 중단하시겠습니까?")) {
             abortRef.current = true;
         }
     };
@@ -120,8 +196,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 no-print">
                 <h2 className="text-2xl font-black text-slate-900">PSI 정밀 보고서 센터</h2>
                 <div className="flex items-center space-x-3 bg-white rounded-lg p-1 shadow-sm border border-slate-200">
-                    <span className="text-xs font-bold text-slate-500 pl-3 pr-1">REPORT MODE:</span>
-                    <span className="text-xs font-black text-indigo-600 pr-3 uppercase">Bulk Generation Ready</span>
+                    <span className="text-xs font-bold text-slate-500 pl-3 pr-1">STATUS:</span>
+                    <span className="text-xs font-black px-3 uppercase text-indigo-600">
+                        System Ready
+                    </span>
                 </div>
             </div>
 
@@ -138,52 +216,73 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 </div>
             </div>
 
-            <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap gap-4 items-center no-print">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap gap-4 items-end no-print">
                 {activeTab === 'team-report' && (
-                    <div className="flex items-center gap-2">
-                        <label className="text-xs font-bold text-slate-500">대상 공종:</label>
-                        <select value={selectedTeam} onChange={e => setSelectedTeam(e.target.value)} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 mb-1 block">대상 공종 (팀)</label>
+                        <select value={selectedTeam} onChange={e => setSelectedTeam(e.target.value)} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[140px]">
                             {teams.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                     </div>
                 )}
-                <div className="flex items-center gap-2">
-                    <label className="text-xs font-bold text-slate-500">등급 필터:</label>
-                    <select value={filterLevel} onChange={e => setFilterLevel(e.target.value)} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
+                <div>
+                    <label className="text-xs font-bold text-slate-500 mb-1 block">등급 필터</label>
+                    <select value={filterLevel} onChange={e => setFilterLevel(e.target.value)} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
                         <option value="전체">전체 등급</option>
                         <option value="초급">초급 (고위험)</option>
                         <option value="중급">중급 (주의)</option>
                         <option value="고급">고급 (우수)</option>
                     </select>
                 </div>
-                <div className="ml-auto flex gap-3">
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg">
-                        <span>대상 인원: {filteredRecords.length}명</span>
+                <div>
+                    <label className="text-xs font-bold text-slate-500 mb-1 block">출력 형태</label>
+                    <select value={genMode} onChange={e => setGenMode(e.target.value as GenMode)} className="bg-indigo-50 border border-indigo-200 text-indigo-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-black min-w-[200px]">
+                        <option value="individual-pdf">📁 개별 PDF (ZIP 압축)</option>
+                        <option value="individual-img">🖼️ 개별 이미지 (ZIP 압축)</option>
+                        <option value="combined-pdf">📑 통합 PDF (단일 파일)</option>
+                    </select>
+                </div>
+                
+                <div className="flex-1"></div>
+
+                {/* Bulk Actions */}
+                <div className="flex gap-3 items-center">
+                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 h-[42px]">
+                        <span>대상: {filteredRecords.length}명</span>
                     </div>
+                    
                     {isGenerating ? (
-                        <div className="flex items-center gap-2">
-                            <div className="text-xs font-black text-indigo-600 animate-pulse bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100">
-                                생성 중... ({bulkProgress.current}/{bulkProgress.total})
+                        <div className="flex items-center gap-2 animate-fade-in">
+                            <div className="text-xs font-black text-indigo-600 animate-pulse bg-indigo-50 px-4 py-2.5 rounded-xl border border-indigo-100 shadow-sm h-[42px] flex items-center">
+                                {isGenerating && <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
+                                진행 중... ({bulkProgress.current}/{bulkProgress.total})
                             </div>
-                            <button onClick={cancelGeneration} className="px-4 py-2 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-300">
-                                취소
+                            <button onClick={cancelGeneration} className="px-4 py-2.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-300 h-[42px]">
+                                중단
                             </button>
                         </div>
                     ) : (
                         <button 
-                            onClick={handleBulkDownloadPDF} 
-                            className={`px-5 py-2.5 text-white font-black rounded-xl shadow-lg transition-all flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5`}
+                            onClick={handleGenerate} 
+                            disabled={filteredRecords.length === 0}
+                            className={`px-6 py-2.5 text-white font-black rounded-xl shadow-lg transition-all flex items-center gap-2 text-sm h-[42px]
+                                ${filteredRecords.length === 0 ? 'bg-slate-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 cursor-pointer'}`}
                         >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg> 
-                            팀별 일괄 PDF 생성
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> 
+                            일괄 생성 시작
                         </button>
                     )}
                 </div>
             </div>
 
-            {/* Hidden Rendering Area for Bulk Generation */}
-            {/* Using left-[-9999px] to keep it in DOM for html2canvas but invisible to user */}
-            <div className="fixed top-0 left-[-9999px] overflow-hidden opacity-0 pointer-events-none" aria-hidden="true">
+            {/* 
+               [CRITICAL FIX] Hidden Rendering Area 
+               - zIndex: -50 ensures it is BEHIND the main content.
+               - position: fixed, top: 0, left: 0 ensures valid viewport coordinates for html2canvas.
+               - Explicit width/height (A4 size approx in px) prevents zero-size element capture issues.
+               - opacity 1 required for html2canvas to capture (it ignores opacity: 0). We rely on z-index to hide it.
+            */}
+            <div style={{ position: 'fixed', top: 0, left: 0, zIndex: -50, width: '210mm', minHeight: '297mm', pointerEvents: 'none' }}>
                 {isGenerating && generatingRecord && (
                     <ReportTemplate record={generatingRecord} history={generatingHistory} ref={bulkReportRef} />
                 )}
@@ -192,14 +291,17 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             {/* List View for Preview */}
             <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
                 <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-700 text-sm">생성 대상 미리보기</h3>
+                    <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2">
+                        <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                        생성 대상 미리보기
+                    </h3>
                 </div>
-                <div className="overflow-y-auto flex-1 p-0">
+                <div className="overflow-y-auto flex-1 p-0 custom-scrollbar">
                     <table className="w-full text-left text-sm">
-                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs sticky top-0 z-10">
+                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs sticky top-0 z-10 shadow-sm">
                             <tr>
                                 <th className="px-6 py-3">이름</th>
-                                <th className="px-6 py-3">직종</th>
+                                <th className="px-6 py-3">직종 (Team)</th>
                                 <th className="px-6 py-3">안전점수</th>
                                 <th className="px-6 py-3">등급</th>
                                 <th className="px-6 py-3">주요 취약점</th>

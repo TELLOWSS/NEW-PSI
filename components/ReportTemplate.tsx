@@ -122,6 +122,7 @@ const LABELS: Record<string, Record<string, string>> = {
     '인도네시아': { strengths: 'Kekuatan (강점)', weaknesses: 'Kelemahan (취약점)', trends: 'Tren (안전 추이)', verdict: 'Diagnosis (종합진단)', pictogram: 'Rambu Wajib (필수 안전 표지)', original: 'Asli', cert: 'Sertifikat Keselamatan' },
     '몽골': { strengths: 'Давуу тал (강점)', weaknesses: 'Сул тал (취약점)', trends: 'Хандлага (안전 추이)', verdict: 'Дүгнэлт (종합진단)', pictogram: 'Анхааруулах тэмдэг (필수 안전 표지)', original: 'Эх хувь', cert: 'Аюулгүй байдлын гэрчилгээ' },
     '한국': { strengths: '역량 강점 (Strengths)', weaknesses: '개선 권고 (Focus Areas)', trends: '성과 추이 (Trends)', verdict: '종합 안전 진단 (Comprehensive Diagnosis)', pictogram: '직무 맞춤형 필수 안전 표지 (Safety Signs)', original: '수기 기록 원본 (Original Record)', cert: '안전 역량 인증 및 분석서' },
+    '대한민국': { strengths: '역량 강점 (Strengths)', weaknesses: '개선 권고 (Focus Areas)', trends: '성과 추이 (Trends)', verdict: '종합 안전 진단 (Comprehensive Diagnosis)', pictogram: '직무 맞춤형 필수 안전 표지 (Safety Signs)', original: '수기 기록 원본 (Original Record)', cert: '안전 역량 인증 및 분석서' },
     'default': { strengths: 'Strengths', weaknesses: 'Focus Areas', trends: 'Trends', verdict: 'Comprehensive Diagnosis', pictogram: 'Essential Safety Signs', original: 'Original Record', cert: 'Certificate of Safety Competence' }
 };
 
@@ -135,7 +136,7 @@ const getLabels = (nationality: string) => {
     if (nation.includes('캄보디아')) return LABELS['캄보디아'];
     if (nation.includes('인도네시아')) return LABELS['인도네시아'];
     if (nation.includes('몽골')) return LABELS['몽골'];
-    if (nation.includes('한국')) return LABELS['한국'];
+    if (nation.includes('한국') || nation.includes('대한민국')) return LABELS['한국'];
     return LABELS['default'];
 };
 
@@ -149,7 +150,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     const trendChartInstance = useRef<Chart | null>(null);
 
     const labels = useMemo(() => getLabels(record.nationality), [record.nationality]);
-    const isKorean = record.nationality === '한국';
+    const isKorean = record.nationality === '한국' || record.nationality === '대한민국';
     const safetySigns = useMemo(() => getRelevantSigns(record.weakAreas, record.jobField), [record.weakAreas, record.jobField]);
 
     // Trend Chart Rendering
