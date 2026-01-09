@@ -226,11 +226,20 @@ const PremiumIDCard: React.FC<{ worker: WorkerRecord }> = ({ worker }) => {
 };
 
 const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails: any }> = ({ workerRecords, onViewDetails }) => {
+    // --- Main View States ---
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedTeam, setSelectedTeam] = useState('전체');
+    const [filterLevel, setFilterLevel] = useState('전체');
+
+    // --- Print Modal States ---
     const [isPrintMode, setIsPrintMode] = useState(false);
     const [printType, setPrintType] = useState<'sticker' | 'idcard'>('sticker');
     const [workersToPrint, setWorkersToPrint] = useState<WorkerRecord[]>([]);
-    const [searchTerm, setSearchTerm] = useState('');
     
+    // View Mode Toggle (Grid vs Flip)
+    const [viewType, setViewType] = useState<'grid' | 'flip'>('grid');
+    const [currentFlipIndex, setCurrentFlipIndex] = useState(0);
+
     const latestRecords = useMemo(() => {
         const map = new Map<string, WorkerRecord>();
         workerRecords.forEach(r => {
@@ -240,15 +249,52 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
         return Array.from(map.values()).sort((a,b) => a.name.localeCompare(b.name));
     }, [workerRecords]);
 
+    const teams = useMemo(() => ['전체', ...Array.from(new Set(latestRecords.map(r => r.jobField))).sort()], [latestRecords]);
+
     const filteredRecords = useMemo(() => {
-        return latestRecords.filter(r => r.name.toLowerCase().includes(searchTerm.toLowerCase()));
-    }, [latestRecords, searchTerm]);
+        return latestRecords.filter(r => {
+            const matchesSearch = r.name.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesTeam = selectedTeam === '전체' || r.jobField === selectedTeam;
+            const matchesLevel = filterLevel === '전체' || r.safetyLevel === filterLevel;
+            return matchesSearch && matchesTeam && matchesLevel;
+        });
+    }, [latestRecords, searchTerm, selectedTeam, filterLevel]);
 
     const startProcessing = (type: 'sticker' | 'idcard', targetWorkers: WorkerRecord[]) => {
         if (targetWorkers.length === 0) return alert('발급할 근로자 데이터가 없습니다.');
         setWorkersToPrint(targetWorkers);
         setPrintType(type);
         setIsPrintMode(true);
+        setViewType('grid'); // Default to grid
+        setCurrentFlipIndex(0);
+    };
+
+    // Navigation for Flip View
+    const handleNext = () => setCurrentFlipIndex(prev => Math.min(workersToPrint.length - 1, prev + 1));
+    const handlePrev = () => setCurrentFlipIndex(prev => Math.max(0, prev - 1));
+
+    // Print Single Item logic: we can achieve this by temporarily showing only the current item in the print media query, 
+    // but a simpler way is to just let the user see it and then maybe we add a 'print single' feature later.
+    // For now, "Print All" prints the *currently filtered set* (workersToPrint).
+    // If user wants to print one, they can filter or we can implement a specific single print.
+    // Let's stick to standard browser print which prints what's visible.
+    // Actually, to print 'current only' in flip mode, we'd need to hide others. 
+    // Strategy: The 'Print' button will print *all* in grid mode. 
+    // If in Flip mode, we can add a button "Print This Only" which temporarily hides others.
+
+    const printCurrentOnly = () => {
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @media print {
+                .print-item { display: none !important; }
+                .print-item-${workersToPrint[currentFlipIndex].id} { display: flex !important; position: absolute; top: 0; left: 0; }
+                .print-container { display: block !important; }
+                @page { size: auto; margin: 0mm; }
+            }
+        `;
+        document.head.appendChild(style);
+        window.print();
+        document.head.removeChild(style);
     };
 
     if (isPrintMode) {
@@ -265,48 +311,94 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                         </div>
                         <div>
                             <h2 className="text-2xl font-black text-slate-900">
-                                {printType === 'sticker' ? '안전모 스티커' : '스마트 사원증'} 인쇄 미리보기
+                                {printType === 'sticker' ? '안전모 스티커' : '스마트 사원증'} 발급 센터
                             </h2>
-                            <p className="text-slate-500 text-sm font-bold">
-                                화면에 QR코드와 사진이 모두 보이면 [인쇄 시작]을 누르세요.
-                            </p>
+                            <div className="flex items-center gap-4 mt-1">
+                                <p className="text-slate-500 text-sm font-bold">
+                                    총 {workersToPrint.length}명 대기 중
+                                </p>
+                                {/* View Toggle */}
+                                <div className="flex bg-slate-100 p-1 rounded-lg">
+                                    <button 
+                                        onClick={() => setViewType('grid')}
+                                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${viewType === 'grid' ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        그리드 보기 (전체)
+                                    </button>
+                                    <button 
+                                        onClick={() => setViewType('flip')}
+                                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${viewType === 'flip' ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                                    >
+                                        플립 보기 (상세)
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
-                    <div className="hidden lg:flex flex-col items-end text-right mr-6">
-                        <p className="text-xs font-bold text-rose-500 animate-pulse">⚠️ 인쇄 설정에서 '배경 그래픽'을 꼭 켜주세요!</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">용지 크기: A4 / 여백: 없음(권장)</p>
-                    </div>
+                    {viewType === 'flip' && (
+                        <div className="flex items-center gap-4 bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
+                            <button onClick={handlePrev} disabled={currentFlipIndex === 0} className="p-2 hover:bg-white rounded-full disabled:opacity-30"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
+                            <span className="font-mono font-bold text-slate-700 w-16 text-center">{currentFlipIndex + 1} / {workersToPrint.length}</span>
+                            <button onClick={handleNext} disabled={currentFlipIndex === workersToPrint.length - 1} className="p-2 hover:bg-white rounded-full disabled:opacity-30"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></button>
+                        </div>
+                    )}
 
                     <div className="flex gap-3">
                         <button onClick={() => setIsPrintMode(false)} className="px-6 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors text-sm">
                             닫기
                         </button>
-                        <button 
-                            onClick={() => window.print()} 
-                            className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-black shadow-lg hover:bg-indigo-700 hover:-translate-y-0.5 active:scale-95 cursor-pointer shadow-indigo-200 flex items-center gap-2 text-sm"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                            인쇄 시작 (Print)
-                        </button>
+                        {viewType === 'flip' ? (
+                            <button 
+                                onClick={printCurrentOnly} 
+                                className="px-8 py-3 bg-slate-800 text-white rounded-xl font-black shadow-lg hover:bg-slate-900 transition-transform hover:-translate-y-0.5 flex items-center gap-2 text-sm"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                현재 장만 인쇄
+                            </button>
+                        ) : (
+                            <button 
+                                onClick={() => window.print()} 
+                                className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-black shadow-lg hover:bg-indigo-700 transition-transform hover:-translate-y-0.5 flex items-center gap-2 text-sm"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                전체 일괄 인쇄
+                            </button>
+                        )}
                     </div>
                 </div>
 
                 {/* Print Preview Area */}
                 <div className="p-8 flex flex-col items-center min-h-screen bg-slate-100 print:bg-white print:p-0">
-                    <div className="bg-white p-0 w-[210mm] min-h-[297mm] shadow-2xl print:shadow-none print:w-full print:h-auto overflow-hidden relative">
-                        {/* A4 Grid Layout */}
-                        <div className={`relative z-10 w-full h-full p-[10mm] grid content-start ${printType === 'sticker' ? "grid-cols-2 gap-x-[10mm] gap-y-[10mm]" : "grid-cols-3 gap-x-[5mm] gap-y-[10mm]"}`}>
-                            {workersToPrint.map(w => (
-                                <div key={w.id} className="flex justify-center items-start break-inside-avoid page-break-inside-avoid">
-                                    {printType === 'sticker' 
-                                        ? <PremiumSticker worker={w} /> 
-                                        : <PremiumIDCard worker={w} />
-                                    }
-                                </div>
-                            ))}
+                    
+                    {viewType === 'grid' ? (
+                        /* GRID VIEW (For Printing All) */
+                        <div className="bg-white p-0 w-[210mm] min-h-[297mm] shadow-2xl print:shadow-none print:w-full print:h-auto overflow-hidden relative print-container">
+                            <div className={`relative z-10 w-full h-full p-[10mm] grid content-start ${printType === 'sticker' ? "grid-cols-2 gap-x-[10mm] gap-y-[10mm]" : "grid-cols-3 gap-x-[5mm] gap-y-[10mm]"}`}>
+                                {workersToPrint.map(w => (
+                                    <div key={w.id} className="flex justify-center items-start break-inside-avoid page-break-inside-avoid">
+                                        {printType === 'sticker' 
+                                            ? <PremiumSticker worker={w} /> 
+                                            : <PremiumIDCard worker={w} />
+                                        }
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-                    </div>
+                    ) : (
+                        /* FLIP VIEW (For Inspection) */
+                        <div className="flex flex-col items-center justify-center w-full h-full min-h-[600px]">
+                            <div className={`transform transition-all duration-300 ${printType === 'sticker' ? 'scale-150' : 'scale-150'} print-item print-item-${workersToPrint[currentFlipIndex].id}`}>
+                                {printType === 'sticker' 
+                                    ? <PremiumSticker worker={workersToPrint[currentFlipIndex]} /> 
+                                    : <PremiumIDCard worker={workersToPrint[currentFlipIndex]} />
+                                }
+                            </div>
+                            <div className="mt-20 text-slate-400 font-bold text-sm no-print animate-pulse">
+                                * 확대된 미리보기 화면입니다. 인쇄 시에는 원본 크기로 출력됩니다.
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <style>{`
@@ -363,12 +455,27 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
             </div>
 
             {/* Controls */}
-            <div className="bg-white p-6 rounded-[30px] shadow-xl border border-slate-100 flex flex-wrap gap-4 items-center no-print">
-                <div className="flex-1 relative min-w-[200px]">
+            <div className="bg-white p-6 rounded-[30px] shadow-xl border border-slate-100 flex flex-col lg:flex-row gap-4 items-center no-print">
+                <div className="flex-1 w-full relative min-w-[200px]">
                     <svg className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={3}/></svg>
                     <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="근로자 이름으로 검색..." className="w-full bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500 rounded-2xl pl-14 pr-6 py-4 font-bold text-base transition-all shadow-inner" />
                 </div>
-                <div className="bg-indigo-50 px-6 py-4 rounded-2xl text-indigo-700 font-bold text-sm border border-indigo-100 flex items-center gap-2">
+                <div className="flex gap-4 w-full lg:w-auto">
+                    <div className="flex-1">
+                        <select value={selectedTeam} onChange={e => setSelectedTeam(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[140px]">
+                            {teams.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                    </div>
+                    <div className="flex-1">
+                        <select value={filterLevel} onChange={e => setFilterLevel(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[120px]">
+                            <option value="전체">전체 등급</option>
+                            <option value="초급">초급</option>
+                            <option value="중급">중급</option>
+                            <option value="고급">고급</option>
+                        </select>
+                    </div>
+                </div>
+                <div className="bg-indigo-50 px-6 py-4 rounded-2xl text-indigo-700 font-bold text-sm border border-indigo-100 flex items-center gap-2 shrink-0">
                     <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
                     발급 대기: {filteredRecords.length}명
                 </div>

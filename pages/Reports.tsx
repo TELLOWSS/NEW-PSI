@@ -5,6 +5,7 @@ import { ReportTemplate } from '../components/ReportTemplate';
 
 type ReportType = 'worker-report' | 'team-report';
 type GenMode = 'combined-pdf' | 'individual-pdf' | 'individual-img';
+type ViewMode = 'list' | 'preview';
 
 interface ReportsProps {
     workerRecords?: WorkerRecord[];
@@ -23,7 +24,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     // 생성 옵션
     const [selectedTeam, setSelectedTeam] = useState('전체');
     const [filterLevel, setFilterLevel] = useState('전체');
-    const [genMode, setGenMode] = useState<GenMode>('individual-pdf'); // Default: 개별 PDF(ZIP)
+    const [genMode, setGenMode] = useState<GenMode>('individual-pdf'); 
+    
+    // 뷰 모드 및 미리보기 상태
+    const [viewMode, setViewMode] = useState<ViewMode>('list');
+    const [previewIndex, setPreviewIndex] = useState(0);
+    const previewRef = useRef<HTMLDivElement>(null); // For single capture in preview
 
     // Bulk Generation State
     const [generatingRecord, setGeneratingRecord] = useState<WorkerRecord | null>(null);
@@ -47,15 +53,61 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         return result.sort((a,b) => a.name.localeCompare(b.name));
     }, [workerRecords, activeTab, selectedTeam, filterLevel]);
 
-    // 렌더링 안정화 대기 함수 (시간을 늘려 안정성 확보)
+    // 필터 변경 시 미리보기 인덱스 초기화
+    useEffect(() => {
+        setPreviewIndex(0);
+    }, [selectedTeam, filterLevel, activeTab]);
+
+    // 현재 미리보기 대상 데이터
+    const currentPreviewRecord = filteredRecords[previewIndex];
+    const currentPreviewHistory = useMemo(() => {
+        if (!currentPreviewRecord) return [];
+        return workerRecords.filter(r => 
+            r.name === currentPreviewRecord.name && 
+            (r.teamLeader || '미지정') === (currentPreviewRecord.teamLeader || '미지정')
+        );
+    }, [currentPreviewRecord, workerRecords]);
+
+    // 렌더링 안정화 대기 함수
     const waitForRender = async (ms: number = 1500) => {
         await new Promise(resolve => setTimeout(resolve, ms)); 
+    };
+
+    // [New] 미리보기 네비게이션
+    const handlePrev = () => setPreviewIndex(prev => Math.max(0, prev - 1));
+    const handleNext = () => setPreviewIndex(prev => Math.min(filteredRecords.length - 1, prev + 1));
+
+    // [New] 현재 미리보기 보고서 단건 내보내기
+    const handleDownloadCurrent = async () => {
+        if (!currentPreviewRecord || !previewRef.current) return;
+        const w = window as any;
+        if (!w.html2canvas || !w.jspdf) return alert('필수 라이브러리가 로드되지 않았습니다.');
+
+        if (!confirm(`'${currentPreviewRecord.name}' 근로자의 보고서를 PDF로 내보내시겠습니까?`)) return;
+
+        try {
+            const canvas = await w.html2canvas(previewRef.current, { 
+                scale: 2, 
+                useCORS: true, 
+                logging: false, 
+                backgroundColor: '#ffffff',
+                windowWidth: 794, 
+                windowHeight: 1123
+            });
+            const imgData = canvas.toDataURL('image/jpeg', 0.9);
+            const pdf = new w.jspdf.jsPDF('p', 'mm', 'a4');
+            pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+            pdf.save(`PSI_Report_${currentPreviewRecord.name}_${currentPreviewRecord.jobField}.pdf`);
+        } catch (e) {
+            console.error(e);
+            alert('PDF 생성 실패');
+        }
     };
 
     const handleGenerate = async () => {
         if (filteredRecords.length === 0) return alert('출력할 대상이 없습니다.');
 
-        // 1. 라이브러리 체크 (클릭 시점에 확인)
+        // 라이브러리 체크
         const w = window as any;
         const missingLibs = [];
         if (!w.html2canvas) missingLibs.push('html2canvas');
@@ -76,18 +128,16 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
         if (!confirm(`${selectedTeam === '전체' ? '전체 팀' : selectedTeam + ' 팀'}의 근로자 ${filteredRecords.length}명에 대해\n[${modeLabels[genMode]}] 생성을 시작하시겠습니까?\n\n* 주의: 생성 중에는 화면을 닫지 말고 기다려주세요.`)) return;
 
-        // 2. 초기화
+        // 초기화
         setIsGenerating(true);
         abortRef.current = false;
         setBulkProgress({ current: 0, total: filteredRecords.length });
 
-        // 라이브러리 인스턴스 준비
         const JSZip = w.JSZip;
         const saveAs = w.saveAs;
         const html2canvas = w.html2canvas;
         const jspdf = w.jspdf;
 
-        // ZIP 및 PDF 초기화
         const zip = new JSZip();
         const timestamp = new Date().toISOString().slice(0,10).replace(/-/g, '');
         const folderName = `PSI_${selectedTeam}_${timestamp}`;
@@ -100,7 +150,6 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         }
 
         try {
-            // 3. 순차 생성 루프
             for (let i = 0; i < filteredRecords.length; i++) {
                 if (abortRef.current) break;
 
@@ -110,32 +159,28 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     (r.teamLeader || '미지정') === (record.teamLeader || '미지정')
                 );
 
-                // UI 업데이트 (렌더링 트리거)
                 setGeneratingRecord(record);
                 setGeneratingHistory(workerHistory);
                 setBulkProgress({ current: i + 1, total: filteredRecords.length });
 
-                // DOM 렌더링 완료 대기 (중요: 차트 애니메이션 및 이미지 로딩 시간 확보)
                 await waitForRender(1200);
 
                 if (bulkReportRef.current && !abortRef.current) {
                     try {
-                        // 캡처 실행
                         const canvas = await html2canvas(bulkReportRef.current, { 
-                            scale: 2, // 해상도 2배
+                            scale: 2, 
                             useCORS: true, 
                             logging: false, 
                             backgroundColor: '#ffffff',
                             allowTaint: true,
                             scrollY: 0, 
                             scrollX: 0,
-                            windowWidth: 794, // A4 pixel width (approx) at 96 DPI
+                            windowWidth: 794,
                             windowHeight: 1123
                         });
 
                         const fileNameBase = `${record.name}_${record.jobField}`;
 
-                        // 모드별 저장 로직
                         if (genMode === 'combined-pdf') {
                             const imgData = canvas.toDataURL('image/jpeg', 0.85);
                             if (i > 0) masterPdf.addPage();
@@ -158,11 +203,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     }
                 }
                 
-                // 브라우저 응답 없음 방지를 위한 미세 딜레이
                 await new Promise(r => setTimeout(r, 100));
             }
 
-            // 4. 최종 저장
             if (!abortRef.current) {
                 if (genMode === 'combined-pdf') {
                     masterPdf.save(`${folderName}.pdf`);
@@ -217,6 +260,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap gap-4 items-end no-print">
+                {/* Filters */}
                 {activeTab === 'team-report' && (
                     <div>
                         <label className="text-xs font-bold text-slate-500 mb-1 block">대상 공종 (팀)</label>
@@ -235,7 +279,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     </select>
                 </div>
                 <div>
-                    <label className="text-xs font-bold text-slate-500 mb-1 block">출력 형태</label>
+                    <label className="text-xs font-bold text-slate-500 mb-1 block">일괄 출력 형태</label>
                     <select value={genMode} onChange={e => setGenMode(e.target.value as GenMode)} className="bg-indigo-50 border border-indigo-200 text-indigo-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-black min-w-[200px]">
                         <option value="individual-pdf">📁 개별 PDF (ZIP 압축)</option>
                         <option value="individual-img">🖼️ 개별 이미지 (ZIP 압축)</option>
@@ -243,9 +287,27 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     </select>
                 </div>
                 
+                {/* View Mode Toggle */}
+                <div className="flex bg-slate-100 p-1 rounded-xl self-end">
+                    <button 
+                        onClick={() => setViewMode('list')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${viewMode === 'list' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                        목록 보기
+                    </button>
+                    <button 
+                        onClick={() => setViewMode('preview')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${viewMode === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        상세 미리보기
+                    </button>
+                </div>
+
                 <div className="flex-1"></div>
 
-                {/* Bulk Actions */}
+                {/* Actions */}
                 <div className="flex gap-3 items-center">
                     <div className="flex items-center gap-2 text-xs font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 h-[42px]">
                         <span>대상: {filteredRecords.length}명</span>
@@ -275,65 +337,118 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 </div>
             </div>
 
-            {/* 
-               [CRITICAL FIX] Hidden Rendering Area 
-               - zIndex: -50 ensures it is BEHIND the main content.
-               - position: fixed, top: 0, left: 0 ensures valid viewport coordinates for html2canvas.
-               - Explicit width/height (A4 size approx in px) prevents zero-size element capture issues.
-               - opacity 1 required for html2canvas to capture (it ignores opacity: 0). We rely on z-index to hide it.
-            */}
+            {/* Hidden Rendering Area for Bulk Generation */}
             <div style={{ position: 'fixed', top: 0, left: 0, zIndex: -50, width: '210mm', minHeight: '297mm', pointerEvents: 'none' }}>
                 {isGenerating && generatingRecord && (
                     <ReportTemplate record={generatingRecord} history={generatingHistory} ref={bulkReportRef} />
                 )}
             </div>
 
-            {/* List View for Preview */}
-            <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-                <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2">
-                        <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                        생성 대상 미리보기
-                    </h3>
-                </div>
-                <div className="overflow-y-auto flex-1 p-0 custom-scrollbar">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs sticky top-0 z-10 shadow-sm">
-                            <tr>
-                                <th className="px-6 py-3">이름</th>
-                                <th className="px-6 py-3">직종 (Team)</th>
-                                <th className="px-6 py-3">안전점수</th>
-                                <th className="px-6 py-3">등급</th>
-                                <th className="px-6 py-3">주요 취약점</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                            {filteredRecords.map((r) => (
-                                <tr key={r.id} className="hover:bg-slate-50 transition-colors">
-                                    <td className="px-6 py-3 font-bold text-slate-800">{r.name}</td>
-                                    <td className="px-6 py-3 text-slate-600">{r.jobField}</td>
-                                    <td className="px-6 py-3 font-black text-indigo-600">{r.safetyScore}</td>
-                                    <td className="px-6 py-3">
-                                        <span className={`px-2 py-1 rounded text-xs font-bold ${
-                                            r.safetyLevel === '고급' ? 'bg-green-100 text-green-700' :
-                                            r.safetyLevel === '중급' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
-                                        }`}>
-                                            {r.safetyLevel}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-3 text-slate-500 truncate max-w-xs">{r.weakAreas.join(', ')}</td>
-                                </tr>
-                            ))}
-                            {filteredRecords.length === 0 && (
-                                <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-bold">
-                                        선택된 조건의 근로자가 없습니다.
-                                    </td>
-                                </tr>
+            {/* Main Content Area */}
+            <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col relative">
+                {filteredRecords.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+                        <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        <p className="font-bold">선택된 조건의 근로자가 없습니다.</p>
+                    </div>
+                ) : viewMode === 'list' ? (
+                    /* VIEW MODE: LIST */
+                    <>
+                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
+                            <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2">
+                                <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                                생성 대상 목록 ({filteredRecords.length}명)
+                            </h3>
+                        </div>
+                        <div className="overflow-y-auto flex-1 p-0 custom-scrollbar">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs sticky top-0 z-10 shadow-sm">
+                                    <tr>
+                                        <th className="px-6 py-3">이름</th>
+                                        <th className="px-6 py-3">직종 (Team)</th>
+                                        <th className="px-6 py-3">안전점수</th>
+                                        <th className="px-6 py-3">등급</th>
+                                        <th className="px-6 py-3">주요 취약점</th>
+                                        <th className="px-6 py-3 text-right">작업</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {filteredRecords.map((r, idx) => (
+                                        <tr key={r.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => { setViewMode('preview'); setPreviewIndex(idx); }}>
+                                            <td className="px-6 py-3 font-bold text-slate-800">{r.name}</td>
+                                            <td className="px-6 py-3 text-slate-600">{r.jobField}</td>
+                                            <td className="px-6 py-3 font-black text-indigo-600">{r.safetyScore}</td>
+                                            <td className="px-6 py-3">
+                                                <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                                    r.safetyLevel === '고급' ? 'bg-green-100 text-green-700' :
+                                                    r.safetyLevel === '중급' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                                                }`}>
+                                                    {r.safetyLevel}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-3 text-slate-500 truncate max-w-xs">{r.weakAreas.join(', ')}</td>
+                                            <td className="px-6 py-3 text-right">
+                                                <button onClick={(e) => { e.stopPropagation(); setViewMode('preview'); setPreviewIndex(idx); }} className="text-xs font-bold text-indigo-600 hover:underline">
+                                                    미리보기
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
+                ) : (
+                    /* VIEW MODE: PREVIEW */
+                    <div className="flex flex-col h-full bg-slate-100">
+                        {/* Preview Toolbar */}
+                        <div className="p-4 bg-white border-b border-slate-200 flex justify-between items-center shadow-sm z-20">
+                            <div className="flex items-center gap-4">
+                                <button 
+                                    onClick={handlePrev} 
+                                    disabled={previewIndex === 0}
+                                    className="p-2 rounded-full hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <svg className="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                                </button>
+                                <div className="text-center">
+                                    <p className="text-sm font-black text-slate-800">{previewIndex + 1} / {filteredRecords.length}</p>
+                                    <p className="text-xs text-slate-500 font-bold">{currentPreviewRecord?.name}</p>
+                                </div>
+                                <button 
+                                    onClick={handleNext} 
+                                    disabled={previewIndex === filteredRecords.length - 1}
+                                    className="p-2 rounded-full hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    <svg className="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                                </button>
+                            </div>
+                            
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={handleDownloadCurrent}
+                                    className="px-4 py-2 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-900 flex items-center gap-2 shadow-lg"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                    현재 보고서 내보내기
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Preview Content Area */}
+                        <div className="flex-1 overflow-auto bg-slate-200 p-8 flex justify-center items-start custom-scrollbar">
+                            {currentPreviewRecord && (
+                                <div className="shadow-2xl scale-[0.6] origin-top md:scale-[0.8] xl:scale-[0.9] transition-transform duration-300 bg-white">
+                                    <ReportTemplate 
+                                        ref={previewRef}
+                                        record={currentPreviewRecord} 
+                                        history={currentPreviewHistory} 
+                                    />
+                                </div>
                             )}
-                        </tbody>
-                    </table>
-                </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
