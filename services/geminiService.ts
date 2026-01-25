@@ -138,14 +138,14 @@ function getCleanImagePayload(input: string): { data: string, mimeType: string }
 }
 
 /**
- * [Robust] Call Gemini with Auto-Parsing
+ * [Robust] Call Gemini with Auto-Parsing and Aggressive Rate Limit Handling
  */
 async function callGeminiWithRetry(
     imageSource: string, 
     _unusedMimeType: string | null, 
     modelName: string, 
     filenameHint?: string, 
-    maxRetries = 2
+    maxRetries = 3 // Increased default retries
 ): Promise<WorkerRecord[]> {
     let lastError: any;
     
@@ -186,7 +186,7 @@ async function callGeminiWithRetry(
         }];
     }
 
-    // 2. Retry Loop
+    // 2. Retry Loop with Aggressive Backoff
     for (let i = 0; i < maxRetries; i++) {
         try {
             const systemInstruction = `
@@ -243,8 +243,14 @@ async function callGeminiWithRetry(
                 break;
             }
             
-            // Rate limit errors: Backoff and retry
-            if (i < maxRetries - 1) {
+            // Rate limit errors: Aggressive Backoff
+            // 429: Too Many Requests, RESOURCE_EXHAUSTED
+            if (errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED') || errorMsg.includes('quota')) {
+                const waitTime = 15000 * (i + 1); // 15s, 30s, 45s
+                console.warn(`[Quota Limit] Backing off for ${waitTime/1000}s...`);
+                await delay(waitTime);
+            } else if (i < maxRetries - 1) {
+                // Standard error backoff
                 await delay(3000 * (i + 1)); 
             }
         }
@@ -252,9 +258,15 @@ async function callGeminiWithRetry(
 
     console.error("Final failure for", filenameHint, lastError);
 
+    // Ensure 429 is propagated in the error text for the UI to detect
+    const isQuotaError = lastError?.message?.includes('429') || lastError?.message?.includes('RESOURCE_EXHAUSTED');
+    const finalErrorMsg = isQuotaError 
+        ? `할당량 초과 (429 RESOURCE_EXHAUSTED). 잠시 후 다시 시도됩니다.` 
+        : `오류 상세: ${lastError?.message || '알 수 없는 오류'}`;
+
     return [{
         id: `rec-err-${Date.now()}`,
-        name: "분석 실패 (재시도 필요)",
+        name: isQuotaError ? "할당량 초과 (대기중)" : "분석 실패 (재시도 필요)",
         jobField: "미분류",
         teamLeader: "미지정",
         role: 'worker',
@@ -274,7 +286,7 @@ async function callGeminiWithRetry(
         weakAreas: ["분석 오류"], weakAreas_native: [],
         improvement: "", improvement_native: "",
         suggestions: [], suggestions_native: [],
-        aiInsights: `오류 상세: ${lastError?.message || '알 수 없는 오류'}`, aiInsights_native: "",
+        aiInsights: finalErrorMsg, aiInsights_native: "",
         selfAssessedRiskLevel: '중'
     }];
 }

@@ -1,4 +1,4 @@
-import React, { Component, useState, useEffect, useRef, type ReactNode, type ErrorInfo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Component, type ReactNode, type ErrorInfo } from 'react';
 import { Layout } from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import OcrAnalysis from './pages/OcrAnalysis';
@@ -32,10 +32,7 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-    constructor(props: ErrorBoundaryProps) {
-        super(props);
-        this.state = { hasError: false, error: null, errorInfo: null };
-    }
+    state: ErrorBoundaryState = { hasError: false, error: null, errorInfo: null };
 
     static getDerivedStateFromError(error: Error): ErrorBoundaryState {
         return { hasError: true, error, errorInfo: null };
@@ -153,14 +150,10 @@ const clearDB = async () => {
         });
     } catch (e) { 
         console.error("Clear DB Error:", e);
-        // DB 연결 실패 시에도 로직 진행을 위해 에러를 던지지 않고 false 반환 고려 가능하나,
-        // 여기서는 명확한 실패 처리를 위해 에러를 로깅합니다.
         throw e;
     }
 };
 
-// [Robust Image Normalization]
-// Does NOT force jpeg if header is missing, to allow auto-detection in service.
 const normalizeImage = (imgData: any): string | undefined => {
     if (!imgData) return undefined;
     
@@ -174,14 +167,10 @@ const normalizeImage = (imgData: any): string | undefined => {
 
     if (!raw || raw.length < 50) return undefined;
 
-    // If it already has a header, return as is.
     if (raw.trim().startsWith('data:image')) {
         return raw.trim();
     }
 
-    // If it's raw base64, clean it. 
-    // We add a generic jpeg header mainly for UI display (<img> tag), 
-    // but the backend service will sniff bytes anyway.
     const cleanBase64 = raw.replace(/^data:image\/[a-z]+;base64,/, '').replace(/\s/g, '');
     return `data:image/jpeg;base64,${cleanBase64}`;
 };
@@ -191,6 +180,7 @@ const sanitizeRecords = (records: any[]): WorkerRecord[] => {
         const rawSource = r.originalImage || r.image || r.photo || r.base64 || r.documentImage || r.file;
         const profileSource = r.profileImage;
 
+        // Ensure unique ID if missing
         const uniqueId = r.id || `psi-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 6)}`;
 
         return {
@@ -236,6 +226,12 @@ const App: React.FC = () => {
     const [recordForReport, setRecordForReport] = useState<WorkerRecord | null>(null);
     const [isReanalyzing, setIsReanalyzing] = useState(false);
 
+    // [Ref] Maintain a ref to workerRecords for stable callbacks (prevent stale closures in async handlers)
+    const workerRecordsRef = useRef<WorkerRecord[]>([]);
+    useEffect(() => {
+        workerRecordsRef.current = workerRecords;
+    }, [workerRecords]);
+
     // [NEW] Undo Delete State
     const [deletedRecord, setDeletedRecord] = useState<WorkerRecord | null>(null);
     const [showUndoToast, setShowUndoToast] = useState(false);
@@ -255,23 +251,26 @@ const App: React.FC = () => {
 
     useEffect(() => {
         loadWorkerRecordsFromDB().then(data => {
-            setWorkerRecords(sanitizeRecords(data).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+            const sortedData = sanitizeRecords(data).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            setWorkerRecords(sortedData);
             setIsDataLoaded(true);
         });
         const savedChecks = localStorage.getItem('psi_safety_checks');
         if(savedChecks) setSafetyCheckRecords(JSON.parse(savedChecks));
     }, []);
 
-    const handleUpdateRecord = async (updatedRecord: WorkerRecord) => {
+    // [Updated] Stable Handler using useCallback
+    const handleUpdateRecord = useCallback(async (updatedRecord: WorkerRecord) => {
         setWorkerRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
         await saveRecordToDB(updatedRecord);
-    };
+    }, []);
 
-    const handleDeleteRecord = async (id: string) => {
+    // [Updated] Stable Handler with functional updates and Ref access
+    const handleDeleteRecord = useCallback(async (id: string) => {
         if(!confirm("정말 이 기록을 삭제하시겠습니까?")) return;
         
-        // 1. Find record to delete
-        const targetRecord = workerRecords.find(r => r.id === id);
+        // Use ref to find record without adding dependency
+        const targetRecord = workerRecordsRef.current.find(r => r.id === id);
         if (!targetRecord) return;
 
         // 2. Set for potential undo
@@ -287,13 +286,13 @@ const App: React.FC = () => {
             setDeletedRecord(null);
         }, 5000); // 5 seconds to undo
 
-        // 5. Perform delete
+        // 5. Perform delete (Functional Update for robustness)
         setWorkerRecords(prev => prev.filter(r => r.id !== id));
         await deleteRecordFromDB(id);
-    };
+    }, []);
 
-    // [NEW] Undo Action
-    const handleUndoDelete = async () => {
+    // [Updated] Undo Handler
+    const handleUndoDelete = useCallback(async () => {
         if (!deletedRecord) return;
 
         // Restore to state
@@ -309,20 +308,17 @@ const App: React.FC = () => {
         setShowUndoToast(false);
         setDeletedRecord(null);
         if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
-    };
+    }, [deletedRecord]);
 
-    const handleDeleteAll = async () => {
+    // [Updated] Delete All Handler
+    const handleDeleteAll = useCallback(async () => {
         if(!confirm("⚠️ 경고: 모든 데이터가 삭제됩니다.\n\n근로자 기록, 안전 점검 일지, 지적 사항 등 모든 데이터가 영구적으로 삭제되며 복구할 수 없습니다.\n정말 진행하시겠습니까?")) return;
         
         try {
-            // 1. Clear IndexedDB (Workers)
             await clearDB();
-            
-            // 2. Clear LocalStorage (Checks, Issues, etc.)
             localStorage.removeItem('psi_safety_checks');
             localStorage.removeItem('psi_site_issues');
             
-            // 3. Clear State
             setWorkerRecords([]);
             setSafetyCheckRecords([]);
             setBriefingData(null);
@@ -333,18 +329,18 @@ const App: React.FC = () => {
             console.error("Reset Failed:", e);
             alert("데이터 초기화 중 일부 오류가 발생했습니다. 페이지를 새로고침 해주세요.");
         }
-    };
+    }, []);
 
-    const handleImport = async (records: WorkerRecord[]) => {
+    const handleImport = useCallback(async (records: WorkerRecord[]) => {
         const sanitized = sanitizeRecords(records);
         for (const record of sanitized) {
             await saveRecordToDB(record);
         }
         const allData = await loadWorkerRecordsFromDB();
         setWorkerRecords(sanitizeRecords(allData).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-    };
+    }, []);
 
-    const addWorkerRecords = async (newRecords: WorkerRecord[]) => {
+    const addWorkerRecords = useCallback(async (newRecords: WorkerRecord[]) => {
         const sanitized = sanitizeRecords(newRecords);
         for (const record of sanitized) {
             await saveRecordToDB(record);
@@ -354,9 +350,9 @@ const App: React.FC = () => {
             const unique = combined.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
             return unique.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         });
-    };
+    }, []);
 
-    const handleReanalyzeRecord = async (record: WorkerRecord): Promise<WorkerRecord | null> => {
+    const handleReanalyzeRecord = useCallback(async (record: WorkerRecord): Promise<WorkerRecord | null> => {
         if (!record.originalImage) {
             alert('원본 이미지가 없어 재분석할 수 없습니다. 이미지를 먼저 등록해주세요.');
             return null;
@@ -364,12 +360,10 @@ const App: React.FC = () => {
         
         setIsReanalyzing(true);
         try {
-            // Extracts whatever is after 'base64,'
             const cleanBase64 = record.originalImage.includes('base64,') 
                 ? record.originalImage.split('base64,')[1] 
                 : record.originalImage;
 
-            // Service now detects MIME type automatically
             const results = await analyzeWorkerRiskAssessment(cleanBase64, 'image/jpeg', record.filename || record.name);
             
             if (results && results.length > 0) {
@@ -394,7 +388,7 @@ const App: React.FC = () => {
         }
         setIsReanalyzing(false);
         return null;
-    };
+    }, [handleUpdateRecord]);
     
     return (
         <ErrorBoundary>

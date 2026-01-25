@@ -26,7 +26,7 @@ const isFailedRecord = (r: WorkerRecord) =>
     r.name.includes('할당량 초과') || 
     r.name.includes('분석 실패') || 
     r.name.includes('이미지 데이터') ||
-    (r.aiInsights && (r.aiInsights.includes('API 요청량') || r.aiInsights.includes('오류 상세') || r.aiInsights.includes('이미지') || r.aiInsights.includes('Resource has been exhausted')));
+    (r.aiInsights && (r.aiInsights.includes('API 요청량') || r.aiInsights.includes('오류 상세') || r.aiInsights.includes('이미지') || r.aiInsights.includes('Resource has been exhausted') || r.aiInsights.includes('429')));
 
 const getFlag = (nationality: string) => {
     const n = (nationality || '').toLowerCase();
@@ -159,121 +159,134 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         let successCount = 0;
         let failCount = 0;
         let stopped = false;
+        
+        // [Adaptive Throttling State]
+        // Start with a 4s buffer. If we hit limits, increase this dynamically.
+        let dynamicDelayBuffer = 4;
 
         // Clone array to avoid index issues if array changes
         const processQueue = [...targetRecords];
 
-        for (let i = 0; i < processQueue.length; i++) {
-            if (stopRef.current) { stopped = true; break; }
-            
-            const record = processQueue[i];
-            setBatchProgress(p => ({ ...p, current: i + 1 }));
-            setProgress(`[${title}] ${record.name || '미상'} 처리 중...`);
-            
-            try {
-                // 1. Data Integrity Check
-                if (!record.originalImage || record.originalImage.length < 500) {
-                    console.warn(`Skipping ${record.id}: Image loss.`);
-                    const errorRecord: WorkerRecord = {
-                        ...record,
-                        aiInsights: "❌ 원본 이미지 데이터 소실 (분석 불가)",
-                        safetyScore: 0,
-                    };
-                    onUpdateRecord(errorRecord);
-                    failCount++;
-                    continue; 
-                }
-
-                // 2. Call API with Retry Logic for Rate Limits
-                let apiResult = null;
-                let retryCount = 0;
-                const MAX_RETRIES = 3; 
-
-                while (retryCount < MAX_RETRIES) {
-                    try {
-                        const results = await analyzeWorkerRiskAssessment(record.originalImage, '', record.filename || record.name);
-                        if (results && results.length > 0) {
-                            apiResult = results[0];
-                            // Check if result itself indicates failure
-                            if (apiResult.safetyScore === 0 && apiResult.aiInsights.includes("오류")) {
-                                throw new Error(apiResult.aiInsights);
-                            }
-                            break; // Success!
-                        } else {
-                            throw new Error("Empty result from AI");
-                        }
-                    } catch (err: any) {
-                        const errMsg = err.message || JSON.stringify(err);
-                        
-                        // [CRITICAL] Detect Rate Limit (429 or Resource Exhausted)
-                        if (errMsg.includes('429') || errMsg.includes('exhausted') || errMsg.includes('quota')) {
-                            console.warn(`Rate limit hit for ${record.name}. Cooling down...`);
-                            // Wait 60 seconds then retry loop
-                            await waitWithCountdown(60, "⚠️ API 할당량 초과! 냉각 중");
-                            retryCount++;
-                        } else {
-                            // Other errors (format, parsing) -> fail immediately
-                            throw err; 
-                        }
-                    }
-                }
-
+        try {
+            for (let i = 0; i < processQueue.length; i++) {
                 if (stopRef.current) { stopped = true; break; }
-
-                if (apiResult) {
-                    const updatedRecord: WorkerRecord = {
-                        ...apiResult,
-                        id: record.id, 
-                        originalImage: record.originalImage, 
-                        profileImage: record.profileImage, 
-                        filename: record.filename,
-                        role: record.role !== 'worker' ? record.role : apiResult.role,
-                        isTranslator: record.isTranslator || apiResult.isTranslator,
-                        isSignalman: record.isSignalman || apiResult.isSignalman
-                    };
-                    onUpdateRecord(updatedRecord);
-                    
-                    if (isFailedRecord(updatedRecord)) failCount++;
-                    else successCount++;
-
-                    // Standard Rate Limit Buffer (4s)
-                    if (i < processQueue.length - 1) {
-                        await waitWithCountdown(4, "다음 분석 대기");
+                
+                const record = processQueue[i];
+                setBatchProgress(p => ({ ...p, current: i + 1 }));
+                setProgress(`[${title}] ${record.name || '미상'} 처리 중...`);
+                
+                try {
+                    // 1. Data Integrity Check
+                    if (!record.originalImage || record.originalImage.length < 500) {
+                        console.warn(`Skipping ${record.id}: Image loss.`);
+                        const errorRecord: WorkerRecord = {
+                            ...record,
+                            aiInsights: "❌ 원본 이미지 데이터 소실 (분석 불가)",
+                            safetyScore: 0,
+                        };
+                        onUpdateRecord(errorRecord);
+                        failCount++;
+                        continue; 
                     }
 
-                } else {
-                    // Final Failure after retries
+                    // 2. Call API with Retry Logic for Rate Limits
+                    let apiResult = null;
+                    let retryCount = 0;
+                    const MAX_RETRIES = 3; 
+
+                    while (retryCount < MAX_RETRIES) {
+                        try {
+                            const results = await analyzeWorkerRiskAssessment(record.originalImage, '', record.filename || record.name);
+                            if (results && results.length > 0) {
+                                apiResult = results[0];
+                                // Check if result itself indicates failure from service (e.g. Quota Error)
+                                if (apiResult.safetyScore === 0 && apiResult.aiInsights.includes("오류") || apiResult.aiInsights.includes("429") || apiResult.aiInsights.includes("RESOURCE_EXHAUSTED")) {
+                                     throw new Error(apiResult.aiInsights);
+                                }
+                                break; // Success!
+                            } else {
+                                throw new Error("Empty result from AI");
+                            }
+                        } catch (err: any) {
+                            const errMsg = err.message || JSON.stringify(err);
+                            
+                            // [CRITICAL] Detect Rate Limit (429 or Resource Exhausted)
+                            if (errMsg.includes('429') || errMsg.includes('exhausted') || errMsg.includes('quota')) {
+                                console.warn(`Rate limit hit for ${record.name}. Cooling down...`);
+                                
+                                // Permanently increase delay buffer for future requests
+                                dynamicDelayBuffer = Math.min(20, dynamicDelayBuffer + 5);
+                                
+                                // Wait 60 seconds then retry loop
+                                await waitWithCountdown(60, "⚠️ API 할당량 초과! 60초 냉각 중");
+                                retryCount++;
+                            } else {
+                                // Other errors (format, parsing) -> fail immediately
+                                throw err; 
+                            }
+                        }
+                    }
+
+                    if (stopRef.current) { stopped = true; break; }
+
+                    if (apiResult) {
+                        const updatedRecord: WorkerRecord = {
+                            ...apiResult,
+                            id: record.id, 
+                            originalImage: record.originalImage, 
+                            profileImage: record.profileImage, 
+                            filename: record.filename,
+                            role: record.role !== 'worker' ? record.role : apiResult.role,
+                            isTranslator: record.isTranslator || apiResult.isTranslator,
+                            isSignalman: record.isSignalman || apiResult.isSignalman
+                        };
+                        onUpdateRecord(updatedRecord);
+                        
+                        if (isFailedRecord(updatedRecord)) failCount++;
+                        else successCount++;
+
+                        // Adaptive Rate Limit Buffer
+                        if (i < processQueue.length - 1) {
+                            await waitWithCountdown(dynamicDelayBuffer, "다음 분석 대기 (Throttle)");
+                        }
+
+                    } else {
+                        // Final Failure after retries
+                        const errorRecord: WorkerRecord = {
+                            ...record,
+                            aiInsights: "⛔ 반복적인 API 오류로 분석 실패 (재시도 필요)",
+                        };
+                        onUpdateRecord(errorRecord);
+                        failCount++;
+                        // Safety cooldown even on fail
+                        await waitWithCountdown(2, "오류 복구 중");
+                    }
+
+                } catch (err: any) {
+                    if (err.message === "STOPPED") { stopped = true; break; }
+                    console.error("Batch Error:", err);
                     const errorRecord: WorkerRecord = {
                         ...record,
-                        aiInsights: "⛔ 반복적인 API 오류로 분석 실패 (재시도 필요)",
+                        aiInsights: `⛔ 시스템 오류: ${err.message}`,
                     };
                     onUpdateRecord(errorRecord);
                     failCount++;
-                    // Safety cooldown even on fail
-                    await waitWithCountdown(2, "오류 복구 중");
                 }
-
-            } catch (err: any) {
-                if (err.message === "STOPPED") { stopped = true; break; }
-                console.error("Batch Error:", err);
-                const errorRecord: WorkerRecord = {
-                    ...record,
-                    aiInsights: `⛔ 시스템 오류: ${err.message}`,
-                };
-                onUpdateRecord(errorRecord);
-                failCount++;
             }
-        }
-
-        setIsAnalyzing(false);
-        setProgress('');
-        setCooldownTime(0);
-        setBatchProgress({ current: 0, total: 0 });
-        
-        if (stopped) {
-            alert(`분석이 중단되었습니다.\n(성공: ${successCount}, 실패: ${failCount})`);
-        } else {
-            alert(`${title} 완료.\n성공: ${successCount}\n실패: ${failCount}\n\n* 실패 건은 '실패/대기 건 재분석' 버튼으로 다시 시도할 수 있습니다.`);
+        } catch (globalErr: any) {
+            console.error("Global Batch Error:", globalErr);
+            alert("일괄 처리 중 예상치 못한 오류가 발생하여 중단되었습니다.");
+        } finally {
+            setIsAnalyzing(false);
+            setProgress('');
+            setCooldownTime(0);
+            setBatchProgress({ current: 0, total: 0 });
+            
+            if (stopped) {
+                alert(`분석이 중단되었습니다.\n(성공: ${successCount}, 실패: ${failCount})`);
+            } else {
+                alert(`${title} 완료.\n성공: ${successCount}\n실패: ${failCount}\n\n* 실패 건은 '실패/대기 건 재분석' 버튼으로 다시 시도할 수 있습니다.`);
+            }
         }
     };
 
@@ -291,34 +304,36 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         let failCount = 0;
         let stopped = false;
 
-        for (let i = 0; i < total; i++) {
-            if (stopRef.current) { stopped = true; break; }
-            const record = targets[i];
-            setBatchProgress(p => ({ ...p, current: i + 1 }));
-            setProgress(`갱신 중: ${record.name}`);
-
-            try {
-                const updatedAnalysis = await updateAnalysisBasedOnEdits(record);
+        try {
+            for (let i = 0; i < total; i++) {
                 if (stopRef.current) { stopped = true; break; }
+                const record = targets[i];
+                setBatchProgress(p => ({ ...p, current: i + 1 }));
+                setProgress(`갱신 중: ${record.name}`);
 
-                if (updatedAnalysis) {
-                    onUpdateRecord({ ...record, ...updatedAnalysis });
-                    successCount++;
-                } else {
+                try {
+                    const updatedAnalysis = await updateAnalysisBasedOnEdits(record);
+                    if (stopRef.current) { stopped = true; break; }
+
+                    if (updatedAnalysis) {
+                        onUpdateRecord({ ...record, ...updatedAnalysis });
+                        successCount++;
+                    } else {
+                        failCount++;
+                    }
+                    if (i < total - 1) await new Promise(r => setTimeout(r, 1500));
+                } catch (e: any) {
+                    if (e.message === "STOPPED") { stopped = true; break; }
                     failCount++;
                 }
-                if (i < total - 1) await new Promise(r => setTimeout(r, 1500));
-            } catch (e: any) {
-                if (e.message === "STOPPED") { stopped = true; break; }
-                failCount++;
             }
+        } finally {
+            setIsAnalyzing(false);
+            setProgress('');
+            setBatchProgress({ current: 0, total: 0 });
+            if (stopped) alert('중단됨');
+            else alert(`완료: 성공 ${successCount}, 실패 ${failCount}`);
         }
-
-        setIsAnalyzing(false);
-        setProgress('');
-        setBatchProgress({ current: 0, total: 0 });
-        if (stopped) alert('중단됨');
-        else alert(`완료: 성공 ${successCount}, 실패 ${failCount}`);
     };
 
     const handleBatchReanalyze = () => {
@@ -347,38 +362,41 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         const results: WorkerRecord[] = [];
         let stopped = false;
         
-        for (let i = 0; i < files.length; i++) {
-            if (stopRef.current) { stopped = true; break; }
-            setBatchProgress(p => ({ ...p, current: i + 1 }));
-            setProgress(`분석 중: ${files[i].name}`);
-            
-            try {
-                const base64 = await fileToBase64(files[i]);
-                const res = await analyzeWorkerRiskAssessment(base64, files[i].type, files[i].name);
-                
+        try {
+            for (let i = 0; i < files.length; i++) {
                 if (stopRef.current) { stopped = true; break; }
+                setBatchProgress(p => ({ ...p, current: i + 1 }));
+                setProgress(`분석 중: ${files[i].name}`);
+                
+                try {
+                    const base64 = await fileToBase64(files[i]);
+                    const res = await analyzeWorkerRiskAssessment(base64, files[i].type, files[i].name);
+                    
+                    if (stopRef.current) { stopped = true; break; }
 
-                if (res && res.length > 0) results.push(res[0]);
-                
-                // Safe buffer for file uploads too
-                if (i < files.length - 1) await waitWithCountdown(4, "다음 파일 대기");
-                
-            } catch (e: any) {
-                if (e.message === "STOPPED") { stopped = true; break; }
-                console.error(e);
-                // For files, we just alert or log, maybe retry logic later
-                await waitWithCountdown(60, "API 한도 초과! 대기 중");
-                i--; // Retry this file
+                    if (res && res.length > 0) results.push(res[0]);
+                    
+                    // Safe buffer for file uploads too
+                    if (i < files.length - 1) await waitWithCountdown(4, "다음 파일 대기");
+                    
+                } catch (e: any) {
+                    if (e.message === "STOPPED") { stopped = true; break; }
+                    console.error(e);
+                    // For files, we just alert or log, maybe retry logic later
+                    await waitWithCountdown(60, "API 한도 초과! 대기 중");
+                    i--; // Retry this file
+                }
             }
+            
+            if (results.length > 0) onAnalysisComplete(results);
+        } finally {
+            setIsAnalyzing(false);
+            setFiles([]);
+            setProgress('');
+            setCooldownTime(0);
+            setBatchProgress({ current: 0, total: 0 });
+            if(stopped) alert("중단됨");
         }
-        
-        if (results.length > 0) onAnalysisComplete(results);
-        setIsAnalyzing(false);
-        setFiles([]);
-        setProgress('');
-        setCooldownTime(0);
-        setBatchProgress({ current: 0, total: 0 });
-        if(stopped) alert("중단됨");
     };
 
     const handleExport = () => {
@@ -540,7 +558,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const failed = isFailedRecord(r);
                                 
                                 return (
-                                    <tr key={r.id} className={`hover:bg-indigo-50/30 transition-colors group ${isManager ? 'bg-slate-50/50 opacity-80' : ''} ${failed ? 'bg-rose-50/50' : ''}`}>
+                                    <tr key={r.id} className={`hover:bg-indigo-50/30 transition-colors group ${isManager ? 'bg-slate-50/50 opacity-80' : ''} ${failed ? 'bg-rose-50/50' : ''}`} onClick={() => onViewDetails(r)}>
                                         <td className="px-8 py-5 font-black text-slate-800">
                                             <div className="flex flex-col">
                                                 <span className={`flex items-center gap-1 ${failed ? 'text-rose-600' : ''}`}>
@@ -574,12 +592,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         <td className="px-8 py-5 text-right">
                                             <div className="flex justify-end gap-2">
                                                 {failed && !isAnalyzing && hasImage && (
-                                                    <button onClick={() => runBatchAnalysis([r], '개별 재분석')} className="px-3 py-2 bg-rose-100 text-rose-600 font-bold text-xs rounded-xl hover:bg-rose-200 transition-all">
+                                                    <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className="px-3 py-2 bg-rose-100 text-rose-600 font-bold text-xs rounded-xl hover:bg-rose-200 transition-all">
                                                         재시도
                                                     </button>
                                                 )}
-                                                <button onClick={() => onViewDetails(r)} className="px-4 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">상세보기</button>
-                                                <button onClick={() => onDeleteRecord(r.id)} className="p-2 bg-slate-100 text-slate-400 hover:bg-rose-500 hover:text-white rounded-xl transition-all" title="삭제">
+                                                <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-4 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">상세보기</button>
+                                                <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="p-2 bg-slate-100 text-slate-400 hover:bg-rose-500 hover:text-white rounded-xl transition-all" title="삭제">
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                 </button>
                                             </div>
