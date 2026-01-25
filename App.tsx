@@ -1,5 +1,4 @@
-
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { Component, useState, useEffect, useRef, type ReactNode, type ErrorInfo } from 'react';
 import { Layout } from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import OcrAnalysis from './pages/OcrAnalysis';
@@ -21,6 +20,71 @@ import { restoreRecordFromUrl } from './utils/qrUtils';
 const IDB_NAME = 'PSI_Enterprise_V4';
 const IDB_VERSION = 1;
 const WORKER_STORE = 'worker_records';
+
+interface ErrorBoundaryProps {
+    children?: ReactNode;
+}
+
+interface ErrorBoundaryState {
+    hasError: boolean;
+    error: Error | null;
+    errorInfo: ErrorInfo | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+    constructor(props: ErrorBoundaryProps) {
+        super(props);
+        this.state = { hasError: false, error: null, errorInfo: null };
+    }
+
+    static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+        return { hasError: true, error, errorInfo: null };
+    }
+
+    componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+        console.error("Uncaught error:", error, errorInfo);
+        this.setState({ errorInfo });
+    }
+
+    handleReset = () => {
+        this.setState({ hasError: false, error: null, errorInfo: null });
+        window.location.reload();
+    };
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+                    <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-lg w-full border border-slate-200">
+                        <div className="w-20 h-20 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        </div>
+                        <h2 className="text-2xl font-black text-slate-900 mb-2">시스템 일시 중단됨</h2>
+                        <p className="text-slate-500 mb-6 font-medium">
+                            처리 중 예상치 못한 문제가 발생했습니다.<br/>
+                            데이터는 안전하게 보존되어 있으니 안심하세요.
+                        </p>
+                        
+                        <div className="bg-slate-100 p-4 rounded-xl text-left mb-6 overflow-auto max-h-40 text-xs font-mono text-slate-600 border border-slate-200">
+                            <strong>Error:</strong> {this.state.error?.toString()}
+                            <br/>
+                            <span className="opacity-50">{this.state.errorInfo?.componentStack}</span>
+                        </div>
+
+                        <button 
+                            onClick={this.handleReset}
+                            className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-all hover:-translate-y-1 flex items-center justify-center gap-2"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            시스템 복구 및 새로고침
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
 
 const initDB = () => new Promise<IDBDatabase>((resolve, reject) => {
     if (!window.indexedDB) {
@@ -78,13 +142,25 @@ const deleteRecordFromDB = async (id: string) => {
 const clearDB = async () => {
     try {
         const db = await initDB();
-        const tx = db.transaction([WORKER_STORE], 'readwrite');
-        const store = tx.objectStore(WORKER_STORE);
-        store.clear();
-        return new Promise(res => { tx.oncomplete = () => res(true); });
-    } catch (e) { console.error("Clear DB Error:", e); }
+        return new Promise((resolve, reject) => {
+            const tx = db.transaction([WORKER_STORE], 'readwrite');
+            const store = tx.objectStore(WORKER_STORE);
+            const request = store.clear();
+            
+            tx.oncomplete = () => resolve(true);
+            tx.onerror = (e) => reject(e);
+            request.onerror = (e) => reject(e);
+        });
+    } catch (e) { 
+        console.error("Clear DB Error:", e);
+        // DB 연결 실패 시에도 로직 진행을 위해 에러를 던지지 않고 false 반환 고려 가능하나,
+        // 여기서는 명확한 실패 처리를 위해 에러를 로깅합니다.
+        throw e;
+    }
 };
 
+// [Robust Image Normalization]
+// Does NOT force jpeg if header is missing, to allow auto-detection in service.
 const normalizeImage = (imgData: any): string | undefined => {
     if (!imgData) return undefined;
     
@@ -98,10 +174,14 @@ const normalizeImage = (imgData: any): string | undefined => {
 
     if (!raw || raw.length < 50) return undefined;
 
+    // If it already has a header, return as is.
     if (raw.trim().startsWith('data:image')) {
         return raw.trim();
     }
 
+    // If it's raw base64, clean it. 
+    // We add a generic jpeg header mainly for UI display (<img> tag), 
+    // but the backend service will sniff bytes anyway.
     const cleanBase64 = raw.replace(/^data:image\/[a-z]+;base64,/, '').replace(/\s/g, '');
     return `data:image/jpeg;base64,${cleanBase64}`;
 };
@@ -134,7 +214,6 @@ const sanitizeRecords = (records: any[]): WorkerRecord[] => {
             weakAreas_native: Array.isArray(r.weakAreas_native) ? r.weakAreas_native : [],
             suggestions_native: Array.isArray(r.suggestions_native) ? r.suggestions_native : [],
             handwrittenAnswers: Array.isArray(r.handwrittenAnswers) ? r.handwrittenAnswers : [],
-            // Ensure strings are strings to prevent Uncaught TypeErrors
             aiInsights: r.aiInsights || "",
             aiInsights_native: r.aiInsights_native || "",
             improvement: r.improvement || "",
@@ -233,9 +312,27 @@ const App: React.FC = () => {
     };
 
     const handleDeleteAll = async () => {
-        if(!confirm("모든 기록을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) return;
-        setWorkerRecords([]);
-        await clearDB();
+        if(!confirm("⚠️ 경고: 모든 데이터가 삭제됩니다.\n\n근로자 기록, 안전 점검 일지, 지적 사항 등 모든 데이터가 영구적으로 삭제되며 복구할 수 없습니다.\n정말 진행하시겠습니까?")) return;
+        
+        try {
+            // 1. Clear IndexedDB (Workers)
+            await clearDB();
+            
+            // 2. Clear LocalStorage (Checks, Issues, etc.)
+            localStorage.removeItem('psi_safety_checks');
+            localStorage.removeItem('psi_site_issues');
+            
+            // 3. Clear State
+            setWorkerRecords([]);
+            setSafetyCheckRecords([]);
+            setBriefingData(null);
+            setForecastData(null);
+            
+            alert("시스템의 모든 데이터가 성공적으로 초기화되었습니다.");
+        } catch (e) {
+            console.error("Reset Failed:", e);
+            alert("데이터 초기화 중 일부 오류가 발생했습니다. 페이지를 새로고침 해주세요.");
+        }
     };
 
     const handleImport = async (records: WorkerRecord[]) => {
@@ -267,10 +364,12 @@ const App: React.FC = () => {
         
         setIsReanalyzing(true);
         try {
+            // Extracts whatever is after 'base64,'
             const cleanBase64 = record.originalImage.includes('base64,') 
                 ? record.originalImage.split('base64,')[1] 
                 : record.originalImage;
 
+            // Service now detects MIME type automatically
             const results = await analyzeWorkerRiskAssessment(cleanBase64, 'image/jpeg', record.filename || record.name);
             
             if (results && results.length > 0) {
@@ -298,7 +397,7 @@ const App: React.FC = () => {
     };
     
     return (
-        <>
+        <ErrorBoundary>
             <Layout currentPage={currentPage} setCurrentPage={setCurrentPage}>
                 {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={setCurrentPage} />}
                 {currentPage === 'ocr-analysis' && (
@@ -365,7 +464,7 @@ const App: React.FC = () => {
                     </div>
                 </div>
             )}
-        </>
+        </ErrorBoundary>
     );
 };
 export default App;

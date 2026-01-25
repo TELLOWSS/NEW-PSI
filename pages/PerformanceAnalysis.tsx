@@ -22,6 +22,7 @@ const calculateStandardDeviation = (scores: number[]) => {
 
 const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords }) => {
     const [timeRange, setTimeRange] = useState('최근 6개월');
+    const [compareMode, setCompareMode] = useState<'field' | 'team'>('field'); // New state for Radar Chart
 
     // 1. 순수 근로자 데이터만 추출
     const filteredBaseRecords = useMemo(() => 
@@ -223,21 +224,40 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                         <MonthlyTrendChart records={filteredBaseRecords} />
                     </div>
                 </div>
+                
+                {/* Radar Chart Section with Toggle */}
                 <div className="lg:col-span-1 bg-white p-8 rounded-3xl shadow-xl border border-slate-100 flex flex-col">
-                    <div className="mb-6">
-                        <h3 className="text-xl font-bold text-slate-900">공종별 역량 비교</h3>
-                        <p className="text-sm text-slate-500 mt-1">실무 10대 주요 공종 간 다각도 역량 분석</p>
+                    <div className="mb-4">
+                        <h3 className="text-xl font-bold text-slate-900">역량 비교 분석</h3>
+                        <p className="text-xs text-slate-500 mt-1">공종별 또는 팀별로 세분화하여 역량을 비교합니다.</p>
                     </div>
+                    
+                    {/* Mode Switcher */}
+                    <div className="flex bg-slate-100 p-1 rounded-lg mb-4">
+                        <button 
+                            onClick={() => setCompareMode('field')}
+                            className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${compareMode === 'field' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            공종별 비교
+                        </button>
+                        <button 
+                            onClick={() => setCompareMode('team')}
+                            className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${compareMode === 'team' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                            팀 단위 비교
+                        </button>
+                    </div>
+
                     <div className="flex-1 flex items-center justify-center relative">
                         <div className="w-full h-64">
-                            <FieldRadarChart records={filteredBaseRecords} />
+                            <FieldRadarChart records={filteredBaseRecords} mode={compareMode} />
                         </div>
                     </div>
-                    <div className="mt-6 pt-4 border-t border-slate-100">
-                        <h4 className="text-xs font-bold text-slate-500 uppercase mb-3">분석 가이드</h4>
-                        <ul className="space-y-2 text-xs text-slate-500">
-                            <li className="flex items-start"><strong className="w-20 shrink-0 text-indigo-600">평균 점수:</strong> 작업 실무자들의 안전 역량이 우수한 정도를 나타냅니다.</li>
-                            <li className="flex items-start"><strong className="w-20 shrink-0 text-teal-600">일관성:</strong> 현장의 안전 관리가 루틴하게 잘 이루어지고 있음을 의미합니다.</li>
+                    <div className="mt-4 pt-4 border-t border-slate-100">
+                        <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">지표 설명</h4>
+                        <ul className="space-y-1 text-xs text-slate-500">
+                            <li className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> 평균 점수: 높을수록 안전 역량 우수</li>
+                            <li className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-teal-500"></div> 일관성: 점수 편차가 적을수록 우수</li>
                         </ul>
                     </div>
                 </div>

@@ -77,11 +77,24 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const handlePrev = () => setPreviewIndex(prev => Math.max(0, prev - 1));
     const handleNext = () => setPreviewIndex(prev => Math.min(filteredRecords.length - 1, prev + 1));
 
+    // [Helper] jsPDF Constructor 가져오기
+    const getJsPDF = () => {
+        const w = window as any;
+        if (w.jspdf && w.jspdf.jsPDF) return w.jspdf.jsPDF;
+        if (w.jspdf) return w.jspdf;
+        return null;
+    };
+
     // [New] 현재 미리보기 보고서 단건 내보내기
     const handleDownloadCurrent = async () => {
-        if (!currentPreviewRecord || !previewRef.current) return;
+        if (!currentPreviewRecord) return alert('내보낼 데이터가 없습니다.');
+        if (!previewRef.current) return alert('미리보기 화면이 로드되지 않았습니다.');
+        
         const w = window as any;
-        if (!w.html2canvas || !w.jspdf) return alert('필수 라이브러리가 로드되지 않았습니다.');
+        if (!w.html2canvas) return alert('html2canvas 라이브러리가 로드되지 않았습니다.');
+        
+        const JsPDF = getJsPDF();
+        if (!JsPDF) return alert('jsPDF 라이브러리가 로드되지 않았습니다.');
 
         if (!confirm(`'${currentPreviewRecord.name}' 근로자의 보고서를 PDF로 내보내시겠습니까?`)) return;
 
@@ -95,12 +108,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 windowHeight: 1123
             });
             const imgData = canvas.toDataURL('image/jpeg', 0.9);
-            const pdf = new w.jspdf.jsPDF('p', 'mm', 'a4');
+            const pdf = new JsPDF('p', 'mm', 'a4');
             pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
             pdf.save(`PSI_Report_${currentPreviewRecord.name}_${currentPreviewRecord.jobField}.pdf`);
         } catch (e) {
             console.error(e);
-            alert('PDF 생성 실패');
+            alert('PDF 생성 중 오류가 발생했습니다.');
         }
     };
 
@@ -111,10 +124,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         const w = window as any;
         const missingLibs = [];
         if (!w.html2canvas) missingLibs.push('html2canvas');
-        if (!w.jspdf) missingLibs.push('jspdf');
+        const JsPDF = getJsPDF();
+        if (!JsPDF) missingLibs.push('jspdf');
         if (!w.JSZip) missingLibs.push('JSZip');
         if (!w.saveAs) missingLibs.push('FileSaver');
-        if (!w.Chart) missingLibs.push('Chart.js');
 
         if (missingLibs.length > 0) {
             return alert(`필수 라이브러리가 로드되지 않았습니다.\n(누락: ${missingLibs.join(', ')})\n\n인터넷 연결을 확인하거나 페이지를 새로고침(F5) 해주세요.`);
@@ -136,17 +149,16 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         const JSZip = w.JSZip;
         const saveAs = w.saveAs;
         const html2canvas = w.html2canvas;
-        const jspdf = w.jspdf;
 
         const zip = new JSZip();
         const timestamp = new Date().toISOString().slice(0,10).replace(/-/g, '');
         const folderName = `PSI_${selectedTeam}_${timestamp}`;
         const folder = zip.folder(folderName);
         
+        // Combined PDF용 마스터 인스턴스
         let masterPdf: any = null;
         if (genMode === 'combined-pdf') {
-            const jsPDF = jspdf.jsPDF ? jspdf.jsPDF : jspdf;
-            masterPdf = new jsPDF('p', 'mm', 'a4');
+            masterPdf = new JsPDF('p', 'mm', 'a4');
         }
 
         try {
@@ -159,10 +171,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     (r.teamLeader || '미지정') === (record.teamLeader || '미지정')
                 );
 
+                // 상태 업데이트 -> 렌더링 트리거
                 setGeneratingRecord(record);
                 setGeneratingHistory(workerHistory);
                 setBulkProgress({ current: i + 1, total: filteredRecords.length });
 
+                // DOM 렌더링 대기 (차트 애니메이션 등 고려)
                 await waitForRender(1200);
 
                 if (bulkReportRef.current && !abortRef.current) {
@@ -173,14 +187,13 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             logging: false, 
                             backgroundColor: '#ffffff',
                             allowTaint: true,
-                            scrollY: 0, 
-                            scrollX: 0,
                             windowWidth: 794,
                             windowHeight: 1123
                         });
 
                         const fileNameBase = `${record.name}_${record.jobField}`;
 
+                        // --- 모드별 분기 처리 ---
                         if (genMode === 'combined-pdf') {
                             const imgData = canvas.toDataURL('image/jpeg', 0.85);
                             if (i > 0) masterPdf.addPage();
@@ -188,13 +201,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         } 
                         else if (genMode === 'individual-pdf') {
                             const imgData = canvas.toDataURL('image/jpeg', 0.85);
-                            const jsPDF = jspdf.jsPDF ? jspdf.jsPDF : jspdf;
-                            const tempPdf = new jsPDF('p', 'mm', 'a4');
+                            const tempPdf = new JsPDF('p', 'mm', 'a4');
                             tempPdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+                            // PDF Blob 생성
                             const pdfBlob = tempPdf.output('blob');
                             folder.file(`${fileNameBase}.pdf`, pdfBlob);
                         } 
                         else if (genMode === 'individual-img') {
+                            // Canvas Blob 생성
                             const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
                             if (blob) folder.file(`${fileNameBase}.jpg`, blob);
                         }
@@ -203,6 +217,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     }
                 }
                 
+                // 메모리 해제를 위한 짧은 딜레이
                 await new Promise(r => setTimeout(r, 100));
             }
 
@@ -338,7 +353,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             </div>
 
             {/* Hidden Rendering Area for Bulk Generation */}
-            <div style={{ position: 'fixed', top: 0, left: 0, zIndex: -50, width: '210mm', minHeight: '297mm', pointerEvents: 'none' }}>
+            <div style={{ position: 'fixed', top: 0, left: 0, zIndex: -50, width: '210mm', minHeight: '297mm', pointerEvents: 'none', visibility: isGenerating ? 'visible' : 'hidden' }}>
                 {isGenerating && generatingRecord && (
                     <ReportTemplate record={generatingRecord} history={generatingHistory} ref={bulkReportRef} />
                 )}

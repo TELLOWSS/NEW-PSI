@@ -5,9 +5,10 @@ import type { WorkerRecord } from '../../types';
 
 interface ChartProps {
     records: WorkerRecord[];
+    mode?: 'field' | 'team'; // New prop to switch modes
 }
 
-export const FieldRadarChart: React.FC<ChartProps> = ({ records }) => {
+export const FieldRadarChart: React.FC<ChartProps> = ({ records, mode = 'field' }) => {
     const chartRef = useRef<HTMLCanvasElement>(null);
     const chartInstance = useRef<Chart | null>(null);
 
@@ -17,28 +18,38 @@ export const FieldRadarChart: React.FC<ChartProps> = ({ records }) => {
         const ChartLib = (window as any).Chart;
         if (!ChartLib) return;
 
-        // 1. Calculate Metrics per Field
-        const fieldMetrics: Record<string, { scores: number[], counts: number }> = {};
+        // 1. Calculate Metrics (Dynamic Grouping)
+        const metrics: Record<string, { scores: number[], counts: number }> = {};
         
         records.forEach(r => {
-            const field = r.jobField || '미분류';
-            if (!fieldMetrics[field]) fieldMetrics[field] = { scores: [], counts: 0 };
-            fieldMetrics[field].scores.push(r.safetyScore);
-            fieldMetrics[field].counts++;
+            let key = '';
+            if (mode === 'team') {
+                // 팀 모드일 경우 팀장이 있는 경우만 집계 (미지정 제외)
+                if (!r.teamLeader || r.teamLeader === '미지정') return;
+                // 팀장 이름 뒤에 공종을 붙여 구분이 쉽도록 함 (예: 홍길동 (형틀))
+                key = `${r.teamLeader} (${r.jobField})`;
+            } else {
+                key = r.jobField || '미분류';
+            }
+
+            if (!metrics[key]) metrics[key] = { scores: [], counts: 0 };
+            metrics[key].scores.push(r.safetyScore);
+            metrics[key].counts++;
         });
 
-        // 2. Process Top 10 Fields (기존 5개에서 10개로 확대하여 시스템, 할석 등 누락 방지)
-        const topFields = Object.entries(fieldMetrics)
-            .sort((a, b) => b[1].counts - a[1].counts)
-            .slice(0, 10);
+        // 2. Process Top Items (공종은 Top 10, 팀은 Top 8로 제한하여 시인성 확보)
+        const limit = mode === 'team' ? 8 : 10;
+        const topItems = Object.entries(metrics)
+            .sort((a, b) => b[1].counts - a[1].counts) // 인원 많은 순
+            .slice(0, limit);
 
-        const labels = topFields.map(([field]) => field);
-        const scoreData = topFields.map(([, data]) => 
+        const labels = topItems.map(([key]) => key);
+        const scoreData = topItems.map(([, data]) => 
             data.scores.length > 0 ? data.scores.reduce((a, b) => a + b, 0) / data.scores.length : 0
         );
         
         // Calculate 'Consistency' (inverse of normalized variance)
-        const consistencyData = topFields.map(([, data]) => {
+        const consistencyData = topItems.map(([, data]) => {
             if (data.scores.length < 1) return 0;
             const mean = data.scores.reduce((a, b) => a + b, 0) / data.scores.length;
             const variance = data.scores.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / data.scores.length;
@@ -95,7 +106,7 @@ export const FieldRadarChart: React.FC<ChartProps> = ({ records }) => {
                             grid: { color: 'rgba(0,0,0,0.08)' },
                             pointLabels: {
                                 font: { 
-                                    size: labels.length > 6 ? 10 : 12, // 라벨이 많아지면 폰트 크기 자동 조절
+                                    size: labels.length > 6 ? 10 : 11,
                                     family: "'Pretendard', sans-serif", 
                                     weight: 'bold' 
                                 },
@@ -122,7 +133,10 @@ export const FieldRadarChart: React.FC<ChartProps> = ({ records }) => {
                             cornerRadius: 8,
                             titleFont: { size: 13, weight: 'bold' },
                             bodyFont: { size: 12 },
-                            displayColors: true
+                            displayColors: true,
+                            callbacks: {
+                                title: (items: any) => items[0].label // Full label in tooltip
+                            }
                         }
                     }
                 }
@@ -137,7 +151,7 @@ export const FieldRadarChart: React.FC<ChartProps> = ({ records }) => {
                 chartInstance.current = null;
             }
         };
-    }, [records]);
+    }, [records, mode]); // Re-render when mode changes
 
     return <canvas ref={chartRef} />;
 };

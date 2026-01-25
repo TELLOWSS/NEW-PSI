@@ -8,6 +8,7 @@ if (!process.env.API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+// --- Schemas (Defined exactly as before) ---
 const workerRecordSchema = {
     type: Type.ARRAY,
     items: {
@@ -94,35 +95,114 @@ const LANGUAGE_POLICY = `
 (예: 'Falling' -> '추락(Fall from height)', 'Struck by' -> '협착/충돌')
 `;
 
-async function callGeminiWithRetry(base64Image: string, mimeType: string, modelName: string, filenameHint?: string, maxRetries = 3): Promise<WorkerRecord[]> {
+/**
+ * [Smart Mime Detector]
+ * Detects the real MIME type based on Base64 Magic Bytes.
+ * This fixes issues where the header says 'image/jpeg' but the data is actually 'image/png'.
+ */
+function detectMimeTypeFromBase64(base64Data: string): string {
+    const signature = base64Data.substring(0, 12);
+    if (signature.startsWith('iVBORw0KGgo')) return 'image/png';
+    if (signature.startsWith('/9j/')) return 'image/jpeg';
+    if (signature.startsWith('R0lGOD')) return 'image/gif';
+    if (signature.startsWith('UklGR')) return 'image/webp';
+    if (signature.startsWith('AAAAFftM')) return 'image/heic';
+    return 'image/jpeg'; // Default fallback
+}
+
+/**
+ * [Robust Image Cleaner]
+ * Extracts pure Base64 data and corrects MIME type.
+ */
+function getCleanImagePayload(input: string): { data: string, mimeType: string } {
+    if (!input || typeof input !== 'string' || input.length < 50) {
+        throw new Error("Image data is empty or too short.");
+    }
+
+    let cleanData = input.trim();
+    let detectedMime = '';
+
+    // 1. Remove Header if present
+    if (cleanData.includes('base64,')) {
+        const parts = cleanData.split('base64,');
+        cleanData = parts[1];
+    }
+
+    // 2. Clean whitespace
+    cleanData = cleanData.replace(/[\r\n\s]/g, '');
+
+    // 3. Detect Real MIME Type (Magic Bytes)
+    detectedMime = detectMimeTypeFromBase64(cleanData);
+
+    return { data: cleanData, mimeType: detectedMime };
+}
+
+/**
+ * [Robust] Call Gemini with Auto-Parsing
+ */
+async function callGeminiWithRetry(
+    imageSource: string, 
+    _unusedMimeType: string | null, 
+    modelName: string, 
+    filenameHint?: string, 
+    maxRetries = 2
+): Promise<WorkerRecord[]> {
     let lastError: any;
     
+    // 1. Prepare Data
+    let imageData: string;
+    let mimeType: string;
+
+    try {
+        const payload = getCleanImagePayload(imageSource);
+        imageData = payload.data;
+        mimeType = payload.mimeType;
+        
+        console.log(`[Gemini] Processing image: ${mimeType}, length: ${imageData.length}`);
+    } catch (e: any) {
+        console.error("Image Processing Failed:", e);
+        return [{
+            id: `err-img-${Date.now()}`,
+            name: "이미지 데이터 유실",
+            jobField: "미분류",
+            teamLeader: "미지정",
+            role: 'worker',
+            date: new Date().toISOString().split('T')[0],
+            nationality: "미상",
+            safetyScore: 0,
+            safetyLevel: '초급',
+            originalImage: imageSource, // Keep original
+            filename: filenameHint,
+            language: "unknown",
+            handwrittenAnswers: [],
+            fullText: "분석 불가",
+            koreanTranslation: "이미지 데이터가 손상되어 분석할 수 없습니다.",
+            strengths: [], strengths_native: [],
+            weakAreas: ["이미지 오류"], weakAreas_native: [],
+            improvement: "", improvement_native: "",
+            suggestions: [], suggestions_native: [],
+            aiInsights: `오류: ${e.message}`, aiInsights_native: "",
+            selfAssessedRiskLevel: '중'
+        }];
+    }
+
+    // 2. Retry Loop
     for (let i = 0; i < maxRetries; i++) {
         try {
             const systemInstruction = `
-            **역할**: 건설현장 안전관리 전문가 및 문서 분석관.
-            **임무**: 수기 위험성 평가표 이미지를 분석하여 데이터를 추출하고 안전 진단을 실시하라.
+            **역할**: 건설현장 안전관리 전문가.
+            **임무**: 수기 위험성 평가표 이미지를 분석하여 데이터 추출.
             ${LANGUAGE_POLICY}
             
-            **강조 표기 규칙**:
-            - 분석 결과(aiInsights, strengths, weakAreas)에서 **핵심 위험 요인**이나 **매우 우수한 점**은 반드시 '작은따옴표'로 감싸서 강조하라.
-
-            **분석 기준**:
-            - 근로자가 작성한 위험 요인의 구체성, 대책의 실효성을 바탕으로 PSI 점수를 산출하라.
-            - 취약점(Weak Areas)은 근로자의 생명과 직결되는 부분을 우선적으로 도출하라.
-            - 팀장(Team Leader) 이름이 문서에 있다면 반드시 추출하라.
-            
-            **직책 및 임무 식별 (중요)**:
-            1. **직급(Role)**: '팀장/소장'은 'leader', '부팀장/반장'은 'sub_leader', 그 외는 'worker'로 분류.
-            2. **통역(isTranslator)**: '통역' 관련 언급이나 역할이 확인되면 true, 아니면 false.
-            3. **신호수(isSignalman)**: '신호수', '유도원' 관련 언급이 확인되면 true, 아니면 false.
-            *참고: 직급과 임무는 독립적입니다. 예: 팀장이면서 신호수일 수 있음.*
+            **강조**: 분석 결과에서 핵심 위험 요인은 '작은따옴표'로 강조.
+            **직책 식별**: '팀장/소장'은 'leader', '부팀장/반장'은 'sub_leader', 그 외 'worker'.
+            **임무 식별**: '통역' -> isTranslator=true, '신호수/유도원' -> isSignalman=true.
             `;
 
-            const prompt = `위험성 평가 문서를 분석하십시오. 파일명 힌트: ${filenameHint || '없음'}. 
-            한국인은 한국어로만, 외국인은 한국어와 위 정책에 따른 모국어를 병기하여 상세 분석 리포트를 작성하십시오.`;
+            const prompt = `위험성 평가 문서를 분석하십시오. 파일명: ${filenameHint || 'unknown'}. 
+            한국인은 한국어로, 외국인은 한국어와 모국어를 병기하여 JSON으로 출력하십시오.`;
             
-            const imagePart = { inlineData: { data: base64Image, mimeType: mimeType } };
+            const imagePart = { inlineData: { data: imageData, mimeType: mimeType } };
 
             const response = await ai.models.generateContent({
                 model: modelName,
@@ -140,7 +220,7 @@ async function callGeminiWithRetry(base64Image: string, mimeType: string, modelN
                 return records.map((r: any) => ({
                     ...r,
                     id: r.id || `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-                    originalImage: base64Image,
+                    originalImage: imageSource, // Keep raw source
                     filename: filenameHint,
                     name: r.name || "식별 대기",
                     jobField: r.jobField || "기타",
@@ -150,22 +230,31 @@ async function callGeminiWithRetry(base64Image: string, mimeType: string, modelN
                     isSignalman: r.isSignalman || false
                 }));
             }
-            throw new Error("Empty response from AI");
+            throw new Error("AI returned empty response");
             
         } catch (e: any) {
             lastError = e;
-            const errorMsg = e?.message || JSON.stringify(e);
-            if ((errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED')) && i < maxRetries - 1) {
-                await delay(Math.pow(2, i) * 2000 + Math.random() * 1000);
-                continue;
+            const errorMsg = e?.message || String(e);
+            console.warn(`Attempt ${i + 1} failed for ${filenameHint}:`, errorMsg);
+            
+            // Critical errors: Don't retry
+            if (errorMsg.includes('400') || errorMsg.includes('INVALID_ARGUMENT')) {
+                lastError = new Error(`이미지 포맷(${mimeType})을 AI가 인식하지 못했습니다.`);
+                break;
             }
-            break; 
+            
+            // Rate limit errors: Backoff and retry
+            if (i < maxRetries - 1) {
+                await delay(3000 * (i + 1)); 
+            }
         }
     }
 
+    console.error("Final failure for", filenameHint, lastError);
+
     return [{
         id: `rec-err-${Date.now()}`,
-        name: "할당량 초과 (재분석 필요)",
+        name: "분석 실패 (재시도 필요)",
         jobField: "미분류",
         teamLeader: "미지정",
         role: 'worker',
@@ -175,17 +264,17 @@ async function callGeminiWithRetry(base64Image: string, mimeType: string, modelN
         nationality: "미상",
         safetyScore: 0,
         safetyLevel: '초급',
-        originalImage: base64Image,
+        originalImage: imageSource, 
         filename: filenameHint,
         language: "unknown",
         handwrittenAnswers: [],
         fullText: "분석 실패",
-        koreanTranslation: "API 사용량이 일시적으로 초과되었습니다.",
+        koreanTranslation: "AI 연결 실패 또는 이미지 인식 오류.",
         strengths: [], strengths_native: [],
-        weakAreas: ["할당량 초과"], weakAreas_native: [],
+        weakAreas: ["분석 오류"], weakAreas_native: [],
         improvement: "", improvement_native: "",
         suggestions: [], suggestions_native: [],
-        aiInsights: "현재 API 요청량이 너무 많습니다.", aiInsights_native: "",
+        aiInsights: `오류 상세: ${lastError?.message || '알 수 없는 오류'}`, aiInsights_native: "",
         selfAssessedRiskLevel: '중'
     }];
 }
@@ -199,31 +288,20 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
 
         const systemInstruction = `
         **역할**: 건설현장 안전관리 AI 보좌관.
-        **임무**: 사용자가 수동으로 수정한 근로자 정보(국적, 점수, 직종, 팀장, 직책, 특수임무 등)를 바탕으로 안전 분석 결과와 번역을 **반드시 새로 생성**하라.
+        **임무**: 사용자가 수정한 근로자 정보 기반으로 안전 분석 결과 갱신.
         ${LANGUAGE_POLICY}
-        
-        **필수 지침**:
-        - 입력된 '안전 점수'에 맞춰 평가(aiInsights)의 톤앤매너를 수정하라. (예: 점수가 높으면 칭찬, 낮으면 경고)
-        - 입력된 '국적'에 맞춰 '_native' 필드의 번역 언어를 변경하라.
-        - **직책(Role)과 특수임무(Duties) 반영**:
-          - '팀장/부팀장'인 경우 리더십과 솔선수범을 강조.
-          - '통역' 임무가 있으면 정확한 안전 지침 전달의 중요성을 강조.
-          - '신호수' 임무가 있으면 장비 유도 및 사각지대 관리 중요성을 강조.
         `;
 
         const prompt = `
-        다음은 관리자가 수정한 근로자 정보입니다. 이 정보를 바탕으로 strengths, weakAreas, aiInsights 및 native 필드들을 갱신하십시오.
+        다음 정보를 바탕으로 strengths, weakAreas, aiInsights 및 native 필드들을 갱신하십시오.
         
-        [수정된 정보]
         이름: ${record.name}
         국적: ${record.nationality}
         공종: ${record.jobField}
         팀장: ${record.teamLeader || "미지정"}
         직급: ${record.role || "worker"}
         특수임무: ${dutyStr}
-        안전 점수: ${record.safetyScore} (등급: ${record.safetyLevel})
-        
-        위 정보를 반영하여 JSON 형식으로 결과를 반환하십시오.
+        안전 점수: ${record.safetyScore}
         `;
 
         const response = await ai.models.generateContent({
@@ -237,9 +315,7 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
             }
         });
 
-        if (response.text) {
-            return JSON.parse(response.text.trim());
-        }
+        if (response.text) return JSON.parse(response.text.trim());
         return null;
     } catch (e) {
         console.error("Update analysis failed:", e);
@@ -247,8 +323,8 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
     }
 }
 
-export async function analyzeWorkerRiskAssessment(base64Image: string, mimeType: string, filenameHint?: string): Promise<WorkerRecord[]> {
-    return await callGeminiWithRetry(base64Image, mimeType, 'gemini-3-flash-preview', filenameHint);
+export async function analyzeWorkerRiskAssessment(imageSource: string, _unusedMimeType: string, filenameHint?: string): Promise<WorkerRecord[]> {
+    return await callGeminiWithRetry(imageSource, null, 'gemini-3-flash-preview', filenameHint);
 }
 
 export async function generateSpeechFromText(text: string, voiceName: string = 'Kore'): Promise<string> {
@@ -288,13 +364,9 @@ export async function generateSafetyBriefing(workers: WorkerRecord[], checks: Sa
 
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: `다음 현장 데이터를 바탕으로 ${currentMonth} 안전 전략 브리핑 대본과 KPI 분석을 작성하라.
-            데이터:
-            근로자 요약: ${JSON.stringify(workerSummary)}
-            최근 점검: ${JSON.stringify(checkSummary)}
-            
-            대본은 전문적이고 권위 있으면서도 근로자들의 사기를 북돋는 톤으로 작성하라.
-            특정 팀(팀장)에서 반복되는 취약점이 있다면 언급하라.`,
+            contents: `다음 데이터를 바탕으로 ${currentMonth} 안전 전략 브리핑 대본과 KPI 작성.
+            근로자: ${JSON.stringify(workerSummary)}
+            점검: ${JSON.stringify(checkSummary)}`,
             config: {
                 responseMimeType: "application/json",
                 responseSchema: {
@@ -315,19 +387,15 @@ export async function generateSafetyBriefing(workers: WorkerRecord[], checks: Sa
         const result = JSON.parse(response.text || "{}");
         const bestWorker = workers.length > 0 ? [...workers].sort((a, b) => b.safetyScore - a.safetyScore)[0] : null;
 
-        return {
-            ...result,
-            bestWorker
-        };
+        return { ...result, bestWorker };
     } catch (error) {
-        console.error("Safety briefing generation failed:", error);
         return {
             month: "데이터 없음",
             avgScore: 0,
             totalWorkers: 0,
             topWeakness: "분석 실패",
             bestWorker: null,
-            script: "브리핑 데이터를 생성할 수 없습니다. 다시 시도해주세요.",
+            script: "브리핑 데이터를 생성할 수 없습니다.",
             kpiAnalysis: "N/A"
         };
     }
@@ -349,7 +417,7 @@ export async function generateFutureRiskForecast(workers: WorkerRecord[]): Promi
 
         const response = await ai.models.generateContent({
             model: 'gemini-3-flash-preview',
-            contents: `근로자 안전 데이터를 분석하여 ${nextMonth}의 위험성을 예측하라.
+            contents: `근로자 데이터를 분석하여 ${nextMonth} 위험성 예측.
             데이터: ${JSON.stringify(summary)}`,
             config: {
                 responseMimeType: "application/json",
@@ -378,7 +446,6 @@ export async function generateFutureRiskForecast(workers: WorkerRecord[]): Promi
 
         return JSON.parse(response.text || "{}");
     } catch (error) {
-        console.error("Risk forecast generation failed:", error);
         return {
             nextMonth: "예측 불가",
             predictedRisks: [],

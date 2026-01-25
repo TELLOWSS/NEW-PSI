@@ -9,55 +9,77 @@ interface QRCodeProps {
     onLoad?: (success: boolean) => void;
 }
 
-const QRCodeComponent: React.FC<QRCodeProps> = ({ record, onLoad }) => {
+const QRCodeComponent: React.FC<QRCodeProps> = React.memo(({ record, onLoad }) => {
     const containerRef = useRef<HTMLDivElement>(null);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     useEffect(() => {
-        const generate = () => {
+        // [Optimization] Use requestAnimationFrame to avoid blocking main thread during bulk render
+        const timer = requestAnimationFrame(() => {
             const element = containerRef.current;
             if (!element) return;
 
+            // 이미 생성되었다면 스킵 (중복 생성 방지)
+            if (element.children.length > 0) return;
+
+            // 1. 라이브러리 존재 여부 확인
             const QRCodeLib = (window as any).QRCode;
             if (!QRCodeLib) {
-                console.error("QRCode library missing.");
+                const msg = "QR Lib Missing";
+                console.error(msg);
+                setErrorMsg(msg);
                 if (onLoad) onLoad(false); 
                 return;
             }
 
             try {
-                element.innerHTML = ''; // 초기화
+                // 2. 초기화 및 URL 생성
+                element.innerHTML = ''; 
                 const qrUrl = generateReportUrl(record);
                 
                 if (!qrUrl) throw new Error("URL Gen Failed");
 
+                // 3. QR 생성 시도
                 new QRCodeLib(element, {
                     text: qrUrl,
                     width: 128, 
                     height: 128,
                     colorDark: "#000000",
                     colorLight: "#ffffff",
-                    correctLevel: QRCodeLib.CorrectLevel ? QRCodeLib.CorrectLevel.L : 1 
+                    correctLevel: QRCodeLib.CorrectLevel ? QRCodeLib.CorrectLevel.L : 1 // Low level for max capacity
                 });
                 
-                // DOM 렌더링 완료 간주
+                // 4. 성공 처리
                 if (onLoad) onLoad(true);
+                setErrorMsg(null);
 
-            } catch (e) {
-                console.error("QR Error:", e);
-                element.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;"><span style="font-size:8px;font-weight:bold;color:red;">QR ERROR</span><span style="font-size:6px;">${record.id.slice(-4)}</span></div>`;
-                if (onLoad) onLoad(true); 
+            } catch (e: any) {
+                console.error("QR Generation Error:", e);
+                // 에러 메시지 표시 (사용자가 원인 파악 가능하도록)
+                let visibleError = "QR Error";
+                if (e.message && e.message.includes("code length overflow")) visibleError = "Data Too Long";
+                
+                setErrorMsg(visibleError);
+                if (onLoad) onLoad(false); 
             }
-        };
+        });
 
-        // UI 블로킹 방지를 위한 미세 지연
-        const timer = setTimeout(generate, Math.random() * 100);
-        return () => clearTimeout(timer);
+        return () => cancelAnimationFrame(timer);
     }, [record, onLoad]);
+
+    if (errorMsg) {
+        return (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 border border-red-200">
+                <span className="text-[8px] font-black text-red-500 uppercase">{errorMsg}</span>
+                <span className="text-[6px] text-slate-400">{record.id.slice(-4)}</span>
+            </div>
+        );
+    }
 
     return (
         <div ref={containerRef} className="w-full h-full flex items-center justify-center overflow-hidden bg-white"></div>
     );
-};
+});
 
 // [디자인] 등급별 스타일 상수 (Industrial High-Contrast)
 const getGradeStyle = (level: string) => {
@@ -105,10 +127,13 @@ const getRoleBadge = (record: WorkerRecord) => {
 };
 
 // [컴포넌트] 안전모 스티커 (A4 최적화: 90mm x 60mm)
-const PremiumSticker: React.FC<{ worker: WorkerRecord }> = ({ worker }) => {
+const PremiumSticker: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker }) => {
     const s = getGradeStyle(worker.safetyLevel);
     const roles = getRoleBadge(worker);
     const mainRole = roles.length > 0 ? roles[0] : worker.jobField;
+    const safeWeakArea = (worker.weakAreas && Array.isArray(worker.weakAreas) && worker.weakAreas.length > 0) 
+        ? worker.weakAreas[0] 
+        : '안전 수칙 준수 요망';
 
     return (
         <div className={`w-[90mm] h-[60mm] bg-white rounded-xl border-[3px] flex overflow-hidden relative break-inside-avoid box-border shadow-sm print:shadow-none ${s.border}`}>
@@ -145,7 +170,7 @@ const PremiumSticker: React.FC<{ worker: WorkerRecord }> = ({ worker }) => {
                     <div className="bg-slate-50 rounded-lg p-2 border border-slate-100 flex items-center gap-2">
                         <div className="text-rose-500 font-bold text-xs shrink-0">⚠ 주의</div>
                         <div className="text-[10px] font-bold text-slate-600 truncate flex-1">
-                            {worker.weakAreas[0] || '안전 수칙 준수 요망'}
+                            {safeWeakArea}
                         </div>
                     </div>
                     <div className="flex justify-between items-end mt-1.5">
@@ -156,10 +181,10 @@ const PremiumSticker: React.FC<{ worker: WorkerRecord }> = ({ worker }) => {
             </div>
         </div>
     );
-};
+});
 
 // [컴포넌트] 스마트 사원증 (A4 최적화: 54mm x 86mm)
-const PremiumIDCard: React.FC<{ worker: WorkerRecord }> = ({ worker }) => {
+const PremiumIDCard: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker }) => {
     const s = getGradeStyle(worker.safetyLevel);
     const roles = getRoleBadge(worker);
 
@@ -223,6 +248,38 @@ const PremiumIDCard: React.FC<{ worker: WorkerRecord }> = ({ worker }) => {
             </div>
         </div>
     );
+});
+
+// [SAMPLE DATA] For Preview Modal
+const sampleWorker: WorkerRecord = {
+    id: 'SAMPLE-PREVIEW-001',
+    name: '홍길동',
+    jobField: '형틀목공',
+    teamLeader: '홍길동',
+    role: 'leader',
+    isTranslator: true,
+    isSignalman: false,
+    date: '2026-01-01',
+    nationality: '대한민국',
+    language: 'Korean',
+    safetyScore: 98,
+    safetyLevel: '고급',
+    weakAreas: ['해당 없음'],
+    strengths: ['안전 수칙 준수'],
+    profileImage: undefined, // Will default to placeholder icon
+    // Fill required dummy fields
+    handwrittenAnswers: [],
+    fullText: '',
+    koreanTranslation: '',
+    strengths_native: [],
+    weakAreas_native: [],
+    improvement: '',
+    improvement_native: '',
+    suggestions: [],
+    suggestions_native: [],
+    aiInsights: '',
+    aiInsights_native: '',
+    selfAssessedRiskLevel: '하'
 };
 
 const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails: any }> = ({ workerRecords, onViewDetails }) => {
@@ -235,10 +292,14 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
     const [isPrintMode, setIsPrintMode] = useState(false);
     const [printType, setPrintType] = useState<'sticker' | 'idcard'>('sticker');
     const [workersToPrint, setWorkersToPrint] = useState<WorkerRecord[]>([]);
+    const [renderLimit, setRenderLimit] = useState(0); // [NEW] For Progressive Rendering
     
     // View Mode Toggle (Grid vs Flip)
     const [viewType, setViewType] = useState<'grid' | 'flip'>('grid');
     const [currentFlipIndex, setCurrentFlipIndex] = useState(0);
+
+    // [NEW] Sample Modal State
+    const [showSampleModal, setShowSampleModal] = useState(false);
 
     const latestRecords = useMemo(() => {
         const map = new Map<string, WorkerRecord>();
@@ -262,25 +323,37 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
 
     const startProcessing = (type: 'sticker' | 'idcard', targetWorkers: WorkerRecord[]) => {
         if (targetWorkers.length === 0) return alert('발급할 근로자 데이터가 없습니다.');
+        
+        // Reset states
         setWorkersToPrint(targetWorkers);
         setPrintType(type);
-        setIsPrintMode(true);
+        setRenderLimit(0); // Reset render limit
         setViewType('grid'); // Default to grid
         setCurrentFlipIndex(0);
+        setIsPrintMode(true);
     };
+
+    // [PROGRESSIVE RENDERING ENGINE]
+    // 브라우저 멈춤 방지를 위해 프레임당 렌더링 개수를 제한하여 점진적으로 로드함
+    useEffect(() => {
+        if (!isPrintMode) return;
+        
+        // 렌더링이 완료되지 않았다면 계속 진행
+        if (renderLimit < workersToPrint.length) {
+            // 프레임당 렌더링 개수 (PC 성능에 따라 조절 가능하지만 4~8개 정도가 UI 응답성 유지에 좋음)
+            const BATCH_SIZE = 5; 
+            
+            const timer = requestAnimationFrame(() => {
+                setRenderLimit(prev => Math.min(prev + BATCH_SIZE, workersToPrint.length));
+            });
+            
+            return () => cancelAnimationFrame(timer);
+        }
+    }, [isPrintMode, renderLimit, workersToPrint.length]);
 
     // Navigation for Flip View
     const handleNext = () => setCurrentFlipIndex(prev => Math.min(workersToPrint.length - 1, prev + 1));
     const handlePrev = () => setCurrentFlipIndex(prev => Math.max(0, prev - 1));
-
-    // Print Single Item logic: we can achieve this by temporarily showing only the current item in the print media query, 
-    // but a simpler way is to just let the user see it and then maybe we add a 'print single' feature later.
-    // For now, "Print All" prints the *currently filtered set* (workersToPrint).
-    // If user wants to print one, they can filter or we can implement a specific single print.
-    // Let's stick to standard browser print which prints what's visible.
-    // Actually, to print 'current only' in flip mode, we'd need to hide others. 
-    // Strategy: The 'Print' button will print *all* in grid mode. 
-    // If in Flip mode, we can add a button "Print This Only" which temporarily hides others.
 
     const printCurrentOnly = () => {
         const style = document.createElement('style');
@@ -293,9 +366,19 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
             }
         `;
         document.head.appendChild(style);
-        window.print();
-        document.head.removeChild(style);
+        setTimeout(() => {
+            window.print();
+            document.head.removeChild(style);
+        }, 300); // 렌더링 대기
     };
+
+    const handlePrintAll = () => {
+        // 인쇄 전 렌더링 시간을 잠시 확보
+        setTimeout(() => window.print(), 500);
+    };
+
+    const isRenderingComplete = renderLimit >= workersToPrint.length;
+    const progressPercentage = Math.round((renderLimit / workersToPrint.length) * 100);
 
     if (isPrintMode) {
         return (
@@ -336,7 +419,23 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                         </div>
                     </div>
                     
-                    {viewType === 'flip' && (
+                    {/* Rendering Progress Bar */}
+                    {!isRenderingComplete && (
+                        <div className="flex-1 max-w-xs mx-8">
+                            <div className="flex justify-between text-xs font-bold text-slate-500 mb-1">
+                                <span>인쇄 데이터 생성 중...</span>
+                                <span>{renderLimit} / {workersToPrint.length}</span>
+                            </div>
+                            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                                <div 
+                                    className="bg-indigo-500 h-full rounded-full transition-all duration-100 ease-linear" 
+                                    style={{ width: `${progressPercentage}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {viewType === 'flip' && isRenderingComplete && (
                         <div className="flex items-center gap-4 bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
                             <button onClick={handlePrev} disabled={currentFlipIndex === 0} className="p-2 hover:bg-white rounded-full disabled:opacity-30"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
                             <span className="font-mono font-bold text-slate-700 w-16 text-center">{currentFlipIndex + 1} / {workersToPrint.length}</span>
@@ -358,11 +457,21 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                             </button>
                         ) : (
                             <button 
-                                onClick={() => window.print()} 
-                                className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-black shadow-lg hover:bg-indigo-700 transition-transform hover:-translate-y-0.5 flex items-center gap-2 text-sm"
+                                onClick={handlePrintAll} 
+                                disabled={!isRenderingComplete}
+                                className={`px-8 py-3 rounded-xl font-black shadow-lg transition-all flex items-center gap-2 text-sm ${!isRenderingComplete ? 'bg-slate-300 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-0.5'}`}
                             >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                                전체 일괄 인쇄
+                                {isRenderingComplete ? (
+                                    <>
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                                        전체 일괄 인쇄
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                        데이터 준비 중...
+                                    </>
+                                )}
                             </button>
                         )}
                     </div>
@@ -372,10 +481,10 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                 <div className="p-8 flex flex-col items-center min-h-screen bg-slate-100 print:bg-white print:p-0">
                     
                     {viewType === 'grid' ? (
-                        /* GRID VIEW (For Printing All) */
+                        /* GRID VIEW (Progressive Rendering) */
                         <div className="bg-white p-0 w-[210mm] min-h-[297mm] shadow-2xl print:shadow-none print:w-full print:h-auto overflow-hidden relative print-container">
                             <div className={`relative z-10 w-full h-full p-[10mm] grid content-start ${printType === 'sticker' ? "grid-cols-2 gap-x-[10mm] gap-y-[10mm]" : "grid-cols-3 gap-x-[5mm] gap-y-[10mm]"}`}>
-                                {workersToPrint.map(w => (
+                                {workersToPrint.slice(0, renderLimit).map(w => (
                                     <div key={w.id} className="flex justify-center items-start break-inside-avoid page-break-inside-avoid">
                                         {printType === 'sticker' 
                                             ? <PremiumSticker worker={w} /> 
@@ -428,8 +537,16 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                         <h3 className="text-4xl lg:text-5xl font-black mb-4 tracking-tight leading-tight">근로자 보안 패스<br/>통합 발급 센터</h3>
                         <p className="text-slate-400 font-medium text-lg leading-relaxed max-w-xl">
                             현장의 안전 수준을 시각화하는 <span className="text-indigo-300 font-bold">스마트 스티커</span>와 <span className="text-indigo-300 font-bold">ID 카드</span>를 발급합니다.<br/>
-                            대량 인쇄 시에는 '인쇄 미리보기' 화면에서 QR코드 생성을 확인 후 출력하세요.
+                            <span className="text-indigo-400 font-bold text-sm bg-indigo-900/50 px-2 py-1 rounded">* 대량 출력 시 자동 분할 렌더링이 적용됩니다.</span>
                         </p>
+                        
+                        {/* Sample Preview Button */}
+                        <div className="flex justify-center lg:justify-start mt-6">
+                            <button onClick={() => setShowSampleModal(true)} className="px-5 py-2.5 bg-white/10 hover:bg-white/20 text-indigo-100 rounded-full text-xs font-bold transition-all border border-white/10 flex items-center gap-2 backdrop-blur-md">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                디자인 샘플 미리보기
+                            </button>
+                        </div>
                     </div>
                     <div className="flex gap-5 shrink-0">
                         <button onClick={() => startProcessing('sticker', filteredRecords)} className="group relative w-40 h-48 bg-white/5 border border-white/10 rounded-[30px] hover:bg-white/10 transition-all flex flex-col items-center justify-center gap-4 hover:-translate-y-2 duration-300">
@@ -453,6 +570,60 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                     </div>
                 </div>
             </div>
+
+            {/* Design Sample Modal */}
+            {showSampleModal && (
+                <div className="fixed inset-0 z-[4000] bg-black/90 flex items-center justify-center p-4 backdrop-blur-md animate-fade-in" onClick={() => setShowSampleModal(false)}>
+                    <div className="bg-slate-900 rounded-[40px] p-8 lg:p-12 max-w-5xl w-full relative overflow-hidden border border-slate-700 shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
+                        <button className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors" onClick={() => setShowSampleModal(false)}>
+                            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                        
+                        <div className="text-center mb-12 relative z-10">
+                            <span className="text-indigo-400 font-bold text-xs tracking-widest uppercase mb-2 block">Premium Design System</span>
+                            <h2 className="text-3xl md:text-4xl font-black text-white">PSI 안전 인증 디자인 샘플</h2>
+                            <p className="text-slate-400 mt-2 font-medium">현장의 안전 수준을 한눈에 식별할 수 있는 고시인성 디자인입니다.</p>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center justify-items-center relative z-10">
+                            {/* Sticker Sample */}
+                            <div className="flex flex-col items-center gap-6 group">
+                                <div className="relative transform transition-transform duration-500 group-hover:scale-105 group-hover:-rotate-1">
+                                    <div className="absolute inset-0 bg-indigo-500 blur-2xl opacity-20 rounded-full group-hover:opacity-40 transition-opacity"></div>
+                                    <div className="bg-white p-6 rounded-2xl shadow-[0_0_60px_-15px_rgba(255,255,255,0.2)] border border-slate-800">
+                                        <div className="scale-125 origin-center">
+                                            <PremiumSticker worker={sampleWorker} />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="text-center">
+                                    <h3 className="text-xl font-bold text-white mb-1">안전모 부착용 스마트 스티커</h3>
+                                    <p className="text-slate-500 text-sm font-medium">90mm x 60mm | 방수 라벨 최적화</p>
+                                    <p className="text-indigo-400 text-xs font-bold mt-2">QR 연동 • 등급 시각화</p>
+                                </div>
+                            </div>
+
+                            {/* ID Card Sample */}
+                            <div className="flex flex-col items-center gap-6 group">
+                                <div className="relative transform transition-transform duration-500 group-hover:scale-105 group-hover:rotate-1">
+                                    <div className="absolute inset-0 bg-indigo-500 blur-2xl opacity-20 rounded-full group-hover:opacity-40 transition-opacity"></div>
+                                    <div className="bg-white p-3 rounded-2xl shadow-[0_0_60px_-15px_rgba(99,102,241,0.3)] border border-slate-800">
+                                        <div className="scale-110 origin-center">
+                                            <PremiumIDCard worker={sampleWorker} />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="text-center">
+                                    <h3 className="text-xl font-bold text-white mb-1">PSI 스마트 사원증</h3>
+                                    <p className="text-slate-500 text-sm font-medium">54mm x 86mm | CR80 표준 규격</p>
+                                    <p className="text-indigo-400 text-xs font-bold mt-2">직무 표시 • 보안 패턴 적용</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Controls */}
             <div className="bg-white p-6 rounded-[30px] shadow-xl border border-slate-100 flex flex-col lg:flex-row gap-4 items-center no-print">
