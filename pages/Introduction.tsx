@@ -49,9 +49,8 @@ const Introduction: React.FC = () => {
                     <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight mb-6">
                         PSI: Proactive Safety Intelligence
                     </h1>
-                    <p className="max-w-3xl text-lg sm:text-xl text-indigo-100 leading-relaxed mb-8">
-                        2026년, 데이터는 이제 정답을 제시합니다. PSI는 흩어져 있던 기록 속에서 사고의 패턴을 읽어내고, <br className="hidden sm:block" />
-                        미래의 위험을 예측하여 <span className="font-bold text-white border-b-2 border-indigo-400 pb-0.5">오늘의 행동을 이끌어내는 자율 안전 AI 시스템</span>입니다.
+                    <p className="max-w-3xl text-lg sm:text-xl text-indigo-100 leading-relaxed mb-8 break-keep">
+                        2026년, 데이터는 이제 정답을 제시합니다. PSI는 흩어져 있던 기록 속에서 사고의 패턴을 읽어내고 미래의 위험을 예측하여 <span className="font-bold text-white border-b-2 border-indigo-400 pb-0.5">오늘의 행동을 이끌어내는 자율 안전 AI 시스템</span>입니다.
                     </p>
 
                     <button 
@@ -228,10 +227,34 @@ const Introduction: React.FC = () => {
                             <p className="text-slate-700 text-lg leading-8 italic font-medium">
                                 "PSI는 단순한 도구가 아닙니다. 이는 '모든 근로자가 안전하게 집으로 돌아가야 한다'는 저희의 믿음이자, 현장을 향한 굳은 약속입니다. 저희는 데이터와 코드 한 줄 한 줄에 진심을 담았습니다. 이 진심이 2026년에도 모든 현장의 안전을 밝히는 등대가 되기를 소망합니다."
                             </p>
-                            <div className="mt-6 flex items-center justify-end">
-                                <div>
-                                    <p className="text-slate-900 font-bold text-base">- 박성훈 부장</p>
-                                    <p className="text-slate-500 text-sm">(주)휘강건설, PSI 프로젝트 리더</p>
+                            <div className="mt-6 flex items-center justify-end gap-3">
+                                <div className="text-right">
+                                    <p className="text-slate-900 font-black text-lg">박성훈 부장</p>
+                                    <p className="text-indigo-600 text-sm font-bold">(주)휘강건설</p>
+                                    <p className="text-slate-400 text-xs mt-0.5">PSI Project Lead Developer</p>
+                                </div>
+                                <div className="relative group shrink-0">
+                                    {/* Golden Glow Effect */}
+                                    <div className="absolute -inset-1 bg-gradient-to-tr from-amber-200 to-yellow-500 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
+                                    <div className="relative w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center border border-slate-800 shadow-xl overflow-hidden">
+                                        {/* Metallic Texture Overlay */}
+                                        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
+                                        
+                                        {/* Stylized 'P' Logo */}
+                                        <svg className="w-7 h-7 z-10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                            <defs>
+                                                <linearGradient id="gold-leaf-intro" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                                                    <stop offset="0%" stopColor="#FDE68A" /> {/* Amber 200 */}
+                                                    <stop offset="40%" stopColor="#D97706" /> {/* Amber 600 */}
+                                                    <stop offset="70%" stopColor="#F59E0B" /> {/* Amber 500 */}
+                                                    <stop offset="100%" stopColor="#FFFBEB" /> {/* Amber 50 */}
+                                                </linearGradient>
+                                            </defs>
+                                            <path d="M7 4V20" stroke="url(#gold-leaf-intro)" strokeWidth="2.5" strokeLinecap="round"/>
+                                            <path d="M7 6H12C15.5 6 18 8.5 18 12C18 15.5 15.5 18 12 18H7" stroke="url(#gold-leaf-intro)" strokeWidth="2.5" strokeLinecap="round" strokeOpacity="0.9"/>
+                                            <circle cx="13" cy="12" r="1.5" fill="url(#gold-leaf-intro)" />
+                                        </svg>
+                                    </div>
                                 </div>
                             </div>
                         </div>

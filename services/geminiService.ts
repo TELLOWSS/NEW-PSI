@@ -1,12 +1,31 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord } from '../types';
+import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, AppSettings } from '../types';
 
-if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable is not set");
-}
+// [BYOK Implementation]
+// Instead of a global instance, we create a function to get the instance dynamically.
+// This allows the user to change the key in Settings and have it apply immediately.
+const getAiInstance = () => {
+    let apiKey = process.env.API_KEY || "";
+    
+    try {
+        const settingsStr = localStorage.getItem('psi_app_settings');
+        if (settingsStr) {
+            const settings: AppSettings = JSON.parse(settingsStr);
+            if (settings.apiKey && settings.apiKey.trim() !== "") {
+                apiKey = settings.apiKey;
+            }
+        }
+    } catch (e) {
+        console.warn("Failed to load API key from settings", e);
+    }
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    if (!apiKey) {
+        throw new Error("API Key가 설정되지 않았습니다. [설정] 메뉴에서 Google API Key를 입력해주세요.");
+    }
+
+    return new GoogleGenAI({ apiKey });
+};
 
 // --- Schemas (Defined exactly as before) ---
 const workerRecordSchema = {
@@ -148,6 +167,37 @@ async function callGeminiWithRetry(
     maxRetries = 3 // Increased default retries
 ): Promise<WorkerRecord[]> {
     let lastError: any;
+    let ai;
+
+    try {
+        ai = getAiInstance();
+    } catch (e: any) {
+        // Return a special error record that alerts the UI about missing key
+        return [{
+            id: `err-key-${Date.now()}`,
+            name: "설정 필요",
+            jobField: "미분류",
+            teamLeader: "미지정",
+            role: 'worker',
+            date: new Date().toISOString().split('T')[0],
+            nationality: "미상",
+            safetyScore: 0,
+            safetyLevel: '초급',
+            originalImage: imageSource,
+            filename: filenameHint,
+            language: "unknown",
+            handwrittenAnswers: [],
+            fullText: "",
+            koreanTranslation: "",
+            strengths: [], strengths_native: [],
+            weakAreas: [], weakAreas_native: [],
+            improvement: "", improvement_native: "",
+            suggestions: [], suggestions_native: [],
+            aiInsights: `⛔ ${e.message}`, 
+            aiInsights_native: "",
+            selfAssessedRiskLevel: '중'
+        }];
+    }
     
     // 1. Prepare Data
     let imageData: string;
@@ -293,6 +343,7 @@ async function callGeminiWithRetry(
 
 export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<Partial<WorkerRecord> | null> {
     try {
+        const ai = getAiInstance();
         const specialDuties = [];
         if (record.isTranslator) specialDuties.push("통역(Translator)");
         if (record.isSignalman) specialDuties.push("신호수(Signalman)");
@@ -341,6 +392,7 @@ export async function analyzeWorkerRiskAssessment(imageSource: string, _unusedMi
 
 export async function generateSpeechFromText(text: string, voiceName: string = 'Kore'): Promise<string> {
     try {
+        const ai = getAiInstance();
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-preview-tts',
             contents: [{ parts: [{ text: text }] }],
@@ -358,6 +410,7 @@ export async function generateSpeechFromText(text: string, voiceName: string = '
 
 export async function generateSafetyBriefing(workers: WorkerRecord[], checks: SafetyCheckRecord[]): Promise<BriefingData> {
     try {
+        const ai = getAiInstance();
         const today = new Date();
         const currentMonth = `${today.getFullYear()}년 ${today.getMonth() + 1}월`;
         
@@ -415,6 +468,7 @@ export async function generateSafetyBriefing(workers: WorkerRecord[], checks: Sa
 
 export async function generateFutureRiskForecast(workers: WorkerRecord[]): Promise<RiskForecastData> {
     try {
+        const ai = getAiInstance();
         const today = new Date();
         const nextMonthDate = new Date(today);
         nextMonthDate.setMonth(today.getMonth() + 1);

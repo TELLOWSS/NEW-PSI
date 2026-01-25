@@ -22,6 +22,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         'feedback': '피드백 및 업데이트',
         'introduction': '소개',
         'individual-report': '개인별 안전 분석 리포트',
+        'settings': '시스템 설정 (System Configuration)'
     };
 
     return (

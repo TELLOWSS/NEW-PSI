@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, Component, type ReactNode, type ErrorInfo } from 'react';
+import React, { Component, useState, useEffect, useRef, useCallback, type ReactNode, type ErrorInfo } from 'react';
 import { Layout } from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import OcrAnalysis from './pages/OcrAnalysis';
@@ -11,6 +11,7 @@ import Reports from './pages/Reports';
 import Feedback from './pages/Feedback';
 import Introduction from './pages/Introduction';
 import IndividualReport from './pages/IndividualReport';
+import Settings from './pages/Settings';
 import type { WorkerRecord, SafetyCheckRecord, Page, ModalState, BriefingData, RiskForecastData } from './types';
 import { WorkerHistoryModal } from './components/modals/WorkerHistoryModal';
 import { RecordDetailModal } from './components/modals/RecordDetailModal';
@@ -424,6 +425,7 @@ const App: React.FC = () => {
                 {currentPage === 'reports' && <Reports workerRecords={workerRecords} briefingData={briefingData} setBriefingData={setBriefingData} forecastData={forecastData} setForecastData={setForecastData} />}
                 {currentPage === 'feedback' && <Feedback />}
                 {currentPage === 'introduction' && <Introduction />}
+                {currentPage === 'settings' && <Settings />}
             </Layout>
             {modalState.type === 'workerHistory' && modalState.record && <WorkerHistoryModal workerName={modalState.workerName!} allRecords={workerRecords} initialSelectedRecord={modalState.record} onClose={() => setModalState({type:null})} onViewDetails={(r) => setModalState({type:'recordDetail', record:r})} onUpdateRecord={handleUpdateRecord} onDeleteRecord={handleDeleteRecord} />}
             {modalState.type === 'recordDetail' && modalState.record && (

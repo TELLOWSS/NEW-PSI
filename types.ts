@@ -10,13 +10,22 @@ export type Page =
     'reports' |
     'feedback' |
     'introduction' |
-    'individual-report';
+    'individual-report' |
+    'settings'; // Added
 
 export type ModalState = {
     type: 'workerHistory' | 'recordDetail' | null;
     record?: WorkerRecord;
     workerName?: string;
 };
+
+export interface AppSettings {
+    siteName: string;
+    siteManager: string;
+    safetyManager: string;
+    jobFields: string[];
+    apiKey: string;
+}
 
 export interface HandwrittenAnswer {
     questionNumber: string;

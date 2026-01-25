@@ -4,10 +4,11 @@ import React, { useState } from 'react';
 const Feedback: React.FC = () => {
     const [formData, setFormData] = useState({
         name: '',
-        type: '💡 새로운 기능 제안',
+        type: '💡 현장 맞춤 기능 제안',
         message: ''
     });
     const [status, setStatus] = useState<'idle' | 'sending' | 'success'>('idle');
+    const [showGuide, setShowGuide] = useState(true);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -21,7 +22,7 @@ const Feedback: React.FC = () => {
         // Simulate network request
         setTimeout(() => {
             setStatus('success');
-            setFormData({ name: '', type: '💡 새로운 기능 제안', message: '' });
+            setFormData({ name: '', type: '💡 현장 맞춤 기능 제안', message: '' });
             
             // Reset status after showing success message
             setTimeout(() => setStatus('idle'), 3000);
@@ -37,22 +38,26 @@ const Feedback: React.FC = () => {
                     <div className="absolute bottom-0 right-0 w-[500px] h-[500px] bg-blue-600 rounded-full blur-3xl mix-blend-overlay animate-blob animation-delay-4000"></div>
                 </div>
                 <div className="relative z-10">
-                    <h2 className="text-4xl md:text-5xl font-black mb-6 tracking-tight">피드백 및 시스템 업데이트</h2>
+                    <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 mb-4">
+                        <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+                        <span className="text-xs font-bold text-green-200 uppercase tracking-widest">Live Feedback Channel</span>
+                    </div>
+                    <h2 className="text-4xl md:text-5xl font-black mb-6 tracking-tight">현장 직통 채널 (Field Voice)</h2>
                     <p className="text-indigo-200 max-w-2xl mx-auto text-xl font-bold leading-relaxed">
-                        현장의 목소리를 담아 PSI는 매일 진화합니다. <br/>
-                        완성된 '양방향 안전 생태계'를 지금 경험하십시오.
+                        현장의 목소리는 가장 강력한 데이터입니다.<br/>
+                        작은 불편함부터 위험 요소까지, 개발팀과 안전 관리자에게 직접 전달하세요.
                     </p>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
                 {/* Left Column: Changelog Timeline */}
-                <div className="lg:col-span-8 space-y-10">
+                <div className="lg:col-span-7 space-y-10">
                     <div className="flex items-center space-x-4 mb-2">
                         <div className="p-3 bg-indigo-100 text-indigo-600 rounded-2xl">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         </div>
-                        <h3 className="text-2xl font-black text-slate-800">현장 최적화 업데이트 히스토리</h3>
+                        <h3 className="text-2xl font-black text-slate-800">시스템 업데이트 히스토리</h3>
                     </div>
 
                     {/* Timeline Item: V2.0.0 (2026 New Year) */}
@@ -107,43 +112,54 @@ const Feedback: React.FC = () => {
                             </p>
                         </div>
                     </div>
-
-                    {/* Timeline Item: V1.4.0 */}
-                    <div className="relative pl-10 before:absolute before:left-4 before:top-0 before:bottom-0 before:w-1 before:bg-indigo-100 last:before:hidden pt-10">
-                        <div className="absolute left-0 top-10 w-9 h-9 rounded-full bg-white border-[6px] border-slate-300 z-10 shadow-sm"></div>
-                        <div className="bg-white/60 rounded-[40px] border border-slate-100 p-8 grayscale opacity-60 hover:grayscale-0 hover:opacity-100 transition-all duration-500">
-                            <div className="flex flex-wrap justify-between items-start mb-6 gap-4">
-                                <div>
-                                    <h4 className="text-2xl font-black text-slate-900 flex items-center gap-3">
-                                        현장 맞춤형 직무 & 데이터 안전성 강화
-                                        <span className="px-3 py-1 rounded-full text-xs font-black bg-slate-200 text-slate-600">v1.4.0</span>
-                                    </h4>
-                                    <span className="text-sm text-slate-400 font-bold mt-2 block uppercase tracking-widest">2025년 12월 05일 RELEASE</span>
-                                </div>
-                            </div>
-                            <p className="text-slate-600 text-sm font-medium leading-relaxed">
-                                특수 직무(신호수, 통역) 배지 시스템 도입 및 데이터 삭제 실행 취소(Undo) 기능 탑재.
-                            </p>
-                        </div>
-                    </div>
                 </div>
 
                 {/* Right Column: Feedback Form */}
-                <div className="lg:col-span-4">
-                    <div className="bg-white p-10 rounded-[48px] shadow-2xl border border-slate-100 sticky top-10">
-                        <div className="text-center mb-8">
-                            <div className="w-16 h-16 bg-indigo-100 rounded-3xl flex items-center justify-center mx-auto mb-4 text-indigo-600 shadow-xl shadow-indigo-100">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                <div className="lg:col-span-5">
+                    <div className="bg-white p-8 rounded-[48px] shadow-2xl border border-slate-100 sticky top-10">
+                        
+                        {/* 1. Feature Explanation & Guide */}
+                        {showGuide && (
+                            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 mb-8 relative">
+                                <button onClick={() => setShowGuide(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                                <h4 className="font-black text-slate-800 text-sm flex items-center gap-2 mb-3">
+                                    <span className="bg-indigo-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs">?</span>
+                                    이 기능은 어떻게 작동하나요?
+                                </h4>
+                                <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 bg-white p-3 rounded-xl border border-slate-100 shadow-sm mb-3">
+                                    <div className="text-center">
+                                        <span className="text-xl block mb-1">👷</span>
+                                        <span>현장 입력</span>
+                                    </div>
+                                    <div className="text-slate-300">➜</div>
+                                    <div className="text-center">
+                                        <span className="text-xl block mb-1">☁️</span>
+                                        <span>개발팀 전송</span>
+                                    </div>
+                                    <div className="text-slate-300">➜</div>
+                                    <div className="text-center">
+                                        <span className="text-xl block mb-1">⚡️</span>
+                                        <span>즉시 반영</span>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                                    <span className="text-rose-500 font-bold">* 프로토타입 알림:</span><br/>
+                                    현재는 데모 버전이므로 실제 서버로 전송되지 않고 <strong>전송 성공 시뮬레이션</strong>만 동작합니다. 실제 도입 시에는 관리자의 이메일이나 Slack 등으로 즉시 알림이 발송됩니다.
+                                </p>
                             </div>
+                        )}
+
+                        <div className="text-center mb-8">
                             <h3 className="text-2xl font-black text-slate-900">현장 목소리 보내기</h3>
-                            <p className="text-sm text-slate-400 mt-2 font-bold">기능 제안, 현장의 어려움 등 <br/>어떤 의견이라도 감사히 듣겠습니다.</p>
+                            <p className="text-sm text-slate-400 mt-2 font-bold">어떤 의견이라도 경청하겠습니다.</p>
                         </div>
                         
                         <form onSubmit={handleSubmit} className="space-y-5">
                             <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-2 ml-1">성함 및 직책/공종</label>
                                 <input 
                                     type="text" 
-                                    placeholder="성함 및 직책" 
+                                    placeholder="예: 홍길동 (형틀 반장)" 
                                     value={formData.name}
                                     onChange={e => setFormData({...formData, name: e.target.value})}
                                     className="w-full bg-slate-50 border-transparent rounded-2xl shadow-inner focus:ring-2 focus:ring-indigo-600 text-sm py-4 px-5 font-bold transition-all" 
@@ -151,22 +167,25 @@ const Feedback: React.FC = () => {
                                 />
                             </div>
                             <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-2 ml-1">피드백 유형 (Category)</label>
                                 <select 
                                     value={formData.type}
                                     onChange={e => setFormData({...formData, type: e.target.value})}
-                                    className="w-full bg-slate-50 border-transparent rounded-2xl shadow-inner focus:ring-2 focus:ring-indigo-600 text-sm py-4 px-5 font-bold transition-all"
+                                    className="w-full bg-slate-50 border-transparent rounded-2xl shadow-inner focus:ring-2 focus:ring-indigo-600 text-sm py-4 px-5 font-bold transition-all appearance-none"
                                     disabled={status === 'sending' || status === 'success'}
                                 >
-                                    <option>💡 새로운 기능 제안</option>
-                                    <option>🐞 시스템 오류 제보</option>
-                                    <option>📢 현장 적용 사례 공유</option>
-                                    <option>✨ 개발자 응원 메시지</option>
+                                    <option>🚨 현장 위험 요소 긴급 제보</option>
+                                    <option>🌏 번역/OCR 오류 신고</option>
+                                    <option>💡 현장 맞춤 기능 제안</option>
+                                    <option>🙌 안전 우수 사례 칭찬</option>
+                                    <option>🐛 시스템 버그 리포트</option>
                                 </select>
                             </div>
                             <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-2 ml-1">상세 내용</label>
                                 <textarea 
                                     rows={5} 
-                                    placeholder="현장에서 느끼시는 소중한 의견을 적어주세요..." 
+                                    placeholder="내용을 구체적으로 적어주시면 시스템 개선에 큰 도움이 됩니다." 
                                     value={formData.message}
                                     onChange={e => setFormData({...formData, message: e.target.value})}
                                     className="w-full bg-slate-50 border-transparent rounded-2xl shadow-inner focus:ring-2 focus:ring-indigo-600 text-sm p-5 resize-none font-bold transition-all"
