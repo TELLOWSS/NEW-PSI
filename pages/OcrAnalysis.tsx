@@ -337,7 +337,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     };
 
     const handleBatchReanalyze = () => {
-        if (confirm(`전체 ${recordsWithImages.length}건 재분석 하시겠습니까?\n\n[주의] 200건 기준 약 20~30분이 소요될 수 있습니다. 브라우저를 닫지 마세요.`)) {
+        if (confirm(`전체 ${recordsWithImages.length}건 재분석 하시겠습니까?\n\n[주의] 10,000장 등 대량 데이터의 경우 무료 티어는 하루 제한(1,500건)이 있으므로 분할 처리가 권장됩니다.\n\n계속하시겠습니까?`)) {
             runBatchAnalysis(recordsWithImages, "전체 재분석");
         }
     };
@@ -422,8 +422,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <span className="text-xs bg-indigo-600 px-2 py-1 rounded-md font-bold uppercase tracking-widest">PRO</span>
                         </h3>
                         <p className="text-slate-400 font-medium">
-                            <span className="text-indigo-400 font-bold">스마트 스로틀링(Smart Throttling)</span> 기술이 적용되어, 
-                            200명 이상의 대량 데이터도 API 할당량에 맞춰 자동으로 속도를 조절하며 전수 분석합니다.
+                            <span className="text-indigo-400 font-bold">스마트 스로틀링(Smart Throttling)</span> 및 <span className="text-indigo-400 font-bold">Gemini Flash</span> 최적화로, 
+                            10,000장 이상의 대량 기록도 API 할당량에 맞춰 자동으로 속도를 조절하며 전수 분석합니다. (무료 티어: 하루 1,500장 권장)
                         </p>
                         <div className="flex justify-center lg:justify-start gap-8 mt-6">
                             <div className="text-center">

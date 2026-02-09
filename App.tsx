@@ -1,4 +1,4 @@
-import React, { Component, useState, useEffect, useRef, useCallback, type ReactNode, type ErrorInfo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Component, type ReactNode, type ErrorInfo } from 'react';
 import { Layout } from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import OcrAnalysis from './pages/OcrAnalysis';
