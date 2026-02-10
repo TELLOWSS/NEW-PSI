@@ -2,6 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { Chart } from 'chart.js/auto';
 import type { SafetyCheckRecord } from '../../types';
+import { getWindowProp } from '../../utils/windowUtils';
 
 interface ChartProps {
     records: SafetyCheckRecord[];
@@ -16,7 +17,7 @@ export const SafetyCheckDonutChart: React.FC<ChartProps> = ({ records }) => {
         const ctx = chartRef.current.getContext('2d');
         if (!ctx) return;
 
-        const ChartLib = (window as any).Chart;
+        const ChartLib = getWindowProp<any>('Chart');
         if (!ChartLib) return;
 
         const twoWeeksAgo = new Date();
@@ -86,19 +87,24 @@ export const SafetyCheckDonutChart: React.FC<ChartProps> = ({ records }) => {
                         tooltip: {
                             enabled: total > 0,
                             callbacks: {
-                                label: function(context: any) {
-                                    let label = context.dataset.label || '';
-                                    if (label) {
-                                        label += ': ';
+                                    label: function(context: unknown) {
+                                        const ctx = context as {
+                                            dataset?: { label?: string; data?: unknown[] };
+                                            parsed?: number;
+                                            label?: string;
+                                            raw?: unknown;
+                                        };
+                                        let label = ctx.dataset?.label ?? '';
+                                        if (label) label += ': ';
+                                        if (typeof ctx.parsed !== 'undefined' && ctx.parsed !== null) {
+                                            const dataArr = Array.isArray(ctx.dataset?.data) ? ctx.dataset!.data!.map(d => Number(d)) : [];
+                                            const totalSum = dataArr.reduce((a: number, b: number) => a + (Number.isFinite(b) ? b : 0), 0);
+                                            const percentage = totalSum > 0 ? ((Number(ctx.parsed) / totalSum * 100).toFixed(1) + '%') : '0%';
+                                            label += `${ctx.label ?? ''}: ${String(ctx.raw)}건 (${percentage})`;
+                                        }
+                                        return label;
                                     }
-                                    if (context.parsed !== null) {
-                                         const totalSum = context.dataset.data.reduce((a: any, b: any) => a + b, 0);
-                                         const percentage = totalSum > 0 ? (context.parsed / totalSum * 100).toFixed(1) + '%' : '0%';
-                                         label += `${context.label}: ${context.raw}건 (${percentage})`;
-                                    }
-                                    return label;
                                 }
-                            }
                         }
                     },
                 }

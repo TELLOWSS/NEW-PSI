@@ -2,6 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { Chart } from 'chart.js/auto';
 import type { WorkerRecord } from '../../types';
+import { getWindowProp } from '../../utils/windowUtils';
 
 interface ChartProps {
     records: WorkerRecord[];
@@ -15,7 +16,7 @@ export const MonthlyTrendChart: React.FC<ChartProps> = ({ records }) => {
         if (!chartRef.current) return;
 
         // Defensive check: Ensure Chart.js is loaded
-        const ChartLib = (window as any).Chart;
+        const ChartLib = getWindowProp<any>('Chart');
         if (!ChartLib) return;
 
         // Data Aggregation
@@ -109,7 +110,18 @@ export const MonthlyTrendChart: React.FC<ChartProps> = ({ records }) => {
                             cornerRadius: 8,
                             displayColors: false,
                             callbacks: {
-                                label: (context: any) => `평균 ${context.parsed.y.toFixed(1)}점`
+                                label: function(context: unknown) {
+                                    const ctx = context as { parsed?: unknown };
+                                    let parsedVal: unknown = undefined;
+                                    if (ctx.parsed && typeof ctx.parsed === 'object' && 'y' in (ctx.parsed as Record<string, unknown>)) {
+                                        parsedVal = (ctx.parsed as Record<string, any>).y;
+                                    } else {
+                                        parsedVal = ctx.parsed;
+                                    }
+                                    const num = typeof parsedVal === 'number' ? parsedVal : Number(parsedVal ?? 0);
+                                    const formatted = Number.isFinite(num) ? num.toFixed(1) : '0.0';
+                                    return `평균 ${formatted}점`;
+                                }
                             }
                         }
                     },

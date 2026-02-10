@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useMemo } from 'react';
 import type { Chart } from 'chart.js/auto';
 import type { WorkerRecord } from '../types';
 import { IndividualRadarChart } from './charts/IndividualRadarChart';
+import { getWindowProp } from '../utils/windowUtils';
 
 interface ReportTemplateProps {
     record: WorkerRecord;
@@ -121,14 +122,15 @@ const LABELS: Record<string, Record<string, string>> = {
     '캄보디아': { strengths: 'ចំណុចខ្លាំង (강점)', weaknesses: 'ចំណុចខ្សោយ (취약점)', trends: 'និន្នាការ (안전 추이)', verdict: 'ការវិនិច្ឆ័យ (종합진단)', pictogram: 'ស្លាកសញ្ញា (필수 안전 표지)', original: 'ឯកសារដើម', cert: 'វិញ្ញាបនបត្រសុវត្ថិភាព' },
     '인도네시아': { strengths: 'Kekuatan (강점)', weaknesses: 'Kelemahan (취약점)', trends: 'Tren (안전 추이)', verdict: 'Diagnosis (종합진단)', pictogram: 'Rambu Wajib (필수 안전 표지)', original: 'Asli', cert: 'Sertifikat Keselamatan' },
     '몽골': { strengths: 'Давуу тал (강점)', weaknesses: 'Сул тал (취약점)', trends: 'Хандлага (안전 추이)', verdict: 'Дүгнэлт (종합진단)', pictogram: 'Анхааруулах тэмдэг (필수 안전 표지)', original: 'Эх хувь', cert: 'Аюулгүй байдлын гэрчилгээ' },
-    '한국': { strengths: '역량 강점 (Strengths)', weaknesses: '개선 권고 (Focus Areas)', trends: '성과 추이 (Trends)', verdict: '종합 안전 진단 (Comprehensive Diagnosis)', pictogram: '직무 맞춤형 필수 안전 표지 (Safety Signs)', original: '수기 기록 원본 (Original Record)', cert: '안전 역량 인증 및 분석서' },
     '대한민국': { strengths: '역량 강점 (Strengths)', weaknesses: '개선 권고 (Focus Areas)', trends: '성과 추이 (Trends)', verdict: '종합 안전 진단 (Comprehensive Diagnosis)', pictogram: '직무 맞춤형 필수 안전 표지 (Safety Signs)', original: '수기 기록 원본 (Original Record)', cert: '안전 역량 인증 및 분석서' },
     'default': { strengths: 'Strengths', weaknesses: 'Focus Areas', trends: 'Trends', verdict: 'Comprehensive Diagnosis', pictogram: 'Essential Safety Signs', original: 'Original Record', cert: 'Certificate of Safety Competence' }
 };
 
 const getLabels = (nationality: string) => {
     const nation = (nationality || '').trim();
+    // LANGUAGE_POLICY 준수: 정확한 국적명으로 직접 조회
     if (LABELS[nation]) return LABELS[nation];
+    // 부분 매칭으로 기관명/오기/애칭 대응 (Backward compatibility)
     if (nation.includes('베트남')) return LABELS['베트남'];
     if (nation.includes('중국')) return LABELS['중국'];
     if (nation.includes('태국')) return LABELS['태국'];
@@ -136,7 +138,8 @@ const getLabels = (nationality: string) => {
     if (nation.includes('캄보디아')) return LABELS['캄보디아'];
     if (nation.includes('인도네시아')) return LABELS['인도네시아'];
     if (nation.includes('몽골')) return LABELS['몽골'];
-    if (nation.includes('한국') || nation.includes('대한민국')) return LABELS['한국'];
+    // 한국인 처리: 대한민국, 한국, Korea 등 모두 지원 (최종적으로 '대한민국'으로 정규화)
+    if (nation.includes('한국') || nation.includes('korea') || nation === '대한민국') return LABELS['대한민국'];
     return LABELS['default'];
 };
 
@@ -150,7 +153,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     const trendChartInstance = useRef<Chart | null>(null);
 
     const labels = useMemo(() => getLabels(record.nationality), [record.nationality]);
-    const isKorean = record.nationality === '한국' || record.nationality === '대한민국';
+    const isKorean = record.nationality === '대한민국' || record.nationality === '한국' || (record.nationality || '').toLowerCase().includes('korea');
     const safetySigns = useMemo(() => getRelevantSigns(record.weakAreas, record.jobField), [record.weakAreas, record.jobField]);
 
     // Trend Chart Rendering
@@ -160,7 +163,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         const ctx = trendChartRef.current.getContext('2d');
         if (!ctx) return;
 
-        const ChartLib = (window as any).Chart;
+        const ChartLib = getWindowProp<any>('Chart');
         if (!ChartLib) return;
 
         const sortedHistory = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(-6);
@@ -188,7 +191,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     responsive: true, 
                     maintainAspectRatio: false, 
                     animation: false,
-                    devicePixelRatio: window.devicePixelRatio || 2, 
+                    devicePixelRatio: getWindowProp<number>('devicePixelRatio') || 2,
                     layout: { padding: { top: 10, right: 10, bottom: 5, left: 5 } },
                     plugins: { legend: { display: false } }, 
                     scales: { 

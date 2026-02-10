@@ -2,6 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { Chart } from 'chart.js/auto';
 import type { WorkerRecord } from '../../types';
+import { getWindowProp } from '../../utils/windowUtils';
 
 interface ChartProps {
     record: WorkerRecord;
@@ -13,7 +14,7 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
 
     useEffect(() => {
         if (!chartRef.current) return;
-        const ChartLib = (window as any).Chart;
+        const ChartLib = getWindowProp<any>('Chart');
         if (!ChartLib) return;
 
         // [알고리즘] 텍스트 분석 기반 역량 점수 산출
@@ -86,7 +87,7 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    devicePixelRatio: window.devicePixelRatio || 2, // High resolution for PDF
+                    devicePixelRatio: (w.devicePixelRatio as number) || 2, // High resolution for PDF
                     animation: false, 
                     layout: {
                         padding: 20 // [FIX] Increased padding to ensure labels are not cut off in PDF

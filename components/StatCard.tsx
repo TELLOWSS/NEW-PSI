@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 
 interface StatCardProps {
     title: string;
@@ -7,7 +7,8 @@ interface StatCardProps {
     onClick?: () => void;
 }
 
-const Icon: React.FC<{type: string}> = ({type}) => {
+// Icon 컴포넌트 메모이제이션
+const Icon: React.FC<{type: string}> = memo(({type}) => {
     const icons: {[key:string]: React.ReactNode} = {
         users: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M15 21a6 6 0 00-9-5.197m0 0A5.975 5.975 0 0112 13a5.975 5.975 0 01-3 5.197" /></svg>,
         chart: <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
@@ -22,9 +23,12 @@ const Icon: React.FC<{type: string}> = ({type}) => {
     };
 
     return <div className={`p-3 rounded-full ${colors[type]}`}>{icons[type]}</div>
-}
+});
 
-export const StatCard: React.FC<StatCardProps> = ({ title, value, iconType, onClick }) => {
+Icon.displayName = 'Icon';
+
+// StatCard 메모이제이션 (onClick 함수 참조 변경 방지)
+export const StatCard: React.FC<StatCardProps> = memo(({ title, value, iconType, onClick }) => {
     const isClickable = !!onClick;
     return (
         <div 
@@ -38,4 +42,4 @@ export const StatCard: React.FC<StatCardProps> = ({ title, value, iconType, onCl
             {iconType && <Icon type={iconType} />}
         </div>
     );
-};
+});

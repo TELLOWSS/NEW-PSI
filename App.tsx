@@ -15,8 +15,9 @@ import Settings from './pages/Settings';
 import type { WorkerRecord, SafetyCheckRecord, Page, ModalState, BriefingData, RiskForecastData } from './types';
 import { WorkerHistoryModal } from './components/modals/WorkerHistoryModal';
 import { RecordDetailModal } from './components/modals/RecordDetailModal';
-import { analyzeWorkerRiskAssessment } from './services/geminiService';
+import { analyzeWorkerRiskAssessment, normalizeNationality } from './services/geminiService';
 import { restoreRecordFromUrl } from './utils/qrUtils';
+import { extractMessage } from './utils/errorUtils';
 
 const IDB_NAME = 'PSI_Enterprise_V4';
 const IDB_VERSION = 1;
@@ -93,8 +94,9 @@ const initDB = () => new Promise<IDBDatabase>((resolve, reject) => {
     const r = indexedDB.open(IDB_NAME, IDB_VERSION);
     r.onerror = () => reject(r.error);
     r.onsuccess = () => resolve(r.result);
-    r.onupgradeneeded = (e: any) => {
-        const db = e.target.result;
+    r.onupgradeneeded = (e: Event) => {
+        const req = e.target as IDBOpenDBRequest;
+        const db = req.result as IDBDatabase;
         if (!db.objectStoreNames.contains(WORKER_STORE)) {
             db.createObjectStore(WORKER_STORE, { keyPath: 'id' });
         }
@@ -108,11 +110,12 @@ const loadWorkerRecordsFromDB = async () => {
             const tx = db.transaction([WORKER_STORE], 'readonly');
             const store = tx.objectStore(WORKER_STORE);
             const request = store.getAll();
-            request.onsuccess = (e: any) => resolve(e.target.result || []);
+            request.onsuccess = (e: Event) => resolve(((e.target as IDBRequest).result as WorkerRecord[]) || []);
             request.onerror = () => resolve([]);
         });
     } catch (e) { 
-        console.warn("DB Load failed or not supported", e);
+        const msg = extractMessage(e);
+        console.warn("DB Load failed or not supported", msg);
         return []; 
     }
 };
@@ -155,29 +158,45 @@ const clearDB = async () => {
     }
 };
 
-const normalizeImage = (imgData: any): string | undefined => {
+const normalizeImage = (imgData: unknown): string | undefined => {
     if (!imgData) return undefined;
-    
+
     let raw = "";
-    if (typeof imgData === 'object') {
-        if (imgData.inlineData?.data) raw = imgData.inlineData.data;
-        else if (imgData.data) raw = imgData.data;
+    if (typeof imgData === 'object' && imgData !== null) {
+        const obj = imgData as Record<string, unknown>;
+        // inlineData 또는 data 필드 추출 (우선순위 유지)
+        if (typeof obj.inlineData === 'object' && obj.inlineData !== null) {
+            const inlineObj = obj.inlineData as Record<string, unknown>;
+            if ('data' in inlineObj && typeof inlineObj.data === 'string') {
+                raw = inlineObj.data;
+            }
+        } else if ('data' in obj && typeof obj.data === 'string') {
+            raw = obj.data;
+        }
     } else if (typeof imgData === 'string') {
         raw = imgData;
     }
 
     if (!raw || raw.length < 50) return undefined;
 
-    if (raw.trim().startsWith('data:image')) {
-        return raw.trim();
+    // 이미 data: URI 형식이면 그대로 반환
+    const trimmed = raw.trim();
+    if (trimmed.startsWith('data:image')) {
+        return trimmed;
     }
 
-    const cleanBase64 = raw.replace(/^data:image\/[a-z]+;base64,/, '').replace(/\s/g, '');
+    // Base64 헤더 제거 (대소문자 구분 없음)
+    const cleanBase64 = raw.replace(/^data:image\/[a-z0-9]+;base64,/i, '').replace(/\s/g, '');
+    
+    // 최종 검증 (너무 짧은 데이터 제거)
+    if (cleanBase64.length < 50) return undefined;
+    
     return `data:image/jpeg;base64,${cleanBase64}`;
 };
 
-const sanitizeRecords = (records: any[]): WorkerRecord[] => {
-    return records.map((r, index) => {
+const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
+    return records.map((rec, index) => {
+        const r = rec as Record<string, unknown>;
         const rawSource = r.originalImage || r.image || r.photo || r.base64 || r.documentImage || r.file;
         const profileSource = r.profileImage;
 
@@ -193,7 +212,7 @@ const sanitizeRecords = (records: any[]): WorkerRecord[] => {
             originalImage: normalizeImage(rawSource),
             profileImage: normalizeImage(profileSource),
             date: r.date || new Date().toISOString().split('T')[0],
-            nationality: r.nationality || "미상",
+            nationality: normalizeNationality((r.nationality as string) || "미상"),
             jobField: r.jobField || "미분류",
             teamLeader: r.teamLeader || "미지정",
             role: r.role || 'worker', 
@@ -420,7 +439,7 @@ const App: React.FC = () => {
                 )}
                 {currentPage === 'predictive-analysis' && <PredictiveAnalysis workerRecords={workerRecords} />}
                 {currentPage === 'performance-analysis' && <PerformanceAnalysis workerRecords={workerRecords} />}
-                {currentPage === 'safety-checks' && <SafetyChecks workerRecords={workerRecords} checkRecords={safetyCheckRecords} onAddCheck={(r: any) => setSafetyCheckRecords(p => [{...r, id:Date.now().toString()}, ...p])} />}
+                {currentPage === 'safety-checks' && <SafetyChecks workerRecords={workerRecords} checkRecords={safetyCheckRecords} onAddCheck={(r: unknown) => setSafetyCheckRecords(p => [{...(r as SafetyCheckRecord), id:Date.now().toString()}, ...p])} />}
                 {currentPage === 'site-issue-management' && <SiteIssueManagement />}
                 {currentPage === 'reports' && <Reports workerRecords={workerRecords} briefingData={briefingData} setBriefingData={setBriefingData} forecastData={forecastData} setForecastData={setForecastData} />}
                 {currentPage === 'feedback' && <Feedback />}

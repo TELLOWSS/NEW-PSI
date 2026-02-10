@@ -28,8 +28,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         setHasChanges(false); 
     }, [initialRecord]);
 
-    const handleChange = (field: keyof WorkerRecord, value: any) => {
-        setRecord(prev => ({ ...prev, [field]: value }));
+    const handleChange = <K extends keyof WorkerRecord>(field: K, value: WorkerRecord[K]) => {
+        setRecord(prev => ({ ...prev, [field]: value } as WorkerRecord));
         setHasChanges(true);
     };
 
@@ -344,7 +344,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
                             <div className="flex gap-2 p-1.5 bg-slate-200 rounded-2xl shrink-0">
                                 {['info', 'analysis', 'qna'].map(t => (
-                                    <button key={t} onClick={() => setActiveTab(t as any)} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${activeTab === t ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    <button key={t} onClick={() => setActiveTab(t as 'info' | 'analysis' | 'qna')} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${activeTab === t ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                                         {t === 'info' ? '성과지표' : t === 'analysis' ? 'AI 인사이트' : '수기 답변'}
                                     </button>
                                 ))}

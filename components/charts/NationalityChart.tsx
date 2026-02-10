@@ -43,7 +43,7 @@ export const NationalityChart: React.FC<ChartProps> = ({ records }) => {
     useEffect(() => {
         if (!chartRef.current) return;
 
-        const ChartLib = (window as any).Chart;
+            const ChartLib = getWindowProp<any>('Chart');
         if (!ChartLib) return;
 
         const uniqueWorkers = new Map<string, string>();

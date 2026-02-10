@@ -16,8 +16,9 @@ export const SafetyActionCenter: React.FC<SafetyActionCenterProps> = ({ workerRe
         if (workerRecords.length === 0) return setTasks([{ id: 'init', text: '데이터 업로드 필요', type: 'critical', completed: false }]);
         
         const lowScoreCount = workerRecords.filter(w => w.safetyLevel === '초급').length;
-        const weakMap = workerRecords.flatMap(r => r.weakAreas).reduce((acc:any, cur) => { acc[cur] = (acc[cur] || 0) + 1; return acc; }, {});
-        const topWeakness = Object.entries(weakMap).sort((a:any, b:any) => b[1] - a[1])[0]?.[0] || '일반 안전';
+        const weakMap = workerRecords.flatMap(r => r.weakAreas).reduce((acc: Record<string, number>, cur: string) => { acc[cur] = (acc[cur] || 0) + 1; return acc; }, {} as Record<string, number>);
+        const topEntry = Object.entries(weakMap).sort((a, b) => b[1] - a[1])[0];
+        const topWeakness = topEntry ? topEntry[0] : '일반 안전';
 
         const newTasks: ActionItem[] = [
             { id: 't1', text: `TBM: '${topWeakness}' 집중 교육`, type: 'routine', completed: false },

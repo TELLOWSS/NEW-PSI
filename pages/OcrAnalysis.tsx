@@ -2,7 +2,8 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { FileUpload } from '../components/FileUpload';
 import { Spinner } from '../components/Spinner';
-import { analyzeWorkerRiskAssessment, updateAnalysisBasedOnEdits } from '../services/geminiService';
+import { analyzeWorkerRiskAssessment, updateAnalysisBasedOnEdits, getQuotaState, setQuotaExhausted, isRateLimitError, validateImageFormat, isFormatCompatibleWithAI } from '../services/geminiService';
+import { extractMessage } from '../utils/errorUtils';
 import type { WorkerRecord } from '../types';
 import { fileToBase64 } from '../utils/fileUtils';
 
@@ -18,15 +19,33 @@ const getSafetyLevelClass = (level: '초급' | '중급' | '고급') => {
 const isManagementRole = (field: string) => 
     /관리|팀장|부장|과장|기사|공무|소장/.test(field);
 
-// [강화된 실패 판단 로직]
-const isFailedRecord = (r: WorkerRecord) => 
-    r.safetyScore === 0 ||
-    !r.aiInsights ||
-    r.aiInsights.trim() === "" ||
-    r.name.includes('할당량 초과') || 
-    r.name.includes('분석 실패') || 
-    r.name.includes('이미지 데이터') ||
-    (r.aiInsights && (r.aiInsights.includes('API 요청량') || r.aiInsights.includes('오류 상세') || r.aiInsights.includes('이미지') || r.aiInsights.includes('Resource has been exhausted') || r.aiInsights.includes('429')));
+// [강화된 실패 판단 로직 - 안전성 강화]
+const isFailedRecord = (r: WorkerRecord): boolean => {
+    // 안전 점수가 0일 경우 실패
+    if (r.safetyScore === 0) return true;
+    
+    // AI 분석 결과가 없거나 비어있을 경우 실패
+    if (!r.aiInsights || r.aiInsights.trim() === "") return true;
+    
+    // 이름에서 실패 패턴 확인
+    const name = String(r.name || '');
+    if (name.includes('할당량 초과') || name.includes('분석 실패') || name.includes('이미지 데이터')) {
+        return true;
+    }
+    
+    // AI 분석 결과에서 오류 패턴 확인
+    const insight = String(r.aiInsights || '');
+    if (insight.includes('API 요청량') || 
+        insight.includes('오류 상세') || 
+        insight.includes('Resource has been exhausted') || 
+        insight.includes('429') ||
+        insight.includes('분석 실패') ||
+        insight.includes('재시도 필요')) {
+        return true;
+    }
+    
+    return false;
+};
 
 const getFlag = (nationality: string) => {
     const n = (nationality || '').toLowerCase();
@@ -129,13 +148,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, [existingRecords]);
 
     const failedRecords = useMemo(() => {
-        return existingRecords.filter(r => isFailedRecord(r) && r.originalImage && r.originalImage.length > 200);
+        return existingRecords.filter(r => 
+            isFailedRecord(r) && 
+            r.originalImage && 
+            r.originalImage.length > 200
+        );
     }, [existingRecords]);
 
-    const stopAnalysis = () => {
+    // 분석 중단 요청
+    const stopAnalysis = useCallback(() => {
         stopRef.current = true;
         setProgress('중단 요청 중...');
-    };
+    }, []);
 
     // [SMART DELAY] UI countdown included
     const waitWithCountdown = async (seconds: number, messagePrefix: string) => {
@@ -151,6 +175,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const runBatchAnalysis = async (targetRecords: WorkerRecord[], title: string) => {
         const total = targetRecords.length;
         if (total === 0) return alert('재분석할 대상이 없습니다.');
+        
+        // [Quota State Check] Verify API quota status before batch processing
+        const quotaState = getQuotaState();
+        if (quotaState.isExhausted) {
+            const recoveryTime = Math.ceil((quotaState.recoveryTime - Date.now()) / 1000);
+            if (recoveryTime > 0) {
+                alert(`⚠️ API 할당량이 소진되었습니다.\n복구 시간: ${recoveryTime}초 대기 필요\n${new Date(quotaState.recoveryTime).toLocaleTimeString()}에 다시 시도해주세요.`);
+                return;
+            }
+        }
         
         setIsAnalyzing(true);
         setBatchProgress({ current: 0, total });
@@ -189,6 +223,46 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         continue; 
                     }
 
+                    // [Step 3] Image Format Validation
+                    const cleanImage = record.originalImage.replace(/^data:image\/[a-z0-9]+;base64,/i, '').replace(/\s/g, '');
+                    const formatValidation = validateImageFormat(cleanImage);
+                    
+                    if (!formatValidation.isValid) {
+                        console.warn(`Image format error for ${record.id}: ${formatValidation.error}`);
+                        const errorRecord: WorkerRecord = {
+                            ...record,
+                            aiInsights: `❌ 이미지 형식 오류: ${formatValidation.error} (감지: ${formatValidation.detectedFormat})`,
+                            safetyScore: 0,
+                        };
+                        onUpdateRecord(errorRecord);
+                        failCount++;
+                        continue;
+                    }
+                    
+                    if (!formatValidation.supportedFormat) {
+                        console.warn(`Unsupported format for ${record.id}: ${formatValidation.detectedFormat}`);
+                        const errorRecord: WorkerRecord = {
+                            ...record,
+                            aiInsights: `⚠️ 지원하지 않는 이미지 형식: ${formatValidation.detectedFormat}`,
+                            safetyScore: 0,
+                        };
+                        onUpdateRecord(errorRecord);
+                        failCount++;
+                        continue;
+                    }
+                    
+                    if (!isFormatCompatibleWithAI(formatValidation.detectedFormat)) {
+                        console.warn(`Format not AI-compatible for ${record.id}: ${formatValidation.detectedFormat}`);
+                        const errorRecord: WorkerRecord = {
+                            ...record,
+                            aiInsights: `⚠️ AI 분석 미지원 형식: ${formatValidation.detectedFormat}. JPEG, PNG, GIF, WebP, HEIC 형식만 지원됩니다.`,
+                            safetyScore: 0,
+                        };
+                        onUpdateRecord(errorRecord);
+                        failCount++;
+                        continue;
+                    }
+
                     // 2. Call API with Retry Logic for Rate Limits
                     let apiResult = null;
                     let retryCount = 0;
@@ -210,9 +284,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         } catch (err: any) {
                             const errMsg = err.message || JSON.stringify(err);
                             
-                            // [CRITICAL] Detect Rate Limit (429 or Resource Exhausted)
-                            if (errMsg.includes('429') || errMsg.includes('exhausted') || errMsg.includes('quota')) {
+                            // [CRITICAL] Detect Rate Limit (429 or Resource Exhausted) using utility function
+                            if (isRateLimitError(errMsg)) {
                                 console.warn(`Rate limit hit for ${record.name}. Cooling down...`);
+                                
+                                // Mark quota as exhausted and trigger recovery timer
+                                setQuotaExhausted(60); // 60분 복구 대기
                                 
                                 // Permanently increase delay buffer for future requests
                                 dynamicDelayBuffer = Math.min(20, dynamicDelayBuffer + 5);
@@ -262,19 +339,21 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         await waitWithCountdown(2, "오류 복구 중");
                     }
 
-                } catch (err: any) {
-                    if (err.message === "STOPPED") { stopped = true; break; }
+                } catch (err: unknown) {
+                    const errMsg = extractMessage(err);
+                    if (errMsg === "STOPPED") { stopped = true; break; }
                     console.error("Batch Error:", err);
                     const errorRecord: WorkerRecord = {
                         ...record,
-                        aiInsights: `⛔ 시스템 오류: ${err.message}`,
+                        aiInsights: `⛔ 시스템 오류: ${errMsg}`,
                     };
                     onUpdateRecord(errorRecord);
                     failCount++;
                 }
             }
-        } catch (globalErr: any) {
-            console.error("Global Batch Error:", globalErr);
+        } catch (globalErr: unknown) {
+            const gMsg = extractMessage(globalErr);
+            console.error("Global Batch Error:", gMsg);
             alert("일괄 처리 중 예상치 못한 오류가 발생하여 중단되었습니다.");
         } finally {
             setIsAnalyzing(false);
@@ -290,6 +369,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         }
     };
 
+    // [IMPROVED] AI 갱신 함수명 명확화 + 재시도 로직 추가
     const handleBatchTextAnalysis = async () => {
         const targets = filteredRecords;
         const total = targets.length;
@@ -303,6 +383,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         let successCount = 0;
         let failCount = 0;
         let stopped = false;
+        let dynamicDelayBuffer = 2; // 초기 지연
 
         try {
             for (let i = 0; i < total; i++) {
@@ -321,18 +402,40 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     } else {
                         failCount++;
                     }
-                    if (i < total - 1) await new Promise(r => setTimeout(r, 1500));
+                    
+                    // 동적 지연 (429 회피)
+                    if (i < total - 1) {
+                        await waitWithCountdown(dynamicDelayBuffer, "다음 갱신 대기");
+                    }
                 } catch (e: any) {
-                    if (e.message === "STOPPED") { stopped = true; break; }
-                    failCount++;
+                    const eMsg = extractMessage(e);
+                    if (eMsg === "STOPPED") { stopped = true; break; }
+                    
+                    // [IMPROVED] 429 에러 감지 및 처리
+                    if (isRateLimitError(eMsg)) {
+                        console.warn(`Rate limit hit for ${record.name}`);
+                        setQuotaExhausted(60);
+                        dynamicDelayBuffer = Math.min(10, dynamicDelayBuffer + 2); // throttle 증가
+                        
+                        // 60초 대기 후 재시도
+                        await waitWithCountdown(60, "⚠️ API 할당량 초과! 냉각 중");
+                        i--; // 이 근로자 재시도
+                    } else {
+                        failCount++;
+                        console.error(`Batch update error for ${record.name}:`, e);
+                    }
                 }
             }
         } finally {
             setIsAnalyzing(false);
             setProgress('');
+            setCooldownTime(0);
             setBatchProgress({ current: 0, total: 0 });
-            if (stopped) alert('중단됨');
-            else alert(`완료: 성공 ${successCount}, 실패 ${failCount}`);
+            if (stopped) {
+                alert(`중단됨: 성공 ${successCount}, 실패 ${failCount}`);
+            } else {
+                alert(`완료: 성공 ${successCount}, 실패 ${failCount}`);
+            }
         }
     };
 
@@ -368,23 +471,48 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 setBatchProgress(p => ({ ...p, current: i + 1 }));
                 setProgress(`분석 중: ${files[i].name}`);
                 
-                try {
-                    const base64 = await fileToBase64(files[i]);
-                    const res = await analyzeWorkerRiskAssessment(base64, files[i].type, files[i].name);
-                    
-                    if (stopRef.current) { stopped = true; break; }
+                // [IMPROVED] 재시도 로직 추가 (무한 루프 방지)
+                let retryCount = 0;
+                const MAX_FILE_RETRIES = 2;
+                let analyzed = false;
+                
+                while (retryCount < MAX_FILE_RETRIES && !analyzed && !stopRef.current) {
+                    try {
+                        const base64 = await fileToBase64(files[i]);
+                        const res = await analyzeWorkerRiskAssessment(base64, files[i].type, files[i].name);
+                        
+                        if (stopRef.current) { stopped = true; break; }
 
-                    if (res && res.length > 0) results.push(res[0]);
-                    
-                    // Safe buffer for file uploads too
-                    if (i < files.length - 1) await waitWithCountdown(4, "다음 파일 대기");
-                    
-                } catch (e: any) {
-                    if (e.message === "STOPPED") { stopped = true; break; }
-                    console.error(e);
-                    // For files, we just alert or log, maybe retry logic later
-                    await waitWithCountdown(60, "API 한도 초과! 대기 중");
-                    i--; // Retry this file
+                        if (res && res.length > 0) {
+                            results.push(res[0]);
+                            analyzed = true; // 성공 시 루프 종료
+                        } else {
+                            throw new Error("Empty result from AI");
+                        }
+                    } catch (e: any) {
+                        const eMsg = e.message || JSON.stringify(e);
+                        retryCount++;
+                        
+                        // 429 에러는 우아한 실패 (다음 파일로)
+                        if (isRateLimitError(eMsg)) {
+                            console.warn(`Rate limit hit on file ${files[i].name}`);
+                            setQuotaExhausted(60);
+                            break; // 이 파일 건너뛰기
+                        }
+                        
+                        // 다른 에러는 재시도
+                        if (retryCount < MAX_FILE_RETRIES) {
+                            await waitWithCountdown(30, `재시도 중 (${retryCount}/${MAX_FILE_RETRIES})`);
+                        } else {
+                            console.error(`Failed after ${MAX_FILE_RETRIES} retries:`, e);
+                            alert(`파일 분석 실패: ${files[i].name}`);
+                        }
+                    }
+                }
+                
+                // 파일 분석 간 지연
+                if (i < files.length - 1 && !stopRef.current && analyzed) {
+                    await waitWithCountdown(4, "다음 파일 대기");
                 }
             }
             
@@ -527,13 +655,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             ))}
                         </select>
                     </div>
-                    <button 
-                        onClick={handleBatchTextAnalysis} 
+                    <button onClick={handleBatchTextAnalysis} 
                         disabled={isAnalyzing}
                         className="px-5 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-black text-sm shadow-md transition-all flex items-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                        일괄 AI 분석 갱신 (수정반영)
+                        수정사항 AI 반영 갱신
                     </button>
                 </div>
             </div>

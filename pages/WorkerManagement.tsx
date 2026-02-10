@@ -2,6 +2,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { WorkerRecord } from '../types';
 import { generateReportUrl } from '../utils/qrUtils';
+import { extractMessage } from '../utils/errorUtils';
+import { getWindowProp } from '../utils/windowUtils';
 
 // [시스템] QR 코드 생성 상태 관리 및 동기화 컴포넌트
 interface QRCodeProps {
@@ -22,8 +24,8 @@ const QRCodeComponent: React.FC<QRCodeProps> = React.memo(({ record, onLoad }) =
             // 이미 생성되었다면 스킵 (중복 생성 방지)
             if (element.children.length > 0) return;
 
-            // 1. 라이브러리 존재 여부 확인
-            const QRCodeLib = (window as any).QRCode;
+            // 1. 라이브러리 존재 여부 확인 (안전하게 전역 객체 접근)
+            const QRCodeLib = getWindowProp<any>('QRCode');
             if (!QRCodeLib) {
                 const msg = "QR Lib Missing";
                 console.error(msg);
@@ -53,12 +55,11 @@ const QRCodeComponent: React.FC<QRCodeProps> = React.memo(({ record, onLoad }) =
                 if (onLoad) onLoad(true);
                 setErrorMsg(null);
 
-            } catch (e: any) {
+            } catch (e: unknown) {
                 console.error("QR Generation Error:", e);
-                // 에러 메시지 표시 (사용자가 원인 파악 가능하도록)
                 let visibleError = "QR Error";
-                if (e.message && e.message.includes("code length overflow")) visibleError = "Data Too Long";
-                
+                const errMsg = extractMessage(e);
+                if (typeof errMsg === 'string' && errMsg.includes("code length overflow")) visibleError = "Data Too Long";
                 setErrorMsg(visibleError);
                 if (onLoad) onLoad(false); 
             }
@@ -117,9 +118,11 @@ const getGradeStyle = (level: string) => {
 
 const getRoleBadge = (record: WorkerRecord) => {
     const badges = [];
-    if (record.role === 'leader' || (record.name === record.teamLeader)) badges.push('👑 팀장');
+    // 팀장 판정: role이 'leader'인 경우 우선
+    if (record.role === 'leader') badges.push('👑 팀장');
     else if (record.role === 'sub_leader') badges.push('🛡️ 반장');
     
+    // 겸직 역할 (여러 개 선택 가능)
     if (record.isTranslator) badges.push('🗣️ 통역');
     if (record.isSignalman) badges.push('🚦 신호수');
     
@@ -131,9 +134,9 @@ const PremiumSticker: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker 
     const s = getGradeStyle(worker.safetyLevel);
     const roles = getRoleBadge(worker);
     const mainRole = roles.length > 0 ? roles[0] : worker.jobField;
-    const safeWeakArea = (worker.weakAreas && Array.isArray(worker.weakAreas) && worker.weakAreas.length > 0) 
-        ? worker.weakAreas[0] 
-        : '안전 수칙 준수 요망';
+    // [IMPROVED] 약점이 있고 점수가 낮을 때만 주의 표시 (고점수는 주의사항 생략)
+    const shouldShowWarning = worker.safetyScore < 80 && worker.weakAreas && Array.isArray(worker.weakAreas) && worker.weakAreas.length > 0;
+    const safeWeakArea = shouldShowWarning ? worker.weakAreas[0] : '안전 기준 달성';
 
     return (
         <div className={`w-[90mm] h-[60mm] bg-white rounded-xl border-[3px] flex overflow-hidden relative break-inside-avoid box-border shadow-sm print:shadow-none ${s.border}`}>
@@ -167,9 +170,19 @@ const PremiumSticker: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker 
                 </div>
 
                 <div className="mt-2">
-                    <div className="bg-slate-50 rounded-lg p-2 border border-slate-100 flex items-center gap-2">
-                        <div className="text-rose-500 font-bold text-xs shrink-0">⚠ 주의</div>
-                        <div className="text-[10px] font-bold text-slate-600 truncate flex-1">
+                    <div className={`rounded-lg p-2 border flex items-center gap-2 ${
+                        shouldShowWarning 
+                            ? 'bg-rose-50 border-rose-100' 
+                            : 'bg-emerald-50 border-emerald-100'
+                    }`}>
+                        <div className={`font-bold text-xs shrink-0 ${
+                            shouldShowWarning ? 'text-rose-500' : 'text-emerald-600'
+                        }`}>
+                            {shouldShowWarning ? '⚠ 주의' : '✓ 양호'}
+                        </div>
+                        <div className={`text-[10px] font-bold truncate flex-1 ${
+                            shouldShowWarning ? 'text-slate-600' : 'text-emerald-700'
+                        }`}>
                             {safeWeakArea}
                         </div>
                     </div>
@@ -219,20 +232,33 @@ const PremiumIDCard: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker }
 
                 {/* Info */}
                 <div className="text-center w-full">
-                    <h2 className="text-lg font-black text-slate-900 leading-none truncate mb-1">{worker.name}</h2>
+                    <div className="flex items-center justify-center gap-1 mb-1 flex-wrap">
+                        <h2 className="text-lg font-black text-slate-900 leading-none truncate">{worker.name}</h2>
+                        {/* [IMPROVED] 주요 역할 1개만 표시 (공간 제약) */}
+                        {roles.length > 0 && (
+                            <span className="text-[8px] font-black bg-indigo-100 text-indigo-700 px-1 py-0.5 rounded whitespace-nowrap">
+                                {roles[0]}
+                            </span>
+                        )}
+                    </div>
                     <p className="text-[9px] font-bold text-slate-500 uppercase tracking-wide border-b border-slate-100 pb-2 mb-2">
                         {worker.jobField} | {worker.nationality}
                     </p>
                     
-                    {/* Tags */}
-                    <div className="flex justify-center flex-wrap gap-1 mb-3">
-                        {roles.slice(0, 3).map((role, i) => (
-                            <span key={i} className="px-1.5 py-0.5 rounded-[3px] text-[7px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                                {role}
-                            </span>
-                        ))}
-                        {roles.length === 0 && <span className="text-[8px] text-slate-400">일반 근로자</span>}
-                    </div>
+                    {/* Tags - 모든 역할 표시 (공간 효율적) */}
+                    {roles.length > 0 ? (
+                        <div className="flex justify-center flex-wrap gap-0.5 mb-3 min-h-[12px]">
+                            {roles.map((role, i) => (
+                                <span key={i} className="px-1 py-0.5 rounded text-[6px] font-bold bg-slate-100 text-slate-600 border border-slate-200 leading-tight">
+                                    {role}
+                                </span>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="mb-3 min-h-[12px] flex items-center justify-center">
+                            <span className="text-[7px] text-slate-400">일반 근로자</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Footer QR */}
@@ -250,24 +276,23 @@ const PremiumIDCard: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker }
     );
 });
 
-// [SAMPLE DATA] For Preview Modal
+// [SAMPLE DATA] For Preview Modal - [IMPROVED] 다양한 시나리오 커버
 const sampleWorker: WorkerRecord = {
     id: 'SAMPLE-PREVIEW-001',
     name: '홍길동',
     jobField: '형틀목공',
     teamLeader: '홍길동',
     role: 'leader',
-    isTranslator: true,
+    isTranslator: true,  // 통역 담당
     isSignalman: false,
     date: '2026-01-01',
     nationality: '대한민국',
     language: 'Korean',
-    safetyScore: 98,
+    safetyScore: 98,  // 고급 + 높은 점수
     safetyLevel: '고급',
-    weakAreas: ['해당 없음'],
+    weakAreas: [],  // 공란 (약점 없음 = 안전 기준 달성)
     strengths: ['안전 수칙 준수'],
-    profileImage: undefined, // Will default to placeholder icon
-    // Fill required dummy fields
+    profileImage: undefined,
     handwrittenAnswers: [],
     fullText: '',
     koreanTranslation: '',
@@ -483,7 +508,11 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                     {viewType === 'grid' ? (
                         /* GRID VIEW (Progressive Rendering) */
                         <div className="bg-white p-0 w-[210mm] min-h-[297mm] shadow-2xl print:shadow-none print:w-full print:h-auto overflow-hidden relative print-container">
-                            <div className={`relative z-10 w-full h-full p-[10mm] grid content-start ${printType === 'sticker' ? "grid-cols-2 gap-x-[10mm] gap-y-[10mm]" : "grid-cols-3 gap-x-[5mm] gap-y-[10mm]"}`}>
+                            <div className={`relative z-10 w-full h-full p-[10mm] grid content-start ${
+                                printType === 'sticker' 
+                                    ? "grid-cols-2 gap-x-[10mm] gap-y-[10mm]" 
+                                    : "grid-cols-3 gap-x-[8mm] gap-y-[10mm]"
+                            }`}>
                                 {workersToPrint.slice(0, renderLimit).map(w => (
                                     <div key={w.id} className="flex justify-center items-start break-inside-avoid page-break-inside-avoid">
                                         {printType === 'sticker' 
@@ -497,11 +526,19 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                     ) : (
                         /* FLIP VIEW (For Inspection) */
                         <div className="flex flex-col items-center justify-center w-full h-full min-h-[600px]">
-                            <div className={`transform transition-all duration-300 ${printType === 'sticker' ? 'scale-150' : 'scale-150'} print-item print-item-${workersToPrint[currentFlipIndex].id}`}>
-                                {printType === 'sticker' 
-                                    ? <PremiumSticker worker={workersToPrint[currentFlipIndex]} /> 
-                                    : <PremiumIDCard worker={workersToPrint[currentFlipIndex]} />
-                                }
+                            {workersToPrint.length > 0 && currentFlipIndex < workersToPrint.length ? (
+                                <div className={`transform transition-all duration-300 ${printType === 'sticker' ? 'scale-150' : 'scale-150'} print-item print-item-${workersToPrint[currentFlipIndex].id}`}>
+                                    {printType === 'sticker' 
+                                        ? <PremiumSticker worker={workersToPrint[currentFlipIndex]} /> 
+                                        : <PremiumIDCard worker={workersToPrint[currentFlipIndex]} />
+                                    }
+                                </div>
+                            ) : (
+                                <div className="text-slate-400 font-bold text-center">
+                                    <p className="text-lg mb-2">표시할 데이터가 없습니다</p>
+                                    <p className="text-xs">근로자 목록을 다시 확인해주세요</p>
+                                </div>
+                            )}
                             </div>
                             <div className="mt-20 text-slate-400 font-bold text-sm no-print animate-pulse">
                                 * 확대된 미리보기 화면입니다. 인쇄 시에는 원본 크기로 출력됩니다.

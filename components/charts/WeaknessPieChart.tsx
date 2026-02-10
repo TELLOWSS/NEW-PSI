@@ -2,6 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { Chart } from 'chart.js/auto';
 import type { WorkerRecord } from '../../types';
+import { getWindowProp } from '../../utils/windowUtils';
 
 interface ChartProps {
     records: WorkerRecord[];
@@ -23,7 +24,7 @@ export const WeaknessPieChart: React.FC<ChartProps> = ({ records }) => {
     useEffect(() => {
         if (!chartRef.current) return;
 
-        const ChartLib = (window as any).Chart;
+        const ChartLib = getWindowProp<any>('Chart');
         if (!ChartLib) return;
 
         const weaknessCounts = records.flatMap(r => r.weakAreas).reduce((acc, area) => {

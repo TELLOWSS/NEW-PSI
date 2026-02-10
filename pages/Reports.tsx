@@ -1,7 +1,9 @@
 
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord } from '../types';
+import { extractMessage } from '../utils/errorUtils';
 import { ReportTemplate } from '../components/ReportTemplate';
+import { getWindowProp } from '../utils/windowUtils';
 
 type ReportType = 'worker-report' | 'team-report';
 type GenMode = 'combined-pdf' | 'individual-pdf' | 'individual-img';
@@ -79,10 +81,13 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
     // [Helper] jsPDF Constructor 가져오기
     const getJsPDF = () => {
-        const w = window as any;
-        if (w.jspdf && w.jspdf.jsPDF) return w.jspdf.jsPDF;
-        if (w.jspdf) return w.jspdf;
-        return null;
+        const jspdf = getWindowProp<any>('jspdf');
+        if (!jspdf) return null;
+        try {
+            return typeof jspdf.jsPDF !== 'undefined' ? jspdf.jsPDF : jspdf;
+        } catch {
+            return jspdf;
+        }
     };
 
     // [New] 현재 미리보기 보고서 단건 내보내기
@@ -90,8 +95,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         if (!currentPreviewRecord) return alert('내보낼 데이터가 없습니다.');
         if (!previewRef.current) return alert('미리보기 화면이 로드되지 않았습니다.');
         
-        const w = window as any;
-        if (!w.html2canvas) return alert('html2canvas 라이브러리가 로드되지 않았습니다.');
+        const html2canvas = getWindowProp<any>('html2canvas');
+        if (!html2canvas) return alert('html2canvas 라이브러리가 로드되지 않았습니다.');
         
         const JsPDF = getJsPDF();
         if (!JsPDF) return alert('jsPDF 라이브러리가 로드되지 않았습니다.');
@@ -121,13 +126,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         if (filteredRecords.length === 0) return alert('출력할 대상이 없습니다.');
 
         // 라이브러리 체크
-        const w = window as any;
-        const missingLibs = [];
-        if (!w.html2canvas) missingLibs.push('html2canvas');
+        const missingLibs: string[] = [];
+        if (!getWindowProp<any>('html2canvas')) missingLibs.push('html2canvas');
         const JsPDF = getJsPDF();
         if (!JsPDF) missingLibs.push('jspdf');
-        if (!w.JSZip) missingLibs.push('JSZip');
-        if (!w.saveAs) missingLibs.push('FileSaver');
+        if (!getWindowProp<any>('JSZip')) missingLibs.push('JSZip');
+        if (!getWindowProp<any>('saveAs')) missingLibs.push('FileSaver');
 
         if (missingLibs.length > 0) {
             return alert(`필수 라이브러리가 로드되지 않았습니다.\n(누락: ${missingLibs.join(', ')})\n\n인터넷 연결을 확인하거나 페이지를 새로고침(F5) 해주세요.`);
@@ -146,9 +150,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         abortRef.current = false;
         setBulkProgress({ current: 0, total: filteredRecords.length });
 
-        const JSZip = w.JSZip;
-        const saveAs = w.saveAs;
-        const html2canvas = w.html2canvas;
+        const JSZip = getWindowProp<any>('JSZip');
+        const saveAs = getWindowProp<any>('saveAs');
+        const html2canvas = getWindowProp<any>('html2canvas');
 
         const zip = new JSZip();
         const timestamp = new Date().toISOString().slice(0,10).replace(/-/g, '');
@@ -156,9 +160,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         const folder = zip.folder(folderName);
         
         // Combined PDF용 마스터 인스턴스
-        let masterPdf: any = null;
+        let masterPdf: { addPage?: (...args: any[]) => void; addImage?: (...args: any[]) => void; save?: (...args: any[]) => void; } | null = null;
         if (genMode === 'combined-pdf') {
-            masterPdf = new JsPDF('p', 'mm', 'a4');
+            try { masterPdf = new (JsPDF as unknown as new (...args: any[]) => any)('p', 'mm', 'a4'); } catch { masterPdf = null; }
         }
 
         try {
@@ -233,9 +237,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 alert('작업이 중단되었습니다.');
             }
 
-        } catch (e: any) {
+        } catch (e: unknown) {
             console.error("Critical Error:", e);
-            alert(`오류가 발생했습니다: ${e.message}\n브라우저 메모리가 부족할 수 있습니다. 페이지를 새로고침 후 다시 시도해주세요.`);
+            const errMsg = extractMessage(e);
+            alert(`오류가 발생했습니다: ${errMsg}\n브라우저 메모리가 부족할 수 있습니다. 페이지를 새로고침 후 다시 시도해주세요.`);
         } finally {
             setIsGenerating(false);
             setGeneratingRecord(null);

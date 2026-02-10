@@ -2,6 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { Chart } from 'chart.js/auto';
 import type { WorkerRecord } from '../../types';
+import { getWindowProp } from '../../utils/windowUtils';
 
 interface ChartProps {
     records: WorkerRecord[];
@@ -15,7 +16,7 @@ export const FieldRadarChart: React.FC<ChartProps> = ({ records, mode = 'field' 
     useEffect(() => {
         if (!chartRef.current) return;
 
-        const ChartLib = (window as any).Chart;
+        const ChartLib = getWindowProp<any>('Chart');
         if (!ChartLib) return;
 
         // 1. Calculate Metrics (Dynamic Grouping)
@@ -135,7 +136,12 @@ export const FieldRadarChart: React.FC<ChartProps> = ({ records, mode = 'field' 
                             bodyFont: { size: 12 },
                             displayColors: true,
                             callbacks: {
-                                title: (items: any) => items[0].label // Full label in tooltip
+                                title: function(items: unknown) {
+                                    const arr = items as unknown[];
+                                    if (!Array.isArray(arr) || arr.length === 0) return '';
+                                    const first = arr[0] as { label?: string } | undefined;
+                                    return first?.label ?? '';
+                                }
                             }
                         }
                     }

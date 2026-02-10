@@ -3,6 +3,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import type { WorkerRecord } from '../types';
 import { generateReportUrl } from '../utils/qrUtils';
 import { ReportTemplate } from '../components/ReportTemplate';
+import { getWindowProp } from '../utils/windowUtils';
 
 interface IndividualReportProps {
     record: WorkerRecord;
@@ -70,24 +71,29 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
 
     const handleDownloadPDF = async () => {
         if (!reportRef.current) return;
-        const html2canvas = (window as any).html2canvas;
-        const jspdf = (window as any).jspdf;
+        const html2canvas = getWindowProp<any>('html2canvas');
+        const jspdf = getWindowProp<any>('jspdf');
         if (!html2canvas || !jspdf) return alert('PDF 라이브러리가 로드되지 않았습니다.');
 
         setIsGeneratingPdf(true);
         try {
             const canvas = await html2canvas(reportRef.current, { scale: 3, useCORS: true, backgroundColor: '#ffffff', logging: false });
             const imgData = canvas.toDataURL('image/png', 1.0);
-            const jsPDF = jspdf.jsPDF ? jspdf.jsPDF : jspdf;
-            const pdf = new jsPDF('p', 'mm', 'a4');
+            const jsPDFCtor = (jspdf && (jspdf as unknown as { jsPDF?: unknown }).jsPDF) ? (jspdf as unknown as { jsPDF?: unknown }).jsPDF : jspdf;
+            const PDFCtor = typeof jsPDFCtor === 'function' ? jsPDFCtor : null;
+            if (!PDFCtor) throw new Error('jsPDF constructor not available');
+            const pdf = new (PDFCtor as new (...args: any[]) => any)('p', 'mm', 'a4');
             pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
             pdf.save(`PSI_Report_${record.name}.pdf`);
-        } catch (e) { console.error(e); alert('PDF 생성 실패'); } finally { setIsGeneratingPdf(false); }
+        } catch (err: unknown) {
+            console.error('PDF generation failed:', err);
+            alert('PDF 생성 실패');
+        } finally { setIsGeneratingPdf(false); }
     };
 
     const handleDownloadImage = async () => {
         if (!reportRef.current) return;
-        const html2canvas = (window as any).html2canvas;
+        const html2canvas = getWindowProp<any>('html2canvas');
         if (!html2canvas) return alert('이미지 라이브러리가 로드되지 않았습니다.');
 
         setIsGeneratingImage(true);
@@ -99,7 +105,10 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-        } catch (e) { console.error(e); alert('이미지 저장 실패'); } finally { setIsGeneratingImage(false); }
+        } catch (err: unknown) {
+            console.error('Image save failed:', err);
+            alert('이미지 저장 실패');
+        } finally { setIsGeneratingImage(false); }
     };
 
     return (

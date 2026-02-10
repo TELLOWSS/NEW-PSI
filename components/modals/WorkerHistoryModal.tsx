@@ -58,8 +58,8 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
         setEditableRecord(record);
     };
 
-    const handleFieldChange = (field: keyof WorkerRecord, value: any) => {
-        setEditableRecord(prev => ({...prev, [field]: value}));
+    const handleFieldChange = <K extends keyof WorkerRecord>(field: K, value: WorkerRecord[K]) => {
+        setEditableRecord(prev => ({ ...prev, [field]: value } as WorkerRecord));
     }
 
     const handleSave = () => {

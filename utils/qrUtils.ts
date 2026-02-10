@@ -10,11 +10,11 @@ import type { WorkerRecord } from '../types';
 
 // 1단계: 전체 텍스트 데이터 포함 (이미지 제외)
 const minifyFull = (record: WorkerRecord) => {
-    const safeStr = (val: any) => (val && typeof val === 'string') ? val : String(val || "");
-    const safeNum = (val: any) => (typeof val === 'number') ? val : 0;
-    const safeArr = (val: any) => (Array.isArray(val)) ? val : [];
+    const safeStr = (val: unknown): string => (typeof val === 'string') ? val : String(val ?? "");
+    const safeNum = (val: unknown): number => (typeof val === 'number') ? val : Number(val) || 0;
+    const safeArr = (val: unknown): string[] => Array.isArray(val) ? val.filter(v => typeof v === 'string') as string[] : [];
     // 배열 데이터를 | 로 구분하여 압축
-    const safeJoin = (arr: any[], limit: number) => safeArr(arr).slice(0, limit).map(safeStr).join('|');
+    const safeJoin = (arr: unknown[], limit: number): string => safeArr(arr).slice(0, limit).map(safeStr).join('|');
 
     return [
         4, // Schema Version (Updated)
@@ -33,16 +33,16 @@ const minifyFull = (record: WorkerRecord) => {
     ];
 };
 
-const encodeData = (data: any[]): string => {
+const encodeData = (data: unknown[]): string => {
     try {
         const jsonStr = JSON.stringify(data);
-        // 한글 깨짐 방지를 위한 인코딩 처리
-        const utf8Bytes = unescape(encodeURIComponent(jsonStr));
-        const base64 = window.btoa(utf8Bytes);
+        // UTF-8 안전 인코딩
+        const utf8 = unescape(encodeURIComponent(jsonStr));
+        const base64 = window.btoa(utf8);
         // URL 안전 문자열로 변환
         return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     } catch (e) {
-        console.error("Encoding failed", e);
+        console.warn("Encoding failed", e);
         return "";
     }
 };
@@ -72,23 +72,23 @@ export const restoreRecordFromUrl = (safeBase64: string): WorkerRecord | null =>
 
         if (!Array.isArray(data)) return null;
 
-        const safeGet = (index: number, defaultVal: any = "") => (data[index] !== undefined && data[index] !== null) ? data[index] : defaultVal;
-        const splitStr = (val: any) => (val && typeof val === 'string' && val.length > 0) ? val.split('|') : [];
+        const safeGet = (index: number, defaultVal: unknown = ""): unknown => (data[index] !== undefined && data[index] !== null) ? data[index] : defaultVal;
+        const splitStr = (val: unknown): string[] => (typeof val === 'string' && val.length > 0) ? val.split('|') : [];
 
         // 복원 시 이미지는 없으므로 빈 값 처리 (공유 받은 사람은 텍스트만 확인 가능)
         return {
             id: `shared-${Date.now()}`,
-            name: safeGet(1, "공유된 근로자"),
-            jobField: safeGet(2, "미분류"),
-            date: safeGet(3, new Date().toISOString().split('T')[0]),
-            nationality: safeGet(4, "미상"),
-            safetyScore: safeGet(5, 0),
-            safetyLevel: safeGet(6, "초급"),
+            name: String(safeGet(1, "공유된 근로자")),
+            jobField: String(safeGet(2, "미분류")),
+            date: String(safeGet(3, new Date().toISOString().split('T')[0])),
+            nationality: String(safeGet(4, "미상")),
+            safetyScore: Number(safeGet(5, 0)),
+            safetyLevel: String(safeGet(6, "초급")) as '초급' | '중급' | '고급',
             weakAreas: splitStr(safeGet(7)),
             strengths: splitStr(safeGet(8)),
-            aiInsights: safeGet(9, "공유된 요약 리포트입니다."),
-            teamLeader: safeGet(10, ""),
-            role: safeGet(11, "worker"),
+            aiInsights: String(safeGet(9, "공유된 요약 리포트입니다.")),
+            teamLeader: String(safeGet(10, "")),
+            role: String(safeGet(11, "worker")) as 'worker' | 'leader' | 'sub_leader',
             
             // 필수 필드 기본값 채움
             aiInsights_native: "",
@@ -107,7 +107,7 @@ export const restoreRecordFromUrl = (safeBase64: string): WorkerRecord | null =>
             profileImage: undefined   // 이미지는 공유되지 않음
         };
     } catch (e) {
-        console.error("Restoration failed", e);
+        console.warn("Restoration failed", e);
         return null;
     }
 };
