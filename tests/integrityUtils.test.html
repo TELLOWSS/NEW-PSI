@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Integrity Utils Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .test-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-title {
+            font-weight: bold;
+            color: #2563eb;
+            margin-bottom: 10px;
+        }
+        .result {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin: 10px 0;
+        }
+        .score-good { color: #16a34a; font-weight: bold; }
+        .score-warning { color: #ea580c; font-weight: bold; }
+        .score-bad { color: #dc2626; font-weight: bold; }
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Integrity Utils Test Suite</h1>
+    <p>Testing the calculateIntegrityScore function with various scenarios</p>
+    
+    <div id="results"></div>
+    
+    <button onclick="runTests()">Run All Tests</button>
+
+    <script type="module">
+        // Import the functions (this will only work when served via a dev server)
+        // For direct browser testing, we'll inline the functions
+        
+        // Inlined version of calculateIntegrityScore
+        function calculateIntegrityScore(handwritingText, pastViolationHistory) {
+            const inconsistencies = [];
+            let score = 100;
+            let confidence = 0.8;
+
+            if (!handwritingText || handwritingText.trim().length === 0) {
+                return {
+                    score: 0,
+                    warning: 'No handwriting text provided',
+                    inconsistencies: ['빈 텍스트 - 분석 불가'],
+                    confidence: 0
+                };
+            }
+
+            if (!pastViolationHistory || pastViolationHistory.length === 0) {
+                return {
+                    score: 100,
+                    warning: null,
+                    inconsistencies: [],
+                    confidence: 1.0
+                };
+            }
+
+            const text = handwritingText.toLowerCase();
+            
+            const safetyKeywords = {
+                fall: ['추락', '낙하', '안전고리', '안전대', '안전난간', '개구부', 'fall', 'harness', 'safety belt'],
+                struck_by: ['협착', '충돌', '낙하물', '비래', '보호구', 'struck', 'collision', 'falling object'],
+                electrocution: ['감전', '전기', '누전', '접지', 'electric', 'shock', 'ground'],
+                caught_in: ['끼임', '말림', '협착', 'caught', 'pinch', 'entangle']
+            };
+
+            const getViolationTypeKorean = (type) => {
+                const typeMap = {
+                    fall: '추락',
+                    struck_by: '충돌/협착',
+                    electrocution: '감전',
+                    caught_in: '끼임',
+                    other: '기타'
+                };
+                return typeMap[type] || '미분류';
+            };
+
+            pastViolationHistory.forEach(violation => {
+                const violationType = violation.type;
+                const keywords = safetyKeywords[violationType] || [];
+                
+                const mentionedTopic = keywords.some(keyword => text.includes(keyword));
+                
+                if (mentionedTopic && violation.severity === 'high') {
+                    const message = `이전 ${getViolationTypeKorean(violationType)} 위반 이력 있음 (${violation.date})`;
+                    inconsistencies.push(message);
+                    score -= 15;
+                    confidence = 0.6;
+                } else if (mentionedTopic && violation.severity === 'medium') {
+                    score -= 8;
+                    confidence = 0.7;
+                }
+            });
+
+            const fallViolations = pastViolationHistory.filter(v => v.type === 'fall');
+            const mentionsFallSafety = safetyKeywords.fall.some(keyword => text.includes(keyword));
+            
+            if (fallViolations.length >= 2 && mentionsFallSafety) {
+                inconsistencies.push('다수의 추락 위반 이력에도 안전고리 사용을 강조 - 거짓 기재 가능성');
+                score -= 20;
+                confidence = 0.5;
+            }
+
+            const genericPhrases = ['안전수칙 준수', '안전제일', '조심하겠습니다', 'i will be careful', 'safety first'];
+            const genericCount = genericPhrases.filter(phrase => text.includes(phrase)).length;
+            
+            if (genericCount >= 2) {
+                inconsistencies.push('일반적인 답변 - 구체성 부족');
+                score -= 5;
+            }
+
+            score = Math.max(0, Math.min(100, score));
+
+            const warning = score < 70 
+                ? '⚠️ 낮은 무결성 점수 - 거짓 기재 또는 형식적 작성 가능성' 
+                : score < 85 
+                ? '⚡ 주의 필요 - 일부 불일치 감지됨' 
+                : null;
+
+            return { score, warning, inconsistencies, confidence };
+        }
+
+        function formatResult(result) {
+            const scoreClass = result.score >= 85 ? 'score-good' : result.score >= 70 ? 'score-warning' : 'score-bad';
+            let html = `<span class="${scoreClass}">Score: ${result.score}/100</span>\n`;
+            html += `Confidence: ${(result.confidence * 100).toFixed(0)}%\n`;
+            if (result.warning) {
+                html += `\n${result.warning}\n`;
+            }
+            if (result.inconsistencies.length > 0) {
+                html += '\n불일치 사항:\n';
+                result.inconsistencies.forEach(inc => {
+                    html += `  • ${inc}\n`;
+                });
+            }
+            return html;
+        }
+
+        window.runTests = function() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            const tests = [
+                {
+                    name: 'Test 1: No violations - Perfect score',
+                    text: '저는 안전고리를 착용하겠습니다.',
+                    violations: []
+                },
+                {
+                    name: 'Test 2: Multiple fall violations + fall safety writing',
+                    text: '저는 항상 안전고리를 착용하고 있습니다. 추락 위험을 잘 알고 있습니다.',
+                    violations: [
+                        { type: 'fall', date: '2024-01-15', description: '안전고리 미착용', severity: 'high' },
+                        { type: 'fall', date: '2024-02-20', description: '추락 방지 조치 미실시', severity: 'high' }
+                    ]
+                },
+                {
+                    name: 'Test 3: Medium severity violation',
+                    text: '협착 사고 방지를 위해 보호구를 착용하겠습니다.',
+                    violations: [
+                        { type: 'struck_by', date: '2024-03-10', description: '보호구 미착용', severity: 'medium' }
+                    ]
+                },
+                {
+                    name: 'Test 4: Generic template responses',
+                    text: '안전수칙 준수하겠습니다. 안전제일. 조심하겠습니다.',
+                    violations: []
+                },
+                {
+                    name: 'Test 5: Empty text',
+                    text: '',
+                    violations: []
+                },
+                {
+                    name: 'Test 6: Electrocution violation + electrical safety writing',
+                    text: '감전 방지를 위해 접지를 확인하고 작업하겠습니다.',
+                    violations: [
+                        { type: 'electrocution', date: '2024-04-05', description: '전기 작업 중 절연 장갑 미착용', severity: 'high' }
+                    ]
+                }
+            ];
+
+            tests.forEach((test, index) => {
+                const result = calculateIntegrityScore(test.text, test.violations);
+                const section = document.createElement('div');
+                section.className = 'test-section';
+                section.innerHTML = `
+                    <div class="test-title">${test.name}</div>
+                    <div><strong>Text:</strong> "${test.text}"</div>
+                    <div><strong>Violations:</strong> ${test.violations.length}</div>
+                    <div class="result">${formatResult(result)}</div>
+                `;
+                resultsDiv.appendChild(section);
+            });
+        };
+
+        // Auto-run on load
+        window.addEventListener('load', () => {
+            runTests();
+        });
+    </script>
+</body>
+</html>
