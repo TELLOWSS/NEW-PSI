@@ -539,7 +539,6 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                                     <p className="text-xs">근로자 목록을 다시 확인해주세요</p>
                                 </div>
                             )}
-                            </div>
                             <div className="mt-20 text-slate-400 font-bold text-sm no-print animate-pulse">
                                 * 확대된 미리보기 화면입니다. 인쇄 시에는 원본 크기로 출력됩니다.
                             </div>

@@ -33,6 +33,11 @@ export interface HandwrittenAnswer {
     koreanTranslation: string;
 }
 
+export interface PsychologicalAnalysis {
+    pressureLevel: 'high' | 'medium' | 'low';
+    hasLayoutIssue: boolean;
+}
+
 export interface WorkerRecord {
     id: string; // Unique ID for each record
     name: string;
@@ -60,6 +65,7 @@ export interface WorkerRecord {
     aiInsights: string;
     aiInsights_native: string;
     selfAssessedRiskLevel: '상' | '중' | '하';
+    psychologicalAnalysis?: PsychologicalAnalysis;
     originalImage?: string; // Base64 encoded document image from OCR
     profileImage?: string;  // Base64 encoded worker profile photo (Managed by User)
     filename?: string; // Original filename for reference

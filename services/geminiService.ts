@@ -1,7 +1,7 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { getWindowProp } from '../utils/windowUtils';
-import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, AppSettings } from '../types';
+import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, AppSettings, HandwrittenAnswer } from '../types';
 import { extractMessage } from '../utils/errorUtils';
 
 /**
@@ -134,6 +134,13 @@ const workerRecordSchema = {
             aiInsights: { type: Type.STRING },
             aiInsights_native: { type: Type.STRING },
             selfAssessedRiskLevel: { type: Type.STRING, enum: ['상', '중', '하'] },
+            psychologicalAnalysis: {
+                type: Type.OBJECT,
+                properties: {
+                    pressureLevel: { type: Type.STRING, enum: ['high', 'medium', 'low'], description: "Pen pressure level based on stroke width and darkness" },
+                    hasLayoutIssue: { type: Type.BOOLEAN, description: "Whether text violates layout boundaries or margins" }
+                }
+            },
         },
         required: ["name", "jobField", "date", "nationality", "safetyScore", "safetyLevel"]
     }
@@ -420,6 +427,10 @@ async function callGeminiWithRetry(
             **강조**: 분석 결과에서 핵심 위험 요인은 '작은따옴표'로 강조.
             **직책 식별**: '팀장/소장'은 'leader', '부팀장/반장'은 'sub_leader', 그 외 'worker'.
             **임무 식별**: '통역' -> isTranslator=true, '신호수/유도원' -> isSignalman=true.
+            
+            **심리 분석 (psychologicalAnalysis)**:
+            1. **필압 (pressureLevel)**: 글씨의 굵기와 진하기를 분석하여 'high'(매우 진하고 굵음), 'medium'(보통), 'low'(흐리고 가늠) 판정.
+            2. **레이아웃 위반 (hasLayoutIssue)**: 텍스트가 지정된 영역/여백을 벗어나거나 칸을 넘어가면 true, 정상이면 false.
             `;
 
             const prompt = `위험성 평가 문서를 분석하십시오. 파일명: ${filenameHint || 'unknown'}. 
@@ -483,7 +494,11 @@ async function callGeminiWithRetry(
                             suggestions_native: Array.isArray(r['suggestions_native']) ? (r['suggestions_native'] as string[]) : [],
                             aiInsights: (r['aiInsights'] as string) || '',
                             aiInsights_native: (r['aiInsights_native'] as string) || '',
-                            selfAssessedRiskLevel: (r['selfAssessedRiskLevel'] as string) || '중'
+                            selfAssessedRiskLevel: (r['selfAssessedRiskLevel'] as string) || '중',
+                            psychologicalAnalysis: r['psychologicalAnalysis'] ? {
+                                pressureLevel: ((r['psychologicalAnalysis'] as Record<string, unknown>)['pressureLevel'] as string) || 'medium',
+                                hasLayoutIssue: Boolean((r['psychologicalAnalysis'] as Record<string, unknown>)['hasLayoutIssue'])
+                            } : undefined
                         } as WorkerRecord;
                     });
                 } catch (parseErr: unknown) {
