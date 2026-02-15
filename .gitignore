@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Demo and test files
+demo.ts
+traffic-light-demo.html
+test-*.js

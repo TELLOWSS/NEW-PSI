@@ -33,6 +33,11 @@ export interface HandwrittenAnswer {
     koreanTranslation: string;
 }
 
+export interface PsychologicalAnalysis {
+    pressureLevel: number; // 1-10 scale: 10=very strong/pressed, 1=very weak/flowing
+    hasLayoutIssue: boolean; // Whether text goes outside defined boxes
+}
+
 export interface WorkerRecord {
     id: string; // Unique ID for each record
     name: string;
@@ -60,6 +65,7 @@ export interface WorkerRecord {
     aiInsights: string;
     aiInsights_native: string;
     selfAssessedRiskLevel: '상' | '중' | '하';
+    psychologicalAnalysis?: PsychologicalAnalysis; // Pen pressure and layout analysis
     originalImage?: string; // Base64 encoded document image from OCR
     profileImage?: string;  // Base64 encoded worker profile photo (Managed by User)
     filename?: string; // Original filename for reference
