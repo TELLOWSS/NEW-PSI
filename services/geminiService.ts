@@ -1,7 +1,7 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { getWindowProp } from '../utils/windowUtils';
-import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, AppSettings } from '../types';
+import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, AppSettings, HandwrittenAnswer } from '../types';
 import { extractMessage } from '../utils/errorUtils';
 
 /**
@@ -134,6 +134,20 @@ const workerRecordSchema = {
             aiInsights: { type: Type.STRING },
             aiInsights_native: { type: Type.STRING },
             selfAssessedRiskLevel: { type: Type.STRING, enum: ['상', '중', '하'] },
+            psychologicalAnalysis: {
+                type: Type.OBJECT,
+                description: "Psychological analysis based on handwriting characteristics",
+                properties: {
+                    pressureLevel: { 
+                        type: Type.NUMBER, 
+                        description: "Pen pressure level (1-10): 10=very strong/pressed hard, 1=very weak/flowing lightly. Analyze stroke width and darkness."
+                    },
+                    hasLayoutIssue: { 
+                        type: Type.BOOLEAN, 
+                        description: "Whether text goes outside defined boxes or violates layout boundaries"
+                    }
+                }
+            }
         },
         required: ["name", "jobField", "date", "nationality", "safetyScore", "safetyLevel"]
     }
@@ -420,10 +434,21 @@ async function callGeminiWithRetry(
             **강조**: 분석 결과에서 핵심 위험 요인은 '작은따옴표'로 강조.
             **직책 식별**: '팀장/소장'은 'leader', '부팀장/반장'은 'sub_leader', 그 외 'worker'.
             **임무 식별**: '통역' -> isTranslator=true, '신호수/유도원' -> isSignalman=true.
+            
+            **필압 및 작성 속도 분석 (psychologicalAnalysis)**:
+            이미지의 필기 특성을 시각적으로 분석하여 다음 정보를 추론하시오:
+            1. **필압(Pen Pressure)**: 선의 굵기(Stroke Width)와 진하기(Darkness)를 분석하여 pressureLevel을 1~10점 척도로 평가.
+               - 10점: 매우 강하게 눌러 쓴 경우 (두껍고 진한 선)
+               - 5-6점: 보통 필압
+               - 1점: 매우 약하게 흘려 쓴 경우 (가늘고 흐린 선)
+            2. **레이아웃 위반(Layout Violation)**: 글자가 정해진 칸/경계선을 벗어나는지 확인하여 hasLayoutIssue를 boolean으로 반환.
+               - true: 글자가 칸을 벗어나거나 경계를 침범함
+               - false: 글자가 정해진 영역 내에 정확히 작성됨
             `;
 
             const prompt = `위험성 평가 문서를 분석하십시오. 파일명: ${filenameHint || 'unknown'}. 
-            한국인은 한국어로, 외국인은 한국어와 모국어를 병기하여 JSON으로 출력하십시오.`;
+            한국인은 한국어로, 외국인은 한국어와 모국어를 병기하여 JSON으로 출력하십시오.
+            필기 특성(필압, 레이아웃)도 psychologicalAnalysis 객체에 포함하십시오.`;
             
             const imagePart = { inlineData: { data: imageData, mimeType: mimeType } };
 
@@ -483,7 +508,13 @@ async function callGeminiWithRetry(
                             suggestions_native: Array.isArray(r['suggestions_native']) ? (r['suggestions_native'] as string[]) : [],
                             aiInsights: (r['aiInsights'] as string) || '',
                             aiInsights_native: (r['aiInsights_native'] as string) || '',
-                            selfAssessedRiskLevel: (r['selfAssessedRiskLevel'] as string) || '중'
+                            selfAssessedRiskLevel: (r['selfAssessedRiskLevel'] as string) || '중',
+                            psychologicalAnalysis: r['psychologicalAnalysis'] ? {
+                                pressureLevel: typeof (r['psychologicalAnalysis'] as Record<string, unknown>)['pressureLevel'] === 'number' 
+                                    ? (r['psychologicalAnalysis'] as Record<string, unknown>)['pressureLevel'] as number 
+                                    : 5,
+                                hasLayoutIssue: Boolean((r['psychologicalAnalysis'] as Record<string, unknown>)['hasLayoutIssue'])
+                            } : undefined
                         } as WorkerRecord;
                     });
                 } catch (parseErr: unknown) {
