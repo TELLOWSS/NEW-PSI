@@ -5,6 +5,20 @@
  * and their past violation history.
  */
 
+// Penalty constants for different violation types
+const MAX_FALL_PENALTY = 40;
+const FALL_PENALTY_PER_VIOLATION = 15;
+
+const MAX_HELMET_PENALTY = 30;
+const HELMET_PENALTY_PER_VIOLATION = 12;
+
+const MAX_PPE_PENALTY = 30;
+const PPE_PENALTY_PER_VIOLATION = 10;
+
+const MAX_GENERAL_PENALTY = 25;
+const GENERAL_VIOLATION_THRESHOLD = 4;
+const GENERAL_PENALTY_PER_VIOLATION = 5;
+
 export interface ViolationRecord {
     type: string;
     date: string;
@@ -49,7 +63,7 @@ export function calculateIntegrityScore(
 
         if (fallViolations.length > 0) {
             // Major penalty for writing about safety harness with past fall violations
-            const penalty = Math.min(40, fallViolations.length * 15);
+            const penalty = Math.min(MAX_FALL_PENALTY, fallViolations.length * FALL_PENALTY_PER_VIOLATION);
             score -= penalty;
             isSuspicious = true;
             details.push(`'안전고리' 언급했으나 과거 추락 위험 관련 위반 ${fallViolations.length}건 발견`);
@@ -67,7 +81,7 @@ export function calculateIntegrityScore(
         );
 
         if (helmetViolations.length > 0) {
-            const penalty = Math.min(30, helmetViolations.length * 12);
+            const penalty = Math.min(MAX_HELMET_PENALTY, helmetViolations.length * HELMET_PENALTY_PER_VIOLATION);
             score -= penalty;
             isSuspicious = true;
             details.push(`'안전모' 언급했으나 과거 안전모 관련 위반 ${helmetViolations.length}건 발견`);
@@ -77,8 +91,8 @@ export function calculateIntegrityScore(
 
     // Check for general safety awareness vs. repeated violations
     if (normalizedText.includes('안전') || normalizedText.includes('준수') || normalizedText.includes('지키겠')) {
-        if (pastViolationHistory.length >= 5) {
-            const penalty = Math.min(25, (pastViolationHistory.length - 4) * 5);
+        if (pastViolationHistory.length > GENERAL_VIOLATION_THRESHOLD) {
+            const penalty = Math.min(MAX_GENERAL_PENALTY, (pastViolationHistory.length - GENERAL_VIOLATION_THRESHOLD) * GENERAL_PENALTY_PER_VIOLATION);
             score -= penalty;
             isSuspicious = true;
             details.push(`과거 위반 이력이 ${pastViolationHistory.length}건으로 많음`);
@@ -97,7 +111,7 @@ export function calculateIntegrityScore(
         );
 
         if (ppeViolations.length > 0) {
-            const penalty = Math.min(30, ppeViolations.length * 10);
+            const penalty = Math.min(MAX_PPE_PENALTY, ppeViolations.length * PPE_PENALTY_PER_VIOLATION);
             score -= penalty;
             isSuspicious = true;
             details.push(`'보호구' 언급했으나 과거 보호구 관련 위반 ${ppeViolations.length}건 발견`);

@@ -6,6 +6,7 @@ export interface TrafficLightBadgeProps {
     confidence: number; // 0-1 range
     riskLevel: RiskLevel;
     onClick?: () => void;
+    onApprovalChange?: (approved: boolean) => void;
 }
 
 type BadgeState = 'red' | 'yellow' | 'green';
@@ -23,7 +24,8 @@ type BadgeState = 'red' | 'yellow' | 'green';
 export const TrafficLightBadge: React.FC<TrafficLightBadgeProps> = ({ 
     confidence, 
     riskLevel, 
-    onClick 
+    onClick,
+    onApprovalChange
 }) => {
     const [isForceApproved, setIsForceApproved] = useState(false);
 
@@ -85,8 +87,24 @@ export const TrafficLightBadge: React.FC<TrafficLightBadgeProps> = ({
         if (onClick) {
             onClick();
         }
-        // Force approve on click
+        // Force approve on click (one-way action per requirements)
+        // Note: Once approved, the badge remains green. This is intentional
+        // to prevent accidental un-approval of reviewed items.
         setIsForceApproved(true);
+        
+        // Notify parent of approval change
+        if (onApprovalChange) {
+            onApprovalChange(true);
+        }
+    };
+
+    // Get focus ring color based on state
+    const getFocusRingColor = () => {
+        switch (state) {
+            case 'red': return 'focus:ring-red-500';
+            case 'yellow': return 'focus:ring-yellow-500';
+            case 'green': return 'focus:ring-green-500';
+        }
     };
 
     return (
@@ -96,7 +114,7 @@ export const TrafficLightBadge: React.FC<TrafficLightBadgeProps> = ({
                 inline-flex items-center gap-2 px-4 py-2 rounded-full border-2
                 ${config.bgColor} ${config.borderColor}
                 transition-all duration-200 hover:shadow-md hover:scale-105
-                cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-${config.iconColor.split('-')[1]}-500
+                cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 ${getFocusRingColor()}
             `}
             title="클릭하여 승인"
         >
