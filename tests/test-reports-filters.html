@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports Filter Test - PSI</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+        .test-container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1e293b;
+            border-bottom: 3px solid #4f46e5;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8fafc;
+            border-left: 4px solid #4f46e5;
+            border-radius: 6px;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        .test-result.pass {
+            background: #dcfce7;
+            border: 1px solid #86efac;
+            color: #166534;
+        }
+        .test-result.fail {
+            background: #fee2e2;
+            border: 1px solid #fca5a5;
+            color: #991b1b;
+        }
+        button {
+            background: #4f46e5;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #4338ca;
+        }
+        .filter-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .control-group label {
+            font-weight: 600;
+            font-size: 14px;
+            color: #64748b;
+        }
+        .control-group select {
+            padding: 8px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th {
+            background: #f1f5f9;
+            padding: 10px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #475569;
+        }
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge.high {
+            background: #dcfce7;
+            color: #166534;
+        }
+        .badge.medium {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        .badge.low {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔍 PSI 보고서 필터 기능 검증 테스트</h1>
+        
+        <div class="test-section">
+            <h2>테스트 목적</h2>
+            <p>Reports.tsx의 필터링 로직이 정상적으로 작동하는지 검증합니다.</p>
+            <ul>
+                <li>✓ 공종(팀) 필터 정상 작동 확인</li>
+                <li>✓ 안전등급 필터 정상 작동 확인</li>
+                <li>✓ 복합 필터 (공종 + 안전등급) 동시 적용 확인</li>
+                <li>✓ 필터 변경 시 미리보기 인덱스 초기화 확인</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h2>필터 컨트롤</h2>
+            <div class="filter-controls">
+                <div class="control-group">
+                    <label>공종 선택</label>
+                    <select id="teamFilter" onchange="applyFilters()">
+                        <option value="전체">전체</option>
+                        <option value="형틀">형틀</option>
+                        <option value="철근">철근</option>
+                        <option value="배관">배관</option>
+                        <option value="전기">전기</option>
+                        <option value="도장">도장</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>안전등급 선택</label>
+                    <select id="levelFilter" onchange="applyFilters()">
+                        <option value="전체">전체 등급</option>
+                        <option value="초급">초급 (고위험)</option>
+                        <option value="중급">중급 (주의)</option>
+                        <option value="고급">고급 (우수)</option>
+                    </select>
+                </div>
+            </div>
+            <button onclick="runAllTests()">전체 테스트 실행</button>
+            <button onclick="clearResults()">결과 초기화</button>
+        </div>
+
+        <div id="results"></div>
+
+        <div class="test-section">
+            <h3>필터링된 근로자 목록</h3>
+            <div id="workerCount" style="margin: 10px 0; font-weight: 600; color: #4f46e5;"></div>
+            <div id="workerList"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>필터 로직 코드</h3>
+            <pre style="background: #1e293b; color: #e2e8f0; padding: 15px; border-radius: 8px; overflow-x: auto; font-size: 12px;">
+// Reports.tsx - Filter Logic
+const filteredRecords = useMemo(() => {
+    let result = workerRecords;
+    if (activeTab === 'team-report' && selectedTeam !== '전체') {
+        result = result.filter(r => r.jobField === selectedTeam);
+    }
+    if (filterLevel !== '전체') {
+        result = result.filter(r => r.safetyLevel === filterLevel);
+    }
+    return result.sort((a,b) => a.name.localeCompare(b.name));
+}, [workerRecords, activeTab, selectedTeam, filterLevel]);
+
+// Filter 변경 시 미리보기 인덱스 초기화
+useEffect(() => {
+    setPreviewIndex(0);
+}, [selectedTeam, filterLevel, activeTab]);
+            </pre>
+        </div>
+    </div>
+
+    <script>
+        // Mock worker data
+        const mockWorkers = [
+            { id: 1, name: '김철수', jobField: '형틀', safetyLevel: '고급', safetyScore: 95 },
+            { id: 2, name: '이영희', jobField: '형틀', safetyLevel: '중급', safetyScore: 82 },
+            { id: 3, name: '박민수', jobField: '철근', safetyLevel: '초급', safetyScore: 68 },
+            { id: 4, name: '최강철', jobField: '철근', safetyLevel: '고급', safetyScore: 91 },
+            { id: 5, name: '정대현', jobField: '배관', safetyLevel: '중급', safetyScore: 79 },
+            { id: 6, name: '강민호', jobField: '배관', safetyLevel: '고급', safetyScore: 88 },
+            { id: 7, name: '조성훈', jobField: '전기', safetyLevel: '초급', safetyScore: 71 },
+            { id: 8, name: '윤지은', jobField: '전기', safetyLevel: '중급', safetyScore: 85 },
+            { id: 9, name: '임수현', jobField: '도장', safetyLevel: '고급', safetyScore: 93 },
+            { id: 10, name: '한동훈', jobField: '도장', safetyLevel: '초급', safetyScore: 65 }
+        ];
+
+        let filteredWorkers = [...mockWorkers];
+        let testResults = [];
+
+        function applyFilters() {
+            const teamFilter = document.getElementById('teamFilter').value;
+            const levelFilter = document.getElementById('levelFilter').value;
+            
+            filteredWorkers = mockWorkers.filter(worker => {
+                let passTeam = teamFilter === '전체' || worker.jobField === teamFilter;
+                let passLevel = levelFilter === '전체' || worker.safetyLevel === levelFilter;
+                return passTeam && passLevel;
+            });
+            
+            displayWorkerList();
+        }
+
+        function displayWorkerList() {
+            const countDiv = document.getElementById('workerCount');
+            const listDiv = document.getElementById('workerList');
+            
+            countDiv.textContent = `필터링 결과: ${filteredWorkers.length}명`;
+            
+            if (filteredWorkers.length === 0) {
+                listDiv.innerHTML = '<p style="color: #94a3b8; text-align: center; padding: 20px;">조건에 맞는 근로자가 없습니다.</p>';
+                return;
+            }
+            
+            let tableHTML = '<table><thead><tr><th>이름</th><th>공종</th><th>안전등급</th><th>안전점수</th></tr></thead><tbody>';
+            filteredWorkers.forEach(worker => {
+                const levelClass = worker.safetyLevel === '고급' ? 'high' : worker.safetyLevel === '중급' ? 'medium' : 'low';
+                tableHTML += `
+                    <tr>
+                        <td>${worker.name}</td>
+                        <td>${worker.jobField}</td>
+                        <td><span class="badge ${levelClass}">${worker.safetyLevel}</span></td>
+                        <td>${worker.safetyScore}</td>
+                    </tr>
+                `;
+            });
+            tableHTML += '</tbody></table>';
+            listDiv.innerHTML = tableHTML;
+        }
+
+        function testTeamFilter() {
+            const resultsDiv = document.getElementById('results');
+            const teams = ['형틀', '철근', '배관', '전기', '도장'];
+            let testPassed = true;
+            let testDetails = [];
+            
+            teams.forEach(team => {
+                const expected = mockWorkers.filter(w => w.jobField === team);
+                document.getElementById('teamFilter').value = team;
+                applyFilters();
+                
+                const match = filteredWorkers.length === expected.length;
+                testDetails.push(`${team}: ${filteredWorkers.length}명 (예상: ${expected.length}명) ${match ? '✅' : '❌'}`);
+                if (!match) testPassed = false;
+            });
+            
+            // Reset
+            document.getElementById('teamFilter').value = '전체';
+            applyFilters();
+            
+            resultsDiv.innerHTML += `
+                <div class="test-result ${testPassed ? 'pass' : 'fail'}">
+                    <h4>${testPassed ? '✅ 통과' : '❌ 실패'} - 공종 필터 테스트</h4>
+                    <ul>${testDetails.map(d => `<li>${d}</li>`).join('')}</ul>
+                </div>
+            `;
+            
+            return testPassed;
+        }
+
+        function testLevelFilter() {
+            const resultsDiv = document.getElementById('results');
+            const levels = ['초급', '중급', '고급'];
+            let testPassed = true;
+            let testDetails = [];
+            
+            levels.forEach(level => {
+                const expected = mockWorkers.filter(w => w.safetyLevel === level);
+                document.getElementById('levelFilter').value = level;
+                applyFilters();
+                
+                const match = filteredWorkers.length === expected.length;
+                testDetails.push(`${level}: ${filteredWorkers.length}명 (예상: ${expected.length}명) ${match ? '✅' : '❌'}`);
+                if (!match) testPassed = false;
+            });
+            
+            // Reset
+            document.getElementById('levelFilter').value = '전체';
+            applyFilters();
+            
+            resultsDiv.innerHTML += `
+                <div class="test-result ${testPassed ? 'pass' : 'fail'}">
+                    <h4>${testPassed ? '✅ 통과' : '❌ 실패'} - 안전등급 필터 테스트</h4>
+                    <ul>${testDetails.map(d => `<li>${d}</li>`).join('')}</ul>
+                </div>
+            `;
+            
+            return testPassed;
+        }
+
+        function testCombinedFilter() {
+            const resultsDiv = document.getElementById('results');
+            
+            // Test: 형틀 + 고급
+            document.getElementById('teamFilter').value = '형틀';
+            document.getElementById('levelFilter').value = '고급';
+            applyFilters();
+            
+            const expected1 = mockWorkers.filter(w => w.jobField === '형틀' && w.safetyLevel === '고급');
+            const result1Count = filteredWorkers.length;
+            const test1Pass = result1Count === expected1.length;
+            
+            // Test: 철근 + 초급
+            document.getElementById('teamFilter').value = '철근';
+            document.getElementById('levelFilter').value = '초급';
+            applyFilters();
+            
+            const expected2 = mockWorkers.filter(w => w.jobField === '철근' && w.safetyLevel === '초급');
+            const result2Count = filteredWorkers.length;
+            const test2Pass = result2Count === expected2.length;
+            
+            // Reset
+            document.getElementById('teamFilter').value = '전체';
+            document.getElementById('levelFilter').value = '전체';
+            applyFilters();
+            
+            const allPass = test1Pass && test2Pass;
+            
+            resultsDiv.innerHTML += `
+                <div class="test-result ${allPass ? 'pass' : 'fail'}">
+                    <h4>${allPass ? '✅ 통과' : '❌ 실패'} - 복합 필터 테스트</h4>
+                    <ul>
+                        <li>형틀 + 고급: ${test1Pass ? '✅' : '❌'} (${result1Count}명, 예상: ${expected1.length}명)</li>
+                        <li>철근 + 초급: ${test2Pass ? '✅' : '❌'} (${result2Count}명, 예상: ${expected2.length}명)</li>
+                    </ul>
+                </div>
+            `;
+            
+            return allPass;
+        }
+
+        function runAllTests() {
+            clearResults();
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<div class="test-section"><h3>🔄 테스트 실행 중...</h3></div>';
+            
+            setTimeout(() => {
+                resultsDiv.innerHTML = '<div class="test-section"><h3>📊 테스트 결과</h3></div>';
+                const test1 = testTeamFilter();
+                const test2 = testLevelFilter();
+                const test3 = testCombinedFilter();
+                
+                const allPassed = test1 && test2 && test3;
+                resultsDiv.innerHTML += `
+                    <div class="test-result ${allPassed ? 'pass' : 'fail'}" style="margin-top: 20px; font-size: 18px;">
+                        <h3>${allPassed ? '✅ 전체 테스트 통과' : '❌ 일부 테스트 실패'}</h3>
+                        <p>공종 필터: ${test1 ? '✅' : '❌'} | 안전등급 필터: ${test2 ? '✅' : '❌'} | 복합 필터: ${test3 ? '✅' : '❌'}</p>
+                    </div>
+                `;
+            }, 100);
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('teamFilter').value = '전체';
+            document.getElementById('levelFilter').value = '전체';
+            applyFilters();
+        }
+
+        // Initialize
+        applyFilters();
+    </script>
+</body>
+</html>

@@ -50,7 +50,7 @@ const Introduction: React.FC = () => {
                         PSI: Proactive Safety Intelligence
                     </h1>
                     <p className="max-w-3xl text-lg sm:text-xl text-indigo-100 leading-relaxed mb-8 break-keep">
-                        2026년, 데이터는 이제 정답을 제시합니다. PSI는 흩어져 있던 기록 속에서 사고의 패턴을 읽어내고 미래의 위험을 예측하여 <span className="font-bold text-white border-b-2 border-indigo-400 pb-0.5">오늘의 행동을 이끌어내는 자율 안전 AI 시스템</span>입니다.
+                        2026년, 데이터는 이제 정답을 제시합니다. PSI는 흩어져 있던 기록 속에서 사고의 패턴을 읽어내고 미래의 위험을 예측하여 <span className="font-bold text-white border-b-2 border-indigo-400 pb-0.5">오늘의 행동을 이끌어내는 자율 안전 AI 시스템</span>입니다. 300명 이상의 대규모 현장에서도 안정적으로 작동하며, 기업 수준의 신뢰성을 보장합니다.
                     </p>
 
                     <button 
@@ -87,13 +87,28 @@ const Introduction: React.FC = () => {
                 </div>
 
                 <div className="relative border-l-4 border-indigo-100 ml-4 md:ml-1/2 space-y-12">
-                    {/* 2026 (NEW) */}
+                    {/* 2026 Feb - v2.1 (NEW) */}
                     <div className="relative md:flex items-center justify-between md:flex-row-reverse group card-gravity-target">
-                        <div className="absolute -left-[22px] md:left-auto md:right-1/2 md:-mr-[11px] top-0 w-10 h-10 bg-white border-4 border-indigo-600 rounded-full z-10 shadow-lg shadow-indigo-200 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                        <div className="absolute -left-[22px] md:left-auto md:right-1/2 md:-mr-[11px] top-0 w-10 h-10 bg-white border-4 border-emerald-600 rounded-full z-10 shadow-lg shadow-emerald-200 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                             <div className="w-4 h-4 bg-emerald-600 rounded-full animate-pulse"></div>
+                        </div>
+                        <div className="ml-10 md:ml-0 md:w-[45%] p-6 bg-gradient-to-br from-emerald-50 to-white rounded-2xl shadow-xl border border-emerald-100 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 ring-1 ring-emerald-100">
+                            <span className="text-emerald-700 font-bold text-sm mb-2 block">2026년 02월 (최신)</span>
+                            <h3 className="text-xl font-bold text-slate-900 mb-3">PSI 2.1 - Enterprise Grade</h3>
+                            <p className="text-slate-700 text-sm leading-relaxed">
+                                대규모 현장을 위한 안정성 강화. 300명 이상의 근로자 데이터를 안정적으로 처리하고, 무한 재시도 방지, 메모리 최적화 등 기업 환경에 필수적인 안정성과 확장성을 확보했습니다.
+                            </p>
+                        </div>
+                        <div className="hidden md:block md:w-[45%]"></div>
+                    </div>
+
+                    {/* 2026 (EXISTING) */}
+                    <div className="relative md:flex items-center justify-between group card-gravity-target">
+                        <div className="absolute -left-[22px] md:left-1/2 md:-ml-[11px] top-0 w-10 h-10 bg-white border-4 border-indigo-600 rounded-full z-10 shadow-lg shadow-indigo-200 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                              <div className="w-4 h-4 bg-indigo-600 rounded-full"></div>
                         </div>
                         <div className="ml-10 md:ml-0 md:w-[45%] p-6 bg-gradient-to-br from-indigo-50 to-white rounded-2xl shadow-xl border border-indigo-100 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 ring-1 ring-indigo-100">
-                            <span className="text-indigo-700 font-bold text-sm mb-2 block">2026년 (현재)</span>
+                            <span className="text-indigo-700 font-bold text-sm mb-2 block">2026년 01월</span>
                             <h3 className="text-xl font-bold text-slate-900 mb-3">자율 안전 AI의 원년</h3>
                             <p className="text-slate-700 text-sm leading-relaxed">
                                 PSI 2.0 런칭. 단순 관리 도구를 넘어, 현장의 위험을 스스로 학습하고 예측하는 '인공지능 안전 파트너'로서 건설 현장의 새로운 표준을 제시하고 있습니다.
