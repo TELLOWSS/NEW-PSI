@@ -159,6 +159,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         const folderName = `PSI_${selectedTeam}_${timestamp}`;
         const folder = zip.folder(folderName);
         
+        // [IMPROVED] Track failed records for user feedback
+        const failedRecords: string[] = [];
+        
         // Combined PDF용 마스터 인스턴스
         let masterPdf: { addPage?: (...args: any[]) => void; addImage?: (...args: any[]) => void; save?: (...args: any[]) => void; } | null = null;
         if (genMode === 'combined-pdf') {
@@ -199,6 +202,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
                         // --- 모드별 분기 처리 ---
                         if (genMode === 'combined-pdf') {
+                            // [FIXED] Add null check for masterPdf
+                            if (!masterPdf || !masterPdf.addPage || !masterPdf.addImage) {
+                                throw new Error('PDF 생성기 초기화 실패');
+                            }
                             const imgData = canvas.toDataURL('image/jpeg', 0.85);
                             if (i > 0) masterPdf.addPage();
                             masterPdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
@@ -212,27 +219,47 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             folder.file(`${fileNameBase}.pdf`, pdfBlob);
                         } 
                         else if (genMode === 'individual-img') {
-                            // Canvas Blob 생성
-                            const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
-                            if (blob) folder.file(`${fileNameBase}.jpg`, blob);
+                            // [FIXED] Add timeout to prevent infinite hang
+                            const blob = await Promise.race([
+                                new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9)),
+                                new Promise<Blob | null>(resolve => setTimeout(() => resolve(null), 10000)) // 10s timeout
+                            ]);
+                            if (blob) {
+                                folder.file(`${fileNameBase}.jpg`, blob);
+                            } else {
+                                console.warn(`[Warning] ${record.name} 이미지 생성 실패 (timeout or null)`);
+                            }
                         }
                     } catch (err) {
                         console.error(`[Error] ${record.name} 처리 중 오류:`, err);
+                        // Notify user of individual failure
+                        failedRecords.push(record.name);
                     }
                 }
                 
-                // 메모리 해제를 위한 짧은 딜레이
-                await new Promise(r => setTimeout(r, 100));
+                // [IMPROVED] 메모리 해제를 위한 충분한 딜레이 (100ms → 500ms)
+                await new Promise(r => setTimeout(r, 500));
             }
 
             if (!abortRef.current) {
                 if (genMode === 'combined-pdf') {
-                    masterPdf.save(`${folderName}.pdf`);
+                    // [FIXED] Check masterPdf exists before calling save
+                    if (masterPdf && masterPdf.save) {
+                        masterPdf.save(`${folderName}.pdf`);
+                    } else {
+                        throw new Error('PDF 저장 실패: 마스터 PDF 인스턴스가 없습니다.');
+                    }
                 } else {
                     const content = await zip.generateAsync({ type: "blob" });
                     saveAs(content,(`${folderName}.zip`));
                 }
-                alert('생성이 완료되었습니다. 다운로드 폴더를 확인해주세요.');
+                
+                // [IMPROVED] Show detailed completion message with failed records
+                if (failedRecords.length > 0) {
+                    alert(`생성이 완료되었습니다.\n\n성공: ${filteredRecords.length - failedRecords.length}건\n실패: ${failedRecords.length}건\n\n실패한 근로자:\n${failedRecords.join(', ')}\n\n다운로드 폴더를 확인해주세요.`);
+                } else {
+                    alert(`생성이 완료되었습니다.\n\n총 ${filteredRecords.length}건 성공\n\n다운로드 폴더를 확인해주세요.`);
+                }
             } else {
                 alert('작업이 중단되었습니다.');
             }
