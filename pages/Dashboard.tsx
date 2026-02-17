@@ -44,32 +44,122 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         return { totalWorkers, averageScore, highRiskWorkers, totalChecks };
     }, [workerOnlyRecords, safetyCheckRecords]);
     
-    // [SIMULATION DATE] 2026-01-01
-    const today = "2026년 1월 1일 목요일";
+    // [SIMULATION DATE] 2026-02-17
+    const today = "2026년 2월 17일 화요일";
 
     return (
         <div className="space-y-8 animate-fade-in-up">
-            {/* Welcome Banner */}
-            <div className="bg-gradient-to-r from-indigo-900 to-indigo-700 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full blur-3xl -mr-16 -mt-16"></div>
-                <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
-                    <div>
-                        <p className="text-indigo-200 font-bold text-sm mb-1">{today}</p>
-                        <h2 className="text-3xl font-black mb-2">새해 복 많이 받으세요, 안전관리자님! ☀️</h2>
-                        <p className="text-indigo-100 max-w-xl text-sm leading-relaxed opacity-90">
-                            2026년 새해가 밝았습니다. 현재 현장의 실무 근로자 평균 안전 점수는 <span className="font-bold text-white text-lg">{stats.averageScore.toFixed(1)}점</span>으로 시작합니다. 
-                            무재해 원년의 목표를 향해 오늘도 안전한 현장을 만들어주세요.
-                        </p>
+            {/* AI-Powered Safety Command Center */}
+            <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden border border-white/10">
+                {/* Animated background elements */}
+                <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500 opacity-10 rounded-full blur-3xl -mr-32 -mt-32 animate-pulse"></div>
+                <div className="absolute bottom-0 left-0 w-80 h-80 bg-blue-500 opacity-10 rounded-full blur-3xl -ml-24 -mb-24 animate-pulse" style={{ animationDelay: '1s' }}></div>
+                
+                <div className="relative z-10">
+                    {/* System Status Header */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-indigo-500/20 backdrop-blur-sm rounded-xl border border-indigo-400/30">
+                                <svg className="w-6 h-6 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <h2 className="text-2xl md:text-3xl font-black tracking-tight">PSI Safety Intelligence</h2>
+                                    <span className="px-2 py-0.5 bg-emerald-500/90 text-white text-[10px] font-black rounded-md uppercase tracking-wide">v2.0</span>
+                                </div>
+                                <p className="text-indigo-300 text-xs font-bold flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                                    실시간 안전 모니터링 활성화 · {today}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 px-4 py-2 bg-white/5 backdrop-blur-md border border-white/10 rounded-xl">
+                            <svg className="w-4 h-4 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            <span className="text-xs font-bold text-emerald-300">AI 분석 엔진 정상</span>
+                        </div>
                     </div>
-                    <div className="flex gap-4">
-                        <button onClick={() => setCurrentPage('ocr-analysis')} className="px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md rounded-2xl font-bold text-sm transition-all flex items-center gap-2">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                            신규 분석
-                        </button>
-                        <button onClick={() => setCurrentPage('reports')} className="px-6 py-3 bg-white text-indigo-900 rounded-2xl font-bold text-sm shadow-lg hover:bg-indigo-50 transition-all flex items-center gap-2">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                            리포트 생성
-                        </button>
+
+                    {/* Main Content Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                        {/* Real-time Safety Score */}
+                        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5">
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-indigo-300 text-xs font-bold uppercase tracking-wide">현장 안전 지수</span>
+                                <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                                </svg>
+                            </div>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-4xl font-black text-white">{stats.averageScore.toFixed(1)}</span>
+                                <span className="text-lg font-bold text-indigo-300">/ 100</span>
+                            </div>
+                            <p className="text-xs text-indigo-200 mt-2 font-medium">실무 근로자 평균 점수</p>
+                        </div>
+
+                        {/* Active Workers */}
+                        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5">
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-indigo-300 text-xs font-bold uppercase tracking-wide">활동 중인 근로자</span>
+                                <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                            </div>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-4xl font-black text-white">{stats.totalWorkers}</span>
+                                <span className="text-lg font-bold text-indigo-300">명</span>
+                            </div>
+                            <p className="text-xs text-indigo-200 mt-2 font-medium">관리 직군 제외</p>
+                        </div>
+
+                        {/* Risk Alert */}
+                        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-5">
+                            <div className="flex items-center justify-between mb-3">
+                                <span className="text-indigo-300 text-xs font-bold uppercase tracking-wide">위험도 모니터링</span>
+                                <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-4xl font-black text-white">{stats.highRiskWorkers}</span>
+                                <span className="text-lg font-bold text-amber-300">명</span>
+                            </div>
+                            <p className="text-xs text-amber-200 mt-2 font-medium">고위험 근로자 감지</p>
+                        </div>
+                    </div>
+
+                    {/* AI Insights & Quick Actions */}
+                    <div className="flex flex-col md:flex-row gap-4 items-center">
+                        <div className="flex-1 bg-indigo-500/10 backdrop-blur-sm border border-indigo-400/20 rounded-xl p-4">
+                            <div className="flex items-start gap-3">
+                                <div className="p-2 bg-indigo-400/20 rounded-lg">
+                                    <svg className="w-5 h-5 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                    </svg>
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-xs font-bold text-indigo-200 mb-1 uppercase tracking-wide">AI 인사이트</p>
+                                    <p className="text-sm text-white font-medium leading-relaxed">
+                                        {stats.highRiskWorkers > 0 
+                                            ? `현재 ${stats.highRiskWorkers}명의 고위험 근로자가 감지되었습니다. 즉시 교육 및 점검이 필요합니다.`
+                                            : '모든 근로자가 안전 기준을 충족하고 있습니다. 현재 상태를 유지하세요.'}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex gap-3">
+                            <button onClick={() => setCurrentPage('ocr-analysis')} className="px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md rounded-xl font-bold text-sm transition-all flex items-center gap-2 hover:scale-105 active:scale-95">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                신규 분석
+                            </button>
+                            <button onClick={() => setCurrentPage('reports')} className="px-5 py-3 bg-white text-slate-900 rounded-xl font-bold text-sm shadow-lg hover:bg-slate-50 transition-all flex items-center gap-2 hover:scale-105 active:scale-95">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                리포트 생성
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
