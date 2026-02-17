@@ -319,7 +319,8 @@ useEffect(() => {
             applyFilters();
             
             const expected1 = mockWorkers.filter(w => w.jobField === '형틀' && w.safetyLevel === '고급');
-            const test1Pass = filteredWorkers.length === expected1.length;
+            const result1Count = filteredWorkers.length;
+            const test1Pass = result1Count === expected1.length;
             
             // Test: 철근 + 초급
             document.getElementById('teamFilter').value = '철근';
@@ -327,7 +328,8 @@ useEffect(() => {
             applyFilters();
             
             const expected2 = mockWorkers.filter(w => w.jobField === '철근' && w.safetyLevel === '초급');
-            const test2Pass = filteredWorkers.length === expected2.length;
+            const result2Count = filteredWorkers.length;
+            const test2Pass = result2Count === expected2.length;
             
             // Reset
             document.getElementById('teamFilter').value = '전체';
@@ -340,8 +342,8 @@ useEffect(() => {
                 <div class="test-result ${allPass ? 'pass' : 'fail'}">
                     <h4>${allPass ? '✅ 통과' : '❌ 실패'} - 복합 필터 테스트</h4>
                     <ul>
-                        <li>형틀 + 고급: ${test1Pass ? '✅' : '❌'} (${filteredWorkers.length}명 예상됨)</li>
-                        <li>철근 + 초급: ${test2Pass ? '✅' : '❌'}</li>
+                        <li>형틀 + 고급: ${test1Pass ? '✅' : '❌'} (${result1Count}명, 예상: ${expected1.length}명)</li>
+                        <li>철근 + 초급: ${test2Pass ? '✅' : '❌'} (${result2Count}명, 예상: ${expected2.length}명)</li>
                     </ul>
                 </div>
             `;
