@@ -35,10 +35,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
     }, []);
 
     return (
-        <div className="w-64 bg-white shadow-lg flex flex-col shrink-0">
-            <div className="p-4 text-center border-b border-slate-200">
+        <div className="w-64 bg-white shadow-lg flex flex-col shrink-0 h-full">
+            <div className="p-3 sm:p-4 text-center border-b border-slate-200">
                 {/* New Asymmetric Logo with Electric Indigo Theme */}
-                <svg className="h-14 w-14 mx-auto drop-shadow-md" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                <svg className="h-12 sm:h-14 w-12 sm:w-14 mx-auto drop-shadow-md" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
                     <defs>
                         <linearGradient id="sidebarLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                             <stop offset="0%" stopColor="#6366f1" /> {/* Indigo-500 */}
@@ -52,13 +52,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
                     <path d="M24 6 V16" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.4"/>
                 </svg>
                 
-                <h1 className="text-base font-bold text-slate-800 mt-2">PSI</h1>
-                <p className="text-xs text-slate-500">Proactive Safety Intelligence</p>
-                <div className="bg-slate-100 rounded-md p-2 mt-4">
-                     <p className="text-xs font-semibold text-slate-700 truncate px-1">{siteName} 현장</p>
+                <h1 className="text-sm sm:text-base font-bold text-slate-800 mt-2">PSI</h1>
+                <p className="text-[10px] sm:text-xs text-slate-500">Proactive Safety Intelligence</p>
+                <div className="bg-slate-100 rounded-md p-1.5 sm:p-2 mt-3 sm:mt-4">
+                     <p className="text-[10px] sm:text-xs font-semibold text-slate-700 truncate px-1">{siteName} 현장</p>
                 </div>
             </div>
-            <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+            <nav className="flex-1 px-2 py-3 sm:py-4 space-y-0.5 sm:space-y-1 overflow-y-auto custom-scrollbar">
                 {navItems.map(item => (
                     <a
                         key={item.id}
@@ -67,29 +67,29 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
                             e.preventDefault();
                             setCurrentPage(item.id);
                         }}
-                        className={`flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors duration-150 ${currentPage === item.id
+                        className={`flex items-center px-3 py-2 sm:py-2.5 text-xs sm:text-sm font-medium rounded-md transition-colors duration-150 ${currentPage === item.id
                             ? 'bg-indigo-600 text-white shadow-md'
                             : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                             }`}
                     >
-                        <span className="w-5 h-5">{item.icon}</span>
-                        <span className="ml-3">{item.name}</span>
+                        <span className="w-4 h-4 sm:w-5 sm:h-5">{item.icon}</span>
+                        <span className="ml-2 sm:ml-3">{item.name}</span>
                     </a>
                 ))}
             </nav>
             {/* Developer Credit Footer */}
-            <div className="p-5 border-t border-slate-200 bg-slate-50/50">
-                <div className="flex items-center gap-3">
+            <div className="p-3 sm:p-5 border-t border-slate-200 bg-slate-50/50">
+                <div className="flex items-center gap-2 sm:gap-3">
                     {/* High-End Architectural Monogram Icon */}
                     <div className="relative group shrink-0">
                         {/* Golden Glow Effect */}
                         <div className="absolute -inset-1 bg-gradient-to-tr from-amber-200 to-yellow-500 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
-                        <div className="relative w-11 h-11 bg-slate-900 rounded-xl flex items-center justify-center border border-slate-800 shadow-xl overflow-hidden">
+                        <div className="relative w-9 h-9 sm:w-11 sm:h-11 bg-slate-900 rounded-xl flex items-center justify-center border border-slate-800 shadow-xl overflow-hidden">
                             {/* Metallic Texture Overlay */}
                             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
                             
                             {/* Stylized 'P' Logo */}
-                            <svg className="w-6 h-6 z-10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6 z-10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                                 <defs>
                                     <linearGradient id="gold-leaf" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
                                         <stop offset="0%" stopColor="#FDE68A" /> {/* Amber 200 */}
@@ -109,13 +109,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
                     </div>
 
                     <div className="flex flex-col min-w-0">
-                        <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest mb-0.5">Developed By</span>
-                        <span className="text-sm font-black text-slate-800 truncate tracking-tight">박성훈 부장</span>
-                        <span className="text-[10px] text-slate-500 font-bold truncate">(주)휘강건설</span>
+                        <span className="text-[8px] sm:text-[9px] font-black text-indigo-500 uppercase tracking-widest mb-0.5">Developed By</span>
+                        <span className="text-xs sm:text-sm font-black text-slate-800 truncate tracking-tight">박성훈 부장</span>
+                        <span className="text-[9px] sm:text-[10px] text-slate-500 font-bold truncate">(주)휘강건설</span>
                     </div>
                 </div>
-                <div className="mt-4 text-center">
-                    <p className="text-[9px] text-slate-300 font-medium tracking-wide">© 2026 Hwigang Const. All rights reserved.</p>
+                <div className="mt-3 sm:mt-4 text-center">
+                    <p className="text-[8px] sm:text-[9px] text-slate-300 font-medium tracking-wide">© 2026 Hwigang Const. All rights reserved.</p>
                 </div>
             </div>
         </div>

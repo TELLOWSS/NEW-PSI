@@ -53,18 +53,18 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     render() {
         if (this.state.hasError) {
             return (
-                <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
-                    <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-lg w-full border border-slate-200">
-                        <div className="w-20 h-20 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 sm:p-6 text-center animate-fade-in">
+                    <div className="bg-white p-6 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl max-w-lg w-full border border-slate-200">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
+                            <svg className="w-8 h-8 sm:w-10 sm:h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                         </div>
-                        <h2 className="text-2xl font-black text-slate-900 mb-2">시스템 일시 중단됨</h2>
-                        <p className="text-slate-500 mb-6 font-medium">
+                        <h2 className="text-xl sm:text-2xl font-black text-slate-900 mb-2">시스템 일시 중단됨</h2>
+                        <p className="text-sm sm:text-base text-slate-500 mb-4 sm:mb-6 font-medium">
                             처리 중 예상치 못한 문제가 발생했습니다.<br/>
                             데이터는 안전하게 보존되어 있으니 안심하세요.
                         </p>
                         
-                        <div className="bg-slate-100 p-4 rounded-xl text-left mb-6 overflow-auto max-h-40 text-xs font-mono text-slate-600 border border-slate-200">
+                        <div className="bg-slate-100 p-3 sm:p-4 rounded-lg sm:rounded-xl text-left mb-4 sm:mb-6 overflow-auto max-h-32 sm:max-h-40 text-[10px] sm:text-xs font-mono text-slate-600 border border-slate-200">
                             <strong>Error:</strong> {this.state.error?.toString()}
                             <br/>
                             <span className="opacity-50">{this.state.errorInfo?.componentStack}</span>
@@ -72,9 +72,9 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
                         <button 
                             onClick={this.handleReset}
-                            className="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-all hover:-translate-y-1 flex items-center justify-center gap-2"
+                            className="w-full py-3 sm:py-4 bg-indigo-600 text-white rounded-lg sm:rounded-xl text-sm sm:text-base font-bold shadow-lg hover:bg-indigo-700 transition-all hover:-translate-y-1 flex items-center justify-center gap-2"
                         >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                             시스템 복구 및 새로고침
                         </button>
                     </div>
@@ -461,17 +461,17 @@ const App: React.FC = () => {
 
             {/* Undo Delete Toast */}
             {showUndoToast && (
-                <div className="fixed bottom-6 right-6 z-[9999] animate-fade-in-up">
-                    <div className="bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-4 border border-slate-700">
+                <div className="fixed bottom-4 sm:bottom-6 right-4 sm:right-6 left-4 sm:left-auto z-[9999] animate-fade-in-up">
+                    <div className="bg-slate-900 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-xl sm:rounded-2xl shadow-2xl flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 border border-slate-700">
                         <div className="flex items-center gap-2">
-                            <div className="bg-slate-700 p-1.5 rounded-full">
+                            <div className="bg-slate-700 p-1.5 rounded-full shrink-0">
                                 <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                             </div>
-                            <span className="text-sm font-bold">기록이 삭제되었습니다.</span>
+                            <span className="text-xs sm:text-sm font-bold">기록이 삭제되었습니다.</span>
                         </div>
                         <button 
                             onClick={handleUndoDelete}
-                            className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-xs font-black transition-colors flex items-center gap-1.5"
+                            className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg sm:rounded-xl text-xs font-black transition-colors flex items-center justify-center gap-1.5 w-full sm:w-auto"
                         >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
                             실행 취소 (Undo)
