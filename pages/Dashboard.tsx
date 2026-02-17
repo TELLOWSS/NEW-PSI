@@ -71,8 +71,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 </div>
                                 <p className="text-indigo-300 text-[10px] sm:text-xs font-bold flex items-center gap-1.5 sm:gap-2">
                                     <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                                    <span className="hidden sm:inline">실시간 안전 모니터링 활성화 · {today}</span>
-                                    <span className="sm:hidden">실시간 모니터링</span>
+                                    실시간 모니터링 · {today.split(' ')[0].replace('년', '/').replace('월', '/').replace('일', '')}
                                 </p>
                             </div>
                         </div>

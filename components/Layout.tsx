@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import type { Page } from '../types';
 
@@ -32,6 +32,28 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         setIsMobileMenuOpen(false); // Close mobile menu on navigation
     };
 
+    // Handle Escape key to close mobile menu
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape' && isMobileMenuOpen) {
+                setIsMobileMenuOpen(false);
+            }
+        };
+
+        if (isMobileMenuOpen) {
+            document.addEventListener('keydown', handleKeyDown);
+            // Prevent body scroll when menu is open
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+            document.body.style.overflow = '';
+        };
+    }, [isMobileMenuOpen]);
+
     return (
         <div className="flex h-screen bg-slate-100 text-slate-800">
             {/* Desktop Sidebar - Hidden on mobile */}
@@ -41,11 +63,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
 
             {/* Mobile Sidebar Overlay */}
             {isMobileMenuOpen && (
-                <div className="lg:hidden fixed inset-0 z-50 no-print">
+                <div className="lg:hidden fixed inset-0 z-50 no-print" role="dialog" aria-modal="true" aria-label="Navigation menu">
                     {/* Backdrop */}
                     <div 
                         className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
                         onClick={() => setIsMobileMenuOpen(false)}
+                        aria-hidden="true"
                     />
                     {/* Sidebar */}
                     <div className="fixed inset-y-0 left-0 w-64 animate-fade-in">
@@ -58,24 +81,22 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                 {/* Header with mobile hamburger */}
                 <header className="bg-white shadow-sm z-10 shrink-0 no-print">
                     <div className="mx-auto px-4 sm:px-6 lg:px-8">
-                       <div className="flex items-center justify-between h-14 sm:h-16">
+                       <div className="flex items-center h-14 sm:h-16">
                            {/* Mobile Menu Button */}
                            <button
                                onClick={() => setIsMobileMenuOpen(true)}
-                               className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+                               className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors mr-3"
                                aria-label="메뉴 열기"
+                               aria-expanded={isMobileMenuOpen}
                            >
                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                                </svg>
                            </button>
                            
-                           <h1 className="text-sm sm:text-lg lg:text-xl font-bold text-slate-900 truncate">
+                           <h1 className="text-sm sm:text-lg lg:text-xl font-bold text-slate-900 truncate flex-1">
                                {pageTitles[currentPage]}
                            </h1>
-
-                           {/* Spacer for mobile to center title */}
-                           <div className="lg:hidden w-10"></div>
                        </div>
                     </div>
                 </header>
