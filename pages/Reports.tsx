@@ -256,7 +256,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 
                 // [IMPROVED] Show detailed completion message with failed records
                 if (failedRecords.length > 0) {
-                    alert(`생성이 완료되었습니다.\n\n성공: ${filteredRecords.length - failedRecords.length}건\n실패: ${failedRecords.length}건\n\n실패한 근로자:\n${failedRecords.join(', ')}\n\n다운로드 폴더를 확인해주세요.`);
+                    const displayLimit = 10;
+                    const displayedFailures = failedRecords.slice(0, displayLimit);
+                    const remainingCount = failedRecords.length - displayLimit;
+                    const failureList = displayedFailures.join(', ') + (remainingCount > 0 ? `\n... 외 ${remainingCount}건` : '');
+                    
+                    alert(`생성이 완료되었습니다.\n\n성공: ${filteredRecords.length - failedRecords.length}건\n실패: ${failedRecords.length}건\n\n실패한 근로자:\n${failureList}\n\n다운로드 폴더를 확인해주세요.`);
                 } else {
                     alert(`생성이 완료되었습니다.\n\n총 ${filteredRecords.length}건 성공\n\n다운로드 폴더를 확인해주세요.`);
                 }

@@ -395,9 +395,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 // [FIXED] Add retry counter to prevent infinite loops (Bug #2)
                 let retryCount = 0;
                 const MAX_TEXT_RETRIES = 2;
-                let updateSuccess = false;
+                let shouldExitRetry = false;
 
-                while (retryCount < MAX_TEXT_RETRIES && !updateSuccess) {
+                while (retryCount < MAX_TEXT_RETRIES && !shouldExitRetry) {
                     try {
                         const updatedAnalysis = await updateAnalysisBasedOnEdits(record);
                         if (stopRef.current) { stopped = true; break; }
@@ -405,11 +405,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         if (updatedAnalysis) {
                             onUpdateRecord({ ...record, ...updatedAnalysis });
                             successCount++;
-                            updateSuccess = true;
                         } else {
                             failCount++;
-                            updateSuccess = true; // Exit retry loop even if no updates
                         }
+                        shouldExitRetry = true; // Successfully completed (success or intentional null)
                     } catch (e: any) {
                         const eMsg = extractMessage(e);
                         if (eMsg === "STOPPED") { stopped = true; break; }
@@ -428,11 +427,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 // Max retries reached
                                 failCount++;
                                 console.error(`Max retries reached for ${record.name}`);
+                                shouldExitRetry = true;
                             }
                         } else {
                             failCount++;
                             console.error(`Batch update error for ${record.name}:`, e);
-                            break; // Exit retry loop for non-rate-limit errors
+                            shouldExitRetry = true; // Exit retry loop for non-rate-limit errors
                         }
                     }
                 }

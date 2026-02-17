@@ -539,7 +539,8 @@ async function callGeminiWithRetry(
                 // [IMPROVED] Use setQuotaExhausted to track quota state
                 setQuotaExhausted(60); // Set 60-minute recovery time
                 
-                const waitTime = 15000 * (i + 1); // 15s, 30s, 45s
+                // [IMPROVED] Cap wait time to avoid exceeding total wait budget
+                const waitTime = Math.min(15000 * (i + 1), 60000); // Cap at 60s
                 console.warn(`[Quota Limit] Backing off for ${waitTime/1000}s... Recovery time set.`);
                 await delay(waitTime);
             } else if (i < maxRetries - 1) {
