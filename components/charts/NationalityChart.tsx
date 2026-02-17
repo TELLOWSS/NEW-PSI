@@ -2,6 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { Chart, ChartConfiguration } from 'chart.js/auto';
 import type { WorkerRecord } from '../../types';
+import { getWindowProp } from '../../utils/windowUtils';
 
 interface ChartProps {
     records: WorkerRecord[];
