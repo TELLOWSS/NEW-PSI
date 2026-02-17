@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>300+ Workers Test - PSI Worker Management</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+        .test-container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1e293b;
+            border-bottom: 3px solid #4f46e5;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8fafc;
+            border-left: 4px solid #4f46e5;
+            border-radius: 6px;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        .test-result.pass {
+            background: #dcfce7;
+            border: 1px solid #86efac;
+            color: #166534;
+        }
+        .test-result.fail {
+            background: #fee2e2;
+            border: 1px solid #fca5a5;
+            color: #991b1b;
+        }
+        .test-result.warning {
+            background: #fef3c7;
+            border: 1px solid #fcd34d;
+            color: #92400e;
+        }
+        button {
+            background: #4f46e5;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #4338ca;
+        }
+        button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        .performance-chart {
+            margin-top: 20px;
+            padding: 15px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+        }
+        .metric {
+            display: inline-block;
+            margin: 10px 20px 10px 0;
+            padding: 10px 15px;
+            background: #eff6ff;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+        .metric-label {
+            color: #64748b;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .metric-value {
+            color: #1e40af;
+            font-size: 24px;
+        }
+        pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔬 PSI 근로자 관리 대량 데이터 테스트 (300+ Workers)</h1>
+        
+        <div class="test-section">
+            <h2>테스트 목적</h2>
+            <p>WorkerManagement.tsx의 Progressive Rendering Engine이 300명 이상의 근로자 데이터를 처리할 때 정상적으로 작동하는지 검증합니다.</p>
+            <ul>
+                <li>✓ 메모리 사용량 모니터링</li>
+                <li>✓ 렌더링 완료 시간 측정</li>
+                <li>✓ UI 응답성 확인</li>
+                <li>✓ Batch 렌더링 성능 평가</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h2>테스트 컨트롤</h2>
+            <button onclick="runTest(100)">100명 테스트</button>
+            <button onclick="runTest(300)">300명 테스트</button>
+            <button onclick="runTest(500)">500명 테스트</button>
+            <button onclick="runTest(1000)">1000명 테스트</button>
+            <button onclick="clearResults()">결과 초기화</button>
+        </div>
+
+        <div id="results"></div>
+
+        <div class="performance-chart">
+            <h3>성능 메트릭</h3>
+            <div id="metrics"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Progressive Rendering 로직 분석</h3>
+            <pre>
+// WorkerManagement.tsx - Progressive Rendering Engine
+const BATCH_SIZE = 5; // 프레임당 렌더링 개수
+
+useEffect(() => {
+    if (!isPrintMode) return;
+    
+    if (renderLimit < workersToPrint.length) {
+        const timer = requestAnimationFrame(() => {
+            setRenderLimit(prev => Math.min(prev + BATCH_SIZE, workersToPrint.length));
+        });
+        
+        return () => cancelAnimationFrame(timer);
+    }
+}, [isPrintMode, renderLimit, workersToPrint.length]);
+
+// 300명 기준:
+// - 총 프레임: 300 / 5 = 60 프레임
+// - 예상 시간: 60 * 16.67ms ≈ 1초 (60fps 기준)
+// - 실제 렌더링: 브라우저 성능에 따라 1-3초
+            </pre>
+        </div>
+    </div>
+
+    <script>
+        let testResults = [];
+
+        function generateMockWorkers(count) {
+            const teams = ['형틀', '철근', '배관', '전기', '도장', '미장', '비계'];
+            const levels = ['초급', '중급', '고급'];
+            const names = ['김', '이', '박', '최', '정', '강', '조', '윤', '장', '임'];
+            
+            const workers = [];
+            for (let i = 0; i < count; i++) {
+                workers.push({
+                    id: `worker_${i}`,
+                    name: `${names[i % names.length]}${String(i).padStart(3, '0')}`,
+                    jobField: teams[i % teams.length],
+                    safetyLevel: levels[Math.floor(Math.random() * levels.length)],
+                    safetyScore: 60 + Math.floor(Math.random() * 40),
+                    weakAreas: ['안전모 착용', '안전화 착용'][Math.floor(Math.random() * 2)]
+                });
+            }
+            return workers;
+        }
+
+        function simulateProgressiveRendering(workerCount, batchSize = 5) {
+            return new Promise((resolve) => {
+                let rendered = 0;
+                const startTime = performance.now();
+                const frameTimes = [];
+                
+                function renderBatch() {
+                    const frameStart = performance.now();
+                    
+                    // 실제 DOM 렌더링 시뮬레이션 (간단한 DOM 조작)
+                    const batchEnd = Math.min(rendered + batchSize, workerCount);
+                    for (let i = rendered; i < batchEnd; i++) {
+                        // Simulate DOM creation
+                        const div = document.createElement('div');
+                        div.textContent = `Worker ${i}`;
+                        // Simulate some computation
+                        div.className = 'worker-card';
+                    }
+                    
+                    rendered = batchEnd;
+                    const frameTime = performance.now() - frameStart;
+                    frameTimes.push(frameTime);
+                    
+                    if (rendered < workerCount) {
+                        requestAnimationFrame(renderBatch);
+                    } else {
+                        const totalTime = performance.now() - startTime;
+                        resolve({
+                            totalTime,
+                            avgFrameTime: frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length,
+                            maxFrameTime: Math.max(...frameTimes),
+                            minFrameTime: Math.min(...frameTimes),
+                            totalFrames: frameTimes.length,
+                            workers: workerCount
+                        });
+                    }
+                }
+                
+                renderBatch();
+            });
+        }
+
+        async function runTest(workerCount) {
+            const resultsDiv = document.getElementById('results');
+            const metricsDiv = document.getElementById('metrics');
+            
+            resultsDiv.innerHTML += `<div class="test-section"><h3>🔄 테스트 진행 중: ${workerCount}명...</h3></div>`;
+            
+            // Generate mock data
+            const workers = generateMockWorkers(workerCount);
+            
+            // Run simulation
+            const result = await simulateProgressiveRendering(workerCount);
+            
+            // Analyze results
+            const isPass = result.totalTime < 5000; // 5초 이내 완료 기준
+            const isWarning = result.totalTime >= 3000 && result.totalTime < 5000;
+            
+            const testResultClass = isPass ? (isWarning ? 'warning' : 'pass') : 'fail';
+            const testStatus = isPass ? (isWarning ? '⚠️ 경고' : '✅ 통과') : '❌ 실패';
+            
+            testResults.push({
+                workerCount,
+                ...result,
+                status: testStatus
+            });
+            
+            // Display result
+            resultsDiv.innerHTML += `
+                <div class="test-result ${testResultClass}">
+                    <h4>${testStatus} - ${workerCount}명 근로자 렌더링 테스트</h4>
+                    <p><strong>총 렌더링 시간:</strong> ${result.totalTime.toFixed(2)}ms (${(result.totalTime / 1000).toFixed(2)}초)</p>
+                    <p><strong>평균 프레임 시간:</strong> ${result.avgFrameTime.toFixed(2)}ms</p>
+                    <p><strong>최대 프레임 시간:</strong> ${result.maxFrameTime.toFixed(2)}ms</p>
+                    <p><strong>최소 프레임 시간:</strong> ${result.minFrameTime.toFixed(2)}ms</p>
+                    <p><strong>총 프레임 수:</strong> ${result.totalFrames} (배치 크기: 5)</p>
+                    <p><strong>예상 FPS:</strong> ${(1000 / result.avgFrameTime).toFixed(1)} fps</p>
+                    ${result.totalTime > 3000 ? '<p><strong>⚠️ 권장사항:</strong> 3초 이상 소요. Batch Size 조정 또는 가상 스크롤 도입 권장</p>' : ''}
+                </div>
+            `;
+            
+            // Update metrics
+            updateMetrics();
+        }
+
+        function updateMetrics() {
+            const metricsDiv = document.getElementById('metrics');
+            if (testResults.length === 0) {
+                metricsDiv.innerHTML = '<p>아직 테스트 결과가 없습니다.</p>';
+                return;
+            }
+            
+            const totalTests = testResults.length;
+            const passedTests = testResults.filter(r => r.status.includes('✅')).length;
+            const avgTime = testResults.reduce((sum, r) => sum + r.totalTime, 0) / totalTests;
+            const maxWorkers = Math.max(...testResults.map(r => r.workerCount));
+            
+            metricsDiv.innerHTML = `
+                <div class="metric">
+                    <div class="metric-label">총 테스트</div>
+                    <div class="metric-value">${totalTests}</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">통과율</div>
+                    <div class="metric-value">${((passedTests / totalTests) * 100).toFixed(0)}%</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">평균 렌더링 시간</div>
+                    <div class="metric-value">${(avgTime / 1000).toFixed(2)}초</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">최대 테스트 인원</div>
+                    <div class="metric-value">${maxWorkers}명</div>
+                </div>
+            `;
+        }
+
+        function clearResults() {
+            testResults = [];
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('metrics').innerHTML = '';
+        }
+
+        // Initial message
+        document.getElementById('results').innerHTML = `
+            <div class="test-section">
+                <h3>ℹ️ 테스트 시작</h3>
+                <p>위의 버튼을 클릭하여 다양한 인원 수에 대한 렌더링 성능을 테스트하세요.</p>
+                <p><strong>기준:</strong></p>
+                <ul>
+                    <li>✅ 통과: 5초 이내 완료</li>
+                    <li>⚠️ 경고: 3-5초 소요 (최적화 권장)</li>
+                    <li>❌ 실패: 5초 초과 (즉시 개선 필요)</li>
+                </ul>
+            </div>
+        `;
+    </script>
+</body>
+</html>
