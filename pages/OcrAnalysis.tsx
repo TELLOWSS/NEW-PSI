@@ -392,38 +392,56 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 setBatchProgress(p => ({ ...p, current: i + 1 }));
                 setProgress(`갱신 중: ${record.name}`);
 
-                try {
-                    const updatedAnalysis = await updateAnalysisBasedOnEdits(record);
-                    if (stopRef.current) { stopped = true; break; }
+                // [FIXED] Add retry counter to prevent infinite loops (Bug #2)
+                let retryCount = 0;
+                const MAX_TEXT_RETRIES = 2;
+                let updateSuccess = false;
 
-                    if (updatedAnalysis) {
-                        onUpdateRecord({ ...record, ...updatedAnalysis });
-                        successCount++;
-                    } else {
-                        failCount++;
-                    }
-                    
-                    // 동적 지연 (429 회피)
-                    if (i < total - 1) {
-                        await waitWithCountdown(dynamicDelayBuffer, "다음 갱신 대기");
-                    }
-                } catch (e: any) {
-                    const eMsg = extractMessage(e);
-                    if (eMsg === "STOPPED") { stopped = true; break; }
-                    
-                    // [IMPROVED] 429 에러 감지 및 처리
-                    if (isRateLimitError(eMsg)) {
-                        console.warn(`Rate limit hit for ${record.name}`);
-                        setQuotaExhausted(60);
-                        dynamicDelayBuffer = Math.min(10, dynamicDelayBuffer + 2); // throttle 증가
+                while (retryCount < MAX_TEXT_RETRIES && !updateSuccess) {
+                    try {
+                        const updatedAnalysis = await updateAnalysisBasedOnEdits(record);
+                        if (stopRef.current) { stopped = true; break; }
+
+                        if (updatedAnalysis) {
+                            onUpdateRecord({ ...record, ...updatedAnalysis });
+                            successCount++;
+                            updateSuccess = true;
+                        } else {
+                            failCount++;
+                            updateSuccess = true; // Exit retry loop even if no updates
+                        }
+                    } catch (e: any) {
+                        const eMsg = extractMessage(e);
+                        if (eMsg === "STOPPED") { stopped = true; break; }
                         
-                        // 60초 대기 후 재시도
-                        await waitWithCountdown(60, "⚠️ API 할당량 초과! 냉각 중");
-                        i--; // 이 근로자 재시도
-                    } else {
-                        failCount++;
-                        console.error(`Batch update error for ${record.name}:`, e);
+                        // [IMPROVED] 429 에러 감지 및 처리 with retry limit
+                        if (isRateLimitError(eMsg)) {
+                            retryCount++;
+                            console.warn(`Rate limit hit for ${record.name} (attempt ${retryCount}/${MAX_TEXT_RETRIES})`);
+                            setQuotaExhausted(60);
+                            dynamicDelayBuffer = Math.min(10, dynamicDelayBuffer + 2); // throttle 증가
+                            
+                            if (retryCount < MAX_TEXT_RETRIES) {
+                                // 60초 대기 후 재시도
+                                await waitWithCountdown(60, "⚠️ API 할당량 초과! 냉각 중");
+                            } else {
+                                // Max retries reached
+                                failCount++;
+                                console.error(`Max retries reached for ${record.name}`);
+                            }
+                        } else {
+                            failCount++;
+                            console.error(`Batch update error for ${record.name}:`, e);
+                            break; // Exit retry loop for non-rate-limit errors
+                        }
                     }
+                }
+
+                if (stopRef.current) { stopped = true; break; }
+                
+                // 동적 지연 (429 회피)
+                if (i < total - 1 && !stopRef.current) {
+                    await waitWithCountdown(dynamicDelayBuffer, "다음 갱신 대기");
                 }
             }
         } finally {
