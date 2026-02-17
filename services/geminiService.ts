@@ -417,7 +417,18 @@ async function callGeminiWithRetry(
     }
 
     // 2. Retry Loop with Aggressive Backoff
+    // [IMPROVED] Add total wait time protection
+    const startTime = Date.now();
+    const MAX_TOTAL_WAIT_MS = 120000; // 2 minutes maximum total wait time
+    
     for (let i = 0; i < maxRetries; i++) {
+        // Check if total wait time exceeded
+        if (Date.now() - startTime > MAX_TOTAL_WAIT_MS) {
+            console.warn(`Total wait time exceeded ${MAX_TOTAL_WAIT_MS/1000}s for ${filenameHint}`);
+            lastError = new Error('최대 대기 시간 초과 (2분). API 응답 실패.');
+            break;
+        }
+        
         try {
             const systemInstruction = `
             **역할**: 건설현장 안전관리 전문가.
@@ -525,8 +536,11 @@ async function callGeminiWithRetry(
             // Rate limit errors: Aggressive Backoff
             // 429: Too Many Requests, RESOURCE_EXHAUSTED
             if (errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED') || errorMsg.includes('quota')) {
+                // [IMPROVED] Use setQuotaExhausted to track quota state
+                setQuotaExhausted(60); // Set 60-minute recovery time
+                
                 const waitTime = 15000 * (i + 1); // 15s, 30s, 45s
-                console.warn(`[Quota Limit] Backing off for ${waitTime/1000}s...`);
+                console.warn(`[Quota Limit] Backing off for ${waitTime/1000}s... Recovery time set.`);
                 await delay(waitTime);
             } else if (i < maxRetries - 1) {
                 // Standard error backoff
@@ -615,13 +629,16 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
             } catch (pe) {
                 console.error("Parsing updateAnalysis response failed:", pe);
                 console.error("Raw AI response:", response.text);
-                return null;
+                // [IMPROVED] Throw error instead of returning null
+                throw new Error('AI 응답 파싱 실패: JSON 형식 오류');
             }
         }
-        return null;
+        // [IMPROVED] Throw error instead of returning null
+        throw new Error('AI 응답이 비어있습니다.');
     } catch (e) {
         console.error("Update analysis failed:", e);
-        return null;
+        // [IMPROVED] Re-throw to allow caller to handle properly
+        throw e;
     }
 }
 
