@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrafficLightBadge Test</title>
+    <script src="https://unpkg.com/react@19/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@19/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 40px;
+            background: #f8fafc;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #1e293b;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #64748b;
+            margin-bottom: 30px;
+        }
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .section-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .badge-demo {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .badge-item {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 8px;
+        }
+        .badge-label {
+            min-width: 300px;
+            color: #475569;
+            font-size: 14px;
+        }
+        .rules {
+            background: #dbeafe;
+            border: 2px solid #3b82f6;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+        .rules h3 {
+            color: #1e40af;
+            margin-top: 0;
+        }
+        .rules ul {
+            color: #1e40af;
+            line-height: 1.8;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        // Inline TrafficLightBadge component for testing
+        const TrafficLightBadge = ({ confidence, riskLevel, onClick }) => {
+            const [isApproved, setIsApproved] = useState(false);
+
+            const getColor = () => {
+                if (isApproved) {
+                    return {
+                        bg: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
+                        border: '2px solid #10b981',
+                        text: '#065f46',
+                        label: 'Approved',
+                        dot: '#10b981'
+                    };
+                }
+
+                if (confidence < 0.7 || riskLevel === 'High') {
+                    return {
+                        bg: 'linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)',
+                        border: '2px solid #ef4444',
+                        text: '#991b1b',
+                        label: 'High Risk',
+                        dot: '#ef4444'
+                    };
+                }
+                
+                if (confidence >= 0.7 && confidence < 0.9) {
+                    return {
+                        bg: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                        border: '2px solid #f59e0b',
+                        text: '#92400e',
+                        label: 'Caution',
+                        dot: '#f59e0b'
+                    };
+                }
+                
+                return {
+                    bg: 'linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)',
+                    border: '2px solid #10b981',
+                    text: '#065f46',
+                    label: 'Safe',
+                    dot: '#10b981'
+                };
+            };
+
+            const color = getColor();
+
+            const handleClick = () => {
+                setIsApproved(true);
+                if (onClick) onClick();
+            };
+
+            return (
+                <div 
+                    style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px 20px',
+                        borderRadius: '9999px',
+                        background: color.bg,
+                        border: color.border,
+                        cursor: 'pointer',
+                        transition: 'transform 0.2s, opacity 0.2s',
+                        userSelect: 'none'
+                    }}
+                    onClick={handleClick}
+                    onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
+                    onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                    title="Click to approve"
+                >
+                    <div 
+                        style={{
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '50%',
+                            background: color.dot,
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                        }}
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <span style={{ fontSize: '14px', fontWeight: 'bold', color: color.text }}>
+                            {color.label}
+                        </span>
+                        <span style={{ fontSize: '12px', color: color.text, opacity: 0.75 }}>
+                            Confidence: {(confidence * 100).toFixed(0)}%
+                        </span>
+                    </div>
+                </div>
+            );
+        };
+
+        function App() {
+            return (
+                <div className="container">
+                    <h1>🚦 TrafficLightBadge Component Test</h1>
+                    <p className="subtitle">Interactive demonstration of all badge states</p>
+
+                    {/* Red States */}
+                    <div className="section">
+                        <div className="section-title">
+                            <span>🔴</span>
+                            <span style={{ color: '#dc2626' }}>Red States (High Risk)</span>
+                        </div>
+                        <div className="badge-demo">
+                            <div className="badge-item">
+                                <div className="badge-label">Low confidence (0.5) + Low risk</div>
+                                <TrafficLightBadge confidence={0.5} riskLevel="Low" />
+                            </div>
+                            <div className="badge-item">
+                                <div className="badge-label">High confidence (0.95) + High risk</div>
+                                <TrafficLightBadge confidence={0.95} riskLevel="High" />
+                            </div>
+                            <div className="badge-item">
+                                <div className="badge-label">Low confidence (0.3) + High risk</div>
+                                <TrafficLightBadge confidence={0.3} riskLevel="High" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Yellow States */}
+                    <div className="section">
+                        <div className="section-title">
+                            <span>🟡</span>
+                            <span style={{ color: '#f59e0b' }}>Yellow States (Caution)</span>
+                        </div>
+                        <div className="badge-demo">
+                            <div className="badge-item">
+                                <div className="badge-label">Confidence 0.7 + Low risk</div>
+                                <TrafficLightBadge confidence={0.7} riskLevel="Low" />
+                            </div>
+                            <div className="badge-item">
+                                <div className="badge-label">Confidence 0.8 + Medium risk</div>
+                                <TrafficLightBadge confidence={0.8} riskLevel="Medium" />
+                            </div>
+                            <div className="badge-item">
+                                <div className="badge-label">Confidence 0.89 + Low risk</div>
+                                <TrafficLightBadge confidence={0.89} riskLevel="Low" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Green States */}
+                    <div className="section">
+                        <div className="section-title">
+                            <span>🟢</span>
+                            <span style={{ color: '#10b981' }}>Green States (Safe)</span>
+                        </div>
+                        <div className="badge-demo">
+                            <div className="badge-item">
+                                <div className="badge-label">Confidence 0.9 + Low risk</div>
+                                <TrafficLightBadge confidence={0.9} riskLevel="Low" />
+                            </div>
+                            <div className="badge-item">
+                                <div className="badge-label">Confidence 0.95 + Medium risk</div>
+                                <TrafficLightBadge confidence={0.95} riskLevel="Medium" />
+                            </div>
+                            <div className="badge-item">
+                                <div className="badge-label">Confidence 1.0 + Low risk</div>
+                                <TrafficLightBadge confidence={1.0} riskLevel="Low" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Interactive Test */}
+                    <div className="section">
+                        <div className="section-title">
+                            <span>🎯</span>
+                            <span>Interactive Test (Click to Approve)</span>
+                        </div>
+                        <div className="badge-demo">
+                            <div className="badge-item">
+                                <div className="badge-label">Start as Red → Click to approve</div>
+                                <TrafficLightBadge 
+                                    confidence={0.6} 
+                                    riskLevel="High" 
+                                    onClick={() => console.log('Badge approved!')}
+                                />
+                            </div>
+                            <div className="badge-item">
+                                <div className="badge-label">Start as Yellow → Click to approve</div>
+                                <TrafficLightBadge 
+                                    confidence={0.8} 
+                                    riskLevel="Medium" 
+                                    onClick={() => console.log('Badge approved!')}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Rules */}
+                    <div className="rules">
+                        <h3>🎨 Color Logic Rules</h3>
+                        <ul>
+                            <li><strong>🔴 Red:</strong> confidence &lt; 0.7 OR riskLevel == 'High'</li>
+                            <li><strong>🟡 Yellow:</strong> 0.7 ≤ confidence &lt; 0.9</li>
+                            <li><strong>🟢 Green:</strong> confidence ≥ 0.9 AND riskLevel != 'High'</li>
+                            <li><strong>✅ Approved:</strong> After clicking, badge turns green with "Approved" label</li>
+                        </ul>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
