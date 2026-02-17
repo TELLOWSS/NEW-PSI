@@ -3,7 +3,10 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>PSI | 안전 예측 AI 시스템 Professional</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -62,6 +65,21 @@
         .custom-scrollbar::-webkit-scrollbar { width: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        /* Mobile-specific styles */
+        @media (max-width: 768px) {
+            body { -webkit-tap-highlight-color: transparent; }
+            * { -webkit-touch-callout: none; }
+            input, textarea, select { font-size: 16px !important; } /* Prevent zoom on iOS */
+        }
+        
+        /* Touch-friendly targets */
+        @media (hover: none) and (pointer: coarse) {
+            button, a, input[type="button"], input[type="submit"] {
+                min-height: 44px;
+                min-width: 44px;
+            }
+        }
         
         @media print {
             body { background: white !important; }
