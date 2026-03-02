@@ -238,7 +238,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     ]
                 }));
                 setHasChanges(true);
-                alert("오류가 발생했습니다.");
+                alert(`2차 재가공 중 오류가 발생했습니다.\n\n사유: ${errorMessage}`);
             } finally {
                 setIsUpdatingAnalysis(false);
             }

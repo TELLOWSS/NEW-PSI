@@ -177,6 +177,36 @@ const updateSchema = {
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+const parseJsonObjectFromText = (rawText: string): Record<string, unknown> | null => {
+    const text = (rawText || '').trim();
+    if (!text) return null;
+
+    const stripFence = (value: string): string => {
+        const fenced = value.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+        return fenced ? fenced[1].trim() : value;
+    };
+
+    const candidate = stripFence(text);
+
+    try {
+        const parsed = JSON.parse(candidate);
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+    } catch {
+        const firstBrace = candidate.indexOf('{');
+        const lastBrace = candidate.lastIndexOf('}');
+        if (firstBrace >= 0 && lastBrace > firstBrace) {
+            const sliced = candidate.slice(firstBrace, lastBrace + 1);
+            try {
+                const parsed = JSON.parse(sliced);
+                return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+            } catch {
+                return null;
+            }
+        }
+        return null;
+    }
+};
+
 
 
 const LANGUAGE_POLICY = `
@@ -638,78 +668,104 @@ async function callGeminiWithRetry(
 }
 
 export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<Partial<WorkerRecord> | null> {
-    try {
-        const ai = getAiInstance();
-        const specialDuties = [];
-        if (record.isTranslator) specialDuties.push("통역(Translator)");
-        if (record.isSignalman) specialDuties.push("신호수(Signalman)");
-        const dutyStr = specialDuties.length > 0 ? specialDuties.join(", ") : "없음";
+    const quotaState = getQuotaState();
+    if (quotaState.isExhausted) {
+        const remainingSeconds = Math.ceil((quotaState.nextRetryTime - Date.now()) / 1000);
+        if (remainingSeconds > 0) {
+            throw new Error(`API 할당량 회복 대기 중입니다. 약 ${remainingSeconds}초 후 재시도해주세요.`);
+        }
+        clearQuotaState();
+    }
 
-        const systemInstruction = `
-        **역할**: 건설현장 안전관리 AI 보좌관.
-        **임무**: 사용자가 수정한 근로자 정보 기반으로 안전 분석 결과 갱신.
-        ${LANGUAGE_POLICY}
-        `;
+    const ai = getAiInstance();
+    const specialDuties = [];
+    if (record.isTranslator) specialDuties.push("통역(Translator)");
+    if (record.isSignalman) specialDuties.push("신호수(Signalman)");
+    const dutyStr = specialDuties.length > 0 ? specialDuties.join(", ") : "없음";
 
-        const prompt = `
-        다음 정보를 바탕으로 strengths, weakAreas, aiInsights 및 native 필드들을 갱신하십시오.
-        
-        이름: ${record.name}
-        국적: ${record.nationality}
-        공종: ${record.jobField}
-        팀장: ${record.teamLeader || "미지정"}
-        직급: ${record.role || "worker"}
-        특수임무: ${dutyStr}
-        안전 점수: ${record.safetyScore}
-        `;
+    const systemInstruction = `
+    **역할**: 건설현장 안전관리 AI 보좌관.
+    **임무**: 사용자가 수정한 근로자 정보 기반으로 안전 분석 결과 갱신.
+    ${LANGUAGE_POLICY}
+    `;
 
-        const requestConfig = {
-            contents: { parts: [{ text: prompt }] },
-            config: {
-                systemInstruction: systemInstruction,
-                responseMimeType: "application/json",
-                responseSchema: updateSchema,
-                temperature: 0.3,
-            }
-        };
+    const prompt = `
+    다음 정보를 바탕으로 strengths, weakAreas, aiInsights 및 native 필드들을 갱신하십시오.
+    
+    이름: ${record.name}
+    국적: ${record.nationality}
+    공종: ${record.jobField}
+    팀장: ${record.teamLeader || "미지정"}
+    직급: ${record.role || "worker"}
+    특수임무: ${dutyStr}
+    안전 점수: ${record.safetyScore}
+    `;
 
-        let response;
-        try {
-            response = await ai.models.generateContent({
-                model: REASONING_MODEL_PRIMARY,
-                ...requestConfig,
-            });
-        } catch (e: unknown) {
-            const errorMsg = extractMessage(e);
-            if (isModelAvailabilityError(errorMsg)) {
-                console.warn(`[Model Fallback] ${REASONING_MODEL_PRIMARY} -> ${REASONING_MODEL_FALLBACK}`);
-                response = await ai.models.generateContent({
-                    model: REASONING_MODEL_FALLBACK,
+    const requestConfig = {
+        contents: { parts: [{ text: prompt }] },
+        config: {
+            systemInstruction: systemInstruction,
+            responseMimeType: "application/json",
+            responseSchema: updateSchema,
+            temperature: 0.3,
+        }
+    };
+
+    const candidateModels = [
+        REASONING_MODEL_PRIMARY,
+        REASONING_MODEL_FALLBACK,
+        OCR_MODEL_PRIMARY,
+    ];
+
+    let lastError: unknown = null;
+
+    for (const modelName of candidateModels) {
+        const maxAttempts = 3;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            try {
+                const response = await ai.models.generateContent({
+                    model: modelName,
                     ...requestConfig,
                 });
-            } else {
-                throw e;
-            }
-        }
 
-        if (response.text) {
-            try {
-                const parsed = JSON.parse(response.text.trim());
-                if (parsed && typeof parsed === 'object') return parsed;
-            } catch (pe) {
-                console.error("Parsing updateAnalysis response failed:", pe);
-                console.error("Raw AI response:", response.text);
-                // [IMPROVED] Throw error instead of returning null
-                throw new Error('AI 응답 파싱 실패: JSON 형식 오류');
+                const parsed = response.text ? parseJsonObjectFromText(response.text) : null;
+                if (parsed) {
+                    clearQuotaState();
+                    return parsed;
+                }
+
+                throw new Error(`AI 응답 파싱 실패: ${modelName} 응답이 JSON 형식이 아닙니다.`);
+            } catch (e: unknown) {
+                lastError = e;
+                const errorMsg = extractMessage(e);
+
+                if (isModelAvailabilityError(errorMsg)) {
+                    console.warn(`[Model Fallback] ${modelName} 사용 불가 -> 다음 모델 시도`);
+                    break;
+                }
+
+                if (isRateLimitError(errorMsg)) {
+                    const cooldownMinutes = 10;
+                    setQuotaExhausted(cooldownMinutes);
+                    if (attempt < maxAttempts - 1) {
+                        const waitMs = Math.min(2000 * (attempt + 1), 8000);
+                        await delay(waitMs);
+                        continue;
+                    }
+                    break;
+                }
+
+                if (attempt < maxAttempts - 1) {
+                    const waitMs = Math.min(1500 * (attempt + 1), 6000);
+                    await delay(waitMs);
+                    continue;
+                }
             }
         }
-        // [IMPROVED] Throw error instead of returning null
-        throw new Error('AI 응답이 비어있습니다.');
-    } catch (e) {
-        console.error("Update analysis failed:", e);
-        // [IMPROVED] Re-throw to allow caller to handle properly
-        throw e;
     }
+
+    console.error("Update analysis failed:", lastError);
+    throw new Error(`2차 재가공 실패: ${extractMessage(lastError) || '알 수 없는 오류'}`);
 }
 
 export async function analyzeWorkerRiskAssessment(imageSource: string, _unusedMimeType: string, filenameHint?: string): Promise<WorkerRecord[]> {
