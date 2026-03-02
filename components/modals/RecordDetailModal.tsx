@@ -182,12 +182,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     };
 
     const handleReflectChanges = async () => {
-        if (!hasChanges) {
-            alert("변경 사항이 없습니다. 먼저 정보를 수정해주세요.");
-            return;
-        }
-        
-        const confirmMsg = `현재 수정된 정보(국적: ${record.nationality}, 점수: ${record.safetyScore}점, 팀장: ${record.teamLeader}, 직책: ${record.role}, 임무 등)를 바탕으로\nAI 분석 및 모국어 번역을 새로 생성하시겠습니까?`;
+        const confirmMsg = hasChanges
+            ? `현재 수정된 정보(국적: ${record.nationality}, 점수: ${record.safetyScore}점, 팀장: ${record.teamLeader}, 직책: ${record.role}, 임무 등)를 바탕으로\nAI 분석 및 모국어 번역을 새로 생성하시겠습니까?`
+            : `저장된 현재 정보 기준으로 2차 재가공을 실행합니다.\n(국적: ${record.nationality}, 점수: ${record.safetyScore}점, 팀장: ${record.teamLeader}, 직책: ${record.role})\n계속하시겠습니까?`;
         
         if (confirm(confirmMsg)) {
             setIsUpdatingAnalysis(true);
@@ -196,15 +193,51 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 if (updatedAnalysis) {
                     setRecord(prev => ({
                         ...prev,
-                        ...updatedAnalysis
+                        ...updatedAnalysis,
+                        auditTrail: [
+                            ...(prev.auditTrail || []),
+                            {
+                                stage: 'reassessment',
+                                timestamp: new Date().toISOString(),
+                                actor: 'manager',
+                                note: `2차 재가공 실행 (기준: 국적=${prev.nationality}, 점수=${prev.safetyScore}, 팀장=${prev.teamLeader || '미지정'}, 직책=${prev.role || 'worker'})`,
+                            }
+                        ]
                     }));
                     setHasChanges(true); 
-                    alert("수정된 정보에 맞춰 AI 분석 및 번역이 갱신되었습니다. '변경사항 저장'을 눌러 완료하세요.");
+                    alert("2차 재가공이 완료되었습니다. 결과 반영을 위해 '1차 저장(기본정보)' 버튼으로 저장하세요.");
                 } else {
+                    setRecord(prev => ({
+                        ...prev,
+                        auditTrail: [
+                            ...(prev.auditTrail || []),
+                            {
+                                stage: 'reassessment',
+                                timestamp: new Date().toISOString(),
+                                actor: 'manager',
+                                note: '2차 재가공 실패: AI가 갱신 결과를 반환하지 않음',
+                            }
+                        ]
+                    }));
+                    setHasChanges(true);
                     alert("분석 갱신에 실패했습니다.");
                 }
             } catch (e) {
                 console.error(e);
+                const errorMessage = e instanceof Error ? e.message : 'unknown error';
+                setRecord(prev => ({
+                    ...prev,
+                    auditTrail: [
+                        ...(prev.auditTrail || []),
+                        {
+                            stage: 'reassessment',
+                            timestamp: new Date().toISOString(),
+                            actor: 'manager',
+                            note: `2차 재가공 오류: ${errorMessage}`,
+                        }
+                    ]
+                }));
+                setHasChanges(true);
                 alert("오류가 발생했습니다.");
             } finally {
                 setIsUpdatingAnalysis(false);
