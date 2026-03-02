@@ -1,5 +1,11 @@
 # Verification / Smoke Test Checklist
 
+## 문서 관리 정보
+- 발명 및 개발 총괄: 박성훈
+- 검토 완료일: 2026-03-02
+- 시스템 적용 버전: PSI v2.1.0
+- 상태: ✅ 현장 검증 및 프로덕션 배포 완료
+
 Use this checklist to manually verify the main functionality after running the app locally (`npm install` + `npm run dev`).
 
 1. Environment & Startup
