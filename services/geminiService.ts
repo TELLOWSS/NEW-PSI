@@ -17,6 +17,10 @@ interface ApiQuotaState {
 
 const QUOTA_STATE_KEY = 'psi_api_quota_state';
 const QUOTA_RECOVERY_MINUTES = 60; // 1 hour default recovery time
+const OCR_MODEL_PRIMARY = 'gemini-3.0-flash';
+const OCR_MODEL_FALLBACK = 'gemini-3-flash-preview';
+const REASONING_MODEL_PRIMARY = 'gemini-3.1-pro-preview';
+const REASONING_MODEL_FALLBACK = 'gemini-3-flash-preview';
 
 const getQuotaState = (): ApiQuotaState => {
     try {
@@ -63,6 +67,12 @@ const isRateLimitError = (errorMsg: string): boolean => {
            msg.includes('quota exceeded') || 
            msg.includes('rate limit') ||
            msg.includes('too many requests');
+};
+
+const isModelAvailabilityError = (errorMsg: string): boolean => {
+    const msg = errorMsg.toLowerCase();
+    return msg.includes('404') ||
+           msg.includes('model') && (msg.includes('not found') || msg.includes('unsupported') || msg.includes('unavailable'));
 };
 
 // [BYOK Implementation]
@@ -343,7 +353,8 @@ async function callGeminiWithRetry(
     _unusedMimeType: string | null, 
     modelName: string, 
     filenameHint?: string, 
-    maxRetries = 3 // Increased default retries
+    maxRetries = 3, // Increased default retries
+    fallbackModelName?: string
 ): Promise<WorkerRecord[]> {
     let lastError: unknown;
     let ai;
@@ -426,6 +437,9 @@ async function callGeminiWithRetry(
     const startTime = Date.now();
     const MAX_TOTAL_WAIT_MS = 120000; // 2 minutes maximum total wait time
     
+    let activeModelName = modelName;
+    let fallbackActivated = false;
+
     for (let i = 0; i < maxRetries; i++) {
         // Check if total wait time exceeded
         if (Date.now() - startTime > MAX_TOTAL_WAIT_MS) {
@@ -459,7 +473,7 @@ async function callGeminiWithRetry(
             const imagePart = { inlineData: { data: imageData, mimeType: mimeType } };
 
             const response = await ai.models.generateContent({
-                model: modelName,
+                model: activeModelName,
                 contents: { parts: [{ text: prompt }, imagePart] },
                 config: {
                     systemInstruction: systemInstruction,
@@ -556,6 +570,13 @@ async function callGeminiWithRetry(
             lastError = { message: errMsg };
             const errorMsg = errMsg;
             console.warn(`Attempt ${i + 1} failed for ${filenameHint}:`, errorMsg);
+
+            if (fallbackModelName && !fallbackActivated && isModelAvailabilityError(errorMsg)) {
+                console.warn(`[Model Fallback] ${activeModelName} -> ${fallbackModelName}`);
+                activeModelName = fallbackModelName;
+                fallbackActivated = true;
+                continue;
+            }
             
             // Critical errors: Don't retry
             if (errorMsg.includes('400') || errorMsg.includes('INVALID_ARGUMENT')) {
@@ -642,8 +663,7 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
         안전 점수: ${record.safetyScore}
         `;
 
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+        const requestConfig = {
             contents: { parts: [{ text: prompt }] },
             config: {
                 systemInstruction: systemInstruction,
@@ -651,7 +671,26 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
                 responseSchema: updateSchema,
                 temperature: 0.3,
             }
-        });
+        };
+
+        let response;
+        try {
+            response = await ai.models.generateContent({
+                model: REASONING_MODEL_PRIMARY,
+                ...requestConfig,
+            });
+        } catch (e: unknown) {
+            const errorMsg = extractMessage(e);
+            if (isModelAvailabilityError(errorMsg)) {
+                console.warn(`[Model Fallback] ${REASONING_MODEL_PRIMARY} -> ${REASONING_MODEL_FALLBACK}`);
+                response = await ai.models.generateContent({
+                    model: REASONING_MODEL_FALLBACK,
+                    ...requestConfig,
+                });
+            } else {
+                throw e;
+            }
+        }
 
         if (response.text) {
             try {
@@ -674,7 +713,7 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
 }
 
 export async function analyzeWorkerRiskAssessment(imageSource: string, _unusedMimeType: string, filenameHint?: string): Promise<WorkerRecord[]> {
-    return await callGeminiWithRetry(imageSource, null, 'gemini-3-flash-preview', filenameHint);
+    return await callGeminiWithRetry(imageSource, null, OCR_MODEL_PRIMARY, filenameHint, 3, OCR_MODEL_FALLBACK);
 }
 
 export async function generateSpeechFromText(text: string, voiceName: string = 'Kore'): Promise<string> {
