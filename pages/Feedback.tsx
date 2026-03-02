@@ -223,6 +223,9 @@ const Feedback: React.FC = () => {
                                     disabled={status === 'sending' || status === 'success'}
                                 >
                                     <option>🚨 현장 위험 요소 긴급 제보</option>
+                                    <option>🎨 브랜드/로고 가독성 개선 요청</option>
+                                    <option>📱 모바일 화면/네비게이션 최적화 요청</option>
+                                    <option>🎛️ 대시보드 색상/버전 표기 개선</option>
                                     <option>🌏 번역/OCR 오류 신고</option>
                                     <option>💡 현장 맞춤 기능 제안</option>
                                     <option>🙌 안전 우수 사례 칭찬</option>

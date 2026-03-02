@@ -3,6 +3,7 @@ import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { getWindowProp } from '../utils/windowUtils';
 import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, AppSettings, HandwrittenAnswer } from '../types';
 import { extractMessage } from '../utils/errorUtils';
+import { deriveIntegrityScore, enforceSafetyLevel } from '../utils/evidenceUtils';
 
 /**
  * [API Rate Limiting State Management]
@@ -96,8 +97,12 @@ const workerRecordSchema = {
         type: Type.OBJECT,
         properties: {
             name: { type: Type.STRING },
+            employeeId: { type: Type.STRING, description: "사번 또는 근로자 식별번호" },
+            qrId: { type: Type.STRING, description: "QR/NFC 식별자" },
             jobField: { type: Type.STRING },
             teamLeader: { type: Type.STRING, description: "팀장 이름 (Team Leader Name)" },
+            ocrConfidence: { type: Type.NUMBER, description: "OCR 판독 신뢰도(0~1)" },
+            signatureMatchScore: { type: Type.NUMBER, description: "서명 일치 점수(0~1)" },
             role: { 
                 type: Type.STRING, 
                 enum: ['worker', 'leader', 'sub_leader'], 
@@ -442,6 +447,10 @@ async function callGeminiWithRetry(
             **심리 분석 (psychologicalAnalysis)**:
             1. **필압 (pressureLevel)**: 글씨의 굵기와 진하기를 분석하여 'high'(매우 진하고 굵음), 'medium'(보통), 'low'(흐리고 가늠) 판정.
             2. **레이아웃 위반 (hasLayoutIssue)**: 텍스트가 지정된 영역/여백을 벗어나거나 칸을 넘어가면 true, 정상이면 false.
+
+            **신뢰도/식별 필드**:
+            1. ocrConfidence(0~1)를 반드시 산출.
+            2. employeeId, qrId, signatureMatchScore(0~1)를 가능한 범위에서 채움.
             `;
 
             const prompt = `위험성 평가 문서를 분석하십시오. 파일명: ${filenameHint || 'unknown'}. 
@@ -467,8 +476,12 @@ async function callGeminiWithRetry(
                     return parsed.map((r: Record<string, unknown>) => {
                         const id = (r['id'] as string) || `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
                         const name = (r['name'] as string) || "식별 대기";
+                        const employeeId = (r['employeeId'] as string) || undefined;
+                        const qrId = (r['qrId'] as string) || undefined;
                         const jobField = (r['jobField'] as string) || "기타";
                         const teamLeader = (r['teamLeader'] as string) || "미지정";
+                        const ocrConfidence = typeof r['ocrConfidence'] === 'number' ? (r['ocrConfidence'] as number) : 0.9;
+                        const signatureMatchScore = typeof r['signatureMatchScore'] === 'number' ? (r['signatureMatchScore'] as number) : undefined;
                         const role = (r['role'] as string) as ('worker'|'leader'|'sub_leader') || 'worker';
                         const isTranslator = Boolean(r['isTranslator']);
                         const isSignalman = Boolean(r['isSignalman']);
@@ -476,12 +489,18 @@ async function callGeminiWithRetry(
                         // [CRITICAL] 국적 정규화 (LANGUAGE_POLICY 준수)
                         const nationality = normalizeNationality((r['nationality'] as string) || '미상');
                         const safetyScore = typeof r['safetyScore'] === 'number' ? (r['safetyScore'] as number) : Number(r['safetyScore']) || 0;
-                        const safetyLevel = (r['safetyLevel'] as string) || '초급';
-                        return {
+                        const safetyLevel = ((r['safetyLevel'] as string) || '초급') as WorkerRecord['safetyLevel'];
+
+                        const baseRecord: WorkerRecord = {
                             id,
                             name,
+                            employeeId,
+                            qrId,
                             jobField,
                             teamLeader,
+                            ocrConfidence,
+                            signatureMatchScore,
+                            matchMethod: employeeId ? 'employeeId' : qrId ? 'qr' : (typeof signatureMatchScore === 'number' ? 'signature' : role ? 'role' : 'name'),
                             role,
                             isTranslator,
                             isSignalman,
@@ -509,8 +528,19 @@ async function callGeminiWithRetry(
                             psychologicalAnalysis: r['psychologicalAnalysis'] ? {
                                 pressureLevel: ((r['psychologicalAnalysis'] as Record<string, unknown>)['pressureLevel'] as string) || 'medium',
                                 hasLayoutIssue: Boolean((r['psychologicalAnalysis'] as Record<string, unknown>)['hasLayoutIssue'])
-                            } : undefined
-                        } as WorkerRecord;
+                            } : undefined,
+                            actionHistory: [],
+                            approvalHistory: [],
+                            correctionHistory: [],
+                            auditTrail: [{ stage: 'ocr', timestamp: new Date().toISOString(), actor: 'ai-engine', note: 'OCR 분석 완료' }],
+                        };
+
+                        const withIntegrity: WorkerRecord = {
+                            ...baseRecord,
+                            integrityScore: deriveIntegrityScore(baseRecord),
+                        };
+
+                        return enforceSafetyLevel(withIntegrity);
                     });
                 } catch (parseErr: unknown) {
                     console.error("Parsing AI response failed:", parseErr);

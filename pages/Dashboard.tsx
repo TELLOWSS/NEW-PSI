@@ -67,7 +67,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             <div>
                                 <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
                                     <h2 className="text-lg sm:text-2xl md:text-3xl font-black tracking-tight">PSI Safety Intelligence</h2>
-                                    <span className="px-1.5 sm:px-2 py-0.5 bg-emerald-500/90 text-white text-[8px] sm:text-[10px] font-black rounded-md uppercase tracking-wide">v2.0</span>
+                                    <span className="px-1.5 sm:px-2 py-0.5 bg-emerald-500/90 text-white text-[8px] sm:text-[10px] font-black rounded-md uppercase tracking-wide">v2.1</span>
                                 </div>
                                 <p className="text-indigo-300 text-[10px] sm:text-xs font-bold flex items-center gap-1.5 sm:gap-2">
                                     <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>

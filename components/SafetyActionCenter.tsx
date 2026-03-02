@@ -41,15 +41,15 @@ export const SafetyActionCenter: React.FC<SafetyActionCenterProps> = ({ workerRe
     }, [tasks]);
 
     return (
-        <div className="bg-gradient-to-br from-indigo-600 to-blue-600 rounded-2xl shadow-lg p-6 text-white h-full flex flex-col">
-            <h3 className="text-xl font-bold mb-4">Smart Action Center</h3>
-            <div className="w-full bg-white/20 rounded-full h-2 mb-4"><div className="bg-white h-2 rounded-full transition-all" style={{width: `${progress}%`}}></div></div>
+        <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 rounded-2xl shadow-lg p-6 text-white h-full flex flex-col border border-white/10">
+            <h3 className="text-xl font-bold mb-4 tracking-tight">Smart Action Center</h3>
+            <div className="w-full bg-white/15 rounded-full h-2 mb-4"><div className="bg-emerald-400 h-2 rounded-full transition-all" style={{width: `${progress}%`}}></div></div>
             <div className="flex-1 overflow-y-auto space-y-2">
                 {tasks.map(t => (
                     <div key={t.id} onClick={() => setTasks(p => p.map(i => i.id === t.id ? {...i, completed: !i.completed} : i))} 
-                         className={`p-3 rounded-lg border cursor-pointer flex items-center ${t.completed ? 'bg-indigo-900/50 border-transparent opacity-60' : 'bg-white/10 border-white/20 hover:bg-white/20'}`}>
-                        <div className={`w-5 h-5 rounded border mr-3 flex items-center justify-center ${t.completed ? 'bg-green-400 border-green-400' : ''}`}>
-                            {t.completed && <svg className="w-4 h-4 text-indigo-900" fill="currentColor" viewBox="0 0 20 20"><path d="M16.7 5.3l-8 8-4-4-1.4 1.4 5.4 5.4 9.4-9.4z"/></svg>}
+                         className={`p-3 rounded-lg border cursor-pointer flex items-center ${t.completed ? 'bg-emerald-500/15 border-emerald-300/30 opacity-80' : 'bg-white/8 border-white/20 hover:bg-white/15'}`}>
+                        <div className={`w-5 h-5 rounded border mr-3 flex items-center justify-center ${t.completed ? 'bg-emerald-400 border-emerald-400' : 'border-white/40'}`}>
+                            {t.completed && <svg className="w-4 h-4 text-slate-900" fill="currentColor" viewBox="0 0 20 20"><path d="M16.7 5.3l-8 8-4-4-1.4 1.4 5.4 5.4 9.4-9.4z"/></svg>}
                         </div>
                         <span className="text-sm">{t.text}</span>
                     </div>

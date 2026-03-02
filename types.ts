@@ -25,6 +25,18 @@ export interface AppSettings {
     safetyManager: string;
     jobFields: string[];
     apiKey: string;
+    competencyWeights?: {
+        psychological: number;
+        jobUnderstanding: number;
+        riskAssessmentUnderstanding: number;
+        proficiency: number;
+        improvementExecution: number;
+        repeatViolationPenalty: number;
+        version: string;
+    };
+    approvalPolicy?: {
+        strictRoleGate: boolean;
+    };
 }
 
 export interface HandwrittenAnswer {
@@ -38,11 +50,56 @@ export interface PsychologicalAnalysis {
     hasLayoutIssue: boolean;
 }
 
+export interface CorrectionEntry {
+    timestamp: string;
+    actor: string;
+    changedFields: string[];
+    reason: string;
+    previousValues?: Record<string, unknown>;
+    nextValues?: Record<string, unknown>;
+}
+
+export interface SafetyCompetencyProfile {
+    psychologicalScore: number;
+    jobUnderstandingScore: number;
+    riskAssessmentUnderstandingScore: number;
+    proficiencyScore: number;
+    improvementExecutionScore: number;
+    repeatViolationPenalty: number;
+    weightedScore: number;
+    weightVersion: string;
+}
+
+export interface ActionEntry {
+    timestamp: string;
+    actor: string;
+    actionType: string;
+    detail: string;
+}
+
+export interface ApprovalEntry {
+    timestamp: string;
+    actor: string;
+    status: 'pending' | 'approved' | 'rejected';
+    comment?: string;
+}
+
+export interface AuditTrailEntry {
+    stage: 'ocr' | 'validation' | 'correction' | 'action' | 'approval' | 'reassessment';
+    timestamp: string;
+    actor: string;
+    note?: string;
+}
+
 export interface WorkerRecord {
     id: string; // Unique ID for each record
     name: string;
+    employeeId?: string;
+    qrId?: string;
     jobField: string;
     teamLeader?: string; // 팀장 이름 (식별용)
+    matchMethod?: 'employeeId' | 'qr' | 'signature' | 'role' | 'name' | 'unmatched';
+    signatureMatchScore?: number; // 0-1
     role?: 'worker' | 'leader' | 'sub_leader'; // 위계(Hierarchy)만 관리
     isTranslator?: boolean; // [NEW] 통역 담당 여부 (겸직 가능)
     isSignalman?: boolean;  // [NEW] 신호수 담당 여부 (겸직 가능)
@@ -53,6 +110,8 @@ export interface WorkerRecord {
     fullText: string;
     koreanTranslation: string;
     safetyScore: number;
+    ocrConfidence?: number; // 0-1
+    integrityScore?: number; // 0-100
     safetyLevel: '초급' | '중급' | '고급';
     strengths: string[];
     strengths_native: string[];
@@ -69,6 +128,12 @@ export interface WorkerRecord {
     originalImage?: string; // Base64 encoded document image from OCR
     profileImage?: string;  // Base64 encoded worker profile photo (Managed by User)
     filename?: string; // Original filename for reference
+    correctionHistory?: CorrectionEntry[];
+    actionHistory?: ActionEntry[];
+    approvalHistory?: ApprovalEntry[];
+    auditTrail?: AuditTrailEntry[];
+    evidenceHash?: string;
+    competencyProfile?: SafetyCompetencyProfile;
 }
 
 export interface HighRiskWorker {

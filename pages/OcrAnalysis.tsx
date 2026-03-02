@@ -21,6 +21,9 @@ const isManagementRole = (field: string) =>
 
 // [강화된 실패 판단 로직 - 안전성 강화]
 const isFailedRecord = (r: WorkerRecord): boolean => {
+    // OCR 신뢰도 임계치 미달이면 검증 대기열로 분류
+    if (typeof r.ocrConfidence === 'number' && r.ocrConfidence < 0.7) return true;
+
     // 안전 점수가 0일 경우 실패
     if (r.safetyScore === 0) return true;
     
@@ -153,6 +156,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             r.originalImage && 
             r.originalImage.length > 200
         );
+    }, [existingRecords]);
+
+    const lowConfidenceCount = useMemo(() => {
+        return existingRecords.filter(r => typeof r.ocrConfidence === 'number' && r.ocrConfidence < 0.7).length;
     }, [existingRecords]);
 
     // 분석 중단 요청
@@ -559,11 +566,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     return (
         <div className="space-y-8 animate-fade-in-up">
             {/* Control Panel */}
-            <div className="bg-slate-900 rounded-3xl p-8 shadow-2xl text-white relative overflow-hidden">
+            <div className="bg-slate-900 rounded-3xl p-5 sm:p-8 shadow-2xl text-white relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-48 -mt-48"></div>
                 <div className="relative z-10 flex flex-col lg:flex-row justify-between items-center gap-8">
                     <div className="flex-1 text-center lg:text-left">
-                        <h3 className="text-2xl font-black mb-2 flex items-center gap-3 justify-center lg:justify-start">
+                        <h3 className="text-xl sm:text-2xl font-black mb-2 flex items-center gap-3 justify-center lg:justify-start">
                             기록 데이터 마스터 관리
                             <span className="text-xs bg-indigo-600 px-2 py-1 rounded-md font-bold uppercase tracking-widest">PRO</span>
                         </h3>
@@ -580,14 +587,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">분석 실패/대기</p>
                                 <p className={`text-2xl font-black ${failedRecords.length > 0 ? 'text-rose-400 animate-pulse' : 'text-slate-400'}`}>{failedRecords.length}</p>
                             </div>
+                            <div className="text-center">
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">신뢰도 미달(&lt;70%)</p>
+                                <p className={`text-2xl font-black ${lowConfidenceCount > 0 ? 'text-amber-400' : 'text-slate-400'}`}>{lowConfidenceCount}</p>
+                            </div>
                         </div>
                     </div>
-                    <div className="flex flex-wrap justify-center gap-3 w-full lg:w-auto">
+                    <div className="flex flex-col sm:flex-row sm:flex-wrap justify-center gap-2.5 sm:gap-3 w-full lg:w-auto">
                         {/* Retry Button */}
                         {failedRecords.length > 0 && !isAnalyzing && (
                             <button 
                                 onClick={handleRetryFailed}
-                                className="px-6 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all border border-rose-500 flex items-center gap-2 group animate-bounce"
+                                className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all border border-rose-500 flex items-center justify-center gap-2 group animate-bounce"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                                 실패/대기 건 스마트 재분석 ({failedRecords.length})
@@ -597,14 +608,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         {recordsWithImages.length > 0 && !isAnalyzing && (
                             <button 
                                 onClick={handleBatchReanalyze}
-                                className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 rounded-2xl font-black text-sm shadow-xl transition-all border border-emerald-500 flex items-center gap-2 group"
+                                className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-emerald-600 hover:bg-emerald-700 rounded-2xl font-black text-sm shadow-xl transition-all border border-emerald-500 flex items-center justify-center gap-2 group"
                             >
                                 <svg className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeWidth={2.5}/></svg>
                                 전체 일괄 재분석 (OCR)
                             </button>
                         )}
                         
-                        <button onClick={() => importInputRef.current?.click()} className="px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-sm transition-all">JSON 불러오기</button>
+                        <button onClick={() => importInputRef.current?.click()} className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-sm transition-all">JSON 불러오기</button>
                         <input type="file" ref={importInputRef} className="hidden" accept=".json" onChange={(e) => {
                              const file = e.target.files?.[0];
                              if (file) {
@@ -618,8 +629,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                  reader.readAsText(file);
                              }
                         }} />
-                        <button onClick={handleExport} className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-2xl font-black text-sm shadow-xl transition-all">백업 내보내기</button>
-                        <button onClick={onDeleteAll} className="px-6 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all">전체 삭제</button>
+                        <button onClick={handleExport} className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-2xl font-black text-sm shadow-xl transition-all">백업 내보내기</button>
+                        <button onClick={onDeleteAll} className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all">전체 삭제</button>
                     </div>
                 </div>
 
@@ -659,7 +670,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-xl border border-slate-100 flex flex-col gap-4 no-print">
-                <div className="flex flex-col md:flex-row gap-4 items-center">
+                <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
                     <div className="relative flex-1 w-full">
                         <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={2}/></svg>
                         <input type="text" placeholder="근로자 명, 공종 등으로 검색..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold" />
@@ -675,7 +686,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
                     <button onClick={handleBatchTextAnalysis} 
                         disabled={isAnalyzing}
-                        className="px-5 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-black text-sm shadow-md transition-all flex items-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full md:w-auto px-5 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-black text-sm shadow-md transition-all flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                         수정사항 AI 반영 갱신
@@ -688,12 +699,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     <table className="w-full text-left">
                         <thead>
                             <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                                <th className="px-8 py-4">근로자 정보</th>
-                                <th className="px-8 py-4">공종/직군</th>
-                                <th className="px-8 py-4">팀장 (Leader)</th>
-                                <th className="px-8 py-4 text-center">안전 점수</th>
-                                <th className="px-8 py-4 text-center">이미지 상태</th>
-                                <th className="px-8 py-4 text-right">관리</th>
+                                <th className="px-4 sm:px-8 py-4">근로자 정보</th>
+                                <th className="px-4 sm:px-8 py-4">공종/직군</th>
+                                <th className="px-4 sm:px-8 py-4">팀장 (Leader)</th>
+                                <th className="px-4 sm:px-8 py-4 text-center">안전 점수</th>
+                                <th className="px-4 sm:px-8 py-4 text-center">이미지 상태</th>
+                                <th className="px-4 sm:px-8 py-4 text-right">관리</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 font-medium">
@@ -704,18 +715,21 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 
                                 return (
                                     <tr key={r.id} className={`hover:bg-indigo-50/30 transition-colors group ${isManager ? 'bg-slate-50/50 opacity-80' : ''} ${failed ? 'bg-rose-50/50' : ''}`} onClick={() => onViewDetails(r)}>
-                                        <td className="px-8 py-5 font-black text-slate-800">
+                                        <td className="px-4 sm:px-8 py-5 font-black text-slate-800">
                                             <div className="flex flex-col">
                                                 <span className={`flex items-center gap-1 ${failed ? 'text-rose-600' : ''}`}>
                                                     {r.name}
                                                     {getLeaderIcon(r)}
                                                 </span>
                                                 <span className="text-[10px] text-slate-400 font-bold tracking-wider">{r.nationality} | {r.date}</span>
+                                                {typeof r.ocrConfidence === 'number' && (
+                                                    <span className="text-[9px] text-slate-500 font-bold">OCR 신뢰도: {(r.ocrConfidence * 100).toFixed(0)}%</span>
+                                                )}
                                                 {failed && <span className="text-[9px] text-rose-500 font-bold">⚠️ 분석 필요/실패</span>}
                                             </div>
                                         </td>
-                                        <td className="px-8 py-5 text-slate-500 font-bold">{r.jobField}</td>
-                                        <td className="px-8 py-5 text-slate-600 font-bold text-sm">
+                                        <td className="px-4 sm:px-8 py-5 text-slate-500 font-bold">{r.jobField}</td>
+                                        <td className="px-4 sm:px-8 py-5 text-slate-600 font-bold text-sm">
                                             {r.teamLeader && r.teamLeader !== '미지정' ? (
                                                 <span className={`bg-slate-100 px-2 py-1 rounded border border-slate-200 ${getLeaderIcon(r) ? 'text-indigo-600 font-black border-indigo-200 bg-indigo-50' : 'text-slate-600'}`}>
                                                     {r.teamLeader}
@@ -724,17 +738,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 <span className="text-slate-300 text-xs">미지정</span>
                                             )}
                                         </td>
-                                        <td className="px-8 py-5 text-center">
+                                        <td className="px-4 sm:px-8 py-5 text-center">
                                             <span className={`px-3 py-1 rounded-full text-xs font-black shadow-sm ${getSafetyLevelClass(r.safetyLevel)}`}>{r.safetyScore}</span>
                                         </td>
-                                        <td className="px-8 py-5 text-center">
+                                        <td className="px-4 sm:px-8 py-5 text-center">
                                             {hasImage ? (
                                                 <span className="text-emerald-500 font-black text-[9px] uppercase">OK</span>
                                             ) : (
                                                 <span className="text-rose-400 font-black text-[9px] uppercase bg-rose-100 px-2 py-1 rounded">IMG LOSS</span>
                                             )}
                                         </td>
-                                        <td className="px-8 py-5 text-right">
+                                        <td className="px-4 sm:px-8 py-5 text-right">
                                             <div className="flex justify-end gap-2">
                                                 {failed && !isAnalyzing && hasImage && (
                                                     <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className="px-3 py-2 bg-rose-100 text-rose-600 font-bold text-xs rounded-xl hover:bg-rose-200 transition-all">
@@ -755,12 +769,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 </div>
             </div>
 
-            <div className="bg-white p-10 rounded-3xl shadow-xl border border-slate-100 overflow-hidden relative">
-                <h3 className="text-2xl font-black text-slate-900 mb-2">신규 기록 분석</h3>
+            <div className="bg-white p-5 sm:p-10 rounded-3xl shadow-xl border border-slate-100 overflow-hidden relative">
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900 mb-2">신규 기록 분석</h3>
                 <FileUpload onFilesChange={setFiles} onAnalyze={() => {}} isAnalyzing={isAnalyzing} fileCount={files.length} />
                 {files.length > 0 && !isAnalyzing && (
                     <div className="mt-8 flex justify-center">
-                        <button onClick={handleAnalyze} className="w-full max-w-md py-5 bg-indigo-600 text-white text-2xl font-black rounded-2xl shadow-2xl hover:bg-indigo-700 transition-all animate-pulse-gold">신규 분석 시작</button>
+                        <button onClick={handleAnalyze} className="w-full max-w-md py-4 sm:py-5 bg-indigo-600 text-white text-xl sm:text-2xl font-black rounded-2xl shadow-2xl hover:bg-indigo-700 transition-all animate-pulse-gold">신규 분석 시작</button>
                     </div>
                 )}
             </div>

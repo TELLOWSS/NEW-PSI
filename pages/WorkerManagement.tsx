@@ -358,10 +358,16 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
         setIsPrintMode(true);
     };
 
+    const renderStartTimeRef = React.useRef<number | null>(null);
+
     // [PROGRESSIVE RENDERING ENGINE]
     // 브라우저 멈춤 방지를 위해 프레임당 렌더링 개수를 제한하여 점진적으로 로드함
     useEffect(() => {
         if (!isPrintMode) return;
+
+        if (renderLimit === 0 && workersToPrint.length > 0 && !renderStartTimeRef.current) {
+            renderStartTimeRef.current = performance.now();
+        }
         
         // 렌더링이 완료되지 않았다면 계속 진행
         if (renderLimit < workersToPrint.length) {
@@ -373,6 +379,22 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
             });
             
             return () => cancelAnimationFrame(timer);
+        }
+
+        if (renderLimit >= workersToPrint.length && renderStartTimeRef.current) {
+            const elapsedMs = performance.now() - renderStartTimeRef.current;
+            const metric = {
+                timestamp: new Date().toISOString(),
+                count: workersToPrint.length,
+                elapsedMs: Math.round(elapsedMs),
+                batchSize: 5,
+            };
+            const key = 'psi_render_metrics';
+            const existing = JSON.parse(localStorage.getItem(key) || '[]');
+            const next = [metric, ...existing].slice(0, 30);
+            localStorage.setItem(key, JSON.stringify(next));
+            console.info('[PSI][RenderMetric]', metric);
+            renderStartTimeRef.current = null;
         }
     }, [isPrintMode, renderLimit, workersToPrint.length]);
 

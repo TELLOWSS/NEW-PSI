@@ -41,3 +41,6 @@ Notes / Troubleshooting
 - On Windows, if `npm` is not recognized, install Node.js and restart PowerShell.
 
 Report issues: Collect console logs and the browser console stack trace; include them when requesting fixes.
+
+Mobile viewport manual QA checklist:
+- See `MOBILE_VIEWPORT_QA_CHECKLIST.md` for page-by-page checks at 375x812 and 390x844.

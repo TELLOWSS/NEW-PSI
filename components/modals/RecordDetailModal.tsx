@@ -1,8 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import type { WorkerRecord } from '../../types';
+import type { WorkerRecord, AppSettings } from '../../types';
 import { CircularProgress } from '../shared/CircularProgress';
 import { updateAnalysisBasedOnEdits } from '../../services/geminiService';
+import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
+import { deriveCompetencyProfile, getApprovalBlockers } from '../../utils/evidenceUtils';
 
 interface RecordDetailModalProps {
     record: WorkerRecord;
@@ -19,6 +21,11 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const [activeTab, setActiveTab] = useState<'info' | 'analysis' | 'qna'>('info');
     const [hasChanges, setHasChanges] = useState(false);
     const [isUpdatingAnalysis, setIsUpdatingAnalysis] = useState(false);
+    const [actionType, setActionType] = useState('재교육');
+    const [actionDetail, setActionDetail] = useState('');
+    const [approvalComment, setApprovalComment] = useState('');
+    const [approverRole, setApproverRole] = useState<'safety-manager' | 'site-manager'>('safety-manager');
+    const [strictRoleGate, setStrictRoleGate] = useState(false);
     
     const docInputRef = useRef<HTMLInputElement>(null); // For Document Image
     const profileInputRef = useRef<HTMLInputElement>(null); // For Profile Photo
@@ -27,6 +34,17 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         setRecord(initialRecord); 
         setHasChanges(false); 
     }, [initialRecord]);
+
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem('psi_app_settings');
+            if (!raw) return;
+            const parsed = JSON.parse(raw) as AppSettings;
+            setStrictRoleGate(Boolean(parsed.approvalPolicy?.strictRoleGate));
+        } catch {
+            setStrictRoleGate(false);
+        }
+    }, []);
 
     const handleChange = <K extends keyof WorkerRecord>(field: K, value: WorkerRecord[K]) => {
         setRecord(prev => ({ ...prev, [field]: value } as WorkerRecord));
@@ -37,6 +55,109 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         onUpdateRecord(record);
         setHasChanges(false);
         alert('저장되었습니다.');
+    };
+
+    const handleAddAction = () => {
+        if (!actionDetail.trim()) {
+            alert('조치 내용을 입력해주세요.');
+            return;
+        }
+        const nextRecord: WorkerRecord = {
+            ...record,
+            actionHistory: [
+                ...(record.actionHistory || []),
+                {
+                    timestamp: new Date().toISOString(),
+                    actor: 'manager',
+                    actionType,
+                    detail: actionDetail.trim(),
+                }
+            ],
+            auditTrail: [
+                ...(record.auditTrail || []),
+                {
+                    stage: 'action',
+                    timestamp: new Date().toISOString(),
+                    actor: 'manager',
+                    note: `${actionType}: ${actionDetail.trim()}`,
+                }
+            ]
+        };
+        setRecord(nextRecord);
+        onUpdateRecord(nextRecord);
+        setActionDetail('');
+        setHasChanges(false);
+        alert('조치 이력이 등록되었습니다.');
+    };
+
+    const handleApprove = (status: 'approved' | 'rejected') => {
+        if (status === 'approved') {
+            const effectiveRole = strictRoleGate ? 'safety-manager' : approverRole;
+            const blockers = getApprovalBlockers(record, effectiveRole);
+            if (blockers.length > 0) {
+                const nextRecord: WorkerRecord = {
+                    ...record,
+                    auditTrail: [
+                        ...(record.auditTrail || []),
+                        {
+                            stage: 'validation',
+                            timestamp: new Date().toISOString(),
+                            actor: 'safety-manager',
+                            note: `승인 차단: ${blockers.join(' | ')}`,
+                        }
+                    ]
+                };
+                setRecord(nextRecord);
+                onUpdateRecord(nextRecord);
+                alert(`승인을 진행할 수 없습니다.\n(검증 기준: ${effectiveRole === 'safety-manager' ? '안전관리자(엄격)' : '현장소장(기본)'})\n\n${blockers.map((item, idx) => `${idx + 1}. ${item}`).join('\n')}`);
+                return;
+            }
+        }
+
+        const nextRecord: WorkerRecord = {
+            ...record,
+            approvalHistory: [
+                ...(record.approvalHistory || []),
+                {
+                    timestamp: new Date().toISOString(),
+                    actor: 'safety-manager',
+                    status,
+                    comment: approvalComment.trim() || undefined,
+                }
+            ],
+            auditTrail: [
+                ...(record.auditTrail || []),
+                {
+                    stage: 'approval',
+                    timestamp: new Date().toISOString(),
+                    actor: 'safety-manager',
+                    note: status === 'approved' ? '최종 승인' : '반려',
+                }
+            ]
+        };
+        setRecord(nextRecord);
+        onUpdateRecord(nextRecord);
+        setApprovalComment('');
+        setHasChanges(false);
+        alert(status === 'approved' ? '승인 처리되었습니다.' : '반려 처리되었습니다.');
+    };
+
+    const handleAnswerChange = (index: number, field: 'answerText' | 'koreanTranslation', value: string) => {
+        const updated = [...(record.handwrittenAnswers || [])];
+        if (!updated[index]) return;
+        updated[index] = {
+            ...updated[index],
+            [field]: value,
+        };
+        handleChange('handwrittenAnswers', updated);
+    };
+
+    const handleExportEvidencePdf = async () => {
+        await exportEvidencePackagePdf(record);
+    };
+
+    const handleExportEvidenceCsv = () => {
+        exportEvidencePackageCsv(record);
     };
 
     const handleReanalyzeClick = async () => {
@@ -101,6 +222,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
     const hasOriginalImage = !!record.originalImage && record.originalImage.length > 50;
     const hasProfileImage = !!record.profileImage && record.profileImage.length > 50;
+    const competencyProfile = record.competencyProfile || deriveCompetencyProfile(record);
     
     // Icon Display
     const isLeader = (record.role === 'leader') || (record.name === record.teamLeader);
@@ -309,6 +431,28 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                     </div>
                                     <div className="grid grid-cols-2 gap-6">
                                         <div>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">사번 (Employee ID)</label>
+                                            <input
+                                                type="text"
+                                                value={record.employeeId || ''}
+                                                onChange={(e) => handleChange('employeeId', e.target.value)}
+                                                placeholder="예: EMP-2026-001"
+                                                className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">QR 식별자 (QR ID)</label>
+                                            <input
+                                                type="text"
+                                                value={record.qrId || ''}
+                                                onChange={(e) => handleChange('qrId', e.target.value)}
+                                                placeholder="예: QR-7F3A"
+                                                className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div>
                                             <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">국적 (AI 번역 기준)</label>
                                             <select 
                                                 value={record.nationality} 
@@ -352,17 +496,113 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
                             <div className="min-h-[300px]">
                                 {activeTab === 'info' && (
-                                    <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200 flex items-center justify-between group h-full">
-                                        <div>
-                                            <p className="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[3px]">SAFETY SCORE</p>
-                                            <input 
-                                                type="number" 
-                                                value={record.safetyScore} 
-                                                onChange={(e) => handleChange('safetyScore', parseInt(e.target.value) || 0)}
-                                                className="text-8xl font-black text-slate-900 w-48 focus:outline-none bg-transparent"
-                                            />
+                                    <div className="space-y-4">
+                                        <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200 flex items-center justify-between group">
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[3px]">SAFETY SCORE</p>
+                                                <input 
+                                                    type="number" 
+                                                    value={record.safetyScore} 
+                                                    onChange={(e) => handleChange('safetyScore', parseInt(e.target.value) || 0)}
+                                                    className="text-8xl font-black text-slate-900 w-48 focus:outline-none bg-transparent"
+                                                />
+                                                <p className="text-xs text-slate-500 font-bold mt-2">
+                                                    OCR 신뢰도: {typeof record.ocrConfidence === 'number' ? `${(record.ocrConfidence * 100).toFixed(0)}%` : 'N/A'}
+                                                </p>
+                                                <p className="text-xs text-slate-500 font-bold mt-1">
+                                                    무결성 점수: {typeof record.integrityScore === 'number' ? `${record.integrityScore}점` : 'N/A'}
+                                                </p>
+                                                <p className="text-xs text-slate-500 font-bold mt-1 break-all">
+                                                    증빙 해시: {record.evidenceHash || 'N/A'}
+                                                </p>
+                                                <p className="text-xs text-indigo-600 font-bold mt-2">
+                                                    종합역량 점수(P): {competencyProfile.weightedScore}점 ({competencyProfile.weightVersion})
+                                                </p>
+                                            </div>
+                                            <CircularProgress score={record.safetyScore} level={record.safetyLevel} />
                                         </div>
-                                        <CircularProgress score={record.safetyScore} level={record.safetyLevel} />
+
+                                        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm">
+                                            <h4 className="text-sm font-black text-slate-800 mb-4">개인 안전역량 세부지표</h4>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs font-bold">
+                                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">심리 지표: {competencyProfile.psychologicalScore}</div>
+                                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">업무 이해도: {competencyProfile.jobUnderstandingScore}</div>
+                                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">위험성평가 이해도: {competencyProfile.riskAssessmentUnderstandingScore}</div>
+                                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">숙련도: {competencyProfile.proficiencyScore}</div>
+                                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">개선이행도: {competencyProfile.improvementExecutionScore}</div>
+                                                <div className="bg-rose-50 rounded-xl p-3 border border-rose-200 text-rose-700">반복위반 페널티: -{competencyProfile.repeatViolationPenalty}</div>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm">
+                                            <h4 className="text-sm font-black text-slate-800 mb-4">조치 이력 등록 (S165/S166)</h4>
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                <select value={actionType} onChange={(e) => setActionType(e.target.value)} className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm">
+                                                    <option value="재교육">재교육</option>
+                                                    <option value="현장코칭">현장코칭</option>
+                                                    <option value="작업중지">작업중지</option>
+                                                    <option value="보호구개선">보호구개선</option>
+                                                </select>
+                                                <input
+                                                    type="text"
+                                                    value={actionDetail}
+                                                    onChange={(e) => setActionDetail(e.target.value)}
+                                                    placeholder="조치 상세 내용"
+                                                    className="md:col-span-2 p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                                                />
+                                            </div>
+                                            <div className="mt-3 flex justify-end">
+                                                <button onClick={handleAddAction} className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-black hover:bg-indigo-700">조치 이력 추가</button>
+                                            </div>
+                                            <div className="mt-3 text-xs text-slate-500 font-bold">누적 조치 이력: {(record.actionHistory || []).length}건</div>
+                                        </div>
+
+                                        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm">
+                                            <h4 className="text-sm font-black text-slate-800 mb-4">승인/검토 처리 (S350)</h4>
+                                            {!strictRoleGate && (
+                                                <div className="mb-3">
+                                                    <label className="block text-[11px] font-black text-slate-500 mb-1">승인권자 기준</label>
+                                                    <select
+                                                        value={approverRole}
+                                                        onChange={(e) => setApproverRole(e.target.value as 'safety-manager' | 'site-manager')}
+                                                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold"
+                                                    >
+                                                        <option value="safety-manager">안전관리자(엄격 검증)</option>
+                                                        <option value="site-manager">현장소장(기본 검증)</option>
+                                                    </select>
+                                                </div>
+                                            )}
+                                            {strictRoleGate && (
+                                                <div className="mb-3 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg p-2.5">
+                                                    시스템 정책상 안전관리자 엄격 승인 기준이 강제 적용됩니다.
+                                                </div>
+                                            )}
+                                            <textarea
+                                                value={approvalComment}
+                                                onChange={(e) => setApprovalComment(e.target.value)}
+                                                placeholder="승인 또는 반려 사유를 입력하세요"
+                                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium min-h-[80px]"
+                                            />
+                                            <div className="mt-3 flex flex-col sm:flex-row gap-2 justify-end">
+                                                <button onClick={() => handleApprove('rejected')} className="w-full sm:w-auto px-4 py-2 bg-rose-100 text-rose-700 rounded-xl text-sm font-black hover:bg-rose-200">반려</button>
+                                                <button onClick={() => handleApprove('approved')} className="w-full sm:w-auto px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-black hover:bg-emerald-700">승인</button>
+                                            </div>
+                                            <div className="mt-3 text-xs text-slate-500 font-bold">누적 승인 이력: {(record.approvalHistory || []).length}건</div>
+                                        </div>
+
+                                        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                                            <h4 className="text-sm font-black text-slate-800 mb-3">최근 감사 이력</h4>
+                                            <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                                {(record.auditTrail || []).slice(-5).reverse().map((entry, idx) => (
+                                                    <div key={`${entry.timestamp}-${idx}`} className="text-xs bg-slate-50 border border-slate-200 rounded-lg p-2">
+                                                        <div className="font-black text-slate-700">[{entry.stage}] {entry.actor}</div>
+                                                        <div className="text-slate-500">{new Date(entry.timestamp).toLocaleString()}</div>
+                                                        {entry.note && <div className="text-slate-600 mt-1">{entry.note}</div>}
+                                                    </div>
+                                                ))}
+                                                {(record.auditTrail || []).length === 0 && <div className="text-xs text-slate-400">감사 이력이 없습니다.</div>}
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
 
@@ -402,11 +642,19 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 <div className="space-y-4">
                                                     <div className="bg-slate-50 p-4 rounded-xl">
                                                         <p className="text-xs text-slate-400 font-bold uppercase mb-1">OCR Original</p>
-                                                        <p className="text-sm text-slate-500 italic">"{ans.answerText}"</p>
+                                                        <textarea
+                                                            value={ans.answerText}
+                                                            onChange={(e) => handleAnswerChange(idx, 'answerText', e.target.value)}
+                                                            className="w-full min-h-[90px] text-sm text-slate-600 bg-white border border-slate-200 rounded-lg p-3 font-medium"
+                                                        />
                                                     </div>
                                                     <div>
                                                         <p className="text-xs text-indigo-400 font-bold uppercase mb-1">Translation</p>
-                                                        <p className="text-base font-bold text-slate-800">{ans.koreanTranslation}</p>
+                                                        <textarea
+                                                            value={ans.koreanTranslation}
+                                                            onChange={(e) => handleAnswerChange(idx, 'koreanTranslation', e.target.value)}
+                                                            className="w-full min-h-[90px] text-sm text-slate-700 bg-indigo-50 border border-indigo-100 rounded-lg p-3 font-bold"
+                                                        />
                                                     </div>
                                                 </div>
                                             </div>
@@ -418,14 +666,18 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
                         {/* Footer Buttons */}
                         <div className="p-6 bg-white border-t border-slate-200 flex justify-between items-center shadow-inner z-10 shrink-0">
-                            <button 
-                                onClick={handleReanalyzeClick} 
-                                disabled={isReanalyzing} 
-                                className={`text-xs font-black flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${isReanalyzing ? 'bg-slate-100 text-slate-400' : 'text-slate-500 hover:bg-slate-100'}`}
-                            >
-                                <svg className={`w-4 h-4 ${isReanalyzing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeWidth={2.5}/></svg>
-                                이미지 전체 재분석 (OCR)
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    onClick={handleReanalyzeClick} 
+                                    disabled={isReanalyzing} 
+                                    className={`text-xs font-black flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${isReanalyzing ? 'bg-slate-100 text-slate-400' : 'text-slate-500 hover:bg-slate-100'}`}
+                                >
+                                    <svg className={`w-4 h-4 ${isReanalyzing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeWidth={2.5}/></svg>
+                                    이미지 전체 재분석 (OCR)
+                                </button>
+                                <button onClick={handleExportEvidenceCsv} className="text-xs font-black px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all">증빙 CSV</button>
+                                <button onClick={handleExportEvidencePdf} className="text-xs font-black px-4 py-2 rounded-xl bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-all">증빙 패키지 PDF</button>
+                            </div>
                             <button onClick={() => onOpenReport(record)} className="px-10 py-4 bg-slate-900 text-white rounded-2xl text-sm font-black shadow-2xl hover:bg-black transition-all transform hover:-translate-y-1">안전 리포트 보기</button>
                         </div>
                     </div>

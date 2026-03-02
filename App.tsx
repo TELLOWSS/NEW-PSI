@@ -18,6 +18,7 @@ import { RecordDetailModal } from './components/modals/RecordDetailModal';
 import { analyzeWorkerRiskAssessment, normalizeNationality } from './services/geminiService';
 import { restoreRecordFromUrl } from './utils/qrUtils';
 import { extractMessage } from './utils/errorUtils';
+import { appendAuditTrail, appendCorrectionHistory, attachEvidenceHash, deriveCompetencyProfile, deriveIntegrityScore, enforceSafetyLevel } from './utils/evidenceUtils';
 
 const IDB_NAME = 'PSI_Enterprise_V4';
 const IDB_VERSION = 1;
@@ -207,8 +208,14 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
             ...r,
             id: uniqueId,
             name: r.name || "식별 대기",
+            employeeId: (r.employeeId as string) || undefined,
+            qrId: (r.qrId as string) || undefined,
             safetyScore: typeof r.safetyScore === 'number' ? r.safetyScore : 0,
-            safetyLevel: r.safetyLevel || '초급',
+            safetyLevel: (r.safetyLevel as WorkerRecord['safetyLevel']) || '초급',
+            ocrConfidence: typeof r.ocrConfidence === 'number' ? r.ocrConfidence : 1,
+            signatureMatchScore: typeof r.signatureMatchScore === 'number' ? r.signatureMatchScore : undefined,
+            matchMethod: (r.matchMethod as WorkerRecord['matchMethod']) || 'unmatched',
+            integrityScore: typeof r.integrityScore === 'number' ? r.integrityScore : 100,
             originalImage: normalizeImage(rawSource),
             profileImage: normalizeImage(profileSource),
             date: r.date || new Date().toISOString().split('T')[0],
@@ -230,8 +237,19 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
             improvement_native: r.improvement_native || "",
             fullText: r.fullText || "",
             koreanTranslation: r.koreanTranslation || "",
-            language: r.language || "unknown"
+            language: r.language || "unknown",
+            correctionHistory: Array.isArray(r.correctionHistory) ? r.correctionHistory : [],
+            actionHistory: Array.isArray(r.actionHistory) ? r.actionHistory : [],
+            approvalHistory: Array.isArray(r.approvalHistory) ? r.approvalHistory : [],
+            auditTrail: Array.isArray(r.auditTrail) ? r.auditTrail : [],
+            evidenceHash: (r.evidenceHash as string) || undefined,
         };
+    }).map((record) => {
+        const withIntegrity = {
+            ...record,
+            integrityScore: typeof record.integrityScore === 'number' ? record.integrityScore : deriveIntegrityScore(record),
+        };
+        return enforceSafetyLevel(withIntegrity);
     });
 };
 
@@ -281,8 +299,37 @@ const App: React.FC = () => {
 
     // [Updated] Stable Handler using useCallback
     const handleUpdateRecord = useCallback(async (updatedRecord: WorkerRecord) => {
-        setWorkerRecords(prev => prev.map(r => r.id === updatedRecord.id ? updatedRecord : r));
-        await saveRecordToDB(updatedRecord);
+        const previous = workerRecordsRef.current.find(r => r.id === updatedRecord.id);
+        const withCorrection = appendCorrectionHistory(updatedRecord, previous, 'manager');
+        const withAudit = appendAuditTrail(withCorrection, {
+            stage: 'correction',
+            timestamp: new Date().toISOString(),
+            actor: 'manager',
+            note: '기록 수정/검토 반영',
+        });
+        const nextCompetencyProfile = deriveCompetencyProfile(withAudit);
+        const previousWeightVersion = previous?.competencyProfile?.weightVersion;
+        const nextWeightVersion = nextCompetencyProfile.weightVersion;
+
+        const withVersionAudit = previousWeightVersion && previousWeightVersion !== nextWeightVersion
+            ? appendAuditTrail(withAudit, {
+                stage: 'validation',
+                timestamp: new Date().toISOString(),
+                actor: 'system',
+                note: `역량 가중치 버전 변경 반영 (${previousWeightVersion} -> ${nextWeightVersion})`,
+            })
+            : withAudit;
+
+        const withIntegrity = {
+            ...withVersionAudit,
+            integrityScore: deriveIntegrityScore(withVersionAudit),
+            competencyProfile: nextCompetencyProfile,
+        };
+        const enforced = enforceSafetyLevel(withIntegrity);
+        const hashed = await attachEvidenceHash(enforced);
+
+        setWorkerRecords(prev => prev.map(r => r.id === hashed.id ? hashed : r));
+        await saveRecordToDB(hashed);
     }, []);
 
     // [Updated] Stable Handler with functional updates and Ref access
@@ -354,19 +401,40 @@ const App: React.FC = () => {
     const handleImport = useCallback(async (records: WorkerRecord[]) => {
         const sanitized = sanitizeRecords(records);
         for (const record of sanitized) {
-            await saveRecordToDB(record);
+            const withMetrics = {
+                ...record,
+                integrityScore: deriveIntegrityScore(record),
+                competencyProfile: deriveCompetencyProfile(record),
+            };
+            const enforced = enforceSafetyLevel(withMetrics);
+            const hashed = await attachEvidenceHash(enforced);
+            await saveRecordToDB(hashed);
         }
         const allData = await loadWorkerRecordsFromDB();
         setWorkerRecords(sanitizeRecords(allData).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     }, []);
 
     const addWorkerRecords = useCallback(async (newRecords: WorkerRecord[]) => {
-        const sanitized = sanitizeRecords(newRecords);
+        const sanitized = sanitizeRecords(newRecords).map((record) => appendAuditTrail(record, {
+            stage: 'ocr',
+            timestamp: new Date().toISOString(),
+            actor: 'ai-engine',
+            note: '신규 OCR 분석 결과 저장',
+        }));
+        const finalRecords: WorkerRecord[] = [];
         for (const record of sanitized) {
-            await saveRecordToDB(record);
+            const withIntegrity = {
+                ...record,
+                integrityScore: deriveIntegrityScore(record),
+                competencyProfile: deriveCompetencyProfile(record),
+            };
+            const enforced = enforceSafetyLevel(withIntegrity);
+            const hashed = await attachEvidenceHash(enforced);
+            finalRecords.push(hashed);
+            await saveRecordToDB(hashed);
         }
         setWorkerRecords(prev => {
-            const combined = [...sanitized, ...prev];
+            const combined = [...finalRecords, ...prev];
             const unique = combined.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
             return unique.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         });

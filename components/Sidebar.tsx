@@ -37,23 +37,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
     return (
         <div className="w-64 bg-white shadow-lg flex flex-col shrink-0 h-full">
             <div className="p-3 sm:p-4 text-center border-b border-slate-200">
-                {/* New Asymmetric Logo with Electric Indigo Theme */}
-                <svg className="h-12 sm:h-14 w-12 sm:w-14 mx-auto drop-shadow-md" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-                    <defs>
-                        <linearGradient id="sidebarLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stopColor="#6366f1" /> {/* Indigo-500 */}
-                            <stop offset="100%" stopColor="#4338ca" /> {/* Indigo-700 */}
-                        </linearGradient>
-                    </defs>
-                    {/* Dynamic Slope Shield */}
-                    <path d="M8 14 L40 6 V22 C40 34 33 42 24 44 C15 42 8 34 8 22 Z" fill="url(#sidebarLogoGradient)"/>
-                    <circle cx="24" cy="25" r="7" stroke="white" strokeWidth="2.5" fill="none"/>
-                    <circle cx="24" cy="25" r="3" fill="white"/>
-                    <path d="M24 6 V16" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.4"/>
-                </svg>
-                
-                <h1 className="text-sm sm:text-base font-bold text-slate-800 mt-2">PSI</h1>
-                <p className="text-[10px] sm:text-xs text-slate-500">Proactive Safety Intelligence</p>
+                <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-md">
+                    <svg className="w-7 h-7 sm:w-8 sm:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 3l7 3v6c0 5-3 7.5-7 9-4-1.5-7-4-7-9V6l7-3z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9.5 12l1.8 1.8L14.8 10.3" />
+                    </svg>
+                </div>
+
+                <h1 className="text-base sm:text-lg font-black text-slate-800 mt-2 tracking-tight">PSI SAFETY</h1>
+                <p className="text-[11px] sm:text-xs text-slate-500 font-bold">Proactive Safety Intelligence</p>
                 <div className="bg-slate-100 rounded-md p-1.5 sm:p-2 mt-3 sm:mt-4">
                      <p className="text-[10px] sm:text-xs font-semibold text-slate-700 truncate px-1">{siteName} 현장</p>
                 </div>
@@ -80,38 +72,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
             {/* Developer Credit Footer */}
             <div className="p-3 sm:p-5 border-t border-slate-200 bg-slate-50/50">
                 <div className="flex items-center gap-2 sm:gap-3">
-                    {/* High-End Architectural Monogram Icon */}
-                    <div className="relative group shrink-0">
-                        {/* Golden Glow Effect */}
-                        <div className="absolute -inset-1 bg-gradient-to-tr from-amber-200 to-yellow-500 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
-                        <div className="relative w-9 h-9 sm:w-11 sm:h-11 bg-slate-900 rounded-xl flex items-center justify-center border border-slate-800 shadow-xl overflow-hidden">
-                            {/* Metallic Texture Overlay */}
-                            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
-                            
-                            {/* Stylized 'P' Logo */}
-                            <svg className="w-5 h-5 sm:w-6 sm:h-6 z-10" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <defs>
-                                    <linearGradient id="gold-leaf" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-                                        <stop offset="0%" stopColor="#FDE68A" /> {/* Amber 200 */}
-                                        <stop offset="40%" stopColor="#D97706" /> {/* Amber 600 */}
-                                        <stop offset="70%" stopColor="#F59E0B" /> {/* Amber 500 */}
-                                        <stop offset="100%" stopColor="#FFFBEB" /> {/* Amber 50 */}
-                                    </linearGradient>
-                                </defs>
-                                {/* Vertical Structure */}
-                                <path d="M7 4V20" stroke="url(#gold-leaf)" strokeWidth="2.5" strokeLinecap="round"/>
-                                {/* Architectural Arc */}
-                                <path d="M7 6H12C15.5 6 18 8.5 18 12C18 15.5 15.5 18 12 18H7" stroke="url(#gold-leaf)" strokeWidth="2.5" strokeLinecap="round" strokeOpacity="0.9"/>
-                                {/* Accent Dot */}
-                                <circle cx="13" cy="12" r="1.5" fill="url(#gold-leaf)" />
-                            </svg>
-                        </div>
+                    <div className="shrink-0 w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-indigo-700 text-white flex items-center justify-center border border-indigo-800 shadow-sm">
+                        <span className="text-xs sm:text-sm font-black tracking-wide">HG</span>
                     </div>
 
                     <div className="flex flex-col min-w-0">
                         <span className="text-[8px] sm:text-[9px] font-black text-indigo-500 uppercase tracking-widest mb-0.5">Developed By</span>
                         <span className="text-xs sm:text-sm font-black text-slate-800 truncate tracking-tight">박성훈 부장</span>
-                        <span className="text-[9px] sm:text-[10px] text-slate-500 font-bold truncate">(주)휘강건설</span>
+                        <span className="text-[9px] sm:text-[10px] text-slate-500 font-bold truncate">(주)휘강건설 · Hwigang Const.</span>
                     </div>
                 </div>
                 <div className="mt-3 sm:mt-4 text-center">

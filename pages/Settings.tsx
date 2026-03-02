@@ -102,39 +102,137 @@ const Settings: React.FC = () => {
         siteManager: '정 용 현',
         safetyManager: '박 성 훈',
         jobFields: ['시스템', '용역', '철근', '분석', '배체정리', '형틀', '타설', '미장', '견출', '설비', '전기'],
-        apiKey: ''
+        apiKey: '',
+        competencyWeights: {
+            psychological: 0.20,
+            jobUnderstanding: 0.22,
+            riskAssessmentUnderstanding: 0.22,
+            proficiency: 0.18,
+            improvementExecution: 0.18,
+            repeatViolationPenalty: 1,
+            version: 'v1.0.0',
+        },
+        approvalPolicy: {
+            strictRoleGate: false,
+        },
     });
-    
+
     const [jobFieldInput, setJobFieldInput] = useState('');
     const [showKey, setShowKey] = useState(false);
-    const [showGuide, setShowGuide] = useState(false); // Default hidden
+    const [showGuide, setShowGuide] = useState(false);
+    const [weightHistory, setWeightHistory] = useState<Array<{
+        timestamp: string;
+        previousVersion: string | null;
+        nextVersion: string;
+        weights: AppSettings['competencyWeights'];
+    }>>([]);
+
+    const weightSum =
+        (settings.competencyWeights?.psychological || 0) +
+        (settings.competencyWeights?.jobUnderstanding || 0) +
+        (settings.competencyWeights?.riskAssessmentUnderstanding || 0) +
+        (settings.competencyWeights?.proficiency || 0) +
+        (settings.competencyWeights?.improvementExecution || 0);
+
+    const updateWeights = (patch: Partial<NonNullable<AppSettings['competencyWeights']>>) => {
+        setSettings((prev) => ({
+            ...prev,
+            competencyWeights: {
+                psychological: prev.competencyWeights?.psychological ?? 0.2,
+                jobUnderstanding: prev.competencyWeights?.jobUnderstanding ?? 0.22,
+                riskAssessmentUnderstanding: prev.competencyWeights?.riskAssessmentUnderstanding ?? 0.22,
+                proficiency: prev.competencyWeights?.proficiency ?? 0.18,
+                improvementExecution: prev.competencyWeights?.improvementExecution ?? 0.18,
+                repeatViolationPenalty: prev.competencyWeights?.repeatViolationPenalty ?? 1,
+                version: prev.competencyWeights?.version ?? 'v1.0.0',
+                ...patch,
+            },
+        }));
+    };
 
     useEffect(() => {
         const savedSettings = localStorage.getItem('psi_app_settings');
         if (savedSettings) {
             try {
-                const parsed = JSON.parse(savedSettings);
-                setSettings(prev => ({ ...prev, ...parsed }));
-                setJobFieldInput(parsed.jobFields.join(', '));
+                const parsed = JSON.parse(savedSettings) as AppSettings;
+                setSettings((prev) => ({
+                    ...prev,
+                    ...parsed,
+                    competencyWeights: {
+                        ...prev.competencyWeights,
+                        ...(parsed.competencyWeights || {}),
+                    },
+                    approvalPolicy: {
+                        ...prev.approvalPolicy,
+                        ...(parsed.approvalPolicy || {}),
+                    },
+                }));
+                setJobFieldInput((parsed.jobFields || []).join(', '));
             } catch (e) {
-                console.error("Failed to load settings", e);
+                console.error('Failed to load settings', e);
             }
         } else {
             setJobFieldInput(settings.jobFields.join(', '));
-            // If no settings exist (first time), show guide automatically
             setShowGuide(true);
         }
     }, []);
 
+    useEffect(() => {
+        const historyRaw = localStorage.getItem('psi_competency_weight_history');
+        if (!historyRaw) return;
+        try {
+            const parsed = JSON.parse(historyRaw);
+            if (Array.isArray(parsed)) {
+                setWeightHistory(parsed as Array<{
+                    timestamp: string;
+                    previousVersion: string | null;
+                    nextVersion: string;
+                    weights: AppSettings['competencyWeights'];
+                }>);
+            }
+        } catch (e) {
+            console.error('Failed to load weight history', e);
+        }
+    }, []);
+
     const handleSave = () => {
-        const fields = jobFieldInput.split(',').map(s => s.trim()).filter(s => s.length > 0);
+        const fields = jobFieldInput.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+        const prevRaw = localStorage.getItem('psi_app_settings');
+        const prevSettings = prevRaw ? (JSON.parse(prevRaw) as AppSettings) : null;
+        const previousVersion = prevSettings?.competencyWeights?.version || '';
+        const nextVersion = settings.competencyWeights?.version || 'v1.0.0';
+
+        if (weightSum < 0.95 || weightSum > 1.05) {
+            const proceed = confirm(`가중치 합계(w1~w5)가 ${weightSum.toFixed(2)} 입니다.\n권장 범위는 1.00±0.05 입니다.\n\n이 상태로 저장하시겠습니까?`);
+            if (!proceed) return;
+        }
+
         const newSettings = { ...settings, jobFields: fields };
-        
+
+        if (previousVersion !== nextVersion) {
+            const historyRaw = localStorage.getItem('psi_competency_weight_history');
+            const history = historyRaw ? (JSON.parse(historyRaw) as Array<Record<string, unknown>>) : [];
+            history.unshift({
+                timestamp: new Date().toISOString(),
+                previousVersion: previousVersion || null,
+                nextVersion,
+                weights: newSettings.competencyWeights,
+            });
+            const nextHistory = history.slice(0, 50);
+            localStorage.setItem('psi_competency_weight_history', JSON.stringify(nextHistory));
+            setWeightHistory(nextHistory as Array<{
+                timestamp: string;
+                previousVersion: string | null;
+                nextVersion: string;
+                weights: AppSettings['competencyWeights'];
+            }>);
+        }
+
         localStorage.setItem('psi_app_settings', JSON.stringify(newSettings));
         setSettings(newSettings);
-        
-        alert("설정이 저장되었습니다. 시스템에 즉시 반영됩니다.");
-        window.location.reload(); 
+
+        alert('설정이 저장되었습니다. 시스템에 즉시 반영됩니다.');
+        window.location.reload();
     };
 
     const handleResetData = () => {
@@ -146,170 +244,156 @@ const Settings: React.FC = () => {
         }
     };
 
+    const handleClearWeightHistory = () => {
+        if (!confirm('가중치 버전 변경 이력을 모두 삭제하시겠습니까?')) return;
+        localStorage.removeItem('psi_competency_weight_history');
+        setWeightHistory([]);
+        alert('가중치 이력이 초기화되었습니다.');
+    };
+
+    const handleApplyWeightHistory = (entry: {
+        timestamp: string;
+        previousVersion: string | null;
+        nextVersion: string;
+        weights: AppSettings['competencyWeights'];
+    }) => {
+        if (!entry.weights) return;
+        const proceed = confirm(`${entry.nextVersion} 버전 가중치를 현재 설정에 복원하시겠습니까?\n(복원 후 반드시 '설정 저장 및 적용'을 눌러야 반영됩니다)`);
+        if (!proceed) return;
+
+        setSettings((prev) => ({
+            ...prev,
+            competencyWeights: {
+                psychological: entry.weights?.psychological ?? 0.2,
+                jobUnderstanding: entry.weights?.jobUnderstanding ?? 0.22,
+                riskAssessmentUnderstanding: entry.weights?.riskAssessmentUnderstanding ?? 0.22,
+                proficiency: entry.weights?.proficiency ?? 0.18,
+                improvementExecution: entry.weights?.improvementExecution ?? 0.18,
+                repeatViolationPenalty: entry.weights?.repeatViolationPenalty ?? 1,
+                version: entry.weights?.version || entry.nextVersion || 'v1.0.0',
+            },
+        }));
+    };
+
     return (
-        <div className="space-y-8 animate-fade-in-up pb-12">
-            <div className="bg-slate-900 rounded-[30px] p-10 text-white shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="space-y-6 sm:space-y-8 animate-fade-in-up pb-10 sm:pb-12">
+            <div className="bg-slate-900 rounded-3xl sm:rounded-[30px] p-5 sm:p-8 md:p-10 text-white shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl -mr-32 -mt-32"></div>
                 <div className="relative z-10">
-                    <h2 className="text-3xl font-black mb-2">시스템 설정 (System Configuration)</h2>
-                    <p className="text-slate-400 max-w-xl text-lg">
-                        현장 맞춤형 환경을 구성하고 API 키를 관리하세요.<br/>
-                        모든 설정은 브라우저에 안전하게 저장됩니다.
-                    </p>
+                    <h2 className="text-2xl sm:text-3xl font-black mb-1.5 sm:mb-2">시스템 설정 (System Configuration)</h2>
+                    <p className="text-slate-400 max-w-xl text-sm sm:text-base md:text-lg">현장 맞춤형 환경을 구성하고 API 키를 관리하세요.</p>
                 </div>
-                <div className="relative z-10 shrink-0">
-                    <button 
-                        onClick={() => setShowGuide(!showGuide)} 
-                        className={`px-6 py-3 rounded-2xl font-bold text-sm transition-all flex items-center gap-2 shadow-lg
-                            ${showGuide ? 'bg-white text-indigo-900' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}
-                    >
-                        {showGuide ? (
-                            <>
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                가이드 닫기
-                            </>
-                        ) : (
-                            <>
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-                                초보자 가이드 보기
-                            </>
-                        )}
-                    </button>
-                </div>
+                <button
+                    onClick={() => setShowGuide(!showGuide)}
+                    className={`relative z-10 w-full md:w-auto px-5 sm:px-6 py-3 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg ${showGuide ? 'bg-white text-indigo-900' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}
+                >
+                    {showGuide ? '가이드 닫기' : '초보자 가이드 보기'}
+                </button>
             </div>
 
-            {/* Beginner Guide Section */}
             {showGuide && <SettingsGuide onClose={() => setShowGuide(false)} />}
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* 1. API Key Settings */}
-                <div className="bg-white p-8 rounded-3xl shadow-xl border border-indigo-100 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 rounded-bl-[60px] -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-                    <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2 relative z-10">
-                        <span className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
-                        </span>
-                        1단계: Google Gemini API 연결
-                    </h3>
-                    <div className="space-y-4 relative z-10">
-                        <div>
-                            <label className="block text-sm font-bold text-slate-600 mb-2 flex justify-between">
-                                API Key 입력
-                                <span className="text-xs text-indigo-500 font-normal cursor-pointer hover:underline" onClick={() => window.open("https://aistudio.google.com/app/apikey")}>키가 없으신가요?</span>
-                            </label>
-                            <div className="relative">
-                                <input 
-                                    type={showKey ? "text" : "password"} 
-                                    value={settings.apiKey} 
-                                    onChange={(e) => setSettings({...settings, apiKey: e.target.value})}
-                                    placeholder="AI Studio에서 발급받은 키를 여기에 붙여넣으세요 (AIza...)"
-                                    className="w-full p-4 pr-12 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 font-mono text-sm transition-all"
-                                />
-                                <button 
-                                    onClick={() => setShowKey(!showKey)}
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 p-1"
-                                >
-                                    {showKey ? (
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                                    ) : (
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                                    )}
-                                </button>
-                            </div>
-                            <div className="mt-3 bg-blue-50 p-3 rounded-xl flex items-start gap-3">
-                                <svg className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                <p className="text-xs text-blue-700 leading-relaxed">
-                                    개인 API 키를 사용하면 속도 제한(Rate Limit)을 피하고 독립적인 운영이 가능합니다. 
-                                    입력된 키는 이 컴퓨터(브라우저)에만 저장됩니다.
-                                </p>
-                            </div>
-                        </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-8">
+                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100">
+                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">1단계: Google Gemini API 연결</h3>
+                    <label className="block text-sm font-bold text-slate-600 mb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                        API Key 입력
+                        <span className="text-xs text-indigo-500 font-normal cursor-pointer hover:underline" onClick={() => window.open('https://aistudio.google.com/app/apikey')}>키가 없으신가요?</span>
+                    </label>
+                    <div className="relative">
+                        <input
+                            type={showKey ? 'text' : 'password'}
+                            value={settings.apiKey}
+                            onChange={(e) => setSettings({ ...settings, apiKey: e.target.value })}
+                            placeholder="AI Studio에서 발급받은 키를 붙여넣으세요"
+                            className="w-full p-4 pr-12 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-500 font-mono text-sm transition-all"
+                        />
+                        <button onClick={() => setShowKey(!showKey)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600">{showKey ? '숨김' : '보기'}</button>
                     </div>
                 </div>
 
-                {/* 2. Site Info Settings */}
-                <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 rounded-bl-[60px] -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-                    <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2 relative z-10">
-                        <span className="p-2 bg-slate-100 text-slate-600 rounded-lg">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                        </span>
-                        2단계: 현장 정보 설정
-                    </h3>
-                    <div className="space-y-4 relative z-10">
+                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-200">
+                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">2단계: 현장 정보 설정</h3>
+                    <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-bold text-slate-600 mb-2">현장명 (Project Name)</label>
-                            <input 
-                                type="text" 
-                                value={settings.siteName} 
-                                onChange={(e) => setSettings({...settings, siteName: e.target.value})}
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 font-bold text-slate-800 transition-all focus:bg-white"
-                                placeholder="예: OO아파트 신축공사"
-                            />
+                            <label className="block text-sm font-bold text-slate-600 mb-2">현장명</label>
+                            <input type="text" value={settings.siteName} onChange={(e) => setSettings({ ...settings, siteName: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl" />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 mb-2">현장소장</label>
-                                <input 
-                                    type="text" 
-                                    value={settings.siteManager} 
-                                    onChange={(e) => setSettings({...settings, siteManager: e.target.value})}
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 font-bold text-slate-800 transition-all focus:bg-white"
-                                />
+                                <input type="text" value={settings.siteManager} onChange={(e) => setSettings({ ...settings, siteManager: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl" />
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 mb-2">안전관리자</label>
-                                <input 
-                                    type="text" 
-                                    value={settings.safetyManager} 
-                                    onChange={(e) => setSettings({...settings, safetyManager: e.target.value})}
-                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 font-bold text-slate-800 transition-all focus:bg-white"
-                                />
+                                <input type="text" value={settings.safetyManager} onChange={(e) => setSettings({ ...settings, safetyManager: e.target.value })} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl" />
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* 3. Job Field Config */}
-                <div className="bg-white p-8 rounded-3xl shadow-xl border border-slate-200 lg:col-span-2 relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-[60px] -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
-                    <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2 relative z-10">
-                        <span className="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-                        </span>
-                        3단계: 공종 및 팀 구성 (Job Fields)
-                    </h3>
-                    <div className="space-y-2 relative z-10">
-                        <label className="block text-sm font-bold text-slate-600">공종 리스트 (쉼표로 구분)</label>
-                        <textarea 
-                            value={jobFieldInput}
-                            onChange={(e) => setJobFieldInput(e.target.value)}
-                            className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 font-medium text-slate-700 h-32 transition-all focus:bg-white focus:ring-4 focus:ring-emerald-500/10"
-                            placeholder="시스템, 철근, 형틀, 전기, 설비..."
-                        />
-                        <div className="flex items-center justify-between text-xs text-slate-400 mt-2">
-                            <span>* 입력된 공종은 근로자 등록 시 선택 가능한 옵션(Dropdown)으로 자동 변환됩니다.</span>
-                            <span className="font-bold text-emerald-600">{jobFieldInput.split(',').filter(s=>s.trim()).length}개 공종 감지됨</span>
+                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-200 lg:col-span-2">
+                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">3단계: 공종 및 팀 구성</h3>
+                    <textarea value={jobFieldInput} onChange={(e) => setJobFieldInput(e.target.value)} className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl h-32" placeholder="시스템, 철근, 형틀, 전기..." />
+                    <div className="text-xs text-slate-400 mt-2">감지된 공종: <span className="font-bold text-emerald-600">{jobFieldInput.split(',').filter((s) => s.trim()).length}개</span></div>
+                </div>
+
+                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-violet-200 lg:col-span-2">
+                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">개인 안전역량 가중치 설정</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1">심리 지표(w1)</label><input type="number" step="0.01" value={settings.competencyWeights?.psychological ?? 0.2} onChange={(e) => updateWeights({ psychological: Number(e.target.value) })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-sm" /></div>
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1">업무 이해도(w2)</label><input type="number" step="0.01" value={settings.competencyWeights?.jobUnderstanding ?? 0.22} onChange={(e) => updateWeights({ jobUnderstanding: Number(e.target.value) })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-sm" /></div>
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1">위험성평가 이해도(w3)</label><input type="number" step="0.01" value={settings.competencyWeights?.riskAssessmentUnderstanding ?? 0.22} onChange={(e) => updateWeights({ riskAssessmentUnderstanding: Number(e.target.value) })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-sm" /></div>
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1">숙련도(w4)</label><input type="number" step="0.01" value={settings.competencyWeights?.proficiency ?? 0.18} onChange={(e) => updateWeights({ proficiency: Number(e.target.value) })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-sm" /></div>
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1">개선이행도(w5)</label><input type="number" step="0.01" value={settings.competencyWeights?.improvementExecution ?? 0.18} onChange={(e) => updateWeights({ improvementExecution: Number(e.target.value) })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-sm" /></div>
+                        <div><label className="block text-xs font-bold text-slate-500 mb-1">반복위반 패널티(w6)</label><input type="number" step="0.1" value={settings.competencyWeights?.repeatViolationPenalty ?? 1} onChange={(e) => updateWeights({ repeatViolationPenalty: Number(e.target.value) })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-sm" /></div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">가중치 버전</label>
+                            <input type="text" value={settings.competencyWeights?.version ?? 'v1.0.0'} onChange={(e) => updateWeights({ version: e.target.value })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-sm" />
+                        </div>
+                        <div className={`text-xs font-bold rounded-lg p-3 border ${weightSum >= 0.95 && weightSum <= 1.05 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                            현재 w1~w5 합계: {weightSum.toFixed(2)} {weightSum >= 0.95 && weightSum <= 1.05 ? '(권장 범위)' : '(권장 범위 이탈)'}
                         </div>
                     </div>
                 </div>
+
+                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-amber-200 lg:col-span-2">
+                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-4">승인 정책</h3>
+                    <label className="inline-flex items-center gap-3 cursor-pointer select-none">
+                        <input type="checkbox" checked={!!settings.approvalPolicy?.strictRoleGate} onChange={(e) => setSettings({ ...settings, approvalPolicy: { ...(settings.approvalPolicy || { strictRoleGate: false }), strictRoleGate: e.target.checked } })} className="w-5 h-5 rounded border-slate-300 text-amber-600" />
+                        <span className="text-sm font-bold text-slate-700">항상 안전관리자 엄격 기준으로 승인 차단 규칙 적용</span>
+                    </label>
+                </div>
+
+                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-200 lg:col-span-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">가중치 버전 변경 이력</h3>
+                        <button onClick={handleClearWeightHistory} className="px-3 py-2 text-xs font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700">이력 초기화</button>
+                    </div>
+                    {weightHistory.length === 0 ? (
+                        <p className="text-sm text-slate-400">저장된 가중치 버전 변경 이력이 없습니다.</p>
+                    ) : (
+                        <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-1">
+                            {weightHistory.slice(0, 10).map((entry, idx) => (
+                                <div key={`${entry.timestamp}-${idx}`} className="p-3 rounded-xl border border-slate-200 bg-slate-50 text-xs">
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                        <div className="font-black text-slate-700">{entry.previousVersion || 'N/A'} → {entry.nextVersion}</div>
+                                        <button onClick={() => handleApplyWeightHistory(entry)} className="w-full sm:w-auto px-2.5 py-1.5 text-[11px] font-black rounded-md bg-indigo-600 text-white hover:bg-indigo-700">이 버전 복원</button>
+                                    </div>
+                                    <div className="text-slate-500 mt-1">{new Date(entry.timestamp).toLocaleString()}</div>
+                                    <div className="text-slate-600 mt-2">w1:{entry.weights?.psychological ?? '-'} / w2:{entry.weights?.jobUnderstanding ?? '-'} / w3:{entry.weights?.riskAssessmentUnderstanding ?? '-'} / w4:{entry.weights?.proficiency ?? '-'} / w5:{entry.weights?.improvementExecution ?? '-'} / w6:{entry.weights?.repeatViolationPenalty ?? '-'}</div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
 
-            <div className="flex flex-col-reverse sm:flex-row justify-between items-center gap-4 mt-8 pt-8 border-t border-slate-200">
-                <button 
-                    onClick={handleResetData}
-                    className="px-6 py-3 text-red-600 font-bold bg-red-50 hover:bg-red-100 rounded-xl transition-colors flex items-center gap-2"
-                >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    데이터 초기화 (Factory Reset)
-                </button>
-                <button 
-                    onClick={handleSave}
-                    className="px-10 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl hover:bg-indigo-700 hover:shadow-2xl transition-all transform hover:-translate-y-1 flex items-center gap-2"
-                >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                    설정 저장 및 적용
-                </button>
+            <div className="flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-3 sm:gap-4 mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-slate-200">
+                <button onClick={handleResetData} className="w-full sm:w-auto px-6 py-3 text-red-600 font-bold bg-red-50 hover:bg-red-100 rounded-xl transition-colors">데이터 초기화 (Factory Reset)</button>
+                <button onClick={handleSave} className="w-full sm:w-auto px-10 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl hover:bg-indigo-700 transition-all">설정 저장 및 적용</button>
             </div>
         </div>
     );
