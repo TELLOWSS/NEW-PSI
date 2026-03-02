@@ -91,6 +91,7 @@ interface OcrAnalysisProps {
     onDeleteAll: () => void;
     onImport: (records: WorkerRecord[]) => void;
     onViewDetails: (record: WorkerRecord) => void;
+    onOpenReport: (record: WorkerRecord) => void;
     onDeleteRecord: (recordId: string) => void;
     onUpdateRecord: (record: WorkerRecord) => void;
 }
@@ -101,6 +102,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     onDeleteAll, 
     onImport, 
     onViewDetails, 
+    onOpenReport,
     onDeleteRecord, 
     onUpdateRecord 
 }) => {
@@ -113,6 +115,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [filterLevel, setFilterLevel] = useState<string>('all');
     const [filterField, setFilterField] = useState<string>('all');
     const [filterLeader, setFilterLeader] = useState<string>('all'); 
+
+    const getExpectedSafetyLevel = useCallback((record: WorkerRecord): WorkerRecord['safetyLevel'] => {
+        const score = typeof record.safetyScore === 'number' ? record.safetyScore : 0;
+        const confidence = typeof record.ocrConfidence === 'number' ? record.ocrConfidence : 1;
+        const integrity = typeof record.integrityScore === 'number' ? record.integrityScore : 100;
+        const hasHighRiskSignal = record.selfAssessedRiskLevel === '상' || integrity < 60;
+
+        if (confidence < 0.7 || hasHighRiskSignal) return '초급';
+        if (score >= 75) return '고급';
+        if (score >= 50) return '중급';
+        return '초급';
+    }, []);
     
     // Strict stop control
     const stopRef = useRef<boolean>(false);
@@ -739,7 +753,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             )}
                                         </td>
                                         <td className="px-4 sm:px-8 py-5 text-center">
-                                            <span className={`px-3 py-1 rounded-full text-xs font-black shadow-sm ${getSafetyLevelClass(r.safetyLevel)}`}>{r.safetyScore}</span>
+                                            <div className="flex flex-col items-center gap-1">
+                                                <span className={`px-3 py-1 rounded-full text-xs font-black shadow-sm ${getSafetyLevelClass(r.safetyLevel)}`}>{r.safetyScore}</span>
+                                                <span className="text-[10px] font-black text-slate-500">{r.safetyLevel}</span>
+                                                {r.safetyLevel !== getExpectedSafetyLevel(r) && (
+                                                    <span className="text-[9px] font-black text-rose-600 bg-rose-100 px-2 py-0.5 rounded">등급 재검증 필요</span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="px-4 sm:px-8 py-5 text-center">
                                             {hasImage ? (
@@ -755,7 +775,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                         재시도
                                                     </button>
                                                 )}
-                                                <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-4 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">상세보기</button>
+                                                <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-4 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">상세검증 바로가기</button>
+                                                <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-4 py-2 bg-slate-900 text-white font-black text-xs rounded-xl hover:bg-black transition-all shadow-sm">리포트 바로가기</button>
                                                 <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="p-2 bg-slate-100 text-slate-400 hover:bg-rose-500 hover:text-white rounded-xl transition-all" title="삭제">
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                 </button>

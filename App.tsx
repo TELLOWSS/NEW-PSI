@@ -19,6 +19,7 @@ import { analyzeWorkerRiskAssessment, normalizeNationality } from './services/ge
 import { restoreRecordFromUrl } from './utils/qrUtils';
 import { extractMessage } from './utils/errorUtils';
 import { appendAuditTrail, appendCorrectionHistory, attachEvidenceHash, deriveCompetencyProfile, deriveIntegrityScore, enforceSafetyLevel } from './utils/evidenceUtils';
+import { applyIdentityPolicy } from './utils/identityUtils';
 
 const IDB_NAME = 'PSI_Enterprise_V4';
 const IDB_VERSION = 1;
@@ -204,7 +205,7 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
         // Ensure unique ID if missing
         const uniqueId = r.id || `psi-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 6)}`;
 
-        return {
+        const baseRecord: WorkerRecord = {
             ...r,
             id: uniqueId,
             name: r.name || "식별 대기",
@@ -244,6 +245,8 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
             auditTrail: Array.isArray(r.auditTrail) ? r.auditTrail : [],
             evidenceHash: (r.evidenceHash as string) || undefined,
         };
+
+        return applyIdentityPolicy(baseRecord);
     }).map((record) => {
         const withIntegrity = {
             ...record,
@@ -262,6 +265,7 @@ const App: React.FC = () => {
     const [forecastData, setForecastData] = useState<RiskForecastData | null>(null);
     const [modalState, setModalState] = useState<ModalState>({ type: null });
     const [recordForReport, setRecordForReport] = useState<WorkerRecord | null>(null);
+    const [isQrScanMode, setIsQrScanMode] = useState(false);
     const [isReanalyzing, setIsReanalyzing] = useState(false);
 
     // [Ref] Maintain a ref to workerRecords for stable callbacks (prevent stale closures in async handlers)
@@ -281,7 +285,8 @@ const App: React.FC = () => {
         if (qrData) {
             const restored = restoreRecordFromUrl(qrData);
             if (restored) {
-                setRecordForReport(restored);
+                setRecordForReport(applyIdentityPolicy(restored));
+                setIsQrScanMode(true);
                 setCurrentPage('individual-report');
             }
         }
@@ -299,14 +304,27 @@ const App: React.FC = () => {
 
     // [Updated] Stable Handler using useCallback
     const handleUpdateRecord = useCallback(async (updatedRecord: WorkerRecord) => {
-        const previous = workerRecordsRef.current.find(r => r.id === updatedRecord.id);
-        const withCorrection = appendCorrectionHistory(updatedRecord, previous, 'manager');
-        const withAudit = appendAuditTrail(withCorrection, {
+        const normalizedIdentityRecord = applyIdentityPolicy(updatedRecord, workerRecordsRef.current);
+        const previous = workerRecordsRef.current.find(r => r.id === normalizedIdentityRecord.id);
+        const withCorrection = appendCorrectionHistory(normalizedIdentityRecord, previous, 'manager');
+        const baseWithAudit = appendAuditTrail(withCorrection, {
             stage: 'correction',
             timestamp: new Date().toISOString(),
             actor: 'manager',
             note: '기록 수정/검토 반영',
         });
+        const identityChanged =
+            (updatedRecord.employeeId || '') !== (normalizedIdentityRecord.employeeId || '') ||
+            (updatedRecord.qrId || '') !== (normalizedIdentityRecord.qrId || '');
+
+        const withAudit = identityChanged
+            ? appendAuditTrail(baseWithAudit, {
+                stage: 'validation',
+                timestamp: new Date().toISOString(),
+                actor: 'system',
+                note: `사번/QR ID 표준화 반영 (${normalizedIdentityRecord.employeeId || '-'} / ${normalizedIdentityRecord.qrId || '-'})`,
+            })
+            : baseWithAudit;
         const nextCompetencyProfile = deriveCompetencyProfile(withAudit);
         const previousWeightVersion = previous?.competencyProfile?.weightVersion;
         const nextWeightVersion = nextCompetencyProfile.weightVersion;
@@ -400,11 +418,14 @@ const App: React.FC = () => {
 
     const handleImport = useCallback(async (records: WorkerRecord[]) => {
         const sanitized = sanitizeRecords(records);
+        const identityContext = [...workerRecordsRef.current];
         for (const record of sanitized) {
+            const normalizedIdentityRecord = applyIdentityPolicy(record, identityContext);
+            identityContext.push(normalizedIdentityRecord);
             const withMetrics = {
-                ...record,
-                integrityScore: deriveIntegrityScore(record),
-                competencyProfile: deriveCompetencyProfile(record),
+                ...normalizedIdentityRecord,
+                integrityScore: deriveIntegrityScore(normalizedIdentityRecord),
+                competencyProfile: deriveCompetencyProfile(normalizedIdentityRecord),
             };
             const enforced = enforceSafetyLevel(withMetrics);
             const hashed = await attachEvidenceHash(enforced);
@@ -422,11 +443,14 @@ const App: React.FC = () => {
             note: '신규 OCR 분석 결과 저장',
         }));
         const finalRecords: WorkerRecord[] = [];
+        const identityContext = [...workerRecordsRef.current];
         for (const record of sanitized) {
+            const normalizedIdentityRecord = applyIdentityPolicy(record, identityContext);
+            identityContext.push(normalizedIdentityRecord);
             const withIntegrity = {
-                ...record,
-                integrityScore: deriveIntegrityScore(record),
-                competencyProfile: deriveCompetencyProfile(record),
+                ...normalizedIdentityRecord,
+                integrityScore: deriveIntegrityScore(normalizedIdentityRecord),
+                competencyProfile: deriveCompetencyProfile(normalizedIdentityRecord),
             };
             const enforced = enforceSafetyLevel(withIntegrity);
             const hashed = await attachEvidenceHash(enforced);
@@ -489,6 +513,7 @@ const App: React.FC = () => {
                         onDeleteAll={handleDeleteAll} 
                         onImport={handleImport} 
                         onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} 
+                        onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); setCurrentPage('individual-report'); }}
                         onDeleteRecord={handleDeleteRecord} 
                         onUpdateRecord={handleUpdateRecord} 
                     />
@@ -497,11 +522,13 @@ const App: React.FC = () => {
                 {currentPage === 'individual-report' && recordForReport && (
                     <IndividualReport 
                         record={recordForReport} 
+                        isQrScanMode={isQrScanMode}
                         history={workerRecords.filter(r => r.name === recordForReport.name && r.teamLeader === recordForReport.teamLeader)} 
-                        onBack={() => { setRecordForReport(null); setCurrentPage('ocr-analysis'); }} 
+                        onBack={() => { setRecordForReport(null); setIsQrScanMode(false); setCurrentPage('ocr-analysis'); }} 
                         onUpdateRecord={(updated) => {
-                            handleUpdateRecord(updated);
-                            setRecordForReport(updated);
+                            const normalized = applyIdentityPolicy(updated, workerRecordsRef.current);
+                            handleUpdateRecord(normalized);
+                            setRecordForReport(normalized);
                         }}
                     />
                 )}
@@ -521,7 +548,7 @@ const App: React.FC = () => {
                     onClose={() => setModalState({type:null})} 
                     onBack={() => setModalState({type:'workerHistory', record:modalState.record, workerName:modalState.record?.name})} 
                     onUpdateRecord={handleUpdateRecord} 
-                    onOpenReport={(r) => { setRecordForReport(r); setCurrentPage('individual-report'); }} 
+                    onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); setCurrentPage('individual-report'); }} 
                     onReanalyze={handleReanalyzeRecord} 
                     isReanalyzing={isReanalyzing} 
                 />

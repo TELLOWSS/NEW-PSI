@@ -17,7 +17,7 @@ const minifyFull = (record: WorkerRecord) => {
     const safeJoin = (arr: unknown[], limit: number): string => safeArr(arr).slice(0, limit).map(safeStr).join('|');
 
     return [
-        4, // Schema Version (Updated)
+        5, // Schema Version (Updated)
         safeStr(record.name).substring(0, 15),
         safeStr(record.jobField).substring(0, 10),
         safeStr(record.date),
@@ -29,6 +29,10 @@ const minifyFull = (record: WorkerRecord) => {
         safeStr(record.aiInsights).substring(0, 100), // 인사이트 100자 제한
         safeStr(record.teamLeader || ""),
         safeStr(record.role || "worker"),
+        safeStr(record.employeeId || "").substring(0, 20),
+        safeStr(record.qrId || "").substring(0, 20),
+        Math.max(0, Math.min(100, Math.round(safeNum(record.integrityScore ?? 0)))),
+        Math.max(0, Math.min(100, Math.round(safeNum((record.ocrConfidence ?? 0) * 100)))),
         // 이미지는 URL 용량 초과 원인이므로 절대 포함하지 않음
     ];
 };
@@ -75,6 +79,12 @@ export const restoreRecordFromUrl = (safeBase64: string): WorkerRecord | null =>
         const safeGet = (index: number, defaultVal: unknown = ""): unknown => (data[index] !== undefined && data[index] !== null) ? data[index] : defaultVal;
         const splitStr = (val: unknown): string[] => (typeof val === 'string' && val.length > 0) ? val.split('|') : [];
 
+        const schemaVersion = Number(safeGet(0, 4));
+        const employeeId = schemaVersion >= 5 ? String(safeGet(12, "")) : "";
+        const qrId = schemaVersion >= 5 ? String(safeGet(13, "")) : "";
+        const integrityScore = schemaVersion >= 5 ? Number(safeGet(14, 0)) : undefined;
+        const ocrConfidencePct = schemaVersion >= 5 ? Number(safeGet(15, 0)) : undefined;
+
         // 복원 시 이미지는 없으므로 빈 값 처리 (공유 받은 사람은 텍스트만 확인 가능)
         return {
             id: `shared-${Date.now()}`,
@@ -89,6 +99,10 @@ export const restoreRecordFromUrl = (safeBase64: string): WorkerRecord | null =>
             aiInsights: String(safeGet(9, "공유된 요약 리포트입니다.")),
             teamLeader: String(safeGet(10, "")),
             role: String(safeGet(11, "worker")) as 'worker' | 'leader' | 'sub_leader',
+            employeeId: employeeId || undefined,
+            qrId: qrId || undefined,
+            integrityScore: typeof integrityScore === 'number' && !Number.isNaN(integrityScore) ? integrityScore : undefined,
+            ocrConfidence: typeof ocrConfidencePct === 'number' && !Number.isNaN(ocrConfidencePct) ? Math.max(0, Math.min(1, ocrConfidencePct / 100)) : undefined,
             
             // 필수 필드 기본값 채움
             aiInsights_native: "",

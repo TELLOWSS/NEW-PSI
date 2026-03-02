@@ -57,6 +57,17 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         alert('저장되었습니다.');
     };
 
+    const handleOpenReportClick = () => {
+        if (hasChanges) {
+            const shouldSaveFirst = confirm('저장되지 않은 변경사항이 있습니다.\n1차 저장 후 안전 리포트로 이동하시겠습니까?');
+            if (shouldSaveFirst) {
+                onUpdateRecord(record);
+                setHasChanges(false);
+            }
+        }
+        onOpenReport(record);
+    };
+
     const handleAddAction = () => {
         if (!actionDetail.trim()) {
             alert('조치 내용을 입력해주세요.');
@@ -242,7 +253,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     </div>
                     <div className="flex items-center gap-3">
                         {hasChanges && (
-                            <button onClick={handleSave} className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-black shadow-lg shadow-indigo-200 animate-pulse">변경사항 저장</button>
+                            <button onClick={handleSave} className="px-6 py-2 bg-indigo-600 text-white rounded-xl text-sm font-black shadow-lg shadow-indigo-200 animate-pulse">1차 저장 (기본정보)</button>
                         )}
                         <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                     </div>
@@ -295,6 +306,35 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     {/* RIGHT: PROFILE & INFO EDIT AREA */}
                     <div className="w-full lg:w-[50%] flex flex-col bg-slate-50 overflow-hidden">
                         <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+                            <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4">
+                                <h4 className="text-sm font-black text-indigo-800 mb-2">모바일 작업 순서 안내</h4>
+                                <p className="text-xs text-indigo-700 font-bold leading-relaxed">
+                                    1) 근로자 정보 수정 → 2) 상단 <span className="underline">1차 저장</span> → 3) <span className="underline">2차 재가공</span>(AI 분석/번역 갱신) → 4) 다시 저장 → 5) 하단 <span className="underline">안전 리포트 보기</span>
+                                </p>
+                            </div>
+
+                            <div className="lg:hidden bg-white border border-slate-200 rounded-2xl p-2 grid grid-cols-3 gap-2 sticky top-0 z-10 shadow-sm">
+                                <button
+                                    onClick={handleSave}
+                                    disabled={!hasChanges}
+                                    className={`px-2 py-2 rounded-xl text-[11px] font-black transition-colors ${hasChanges ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}
+                                >
+                                    1차 저장
+                                </button>
+                                <button
+                                    onClick={handleReflectChanges}
+                                    disabled={isUpdatingAnalysis}
+                                    className={`px-2 py-2 rounded-xl text-[11px] font-black transition-colors ${isUpdatingAnalysis ? 'bg-slate-100 text-slate-400' : 'bg-violet-100 text-violet-700 hover:bg-violet-200'}`}
+                                >
+                                    2차 재가공
+                                </button>
+                                <button
+                                    onClick={handleOpenReportClick}
+                                    className="px-2 py-2 rounded-xl text-[11px] font-black bg-slate-900 text-white"
+                                >
+                                    3차 리포트
+                                </button>
+                            </div>
                             
                             {/* 1. Profile Photo Section (NEW) */}
                             <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex items-center gap-6">
@@ -347,7 +387,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         ) : (
                                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                                         )}
-                                        AI 분석 갱신 (수정사항 반영)
+                                        2차 재가공 (AI 분석/번역 갱신)
                                     </button>
                                 </div>
 
@@ -678,7 +718,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                 <button onClick={handleExportEvidenceCsv} className="text-xs font-black px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all">증빙 CSV</button>
                                 <button onClick={handleExportEvidencePdf} className="text-xs font-black px-4 py-2 rounded-xl bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-all">증빙 패키지 PDF</button>
                             </div>
-                            <button onClick={() => onOpenReport(record)} className="px-10 py-4 bg-slate-900 text-white rounded-2xl text-sm font-black shadow-2xl hover:bg-black transition-all transform hover:-translate-y-1">안전 리포트 보기</button>
+                            <button onClick={handleOpenReportClick} className="px-10 py-4 bg-slate-900 text-white rounded-2xl text-sm font-black shadow-2xl hover:bg-black transition-all transform hover:-translate-y-1">3차 안전 리포트 보기</button>
                         </div>
                     </div>
                 </div>
