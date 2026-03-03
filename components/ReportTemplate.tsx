@@ -4,6 +4,7 @@ import type { Chart } from 'chart.js/auto';
 import type { WorkerRecord } from '../types';
 import { IndividualRadarChart } from './charts/IndividualRadarChart';
 import { getWindowProp } from '../utils/windowUtils';
+import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
 
 interface ReportTemplateProps {
     record: WorkerRecord;
@@ -238,6 +239,11 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                 
                 {/* Header */}
                 <div className="text-center mb-5 shrink-0">
+                    <div className="flex justify-center mb-2">
+                        <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+                            <BrandPhilosophyLogo className="w-8 h-8" />
+                        </div>
+                    </div>
                      <h1 className="text-xl font-serif font-black text-slate-900 uppercase">Certificate of Safety Competence</h1>
                      <p className="text-xs font-bold text-slate-600 font-sans tracking-widest">{labels.cert}</p>
                 </div>

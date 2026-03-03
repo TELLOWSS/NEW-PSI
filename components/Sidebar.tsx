@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import type { Page, AppSettings } from '../types';
+import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
 
 interface SidebarProps {
     currentPage: Page;
@@ -38,10 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
         <div className="w-64 bg-white shadow-lg flex flex-col shrink-0 h-full">
             <div className="p-3 sm:p-4 text-center border-b border-slate-200">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-md">
-                    <svg className="w-7 h-7 sm:w-8 sm:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M12 3l7 3v6c0 5-3 7.5-7 9-4-1.5-7-4-7-9V6l7-3z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2} d="M9.5 12l1.8 1.8L14.8 10.3" />
-                    </svg>
+                    <BrandPhilosophyLogo className="w-7 h-7 sm:w-8 sm:h-8" />
                 </div>
 
                 <h1 className="text-base sm:text-lg font-black text-slate-800 mt-2 tracking-tight">PSI SAFETY</h1>

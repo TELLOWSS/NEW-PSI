@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { BrandPhilosophyLogo } from '../components/shared/BrandPhilosophyLogo';
 
 const Introduction: React.FC = () => {
     const [isGravityOff, setIsGravityOff] = useState(false);
@@ -31,20 +32,7 @@ const Introduction: React.FC = () => {
                 
                 <div className="relative z-10 flex flex-col items-center">
                     <div className="w-28 h-28 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mb-8 shadow-inner border border-white/20 transform hover:scale-105 transition-transform duration-500">
-                         {/* Updated Hero Logo: The Dynamic Shield */}
-                         <svg className="h-20 w-20 text-white filter drop-shadow-lg" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-                            <defs>
-                                <linearGradient id="heroLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stopColor="#6366f1" /> {/* Indigo-500 */}
-                                    <stop offset="100%" stopColor="#4338ca" /> {/* Indigo-700 */}
-                                </linearGradient>
-                            </defs>
-                            {/* Dynamic Slope Shield: Asymmetric & Upward */}
-                            <path d="M8 14 L40 6 V22 C40 34 33 42 24 44 C15 42 8 34 8 22 Z" fill="url(#heroLogoGradient)"/>
-                            <circle cx="24" cy="25" r="7" stroke="white" strokeWidth="2.5" fill="none"/>
-                            <circle cx="24" cy="25" r="3" fill="white"/>
-                            <path d="M24 6 V16" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.6"/>
-                        </svg>
+                        <BrandPhilosophyLogo className="h-20 w-20 filter drop-shadow-lg" />
                     </div>
                     <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight mb-6">
                         PSI: Proactive Safety Intelligence
@@ -174,19 +162,7 @@ const Introduction: React.FC = () => {
                     <div className="flex justify-center">
                         {/* Visual Representation of Logo - LARGE VERSION */}
                         <div className="w-64 h-64 relative animate-float">
-                             <svg className="w-full h-full drop-shadow-2xl" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-                                <defs>
-                                    <linearGradient id="largeLogoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                        <stop offset="0%" stopColor="#4f46e5" /> {/* Indigo-600 */}
-                                        <stop offset="100%" stopColor="#4338ca" /> {/* Indigo-700 */}
-                                    </linearGradient>
-                                </defs>
-                                {/* Dynamic Slope Shield (Asymmetric) */}
-                                <path d="M8 14 L40 6 V22 C40 34 33 42 24 44 C15 42 8 34 8 22 Z" fill="url(#largeLogoGradient)"/>
-                                <circle cx="24" cy="25" r="7" stroke="white" strokeWidth="2.5" className="animate-pulse-slow" fill="none"/>
-                                <circle cx="24" cy="25" r="3" fill="white"/>
-                                <path d="M24 6 V16" stroke="white" strokeWidth="1.5" strokeLinecap="round" opacity="0.6"/>
-                            </svg>
+                            <BrandPhilosophyLogo className="w-full h-full drop-shadow-2xl" />
                             <div className="absolute -bottom-10 left-1/2 transform -translate-x-1/2 text-4xl font-black text-slate-800 tracking-widest">PSI</div>
                         </div>
                     </div>
