@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import type { AppSettings } from '../types';
 import { getIsPaidApiMode, setIsPaidApiMode } from '../utils/apiModeUtils';
+import { getAdminPin, setAdminPin } from '../utils/adminPinUtils';
 
 // [Guide Component] CSS-based Infographics for Beginners
 const SettingsGuide: React.FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -124,6 +125,9 @@ const Settings: React.FC = () => {
     const [isPaidApiMode, setIsPaidApiModeState] = useState(false);
     const [isPinModalOpen, setIsPinModalOpen] = useState(false);
     const [pinInput, setPinInput] = useState('');
+    const [currentPinInput, setCurrentPinInput] = useState('');
+    const [newPinInput, setNewPinInput] = useState('');
+    const [confirmNewPinInput, setConfirmNewPinInput] = useState('');
     const [weightHistory, setWeightHistory] = useState<Array<{
         timestamp: string;
         previousVersion: string | null;
@@ -194,7 +198,7 @@ const Settings: React.FC = () => {
     };
 
     const handleConfirmAdminPin = () => {
-        const adminPin = import.meta.env.VITE_ADMIN_PIN || '';
+        const adminPin = getAdminPin();
         if (pinInput !== adminPin) {
             window.alert('PIN 번호가 일치하지 않습니다.');
             setIsPaidApiModeState(false);
@@ -207,6 +211,36 @@ const Settings: React.FC = () => {
         setIsPaidApiMode(true);
         setPinInput('');
         setIsPinModalOpen(false);
+    };
+
+    const handleChangeAdminPin = () => {
+        const currentPin = getAdminPin();
+
+        if (!currentPinInput || !newPinInput || !confirmNewPinInput) {
+            alert('현재 PIN, 새 PIN, 새 PIN 확인을 모두 입력해주세요.');
+            return;
+        }
+
+        if (currentPinInput !== currentPin) {
+            alert('현재 PIN 번호가 일치하지 않습니다.');
+            return;
+        }
+
+        if (newPinInput !== confirmNewPinInput) {
+            alert('새 PIN 번호가 일치하지 않습니다.');
+            return;
+        }
+
+        if (newPinInput.length < 4) {
+            alert('새 PIN 번호는 최소 4자리 이상이어야 합니다.');
+            return;
+        }
+
+        setAdminPin(newPinInput);
+        setCurrentPinInput('');
+        setNewPinInput('');
+        setConfirmNewPinInput('');
+        alert('관리자 PIN 번호가 변경되었습니다.');
     };
 
     const handleClosePinModal = () => {
@@ -418,6 +452,37 @@ const Settings: React.FC = () => {
                         <input type="checkbox" checked={!!settings.approvalPolicy?.strictRoleGate} onChange={(e) => setSettings({ ...settings, approvalPolicy: { ...(settings.approvalPolicy || { strictRoleGate: false }), strictRoleGate: e.target.checked } })} className="w-5 h-5 rounded border-slate-300 text-amber-600" />
                         <span className="text-sm font-bold text-slate-700">항상 안전관리자 엄격 기준으로 승인 차단 규칙 적용</span>
                     </label>
+                </div>
+
+                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-200 lg:col-span-2">
+                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-4">관리자 PIN 설정</h3>
+                    <p className="text-xs text-slate-500 mb-4">최초 PIN 번호는 .env의 VITE_ADMIN_PIN 값을 사용하며, 아래에서 변경하면 브라우저 로컬에 저장됩니다.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <input
+                            type="password"
+                            value={currentPinInput}
+                            onChange={(e) => setCurrentPinInput(e.target.value)}
+                            placeholder="현재 PIN"
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                        />
+                        <input
+                            type="password"
+                            value={newPinInput}
+                            onChange={(e) => setNewPinInput(e.target.value)}
+                            placeholder="새 PIN"
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                        />
+                        <input
+                            type="password"
+                            value={confirmNewPinInput}
+                            onChange={(e) => setConfirmNewPinInput(e.target.value)}
+                            placeholder="새 PIN 확인"
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                        />
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                        <button onClick={handleChangeAdminPin} className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700">PIN 변경</button>
+                    </div>
                 </div>
 
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-200 lg:col-span-2">
