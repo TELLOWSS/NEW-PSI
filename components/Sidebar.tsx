@@ -38,7 +38,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
     return (
         <div className="w-64 bg-white shadow-lg flex flex-col shrink-0 h-full">
             <div className="p-3 sm:p-4 text-center border-b border-slate-200">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-800 text-white flex items-center justify-center shadow-md">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center shadow-sm p-1">
                     <BrandPhilosophyLogo className="w-7 h-7 sm:w-8 sm:h-8" />
                 </div>
 
@@ -70,8 +70,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
             {/* Developer Credit Footer */}
             <div className="p-3 sm:p-5 border-t border-slate-200 bg-slate-50/50">
                 <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="shrink-0 w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-indigo-700 text-white flex items-center justify-center border border-indigo-800 shadow-sm">
-                        <span className="text-xs sm:text-sm font-black tracking-wide">HG</span>
+                    <div className="shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center shadow-sm p-1">
+                        <BrandPhilosophyLogo className="w-6 h-6 sm:w-7 sm:h-7" />
                     </div>
 
                     <div className="flex flex-col min-w-0">
