@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import type { AppSettings } from '../types';
 import { getIsPaidApiMode, setIsPaidApiMode } from '../utils/apiModeUtils';
-import { getAdminPin, setAdminPin } from '../utils/adminPinUtils';
 
 // [Guide Component] CSS-based Infographics for Beginners
 const SettingsGuide: React.FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -123,11 +122,9 @@ const Settings: React.FC = () => {
     const [showKey, setShowKey] = useState(false);
     const [showGuide, setShowGuide] = useState(false);
     const [isPaidApiMode, setIsPaidApiModeState] = useState(false);
-    const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-    const [pinInput, setPinInput] = useState('');
-    const [currentPinInput, setCurrentPinInput] = useState('');
-    const [newPinInput, setNewPinInput] = useState('');
-    const [confirmNewPinInput, setConfirmNewPinInput] = useState('');
+    const [freeApiKey, setFreeApiKey] = useState('');
+    const [paidApiKey, setPaidApiKey] = useState('');
+    const [adminPin, setAdminPinState] = useState('');
     const [weightHistory, setWeightHistory] = useState<Array<{
         timestamp: string;
         previousVersion: string | null;
@@ -161,6 +158,9 @@ const Settings: React.FC = () => {
     useEffect(() => {
         const savedSettings = localStorage.getItem('psi_app_settings');
         setIsPaidApiModeState(getIsPaidApiMode());
+        setFreeApiKey(localStorage.getItem('freeApiKey') || '');
+        setPaidApiKey(localStorage.getItem('paidApiKey') || '');
+        setAdminPinState(localStorage.getItem('adminPin') || '');
         if (savedSettings) {
             try {
                 const parsed = JSON.parse(savedSettings) as AppSettings;
@@ -188,66 +188,33 @@ const Settings: React.FC = () => {
 
     const handlePaidApiModeToggle = (checked: boolean) => {
         if (checked) {
-            setPinInput('');
-            setIsPinModalOpen(true);
-            return;
+            const enteredPin = window.prompt('관리자 PIN 번호를 입력하세요.');
+            const savedPin = localStorage.getItem('adminPin') || '';
+            if (enteredPin !== savedPin) {
+                window.alert('PIN 번호가 틀렸습니다.');
+                setIsPaidApiModeState(false);
+                setIsPaidApiMode(false);
+                return;
+            }
         }
 
         setIsPaidApiModeState(checked);
         setIsPaidApiMode(checked);
     };
 
-    const handleConfirmAdminPin = () => {
-        const adminPin = getAdminPin();
-        if (pinInput !== adminPin) {
-            window.alert('PIN 번호가 일치하지 않습니다.');
-            setIsPaidApiModeState(false);
-            setIsPaidApiMode(false);
-            setPinInput('');
-            return;
-        }
-
-        setIsPaidApiModeState(true);
-        setIsPaidApiMode(true);
-        setPinInput('');
-        setIsPinModalOpen(false);
+    const handleFreeApiKeyChange = (value: string) => {
+        setFreeApiKey(value);
+        localStorage.setItem('freeApiKey', value);
     };
 
-    const handleChangeAdminPin = () => {
-        const currentPin = getAdminPin();
-
-        if (!currentPinInput || !newPinInput || !confirmNewPinInput) {
-            alert('현재 PIN, 새 PIN, 새 PIN 확인을 모두 입력해주세요.');
-            return;
-        }
-
-        if (currentPinInput !== currentPin) {
-            alert('현재 PIN 번호가 일치하지 않습니다.');
-            return;
-        }
-
-        if (newPinInput !== confirmNewPinInput) {
-            alert('새 PIN 번호가 일치하지 않습니다.');
-            return;
-        }
-
-        if (newPinInput.length < 4) {
-            alert('새 PIN 번호는 최소 4자리 이상이어야 합니다.');
-            return;
-        }
-
-        setAdminPin(newPinInput);
-        setCurrentPinInput('');
-        setNewPinInput('');
-        setConfirmNewPinInput('');
-        alert('관리자 PIN 번호가 변경되었습니다.');
+    const handlePaidApiKeyChange = (value: string) => {
+        setPaidApiKey(value);
+        localStorage.setItem('paidApiKey', value);
     };
 
-    const handleClosePinModal = () => {
-        setPinInput('');
-        setIsPinModalOpen(false);
-        setIsPaidApiModeState(false);
-        setIsPaidApiMode(false);
+    const handleAdminPinChange = (value: string) => {
+        setAdminPinState(value);
+        localStorage.setItem('adminPin', value);
     };
 
     useEffect(() => {
@@ -369,20 +336,40 @@ const Settings: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-8">
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100">
                     <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">1단계: Google Gemini API 연결</h3>
-                    <label className="block text-sm font-bold text-slate-600 mb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
-                        API Key 입력
-                        <span className="text-xs text-indigo-500 font-normal cursor-pointer hover:underline" onClick={() => window.open('https://aistudio.google.com/app/apikey')}>키가 없으신가요?</span>
-                    </label>
-                    <div className="relative">
+                    <label className="block text-sm font-bold text-slate-600 mb-2">무료 API 키</label>
+                    <div className="relative mb-4">
                         <input
                             type={showKey ? 'text' : 'password'}
-                            value={settings.apiKey}
-                            onChange={(e) => setSettings({ ...settings, apiKey: e.target.value })}
-                            placeholder="AI Studio에서 발급받은 키를 붙여넣으세요"
+                            value={freeApiKey}
+                            onChange={(e) => handleFreeApiKeyChange(e.target.value)}
+                            placeholder="무료 API 키 입력"
+                            className="w-full p-4 pr-12 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-500 font-mono text-sm transition-all"
+                        />
+                    </div>
+
+                    <label className="block text-sm font-bold text-slate-600 mb-2">유료 API 키</label>
+                    <div className="relative mb-4">
+                        <input
+                            type={showKey ? 'text' : 'password'}
+                            value={paidApiKey}
+                            onChange={(e) => handlePaidApiKeyChange(e.target.value)}
+                            placeholder="유료 API 키 입력"
+                            className="w-full p-4 pr-12 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-500 font-mono text-sm transition-all"
+                        />
+                    </div>
+
+                    <label className="block text-sm font-bold text-slate-600 mb-2">관리자 PIN 번호</label>
+                    <div className="relative mb-2">
+                        <input
+                            type={showKey ? 'text' : 'password'}
+                            value={adminPin}
+                            onChange={(e) => handleAdminPinChange(e.target.value)}
+                            placeholder="관리자 PIN 번호 입력"
                             className="w-full p-4 pr-12 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-500 font-mono text-sm transition-all"
                         />
                         <button onClick={() => setShowKey(!showKey)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600">{showKey ? '숨김' : '보기'}</button>
                     </div>
+                    <span className="text-xs text-indigo-500 font-normal cursor-pointer hover:underline" onClick={() => window.open('https://aistudio.google.com/app/apikey')}>키가 없으신가요?</span>
                     <div className="mt-5 flex items-center justify-between gap-3">
                         <label className="inline-flex items-center gap-3 cursor-pointer select-none">
                         <input
@@ -454,37 +441,6 @@ const Settings: React.FC = () => {
                     </label>
                 </div>
 
-                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-200 lg:col-span-2">
-                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-4">관리자 PIN 설정</h3>
-                    <p className="text-xs text-slate-500 mb-4">최초 PIN 번호는 .env의 VITE_ADMIN_PIN 값을 사용하며, 아래에서 변경하면 브라우저 로컬에 저장됩니다.</p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <input
-                            type="password"
-                            value={currentPinInput}
-                            onChange={(e) => setCurrentPinInput(e.target.value)}
-                            placeholder="현재 PIN"
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl"
-                        />
-                        <input
-                            type="password"
-                            value={newPinInput}
-                            onChange={(e) => setNewPinInput(e.target.value)}
-                            placeholder="새 PIN"
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl"
-                        />
-                        <input
-                            type="password"
-                            value={confirmNewPinInput}
-                            onChange={(e) => setConfirmNewPinInput(e.target.value)}
-                            placeholder="새 PIN 확인"
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl"
-                        />
-                    </div>
-                    <div className="mt-3 flex justify-end">
-                        <button onClick={handleChangeAdminPin} className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700">PIN 변경</button>
-                    </div>
-                </div>
-
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-200 lg:col-span-2">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                         <h3 className="text-lg sm:text-xl font-bold text-slate-900">가중치 버전 변경 이력</h3>
@@ -513,28 +469,6 @@ const Settings: React.FC = () => {
                 <button onClick={handleResetData} className="w-full sm:w-auto px-6 py-3 text-red-600 font-bold bg-red-50 hover:bg-red-100 rounded-xl transition-colors">데이터 초기화 (Factory Reset)</button>
                 <button onClick={handleSave} className="w-full sm:w-auto px-10 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl hover:bg-indigo-700 transition-all">설정 저장 및 적용</button>
             </div>
-
-            {isPinModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="관리자 PIN 확인">
-                    <div className="absolute inset-0 bg-black/50" onClick={handleClosePinModal}></div>
-                    <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
-                        <h4 className="text-lg font-black text-slate-900 mb-2">관리자 인증</h4>
-                        <p className="text-sm text-slate-500 mb-4">관리자 PIN 번호를 입력하세요.</p>
-                        <input
-                            type="password"
-                            value={pinInput}
-                            onChange={(e) => setPinInput(e.target.value)}
-                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mb-4"
-                            placeholder="PIN 입력"
-                            autoFocus
-                        />
-                        <div className="flex gap-2">
-                            <button onClick={handleClosePinModal} className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200">취소</button>
-                            <button onClick={handleConfirmAdminPin} className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700">확인</button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

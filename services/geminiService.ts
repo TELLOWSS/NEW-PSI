@@ -79,12 +79,11 @@ const isModelAvailabilityError = (errorMsg: string): boolean => {
 const getAiInstance = () => {
     const isPaidApiMode = getIsPaidApiMode();
     const apiKey = isPaidApiMode
-        ? (import.meta.env.VITE_GEMINI_API_KEY_PAID || "")
-        : (import.meta.env.VITE_GEMINI_API_KEY_FREE || "");
+        ? (localStorage.getItem('paidApiKey') || '')
+        : (localStorage.getItem('freeApiKey') || '');
 
     if (!apiKey) {
-        const modeLabel = isPaidApiMode ? '유료' : '무료';
-        throw new Error(`${modeLabel} API Key가 설정되지 않았습니다. .env에서 VITE_GEMINI_API_KEY_${isPaidApiMode ? 'PAID' : 'FREE'} 값을 확인해주세요.`);
+        throw new Error('설정 화면에서 API 키를 먼저 입력해주세요.');
     }
 
     return new GoogleGenAI({ apiKey });
