@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import type { AppSettings } from '../types';
+import { getIsPaidApiMode, setIsPaidApiMode } from '../utils/apiModeUtils';
 
 // [Guide Component] CSS-based Infographics for Beginners
 const SettingsGuide: React.FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -120,6 +121,9 @@ const Settings: React.FC = () => {
     const [jobFieldInput, setJobFieldInput] = useState('');
     const [showKey, setShowKey] = useState(false);
     const [showGuide, setShowGuide] = useState(false);
+    const [isPaidApiMode, setIsPaidApiModeState] = useState(false);
+    const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+    const [pinInput, setPinInput] = useState('');
     const [weightHistory, setWeightHistory] = useState<Array<{
         timestamp: string;
         previousVersion: string | null;
@@ -152,6 +156,7 @@ const Settings: React.FC = () => {
 
     useEffect(() => {
         const savedSettings = localStorage.getItem('psi_app_settings');
+        setIsPaidApiModeState(getIsPaidApiMode());
         if (savedSettings) {
             try {
                 const parsed = JSON.parse(savedSettings) as AppSettings;
@@ -176,6 +181,40 @@ const Settings: React.FC = () => {
             setShowGuide(true);
         }
     }, []);
+
+    const handlePaidApiModeToggle = (checked: boolean) => {
+        if (checked) {
+            setPinInput('');
+            setIsPinModalOpen(true);
+            return;
+        }
+
+        setIsPaidApiModeState(checked);
+        setIsPaidApiMode(checked);
+    };
+
+    const handleConfirmAdminPin = () => {
+        const adminPin = import.meta.env.VITE_ADMIN_PIN || '';
+        if (pinInput !== adminPin) {
+            window.alert('PIN 번호가 일치하지 않습니다.');
+            setIsPaidApiModeState(false);
+            setIsPaidApiMode(false);
+            setPinInput('');
+            return;
+        }
+
+        setIsPaidApiModeState(true);
+        setIsPaidApiMode(true);
+        setPinInput('');
+        setIsPinModalOpen(false);
+    };
+
+    const handleClosePinModal = () => {
+        setPinInput('');
+        setIsPinModalOpen(false);
+        setIsPaidApiModeState(false);
+        setIsPaidApiMode(false);
+    };
 
     useEffect(() => {
         const historyRaw = localStorage.getItem('psi_competency_weight_history');
@@ -310,6 +349,20 @@ const Settings: React.FC = () => {
                         />
                         <button onClick={() => setShowKey(!showKey)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600">{showKey ? '숨김' : '보기'}</button>
                     </div>
+                    <div className="mt-5 flex items-center justify-between gap-3">
+                        <label className="inline-flex items-center gap-3 cursor-pointer select-none">
+                        <input
+                            type="checkbox"
+                            checked={isPaidApiMode}
+                            onChange={(e) => handlePaidApiModeToggle(e.target.checked)}
+                            className="w-5 h-5 rounded border-slate-300 text-indigo-600"
+                        />
+                        <span className="text-sm font-bold text-slate-700">🚀 대규모 고속 처리 모드 (유료 API)</span>
+                        </label>
+                        <span className={`text-xs font-black px-3 py-1 rounded-full ${isPaidApiMode ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                            {isPaidApiMode ? '현재: 유료 API' : '현재: 무료 API'}
+                        </span>
+                    </div>
                 </div>
 
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-200">
@@ -395,6 +448,28 @@ const Settings: React.FC = () => {
                 <button onClick={handleResetData} className="w-full sm:w-auto px-6 py-3 text-red-600 font-bold bg-red-50 hover:bg-red-100 rounded-xl transition-colors">데이터 초기화 (Factory Reset)</button>
                 <button onClick={handleSave} className="w-full sm:w-auto px-10 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl hover:bg-indigo-700 transition-all">설정 저장 및 적용</button>
             </div>
+
+            {isPinModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="관리자 PIN 확인">
+                    <div className="absolute inset-0 bg-black/50" onClick={handleClosePinModal}></div>
+                    <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-200">
+                        <h4 className="text-lg font-black text-slate-900 mb-2">관리자 인증</h4>
+                        <p className="text-sm text-slate-500 mb-4">관리자 PIN 번호를 입력하세요.</p>
+                        <input
+                            type="password"
+                            value={pinInput}
+                            onChange={(e) => setPinInput(e.target.value)}
+                            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl mb-4"
+                            placeholder="PIN 입력"
+                            autoFocus
+                        />
+                        <div className="flex gap-2">
+                            <button onClick={handleClosePinModal} className="flex-1 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200">취소</button>
+                            <button onClick={handleConfirmAdminPin} className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700">확인</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -1,9 +1,10 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { getWindowProp } from '../utils/windowUtils';
-import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, AppSettings, HandwrittenAnswer } from '../types';
+import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, HandwrittenAnswer } from '../types';
 import { extractMessage } from '../utils/errorUtils';
 import { deriveIntegrityScore, enforceSafetyLevel } from '../utils/evidenceUtils';
+import { getIsPaidApiMode } from '../utils/apiModeUtils';
 
 /**
  * [API Rate Limiting State Management]
@@ -75,26 +76,15 @@ const isModelAvailabilityError = (errorMsg: string): boolean => {
            msg.includes('model') && (msg.includes('not found') || msg.includes('unsupported') || msg.includes('unavailable'));
 };
 
-// [BYOK Implementation]
-// Instead of a global instance, we create a function to get the instance dynamically.
-// This allows the user to change the key in Settings and have it apply immediately.
 const getAiInstance = () => {
-    let apiKey = process.env.API_KEY || "";
-    
-    try {
-        const settingsStr = localStorage.getItem('psi_app_settings');
-        if (settingsStr) {
-            const settings: AppSettings = JSON.parse(settingsStr);
-            if (settings.apiKey && settings.apiKey.trim() !== "") {
-                apiKey = settings.apiKey;
-            }
-        }
-    } catch (e) {
-        console.warn("Failed to load API key from settings", e);
-    }
+    const isPaidApiMode = getIsPaidApiMode();
+    const apiKey = isPaidApiMode
+        ? (import.meta.env.VITE_GEMINI_API_KEY_PAID || "")
+        : (import.meta.env.VITE_GEMINI_API_KEY_FREE || "");
 
     if (!apiKey) {
-        throw new Error("API Key가 설정되지 않았습니다. [설정] 메뉴에서 Google API Key를 입력해주세요.");
+        const modeLabel = isPaidApiMode ? '유료' : '무료';
+        throw new Error(`${modeLabel} API Key가 설정되지 않았습니다. .env에서 VITE_GEMINI_API_KEY_${isPaidApiMode ? 'PAID' : 'FREE'} 값을 확인해주세요.`);
     }
 
     return new GoogleGenAI({ apiKey });
@@ -431,7 +421,7 @@ async function callGeminiWithRetry(
         
         // Only log in non-production/dev debug environments to avoid leaking info in prod
         const isDevWindow = getWindowProp<boolean>('__DEV__');
-        if ((typeof process !== 'undefined' && process.env && process.env.NODE_ENV !== 'production') || isDevWindow) {
+        if (import.meta.env.DEV || isDevWindow) {
             console.log(`[Gemini] Processing image: ${mimeType}, length: ${imageData.length}`);
         }
     } catch (e: unknown) {

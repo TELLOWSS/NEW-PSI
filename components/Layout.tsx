@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import type { Page } from '../types';
+import { API_MODE_CHANGED_EVENT, getIsPaidApiMode } from '../utils/apiModeUtils';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -11,6 +12,7 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [isPaidApiMode, setIsPaidApiMode] = useState(false);
 
     const pageTitles: { [key in Page]: string } = {
         'dashboard': '대시보드',
@@ -54,6 +56,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         };
     }, [isMobileMenuOpen]);
 
+    useEffect(() => {
+        const syncApiMode = () => setIsPaidApiMode(getIsPaidApiMode());
+        syncApiMode();
+
+        window.addEventListener('storage', syncApiMode);
+        window.addEventListener(API_MODE_CHANGED_EVENT, syncApiMode);
+
+        return () => {
+            window.removeEventListener('storage', syncApiMode);
+            window.removeEventListener(API_MODE_CHANGED_EVENT, syncApiMode);
+        };
+    }, []);
+
     return (
         <div className="flex h-screen bg-slate-100 text-slate-800">
             {/* Desktop Sidebar - Hidden on mobile */}
@@ -81,7 +96,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                 {/* Header with mobile hamburger */}
                 <header className="bg-white shadow-sm z-10 shrink-0 no-print">
                     <div className="mx-auto px-4 sm:px-6 lg:px-8">
-                       <div className="flex items-center h-14 sm:h-16">
+                       <div className="flex items-center h-14 sm:h-16 gap-2">
                            {/* Mobile Menu Button */}
                            <button
                                onClick={() => setIsMobileMenuOpen(true)}
@@ -97,6 +112,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                            <h1 className="text-sm sm:text-lg lg:text-xl font-bold text-slate-900 truncate flex-1">
                                {pageTitles[currentPage]}
                            </h1>
+                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] sm:text-xs font-black ${isPaidApiMode ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                               <span className="sm:hidden">{isPaidApiMode ? '유료' : '무료'}</span>
+                               <span className="hidden sm:inline">{isPaidApiMode ? '유료 API' : '무료 API'}</span>
+                           </span>
                        </div>
                     </div>
                 </header>
