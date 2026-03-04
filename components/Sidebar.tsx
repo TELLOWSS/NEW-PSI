@@ -42,7 +42,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
                     <BrandPhilosophyLogo className="w-7 h-7 sm:w-8 sm:h-8" />
                 </div>
 
-                <h1 className="text-base sm:text-lg font-black text-slate-800 mt-2 tracking-tight">PSI SAFETY</h1>
+                <div className="mt-2 flex items-center justify-center gap-2">
+                    <h1 className="text-base sm:text-lg font-black text-slate-800 tracking-tight">PSI SAFETY</h1>
+                    <div
+                        className="relative group/patent"
+                        title="특허출원 제10-2026-0039151호 (발명자: 박성훈)"
+                        aria-label="특허출원 상태"
+                    >
+                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l7 4v5c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V7l7-4z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
+                            </svg>
+                            <span className="hidden lg:inline">특허출원</span>
+                        </span>
+
+                        <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 w-max -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-medium text-white opacity-0 shadow-lg transition-all duration-200 group-hover/patent:translate-y-0 group-hover/patent:opacity-100 translate-y-1">
+                            특허출원 제10-2026-0039151호 (발명자: 박성훈)
+                        </div>
+                    </div>
+                </div>
                 <p className="text-[11px] sm:text-xs text-slate-500 font-bold">Proactive Safety Intelligence</p>
                 <div className="bg-slate-100 rounded-md p-1.5 sm:p-2 mt-3 sm:mt-4">
                      <p className="text-[10px] sm:text-xs font-semibold text-slate-700 truncate px-1">{siteName} 현장</p>

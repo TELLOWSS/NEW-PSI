@@ -110,9 +110,27 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                </svg>
                            </button>
                            
-                           <h1 className="text-sm sm:text-lg lg:text-xl font-bold text-slate-900 truncate flex-1">
-                               {pageTitles[currentPage]}
-                           </h1>
+                           <div className="flex items-center gap-2 flex-1 min-w-0">
+                               <h1 className="text-sm sm:text-lg lg:text-xl font-bold text-slate-900 truncate">
+                                   {pageTitles[currentPage]}
+                               </h1>
+                               <div
+                                   className="relative group/patent shrink-0"
+                                   title="특허출원 제10-2026-0039151호 (발명자: 박성훈)"
+                                   aria-label="특허출원 상태"
+                               >
+                                   <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-bold text-sky-700">
+                                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l7 4v5c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V7l7-4z" />
+                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
+                                       </svg>
+                                       <span className="hidden md:inline">Pat. Pending</span>
+                                   </span>
+                                   <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 w-max -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-medium text-white opacity-0 shadow-lg transition-all duration-200 group-hover/patent:translate-y-0 group-hover/patent:opacity-100 translate-y-1">
+                                       특허출원 제10-2026-0039151호 (발명자: 박성훈)
+                                   </div>
+                               </div>
+                           </div>
                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] sm:text-xs font-black ${isPaidApiMode ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
                                <span className="sm:hidden">{isPaidApiMode ? '유료' : '무료'}</span>
                                <span className="hidden sm:inline">{isPaidApiMode ? '유료 API' : '무료 API'}</span>
