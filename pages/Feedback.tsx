@@ -223,6 +223,7 @@ const Feedback: React.FC = () => {
                                     disabled={status === 'sending' || status === 'success'}
                                 >
                                     <option>🚨 현장 위험 요소 긴급 제보</option>
+                                    <option>📄 특허/법무/공신력 관련 문의</option>
                                     <option>🎨 브랜드/로고 가독성 개선 요청</option>
                                     <option>📱 모바일 화면/네비게이션 최적화 요청</option>
                                     <option>🎛️ 대시보드 색상/버전 표기 개선</option>
@@ -275,6 +276,35 @@ const Feedback: React.FC = () => {
                                 )}
                             </button>
                         </form>
+
+                        <div
+                            className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 relative group/patent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
+                            title="특허출원 제10-2026-0039151호 (발명자: 박성훈)"
+                            aria-label="특허출원 신뢰 안내"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                    (e.currentTarget as HTMLDivElement).blur();
+                                }
+                            }}
+                        >
+                            <div className="flex items-start gap-2">
+                                <svg className="w-4 h-4 mt-0.5 text-emerald-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l7 4v5c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V7l7-4z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
+                                </svg>
+                                <div>
+                                    <p className="text-xs font-black text-emerald-800">PSI 특허 출원 기반 신뢰 안내</p>
+                                    <p className="text-xs text-emerald-700 mt-1 leading-relaxed">
+                                        특허출원 제10-2026-0039151호 (발명자: 박성훈). 시스템 공신력/권리화 관련 문의는
+                                        피드백 유형에서 “특허/법무/공신력 관련 문의”를 선택해 접수해 주세요.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="pointer-events-none absolute left-0 top-full z-20 mt-2 max-w-[min(260px,calc(100vw-2rem))] rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-medium text-white opacity-0 shadow-lg transition-all duration-200 group-hover/patent:translate-y-0 group-hover/patent:opacity-100 group-focus-within/patent:translate-y-0 group-focus-within/patent:opacity-100 translate-y-1 sm:left-4 sm:w-max sm:max-w-[90%]">
+                                특허출원 제10-2026-0039151호 (발명자: 박성훈)
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

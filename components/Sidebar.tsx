@@ -45,9 +45,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
                 <div className="mt-2 flex items-center justify-center gap-2">
                     <h1 className="text-base sm:text-lg font-black text-slate-800 tracking-tight">PSI SAFETY</h1>
                     <div
-                        className="relative group/patent"
+                        className="relative group/patent rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
                         title="특허출원 제10-2026-0039151호 (발명자: 박성훈)"
                         aria-label="특허출원 상태"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                                (e.currentTarget as HTMLDivElement).blur();
+                            }
+                        }}
                     >
                         <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -57,7 +63,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
                             <span className="hidden lg:inline">특허출원</span>
                         </span>
 
-                        <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 w-max -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-medium text-white opacity-0 shadow-lg transition-all duration-200 group-hover/patent:translate-y-0 group-hover/patent:opacity-100 translate-y-1">
+                        <div className="pointer-events-none absolute left-0 top-full z-30 mt-2 max-w-[min(260px,calc(100vw-2rem))] rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-medium text-white opacity-0 shadow-lg transition-all duration-200 group-hover/patent:translate-y-0 group-hover/patent:opacity-100 group-focus-within/patent:translate-y-0 group-focus-within/patent:opacity-100 translate-y-1 sm:left-1/2 sm:w-max sm:max-w-none sm:-translate-x-1/2">
                             특허출원 제10-2026-0039151호 (발명자: 박성훈)
                         </div>
                     </div>
