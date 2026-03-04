@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
+import { Footer } from './Footer';
 import type { Page } from '../types';
 import { API_MODE_CHANGED_EVENT, getIsPaidApiMode } from '../utils/apiModeUtils';
 
@@ -119,12 +120,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                        </div>
                     </div>
                 </header>
-                <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8">
+                <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 pb-10">
                     <div key={currentPage} className="mx-auto max-w-7xl animate-fade-in-up">
                         {children}
                     </div>
                 </main>
             </div>
+            <Footer />
         </div>
     );
 };

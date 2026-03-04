@@ -469,6 +469,36 @@ const Settings: React.FC = () => {
                 <button onClick={handleResetData} className="w-full sm:w-auto px-6 py-3 text-red-600 font-bold bg-red-50 hover:bg-red-100 rounded-xl transition-colors">데이터 초기화 (Factory Reset)</button>
                 <button onClick={handleSave} className="w-full sm:w-auto px-10 py-4 bg-indigo-600 text-white font-black rounded-2xl shadow-xl hover:bg-indigo-700 transition-all">설정 저장 및 적용</button>
             </div>
+
+            <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-200">
+                <div className="flex items-center gap-2 mb-5">
+                    <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l7 4v5c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V7l7-4z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
+                    </svg>
+                    <h3 className="text-lg sm:text-xl font-bold text-slate-900">시스템 및 특허 정보 (System & Patent Info)</h3>
+                </div>
+
+                <dl className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-x-4 gap-y-3 text-sm">
+                    <dt className="font-bold text-slate-600">시스템명</dt>
+                    <dd className="text-slate-800">PSI (Proactive Safety Intelligence) v1.0</dd>
+
+                    <dt className="font-bold text-slate-600">발명의 명칭</dt>
+                    <dd className="text-slate-800">인공지능(AI) 기반 위험성평가 무결성 검증 및 대규모 근로자 안전 관리 자동화 시스템</dd>
+
+                    <dt className="font-bold text-slate-600">출원번호</dt>
+                    <dd className="text-slate-800">10-2026-0039151</dd>
+
+                    <dt className="font-bold text-slate-600">출원일자</dt>
+                    <dd className="text-slate-800">2026.03.04</dd>
+
+                    <dt className="font-bold text-slate-600">발명자</dt>
+                    <dd className="text-slate-800">박성훈</dd>
+
+                    <dt className="font-bold text-slate-600">법적 상태</dt>
+                    <dd className="text-slate-800">대한민국 특허청 심사 대기 및 우선권 주장(선출원) 완료</dd>
+                </dl>
+            </div>
         </div>
     );
 };
