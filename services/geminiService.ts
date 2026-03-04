@@ -196,6 +196,14 @@ const parseJsonObjectFromText = (rawText: string): Record<string, unknown> | nul
     }
 };
 
+export interface ExternalIssueAnalysisResult {
+    issueDate: string;
+    location: string;
+    summary: string;
+    riskLevel: 'High' | 'Medium' | 'Low';
+    requiredAction: string;
+}
+
 
 
 const LANGUAGE_POLICY = `
@@ -916,6 +924,79 @@ export async function generateFutureRiskForecast(workers: WorkerRecord[]): Promi
             focusTeams: [],
             aiAdvice: "데이터 분석 중 오류가 발생했습니다."
         };
+    }
+}
+
+export async function analyzeExternalIssueDocument(base64Data: string, mimeType: string): Promise<ExternalIssueAnalysisResult> {
+    try {
+        const ai = getAiInstance();
+        const cleanBase64 = (base64Data || '').replace(/^data:[^;]+;base64,/i, '').replace(/\s/g, '');
+        const normalizedMimeType = mimeType || 'image/jpeg';
+
+        if (!cleanBase64 || cleanBase64.length < 50) {
+            throw new Error('외부 지적사항 문서 데이터가 비어있거나 유효하지 않습니다.');
+        }
+
+        const response = await ai.models.generateContent({
+            model: OCR_MODEL_PRIMARY,
+            contents: {
+                parts: [
+                    {
+                        text: `당신은 건설현장 안전관리 AI 분석관이다.
+다음 외부 지적사항 문서(이미지 또는 PDF)를 분석해 JSON만 반환하라.
+
+추출 항목:
+1) issueDate: 지적 날짜 (YYYY-MM-DD, 알 수 없으면 "")
+2) location: 발생 위치 (구역/동/층 포함 요약)
+3) summary: 지적 내용 핵심 요약 (한글, 2문장 이내)
+4) riskLevel: 위험 등급 (High, Medium, Low 중 하나)
+5) requiredAction: 요구되는 조치사항 (한글, 구체적 실행형)
+
+규칙:
+- 반드시 JSON 단일 객체만 반환
+- 불확실한 항목은 추정하지 말고 빈 문자열 또는 Medium 기본값 사용
+- 불필요한 설명, 코드블록, 마크다운 금지`
+                    },
+                    {
+                        inlineData: {
+                            mimeType: normalizedMimeType,
+                            data: cleanBase64
+                        }
+                    }
+                ]
+            },
+            config: {
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        issueDate: { type: Type.STRING },
+                        location: { type: Type.STRING },
+                        summary: { type: Type.STRING },
+                        riskLevel: { type: Type.STRING, enum: ['High', 'Medium', 'Low'] },
+                        requiredAction: { type: Type.STRING }
+                    },
+                    required: ['issueDate', 'location', 'summary', 'riskLevel', 'requiredAction']
+                },
+                temperature: 0.2
+            }
+        });
+
+        const parsed = response.text ? parseJsonObjectFromText(response.text) : null;
+        if (!parsed) {
+            throw new Error('외부 지적사항 분석 결과를 JSON으로 파싱하지 못했습니다.');
+        }
+
+        return {
+            issueDate: String(parsed.issueDate || ''),
+            location: String(parsed.location || ''),
+            summary: String(parsed.summary || ''),
+            riskLevel: (['High', 'Medium', 'Low'].includes(String(parsed.riskLevel)) ? String(parsed.riskLevel) : 'Medium') as ExternalIssueAnalysisResult['riskLevel'],
+            requiredAction: String(parsed.requiredAction || '')
+        };
+    } catch (error) {
+        const message = extractMessage(error);
+        throw new Error(`외부 지적사항 AI 분석 실패: ${message}`);
     }
 }
 // [Export] Core Utilities for use in other modules

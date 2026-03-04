@@ -1,5 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Spinner } from '../components/Spinner';
+import { analyzeExternalIssueDocument } from '../services/geminiService';
+import { compressImage } from '../utils/imageCompression';
 
 interface Issue {
     id: string;
@@ -12,7 +15,57 @@ interface Issue {
     status: '검토 필요' | '조치 중' | '조치 완료';
     image?: string;
     responsiblePerson: string;
+    riskLevel?: 'High' | 'Medium' | 'Low';
 }
+
+const createIssueDraft = (): Partial<Issue> => ({
+    status: '검토 필요',
+    date: new Date().toISOString().split('T')[0],
+    type: '기타',
+    riskLevel: 'Medium'
+});
+
+const readFileAsBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = typeof reader.result === 'string' ? reader.result : '';
+            const base64 = result.includes(',') ? result.split(',')[1] : '';
+            if (!base64) {
+                reject(new Error('파일 Base64 변환에 실패했습니다.'));
+                return;
+            }
+            resolve(base64);
+        };
+        reader.onerror = () => reject(new Error('파일을 읽는 중 오류가 발생했습니다.'));
+        reader.readAsDataURL(file);
+    });
+};
+
+const normalizeAiDate = (input: string): string => {
+    if (!input) return new Date().toISOString().split('T')[0];
+
+    const trimmed = input.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+
+    const normalized = trimmed.replace(/[./년월]/g, '-').replace(/[일\s]/g, '');
+    const parts = normalized.split('-').filter(Boolean);
+    if (parts.length >= 3) {
+        const [year, month, day] = parts;
+        const safeYear = year.padStart(4, '0').slice(-4);
+        const safeMonth = month.padStart(2, '0').slice(-2);
+        const safeDay = day.padStart(2, '0').slice(-2);
+        return `${safeYear}-${safeMonth}-${safeDay}`;
+    }
+
+    return new Date().toISOString().split('T')[0];
+};
+
+const mapRiskToIssueType = (riskLevel: 'High' | 'Medium' | 'Low'): string => {
+    if (riskLevel === 'High') return '추락 위험';
+    if (riskLevel === 'Medium') return '낙하물 위험';
+    return '기타';
+};
 
 const SiteIssueManagement: React.FC = () => {
     const [issues, setIssues] = useState<Issue[]>(() => {
@@ -23,12 +76,12 @@ const SiteIssueManagement: React.FC = () => {
     });
     const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
     const [showAddModal, setShowAddModal] = useState(false);
+    const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
+    const issueImageInputRef = useRef<HTMLInputElement>(null);
+    const externalIssueInputRef = useRef<HTMLInputElement>(null);
 
     // New Issue Form State
-    const [newIssue, setNewIssue] = useState<Partial<Issue>>({
-        status: '검토 필요',
-        date: new Date().toISOString().split('T')[0]
-    });
+    const [newIssue, setNewIssue] = useState<Partial<Issue>>(createIssueDraft());
 
     useEffect(() => {
         localStorage.setItem('psi_site_issues', JSON.stringify(issues));
@@ -39,6 +92,88 @@ const SiteIssueManagement: React.FC = () => {
             case '조치 완료': return 'bg-green-100 text-green-700 border border-green-200';
             case '조치 중': return 'bg-blue-100 text-blue-700 border border-blue-200';
             default: return 'bg-red-100 text-red-700 border border-red-200';
+        }
+    };
+
+    const getRiskBadge = (riskLevel?: Issue['riskLevel']) => {
+        if (riskLevel === 'High') return 'bg-red-100 text-red-700 border border-red-200';
+        if (riskLevel === 'Low') return 'bg-green-100 text-green-700 border border-green-200';
+        return 'bg-amber-100 text-amber-700 border border-amber-200';
+    };
+
+    const resetIssueDraft = () => {
+        setNewIssue(createIssueDraft());
+        if (issueImageInputRef.current) {
+            issueImageInputRef.current.value = '';
+        }
+    };
+
+    const closeAddModal = () => {
+        setShowAddModal(false);
+        resetIssueDraft();
+    };
+
+    const handleIssueImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+            const compressedBase64 = await compressImage(file);
+            setNewIssue((prev) => ({ ...prev, image: compressedBase64 }));
+        } catch (error) {
+            console.error('Issue image compression failed:', error);
+            alert('사진 최적화 중 오류가 발생했습니다. 다시 시도해주세요.');
+        }
+    };
+
+    const handleExternalIssueUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setIsAiAnalyzing(true);
+        try {
+            const isImage = file.type.startsWith('image/');
+            const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+            if (!isImage && !isPdf) {
+                alert('이미지 또는 PDF 파일만 업로드할 수 있습니다.');
+                return;
+            }
+
+            let analysisBase64 = '';
+            let analysisMimeType = file.type || 'application/octet-stream';
+            let previewImage = '';
+
+            if (isImage) {
+                analysisBase64 = await compressImage(file);
+                analysisMimeType = 'image/jpeg';
+                previewImage = analysisBase64;
+            } else {
+                analysisBase64 = await readFileAsBase64(file);
+                analysisMimeType = 'application/pdf';
+            }
+
+            const analyzed = await analyzeExternalIssueDocument(analysisBase64, analysisMimeType);
+            setNewIssue({
+                ...createIssueDraft(),
+                date: normalizeAiDate(analyzed.issueDate),
+                location: analyzed.location,
+                type: mapRiskToIssueType(analyzed.riskLevel),
+                description: analyzed.summary,
+                actionRequired: analyzed.requiredAction,
+                riskLevel: analyzed.riskLevel,
+                image: previewImage || undefined,
+                status: '검토 필요'
+            });
+            setShowAddModal(true);
+        } catch (error) {
+            console.error('External issue auto-analysis failed:', error);
+            alert(error instanceof Error ? error.message : '외부 지적사항 분석 중 오류가 발생했습니다.');
+        } finally {
+            setIsAiAnalyzing(false);
+            if (externalIssueInputRef.current) {
+                externalIssueInputRef.current.value = '';
+            }
         }
     };
 
@@ -57,12 +192,11 @@ const SiteIssueManagement: React.FC = () => {
             actionRequired: newIssue.actionRequired || '',
             status: '검토 필요',
             responsiblePerson: newIssue.responsiblePerson || '',
-            // Placeholder image for demo if none provided
-            image: undefined 
+            image: newIssue.image,
+            riskLevel: newIssue.riskLevel || 'Medium'
         };
         setIssues([issue, ...issues]);
-        setShowAddModal(false);
-        setNewIssue({ status: '검토 필요', date: new Date().toISOString().split('T')[0] });
+        closeAddModal();
     };
 
     const updateStatus = (id: string, newStatus: Issue['status']) => {
@@ -92,9 +226,24 @@ const SiteIssueManagement: React.FC = () => {
                         </div>
                         <h2 className="text-2xl font-bold text-slate-900">현장 지적사항 관리</h2>
                     </div>
-                    <button onClick={() => setShowAddModal(true)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 shadow-md transition-transform hover:-translate-y-0.5">
-                        + 새 지적사항 등록
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <input
+                            ref={externalIssueInputRef}
+                            type="file"
+                            accept="image/*,.pdf,application/pdf"
+                            onChange={handleExternalIssueUpload}
+                            className="hidden"
+                        />
+                        <button
+                            onClick={() => externalIssueInputRef.current?.click()}
+                            className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 shadow-md transition-transform hover:-translate-y-0.5"
+                        >
+                            🤖 외부 지적사항 AI 자동 등록
+                        </button>
+                        <button onClick={() => setShowAddModal(true)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700 shadow-md transition-transform hover:-translate-y-0.5">
+                            + 새 지적사항 등록
+                        </button>
+                    </div>
                 </div>
                 <p className="text-slate-500">현장 순회 중 발견된 불안전 요소나 시정 조치가 필요한 사항을 기록하고 추적 관리합니다.</p>
             </div>
@@ -129,6 +278,7 @@ const SiteIssueManagement: React.FC = () => {
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className={`px-2 py-0.5 text-xs font-bold rounded ${getStatusBadge(issue.status)}`}>{issue.status}</span>
+                                            <span className={`px-2 py-0.5 text-xs font-bold rounded ${getRiskBadge(issue.riskLevel)}`}>위험도 {issue.riskLevel || 'Medium'}</span>
                                             <span className="text-xs text-slate-500 font-medium">{issue.date} {issue.time}</span>
                                         </div>
                                         <h4 className="text-lg font-bold text-slate-900">{issue.location} - {issue.type}</h4>
@@ -201,8 +351,49 @@ const SiteIssueManagement: React.FC = () => {
                                 </select>
                             </div>
                             <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">위험 등급</label>
+                                <select value={newIssue.riskLevel || 'Medium'} onChange={e => setNewIssue({...newIssue, riskLevel: e.target.value as Issue['riskLevel']})} className="w-full border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                    <option value="High">High</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="Low">Low</option>
+                                </select>
+                            </div>
+                            <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">지적 내용</label>
                                 <textarea rows={3} placeholder="상세 내용을 입력하세요" value={newIssue.description || ''} onChange={e => setNewIssue({...newIssue, description: e.target.value})} className="w-full border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">사진 첨부</label>
+                                <input
+                                    ref={issueImageInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    onChange={handleIssueImageChange}
+                                    className="hidden"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => issueImageInputRef.current?.click()}
+                                    className="px-3 py-2 bg-slate-100 border border-slate-300 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-200"
+                                >
+                                    📷 사진 첨부(카메라/갤러리)
+                                </button>
+                                {newIssue.image && (
+                                    <div className="mt-3 flex items-center gap-3">
+                                        <img src={`data:image/jpeg;base64,${newIssue.image}`} alt="지적사항 첨부" className="w-20 h-20 object-cover rounded-md border border-slate-200" />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setNewIssue({ ...newIssue, image: undefined });
+                                                if (issueImageInputRef.current) issueImageInputRef.current.value = '';
+                                            }}
+                                            className="text-xs text-red-600 hover:text-red-700 font-medium"
+                                        >
+                                            첨부 삭제
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">조치 요구 사항</label>
@@ -214,9 +405,18 @@ const SiteIssueManagement: React.FC = () => {
                             </div>
                         </div>
                         <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-slate-100">
-                            <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-slate-600 bg-slate-100 font-semibold rounded-lg hover:bg-slate-200">취소</button>
+                            <button onClick={closeAddModal} className="px-4 py-2 text-slate-600 bg-slate-100 font-semibold rounded-lg hover:bg-slate-200">취소</button>
                             <button onClick={handleAddIssue} className="px-4 py-2 text-white bg-indigo-600 font-semibold rounded-lg hover:bg-indigo-700">등록</button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {isAiAnalyzing && (
+                <div className="fixed inset-0 bg-black bg-opacity-40 z-[60] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 flex flex-col items-center">
+                        <Spinner />
+                        <p className="text-sm font-medium text-slate-700 mt-2">외부 지적사항 문서를 AI가 분석 중입니다...</p>
                     </div>
                 </div>
             )}

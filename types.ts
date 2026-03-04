@@ -162,6 +162,7 @@ export interface SafetyCheckRecord {
     type: 'unsafe_action' | 'unsafe_condition';
     reason: string;
     details: string;
+    image?: string;
 }
 
 // Data type for Monthly Briefing Hub
