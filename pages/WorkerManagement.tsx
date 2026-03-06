@@ -141,6 +141,70 @@ const getSafeImageSrc = (imageValue: unknown): string | null => {
     return trimmed.startsWith('data:') ? trimmed : `data:image/jpeg;base64,${trimmed}`;
 };
 
+const toDisplayString = (value: unknown, fallback = ''): string => {
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        return trimmed.length > 0 ? trimmed : fallback;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    return fallback;
+};
+
+const toDisplayStringArray = (value: unknown): string[] => {
+    if (!Array.isArray(value)) return [];
+    return value.map(item => toDisplayString(item)).filter(Boolean);
+};
+
+const toRoleSafe = (value: unknown): WorkerRecord['role'] => {
+    if (value === 'leader' || value === 'sub_leader' || value === 'worker') return value;
+    return 'worker';
+};
+
+const toSafetyLevelSafe = (value: unknown, score: number): WorkerRecord['safetyLevel'] => {
+    if (value === '고급' || value === '중급' || value === '초급') return value;
+    if (score >= 80) return '고급';
+    if (score >= 50) return '중급';
+    return '초급';
+};
+
+const normalizeWorkerForPrint = (value: unknown, fallbackIndex: number): WorkerRecord | null => {
+    if (!value || typeof value !== 'object') return null;
+    const raw = value as Record<string, unknown>;
+    const safetyScore = Number(raw.safetyScore);
+    const normalizedScore = Number.isFinite(safetyScore) ? safetyScore : 0;
+
+    return {
+        ...(raw as WorkerRecord),
+        id: toDisplayString(raw.id, `unknown-${fallbackIndex}`),
+        name: toDisplayString(raw.name, '식별 대기'),
+        jobField: toDisplayString(raw.jobField, '미분류'),
+        teamLeader: toDisplayString(raw.teamLeader, '미지정'),
+        role: toRoleSafe(raw.role),
+        isTranslator: Boolean(raw.isTranslator),
+        isSignalman: Boolean(raw.isSignalman),
+        date: toDisplayString(raw.date, new Date().toISOString().split('T')[0]),
+        nationality: toDisplayString(raw.nationality, '미상'),
+        language: toDisplayString(raw.language, 'unknown'),
+        safetyScore: normalizedScore,
+        safetyLevel: toSafetyLevelSafe(raw.safetyLevel, normalizedScore),
+        strengths: toDisplayStringArray(raw.strengths),
+        strengths_native: toDisplayStringArray(raw.strengths_native),
+        weakAreas: toDisplayStringArray(raw.weakAreas),
+        weakAreas_native: toDisplayStringArray(raw.weakAreas_native),
+        suggestions: toDisplayStringArray(raw.suggestions),
+        suggestions_native: toDisplayStringArray(raw.suggestions_native),
+        handwrittenAnswers: Array.isArray(raw.handwrittenAnswers) ? (raw.handwrittenAnswers as WorkerRecord['handwrittenAnswers']) : [],
+        fullText: toDisplayString(raw.fullText, ''),
+        koreanTranslation: toDisplayString(raw.koreanTranslation, ''),
+        improvement: toDisplayString(raw.improvement, ''),
+        improvement_native: toDisplayString(raw.improvement_native, ''),
+        aiInsights: toDisplayString(raw.aiInsights, ''),
+        aiInsights_native: toDisplayString(raw.aiInsights_native, ''),
+        selfAssessedRiskLevel: raw.selfAssessedRiskLevel === '상' || raw.selfAssessedRiskLevel === '중' || raw.selfAssessedRiskLevel === '하' ? raw.selfAssessedRiskLevel : '중',
+        profileImage: typeof raw.profileImage === 'string' ? raw.profileImage : undefined,
+    };
+};
+
 // [컴포넌트] 안전모 스티커 (A4 최적화: 90mm x 60mm)
 const PremiumSticker: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker }) => {
     const s = getGradeStyle(worker.safetyLevel);
@@ -357,8 +421,10 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
 
     const filteredRecords = useMemo(() => {
         return latestRecords.filter(r => {
-            const matchesSearch = r.name.toLowerCase().includes(searchTerm.toLowerCase());
-            const matchesTeam = selectedTeam === '전체' || r.jobField === selectedTeam;
+            const safeName = toDisplayString(r.name).toLowerCase();
+            const safeJobField = toDisplayString(r.jobField, '미분류');
+            const matchesSearch = safeName.includes(searchTerm.toLowerCase());
+            const matchesTeam = selectedTeam === '전체' || safeJobField === selectedTeam;
             const matchesLevel = filterLevel === '전체' || r.safetyLevel === filterLevel;
             return matchesSearch && matchesTeam && matchesLevel;
         });
@@ -377,7 +443,9 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
 
     const startProcessing = (type: 'sticker' | 'idcard', targetWorkers: WorkerRecord[]) => {
         if (targetWorkers.length === 0) return alert('발급할 근로자 데이터가 없습니다.');
-        const printableWorkers = targetWorkers.filter(w => w && typeof w === 'object');
+        const printableWorkers = targetWorkers
+            .map((worker, index) => normalizeWorkerForPrint(worker, index))
+            .filter((worker): worker is WorkerRecord => worker !== null);
         if (printableWorkers.length === 0) return alert('출력 가능한 근로자 데이터가 없습니다. 백업 파일 형식을 확인해주세요.');
         
         // Reset states

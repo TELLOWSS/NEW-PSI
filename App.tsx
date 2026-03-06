@@ -227,8 +227,9 @@ const toSafetyLevelSafe = (value: unknown): WorkerRecord['safetyLevel'] => {
 };
 
 const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
-    return records.map((rec, index) => {
-        const r = rec as Record<string, unknown>;
+    return records
+    .filter((rec): rec is Record<string, unknown> => typeof rec === 'object' && rec !== null)
+    .map((r, index) => {
         const rawSource = r.originalImage || r.image || r.photo || r.base64 || r.documentImage || r.file;
         const profileSource = r.profileImage;
 
