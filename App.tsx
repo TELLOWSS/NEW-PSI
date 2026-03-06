@@ -196,6 +196,36 @@ const normalizeImage = (imgData: unknown): string | undefined => {
     return `data:image/jpeg;base64,${cleanBase64}`;
 };
 
+const toStringSafe = (value: unknown, fallback = ''): string => {
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+        return trimmed.length > 0 ? trimmed : fallback;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+        return String(value);
+    }
+    return fallback;
+};
+
+const toOptionalStringSafe = (value: unknown): string | undefined => {
+    const normalized = toStringSafe(value, '');
+    return normalized.length > 0 ? normalized : undefined;
+};
+
+const toNumberSafe = (value: unknown, fallback = 0): number => {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string') {
+        const parsed = Number(value.trim());
+        return Number.isFinite(parsed) ? parsed : fallback;
+    }
+    return fallback;
+};
+
+const toSafetyLevelSafe = (value: unknown): WorkerRecord['safetyLevel'] => {
+    if (value === '고급' || value === '중급' || value === '초급') return value;
+    return '초급';
+};
+
 const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
     return records.map((rec, index) => {
         const r = rec as Record<string, unknown>;
@@ -203,47 +233,48 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
         const profileSource = r.profileImage;
 
         // Ensure unique ID if missing
-        const uniqueId = r.id || `psi-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 6)}`;
+        const generatedId = `psi-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 6)}`;
+        const uniqueId = toStringSafe(r.id, generatedId);
 
         const baseRecord: WorkerRecord = {
             ...r,
             id: uniqueId,
-            name: r.name || "식별 대기",
-            employeeId: (r.employeeId as string) || undefined,
-            qrId: (r.qrId as string) || undefined,
-            safetyScore: typeof r.safetyScore === 'number' ? r.safetyScore : 0,
-            safetyLevel: (r.safetyLevel as WorkerRecord['safetyLevel']) || '초급',
+            name: toStringSafe(r.name, "식별 대기"),
+            employeeId: toOptionalStringSafe(r.employeeId),
+            qrId: toOptionalStringSafe(r.qrId),
+            safetyScore: toNumberSafe(r.safetyScore, 0),
+            safetyLevel: toSafetyLevelSafe(r.safetyLevel),
             ocrConfidence: typeof r.ocrConfidence === 'number' ? r.ocrConfidence : 1,
             signatureMatchScore: typeof r.signatureMatchScore === 'number' ? r.signatureMatchScore : undefined,
             matchMethod: (r.matchMethod as WorkerRecord['matchMethod']) || 'unmatched',
             integrityScore: typeof r.integrityScore === 'number' ? r.integrityScore : 100,
             originalImage: normalizeImage(rawSource),
             profileImage: normalizeImage(profileSource),
-            date: r.date || new Date().toISOString().split('T')[0],
-            nationality: normalizeNationality((r.nationality as string) || "미상"),
-            jobField: r.jobField || "미분류",
-            teamLeader: r.teamLeader || "미지정",
+            date: toStringSafe(r.date, new Date().toISOString().split('T')[0]),
+            nationality: normalizeNationality(toStringSafe(r.nationality, "미상")),
+            jobField: toStringSafe(r.jobField, "미분류"),
+            teamLeader: toStringSafe(r.teamLeader, "미지정"),
             role: r.role || 'worker', 
-            filename: r.filename || undefined,
-            strengths: Array.isArray(r.strengths) ? r.strengths : [],
-            weakAreas: Array.isArray(r.weakAreas) ? r.weakAreas : [],
-            suggestions: Array.isArray(r.suggestions) ? r.suggestions : [],
-            strengths_native: Array.isArray(r.strengths_native) ? r.strengths_native : [],
-            weakAreas_native: Array.isArray(r.weakAreas_native) ? r.weakAreas_native : [],
-            suggestions_native: Array.isArray(r.suggestions_native) ? r.suggestions_native : [],
+            filename: toOptionalStringSafe(r.filename),
+            strengths: Array.isArray(r.strengths) ? r.strengths.map(item => toStringSafe(item)).filter(Boolean) : [],
+            weakAreas: Array.isArray(r.weakAreas) ? r.weakAreas.map(item => toStringSafe(item)).filter(Boolean) : [],
+            suggestions: Array.isArray(r.suggestions) ? r.suggestions.map(item => toStringSafe(item)).filter(Boolean) : [],
+            strengths_native: Array.isArray(r.strengths_native) ? r.strengths_native.map(item => toStringSafe(item)).filter(Boolean) : [],
+            weakAreas_native: Array.isArray(r.weakAreas_native) ? r.weakAreas_native.map(item => toStringSafe(item)).filter(Boolean) : [],
+            suggestions_native: Array.isArray(r.suggestions_native) ? r.suggestions_native.map(item => toStringSafe(item)).filter(Boolean) : [],
             handwrittenAnswers: Array.isArray(r.handwrittenAnswers) ? r.handwrittenAnswers : [],
-            aiInsights: r.aiInsights || "",
-            aiInsights_native: r.aiInsights_native || "",
-            improvement: r.improvement || "",
-            improvement_native: r.improvement_native || "",
-            fullText: r.fullText || "",
-            koreanTranslation: r.koreanTranslation || "",
-            language: r.language || "unknown",
+            aiInsights: toStringSafe(r.aiInsights, ""),
+            aiInsights_native: toStringSafe(r.aiInsights_native, ""),
+            improvement: toStringSafe(r.improvement, ""),
+            improvement_native: toStringSafe(r.improvement_native, ""),
+            fullText: toStringSafe(r.fullText, ""),
+            koreanTranslation: toStringSafe(r.koreanTranslation, ""),
+            language: toStringSafe(r.language, "unknown"),
             correctionHistory: Array.isArray(r.correctionHistory) ? r.correctionHistory : [],
             actionHistory: Array.isArray(r.actionHistory) ? r.actionHistory : [],
             approvalHistory: Array.isArray(r.approvalHistory) ? r.approvalHistory : [],
             auditTrail: Array.isArray(r.auditTrail) ? r.auditTrail : [],
-            evidenceHash: (r.evidenceHash as string) || undefined,
+            evidenceHash: toOptionalStringSafe(r.evidenceHash),
         };
 
         return applyIdentityPolicy(baseRecord);

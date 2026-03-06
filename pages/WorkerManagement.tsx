@@ -72,7 +72,7 @@ const QRCodeComponent: React.FC<QRCodeProps> = React.memo(({ record, onLoad }) =
         return (
             <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 border border-red-200">
                 <span className="text-[8px] font-black text-red-500 uppercase">{errorMsg}</span>
-                <span className="text-[6px] text-slate-400">{record.id.slice(-4)}</span>
+                <span className="text-[6px] text-slate-400">{getSafeIdTail(record.id, 4)}</span>
             </div>
         );
     }
@@ -127,6 +127,18 @@ const getRoleBadge = (record: WorkerRecord) => {
     if (record.isSignalman) badges.push('🚦 신호수');
     
     return badges;
+};
+
+const getSafeIdTail = (idValue: unknown, length: number) => {
+    const raw = typeof idValue === 'string' ? idValue : (typeof idValue === 'number' || typeof idValue === 'boolean') ? String(idValue) : '';
+    return raw ? raw.slice(-length).toUpperCase() : 'UNKNOWN';
+};
+
+const getSafeImageSrc = (imageValue: unknown): string | null => {
+    if (typeof imageValue !== 'string') return null;
+    const trimmed = imageValue.trim();
+    if (!trimmed) return null;
+    return trimmed.startsWith('data:') ? trimmed : `data:image/jpeg;base64,${trimmed}`;
 };
 
 // [컴포넌트] 안전모 스티커 (A4 최적화: 90mm x 60mm)
@@ -188,7 +200,7 @@ const PremiumSticker: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker 
                     </div>
                     <div className="flex justify-between items-end mt-1.5">
                         <span className="text-[8px] font-bold text-indigo-600">PSI SAFETY PASS</span>
-                        <span className="text-[8px] font-mono text-slate-400 tracking-tighter">ID: {worker.id.slice(-6).toUpperCase()}</span>
+                        <span className="text-[8px] font-mono text-slate-400 tracking-tighter">ID: {getSafeIdTail(worker.id, 6)}</span>
                     </div>
                 </div>
             </div>
@@ -200,6 +212,7 @@ const PremiumSticker: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker 
 const PremiumIDCard: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker }) => {
     const s = getGradeStyle(worker.safetyLevel);
     const roles = getRoleBadge(worker);
+    const profileImageSrc = getSafeImageSrc(worker.profileImage);
 
     return (
         <div className="w-[54mm] h-[86mm] bg-white rounded-[4mm] border border-slate-300 overflow-hidden flex flex-col relative break-inside-avoid box-border shadow-sm print:shadow-none">
@@ -218,8 +231,8 @@ const PremiumIDCard: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker }
                 
                 {/* Photo Frame */}
                 <div className="w-[28mm] h-[36mm] bg-slate-100 rounded border border-slate-200 mb-3 overflow-hidden relative shadow-inner">
-                    {worker.profileImage ? (
-                        <img src={worker.profileImage.startsWith('data:') ? worker.profileImage : `data:image/jpeg;base64,${worker.profileImage}`} className="w-full h-full object-cover" alt="Profile" />
+                    {profileImageSrc ? (
+                        <img src={profileImageSrc} className="w-full h-full object-cover" alt="Profile" />
                     ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-slate-300">
                             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
@@ -757,6 +770,7 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {filteredRecords.map(worker => {
                     const s = getGradeStyle(worker.safetyLevel);
+                    const profileImageSrc = getSafeImageSrc(worker.profileImage);
                     return (
                         <div key={worker.id} className="bg-white p-5 rounded-[24px] border border-slate-100 hover:border-indigo-300 hover:shadow-2xl transition-all cursor-pointer group relative overflow-hidden flex flex-col gap-3" onClick={() => onViewDetails(worker)}>
                             {/* Glassmorphism Overlay Menu on Hover */}
@@ -772,7 +786,7 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
 
                             <div className="flex items-center gap-4 relative z-10">
                                 <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0 shadow-inner relative">
-                                    {worker.profileImage ? <img src={worker.profileImage.startsWith('data:') ? worker.profileImage : `data:image/jpeg;base64,${worker.profileImage}`} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-2xl opacity-20">👷</div>}
+                                    {profileImageSrc ? <img src={profileImageSrc} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-2xl opacity-20">👷</div>}
                                     <div className={`absolute bottom-0 w-full h-1.5 ${s.bg}`}></div>
                                 </div>
                                 <div className="min-w-0 flex-1">
