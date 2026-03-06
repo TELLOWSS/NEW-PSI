@@ -326,6 +326,8 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
     // [NEW] Sample Modal State
     const [showSampleModal, setShowSampleModal] = useState(false);
 
+    const getPrintSafeId = (id: string) => id.replace(/[^a-zA-Z0-9_-]/g, '_');
+
     const latestRecords = useMemo(() => {
         const map = new Map<string, WorkerRecord>();
         workerRecords.forEach(r => {
@@ -345,6 +347,17 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
             return matchesSearch && matchesTeam && matchesLevel;
         });
     }, [latestRecords, searchTerm, selectedTeam, filterLevel]);
+
+    const itemsPerPage = printType === 'sticker' ? 8 : 6;
+
+    const pagedWorkers = useMemo(() => {
+        const renderedWorkers = workersToPrint.slice(0, renderLimit);
+        const pages: WorkerRecord[][] = [];
+        for (let i = 0; i < renderedWorkers.length; i += itemsPerPage) {
+            pages.push(renderedWorkers.slice(i, i + itemsPerPage));
+        }
+        return pages;
+    }, [workersToPrint, renderLimit, itemsPerPage]);
 
     const startProcessing = (type: 'sticker' | 'idcard', targetWorkers: WorkerRecord[]) => {
         if (targetWorkers.length === 0) return alert('발급할 근로자 데이터가 없습니다.');
@@ -403,11 +416,15 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
     const handlePrev = () => setCurrentFlipIndex(prev => Math.max(0, prev - 1));
 
     const printCurrentOnly = () => {
+        const currentWorker = workersToPrint[currentFlipIndex];
+        if (!currentWorker) return;
+
+        const safeId = getPrintSafeId(currentWorker.id);
         const style = document.createElement('style');
         style.innerHTML = `
             @media print {
                 .print-item { display: none !important; }
-                .print-item-${workersToPrint[currentFlipIndex].id} { display: flex !important; position: absolute; top: 0; left: 0; }
+                .print-item-${safeId} { display: flex !important; position: absolute; top: 0; left: 0; }
                 .print-container { display: block !important; }
                 @page { size: auto; margin: 0mm; }
             }
@@ -425,7 +442,7 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
     };
 
     const isRenderingComplete = renderLimit >= workersToPrint.length;
-    const progressPercentage = Math.round((renderLimit / workersToPrint.length) * 100);
+    const progressPercentage = workersToPrint.length > 0 ? Math.round((renderLimit / workersToPrint.length) * 100) : 0;
 
     if (isPrintMode) {
         return (
@@ -529,27 +546,39 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                     
                     {viewType === 'grid' ? (
                         /* GRID VIEW (Progressive Rendering) */
-                        <div className="bg-white p-0 w-[210mm] min-h-[297mm] shadow-2xl print:shadow-none print:w-full print:h-auto overflow-hidden relative print-container">
-                            <div className={`relative z-10 w-full h-full p-[10mm] grid content-start ${
-                                printType === 'sticker' 
-                                    ? "grid-cols-2 gap-x-[10mm] gap-y-[10mm]" 
-                                    : "grid-cols-3 gap-x-[8mm] gap-y-[10mm]"
-                            }`}>
-                                {workersToPrint.slice(0, renderLimit).map(w => (
-                                    <div key={w.id} className="flex justify-center items-start break-inside-avoid page-break-inside-avoid">
-                                        {printType === 'sticker' 
-                                            ? <PremiumSticker worker={w} /> 
-                                            : <PremiumIDCard worker={w} />
-                                        }
+                        <div className="w-full flex flex-col items-center print-container">
+                            {pagedWorkers.map((pageWorkers, pageIndex) => (
+                                <div
+                                    key={`print-page-${pageIndex}`}
+                                    className={`bg-white p-0 w-[210mm] min-h-[297mm] shadow-2xl print:shadow-none print:w-full print:h-auto relative ${pageIndex < pagedWorkers.length - 1 ? 'break-after-page' : ''}`}
+                                >
+                                    <div className={`relative z-10 w-full h-full p-[10mm] grid content-start ${
+                                        printType === 'sticker'
+                                            ? "grid-cols-2 gap-x-[10mm] gap-y-[10mm]"
+                                            : "grid-cols-3 gap-x-[8mm] gap-y-[10mm]"
+                                    }`}>
+                                        {pageWorkers.map(w => (
+                                            <div key={w.id} className="flex justify-center items-start break-inside-avoid page-break-inside-avoid">
+                                                {printType === 'sticker'
+                                                    ? <PremiumSticker worker={w} />
+                                                    : <PremiumIDCard worker={w} />
+                                                }
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
+                                </div>
+                            ))}
+                            {pagedWorkers.length === 0 && (
+                                <div className="bg-white w-[210mm] min-h-[297mm] shadow-2xl print:shadow-none flex items-center justify-center text-slate-400 font-bold">
+                                    출력할 근로자 데이터가 없습니다.
+                                </div>
+                            )}
                         </div>
                     ) : (
                         /* FLIP VIEW (For Inspection) */
                         <div className="flex flex-col items-center justify-center w-full h-full min-h-[600px]">
                             {workersToPrint.length > 0 && currentFlipIndex < workersToPrint.length ? (
-                                <div className={`transform transition-all duration-300 ${printType === 'sticker' ? 'scale-150' : 'scale-150'} print-item print-item-${workersToPrint[currentFlipIndex].id}`}>
+                                <div className={`transform transition-all duration-300 ${printType === 'sticker' ? 'scale-150' : 'scale-150'} print-item print-item-${getPrintSafeId(workersToPrint[currentFlipIndex].id)}`}>
                                     {printType === 'sticker' 
                                         ? <PremiumSticker worker={workersToPrint[currentFlipIndex]} /> 
                                         : <PremiumIDCard worker={workersToPrint[currentFlipIndex]} />
@@ -707,6 +736,20 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                 <div className="bg-indigo-50 px-6 py-4 rounded-2xl text-indigo-700 font-bold text-sm border border-indigo-100 flex items-center gap-2 shrink-0">
                     <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
                     발급 대기: {filteredRecords.length}명
+                </div>
+                <div className="flex gap-2 w-full lg:w-auto">
+                    <button
+                        onClick={() => startProcessing('sticker', filteredRecords)}
+                        className="flex-1 lg:flex-none px-4 py-3 bg-orange-50 text-orange-700 border border-orange-200 rounded-xl text-xs font-black hover:bg-orange-100 transition-colors"
+                    >
+                        필터 대상 스티커 일괄 인쇄
+                    </button>
+                    <button
+                        onClick={() => startProcessing('idcard', filteredRecords)}
+                        className="flex-1 lg:flex-none px-4 py-3 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-black hover:bg-indigo-100 transition-colors"
+                    >
+                        필터 대상 사원증 일괄 인쇄
+                    </button>
                 </div>
             </div>
 
