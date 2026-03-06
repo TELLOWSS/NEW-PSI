@@ -115,6 +115,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [filterLevel, setFilterLevel] = useState<string>('all');
     const [filterField, setFilterField] = useState<string>('all');
     const [filterLeader, setFilterLeader] = useState<string>('all'); 
+    const [importValidationSummary, setImportValidationSummary] = useState<string>('');
+    const [importValidationDetails, setImportValidationDetails] = useState<string>('');
 
     const getExpectedSafetyLevel = useCallback((record: WorkerRecord): WorkerRecord['safetyLevel'] => {
         const score = typeof record.safetyScore === 'number' ? record.safetyScore : 0;
@@ -577,16 +579,105 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         link.click();
     };
 
-    const extractImportRecords = (payload: unknown): WorkerRecord[] => {
-        if (Array.isArray(payload)) return payload as WorkerRecord[];
+    const extractImportRecords = (payload: unknown): unknown[] => {
+        if (Array.isArray(payload)) return payload;
         if (!payload || typeof payload !== 'object') return [];
 
         const obj = payload as Record<string, unknown>;
         const candidates = [obj.records, obj.workerRecords, obj.data, obj.items];
         for (const candidate of candidates) {
-            if (Array.isArray(candidate)) return candidate as WorkerRecord[];
+            if (Array.isArray(candidate)) return candidate;
         }
         return [];
+    };
+
+    const analyzeImportSchema = (records: unknown[]) => {
+        const requiredStringFields = ['id', 'name', 'jobField', 'date', 'nationality', 'safetyLevel'];
+        const requiredArrayFields = ['strengths', 'weakAreas', 'suggestions'];
+        const requiredNumberFields = ['safetyScore'];
+
+        const missingFieldCounts: Record<string, number> = {};
+        const typeIssueCounts: Record<string, number> = {};
+        const sampleIssues: string[] = [];
+
+        const objectItems = records.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null);
+        let itemsWithIssues = 0;
+        let validLikeItems = 0;
+
+        const addCount = (bucket: Record<string, number>, key: string) => {
+            bucket[key] = (bucket[key] || 0) + 1;
+        };
+
+        objectItems.forEach((item, idx) => {
+            const missingFields: string[] = [];
+            const typeFields: string[] = [];
+
+            for (const field of requiredStringFields) {
+                const val = item[field];
+                const valid = typeof val === 'string' && val.trim().length > 0;
+                if (!valid) {
+                    missingFields.push(field);
+                    addCount(missingFieldCounts, field);
+                }
+            }
+
+            for (const field of requiredArrayFields) {
+                const val = item[field];
+                if (!Array.isArray(val)) {
+                    typeFields.push(`${field}(array)`);
+                    addCount(typeIssueCounts, `${field}(array)`);
+                }
+            }
+
+            for (const field of requiredNumberFields) {
+                const val = item[field];
+                const validNumber = typeof val === 'number' && Number.isFinite(val);
+                if (!validNumber) {
+                    typeFields.push(`${field}(number)`);
+                    addCount(typeIssueCounts, `${field}(number)`);
+                }
+            }
+
+            if (missingFields.length > 0 || typeFields.length > 0) {
+                itemsWithIssues++;
+                if (sampleIssues.length < 8) {
+                    sampleIssues.push(`- #${idx + 1}: 누락[${missingFields.join(', ') || '-'}], 타입[${typeFields.join(', ') || '-'}]`);
+                }
+            } else {
+                validLikeItems++;
+            }
+        });
+
+        const invalidItems = records.length - objectItems.length;
+        const problematicItems = invalidItems + itemsWithIssues;
+
+        const sortedMissing = Object.entries(missingFieldCounts).sort((a, b) => b[1] - a[1]);
+        const sortedTypes = Object.entries(typeIssueCounts).sort((a, b) => b[1] - a[1]);
+
+        const summary = `검증 완료: 전체 ${records.length}건 / 객체형 ${objectItems.length}건 / 문제 항목 ${problematicItems}건`;
+        const details = [
+            `총 레코드: ${records.length}`,
+            `객체형 레코드: ${objectItems.length}`,
+            `구조 자체 오류(객체 아님): ${invalidItems}`,
+            `필드 오류 포함 레코드: ${itemsWithIssues}`,
+            `기준 필드 충족 레코드: ${validLikeItems}`,
+            '',
+            '[누락 필드 TOP]',
+            ...(sortedMissing.length > 0 ? sortedMissing.map(([k, v]) => `- ${k}: ${v}`) : ['- 없음']),
+            '',
+            '[타입 불일치 TOP]',
+            ...(sortedTypes.length > 0 ? sortedTypes.map(([k, v]) => `- ${k}: ${v}`) : ['- 없음']),
+            '',
+            '[샘플 오류]',
+            ...(sampleIssues.length > 0 ? sampleIssues : ['- 없음'])
+        ].join('\n');
+
+        return {
+            objectItems,
+            problematicItems,
+            summary,
+            details,
+        };
     };
 
     const handleImportFile = (file: File) => {
@@ -599,8 +690,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     alert('복구 가능한 근로자 기록을 찾지 못했습니다. (배열 또는 records/workerRecords 키 필요)');
                     return;
                 }
-                onImport(records);
-                alert(`백업 복구 요청 완료: ${records.length}건`);
+
+                const validation = analyzeImportSchema(records);
+                setImportValidationSummary(validation.summary);
+                setImportValidationDetails(validation.details);
+
+                if (validation.objectItems.length === 0) {
+                    alert('복구 가능한 객체형 근로자 기록이 없습니다. JSON 구조를 확인해주세요.');
+                    return;
+                }
+
+                onImport(validation.objectItems as WorkerRecord[]);
+                alert(`백업 복구 요청 완료\n- 원본: ${records.length}건\n- 복구 대상: ${validation.objectItems.length}건\n- 문제 항목: ${validation.problematicItems}건\n\n상세는 화면의 '복구 파일 스키마 검증 결과'를 확인하세요.`);
             } catch (err) {
                 alert('파일 형식이 잘못되었습니다.');
             } finally {
@@ -703,6 +804,27 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             </button>
                         </div>
                         <p className="text-center text-xs text-slate-400 mt-2 font-medium">대량 분석 중입니다. 창을 닫지 마세요.</p>
+                    </div>
+                )}
+
+                {importValidationSummary && (
+                    <div className="mt-6 pt-5 border-t border-white/10 animate-fade-in">
+                        <div className="bg-black/20 border border-white/10 rounded-2xl p-4 sm:p-5">
+                            <div className="flex items-center justify-between gap-3 mb-2">
+                                <h4 className="text-sm sm:text-base font-black text-indigo-300">복구 파일 스키마 검증 결과</h4>
+                                <button
+                                    onClick={() => {
+                                        setImportValidationSummary('');
+                                        setImportValidationDetails('');
+                                    }}
+                                    className="text-[11px] text-slate-300 hover:text-white font-bold"
+                                >
+                                    닫기
+                                </button>
+                            </div>
+                            <p className="text-xs sm:text-sm text-emerald-300 font-bold mb-3">{importValidationSummary}</p>
+                            <pre className="text-[11px] sm:text-xs leading-relaxed text-slate-200 bg-black/30 rounded-xl p-3 overflow-x-auto max-h-56 whitespace-pre-wrap">{importValidationDetails}</pre>
+                        </div>
                     </div>
                 )}
             </div>
