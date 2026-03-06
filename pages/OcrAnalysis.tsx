@@ -577,6 +577,39 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         link.click();
     };
 
+    const extractImportRecords = (payload: unknown): WorkerRecord[] => {
+        if (Array.isArray(payload)) return payload as WorkerRecord[];
+        if (!payload || typeof payload !== 'object') return [];
+
+        const obj = payload as Record<string, unknown>;
+        const candidates = [obj.records, obj.workerRecords, obj.data, obj.items];
+        for (const candidate of candidates) {
+            if (Array.isArray(candidate)) return candidate as WorkerRecord[];
+        }
+        return [];
+    };
+
+    const handleImportFile = (file: File) => {
+        const reader = new FileReader();
+        reader.onload = (re) => {
+            try {
+                const data = JSON.parse(re.target?.result as string);
+                const records = extractImportRecords(data);
+                if (!Array.isArray(records) || records.length === 0) {
+                    alert('복구 가능한 근로자 기록을 찾지 못했습니다. (배열 또는 records/workerRecords 키 필요)');
+                    return;
+                }
+                onImport(records);
+                alert(`백업 복구 요청 완료: ${records.length}건`);
+            } catch (err) {
+                alert('파일 형식이 잘못되었습니다.');
+            } finally {
+                if (importInputRef.current) importInputRef.current.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
     return (
         <div className="space-y-8 animate-fade-in-up">
             {/* Control Panel */}
@@ -632,16 +665,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         <button onClick={() => importInputRef.current?.click()} className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-sm transition-all">JSON 불러오기</button>
                         <input type="file" ref={importInputRef} className="hidden" accept=".json" onChange={(e) => {
                              const file = e.target.files?.[0];
-                             if (file) {
-                                 const reader = new FileReader();
-                                 reader.onload = (re) => {
-                                     try {
-                                         const data = JSON.parse(re.target?.result as string);
-                                         if (Array.isArray(data)) onImport(data);
-                                     } catch (err) { alert('파일 형식이 잘못되었습니다.'); }
-                                 };
-                                 reader.readAsText(file);
-                             }
+                             if (file) handleImportFile(file);
                         }} />
                         <button onClick={handleExport} className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-2xl font-black text-sm shadow-xl transition-all">백업 내보내기</button>
                         <button onClick={onDeleteAll} className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all">전체 삭제</button>

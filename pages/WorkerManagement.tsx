@@ -339,7 +339,10 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
     // [NEW] Sample Modal State
     const [showSampleModal, setShowSampleModal] = useState(false);
 
-    const getPrintSafeId = (id: string) => id.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const getPrintSafeId = (id: unknown) => {
+        const raw = typeof id === 'string' ? id : (typeof id === 'number' || typeof id === 'boolean') ? String(id) : 'unknown';
+        return raw.replace(/[^a-zA-Z0-9_-]/g, '_');
+    };
 
     const latestRecords = useMemo(() => {
         const map = new Map<string, WorkerRecord>();
@@ -374,11 +377,13 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
 
     const startProcessing = (type: 'sticker' | 'idcard', targetWorkers: WorkerRecord[]) => {
         if (targetWorkers.length === 0) return alert('발급할 근로자 데이터가 없습니다.');
+        const printableWorkers = targetWorkers.filter(w => w && typeof w === 'object');
+        if (printableWorkers.length === 0) return alert('출력 가능한 근로자 데이터가 없습니다. 백업 파일 형식을 확인해주세요.');
         
         // Reset states
-        setWorkersToPrint(targetWorkers);
+        setWorkersToPrint(printableWorkers);
         setPrintType(type);
-        setRenderLimit(0); // Reset render limit
+        setRenderLimit(Math.min(5, printableWorkers.length)); // 초기 프레임 즉시 표시
         setViewType('grid'); // Default to grid
         setCurrentFlipIndex(0);
         setIsPrintMode(true);
@@ -391,7 +396,7 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
     useEffect(() => {
         if (!isPrintMode) return;
 
-        if (renderLimit === 0 && workersToPrint.length > 0 && !renderStartTimeRef.current) {
+        if (renderLimit > 0 && workersToPrint.length > 0 && !renderStartTimeRef.current) {
             renderStartTimeRef.current = performance.now();
         }
         
@@ -673,20 +678,20 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
 
             {/* Design Sample Modal */}
             {showSampleModal && (
-                <div className="fixed inset-0 z-[4000] bg-black/90 flex items-center justify-center p-4 backdrop-blur-md animate-fade-in" onClick={() => setShowSampleModal(false)}>
-                    <div className="bg-slate-900 rounded-[40px] p-8 lg:p-12 max-w-5xl w-full relative overflow-hidden border border-slate-700 shadow-2xl" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 z-[4000] bg-black/90 p-4 md:p-6 backdrop-blur-md animate-fade-in overflow-y-auto" onClick={() => setShowSampleModal(false)}>
+                    <div className="bg-slate-900 rounded-[40px] p-6 md:p-8 lg:p-10 max-w-5xl w-full relative overflow-hidden border border-slate-700 shadow-2xl mx-auto my-2 md:my-6" onClick={e => e.stopPropagation()}>
                         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
                         <button className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors" onClick={() => setShowSampleModal(false)}>
                             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
                         
-                        <div className="text-center mb-12 relative z-10">
+                        <div className="text-center mb-8 md:mb-10 relative z-10">
                             <span className="text-indigo-400 font-bold text-xs tracking-widest uppercase mb-2 block">Premium Design System</span>
                             <h2 className="text-3xl md:text-4xl font-black text-white">PSI 안전 인증 디자인 샘플</h2>
                             <p className="text-slate-400 mt-2 font-medium">현장의 안전 수준을 한눈에 식별할 수 있는 고시인성 디자인입니다.</p>
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center justify-items-center relative z-10">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-start justify-items-center relative z-10">
                             {/* Sticker Sample */}
                             <div className="flex flex-col items-center gap-6 group">
                                 <div className="relative transform transition-transform duration-500 group-hover:scale-105 group-hover:-rotate-1">
