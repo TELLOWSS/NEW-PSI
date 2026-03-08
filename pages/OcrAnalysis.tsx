@@ -7,6 +7,27 @@ import { extractMessage } from '../utils/errorUtils';
 import type { WorkerRecord } from '../types';
 import { fileToBase64 } from '../utils/fileUtils';
 
+const buildReassessmentAuditNote = (before: WorkerRecord, updated: Partial<WorkerRecord>): string => {
+    const beforeScore = typeof before.safetyScore === 'number' ? before.safetyScore : 0;
+    const afterScore = typeof updated.safetyScore === 'number' ? updated.safetyScore : beforeScore;
+    const beforeLevel = before.safetyLevel;
+    const afterLevel = (updated.safetyLevel as WorkerRecord['safetyLevel']) || beforeLevel;
+
+    const beforeReasons = Array.isArray(before.scoreReasoning) ? before.scoreReasoning : [];
+    const afterReasons = Array.isArray(updated.scoreReasoning) ? updated.scoreReasoning : beforeReasons;
+    const addedReasons = afterReasons.filter(reason => !beforeReasons.includes(reason)).slice(0, 2);
+
+    const parts = [`점수 ${beforeScore}→${afterScore}`, `등급 ${beforeLevel}→${afterLevel}`];
+
+    if (addedReasons.length > 0) {
+        parts.push(`근거추가: ${addedReasons.join(' / ')}`);
+    } else if (afterReasons.length > 0) {
+        parts.push(`근거유지: ${afterReasons.slice(0, 2).join(' / ')}`);
+    }
+
+    return `2차 재가공 실행 (${parts.join(' | ')})`;
+};
+
 const getSafetyLevelClass = (level: '초급' | '중급' | '고급') => {
     switch (level) {
         case '고급': return 'bg-emerald-100 text-emerald-800 border border-emerald-200';
@@ -426,7 +447,20 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         if (stopRef.current) { stopped = true; break; }
 
                         if (updatedAnalysis) {
-                            onUpdateRecord({ ...record, ...updatedAnalysis });
+                            const mergedRecord: WorkerRecord = {
+                                ...record,
+                                ...updatedAnalysis,
+                                auditTrail: [
+                                    ...(record.auditTrail || []),
+                                    {
+                                        stage: 'reassessment',
+                                        timestamp: new Date().toISOString(),
+                                        actor: 'manager',
+                                        note: buildReassessmentAuditNote(record, updatedAnalysis),
+                                    }
+                                ]
+                            };
+                            onUpdateRecord(mergedRecord);
                             successCount++;
                         } else {
                             failCount++;

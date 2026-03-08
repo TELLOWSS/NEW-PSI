@@ -123,6 +123,7 @@ export interface WorkerRecord {
     suggestions_native: string[];
     aiInsights: string;
     aiInsights_native: string;
+    scoreReasoning?: string[];
     selfAssessedRiskLevel: '상' | '중' | '하';
     psychologicalAnalysis?: PsychologicalAnalysis;
     originalImage?: string; // Base64 encoded document image from OCR

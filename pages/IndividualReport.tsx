@@ -20,6 +20,20 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
     const [isCameraOpen, setIsCameraOpen] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
+    const isKorean = record.nationality === '대한민국' || record.nationality === '한국' || (record.nationality || '').toLowerCase().includes('korea');
+    const timelineLocale = isKorean ? 'ko-KR' : 'en-US';
+    const timelineDateTimeOptions: Intl.DateTimeFormatOptions = {
+        timeZone: 'Asia/Seoul',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    };
+    const reassessmentTitle = isKorean ? '재평가(Reassessment) 타임라인' : 'Reassessment Timeline';
+    const reassessmentFallback = isKorean ? '2차 재가공' : 'Secondary reassessment';
+    const reassessmentTag = isKorean ? '[재평가]' : '[reassessment]';
+    const reassessmentTrail = (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-5).reverse();
 
     const startCamera = async () => {
         setIsCameraOpen(true);
@@ -143,6 +157,28 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">등급/점수</span><div className="font-black text-slate-800">{record.safetyLevel} / {record.safetyScore}점</div></div>
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">무결성</span><div className="font-black text-slate-800">{typeof record.integrityScore === 'number' ? `${record.integrityScore}점` : '-'}</div></div>
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">OCR 신뢰도</span><div className="font-black text-slate-800">{typeof record.ocrConfidence === 'number' ? `${Math.round(record.ocrConfidence * 100)}%` : '-'}</div></div>
+                    </div>
+                    {Array.isArray(record.scoreReasoning) && record.scoreReasoning.length > 0 && (
+                        <div className="mt-2 bg-slate-50 border border-slate-200 rounded-lg p-2">
+                            <p className="text-[11px] font-black text-slate-700">AI 상세 채점 근거</p>
+                            <ul className="mt-1 space-y-1 text-[11px] text-slate-600">
+                                {record.scoreReasoning.slice(0, 3).map((reason, index) => (
+                                    <li key={index}>• {reason}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                    <div className="mt-2 bg-violet-50 border border-violet-200 rounded-lg p-2">
+                        <p className="text-[11px] font-black text-violet-700">{reassessmentTitle}</p>
+                        <div className="mt-1 space-y-1 max-h-28 overflow-y-auto">
+                            {reassessmentTrail.map((entry, index) => (
+                                <div key={`${entry.timestamp}-${index}`} className="text-[11px] text-violet-700 bg-white/70 border border-violet-100 rounded p-1.5">
+                                    <div className="font-bold">{reassessmentTag} {new Date(entry.timestamp).toLocaleString(timelineLocale, timelineDateTimeOptions)}</div>
+                                    <div className="mt-0.5">{entry.note || reassessmentFallback}</div>
+                                </div>
+                            ))}
+                            {reassessmentTrail.length === 0 && <div className="text-[11px] text-violet-500">{isKorean ? '재평가 이력이 없습니다.' : 'No reassessment history.'}</div>}
+                        </div>
                     </div>
                 </div>
             )}

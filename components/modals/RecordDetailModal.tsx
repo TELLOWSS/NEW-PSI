@@ -6,6 +6,27 @@ import { updateAnalysisBasedOnEdits } from '../../services/geminiService';
 import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
 import { deriveCompetencyProfile, getApprovalBlockers } from '../../utils/evidenceUtils';
 
+const buildReassessmentAuditNote = (before: WorkerRecord, updated: Partial<WorkerRecord>): string => {
+    const beforeScore = typeof before.safetyScore === 'number' ? before.safetyScore : 0;
+    const afterScore = typeof updated.safetyScore === 'number' ? updated.safetyScore : beforeScore;
+    const beforeLevel = before.safetyLevel;
+    const afterLevel = (updated.safetyLevel as WorkerRecord['safetyLevel']) || beforeLevel;
+
+    const beforeReasons = Array.isArray(before.scoreReasoning) ? before.scoreReasoning : [];
+    const afterReasons = Array.isArray(updated.scoreReasoning) ? updated.scoreReasoning : beforeReasons;
+    const addedReasons = afterReasons.filter(reason => !beforeReasons.includes(reason)).slice(0, 2);
+
+    const parts = [`점수 ${beforeScore}→${afterScore}`, `등급 ${beforeLevel}→${afterLevel}`];
+
+    if (addedReasons.length > 0) {
+        parts.push(`근거추가: ${addedReasons.join(' / ')}`);
+    } else if (afterReasons.length > 0) {
+        parts.push(`근거유지: ${afterReasons.slice(0, 2).join(' / ')}`);
+    }
+
+    return `2차 재가공 실행 (${parts.join(' | ')})`;
+};
+
 interface RecordDetailModalProps {
     record: WorkerRecord;
     onClose: () => void;
@@ -200,7 +221,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                 stage: 'reassessment',
                                 timestamp: new Date().toISOString(),
                                 actor: 'manager',
-                                note: `2차 재가공 실행 (기준: 국적=${prev.nationality}, 점수=${prev.safetyScore}, 팀장=${prev.teamLeader || '미지정'}, 직책=${prev.role || 'worker'})`,
+                                note: buildReassessmentAuditNote(prev, updatedAnalysis),
                             }
                         ]
                     }));
@@ -267,6 +288,20 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const hasOriginalImage = !!record.originalImage && record.originalImage.length > 50;
     const hasProfileImage = !!record.profileImage && record.profileImage.length > 50;
     const competencyProfile = record.competencyProfile || deriveCompetencyProfile(record);
+    const isKorean = record.nationality === '대한민국' || record.nationality === '한국' || (record.nationality || '').toLowerCase().includes('korea');
+    const timelineLocale = isKorean ? 'ko-KR' : 'en-US';
+    const timelineDateTimeOptions: Intl.DateTimeFormatOptions = {
+        timeZone: 'Asia/Seoul',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    };
+    const reassessmentTitle = isKorean ? '재평가(Reassessment) 전용 타임라인' : 'Reassessment Timeline';
+    const reassessmentEmpty = isKorean ? '재평가 이력이 없습니다.' : 'No reassessment history.';
+    const reassessmentTag = isKorean ? '[재평가]' : '[reassessment]';
+    const reassessmentTrail = (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-10).reverse();
     
     // Icon Display
     const isLeader = (record.role === 'leader') || (record.name === record.teamLeader);
@@ -674,6 +709,20 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                     </div>
                                                 ))}
                                                 {(record.auditTrail || []).length === 0 && <div className="text-xs text-slate-400">감사 이력이 없습니다.</div>}
+                                            </div>
+
+                                            <div className="mt-4 pt-4 border-t border-slate-200">
+                                                <h5 className="text-xs font-black text-violet-700 mb-2">{reassessmentTitle}</h5>
+                                                <div className="space-y-2 max-h-44 overflow-y-auto custom-scrollbar">
+                                                    {reassessmentTrail.map((entry, idx) => (
+                                                        <div key={`re-${entry.timestamp}-${idx}`} className="text-xs bg-violet-50 border border-violet-200 rounded-lg p-2">
+                                                            <div className="font-black text-violet-800">{reassessmentTag} {entry.actor}</div>
+                                                            <div className="text-violet-500">{new Date(entry.timestamp).toLocaleString(timelineLocale, timelineDateTimeOptions)}</div>
+                                                            {entry.note && <div className="text-violet-700 mt-1">{entry.note}</div>}
+                                                        </div>
+                                                    ))}
+                                                    {reassessmentTrail.length === 0 && <div className="text-xs text-slate-400">{reassessmentEmpty}</div>}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

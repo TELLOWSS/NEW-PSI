@@ -137,6 +137,7 @@ const workerRecordSchema = {
             suggestions_native: { type: Type.ARRAY, items: { type: Type.STRING } },
             aiInsights: { type: Type.STRING },
             aiInsights_native: { type: Type.STRING },
+            scoreReasoning: { type: Type.ARRAY, items: { type: Type.STRING } },
             selfAssessedRiskLevel: { type: Type.STRING, enum: ['상', '중', '하'] },
             psychologicalAnalysis: {
                 type: Type.OBJECT,
@@ -157,11 +158,14 @@ const updateSchema = {
         strengths_native: { type: Type.ARRAY, items: { type: Type.STRING } },
         weakAreas: { type: Type.ARRAY, items: { type: Type.STRING } },
         weakAreas_native: { type: Type.ARRAY, items: { type: Type.STRING } },
+        safetyScore: { type: Type.NUMBER },
+        safetyLevel: { type: Type.STRING, enum: ['초급', '중급', '고급'] },
         aiInsights: { type: Type.STRING },
         aiInsights_native: { type: Type.STRING },
+        scoreReasoning: { type: Type.ARRAY, items: { type: Type.STRING } },
         koreanTranslation: { type: Type.STRING },
     },
-    required: ["strengths", "strengths_native", "weakAreas", "weakAreas_native", "aiInsights", "aiInsights_native"]
+    required: ["strengths", "strengths_native", "weakAreas", "weakAreas_native", "safetyScore", "safetyLevel", "aiInsights", "aiInsights_native", "scoreReasoning"]
 };
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -196,6 +200,48 @@ const parseJsonObjectFromText = (rawText: string): Record<string, unknown> | nul
     }
 };
 
+const clampScore = (value: unknown, fallback = 0): number => {
+    const numeric = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(numeric)) return Math.max(0, Math.min(100, Math.round(fallback)));
+    return Math.max(0, Math.min(100, Math.round(numeric)));
+};
+
+const scoreToSafetyLevel = (score: number): WorkerRecord['safetyLevel'] => {
+    if (score >= 80) return '고급';
+    if (score >= 60) return '중급';
+    return '초급';
+};
+
+const normalizeScoreReasoning = (value: unknown): string[] => {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map(item => String(item || '').trim())
+        .filter(item => item.length > 0)
+        .slice(0, 8);
+};
+
+const enforceScoreGradeConsistency = (
+    scoreInput: unknown,
+    levelInput: unknown,
+    reasoningInput: unknown,
+    fallbackScore: number
+): { safetyScore: number; safetyLevel: WorkerRecord['safetyLevel']; scoreReasoning: string[] } => {
+    const safetyScore = clampScore(scoreInput, fallbackScore);
+    const derivedLevel = scoreToSafetyLevel(safetyScore);
+    const requestedLevel = (typeof levelInput === 'string' ? levelInput : '').trim();
+    const scoreReasoning = normalizeScoreReasoning(reasoningInput);
+
+    if (requestedLevel && requestedLevel !== derivedLevel) {
+        scoreReasoning.push(`점수-등급 정합성 검증에 따라 등급을 ${derivedLevel}으로 보정함 (기준: 80/60점)`);
+    }
+
+    return {
+        safetyScore,
+        safetyLevel: derivedLevel,
+        scoreReasoning,
+    };
+};
+
 export interface ExternalIssueAnalysisResult {
     issueDate: string;
     location: string;
@@ -225,6 +271,36 @@ const LANGUAGE_POLICY = `
 **번역 지침**:
 단순 직역이 아닌, 건설 현장에서 통용되는 '안전 전문 용어'로 의역하라.
 (예: 'Falling' -> '추락(Fall from height)', 'Struck by' -> '협착/충돌')
+`;
+
+const STRICT_SCORE_POLICY = `
+**엄격한 정량적 평가 기준 (필수 적용)**:
+1) 채점 축과 가중치:
+    - w1 무결성(Integrity): 25%
+    - w2 업무 이해도(Job Understanding): 25%
+    - w3 위험성평가 이해도(Risk Assessment Understanding): 35%
+    - w4 실행 가능성(Actionability): 15%
+    - 최종점수 = round(w1*0.25 + w2*0.25 + w3*0.35 + w4*0.15)
+
+2) 상투어 필터링 강제 페널티:
+    - 구체적 장비명(예: 그라인더, 안전대, 펌프카 등) 또는 공종 특화 위험요인이 없고,
+      "안전하게 작업", "주변 경계", "정리정돈" 등 범용 문구만 반복되면
+      w1(무결성)과 w2(업무 이해도)를 각각 30점 이하로 강제 제한.
+
+3) 공종 일치도 검증 강제:
+    - 입력된 근로자 공종(jobField)과 작성 위험요인이 논리적으로 전혀 맞지 않으면
+      "허위/무지성 작성"으로 판정하고 최종점수를 59점 이하로 강제 제한,
+      최종 등급은 반드시 최하(초급/Red)로 산정.
+
+4) 등급 매핑(내부 크로스체크 필수):
+    - 80점 이상: 고급(🟢S/안전)
+    - 60~79점: 중급(🟡A/주의)
+    - 60점 미만: 초급(🔴B/위험)
+    점수와 등급이 불일치하면 반드시 점수 기준 등급으로 보정 후 응답.
+
+5) 상세 채점 근거 출력:
+    - scoreReasoning 배열에 가점/감점 근거를 구체 문장으로 반드시 기록.
+    - 예: "구체적 장비명 누락 및 상투적 문구 반복으로 무결성 점수 차감됨"
 `;
 
 /**
@@ -478,12 +554,20 @@ async function callGeminiWithRetry(
         try {
             const systemInstruction = `
             **역할**: 건설현장 안전관리 전문가.
-            **임무**: 수기 위험성 평가표 이미지를 분석하여 데이터 추출.
+            **임무**: 수기 위험성 평가표 이미지를 분석하여 데이터 추출 및 엄격 정량 채점 수행.
             ${LANGUAGE_POLICY}
+            ${STRICT_SCORE_POLICY}
             
             **강조**: 분석 결과에서 핵심 위험 요인은 '작은따옴표'로 강조.
             **직책 식별**: '팀장/소장'은 'leader', '부팀장/반장'은 'sub_leader', 그 외 'worker'.
             **임무 식별**: '통역' -> isTranslator=true, '신호수/유도원' -> isSignalman=true.
+
+            **정량 채점 실행 규칙(필수)**:
+            1. handwrittenAnswers, fullText, koreanTranslation에서 위험요인/대책의 구체성(장비명, 공종특화 표현)을 먼저 평가.
+            2. 상투어 필터 조건 충족 시 w1/w2를 각각 30점 이하로 강제 제한.
+            3. 공종-위험요인 불일치 시 "허위/무지성 작성"으로 판정하여 safetyScore를 59점 이하로 제한하고 safetyLevel=초급.
+            4. aiInsights에는 종합 판정 요약을 작성하고, scoreReasoning 배열에는 감점/가점 근거를 항목별로 기록.
+            5. 최종 반환 전 safetyScore(0~100)와 safetyLevel(고급/중급/초급) 정합성(80/60 기준)을 내부 검증.
             
             **심리 분석 (psychologicalAnalysis)**:
             1. **필압 (pressureLevel)**: 글씨의 굵기와 진하기를 분석하여 'high'(매우 진하고 굵음), 'medium'(보통), 'low'(흐리고 가늠) 판정.
@@ -494,8 +578,9 @@ async function callGeminiWithRetry(
             2. employeeId, qrId, signatureMatchScore(0~1)를 가능한 범위에서 채움.
             `;
 
-            const prompt = `위험성 평가 문서를 분석하십시오. 파일명: ${filenameHint || 'unknown'}. 
-            한국인은 한국어로, 외국인은 한국어와 모국어를 병기하여 JSON으로 출력하십시오.`;
+            const prompt = `위험성 평가 문서를 분석하십시오. 파일명: ${filenameHint || 'unknown'}.
+            한국인은 한국어로, 외국인은 한국어와 모국어를 병기하여 JSON으로 출력하십시오.
+            반드시 scoreReasoning 배열을 포함하고, 점수-등급 일치(80/60 기준)를 확인한 후 반환하십시오.`;
             
             const imagePart = { inlineData: { data: imageData, mimeType: mimeType } };
 
@@ -529,8 +614,14 @@ async function callGeminiWithRetry(
                         const date = (r['date'] as string) || new Date().toISOString().split('T')[0];
                         // [CRITICAL] 국적 정규화 (LANGUAGE_POLICY 준수)
                         const nationality = normalizeNationality((r['nationality'] as string) || '미상');
-                        const safetyScore = typeof r['safetyScore'] === 'number' ? (r['safetyScore'] as number) : Number(r['safetyScore']) || 0;
-                        const safetyLevel = ((r['safetyLevel'] as string) || '초급') as WorkerRecord['safetyLevel'];
+                        const normalizedScoreAndLevel = enforceScoreGradeConsistency(
+                            r['safetyScore'],
+                            r['safetyLevel'],
+                            r['scoreReasoning'],
+                            0
+                        );
+                        const safetyScore = normalizedScoreAndLevel.safetyScore;
+                        const safetyLevel = normalizedScoreAndLevel.safetyLevel;
 
                         const baseRecord: WorkerRecord = {
                             id,
@@ -565,6 +656,7 @@ async function callGeminiWithRetry(
                             suggestions_native: Array.isArray(r['suggestions_native']) ? (r['suggestions_native'] as string[]) : [],
                             aiInsights: (r['aiInsights'] as string) || '',
                             aiInsights_native: (r['aiInsights_native'] as string) || '',
+                            scoreReasoning: normalizedScoreAndLevel.scoreReasoning,
                             selfAssessedRiskLevel: (r['selfAssessedRiskLevel'] as string) || '중',
                             psychologicalAnalysis: r['psychologicalAnalysis'] ? {
                                 pressureLevel: ((r['psychologicalAnalysis'] as Record<string, unknown>)['pressureLevel'] as string) || 'medium',
@@ -581,7 +673,20 @@ async function callGeminiWithRetry(
                             integrityScore: deriveIntegrityScore(baseRecord),
                         };
 
-                        return enforceSafetyLevel(withIntegrity);
+                        const enforced = enforceSafetyLevel(withIntegrity);
+                        const verified = enforceScoreGradeConsistency(
+                            enforced.safetyScore,
+                            enforced.safetyLevel,
+                            enforced.scoreReasoning,
+                            safetyScore
+                        );
+
+                        return {
+                            ...enforced,
+                            safetyScore: verified.safetyScore,
+                            safetyLevel: verified.safetyLevel,
+                            scoreReasoning: verified.scoreReasoning,
+                        };
                     });
                 } catch (parseErr: unknown) {
                     console.error("Parsing AI response failed:", parseErr);
@@ -680,22 +785,66 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
     if (record.isSignalman) specialDuties.push("신호수(Signalman)");
     const dutyStr = specialDuties.length > 0 ? specialDuties.join(", ") : "없음";
 
+    const latestCorrection = (record.correctionHistory || []).slice(-1)[0];
+    const previousValues = latestCorrection?.previousValues || {};
+    const originalSnapshot = {
+        name: String(previousValues['name'] ?? record.name),
+        jobField: String(previousValues['jobField'] ?? record.jobField),
+        handwrittenAnswers: previousValues['handwrittenAnswers'] ?? record.handwrittenAnswers,
+        fullText: String(previousValues['fullText'] ?? record.fullText),
+        weakAreas: previousValues['weakAreas'] ?? record.weakAreas,
+        aiInsights: String(previousValues['aiInsights'] ?? record.aiInsights),
+        safetyScore: clampScore(previousValues['safetyScore'], record.safetyScore),
+        safetyLevel: String(previousValues['safetyLevel'] ?? record.safetyLevel),
+    };
+
+    const finalSnapshot = {
+        name: record.name,
+        nationality: record.nationality,
+        jobField: record.jobField,
+        teamLeader: record.teamLeader || '미지정',
+        role: record.role || 'worker',
+        specialDuty: dutyStr,
+        handwrittenAnswers: record.handwrittenAnswers,
+        fullText: record.fullText,
+        weakAreas: record.weakAreas,
+        strengths: record.strengths,
+        aiInsights: record.aiInsights,
+        safetyScore: clampScore(record.safetyScore, 0),
+        safetyLevel: record.safetyLevel,
+    };
+
     const systemInstruction = `
-    **역할**: 건설현장 안전관리 AI 보좌관.
-    **임무**: 사용자가 수정한 근로자 정보 기반으로 안전 분석 결과 갱신.
+    **역할**: 당신은 신규 평가자가 아니라, 원본 대비 수정 편차(Delta)를 계산하는 깐깐한 안전 감사관이다.
+    **임무**: [근로자 원본 데이터]와 [관리자 수정 최종 데이터]를 비교해 기존 분석을 감사 방식으로 갱신.
     ${LANGUAGE_POLICY}
+    ${STRICT_SCORE_POLICY}
+
+    **2차 분석 편차 규칙 (강제)**:
+    1. 중대 페널티: 관리자 최종본에 원본에 없던 '치명적 위험(High)' 또는 '핵심 안전 대책'이 새로 추가되면,
+       근로자가 핵심 위험을 놓친 것으로 판정하고 w3(위험성평가 이해도)를 기존 대비 절반 이하로 대폭 하향.
+       이때 scoreReasoning에 반드시 "관리자 개입으로 핵심 위험/대책이 추가되어 이해도 점수 대폭 차감" 취지의 근거를 남긴다.
+
+    2. 면책 조항: 오타/맞춤법/문맥 다듬기 수준의 경미 수정만 있으면,
+       safetyScore와 safetyLevel을 기존값과 절대 동일하게 유지하고 점수 재산정 금지.
+       scoreReasoning에는 "경미 수정으로 기존 점수·등급 유지"를 명시한다.
+
+    3. 출력 데이터는 반드시 JSON 스키마를 준수하고, 점수-등급 일관성 검증을 내부 수행한 뒤 반환한다.
     `;
 
     const prompt = `
-    다음 정보를 바탕으로 strengths, weakAreas, aiInsights 및 native 필드들을 갱신하십시오.
-    
-    이름: ${record.name}
-    국적: ${record.nationality}
-    공종: ${record.jobField}
-    팀장: ${record.teamLeader || "미지정"}
-    직급: ${record.role || "worker"}
-    특수임무: ${dutyStr}
-    안전 점수: ${record.safetyScore}
+    아래 두 데이터의 차이(Delta)를 기반으로 strengths, weakAreas, aiInsights, native 필드, safetyScore, safetyLevel, scoreReasoning을 갱신하라.
+
+    [근로자 원본 데이터]
+    ${JSON.stringify(originalSnapshot)}
+
+    [관리자가 수정한 최종 데이터]
+    ${JSON.stringify(finalSnapshot)}
+
+    [응답 규칙]
+    - scoreReasoning은 최소 1개 이상 작성.
+    - 점수/등급 기준: 80점↑ 고급, 60~79 중급, 60 미만 초급.
+    - 점수와 등급이 불일치하면 반드시 점수 기준으로 보정.
     `;
 
     const requestConfig = {
@@ -727,8 +876,22 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
 
                 const parsed = response.text ? parseJsonObjectFromText(response.text) : null;
                 if (parsed) {
+                    const normalized = enforceScoreGradeConsistency(
+                        parsed['safetyScore'],
+                        parsed['safetyLevel'],
+                        parsed['scoreReasoning'],
+                        record.safetyScore
+                    );
+
+                    const normalizedResult: Partial<WorkerRecord> = {
+                        ...parsed,
+                        safetyScore: normalized.safetyScore,
+                        safetyLevel: normalized.safetyLevel,
+                        scoreReasoning: normalized.scoreReasoning,
+                    };
+
                     clearQuotaState();
-                    return parsed;
+                    return normalizedResult;
                 }
 
                 throw new Error(`AI 응답 파싱 실패: ${modelName} 응답이 JSON 형식이 아닙니다.`);

@@ -155,7 +155,21 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
 
     const labels = useMemo(() => getLabels(record.nationality), [record.nationality]);
     const isKorean = record.nationality === '대한민국' || record.nationality === '한국' || (record.nationality || '').toLowerCase().includes('korea');
+    const timelineLocale = isKorean ? 'ko-KR' : 'en-US';
+    const timelineDateOptions: Intl.DateTimeFormatOptions = {
+        timeZone: 'Asia/Seoul',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    };
     const safetySigns = useMemo(() => getRelevantSigns(record.weakAreas, record.jobField), [record.weakAreas, record.jobField]);
+    const reassessmentTitle = isKorean ? '재평가 타임라인' : 'Reassessment Timeline';
+    const reassessmentFallback = isKorean ? '2차 재가공' : 'Secondary reassessment';
+    const reassessmentTag = isKorean ? '[재평가]' : '[reassessment]';
+    const reassessmentTrail = useMemo(
+        () => (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-2).reverse(),
+        [record.auditTrail]
+    );
 
     // Trend Chart Rendering
     useEffect(() => {
@@ -277,6 +291,16 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 <span className="text-3xl font-black text-indigo-700 tracking-tighter">{record.safetyScore}</span>
                             </div>
                             <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Total Score</span>
+                            {Array.isArray(record.scoreReasoning) && record.scoreReasoning.length > 0 && (
+                                <div className="mt-2 w-52 rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
+                                    <p className="text-[10px] font-black text-slate-700">AI 상세 채점 근거</p>
+                                    <ul className="mt-1 space-y-1">
+                                        {record.scoreReasoning.slice(0, 3).map((reason, index) => (
+                                            <li key={index} className="text-[10px] leading-tight text-slate-600">• {reason}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
                         </div>
                         <div className="w-44 h-44 relative -my-4">
                             <IndividualRadarChart record={record} />
@@ -357,6 +381,21 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         <p className="text-[10px] leading-relaxed text-slate-500 text-justify font-medium">
                                             {record.aiInsights_native}
                                         </p>
+                                    </>
+                                )}
+                                {reassessmentTrail.length > 0 && (
+                                    <>
+                                        <div className="w-full h-px bg-slate-100"></div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-violet-700 mb-1">{reassessmentTitle}</p>
+                                            <ul className="space-y-1">
+                                                {reassessmentTrail.map((entry, i) => (
+                                                    <li key={`${entry.timestamp}-${i}`} className="text-[10px] text-violet-700 leading-tight">
+                                                        • {reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)} {entry.note || reassessmentFallback}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
                                     </>
                                 )}
                             </div>
