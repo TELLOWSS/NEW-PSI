@@ -1,27 +1,28 @@
-import React, { useState, useEffect, useRef, useCallback, Component, type ReactNode, type ErrorInfo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Component, Suspense, lazy, type ReactNode, type ErrorInfo } from 'react';
 import { Layout } from './components/Layout';
 import Dashboard from './pages/Dashboard';
-import OcrAnalysis from './pages/OcrAnalysis';
-import WorkerManagement from './pages/WorkerManagement';
-import PredictiveAnalysis from './pages/PredictiveAnalysis';
-import SafetyChecks from './pages/SafetyChecks';
-import PerformanceAnalysis from './pages/PerformanceAnalysis';
-import SiteIssueManagement from './pages/SiteIssueManagement';
-import Reports from './pages/Reports';
-import Feedback from './pages/Feedback';
-import Introduction from './pages/Introduction';
-import IndividualReport from './pages/IndividualReport';
-import Settings from './pages/Settings';
-import AdminTraining from './pages/AdminTraining';
-import WorkerTraining from './pages/WorkerTraining';
+import { Spinner } from './components/Spinner';
 import type { WorkerRecord, SafetyCheckRecord, Page, ModalState, BriefingData, RiskForecastData } from './types';
 import { WorkerHistoryModal } from './components/modals/WorkerHistoryModal';
 import { RecordDetailModal } from './components/modals/RecordDetailModal';
-import { analyzeWorkerRiskAssessment, normalizeNationality } from './services/geminiService';
 import { restoreRecordFromUrl } from './utils/qrUtils';
 import { extractMessage } from './utils/errorUtils';
 import { appendAuditTrail, appendCorrectionHistory, attachEvidenceHash, deriveCompetencyProfile, deriveIntegrityScore, enforceSafetyLevel } from './utils/evidenceUtils';
 import { applyIdentityPolicy } from './utils/identityUtils';
+
+const OcrAnalysis = lazy(() => import('./pages/OcrAnalysis'));
+const WorkerManagement = lazy(() => import('./pages/WorkerManagement'));
+const PredictiveAnalysis = lazy(() => import('./pages/PredictiveAnalysis'));
+const SafetyChecks = lazy(() => import('./pages/SafetyChecks'));
+const PerformanceAnalysis = lazy(() => import('./pages/PerformanceAnalysis'));
+const SiteIssueManagement = lazy(() => import('./pages/SiteIssueManagement'));
+const Reports = lazy(() => import('./pages/Reports'));
+const Feedback = lazy(() => import('./pages/Feedback'));
+const Introduction = lazy(() => import('./pages/Introduction'));
+const IndividualReport = lazy(() => import('./pages/IndividualReport'));
+const Settings = lazy(() => import('./pages/Settings'));
+const AdminTraining = lazy(() => import('./pages/AdminTraining'));
+const WorkerTraining = lazy(() => import('./pages/WorkerTraining'));
 
 const IDB_NAME = 'PSI_Enterprise_V4';
 const IDB_VERSION = 1;
@@ -196,6 +197,30 @@ const normalizeImage = (imgData: unknown): string | undefined => {
     if (cleanBase64.length < 50) return undefined;
     
     return `data:image/jpeg;base64,${cleanBase64}`;
+};
+
+const normalizeNationality = (rawNationality: string): string => {
+    if (!rawNationality) return '미상';
+
+    const nation = rawNationality.trim().toLowerCase();
+    if (nation.includes('한국') || nation.includes('korea') || nation.includes('rok') || nation.includes('south korea')) {
+        return '대한민국';
+    }
+
+    if (nation.includes('베트남') || nation.includes('vietnam')) return '베트남';
+    if (nation.includes('중국') || nation.includes('china')) return '중국';
+    if (nation.includes('태국') || nation.includes('thailand')) return '태국';
+    if (nation.includes('우즈벡') || nation.includes('uzbekistan')) return '우즈베키스탄';
+    if (nation.includes('인도네시아') || nation.includes('indonesia')) return '인도네시아';
+    if (nation.includes('캄보디아') || nation.includes('cambodia')) return '캄보디아';
+    if (nation.includes('몽골') || nation.includes('mongolia')) return '몽골';
+    if (nation.includes('필리핀') || nation.includes('philippines')) return '필리핀';
+    if (nation.includes('카자흐') || nation.includes('kazakhstan')) return '카자흐스탄';
+    if (nation.includes('러시아') || nation.includes('russia')) return '러시아';
+    if (nation.includes('네팔') || nation.includes('nepal')) return '네팔';
+    if (nation.includes('미얀마') || nation.includes('myanmar') || nation.includes('burma')) return '미얀마';
+
+    return rawNationality;
 };
 
 const toStringSafe = (value: unknown, fallback = ''): string => {
@@ -531,6 +556,7 @@ const App: React.FC = () => {
                 ? record.originalImage.split('base64,')[1] 
                 : record.originalImage;
 
+            const { analyzeWorkerRiskAssessment } = await import('./services/geminiService');
             const results = await analyzeWorkerRiskAssessment(cleanBase64, 'image/jpeg', record.filename || record.name);
             
             if (results && results.length > 0) {
@@ -560,43 +586,45 @@ const App: React.FC = () => {
     return (
         <ErrorBoundary>
             <Layout currentPage={currentPage} setCurrentPage={setCurrentPage}>
-                {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={setCurrentPage} />}
-                {currentPage === 'ocr-analysis' && (
-                    <OcrAnalysis 
-                        onAnalysisComplete={addWorkerRecords} 
-                        existingRecords={workerRecords} 
-                        onDeleteAll={handleDeleteAll} 
-                        onImport={handleImport} 
-                        onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} 
-                        onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); setCurrentPage('individual-report'); }}
-                        onDeleteRecord={handleDeleteRecord} 
-                        onUpdateRecord={handleUpdateRecord} 
-                    />
-                )}
-                {currentPage === 'worker-management' && <WorkerManagement workerRecords={workerRecords} onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} />}
-                {currentPage === 'individual-report' && recordForReport && (
-                    <IndividualReport 
-                        record={recordForReport} 
-                        isQrScanMode={isQrScanMode}
-                        history={workerRecords.filter(r => r.name === recordForReport.name && r.teamLeader === recordForReport.teamLeader)} 
-                        onBack={() => { setRecordForReport(null); setIsQrScanMode(false); setCurrentPage('ocr-analysis'); }} 
-                        onUpdateRecord={(updated) => {
-                            const normalized = applyIdentityPolicy(updated, workerRecordsRef.current);
-                            handleUpdateRecord(normalized);
-                            setRecordForReport(normalized);
-                        }}
-                    />
-                )}
-                {currentPage === 'predictive-analysis' && <PredictiveAnalysis workerRecords={workerRecords} />}
-                {currentPage === 'performance-analysis' && <PerformanceAnalysis workerRecords={workerRecords} />}
-                {currentPage === 'safety-checks' && <SafetyChecks workerRecords={workerRecords} checkRecords={safetyCheckRecords} onAddCheck={(r: unknown) => setSafetyCheckRecords(p => [{...(r as SafetyCheckRecord), id:Date.now().toString()}, ...p])} />}
-                {currentPage === 'site-issue-management' && <SiteIssueManagement />}
-                {currentPage === 'reports' && <Reports workerRecords={workerRecords} briefingData={briefingData} setBriefingData={setBriefingData} forecastData={forecastData} setForecastData={setForecastData} />}
-                {currentPage === 'admin-training' && <AdminTraining />}
-                {currentPage === 'worker-training' && <WorkerTraining sessionId={trainingSessionId} />}
-                {currentPage === 'feedback' && <Feedback />}
-                {currentPage === 'introduction' && <Introduction />}
-                {currentPage === 'settings' && <Settings />}
+                <Suspense fallback={<div className="min-h-[240px] flex items-center justify-center"><Spinner /></div>}>
+                    {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={setCurrentPage} />}
+                    {currentPage === 'ocr-analysis' && (
+                        <OcrAnalysis 
+                            onAnalysisComplete={addWorkerRecords} 
+                            existingRecords={workerRecords} 
+                            onDeleteAll={handleDeleteAll} 
+                            onImport={handleImport} 
+                            onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} 
+                            onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); setCurrentPage('individual-report'); }}
+                            onDeleteRecord={handleDeleteRecord} 
+                            onUpdateRecord={handleUpdateRecord} 
+                        />
+                    )}
+                    {currentPage === 'worker-management' && <WorkerManagement workerRecords={workerRecords} onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} />}
+                    {currentPage === 'individual-report' && recordForReport && (
+                        <IndividualReport 
+                            record={recordForReport} 
+                            isQrScanMode={isQrScanMode}
+                            history={workerRecords.filter(r => r.name === recordForReport.name && r.teamLeader === recordForReport.teamLeader)} 
+                            onBack={() => { setRecordForReport(null); setIsQrScanMode(false); setCurrentPage('ocr-analysis'); }} 
+                            onUpdateRecord={(updated) => {
+                                const normalized = applyIdentityPolicy(updated, workerRecordsRef.current);
+                                handleUpdateRecord(normalized);
+                                setRecordForReport(normalized);
+                            }}
+                        />
+                    )}
+                    {currentPage === 'predictive-analysis' && <PredictiveAnalysis workerRecords={workerRecords} />}
+                    {currentPage === 'performance-analysis' && <PerformanceAnalysis workerRecords={workerRecords} />}
+                    {currentPage === 'safety-checks' && <SafetyChecks workerRecords={workerRecords} checkRecords={safetyCheckRecords} onAddCheck={(r: unknown) => setSafetyCheckRecords(p => [{...(r as SafetyCheckRecord), id:Date.now().toString()}, ...p])} />}
+                    {currentPage === 'site-issue-management' && <SiteIssueManagement />}
+                    {currentPage === 'reports' && <Reports workerRecords={workerRecords} briefingData={briefingData} setBriefingData={setBriefingData} forecastData={forecastData} setForecastData={setForecastData} />}
+                    {currentPage === 'admin-training' && <AdminTraining />}
+                    {currentPage === 'worker-training' && <WorkerTraining sessionId={trainingSessionId} />}
+                    {currentPage === 'feedback' && <Feedback />}
+                    {currentPage === 'introduction' && <Introduction />}
+                    {currentPage === 'settings' && <Settings />}
+                </Suspense>
             </Layout>
             {modalState.type === 'workerHistory' && modalState.record && <WorkerHistoryModal workerName={modalState.workerName!} allRecords={workerRecords} initialSelectedRecord={modalState.record} onClose={() => setModalState({type:null})} onViewDetails={(r) => setModalState({type:'recordDetail', record:r})} onUpdateRecord={handleUpdateRecord} onDeleteRecord={handleDeleteRecord} />}
             {modalState.type === 'recordDetail' && modalState.record && (
