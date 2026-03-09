@@ -343,7 +343,18 @@ const App: React.FC = () => {
             setIsDataLoaded(true);
         });
         const savedChecks = localStorage.getItem('psi_safety_checks');
-        if(savedChecks) setSafetyCheckRecords(JSON.parse(savedChecks));
+        if (savedChecks) {
+            try {
+                const parsed = JSON.parse(savedChecks);
+                if (Array.isArray(parsed)) {
+                    setSafetyCheckRecords(parsed as SafetyCheckRecord[]);
+                } else {
+                    console.warn('psi_safety_checks 형식이 배열이 아니어서 무시됩니다.');
+                }
+            } catch (e) {
+                console.warn('psi_safety_checks 파싱 실패로 초기값으로 대체합니다.', e);
+            }
+        }
     }, []);
 
     // [Updated] Stable Handler using useCallback

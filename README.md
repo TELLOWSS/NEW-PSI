@@ -31,6 +31,13 @@ Quick troubleshooting:
 - If you see TypeScript errors about `@types/node`, run `npm i -D @types/node`.
 - To build for production: `npm run build` then `npm run preview` to serve the build locally.
 
+## Vercel 배포 점검 (빈 화면 이슈)
+
+- 이 저장소는 `vercel.json`으로 `npm run build` + `dist` 출력 배포를 고정합니다.
+- Vercel Project Settings에서 Root Directory가 이 저장소 루트인지 확인하세요.
+- 배포 후 빈 화면이면 브라우저 콘솔에서 `index.tsx` 404 또는 모듈 파싱 오류 여부를 먼저 확인하세요.
+- 기존 사용자 데이터가 손상된 경우를 대비해 앱 초기 `localStorage` 파싱은 안전 처리되어 화면 중단을 방지합니다.
+
 What I changed during automated verification:
 
 - Hardened global window access via `utils/windowUtils.ts` to avoid runtime errors when libraries are loaded on window.
