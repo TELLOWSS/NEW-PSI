@@ -252,6 +252,56 @@ const Introduction: React.FC = () => {
                 </div>
             </div>
 
+            {/* Gemini Collaboration Roadmap */}
+            <div className="max-w-5xl mx-auto px-4 card-gravity-target">
+                <div className="bg-white rounded-3xl shadow-xl border border-slate-200 p-6 sm:p-8">
+                    <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 3v2.25m4.5-2.25v2.25M4.5 9h15m-15 0v8.25A2.25 2.25 0 006.75 19.5h10.5a2.25 2.25 0 002.25-2.25V9m-15 0A2.25 2.25 0 016.75 6.75h10.5A2.25 2.25 0 0119.5 9M9 14.25h6" /></svg>
+                        </div>
+                        <h2 className="text-xl sm:text-2xl font-black text-slate-900">다음 단계: Gemini 공동 개선 아젠다</h2>
+                    </div>
+                    <p className="text-sm text-slate-600 leading-relaxed mb-5 break-keep">
+                        PSI v2.1 기준으로 핵심 안정화는 완료되었습니다. 다음 스프린트부터는 Gemini와 함께 기능·운영·디자인을 통합 점검하며,
+                        현장 적용성을 높이는 방향으로 업데이트를 진행합니다.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+                            <h3 className="font-black text-indigo-800 mb-2">기능 고도화</h3>
+                            <ul className="text-slate-700 font-semibold space-y-1 list-disc list-inside">
+                                <li>OCR/번역 품질 지표 자동 리포팅</li>
+                                <li>보고서 생성 실패 사전 예측 경고</li>
+                                <li>저무결성 응답 자동 후속조치 플로우</li>
+                            </ul>
+                        </div>
+                        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                            <h3 className="font-black text-emerald-800 mb-2">디자인/UX 고도화</h3>
+                            <ul className="text-slate-700 font-semibold space-y-1 list-disc list-inside">
+                                <li>모바일 핵심 시나리오(입력/검수/출력) 동선 단축</li>
+                                <li>색상 대비 및 시인성 기준 재검증</li>
+                                <li>버전·신뢰 배지 표현 일관성 강화</li>
+                            </ul>
+                        </div>
+                        <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+                            <h3 className="font-black text-amber-800 mb-2">운영/거버넌스</h3>
+                            <ul className="text-slate-700 font-semibold space-y-1 list-disc list-inside">
+                                <li>설정 변경 이력 승인 정책 표준화</li>
+                                <li>현장별 KPI 비교 리포트 템플릿 정리</li>
+                                <li>배포 전 점검 체크리스트 자동화</li>
+                            </ul>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <h3 className="font-black text-slate-800 mb-2">협업 방식</h3>
+                            <ul className="text-slate-700 font-semibold space-y-1 list-disc list-inside">
+                                <li>피드백 탭 카테고리 기반 의사결정 기록</li>
+                                <li>문서 중심 변경 제안 → 코드 반영 → 검증 루프</li>
+                                <li>월 단위 로드맵 리뷰(기능/디자인 동시)</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Developer Message */}
             <div className="mt-20 bg-white rounded-3xl p-12 text-center shadow-xl border border-slate-100 relative overflow-hidden card-gravity-target">
                 <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-indigo-500"></div>

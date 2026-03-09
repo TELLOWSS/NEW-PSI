@@ -1,5 +1,17 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import type { AppSettings } from '../types';
+
+type OutboxItem = {
+    id: string;
+    name: string;
+    type: string;
+    message: string;
+    createdAt: string;
+    status: 'pending';
+    retryCount?: number;
+    lastError?: string;
+};
 
 const Feedback: React.FC = () => {
     const [formData, setFormData] = useState({
@@ -7,10 +19,175 @@ const Feedback: React.FC = () => {
         type: '💡 현장 맞춤 기능 제안',
         message: ''
     });
-    const [status, setStatus] = useState<'idle' | 'sending' | 'success'>('idle');
+    const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
     const [showGuide, setShowGuide] = useState(true);
+    const [outboxItems, setOutboxItems] = useState<OutboxItem[]>([]);
+    const [retryingId, setRetryingId] = useState<string | null>(null);
+    const [isRetryingAll, setIsRetryingAll] = useState(false);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const feedbackChannel = useMemo(() => {
+        try {
+            const raw = localStorage.getItem('psi_app_settings');
+            if (!raw) return null;
+            const parsed = JSON.parse(raw) as AppSettings;
+            return parsed.feedbackChannel || null;
+        } catch {
+            return null;
+        }
+    }, []);
+
+    const readOutbox = (): OutboxItem[] => {
+        try {
+            const raw = localStorage.getItem('psi_feedback_outbox');
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) return [];
+            return parsed as OutboxItem[];
+        } catch {
+            return [];
+        }
+    };
+
+    const writeOutbox = (items: OutboxItem[]) => {
+        localStorage.setItem('psi_feedback_outbox', JSON.stringify(items.slice(0, 100)));
+        setOutboxItems(items.slice(0, 100));
+    };
+
+    useEffect(() => {
+        setOutboxItems(readOutbox());
+    }, []);
+
+    const sendViaWebhook = async (payload: { name: string; type: string; message: string }) => {
+        const webhookUrl = feedbackChannel?.webhookUrl?.trim() || '';
+        const timeoutMs = Math.max(2000, feedbackChannel?.timeoutMs || 8000);
+        const includeMetadata = feedbackChannel?.includeMetadata ?? true;
+
+        if (!webhookUrl) {
+            throw new Error('Webhook URL not configured');
+        }
+
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+            const requestBody: Record<string, unknown> = {
+                name: payload.name,
+                type: payload.type,
+                message: payload.message,
+            };
+
+            if (includeMetadata) {
+                requestBody.metadata = {
+                    source: 'PSI Feedback',
+                    submittedAt: new Date().toISOString(),
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    userAgent: navigator.userAgent,
+                    appVersion: 'v2.1.0',
+                };
+            }
+
+            const response = await fetch(webhookUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody),
+                signal: controller.signal,
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+        } finally {
+            window.clearTimeout(timeoutId);
+        }
+    };
+
+    const saveToOutbox = (payload: { name: string; type: string; message: string }, lastError?: string) => {
+        const outbox = readOutbox();
+        outbox.unshift({
+            id: `fb-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            name: payload.name,
+            type: payload.type,
+            message: payload.message,
+            createdAt: new Date().toISOString(),
+            status: 'pending',
+            retryCount: 0,
+            lastError,
+        });
+        writeOutbox(outbox);
+    };
+
+    const handleRetryOne = async (item: OutboxItem) => {
+        const webhookUrl = feedbackChannel?.webhookUrl?.trim() || '';
+        if (!webhookUrl) {
+            alert('Webhook URL이 설정되지 않아 재전송할 수 없습니다. 설정 탭에서 URL을 먼저 입력해 주세요.');
+            return;
+        }
+
+        setRetryingId(item.id);
+        try {
+            await sendViaWebhook({ name: item.name, type: item.type, message: item.message });
+            const remaining = readOutbox().filter((entry) => entry.id !== item.id);
+            writeOutbox(remaining);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            const updated = readOutbox().map((entry) => (
+                entry.id === item.id
+                    ? { ...entry, retryCount: (entry.retryCount || 0) + 1, lastError: message }
+                    : entry
+            ));
+            writeOutbox(updated);
+        } finally {
+            setRetryingId(null);
+        }
+    };
+
+    const handleRetryAll = async () => {
+        const webhookUrl = feedbackChannel?.webhookUrl?.trim() || '';
+        if (!webhookUrl) {
+            alert('Webhook URL이 설정되지 않아 전체 재전송할 수 없습니다. 설정 탭에서 URL을 먼저 입력해 주세요.');
+            return;
+        }
+        if (outboxItems.length === 0) return;
+
+        setIsRetryingAll(true);
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const item of [...outboxItems]) {
+            try {
+                await sendViaWebhook({ name: item.name, type: item.type, message: item.message });
+                const remaining = readOutbox().filter((entry) => entry.id !== item.id);
+                writeOutbox(remaining);
+                successCount++;
+            } catch (error) {
+                const message = error instanceof Error ? error.message : 'Unknown error';
+                const updated = readOutbox().map((entry) => (
+                    entry.id === item.id
+                        ? { ...entry, retryCount: (entry.retryCount || 0) + 1, lastError: message }
+                        : entry
+                ));
+                writeOutbox(updated);
+                failCount++;
+            }
+        }
+
+        setIsRetryingAll(false);
+        alert(`Outbox 재전송 완료\n성공: ${successCount}건\n실패: ${failCount}건`);
+    };
+
+    const handleDeleteOutboxItem = (id: string) => {
+        const next = readOutbox().filter((entry) => entry.id !== id);
+        writeOutbox(next);
+    };
+
+    const handleClearOutbox = () => {
+        if (!confirm('Outbox 항목을 모두 삭제하시겠습니까?')) return;
+        writeOutbox([]);
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formData.name || !formData.message) {
             alert('성함과 내용을 모두 입력해주세요.');
@@ -18,15 +195,38 @@ const Feedback: React.FC = () => {
         }
 
         setStatus('sending');
-        
-        // Simulate network request
-        setTimeout(() => {
+
+        const webhookUrl = feedbackChannel?.webhookUrl?.trim() || '';
+
+        if (!webhookUrl) {
+            setTimeout(() => {
+                setStatus('success');
+                setFormData({ name: '', type: '💡 현장 맞춤 기능 제안', message: '' });
+                setTimeout(() => setStatus('idle'), 3000);
+            }, 1200);
+            return;
+        }
+
+        try {
+            const payload = {
+                name: formData.name,
+                type: formData.type,
+                message: formData.message,
+            };
+
+            await sendViaWebhook(payload);
+
             setStatus('success');
             setFormData({ name: '', type: '💡 현장 맞춤 기능 제안', message: '' });
-            
-            // Reset status after showing success message
             setTimeout(() => setStatus('idle'), 3000);
-        }, 1500);
+        } catch (error) {
+            console.error('Feedback delivery failed:', error);
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            saveToOutbox({ name: formData.name, type: formData.type, message: formData.message }, message);
+            setStatus('error');
+            alert('실시간 전송에 실패하여 로컬 Outbox에 임시 저장했습니다. 네트워크 또는 Webhook URL을 확인해주세요.');
+            setTimeout(() => setStatus('idle'), 3000);
+        }
     };
 
     return (
@@ -192,7 +392,10 @@ const Feedback: React.FC = () => {
                                 </div>
                                 <p className="text-xs text-slate-500 leading-relaxed font-medium">
                                     <span className="text-rose-500 font-bold">* 프로토타입 알림:</span><br/>
-                                    현재는 데모 버전이므로 실제 서버로 전송되지 않고 <strong>전송 성공 시뮬레이션</strong>만 동작합니다. 실제 도입 시에는 관리자의 이메일이나 Slack 등으로 즉시 알림이 발송됩니다.
+                                    설정 탭의 Webhook URL이 비어 있으면 <strong>전송 성공 시뮬레이션</strong>으로 동작합니다. URL이 설정되면 실제 전송을 시도하며, 실패 시 로컬 Outbox에 임시 저장됩니다.
+                                </p>
+                                <p className="text-xs text-indigo-600 leading-relaxed font-bold mt-3">
+                                    Gemini 협업 논의가 필요한 경우 피드백 유형에서 <strong>"🤖 Gemini 협업: 다음 버전 기획/개선"</strong>을 선택해 주세요.
                                 </p>
                             </div>
                         )}
@@ -211,7 +414,7 @@ const Feedback: React.FC = () => {
                                     value={formData.name}
                                     onChange={e => setFormData({...formData, name: e.target.value})}
                                     className="w-full bg-slate-50 border-transparent rounded-2xl shadow-inner focus:ring-2 focus:ring-indigo-600 text-sm py-4 px-5 font-bold transition-all" 
-                                    disabled={status === 'sending' || status === 'success'}
+                                    disabled={status === 'sending' || status === 'success' || status === 'error'}
                                 />
                             </div>
                             <div>
@@ -220,17 +423,18 @@ const Feedback: React.FC = () => {
                                     value={formData.type}
                                     onChange={e => setFormData({...formData, type: e.target.value})}
                                     className="w-full bg-slate-50 border-transparent rounded-2xl shadow-inner focus:ring-2 focus:ring-indigo-600 text-sm py-4 px-5 font-bold transition-all appearance-none"
-                                    disabled={status === 'sending' || status === 'success'}
+                                    disabled={status === 'sending' || status === 'success' || status === 'error'}
                                 >
-                                    <option>🚨 현장 위험 요소 긴급 제보</option>
-                                    <option>📄 특허/법무/공신력 관련 문의</option>
-                                    <option>🎨 브랜드/로고 가독성 개선 요청</option>
-                                    <option>📱 모바일 화면/네비게이션 최적화 요청</option>
-                                    <option>🎛️ 대시보드 색상/버전 표기 개선</option>
-                                    <option>🌏 번역/OCR 오류 신고</option>
-                                    <option>💡 현장 맞춤 기능 제안</option>
-                                    <option>🙌 안전 우수 사례 칭찬</option>
-                                    <option>🐛 시스템 버그 리포트</option>
+                                    <option>🚨 긴급: 현장 위험 요소 즉시 제보</option>
+                                    <option>🐛 품질: 시스템 버그 리포트</option>
+                                    <option>🌏 품질: 번역/OCR 오류 신고</option>
+                                    <option>💡 기능: 현장 맞춤 기능 제안</option>
+                                    <option>🤖 Gemini 협업: 다음 버전 기획/개선</option>
+                                    <option>📱 UX: 모바일 화면/네비게이션 최적화</option>
+                                    <option>🎨 디자인: 브랜드/로고 가독성 개선</option>
+                                    <option>🎛️ 디자인: 대시보드 색상/버전 표기 개선</option>
+                                    <option>📄 공신력: 특허/법무/권리화 문의</option>
+                                    <option>🙌 운영: 안전 우수 사례 칭찬/공유</option>
                                 </select>
                             </div>
                             <div>
@@ -241,7 +445,7 @@ const Feedback: React.FC = () => {
                                     value={formData.message}
                                     onChange={e => setFormData({...formData, message: e.target.value})}
                                     className="w-full bg-slate-50 border-transparent rounded-2xl shadow-inner focus:ring-2 focus:ring-indigo-600 text-sm p-5 resize-none font-bold transition-all"
-                                    disabled={status === 'sending' || status === 'success'}
+                                    disabled={status === 'sending' || status === 'success' || status === 'error'}
                                 ></textarea>
                             </div>
                             
@@ -249,7 +453,7 @@ const Feedback: React.FC = () => {
                                 type="submit" 
                                 disabled={status !== 'idle'}
                                 className={`w-full py-5 font-black rounded-3xl shadow-2xl transition-all transform active:scale-95 flex items-center justify-center gap-2 relative overflow-hidden
-                                    ${status === 'success' ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-200'}
+                                    ${status === 'success' ? 'bg-green-500 text-white' : status === 'error' ? 'bg-rose-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-200'}
                                     ${status === 'sending' ? 'cursor-not-allowed opacity-80' : ''}
                                 `}
                             >
@@ -274,8 +478,78 @@ const Feedback: React.FC = () => {
                                         전송 완료!
                                     </>
                                 )}
+                                {status === 'error' && (
+                                    <>
+                                        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                                        전송 실패 (Outbox 저장)
+                                    </>
+                                )}
                             </button>
                         </form>
+
+                        <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="flex items-center justify-between gap-3 mb-3">
+                                <div>
+                                    <p className="text-xs font-black text-slate-700">피드백 Outbox</p>
+                                    <p className="text-[11px] text-slate-500">전송 실패 시 자동 보관되며, 여기서 재전송할 수 있습니다.</p>
+                                </div>
+                                <span className="px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 text-xs font-black">
+                                    {outboxItems.length}건
+                                </span>
+                            </div>
+
+                            {outboxItems.length === 0 ? (
+                                <p className="text-xs text-slate-400 font-bold">대기 중인 항목이 없습니다.</p>
+                            ) : (
+                                <>
+                                    <div className="flex gap-2 mb-3">
+                                        <button
+                                            onClick={handleRetryAll}
+                                            disabled={isRetryingAll}
+                                            className={`px-3 py-2 rounded-lg text-xs font-black transition-colors ${isRetryingAll ? 'bg-slate-200 text-slate-500 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                                        >
+                                            {isRetryingAll ? '전체 재전송 중...' : '전체 재전송'}
+                                        </button>
+                                        <button
+                                            onClick={handleClearOutbox}
+                                            className="px-3 py-2 rounded-lg text-xs font-black bg-white text-slate-700 border border-slate-200 hover:bg-slate-100"
+                                        >
+                                            전체 비우기
+                                        </button>
+                                    </div>
+
+                                    <div className="space-y-2 max-h-44 overflow-y-auto custom-scrollbar pr-1">
+                                        {outboxItems.slice(0, 20).map((item) => (
+                                            <div key={item.id} className="p-3 rounded-xl border border-slate-200 bg-white">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="min-w-0">
+                                                        <p className="text-xs font-black text-slate-800 truncate">{item.type}</p>
+                                                        <p className="text-[11px] text-slate-500 mt-0.5">{item.name} · {new Date(item.createdAt).toLocaleString()}</p>
+                                                        <p className="text-[11px] text-slate-600 mt-1 line-clamp-2">{item.message}</p>
+                                                        <p className="text-[10px] text-rose-500 mt-1">재시도 {item.retryCount || 0}회{item.lastError ? ` · 최근 오류: ${item.lastError}` : ''}</p>
+                                                    </div>
+                                                    <div className="flex flex-col gap-1 shrink-0">
+                                                        <button
+                                                            onClick={() => handleRetryOne(item)}
+                                                            disabled={retryingId === item.id || isRetryingAll}
+                                                            className={`px-2.5 py-1.5 rounded-md text-[11px] font-black ${retryingId === item.id || isRetryingAll ? 'bg-slate-200 text-slate-500 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
+                                                        >
+                                                            {retryingId === item.id ? '재전송...' : '재전송'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDeleteOutboxItem(item.id)}
+                                                            className="px-2.5 py-1.5 rounded-md text-[11px] font-black bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                                                        >
+                                                            삭제
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
 
                         <div
                             className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 relative group/patent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"

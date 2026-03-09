@@ -54,6 +54,11 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const [verificationResult, setVerificationResult] = useState<EvidenceManifestVerificationResult | null>(null);
     const [verificationSummary, setVerificationSummary] = useState('');
 
+    const bulkProgressPercent = useMemo(() => {
+        if (!bulkProgress.total || bulkProgress.total <= 0) return 0;
+        return Math.min(100, Math.round((bulkProgress.current / bulkProgress.total) * 100));
+    }, [bulkProgress.current, bulkProgress.total]);
+
     // 공종 목록 추출
     const teams = useMemo(() => ['전체', ...Array.from(new Set(workerRecords.map(r => r.jobField))).sort()], [workerRecords]);
 
@@ -857,9 +862,23 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     
                     {isGenerating || isPackagingEvidence ? (
                         <div className="flex items-center gap-2 animate-fade-in">
-                            <div className="text-xs font-black text-indigo-600 animate-pulse bg-indigo-50 px-4 py-2.5 rounded-xl border border-indigo-100 shadow-sm h-[42px] flex items-center">
-                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                {isPackagingEvidence ? '증빙 패키지 생성 중' : '보고서 생성 중'}... ({bulkProgress.current}/{bulkProgress.total})
+                            <div className="bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100 shadow-sm min-w-[280px]">
+                                <div className="text-xs font-black text-indigo-700 h-[20px] flex items-center justify-between">
+                                    <span className="flex items-center">
+                                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                        {isPackagingEvidence ? '증빙 패키지 생성 중' : '보고서 생성 중'}
+                                    </span>
+                                    <span>{bulkProgressPercent}%</span>
+                                </div>
+                                <div className="mt-1.5 h-2 w-full rounded-full bg-indigo-100 overflow-hidden">
+                                    <div
+                                        className="h-full bg-indigo-600 transition-all duration-300"
+                                        style={{ width: `${bulkProgressPercent}%` }}
+                                    ></div>
+                                </div>
+                                <div className="mt-1 text-[11px] font-bold text-indigo-600">
+                                    {bulkProgress.current}/{bulkProgress.total} 처리 완료
+                                </div>
                             </div>
                             <button onClick={cancelGeneration} className="px-4 py-2.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-300 h-[42px]" disabled={isPackagingEvidence}>
                                 중단

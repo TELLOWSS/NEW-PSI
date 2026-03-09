@@ -37,6 +37,11 @@ export interface AppSettings {
     approvalPolicy?: {
         strictRoleGate: boolean;
     };
+    feedbackChannel?: {
+        webhookUrl: string;
+        timeoutMs: number;
+        includeMetadata: boolean;
+    };
 }
 
 export interface HandwrittenAnswer {

@@ -116,6 +116,11 @@ const Settings: React.FC = () => {
         approvalPolicy: {
             strictRoleGate: false,
         },
+        feedbackChannel: {
+            webhookUrl: '',
+            timeoutMs: 8000,
+            includeMetadata: true,
+        },
     });
 
     const [jobFieldInput, setJobFieldInput] = useState('');
@@ -174,6 +179,10 @@ const Settings: React.FC = () => {
                     approvalPolicy: {
                         ...prev.approvalPolicy,
                         ...(parsed.approvalPolicy || {}),
+                    },
+                    feedbackChannel: {
+                        ...prev.feedbackChannel,
+                        ...(parsed.feedbackChannel || {}),
                     },
                 }));
                 setJobFieldInput((parsed.jobFields || []).join(', '));
@@ -439,6 +448,67 @@ const Settings: React.FC = () => {
                         <input type="checkbox" checked={!!settings.approvalPolicy?.strictRoleGate} onChange={(e) => setSettings({ ...settings, approvalPolicy: { ...(settings.approvalPolicy || { strictRoleGate: false }), strictRoleGate: e.target.checked } })} className="w-5 h-5 rounded border-slate-300 text-amber-600" />
                         <span className="text-sm font-bold text-slate-700">항상 안전관리자 엄격 기준으로 승인 차단 규칙 적용</span>
                     </label>
+                </div>
+
+                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-200 lg:col-span-2">
+                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5">피드백 전송 연동 (Webhook)</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="md:col-span-2">
+                            <label className="block text-sm font-bold text-slate-600 mb-2">Webhook URL</label>
+                            <input
+                                type="url"
+                                value={settings.feedbackChannel?.webhookUrl || ''}
+                                onChange={(e) => setSettings({
+                                    ...settings,
+                                    feedbackChannel: {
+                                        webhookUrl: e.target.value,
+                                        timeoutMs: settings.feedbackChannel?.timeoutMs ?? 8000,
+                                        includeMetadata: settings.feedbackChannel?.includeMetadata ?? true,
+                                    },
+                                })}
+                                placeholder="https://hooks.slack.com/services/..."
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-bold text-slate-600 mb-2">타임아웃(ms)</label>
+                            <input
+                                type="number"
+                                min={2000}
+                                step={500}
+                                value={settings.feedbackChannel?.timeoutMs ?? 8000}
+                                onChange={(e) => setSettings({
+                                    ...settings,
+                                    feedbackChannel: {
+                                        webhookUrl: settings.feedbackChannel?.webhookUrl || '',
+                                        timeoutMs: Number(e.target.value) || 8000,
+                                        includeMetadata: settings.feedbackChannel?.includeMetadata ?? true,
+                                    },
+                                })}
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl"
+                            />
+                        </div>
+                    </div>
+                    <label className="inline-flex items-center gap-3 cursor-pointer select-none mt-4">
+                        <input
+                            type="checkbox"
+                            checked={settings.feedbackChannel?.includeMetadata ?? true}
+                            onChange={(e) => setSettings({
+                                ...settings,
+                                feedbackChannel: {
+                                    webhookUrl: settings.feedbackChannel?.webhookUrl || '',
+                                    timeoutMs: settings.feedbackChannel?.timeoutMs ?? 8000,
+                                    includeMetadata: e.target.checked,
+                                },
+                            })}
+                            className="w-5 h-5 rounded border-slate-300 text-indigo-600"
+                        />
+                        <span className="text-sm font-bold text-slate-700">전송 시 현장/시간/버전 메타데이터 포함</span>
+                    </label>
+                    <p className="text-xs text-slate-500 mt-3 leading-relaxed">
+                        비워두면 피드백 탭은 데모 모드(시뮬레이션)로 동작합니다. URL을 입력하면 실제 전송을 시도하고,
+                        실패 시 로컬 Outbox에 자동 보관됩니다.
+                    </p>
                 </div>
 
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-200 lg:col-span-2">
