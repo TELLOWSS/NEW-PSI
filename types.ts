@@ -11,6 +11,8 @@ export type Page =
     'feedback' |
     'introduction' |
     'individual-report' |
+    'admin-training' |
+    'worker-training' |
     'settings'; // Added
 
 export type ModalState = {
@@ -25,6 +27,7 @@ export interface AppSettings {
     safetyManager: string;
     jobFields: string[];
     apiKey: string;
+    trainingLanguagePreset?: string[];
     competencyWeights?: {
         psychological: number;
         jobUnderstanding: number;

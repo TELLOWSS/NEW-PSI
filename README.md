@@ -42,3 +42,39 @@ Next steps I recommend:
 
 - Run `npm install` locally and then `npm run dev` to smoke-test pages (Dashboard, OCR 분석, Worker Management, Reports).
 - If you want, I can generate a step-by-step smoke-test checklist and `VERIFICATION.md` (I will add it now).
+
+## Gemini 협업 시작 가이드 (2026-03-09 기준)
+
+아래 순서대로 보면 현재 상태를 가장 빠르게 이해하고, Gemini와 논의를 바로 시작할 수 있습니다.
+
+### 1) 문서 읽기 순서 (권장 10분)
+
+1. 전체 현황/결정 포인트 확인: [GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md](GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md)
+2. 기능 구현 상세 확인: [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md)
+3. 과거 작업 맥락 확인: [TASK_COMPLETION_SUMMARY.md](TASK_COMPLETION_SUMMARY.md)
+4. 보완 이슈/개선 내역 확인: [IMPROVEMENTS_SUMMARY.md](IMPROVEMENTS_SUMMARY.md)
+
+### 2) Gemini에 바로 전달할 기준 문구
+
+협업용 표준 컨텍스트는 [GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md](GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md)의 **12) Gemini에 바로 붙여넣는 협업 컨텍스트 (복붙용)** 섹션을 그대로 사용합니다.
+
+### 3) 현재 우선 논의 주제 (P0)
+
+- 피드백 다중 채널 확장(웹훅 이후 Slack/Email)과 인증/재시도 정책
+- 보고서 실패 재시도 UX(전체 재시도 vs 선택 재시도)
+- OCR 오류 분류(휴리스틱 유지 vs 모델 기반 전환)
+- 발급 신뢰성 게이트 임계치/예외 승인 절차
+- 다국어 번역 API 정식 연동 및 품질/캐시 전략
+- Supabase RLS/Storage 최소권한 정책
+
+### 4) 협업 운영 리듬 (권장)
+
+- 일일: 장애/긴급 항목 우선 triage
+- 주간: P0 설계안 비교 및 채택
+- 월간: Gemini 리뷰 회의록을 [GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md](GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md)에 반영
+
+### 5) 실행 체크
+
+- 앱 실행 확인: `npm install` → `npm run dev`
+- 문서 최신화 기준일: 2026-03-09
+- 협업 시작점: [GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md](GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md)

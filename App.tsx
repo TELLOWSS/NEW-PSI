@@ -12,6 +12,8 @@ import Feedback from './pages/Feedback';
 import Introduction from './pages/Introduction';
 import IndividualReport from './pages/IndividualReport';
 import Settings from './pages/Settings';
+import AdminTraining from './pages/AdminTraining';
+import WorkerTraining from './pages/WorkerTraining';
 import type { WorkerRecord, SafetyCheckRecord, Page, ModalState, BriefingData, RiskForecastData } from './types';
 import { WorkerHistoryModal } from './components/modals/WorkerHistoryModal';
 import { RecordDetailModal } from './components/modals/RecordDetailModal';
@@ -299,6 +301,7 @@ const App: React.FC = () => {
     const [recordForReport, setRecordForReport] = useState<WorkerRecord | null>(null);
     const [isQrScanMode, setIsQrScanMode] = useState(false);
     const [isReanalyzing, setIsReanalyzing] = useState(false);
+    const [trainingSessionId, setTrainingSessionId] = useState('');
 
     // [Ref] Maintain a ref to workerRecords for stable callbacks (prevent stale closures in async handlers)
     const workerRecordsRef = useRef<WorkerRecord[]>([]);
@@ -314,6 +317,15 @@ const App: React.FC = () => {
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const qrData = params.get('d');
+        const mode = params.get('mode');
+        const sessionId = params.get('sessionId');
+
+        if (mode === 'worker-training' && sessionId) {
+            setTrainingSessionId(sessionId);
+            setCurrentPage('worker-training');
+            return;
+        }
+
         if (qrData) {
             const restored = restoreRecordFromUrl(qrData);
             if (restored) {
@@ -569,6 +581,8 @@ const App: React.FC = () => {
                 {currentPage === 'safety-checks' && <SafetyChecks workerRecords={workerRecords} checkRecords={safetyCheckRecords} onAddCheck={(r: unknown) => setSafetyCheckRecords(p => [{...(r as SafetyCheckRecord), id:Date.now().toString()}, ...p])} />}
                 {currentPage === 'site-issue-management' && <SiteIssueManagement />}
                 {currentPage === 'reports' && <Reports workerRecords={workerRecords} briefingData={briefingData} setBriefingData={setBriefingData} forecastData={forecastData} setForecastData={setForecastData} />}
+                {currentPage === 'admin-training' && <AdminTraining />}
+                {currentPage === 'worker-training' && <WorkerTraining sessionId={trainingSessionId} />}
                 {currentPage === 'feedback' && <Feedback />}
                 {currentPage === 'introduction' && <Introduction />}
                 {currentPage === 'settings' && <Settings />}

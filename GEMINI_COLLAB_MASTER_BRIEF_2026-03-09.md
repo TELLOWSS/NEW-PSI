@@ -3,7 +3,7 @@
 - 작성일: 2026-03-09
 - 기준 버전: PSI v2.1.0
 - 목적: 현재까지 업그레이드 사항을 한 번에 정리하고, Gemini와 향후 추가/수정보강 사항을 체계적으로 논의하기 위한 기준 문서
-- 최근 반영(이번 세션): 피드백 Webhook 실전송, 실패 Outbox 보관 및 재전송 UI, 보고서 진행률 퍼센트 UI, 설정 연동 필드 추가
+- 최근 반영(이번 세션): 피드백 Webhook/Outbox 고도화, 보고서 진행률 퍼센트 UI(개별/일괄), OCR 실패 원인 분류 및 재촬영 UX, 발급 신뢰성 게이트, 다국어 교육(관리자 생성/근로자 서명) 및 설정 기반 언어 프리셋 연동
 
 ---
 
@@ -43,8 +43,13 @@ PSI(Proactive Safety Intelligence)는 건설 현장 안전 데이터를 수집·
 - 전송 실패 안전장치: 실패 건 자동 Outbox 저장(`psi_feedback_outbox`, 최대 100건)
 - Outbox 운영 기능 구현: 단건 재전송, 전체 재전송, 항목 삭제/전체 비우기 UI
 - 피드백 전송 채널 설정 추가: Webhook URL / Timeout(ms) / 메타데이터 포함 여부
-- 보고서 생성 UX 보강: 진행률 퍼센트 + 프로그레스 바 + 처리 건수 표시
-- 소개/피드백 협업 문구 보강: Gemini 논의 카테고리와 협업 아젠다 가시화
+- 보고서 생성 UX 보강: 진행률 퍼센트 + 프로그레스 바 + 처리 건수 표시(개별 보고서/일괄 보고서)
+- OCR 실패 분류 체계 도입: `QUALITY/RESOLUTION/HANDWRITING/LAYOUT/UNKNOWN` 자동 태깅 및 사용자 액션 가이드
+- OCR 분석 화면 개선: 오류 타입 한글 라벨, 모바일/데스크톱 가독성 분리, `다시 촬영` 액션 버튼
+- 근로자 발급 신뢰성 게이트: 원본 이미지/OCR 감사이력/증빙 해시/핵심 필드 기준 사전 검증 후 발급
+- 근로자 발급 운영 UX: 검증상태(통과/검증필요) 필터, 검증필요 인쇄 버튼 비활성
+- 다국어 교육 기능 도입: 관리자 음성안내 생성 + QR 배포 + 근로자 전자서명 제출 플로우
+- 설정 연동 강화: `trainingLanguagePreset` 저장 및 관리자 다국어 생성 기본값 자동 반영
 
 ---
 
@@ -61,6 +66,8 @@ PSI(Proactive Safety Intelligence)는 건설 현장 안전 데이터를 수집·
 - 시스템 설정: 현장 설정, 가중치 정책, 이력/복원, 승인정책
 - 피드백: 현장/운영/디자인/버그/Gemini 협업 제안 접수
 - 소개: 시스템 철학, 신뢰 근거(특허), 버전 진화 히스토리, 향후 협업 아젠다
+- 관리자 다국어 교육: 한국어 원문 기반 다국어 TTS 생성 및 QR 공유
+- 근로자 교육/서명: 모바일 접속 후 서명 제출 및 이력 저장
 
 ---
 
@@ -98,15 +105,17 @@ PSI(Proactive Safety Intelligence)는 건설 현장 안전 데이터를 수집·
 ## 6) Gemini와 논의할 추가/수정보강 항목 (우선순위)
 
 ### P0 (즉시)
-1. 피드백 접수 실서버 연동 고도화 (완료: Webhook 기본 연동 / 논의: Slack·Email 다중 채널, 인증, 재전송 정책)
-2. 보고서 생성 진행률/실패 재시도 UX 고도화 (완료: 퍼센트·진행바 / 논의: 실패 건별 재시도 버튼, 백그라운드 큐)
-3. OCR 실패 원인 분류(품질/해상도/언어/레이아웃) 자동 태깅
+1. 피드백 접수 실서버 연동 고도화 (완료: Webhook/Outbox / 논의: Slack·Email 다중 채널, 인증, 자동 재시도 정책)
+2. 보고서 생성 진행률/실패 재시도 UX 고도화 (완료: 퍼센트·진행바 / 논의: 실패 건 선택 재시도, 백그라운드 큐)
+3. OCR 실패 원인 분류 자동 태깅 (완료: QUALITY/RESOLUTION/HANDWRITING/LAYOUT/UNKNOWN)
+4. 발급 전 신뢰성 검증 정책 (완료: 1차 게이트 / 논의: 임계치·예외 승인 워크플로우)
 
 ### P1 (단기)
 1. 저무결성/고위험 근로자 자동 후속조치 템플릿
 2. 현장별 KPI 비교 대시보드(월/주 단위)
 3. 설정 변경 승인 플로우(권한·감사 로그) 강화
 4. 모바일 OCR/근로자관리 페이지 추가 최적화
+5. 다국어 교육 번역 품질 고도화(현재 더미 prefix 방식 → 정식 번역 API)
 
 ### P2 (중기)
 1. E2E 자동화 테스트 시나리오 구축
@@ -159,8 +168,9 @@ PSI(Proactive Safety Intelligence)는 건설 현장 안전 데이터를 수집·
 1. 피드백 다중 채널 범위 확정 (현재 Webhook 완료 → Slack/Email 확장 방식 결정)
 2. Outbox 재전송 정책 확정 (완료: 수동 단건/전체 재시도, 삭제/비우기 / 논의: 자동 재시도 간격, 최대 횟수)
 3. 보고서 실패 건 재처리 UX 스펙 확정 (실패 목록에서 선택 재생성)
-4. OCR/번역 오류 분류 기준표(코드+운영 문서) 작성
-5. 월간 Gemini 리뷰 회의 템플릿을 운영 문서로 고정
+4. OCR/번역 오류 분류 기준표(코드+운영 문서) 운영 확정
+5. 발급 신뢰성 게이트 예외 승인 프로세스(누가, 어떤 근거로 승인하는지) 합의
+6. 월간 Gemini 리뷰 회의 템플릿을 운영 문서로 고정
 
 ---
 
@@ -169,20 +179,89 @@ PSI(Proactive Safety Intelligence)는 건설 현장 안전 데이터를 수집·
 ### 11-1. 실제 구현 반영 파일
 - `types.ts`
 	- `AppSettings.feedbackChannel` 추가
+	- `AppSettings.trainingLanguagePreset` 추가
+	- `OcrErrorType`, `WorkerRecord.ocrErrorType/ocrErrorMessage` 추가
 - `pages/Settings.tsx`
 	- 피드백 전송 연동 설정 UI 추가(Webhook URL, timeoutMs, includeMetadata)
+	- 다국어 교육 기본 언어 세트 저장 UI 추가(체크박스/기본값 복원)
 - `pages/Feedback.tsx`
 	- 데모 전송 → 조건부 실전송(fetch) 전환
 	- 실패 시 Outbox 저장 및 상태 표시(`error` 상태)
 	- Outbox 목록/재전송/삭제/전체 비우기 기능 추가
+- `components/shared/ReportGenerationProgress.tsx`
+	- 진행률 퍼센트/상태/재시도 재사용 컴포넌트 추가
+- `pages/IndividualReport.tsx`
+	- 개별 보고서 생성 진행률/오류/재시도/중복 클릭 방지 적용
 - `pages/Reports.tsx`
 	- 일괄 생성 상태에 퍼센트/진행바/처리 건수 표시 추가
+	- 실패 상태 처리 및 재시도 흐름 강화
+- `services/geminiService.ts`
+	- OCR 실패 원인 휴리스틱 분류 및 에러 레코드 표준화
+- `pages/OcrAnalysis.tsx`
+	- 분류형 안내 카드/행 단위 안내/재촬영 버튼/한글 라벨/반응형 가독성 개선
+- `pages/WorkerManagement.tsx`
+	- 발급 전 신뢰성 게이트/검증상태 필터/검증필요 인쇄 차단
+- `lib/supabaseClient.ts`
+	- Supabase 클라이언트 연결 유틸 추가
+- `api/admin/create-training.ts`
+	- 관리자 다국어 안내 생성 API 추가(TTS/세션 생성)
+- `api/training/submit-signature.ts`
+	- 근로자 전자서명 제출 API 추가
+- `pages/AdminTraining.tsx`
+	- 관리자 다국어 교육 생성 UI(언어 선택, QR 생성)
+	- Settings의 `trainingLanguagePreset` 기본값 자동 반영
+- `pages/WorkerTraining.tsx`
+	- 근로자 모바일 학습/서명 제출 UI
+- `App.tsx`, `components/Sidebar.tsx`, `components/Layout.tsx`
+	- 신규 교육 페이지 라우팅/내비게이션 연결
+- `package.json`, `.env.local.example`
+	- Supabase/TTS/QR/서명 관련 의존성 및 환경변수 템플릿 추가
 
 ### 11-2. Gemini와 바로 논의할 질문
 1. Webhook payload 표준 키를 고정할지(외부 시스템 호환 우선) 또는 시스템별 어댑터를 둘지?
 2. Outbox 재전송 UX를 피드백 탭에 둘지, 설정 탭 운영도구로 분리할지?
 3. 보고서 실패 재시도는 "실패 건 전체 재시도"와 "선택 재시도" 중 어떤 흐름이 현장에 더 단순한지?
-4. 메타데이터 범위(userAgent/timezone/version)에서 개인정보/보안 관점 최소 수집 기준은 무엇인지?
+4. OCR 실패 분류 휴리스틱을 유지할지, 모델 기반 분류(추론+근거 로그)로 전환할지?
+5. 발급 신뢰성 게이트의 운영 임계치(통과/검증필요)와 승인 책임자 정책을 어떻게 정의할지?
+6. 다국어 교육 번역 품질(현재 더미 번역) 고도화를 위해 어떤 번역 엔진/캐시 정책이 적절한지?
+7. Supabase RLS/Storage 정책을 운영 최소권한으로 어떻게 표준화할지?
+
+---
+
+## 12) Gemini에 바로 붙여넣는 협업 컨텍스트 (복붙용)
+
+아래 텍스트를 그대로 Gemini에 전달하면, 현재 프로젝트 상태를 누락 없이 공유할 수 있습니다.
+
+```
+프로젝트: PSI (React + TypeScript + Vite)
+목표: 건설현장 안전관리 AI 시스템의 운영 안정성/신뢰성/다국어 실사용성 고도화
+
+[이미 완료된 핵심 구현]
+1) 피드백 Webhook 실전송 + 실패 Outbox 저장/재시도/삭제/비우기
+2) 보고서 생성 진행률 UI(개별/일괄): 퍼센트/진행바/성공/오류/재시도
+3) OCR 실패 원인 분류: QUALITY/RESOLUTION/HANDWRITING/LAYOUT/UNKNOWN
+4) OCR 분석 UI 액션 가이드 + 다시촬영 버튼 + 한글 라벨 + 반응형 가독성
+5) 발급 신뢰성 게이트: OCR/증빙/감사이력 검증 통과건만 발급
+6) 관리자 다국어 교육 생성 + QR 배포 + 근로자 전자서명 제출
+7) Settings 기반 다국어 기본 언어 프리셋 저장 및 AdminTraining 초기값 자동 반영
+
+[현재 논의가 필요한 의사결정]
+A) 피드백 다중 채널 확장(Slack/Email)과 인증/재시도 정책
+B) 보고서 실패 재시도 UX(전체 재시도 vs 선택 재시도)
+C) OCR 오류 분류 휴리스틱 유지 vs 모델 기반 분류 전환
+D) 발급 신뢰성 게이트 임계치/예외 승인 워크플로우
+E) 번역 API 정식 연동 및 다국어 품질/캐시 전략
+F) Supabase RLS/Storage 최소권한 운영정책
+
+[요청]
+위 6개 항목에 대해 운영 현실성(현장 사용성, 장애 대응, 보안/개인정보, 유지보수 비용) 기준으로
+우선순위와 권장 아키텍처를 제안해줘. 각 항목마다:
+- 권장안 1개
+- 대안 1개
+- 트레이드오프(장단점)
+- 바로 실행할 작업(체크리스트)
+형식으로 답변해줘.
+```
 
 ---
 

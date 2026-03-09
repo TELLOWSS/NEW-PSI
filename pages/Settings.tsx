@@ -3,6 +3,51 @@ import React, { useState, useEffect } from 'react';
 import type { AppSettings } from '../types';
 import { getIsPaidApiMode, setIsPaidApiMode } from '../utils/apiModeUtils';
 
+const TRAINING_LANGUAGE_OPTIONS = [
+    { code: 'ko-KR', label: '한국어 (ko-KR)' },
+    { code: 'en-US', label: '영어 (en-US)' },
+    { code: 'vi-VN', label: '베트남어 (vi-VN)' },
+    { code: 'cmn-CN', label: '중국어 (cmn-CN)' },
+    { code: 'th-TH', label: '태국어 (th-TH)' },
+    { code: 'id-ID', label: '인도네시아어 (id-ID)' },
+    { code: 'uz-UZ', label: '우즈베크어 (uz-UZ)' },
+    { code: 'mn-MN', label: '몽골어 (mn-MN)' },
+    { code: 'km-KH', label: '크메르어 (km-KH)' },
+    { code: 'ru-RU', label: '러시아어 (ru-RU)' },
+    { code: 'kk-KZ', label: '카자흐어 (kk-KZ)' },
+    { code: 'ne-NP', label: '네팔어 (ne-NP)' },
+    { code: 'my-MM', label: '미얀마어 (my-MM)' },
+    { code: 'fil-PH', label: '필리핀어 (fil-PH)' },
+    { code: 'hi-IN', label: '힌디어 (hi-IN)' },
+    { code: 'bn-BD', label: '벵골어 (bn-BD)' },
+    { code: 'ur-PK', label: '우르두어 (ur-PK)' },
+    { code: 'si-LK', label: '싱할라어 (si-LK)' },
+] as const;
+
+const CURRENT_SITE_LANGUAGE_SET = [
+    'ko-KR',
+    'vi-VN',
+    'cmn-CN',
+    'mn-MN',
+    'id-ID',
+    'ru-RU',
+    'kk-KZ',
+    'uz-UZ',
+    'th-TH',
+    'km-KH',
+    'my-MM',
+] as const;
+
+const VALID_TRAINING_LANGUAGE_CODES = new Set(TRAINING_LANGUAGE_OPTIONS.map((item) => item.code));
+
+const normalizeTrainingLanguagePreset = (input?: string[]): string[] => {
+    if (!Array.isArray(input)) return [...CURRENT_SITE_LANGUAGE_SET];
+
+    const normalized = Array.from(new Set(input.filter((code) => VALID_TRAINING_LANGUAGE_CODES.has(code))));
+    if (normalized.length === 0) return [...CURRENT_SITE_LANGUAGE_SET];
+    return normalized;
+};
+
 // [Guide Component] CSS-based Infographics for Beginners
 const SettingsGuide: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     return (
@@ -104,6 +149,7 @@ const Settings: React.FC = () => {
         safetyManager: '박 성 훈',
         jobFields: ['시스템', '용역', '철근', '분석', '배체정리', '형틀', '타설', '미장', '견출', '설비', '전기'],
         apiKey: '',
+        trainingLanguagePreset: [...CURRENT_SITE_LANGUAGE_SET],
         competencyWeights: {
             psychological: 0.20,
             jobUnderstanding: 0.22,
@@ -172,6 +218,7 @@ const Settings: React.FC = () => {
                 setSettings((prev) => ({
                     ...prev,
                     ...parsed,
+                    trainingLanguagePreset: normalizeTrainingLanguagePreset(parsed.trainingLanguagePreset),
                     competencyWeights: {
                         ...prev.competencyWeights,
                         ...(parsed.competencyWeights || {}),
@@ -256,7 +303,11 @@ const Settings: React.FC = () => {
             if (!proceed) return;
         }
 
-        const newSettings = { ...settings, jobFields: fields };
+        const newSettings = {
+            ...settings,
+            jobFields: fields,
+            trainingLanguagePreset: normalizeTrainingLanguagePreset(settings.trainingLanguagePreset),
+        };
 
         if (previousVersion !== nextVersion) {
             const historyRaw = localStorage.getItem('psi_competency_weight_history');
@@ -322,6 +373,18 @@ const Settings: React.FC = () => {
                 version: entry.weights?.version || entry.nextVersion || 'v1.0.0',
             },
         }));
+    };
+
+    const toggleTrainingLanguagePreset = (code: string) => {
+        setSettings((prev) => {
+            const current = normalizeTrainingLanguagePreset(prev.trainingLanguagePreset);
+            if (current.includes(code)) {
+                const next = current.filter((item) => item !== code);
+                if (next.length === 0) return prev;
+                return { ...prev, trainingLanguagePreset: next };
+            }
+            return { ...prev, trainingLanguagePreset: [...current, code] };
+        });
     };
 
     return (
@@ -508,6 +571,37 @@ const Settings: React.FC = () => {
                     <p className="text-xs text-slate-500 mt-3 leading-relaxed">
                         비워두면 피드백 탭은 데모 모드(시뮬레이션)로 동작합니다. URL을 입력하면 실제 전송을 시도하고,
                         실패 시 로컬 Outbox에 자동 보관됩니다.
+                    </p>
+                </div>
+
+                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-cyan-200 lg:col-span-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">다국어 교육 기본 언어 세트</h3>
+                        <button
+                            type="button"
+                            onClick={() => setSettings((prev) => ({ ...prev, trainingLanguagePreset: [...CURRENT_SITE_LANGUAGE_SET] }))}
+                            className="px-3 py-1.5 rounded-lg bg-cyan-50 text-cyan-700 text-[11px] font-black border border-cyan-200 hover:bg-cyan-100"
+                        >
+                            현장 국적 기본값 복원
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                        {TRAINING_LANGUAGE_OPTIONS.map((lang) => {
+                            const currentPreset = normalizeTrainingLanguagePreset(settings.trainingLanguagePreset);
+                            return (
+                                <label key={lang.code} className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 bg-slate-50">
+                                    <input
+                                        type="checkbox"
+                                        checked={currentPreset.includes(lang.code)}
+                                        onChange={() => toggleTrainingLanguagePreset(lang.code)}
+                                    />
+                                    <span className="text-xs font-bold text-slate-700">{lang.label}</span>
+                                </label>
+                            );
+                        })}
+                    </div>
+                    <p className="mt-3 text-xs text-slate-500 leading-relaxed">
+                        여기서 저장한 기본 언어 세트는 관리자 다국어 안내 생성 화면의 초기 선택값으로 자동 반영됩니다.
                     </p>
                 </div>
 

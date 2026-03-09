@@ -27,6 +27,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         'feedback': '피드백 및 업데이트',
         'introduction': '소개',
         'individual-report': '개인별 안전 분석 리포트',
+        'admin-training': '관리자 다국어 음성 안내 생성',
+        'worker-training': '근로자 전자서명 제출',
         'settings': '시스템 설정 (System Configuration)'
     };
 
