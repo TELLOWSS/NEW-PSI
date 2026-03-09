@@ -4,7 +4,7 @@ import { FileUpload } from '../components/FileUpload';
 import { Spinner } from '../components/Spinner';
 import { analyzeWorkerRiskAssessment, updateAnalysisBasedOnEdits, getQuotaState, setQuotaExhausted, isRateLimitError, validateImageFormat, isFormatCompatibleWithAI } from '../services/geminiService';
 import { extractMessage } from '../utils/errorUtils';
-import type { WorkerRecord } from '../types';
+import type { WorkerRecord, OcrErrorType } from '../types';
 import { fileToBase64 } from '../utils/fileUtils';
 
 const buildReassessmentAuditNote = (before: WorkerRecord, updated: Partial<WorkerRecord>): string => {
@@ -40,8 +40,85 @@ const getSafetyLevelClass = (level: '초급' | '중급' | '고급') => {
 const isManagementRole = (field: string) => 
     /관리|팀장|부장|과장|기사|공무|소장/.test(field);
 
+const classifyLegacyOcrErrorType = (raw: string): OcrErrorType => {
+    const message = (raw || '').toLowerCase();
+
+    if (message.includes('모서리') || message.includes('잘림') || message.includes('배경') || message.includes('layout') || message.includes('crop')) return 'LAYOUT';
+    if (message.includes('해상도') || message.includes('low resolution') || message.includes('too short') || message.includes('멀리')) return 'RESOLUTION';
+    if (message.includes('악필') || message.includes('손글씨') || message.includes('handwriting') || message.includes('illegible')) return 'HANDWRITING';
+    if (message.includes('반사') || message.includes('그림자') || message.includes('초점') || message.includes('흔들') || message.includes('blur') || message.includes('glare')) return 'QUALITY';
+    return 'UNKNOWN';
+};
+
+const getOcrErrorTypeFromRecord = (record: WorkerRecord): OcrErrorType => {
+    if (record.ocrErrorType) return record.ocrErrorType;
+    return classifyLegacyOcrErrorType(String(record.aiInsights || ''));
+};
+
+const getOcrErrorGuideMessage = (errorType: OcrErrorType): string => {
+    switch (errorType) {
+        case 'QUALITY':
+            return '📸 사진에 빛 반사가 있거나 흔들렸습니다. 밝은 곳에서 초점을 맞춰 다시 찍어주세요.';
+        case 'HANDWRITING':
+            return '✍️ 글씨를 인식하기 어렵습니다. 정자체로 작성되었는지 확인해 주세요.';
+        case 'LAYOUT':
+            return '📄 문서의 모서리가 잘렸습니다. 기록지 전체가 화면에 들어오게 찍어주세요.';
+        case 'RESOLUTION':
+            return '🔎 해상도가 낮거나 너무 멀리서 촬영되었습니다. 문서에 가까이 다가가 선명하게 촬영해 주세요.';
+        default:
+            return '🛠️ 서버 또는 네트워크 오류가 발생했습니다. 잠시 후 다시 촬영하거나 재시도해 주세요.';
+    }
+};
+
+const getOcrErrorGuideSummary = (errorType: OcrErrorType): string => {
+    switch (errorType) {
+        case 'QUALITY':
+            return '조치: 반사/흔들림 최소화 후 재촬영';
+        case 'HANDWRITING':
+            return '조치: 정자체 확인 후 재작성/재촬영';
+        case 'LAYOUT':
+            return '조치: 문서 전체(모서리 포함) 재촬영';
+        case 'RESOLUTION':
+            return '조치: 가까이서 고해상도 재촬영';
+        default:
+            return '조치: 잠시 후 재시도 또는 네트워크 확인';
+    }
+};
+
+const getOcrErrorTypeKoreanLabel = (errorType: OcrErrorType): string => {
+    switch (errorType) {
+        case 'QUALITY':
+            return '촬영 품질';
+        case 'RESOLUTION':
+            return '해상도';
+        case 'HANDWRITING':
+            return '악필/필기';
+        case 'LAYOUT':
+            return '문서 구도';
+        default:
+            return '기타 오류';
+    }
+};
+
+const getOcrErrorMobileLabel = (errorType: OcrErrorType): string => {
+    switch (errorType) {
+        case 'QUALITY':
+            return '📸 품질';
+        case 'HANDWRITING':
+            return '✍️ 악필';
+        case 'LAYOUT':
+            return '📄 레이아웃';
+        case 'RESOLUTION':
+            return '🔎 해상도';
+        default:
+            return '🛠️ 기타';
+    }
+};
+
 // [강화된 실패 판단 로직 - 안전성 강화]
 const isFailedRecord = (r: WorkerRecord): boolean => {
+    if (r.ocrErrorType) return true;
+
     // OCR 신뢰도 임계치 미달이면 검증 대기열로 분류
     if (typeof r.ocrConfidence === 'number' && r.ocrConfidence < 0.7) return true;
 
@@ -199,6 +276,22 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         return existingRecords.filter(r => typeof r.ocrConfidence === 'number' && r.ocrConfidence < 0.7).length;
     }, [existingRecords]);
 
+    const primaryFailedRecord = useMemo(() => failedRecords[0] || null, [failedRecords]);
+
+    const primaryFailedErrorType = useMemo<OcrErrorType | null>(() => {
+        if (!primaryFailedRecord) return null;
+        return getOcrErrorTypeFromRecord(primaryFailedRecord);
+    }, [primaryFailedRecord]);
+
+    const handleRetryCapture = useCallback(() => {
+        const target = document.getElementById('new-ocr-capture-section');
+        if (target) {
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            return;
+        }
+        alert('신규 기록 분석 영역에서 다시 촬영/업로드를 진행해 주세요.');
+    }, []);
+
     // 분석 중단 요청
     const stopAnalysis = useCallback(() => {
         stopRef.current = true;
@@ -223,9 +316,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         // [Quota State Check] Verify API quota status before batch processing
         const quotaState = getQuotaState();
         if (quotaState.isExhausted) {
-            const recoveryTime = Math.ceil((quotaState.recoveryTime - Date.now()) / 1000);
+            const recoveryTime = Math.ceil((quotaState.nextRetryTime - Date.now()) / 1000);
             if (recoveryTime > 0) {
-                alert(`⚠️ API 할당량이 소진되었습니다.\n복구 시간: ${recoveryTime}초 대기 필요\n${new Date(quotaState.recoveryTime).toLocaleTimeString()}에 다시 시도해주세요.`);
+                alert(`⚠️ API 할당량이 소진되었습니다.\n복구 시간: ${recoveryTime}초 대기 필요\n${new Date(quotaState.nextRetryTime).toLocaleTimeString()}에 다시 시도해주세요.`);
                 return;
             }
         }
@@ -260,6 +353,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         const errorRecord: WorkerRecord = {
                             ...record,
                             aiInsights: "❌ 원본 이미지 데이터 소실 (분석 불가)",
+                            ocrErrorType: 'LAYOUT',
+                            ocrErrorMessage: '원본 이미지 데이터 소실',
                             safetyScore: 0,
                         };
                         onUpdateRecord(errorRecord);
@@ -276,6 +371,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         const errorRecord: WorkerRecord = {
                             ...record,
                             aiInsights: `❌ 이미지 형식 오류: ${formatValidation.error} (감지: ${formatValidation.detectedFormat})`,
+                            ocrErrorType: classifyLegacyOcrErrorType(String(formatValidation.error || '')),
+                            ocrErrorMessage: String(formatValidation.error || '이미지 형식 오류'),
                             safetyScore: 0,
                         };
                         onUpdateRecord(errorRecord);
@@ -288,6 +385,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         const errorRecord: WorkerRecord = {
                             ...record,
                             aiInsights: `⚠️ 지원하지 않는 이미지 형식: ${formatValidation.detectedFormat}`,
+                            ocrErrorType: 'QUALITY',
+                            ocrErrorMessage: `지원하지 않는 이미지 형식: ${formatValidation.detectedFormat}`,
                             safetyScore: 0,
                         };
                         onUpdateRecord(errorRecord);
@@ -300,6 +399,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         const errorRecord: WorkerRecord = {
                             ...record,
                             aiInsights: `⚠️ AI 분석 미지원 형식: ${formatValidation.detectedFormat}. JPEG, PNG, GIF, WebP, HEIC 형식만 지원됩니다.`,
+                            ocrErrorType: 'QUALITY',
+                            ocrErrorMessage: `AI 분석 미지원 형식: ${formatValidation.detectedFormat}`,
                             safetyScore: 0,
                         };
                         onUpdateRecord(errorRecord);
@@ -317,9 +418,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             const results = await analyzeWorkerRiskAssessment(record.originalImage, '', record.filename || record.name);
                             if (results && results.length > 0) {
                                 apiResult = results[0];
+                                  const insightText = String(apiResult.aiInsights || '');
                                 // Check if result itself indicates failure from service (e.g. Quota Error)
-                                if (apiResult.safetyScore === 0 && apiResult.aiInsights.includes("오류") || apiResult.aiInsights.includes("429") || apiResult.aiInsights.includes("RESOURCE_EXHAUSTED")) {
-                                     throw new Error(apiResult.aiInsights);
+                                  if ((apiResult.safetyScore === 0 && insightText.includes('오류')) || insightText.includes('429') || insightText.includes('RESOURCE_EXHAUSTED')) {
+                                      throw new Error(insightText || '분석 실패');
                                 }
                                 break; // Success!
                             } else {
@@ -376,6 +478,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         const errorRecord: WorkerRecord = {
                             ...record,
                             aiInsights: "⛔ 반복적인 API 오류로 분석 실패 (재시도 필요)",
+                            ocrErrorType: 'UNKNOWN',
+                            ocrErrorMessage: '반복적인 API 오류',
                         };
                         onUpdateRecord(errorRecord);
                         failCount++;
@@ -390,6 +494,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     const errorRecord: WorkerRecord = {
                         ...record,
                         aiInsights: `⛔ 시스템 오류: ${errMsg}`,
+                        ocrErrorType: classifyLegacyOcrErrorType(errMsg),
+                        ocrErrorMessage: errMsg,
                     };
                     onUpdateRecord(errorRecord);
                     failCount++;
@@ -863,6 +969,24 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 )}
             </div>
 
+            {primaryFailedRecord && primaryFailedErrorType && (
+                <div className="bg-rose-50 border-2 border-rose-200 rounded-3xl p-5 sm:p-6 shadow-lg">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <div>
+                            <p className="text-xs font-black text-rose-600 uppercase tracking-widest">OCR 오류 자동 분류</p>
+                            <h4 className="text-lg sm:text-xl font-black text-rose-800 mt-1">{primaryFailedRecord.name || '미상'} · {getOcrErrorTypeKoreanLabel(primaryFailedErrorType)}</h4>
+                            <p className="text-sm font-bold text-rose-700 mt-2">{getOcrErrorGuideMessage(primaryFailedErrorType)}</p>
+                        </div>
+                        <button
+                            onClick={handleRetryCapture}
+                            className="w-full sm:w-auto px-6 py-4 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-base shadow-xl transition-all"
+                        >
+                            🔄 다시 촬영하기
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="bg-white p-6 rounded-2xl shadow-xl border border-slate-100 flex flex-col gap-4 no-print">
                 <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
                     <div className="relative flex-1 w-full">
@@ -906,6 +1030,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const isManager = isManagementRole(r.jobField);
                                 const hasImage = r.originalImage && r.originalImage.length > 200;
                                 const failed = isFailedRecord(r);
+                                const rowErrorType = failed ? getOcrErrorTypeFromRecord(r) : null;
+                                const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
+                                const rowGuideSummary = rowErrorType ? getOcrErrorGuideSummary(rowErrorType) : '';
+                                const rowGuideMobile = rowErrorType ? getOcrErrorMobileLabel(rowErrorType) : '';
                                 
                                 return (
                                     <tr key={r.id} className={`hover:bg-indigo-50/30 transition-colors group ${isManager ? 'bg-slate-50/50 opacity-80' : ''} ${failed ? 'bg-rose-50/50' : ''}`} onClick={() => onViewDetails(r)}>
@@ -920,6 +1048,21 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                     <span className="text-[9px] text-slate-500 font-bold">OCR 신뢰도: {(r.ocrConfidence * 100).toFixed(0)}%</span>
                                                 )}
                                                 {failed && <span className="text-[9px] text-rose-500 font-bold">⚠️ 분석 필요/실패</span>}
+                                                {failed && rowErrorType && (
+                                                    <span className="mt-1 inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-100 text-rose-700 border border-rose-200">
+                                                        {getOcrErrorTypeKoreanLabel(rowErrorType)}
+                                                    </span>
+                                                )}
+                                                {failed && rowGuideMessage && (
+                                                    <>
+                                                        <span className="sm:hidden text-[10px] text-rose-700 font-black mt-1 leading-snug" title={rowGuideMessage}>
+                                                            {rowGuideMobile}
+                                                        </span>
+                                                        <span className="hidden sm:block text-[10px] text-rose-700 font-bold mt-1 leading-snug" title={rowGuideMessage}>
+                                                            {rowGuideSummary}
+                                                        </span>
+                                                    </>
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-4 sm:px-8 py-5 text-slate-500 font-bold">{r.jobField}</td>
@@ -970,7 +1113,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 </div>
             </div>
 
-            <div className="bg-white p-5 sm:p-10 rounded-3xl shadow-xl border border-slate-100 overflow-hidden relative">
+            <div id="new-ocr-capture-section" className="bg-white p-5 sm:p-10 rounded-3xl shadow-xl border border-slate-100 overflow-hidden relative">
                 <h3 className="text-xl sm:text-2xl font-black text-slate-900 mb-2">신규 기록 분석</h3>
                 <FileUpload onFilesChange={setFiles} onAnalyze={() => {}} isAnalyzing={isAnalyzing} fileCount={files.length} />
                 {files.length > 0 && !isAnalyzing && (

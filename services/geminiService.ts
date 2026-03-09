@@ -1,7 +1,7 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { getWindowProp } from '../utils/windowUtils';
-import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, HandwrittenAnswer } from '../types';
+import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, HandwrittenAnswer, OcrErrorType } from '../types';
 import { extractMessage } from '../utils/errorUtils';
 import { deriveIntegrityScore, enforceSafetyLevel } from '../utils/evidenceUtils';
 import { getIsPaidApiMode } from '../utils/apiModeUtils';
@@ -169,6 +169,117 @@ const updateSchema = {
 };
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const classifyOcrErrorType = (rawMessage: string): OcrErrorType => {
+    const message = (rawMessage || '').toLowerCase();
+
+    if (
+        message.includes('모서리') ||
+        message.includes('잘림') ||
+        message.includes('crop') ||
+        message.includes('layout') ||
+        message.includes('배경') ||
+        message.includes('바닥')
+    ) {
+        return 'LAYOUT';
+    }
+
+    if (
+        message.includes('해상도') ||
+        message.includes('low resolution') ||
+        message.includes('too short') ||
+        message.includes('너무 멀') ||
+        message.includes('small text')
+    ) {
+        return 'RESOLUTION';
+    }
+
+    if (
+        message.includes('악필') ||
+        message.includes('손글씨') ||
+        message.includes('handwriting') ||
+        message.includes('illegible') ||
+        message.includes('인식 불가 언어') ||
+        message.includes('cannot recognize language')
+    ) {
+        return 'HANDWRITING';
+    }
+
+    if (
+        message.includes('반사') ||
+        message.includes('그림자') ||
+        message.includes('초점') ||
+        message.includes('흔들') ||
+        message.includes('blur') ||
+        message.includes('glare') ||
+        message.includes('shadow')
+    ) {
+        return 'QUALITY';
+    }
+
+    return 'UNKNOWN';
+};
+
+const detectTextBasedOcrError = (record: WorkerRecord): OcrErrorType | null => {
+    const fullText = String(record.fullText || '');
+    const handwrittenCount = Array.isArray(record.handwrittenAnswers) ? record.handwrittenAnswers.length : 0;
+    const compactText = fullText.replace(/\s+/g, '');
+
+    if (compactText.length <= 18 && handwrittenCount === 0) {
+        return 'RESOLUTION';
+    }
+
+    const noisyChars = compactText.match(/[^\w\s가-힣ㄱ-ㅎㅏ-ㅣ一-龥ぁ-ゔァ-ヴー々〆〤.,:;()\-_/]/g) || [];
+    const noiseRatio = compactText.length > 0 ? noisyChars.length / compactText.length : 0;
+    if (compactText.length > 0 && noiseRatio > 0.35) {
+        return compactText.length < 40 ? 'RESOLUTION' : 'HANDWRITING';
+    }
+
+    if (compactText.length > 0 && compactText.length < 35 && handwrittenCount > 0) {
+        return 'HANDWRITING';
+    }
+
+    return null;
+};
+
+const createOcrErrorRecord = (
+    imageSource: string,
+    filenameHint: string | undefined,
+    name: string,
+    insight: string,
+    ocrErrorType: OcrErrorType
+): WorkerRecord => ({
+    id: `rec-err-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name,
+    jobField: '미분류',
+    teamLeader: '미지정',
+    role: 'worker',
+    isTranslator: false,
+    isSignalman: false,
+    date: new Date().toISOString().split('T')[0],
+    nationality: '미상',
+    safetyScore: 0,
+    safetyLevel: '초급',
+    originalImage: imageSource,
+    filename: filenameHint,
+    language: 'unknown',
+    handwrittenAnswers: [],
+    fullText: '분석 실패',
+    koreanTranslation: 'OCR 분석에 실패했습니다.',
+    strengths: [],
+    strengths_native: [],
+    weakAreas: ['분석 오류'],
+    weakAreas_native: [],
+    improvement: '',
+    improvement_native: '',
+    suggestions: [],
+    suggestions_native: [],
+    aiInsights: insight,
+    aiInsights_native: '',
+    selfAssessedRiskLevel: '중',
+    ocrErrorType,
+    ocrErrorMessage: insight,
+});
 
 const parseJsonObjectFromText = (rawText: string): Record<string, unknown> | null => {
     const text = (rawText || '').trim();
@@ -467,30 +578,7 @@ async function callGeminiWithRetry(
     } catch (e: unknown) {
         // Return a special error record that alerts the UI about missing key
         const errMsg = extractMessage(e);
-        return [{
-            id: `err-key-${Date.now()}`,
-            name: "설정 필요",
-            jobField: "미분류",
-            teamLeader: "미지정",
-            role: 'worker',
-            date: new Date().toISOString().split('T')[0],
-            nationality: "미상",
-            safetyScore: 0,
-            safetyLevel: '초급',
-            originalImage: imageSource,
-            filename: filenameHint,
-            language: "unknown",
-            handwrittenAnswers: [],
-            fullText: "",
-            koreanTranslation: "",
-            strengths: [], strengths_native: [],
-            weakAreas: [], weakAreas_native: [],
-            improvement: "", improvement_native: "",
-            suggestions: [], suggestions_native: [],
-            aiInsights: `⛔ ${errMsg}`, 
-            aiInsights_native: "",
-            selfAssessedRiskLevel: '중'
-        }];
+        return [createOcrErrorRecord(imageSource, filenameHint, '설정 필요', `⛔ ${errMsg}`, 'UNKNOWN')];
     }
     
     // 1. Prepare Data
@@ -510,29 +598,8 @@ async function callGeminiWithRetry(
     } catch (e: unknown) {
         console.error("Image Processing Failed:", e);
         const errMsg = extractMessage(e);
-        return [{
-            id: `err-img-${Date.now()}`,
-            name: "이미지 데이터 유실",
-            jobField: "미분류",
-            teamLeader: "미지정",
-            role: 'worker',
-            date: new Date().toISOString().split('T')[0],
-            nationality: "미상",
-            safetyScore: 0,
-            safetyLevel: '초급',
-            originalImage: imageSource, // Keep original
-            filename: filenameHint,
-            language: "unknown",
-            handwrittenAnswers: [],
-            fullText: "분석 불가",
-            koreanTranslation: "이미지 데이터가 손상되어 분석할 수 없습니다.",
-            strengths: [], strengths_native: [],
-            weakAreas: ["이미지 오류"], weakAreas_native: [],
-            improvement: "", improvement_native: "",
-            suggestions: [], suggestions_native: [],
-            aiInsights: `오류: ${errMsg}`, aiInsights_native: "",
-            selfAssessedRiskLevel: '중'
-        }];
+        const errorType = classifyOcrErrorType(errMsg);
+        return [createOcrErrorRecord(imageSource, filenameHint, '이미지 데이터 유실', `오류: ${errMsg}`, errorType)];
     }
 
     // 2. Retry Loop with Aggressive Backoff
@@ -673,7 +740,19 @@ async function callGeminiWithRetry(
                             integrityScore: deriveIntegrityScore(baseRecord),
                         };
 
-                        const enforced = enforceSafetyLevel(withIntegrity);
+                        const textBasedErrorType = detectTextBasedOcrError(withIntegrity);
+                        const withOcrTag: WorkerRecord = textBasedErrorType
+                            ? {
+                                ...withIntegrity,
+                                ocrErrorType: textBasedErrorType,
+                                ocrErrorMessage: textBasedErrorType === 'HANDWRITING'
+                                    ? '필기 인식 난이도가 높습니다.'
+                                    : '추출 텍스트가 너무 적어 해상도/거리 문제 가능성이 큽니다.',
+                                ocrConfidence: Math.min(typeof withIntegrity.ocrConfidence === 'number' ? withIntegrity.ocrConfidence : 1, 0.55),
+                            }
+                            : withIntegrity;
+
+                        const enforced = enforceSafetyLevel(withOcrTag);
                         const verified = enforceScoreGradeConsistency(
                             enforced.safetyScore,
                             enforced.safetyLevel,
@@ -742,31 +821,15 @@ async function callGeminiWithRetry(
         ? `할당량 초과 (429 RESOURCE_EXHAUSTED). 잠시 후 다시 시도됩니다.`
         : `오류 상세: ${lastMsg || '알 수 없는 오류'}`;
 
-    return [{
-        id: `rec-err-${Date.now()}`,
-        name: isQuotaError ? "할당량 초과 (대기중)" : "분석 실패 (재시도 필요)",
-        jobField: "미분류",
-        teamLeader: "미지정",
-        role: 'worker',
-        isTranslator: false,
-        isSignalman: false,
-        date: new Date().toISOString().split('T')[0],
-        nationality: "미상",
-        safetyScore: 0,
-        safetyLevel: '초급',
-        originalImage: imageSource, 
-        filename: filenameHint,
-        language: "unknown",
-        handwrittenAnswers: [],
-        fullText: "분석 실패",
-        koreanTranslation: "AI 연결 실패 또는 이미지 인식 오류.",
-        strengths: [], strengths_native: [],
-        weakAreas: ["분석 오류"], weakAreas_native: [],
-        improvement: "", improvement_native: "",
-        suggestions: [], suggestions_native: [],
-        aiInsights: finalErrorMsg, aiInsights_native: "",
-        selfAssessedRiskLevel: '중'
-    }];
+    const finalErrorType = isQuotaError ? 'UNKNOWN' : classifyOcrErrorType(finalErrorMsg);
+
+    return [createOcrErrorRecord(
+        imageSource,
+        filenameHint,
+        isQuotaError ? '할당량 초과 (대기중)' : '분석 실패 (재시도 필요)',
+        finalErrorMsg,
+        finalErrorType
+    )];
 }
 
 export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<Partial<WorkerRecord> | null> {

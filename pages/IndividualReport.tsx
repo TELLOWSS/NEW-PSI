@@ -3,6 +3,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import type { WorkerRecord } from '../types';
 import { generateReportUrl } from '../utils/qrUtils';
 import { ReportTemplate } from '../components/ReportTemplate';
+import { ReportGenerationProgress } from '../components/shared/ReportGenerationProgress';
 import { getWindowProp } from '../utils/windowUtils';
 
 interface IndividualReportProps {
@@ -13,13 +14,30 @@ interface IndividualReportProps {
     isQrScanMode?: boolean;
 }
 
+type GenerationAction = 'pdf' | 'image';
+
+interface GenerationProgressState {
+    status: 'idle' | 'running' | 'success' | 'error';
+    progress: number;
+    phaseLabel: string;
+    action: GenerationAction | null;
+    errorMessage?: string;
+}
+
 const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [], onBack, onUpdateRecord, isQrScanMode = false }) => {
     const reportRef = useRef<HTMLDivElement>(null);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+    const [generationProgress, setGenerationProgress] = useState<GenerationProgressState>({
+        status: 'idle',
+        progress: 0,
+        phaseLabel: '대기 중',
+        action: null,
+    });
     const [isCameraOpen, setIsCameraOpen] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
+    const progressIntervalRef = useRef<number | null>(null);
     const isKorean = record.nationality === '대한민국' || record.nationality === '한국' || (record.nationality || '').toLowerCase().includes('korea');
     const timelineLocale = isKorean ? 'ko-KR' : 'en-US';
     const timelineDateTimeOptions: Intl.DateTimeFormatOptions = {
@@ -34,6 +52,72 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
     const reassessmentFallback = isKorean ? '2차 재가공' : 'Secondary reassessment';
     const reassessmentTag = isKorean ? '[재평가]' : '[reassessment]';
     const reassessmentTrail = (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-5).reverse();
+    const isGenerating = isGeneratingPdf || isGeneratingImage;
+
+    const clearProgressInterval = () => {
+        if (progressIntervalRef.current !== null) {
+            window.clearInterval(progressIntervalRef.current);
+            progressIntervalRef.current = null;
+        }
+    };
+
+    const beginGenerationProgress = (action: GenerationAction) => {
+        const actionLabel = action === 'pdf' ? 'PDF 보고서 생성' : '이미지 보고서 생성';
+
+        clearProgressInterval();
+        setGenerationProgress({
+            status: 'running',
+            progress: 0,
+            phaseLabel: '시작 준비 중',
+            action,
+        });
+
+        progressIntervalRef.current = window.setInterval(() => {
+            setGenerationProgress(prev => {
+                if (prev.status !== 'running') return prev;
+                if (prev.progress >= 92) return prev;
+                return { ...prev, progress: Math.min(92, prev.progress + 1), phaseLabel: `${actionLabel} 진행 중` };
+            });
+        }, 180);
+    };
+
+    const updateGenerationProgress = (progress: number, phaseLabel: string) => {
+        setGenerationProgress(prev => {
+            if (prev.status !== 'running') return prev;
+            return {
+                ...prev,
+                progress: Math.max(prev.progress, Math.min(99, Math.round(progress))),
+                phaseLabel,
+            };
+        });
+    };
+
+    const completeGenerationProgress = () => {
+        clearProgressInterval();
+        setGenerationProgress(prev => ({
+            ...prev,
+            status: 'success',
+            progress: 100,
+            phaseLabel: '완료',
+            errorMessage: undefined,
+        }));
+    };
+
+    const failGenerationProgress = (errorMessage: string) => {
+        clearProgressInterval();
+        setGenerationProgress(prev => ({
+            ...prev,
+            status: 'error',
+            phaseLabel: '오류 발생',
+            errorMessage,
+        }));
+    };
+
+    useEffect(() => {
+        return () => {
+            clearProgressInterval();
+        };
+    }, []);
 
     const startCamera = async () => {
         setIsCameraOpen(true);
@@ -85,45 +169,75 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
     };
 
     const handleDownloadPDF = async () => {
-        if (!reportRef.current) return;
+        if (!reportRef.current || isGenerating) return;
         const html2canvas = getWindowProp<any>('html2canvas');
         const jspdf = getWindowProp<any>('jspdf');
-        if (!html2canvas || !jspdf) return alert('PDF 라이브러리가 로드되지 않았습니다.');
+        if (!html2canvas || !jspdf) {
+            failGenerationProgress('PDF 라이브러리가 로드되지 않았습니다. 다시 시도해 주세요.');
+            return;
+        }
 
+        beginGenerationProgress('pdf');
         setIsGeneratingPdf(true);
         try {
+            updateGenerationProgress(15, '데이터 수집 중');
             const canvas = await html2canvas(reportRef.current, { scale: 3, useCORS: true, backgroundColor: '#ffffff', logging: false });
+            updateGenerationProgress(65, '렌더링 결과 변환 중');
             const imgData = canvas.toDataURL('image/png', 1.0);
             const jsPDFCtor = (jspdf && (jspdf as unknown as { jsPDF?: unknown }).jsPDF) ? (jspdf as unknown as { jsPDF?: unknown }).jsPDF : jspdf;
             const PDFCtor = typeof jsPDFCtor === 'function' ? jsPDFCtor : null;
             if (!PDFCtor) throw new Error('jsPDF constructor not available');
+            updateGenerationProgress(82, 'PDF 문서 구성 중');
             const pdf = new (PDFCtor as new (...args: any[]) => any)('p', 'mm', 'a4');
             pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+            updateGenerationProgress(95, '파일 저장 중');
             pdf.save(`PSI_Report_${record.name}.pdf`);
+            completeGenerationProgress();
         } catch (err: unknown) {
             console.error('PDF generation failed:', err);
+            failGenerationProgress('PDF 생성에 실패했습니다. 다시 시도해 주세요.');
             alert('PDF 생성 실패');
         } finally { setIsGeneratingPdf(false); }
     };
 
     const handleDownloadImage = async () => {
-        if (!reportRef.current) return;
+        if (!reportRef.current || isGenerating) return;
         const html2canvas = getWindowProp<any>('html2canvas');
-        if (!html2canvas) return alert('이미지 라이브러리가 로드되지 않았습니다.');
+        if (!html2canvas) {
+            failGenerationProgress('이미지 라이브러리가 로드되지 않았습니다. 다시 시도해 주세요.');
+            return;
+        }
 
+        beginGenerationProgress('image');
         setIsGeneratingImage(true);
         try {
+            updateGenerationProgress(20, '데이터 수집 중');
             const canvas = await html2canvas(reportRef.current, { scale: 3, useCORS: true, backgroundColor: '#ffffff', logging: false });
+            updateGenerationProgress(72, '이미지 변환 중');
             const link = document.createElement('a');
             link.download = `PSI_Report_${record.name}.png`;
             link.href = canvas.toDataURL('image/png', 1.0);
+            updateGenerationProgress(94, '파일 저장 중');
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+            completeGenerationProgress();
         } catch (err: unknown) {
             console.error('Image save failed:', err);
+            failGenerationProgress('이미지 저장에 실패했습니다. 다시 시도해 주세요.');
             alert('이미지 저장 실패');
         } finally { setIsGeneratingImage(false); }
+    };
+
+    const handleRetryGeneration = () => {
+        if (generationProgress.status !== 'error' || !generationProgress.action || isGenerating) return;
+
+        if (generationProgress.action === 'pdf') {
+            void handleDownloadPDF();
+            return;
+        }
+
+        void handleDownloadImage();
     };
 
     return (
@@ -134,18 +248,29 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                 </button>
                 <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span><p className="text-xs font-bold text-slate-800">PSI A4 Professional Report</p></div>
                 <div className="flex gap-2">
-                    <button onClick={handleShare} className="bg-yellow-400 text-slate-900 px-5 py-2 rounded-full text-xs font-black hover:bg-yellow-500 flex items-center gap-2 shadow-sm">
+                    <button onClick={handleShare} disabled={isGenerating} className="bg-yellow-400 text-slate-900 px-5 py-2 rounded-full text-xs font-black hover:bg-yellow-500 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm">
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12c0 6.63 5.4 12 12 12 6.63 0 12-5.37 12-12 0-5.52-4.48-10-10-10zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" /></svg>
                         공유
                     </button>
-                    <button onClick={handleDownloadImage} disabled={isGeneratingImage} className="bg-emerald-600 px-5 py-2 rounded-full text-xs font-bold text-white hover:bg-emerald-700 shadow-sm flex items-center gap-1 transition-all">
+                    <button onClick={handleDownloadImage} disabled={isGenerating} className="bg-emerald-600 px-5 py-2 rounded-full text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm flex items-center gap-1 transition-all">
                         {isGeneratingImage ? '변환 중...' : '이미지 저장'}
                     </button>
-                    <button onClick={handleDownloadPDF} disabled={isGeneratingPdf} className="bg-slate-900 px-5 py-2 rounded-full text-xs font-bold text-white hover:bg-black transition-all">
+                    <button onClick={handleDownloadPDF} disabled={isGenerating} className="bg-slate-900 px-5 py-2 rounded-full text-xs font-bold text-white hover:bg-black disabled:opacity-60 disabled:cursor-not-allowed transition-all">
                         {isGeneratingPdf ? '생성 중...' : 'PDF 발급'}
                     </button>
                 </div>
             </div>
+
+            {generationProgress.status !== 'idle' && (
+                <ReportGenerationProgress
+                    status={generationProgress.status === 'running' ? 'running' : generationProgress.status === 'success' ? 'success' : 'error'}
+                    progress={generationProgress.progress}
+                    phaseLabel={generationProgress.phaseLabel}
+                    actionLabel={generationProgress.action === 'image' ? '이미지 보고서 생성' : 'PDF 보고서 생성'}
+                    errorMessage={generationProgress.errorMessage}
+                    onRetry={generationProgress.status === 'error' ? handleRetryGeneration : undefined}
+                />
+            )}
 
             {isQrScanMode && (
                 <div className="w-full max-w-[210mm] md:hidden sticky top-20 z-40 bg-white border border-indigo-200 rounded-2xl shadow-sm p-3">

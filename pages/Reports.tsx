@@ -3,6 +3,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord } from '../types';
 import { extractMessage } from '../utils/errorUtils';
 import { ReportTemplate } from '../components/ReportTemplate';
+import { ReportGenerationProgress } from '../components/shared/ReportGenerationProgress';
 import { getWindowProp } from '../utils/windowUtils';
 import { createEvidencePackagePdfBlob } from '../utils/evidenceReportUtils';
 import { verifyEvidenceManifest, formatEvidenceVerificationSummary } from '../utils/evidenceVerificationUtils';
@@ -12,6 +13,13 @@ type ReportType = 'worker-report' | 'team-report';
 type GenMode = 'combined-pdf' | 'individual-pdf' | 'individual-img';
 type ViewMode = 'list' | 'preview';
 type DatePreset = 'all' | 'last30' | 'thisMonth' | 'custom';
+
+interface ReportGenerationUiState {
+    status: 'idle' | 'running' | 'success' | 'error';
+    progress: number;
+    phaseLabel: string;
+    errorMessage?: string;
+}
 
 interface ReportsProps {
     workerRecords?: WorkerRecord[];
@@ -27,6 +35,11 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const [isGenerating, setIsGenerating] = useState(false);
     const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
     const [isPackagingEvidence, setIsPackagingEvidence] = useState(false);
+    const [reportGenerationUi, setReportGenerationUi] = useState<ReportGenerationUiState>({
+        status: 'idle',
+        progress: 0,
+        phaseLabel: '대기 중',
+    });
     
     // 생성 옵션
     const [selectedTeam, setSelectedTeam] = useState('전체');
@@ -288,6 +301,11 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
         // 초기화
         setIsGenerating(true);
+        setReportGenerationUi({
+            status: 'running',
+            progress: 0,
+            phaseLabel: '생성 시작 준비 중',
+        });
         abortRef.current = false;
         setBulkProgress({ current: 0, total: filteredRecords.length });
 
@@ -323,9 +341,22 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 setGeneratingRecord(record);
                 setGeneratingHistory(workerHistory);
                 setBulkProgress({ current: i + 1, total: filteredRecords.length });
+                const baseProgress = Math.floor((i / filteredRecords.length) * 90);
+                setReportGenerationUi(prev => ({
+                    ...prev,
+                    status: 'running',
+                    progress: Math.max(prev.progress, baseProgress),
+                    phaseLabel: `${record.name} 데이터 수집 중`,
+                }));
 
                 // DOM 렌더링 대기 (차트 애니메이션 등 고려)
                 await waitForRender(1200);
+                setReportGenerationUi(prev => ({
+                    ...prev,
+                    status: 'running',
+                    progress: Math.max(prev.progress, Math.floor(((i + 0.45) / filteredRecords.length) * 90)),
+                    phaseLabel: `${record.name} 보고서 렌더링 중`,
+                }));
 
                 if (bulkReportRef.current && !abortRef.current) {
                     try {
@@ -371,6 +402,13 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 console.warn(`[Warning] ${record.name} 이미지 생성 실패 (timeout or null)`);
                             }
                         }
+
+                        setReportGenerationUi(prev => ({
+                            ...prev,
+                            status: 'running',
+                            progress: Math.max(prev.progress, Math.floor(((i + 0.85) / filteredRecords.length) * 90)),
+                            phaseLabel: `${record.name} 저장 처리 중`,
+                        }));
                     } catch (err) {
                         console.error(`[Error] ${record.name} 처리 중 오류:`, err);
                         // Notify user of individual failure
@@ -383,6 +421,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             }
 
             if (!abortRef.current) {
+                setReportGenerationUi(prev => ({
+                    ...prev,
+                    status: 'running',
+                    progress: 96,
+                    phaseLabel: '최종 파일 패키징 중',
+                }));
                 if (genMode === 'combined-pdf') {
                     // [FIXED] Check masterPdf exists before calling save
                     if (masterPdf && masterPdf.save) {
@@ -394,6 +438,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     const content = await zip.generateAsync({ type: "blob" });
                     saveAs(content,(`${folderName}.zip`));
                 }
+
+                setReportGenerationUi({
+                    status: 'success',
+                    progress: 100,
+                    phaseLabel: '완료',
+                });
                 
                 // [IMPROVED] Show detailed completion message with failed records
                 if (failedRecords.length > 0) {
@@ -407,18 +457,35 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     alert(`생성이 완료되었습니다.\n\n총 ${filteredRecords.length}건 성공\n\n다운로드 폴더를 확인해주세요.`);
                 }
             } else {
+                setReportGenerationUi({
+                    status: 'error',
+                    progress: Math.max(1, bulkProgressPercent),
+                    phaseLabel: '중단됨',
+                    errorMessage: '보고서 생성이 중단되었습니다. 다시 시도해 주세요.',
+                });
                 alert('작업이 중단되었습니다.');
             }
 
         } catch (e: unknown) {
             console.error("Critical Error:", e);
             const errMsg = extractMessage(e);
+            setReportGenerationUi({
+                status: 'error',
+                progress: Math.max(1, bulkProgressPercent),
+                phaseLabel: '오류 발생',
+                errorMessage: `오류가 발생했습니다: ${errMsg}`,
+            });
             alert(`오류가 발생했습니다: ${errMsg}\n브라우저 메모리가 부족할 수 있습니다. 페이지를 새로고침 후 다시 시도해주세요.`);
         } finally {
             setIsGenerating(false);
             setGeneratingRecord(null);
             setGeneratingHistory([]);
         }
+    };
+
+    const retryReportGeneration = () => {
+        if (isGenerating || isPackagingEvidence) return;
+        void handleGenerate();
     };
 
     const cancelGeneration = () => {
@@ -860,13 +927,13 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         <span>대상: {filteredRecords.length}명</span>
                     </div>
                     
-                    {isGenerating || isPackagingEvidence ? (
+                    {isPackagingEvidence ? (
                         <div className="flex items-center gap-2 animate-fade-in">
                             <div className="bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100 shadow-sm min-w-[280px]">
                                 <div className="text-xs font-black text-indigo-700 h-[20px] flex items-center justify-between">
                                     <span className="flex items-center">
                                         <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                        {isPackagingEvidence ? '증빙 패키지 생성 중' : '보고서 생성 중'}
+                                        증빙 패키지 생성 중
                                     </span>
                                     <span>{bulkProgressPercent}%</span>
                                 </div>
@@ -904,9 +971,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             </button>
                             <button 
                                 onClick={handleGenerate} 
-                                disabled={filteredRecords.length === 0 || hasCustomDateRangeError}
+                                disabled={filteredRecords.length === 0 || hasCustomDateRangeError || isGenerating}
                                 className={`px-6 py-2.5 text-white font-black rounded-xl shadow-lg transition-all flex items-center gap-2 text-sm h-[42px]
-                                    ${filteredRecords.length === 0 || hasCustomDateRangeError ? 'bg-slate-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 cursor-pointer'}`}
+                                    ${filteredRecords.length === 0 || hasCustomDateRangeError || isGenerating ? 'bg-slate-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 cursor-pointer'}`}
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg> 
                                 일괄 생성 시작
@@ -915,6 +982,29 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     )}
                 </div>
             </div>
+
+            {reportGenerationUi.status !== 'idle' && (
+                <div className="no-print flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                        <ReportGenerationProgress
+                            status={reportGenerationUi.status === 'running' ? 'running' : reportGenerationUi.status === 'success' ? 'success' : 'error'}
+                            progress={reportGenerationUi.progress}
+                            phaseLabel={reportGenerationUi.phaseLabel}
+                            actionLabel="일괄 보고서 생성"
+                            errorMessage={reportGenerationUi.errorMessage}
+                            onRetry={reportGenerationUi.status === 'error' ? retryReportGeneration : undefined}
+                        />
+                    </div>
+                    {isGenerating && (
+                        <button
+                            onClick={cancelGeneration}
+                            className="px-4 py-2.5 bg-slate-200 text-slate-600 text-xs font-bold rounded-xl hover:bg-slate-300 h-[42px]"
+                        >
+                            중단
+                        </button>
+                    )}
+                </div>
+            )}
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 no-print space-y-4">
                 <div className="flex items-center justify-between gap-4 flex-wrap">

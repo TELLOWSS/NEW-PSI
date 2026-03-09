@@ -44,6 +44,38 @@ export interface AppSettings {
     };
 }
 
+export interface PsiFeedbackMetadata {
+    appVersion: string;
+    userAgentSummary: string;
+    timezone: string;
+}
+
+export type PsiFeedbackType =
+    | '긴급'
+    | '버그'
+    | '기능'
+    | 'Gemini협업'
+    | '디자인'
+    | '번역OCR'
+    | '모바일UX'
+    | '특허법무'
+    | '운영';
+
+export interface PsiFeedbackPayload {
+    id: string;
+    type: PsiFeedbackType;
+    content: string;
+    timestamp: string;
+    metadata: PsiFeedbackMetadata;
+}
+
+export type OcrErrorType =
+    | 'QUALITY'
+    | 'RESOLUTION'
+    | 'HANDWRITING'
+    | 'LAYOUT'
+    | 'UNKNOWN';
+
 export interface HandwrittenAnswer {
     questionNumber: string;
     answerText: string;
@@ -116,6 +148,8 @@ export interface WorkerRecord {
     koreanTranslation: string;
     safetyScore: number;
     ocrConfidence?: number; // 0-1
+    ocrErrorType?: OcrErrorType;
+    ocrErrorMessage?: string;
     integrityScore?: number; // 0-100
     safetyLevel: '초급' | '중급' | '고급';
     strengths: string[];

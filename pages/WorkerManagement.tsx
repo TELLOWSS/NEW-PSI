@@ -167,6 +167,38 @@ const toSafetyLevelSafe = (value: unknown, score: number): WorkerRecord['safetyL
     return '초급';
 };
 
+interface IssuanceReliabilityResult {
+    trusted: boolean;
+    source: 'ocr-current' | 'legacy-backup';
+    reasons: string[];
+}
+
+const verifyIssuanceReliability = (worker: WorkerRecord): IssuanceReliabilityResult => {
+    const reasons: string[] = [];
+    const hasRequiredIdentity = Boolean(toDisplayString(worker.id)) && Boolean(toDisplayString(worker.name));
+    const hasRequiredSafety = Number.isFinite(Number(worker.safetyScore)) && Boolean(worker.safetyLevel);
+    const hasRequiredProfile = Boolean(toDisplayString(worker.jobField)) && Boolean(toDisplayString(worker.date));
+
+    if (!hasRequiredIdentity) reasons.push('신원 필드 누락(ID/이름)');
+    if (!hasRequiredSafety) reasons.push('안전평가 필드 누락(점수/등급)');
+    if (!hasRequiredProfile) reasons.push('기본 프로필 누락(공종/일자)');
+
+    const hasOriginalImage = typeof worker.originalImage === 'string' && worker.originalImage.length > 200;
+    const hasOcrAuditTrail = Array.isArray(worker.auditTrail) && worker.auditTrail.some((entry) => entry?.stage === 'ocr');
+    const hasEvidenceHash = typeof worker.evidenceHash === 'string' && worker.evidenceHash.trim().length > 10;
+
+    if (!hasOriginalImage) reasons.push('OCR 원본 이미지 없음');
+    if (!hasOcrAuditTrail) reasons.push('OCR 감사이력 없음');
+    if (!hasEvidenceHash) reasons.push('증빙 해시 없음');
+
+    const trusted = reasons.length === 0;
+    return {
+        trusted,
+        source: trusted ? 'ocr-current' : 'legacy-backup',
+        reasons,
+    };
+};
+
 const normalizeWorkerForPrint = (value: unknown, fallbackIndex: number): WorkerRecord | null => {
     if (!value || typeof value !== 'object') return null;
     const raw = value as Record<string, unknown>;
@@ -389,6 +421,7 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedTeam, setSelectedTeam] = useState('전체');
     const [filterLevel, setFilterLevel] = useState('전체');
+    const [reliabilityFilter, setReliabilityFilter] = useState<'all' | 'trusted' | 'needs-review'>('all');
 
     // --- Print Modal States ---
     const [isPrintMode, setIsPrintMode] = useState(false);
@@ -426,9 +459,25 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
             const matchesSearch = safeName.includes(searchTerm.toLowerCase());
             const matchesTeam = selectedTeam === '전체' || safeJobField === selectedTeam;
             const matchesLevel = filterLevel === '전체' || r.safetyLevel === filterLevel;
-            return matchesSearch && matchesTeam && matchesLevel;
+            const reliability = verifyIssuanceReliability(r);
+            const matchesReliability =
+                reliabilityFilter === 'all' ||
+                (reliabilityFilter === 'trusted' && reliability.trusted) ||
+                (reliabilityFilter === 'needs-review' && !reliability.trusted);
+            return matchesSearch && matchesTeam && matchesLevel && matchesReliability;
         });
-    }, [latestRecords, searchTerm, selectedTeam, filterLevel]);
+    }, [latestRecords, searchTerm, selectedTeam, filterLevel, reliabilityFilter]);
+
+    const filteredReliabilitySummary = useMemo(() => {
+        const evaluations = filteredRecords.map((worker) => verifyIssuanceReliability(worker));
+        const trustedCount = evaluations.filter((result) => result.trusted).length;
+        const untrustedCount = evaluations.length - trustedCount;
+        return {
+            total: evaluations.length,
+            trustedCount,
+            untrustedCount,
+        };
+    }, [filteredRecords]);
 
     const itemsPerPage = printType === 'sticker' ? 8 : 6;
 
@@ -443,10 +492,37 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
 
     const startProcessing = (type: 'sticker' | 'idcard', targetWorkers: WorkerRecord[]) => {
         if (targetWorkers.length === 0) return alert('발급할 근로자 데이터가 없습니다.');
-        const printableWorkers = targetWorkers
+
+        const reliabilityEvaluations = targetWorkers.map((worker) => ({
+            worker,
+            reliability: verifyIssuanceReliability(worker),
+        }));
+
+        const trustedCandidates = reliabilityEvaluations
+            .filter((item) => item.reliability.trusted)
+            .map((item) => item.worker);
+
+        const excludedCandidates = reliabilityEvaluations.filter((item) => !item.reliability.trusted);
+
+        const printableWorkers = trustedCandidates
             .map((worker, index) => normalizeWorkerForPrint(worker, index))
             .filter((worker): worker is WorkerRecord => worker !== null);
-        if (printableWorkers.length === 0) return alert('출력 가능한 근로자 데이터가 없습니다. 백업 파일 형식을 확인해주세요.');
+
+        if (printableWorkers.length === 0) {
+            const sampleReasons = excludedCandidates
+                .flatMap((item) => item.reliability.reasons)
+                .slice(0, 3)
+                .join(', ');
+            return alert(`발급 가능한 신뢰 데이터가 없습니다.\n\n검증 기준: OCR 원본 이미지 + OCR 감사이력 + 증빙 해시\n참고 사유: ${sampleReasons || '데이터 누락'}`);
+        }
+
+        if (excludedCandidates.length > 0) {
+            const reasonSummary = excludedCandidates
+                .flatMap((item) => item.reliability.reasons)
+                .slice(0, 3)
+                .join(', ');
+            alert(`신뢰성 검증 결과\n- 발급 포함: ${printableWorkers.length}명\n- 발급 제외: ${excludedCandidates.length}명\n\n제외 사유 예시: ${reasonSummary}\n\n구 백업 데이터는 OCR 재분석 후 발급해 주세요.`);
+        }
         
         // Reset states
         setWorkersToPrint(printableWorkers);
@@ -818,10 +894,25 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                             <option value="고급">고급</option>
                         </select>
                     </div>
+                    <div className="flex-1">
+                        <select value={reliabilityFilter} onChange={e => setReliabilityFilter(e.target.value as 'all' | 'trusted' | 'needs-review')} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[150px]">
+                            <option value="all">검증 상태: 전체</option>
+                            <option value="trusted">검증 통과만</option>
+                            <option value="needs-review">검증 필요만</option>
+                        </select>
+                    </div>
                 </div>
                 <div className="bg-indigo-50 px-6 py-4 rounded-2xl text-indigo-700 font-bold text-sm border border-indigo-100 flex items-center gap-2 shrink-0">
                     <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
                     발급 대기: {filteredRecords.length}명
+                </div>
+                <div className="bg-emerald-50 px-6 py-4 rounded-2xl text-emerald-700 font-bold text-sm border border-emerald-100 flex items-center gap-2 shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    검증통과: {filteredReliabilitySummary.trustedCount}명
+                </div>
+                <div className="bg-rose-50 px-6 py-4 rounded-2xl text-rose-700 font-bold text-sm border border-rose-100 flex items-center gap-2 shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                    검증필요: {filteredReliabilitySummary.untrustedCount}명
                 </div>
                 <div className="flex gap-2 w-full lg:w-auto">
                     <button
@@ -844,17 +935,32 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                 {filteredRecords.map(worker => {
                     const s = getGradeStyle(worker.safetyLevel);
                     const profileImageSrc = getSafeImageSrc(worker.profileImage);
+                    const reliability = verifyIssuanceReliability(worker);
+                    const canIssue = reliability.trusted;
                     return (
                         <div key={worker.id} className="bg-white p-5 rounded-[24px] border border-slate-100 hover:border-indigo-300 hover:shadow-2xl transition-all cursor-pointer group relative overflow-hidden flex flex-col gap-3" onClick={() => onViewDetails(worker)}>
                             {/* Glassmorphism Overlay Menu on Hover */}
                             <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-6">
                                 <p className="text-white font-black mb-1">{worker.name}</p>
-                                <button onClick={(e) => { e.stopPropagation(); startProcessing('sticker', [worker]); }} className="w-full py-3 bg-white text-slate-900 font-black rounded-xl hover:bg-slate-200 transition-colors shadow-lg flex items-center justify-center gap-2 text-xs">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); if (canIssue) startProcessing('sticker', [worker]); }}
+                                    disabled={!canIssue}
+                                    title={!canIssue ? reliability.reasons.join(', ') : '스티커 인쇄'}
+                                    className={`w-full py-3 font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-xs ${canIssue ? 'bg-white text-slate-900 hover:bg-slate-200' : 'bg-slate-500/60 text-slate-200 cursor-not-allowed'}`}
+                                >
                                     <span className="text-base">⛑</span> 스티커 인쇄
                                 </button>
-                                <button onClick={(e) => { e.stopPropagation(); startProcessing('idcard', [worker]); }} className="w-full py-3 bg-indigo-600 text-white font-black rounded-xl hover:bg-indigo-500 transition-colors shadow-lg flex items-center justify-center gap-2 text-xs">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); if (canIssue) startProcessing('idcard', [worker]); }}
+                                    disabled={!canIssue}
+                                    title={!canIssue ? reliability.reasons.join(', ') : '사원증 인쇄'}
+                                    className={`w-full py-3 font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-xs ${canIssue ? 'bg-indigo-600 text-white hover:bg-indigo-500' : 'bg-slate-500/60 text-slate-200 cursor-not-allowed'}`}
+                                >
                                     <span className="text-base">💳</span> 사원증 인쇄
                                 </button>
+                                {!canIssue && (
+                                    <p className="text-[10px] text-rose-200 font-bold text-center mt-1">검증 필요: OCR 재분석 후 발급</p>
+                                )}
                             </div>
 
                             <div className="flex items-center gap-4 relative z-10">
@@ -876,6 +982,18 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                             <div className="pt-3 border-t border-slate-50 flex justify-between items-center relative z-10">
                                 <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black ${s.lightBg} ${s.text} border ${s.border} border-opacity-20`}>{worker.safetyLevel} GRADE</span>
                                 <span className="text-xl font-black text-slate-900 tracking-tighter">{worker.safetyScore}<span className="text-[9px] text-slate-300 ml-0.5 font-bold">PTS</span></span>
+                            </div>
+
+                            <div className="relative z-10">
+                                {reliability.trusted ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                        ✅ OCR 검증 통과
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200" title={reliability.reasons.join(', ')}>
+                                        ⚠️ 검증 필요 (구백업 가능)
+                                    </span>
+                                )}
                             </div>
                         </div>
                     );
