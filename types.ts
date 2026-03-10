@@ -177,6 +177,10 @@ export interface WorkerRecord {
     auditTrail?: AuditTrailEntry[];
     evidenceHash?: string;
     competencyProfile?: SafetyCompetencyProfile;
+    approvalStatus?: 'APPROVED' | 'PENDING' | 'OVERRIDDEN';
+    approvedBy?: string;
+    approvedAt?: string;
+    approvalReason?: string;
 }
 
 export interface HighRiskWorker {

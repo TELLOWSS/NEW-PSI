@@ -4,6 +4,7 @@ import type { WorkerRecord } from '../types';
 import { generateReportUrl } from '../utils/qrUtils';
 import { extractMessage } from '../utils/errorUtils';
 import { getWindowProp } from '../utils/windowUtils';
+import { getAdminPin } from '../utils/adminPinUtils';
 
 // [시스템] QR 코드 생성 상태 관리 및 동기화 컴포넌트
 interface QRCodeProps {
@@ -169,11 +170,19 @@ const toSafetyLevelSafe = (value: unknown, score: number): WorkerRecord['safetyL
 
 interface IssuanceReliabilityResult {
     trusted: boolean;
-    source: 'ocr-current' | 'legacy-backup';
+    source: 'ocr-current' | 'legacy-backup' | 'override-manual';
     reasons: string[];
 }
 
 const verifyIssuanceReliability = (worker: WorkerRecord): IssuanceReliabilityResult => {
+    if (worker.approvalStatus === 'OVERRIDDEN') {
+        return {
+            trusted: true,
+            source: 'override-manual',
+            reasons: [],
+        };
+    }
+
     const reasons: string[] = [];
     const hasRequiredIdentity = Boolean(toDisplayString(worker.id)) && Boolean(toDisplayString(worker.name));
     const hasRequiredSafety = Number.isFinite(Number(worker.safetyScore)) && Boolean(worker.safetyLevel);
@@ -234,6 +243,10 @@ const normalizeWorkerForPrint = (value: unknown, fallbackIndex: number): WorkerR
         aiInsights_native: toDisplayString(raw.aiInsights_native, ''),
         selfAssessedRiskLevel: raw.selfAssessedRiskLevel === '상' || raw.selfAssessedRiskLevel === '중' || raw.selfAssessedRiskLevel === '하' ? raw.selfAssessedRiskLevel : '중',
         profileImage: typeof raw.profileImage === 'string' ? raw.profileImage : undefined,
+        approvalStatus: raw.approvalStatus === 'APPROVED' || raw.approvalStatus === 'PENDING' || raw.approvalStatus === 'OVERRIDDEN' ? raw.approvalStatus : undefined,
+        approvedBy: toDisplayString(raw.approvedBy, ''),
+        approvedAt: toDisplayString(raw.approvedAt, ''),
+        approvalReason: toDisplayString(raw.approvalReason, ''),
     };
 };
 
@@ -416,7 +429,13 @@ const sampleWorker: WorkerRecord = {
     selfAssessedRiskLevel: '하'
 };
 
-const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails: any }> = ({ workerRecords, onViewDetails }) => {
+interface WorkerManagementProps {
+    workerRecords: WorkerRecord[];
+    onViewDetails: (worker: WorkerRecord) => void;
+    onUpdateRecord?: (worker: WorkerRecord) => Promise<void> | void;
+}
+
+const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onViewDetails, onUpdateRecord }) => {
     // --- Main View States ---
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedTeam, setSelectedTeam] = useState('전체');
@@ -435,6 +454,12 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
 
     // [NEW] Sample Modal State
     const [showSampleModal, setShowSampleModal] = useState(false);
+    const [overrideModalWorker, setOverrideModalWorker] = useState<WorkerRecord | null>(null);
+    const [overridePin, setOverridePin] = useState('');
+    const [overrideApprover, setOverrideApprover] = useState('');
+    const [overrideReason, setOverrideReason] = useState('');
+    const [overrideIssueType, setOverrideIssueType] = useState<'sticker' | 'idcard'>('sticker');
+    const [isOverrideSubmitting, setIsOverrideSubmitting] = useState(false);
 
     const getPrintSafeId = (id: unknown) => {
         const raw = typeof id === 'string' ? id : (typeof id === 'number' || typeof id === 'boolean') ? String(id) : 'unknown';
@@ -531,6 +556,79 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
         setViewType('grid'); // Default to grid
         setCurrentFlipIndex(0);
         setIsPrintMode(true);
+    };
+
+    const openOverrideModal = (worker: WorkerRecord, issueType: 'sticker' | 'idcard' = 'sticker') => {
+        setOverrideModalWorker(worker);
+        setOverrideIssueType(issueType);
+        setOverridePin('');
+        setOverrideApprover('');
+        setOverrideReason('');
+    };
+
+    const closeOverrideModal = () => {
+        setOverrideModalWorker(null);
+        setOverridePin('');
+        setOverrideApprover('');
+        setOverrideReason('');
+        setOverrideIssueType('sticker');
+        setIsOverrideSubmitting(false);
+    };
+
+    const handleOverrideApproveAndIssue = async () => {
+        if (!overrideModalWorker) return;
+
+        const savedPin = (localStorage.getItem('adminPin') || getAdminPin() || '').trim();
+        if (!overridePin.trim() || overridePin.trim() !== savedPin) {
+            alert('관리자 PIN 번호가 일치하지 않습니다.');
+            return;
+        }
+        if (!overrideApprover.trim()) {
+            alert('승인자 성명을 입력해 주세요.');
+            return;
+        }
+        if (!overrideReason.trim()) {
+            alert('예외 승인 사유를 입력해 주세요.');
+            return;
+        }
+
+        const nowIso = new Date().toISOString();
+        const updatedWorker: WorkerRecord = {
+            ...overrideModalWorker,
+            approvalStatus: 'OVERRIDDEN',
+            approvedBy: overrideApprover.trim(),
+            approvedAt: nowIso,
+            approvalReason: overrideReason.trim(),
+            approvalHistory: [
+                ...(overrideModalWorker.approvalHistory || []),
+                {
+                    timestamp: nowIso,
+                    actor: overrideApprover.trim(),
+                    status: 'approved',
+                    comment: `예외 승인(강제 발급): ${overrideReason.trim()}`,
+                },
+            ],
+            auditTrail: [
+                ...(overrideModalWorker.auditTrail || []),
+                {
+                    stage: 'approval',
+                    timestamp: nowIso,
+                    actor: overrideApprover.trim(),
+                    note: `Human-in-the-loop 예외 승인 강제 발급 (${overrideIssueType === 'sticker' ? '스티커' : '사원증'})`,
+                },
+            ],
+        };
+
+        setIsOverrideSubmitting(true);
+        try {
+            await onUpdateRecord?.(updatedWorker);
+            closeOverrideModal();
+            startProcessing(overrideIssueType, [updatedWorker]);
+        } catch (error) {
+            const message = extractMessage(error);
+            alert(`예외 승인 저장 중 오류가 발생했습니다: ${message}`);
+            setIsOverrideSubmitting(false);
+        }
     };
 
     const renderStartTimeRef = React.useRef<number | null>(null);
@@ -874,6 +972,81 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                 </div>
             )}
 
+            {/* Human-in-the-loop Override Modal */}
+            {overrideModalWorker && (
+                <div className="fixed inset-0 z-[4500] bg-black/70 p-4 backdrop-blur-sm flex items-center justify-center" onClick={closeOverrideModal}>
+                    <div className="bg-white w-full max-w-xl rounded-3xl border border-rose-200 shadow-2xl p-6 sm:p-8" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-rose-100 text-rose-700 font-black">🔒</span>
+                            <h3 className="text-xl font-black text-slate-900">예외 승인 및 강제 발급</h3>
+                        </div>
+                        <p className="text-sm text-slate-600 font-bold mb-6">
+                            대상: {overrideModalWorker.name} / {overrideModalWorker.jobField}
+                        </p>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-black text-slate-500 mb-2">관리자 PIN</label>
+                                <input
+                                    type="password"
+                                    value={overridePin}
+                                    onChange={(e) => setOverridePin(e.target.value)}
+                                    className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
+                                    placeholder="PIN 입력"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-black text-slate-500 mb-2">승인자 성명/직책</label>
+                                <input
+                                    type="text"
+                                    value={overrideApprover}
+                                    onChange={(e) => setOverrideApprover(e.target.value)}
+                                    className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
+                                    placeholder="예: 홍길동 안전관리자"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-black text-slate-500 mb-2">강제 발급 유형</label>
+                                <select
+                                    value={overrideIssueType}
+                                    onChange={(e) => setOverrideIssueType(e.target.value as 'sticker' | 'idcard')}
+                                    className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
+                                >
+                                    <option value="sticker">스티커 발급</option>
+                                    <option value="idcard">사원증 발급</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-black text-slate-500 mb-2">예외 승인 사유</label>
+                                <textarea
+                                    value={overrideReason}
+                                    onChange={(e) => setOverrideReason(e.target.value)}
+                                    className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold min-h-[100px]"
+                                    placeholder="법적/운영상 강제 발급 사유를 구체적으로 입력"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-end">
+                            <button
+                                onClick={closeOverrideModal}
+                                className="px-4 py-3 rounded-xl bg-slate-100 text-slate-700 font-black hover:bg-slate-200"
+                                disabled={isOverrideSubmitting}
+                            >
+                                취소
+                            </button>
+                            <button
+                                onClick={handleOverrideApproveAndIssue}
+                                className="px-4 py-3 rounded-xl bg-rose-600 text-white font-black hover:bg-rose-700 disabled:opacity-60"
+                                disabled={isOverrideSubmitting}
+                            >
+                                {isOverrideSubmitting ? '처리 중...' : '🔑 예외 승인 및 강제 발급'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Controls */}
             <div className="bg-white p-6 rounded-[30px] shadow-xl border border-slate-100 flex flex-col lg:flex-row gap-4 items-center no-print">
                 <div className="flex-1 w-full relative min-w-[200px]">
@@ -959,7 +1132,18 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                                     <span className="text-base">💳</span> 사원증 인쇄
                                 </button>
                                 {!canIssue && (
-                                    <p className="text-[10px] text-rose-200 font-bold text-center mt-1">검증 필요: OCR 재분석 후 발급</p>
+                                    <>
+                                        <p className="text-[10px] text-rose-200 font-bold text-center mt-1">검증 필요: OCR 재분석 후 발급</p>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openOverrideModal(worker, 'sticker');
+                                            }}
+                                            className="w-full py-2 font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-xs bg-rose-600 text-white hover:bg-rose-500"
+                                        >
+                                            🔑 예외 승인 및 강제 발급
+                                        </button>
+                                    </>
                                 )}
                             </div>
 
@@ -985,14 +1169,29 @@ const WorkerManagement: React.FC<{ workerRecords: WorkerRecord[]; onViewDetails:
                             </div>
 
                             <div className="relative z-10">
-                                {reliability.trusted ? (
+                                {worker.approvalStatus === 'OVERRIDDEN' ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200" title={`${worker.approvedBy || '승인자 미기록'} / ${worker.approvedAt || '-'} / ${worker.approvalReason || '-'}`}>
+                                        🔐 예외 승인 발급
+                                    </span>
+                                ) : reliability.trusted ? (
                                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200">
                                         ✅ OCR 검증 통과
                                     </span>
                                 ) : (
-                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200" title={reliability.reasons.join(', ')}>
-                                        ⚠️ 검증 필요 (구백업 가능)
-                                    </span>
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200" title={reliability.reasons.join(', ')}>
+                                            ⚠️ 검증 필요 (구백업 가능)
+                                        </span>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openOverrideModal(worker, 'sticker');
+                                            }}
+                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-600 text-white border border-rose-700 hover:bg-rose-500"
+                                        >
+                                            🔒 🔑 예외 승인 및 강제 발급
+                                        </button>
+                                    </div>
                                 )}
                             </div>
                         </div>

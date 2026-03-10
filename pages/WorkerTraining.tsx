@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
-import { supabase } from '../lib/supabaseClient';
+import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
 
 interface WorkerTrainingProps {
     sessionId: string;
@@ -93,7 +93,11 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                 .single();
 
             if (error) {
-                setMessage(`세션 조회 오류: ${error.message}`);
+                if (!handleSupabasePermissionError(error)) {
+                    setMessage(`세션 조회 오류: ${error.message}`);
+                } else {
+                    setMessage('권한이 없거나 관리자 승인이 필요합니다');
+                }
                 setSessionData(null);
             } else {
                 setSessionData(data as SessionRow);

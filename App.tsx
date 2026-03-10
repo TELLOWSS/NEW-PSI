@@ -303,6 +303,10 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
             approvalHistory: Array.isArray(r.approvalHistory) ? r.approvalHistory : [],
             auditTrail: Array.isArray(r.auditTrail) ? r.auditTrail : [],
             evidenceHash: toOptionalStringSafe(r.evidenceHash),
+            approvalStatus: r.approvalStatus === 'APPROVED' || r.approvalStatus === 'PENDING' || r.approvalStatus === 'OVERRIDDEN' ? r.approvalStatus : undefined,
+            approvedBy: toOptionalStringSafe(r.approvedBy),
+            approvedAt: toOptionalStringSafe(r.approvedAt),
+            approvalReason: toOptionalStringSafe(r.approvalReason),
         };
 
         return applyIdentityPolicy(baseRecord);
@@ -600,7 +604,7 @@ const App: React.FC = () => {
                             onUpdateRecord={handleUpdateRecord} 
                         />
                     )}
-                    {currentPage === 'worker-management' && <WorkerManagement workerRecords={workerRecords} onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} />}
+                    {currentPage === 'worker-management' && <WorkerManagement workerRecords={workerRecords} onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} onUpdateRecord={handleUpdateRecord} />}
                     {currentPage === 'individual-report' && recordForReport && (
                         <IndividualReport 
                             record={recordForReport} 

@@ -15,3 +15,38 @@ const resolveSupabaseEnv = () => {
 const { supabaseUrl, supabaseAnonKey } = resolveSupabaseEnv();
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+type SupabaseErrorLike = {
+    message?: string;
+    code?: string;
+    status?: number;
+    details?: string;
+    hint?: string;
+};
+
+const toErrorMessage = (error: SupabaseErrorLike): string => {
+    return String(error.message || error.details || error.hint || 'Unknown Supabase error');
+};
+
+export const isSupabasePermissionError = (error: unknown): boolean => {
+    if (!error || typeof error !== 'object') return false;
+    const parsed = error as SupabaseErrorLike;
+    const msg = toErrorMessage(parsed).toLowerCase();
+
+    return (
+        parsed.status === 401 ||
+        parsed.status === 403 ||
+        parsed.code === '42501' ||
+        msg.includes('forbidden') ||
+        msg.includes('permission denied') ||
+        msg.includes('not authorized') ||
+        msg.includes('row-level security') ||
+        msg.includes('rls')
+    );
+};
+
+export const handleSupabasePermissionError = (error: unknown): boolean => {
+    if (!isSupabasePermissionError(error)) return false;
+    window.alert('권한이 없거나 관리자 승인이 필요합니다');
+    return true;
+};
