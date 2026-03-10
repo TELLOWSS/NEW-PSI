@@ -4,7 +4,6 @@ import type { WorkerRecord } from '../types';
 import { generateReportUrl } from '../utils/qrUtils';
 import { extractMessage } from '../utils/errorUtils';
 import { getWindowProp } from '../utils/windowUtils';
-import { getAdminPin } from '../utils/adminPinUtils';
 
 // [시스템] QR 코드 생성 상태 관리 및 동기화 컴포넌트
 interface QRCodeProps {
@@ -456,9 +455,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [showSampleModal, setShowSampleModal] = useState(false);
     const [overrideModalWorker, setOverrideModalWorker] = useState<WorkerRecord | null>(null);
     const [overridePin, setOverridePin] = useState('');
-    const [overrideApprover, setOverrideApprover] = useState('');
     const [overrideReason, setOverrideReason] = useState('');
-    const [overrideIssueType, setOverrideIssueType] = useState<'sticker' | 'idcard'>('sticker');
     const [isOverrideSubmitting, setIsOverrideSubmitting] = useState(false);
 
     const getPrintSafeId = (id: unknown) => {
@@ -558,33 +555,30 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         setIsPrintMode(true);
     };
 
-    const openOverrideModal = (worker: WorkerRecord, issueType: 'sticker' | 'idcard' = 'sticker') => {
+    const openOverrideModal = (worker: WorkerRecord) => {
         setOverrideModalWorker(worker);
-        setOverrideIssueType(issueType);
         setOverridePin('');
-        setOverrideApprover('');
         setOverrideReason('');
     };
 
     const closeOverrideModal = () => {
         setOverrideModalWorker(null);
         setOverridePin('');
-        setOverrideApprover('');
         setOverrideReason('');
-        setOverrideIssueType('sticker');
         setIsOverrideSubmitting(false);
     };
 
     const handleOverrideApproveAndIssue = async () => {
         if (!overrideModalWorker) return;
 
-        const savedPin = (localStorage.getItem('adminPin') || getAdminPin() || '').trim();
-        if (!overridePin.trim() || overridePin.trim() !== savedPin) {
-            alert('관리자 PIN 번호가 일치하지 않습니다.');
+        const adminSecret = (import.meta.env.VITE_PSI_ADMIN_SECRET || '').trim();
+        if (!adminSecret) {
+            alert('VITE_PSI_ADMIN_SECRET 환경변수가 설정되지 않았습니다.');
             return;
         }
-        if (!overrideApprover.trim()) {
-            alert('승인자 성명을 입력해 주세요.');
+
+        if (!overridePin.trim() || overridePin.trim() !== adminSecret) {
+            alert('관리자 PIN 번호가 일치하지 않습니다.');
             return;
         }
         if (!overrideReason.trim()) {
@@ -596,14 +590,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         const updatedWorker: WorkerRecord = {
             ...overrideModalWorker,
             approvalStatus: 'OVERRIDDEN',
-            approvedBy: overrideApprover.trim(),
+            approvedBy: 'ADMIN_OVERRIDE',
             approvedAt: nowIso,
             approvalReason: overrideReason.trim(),
             approvalHistory: [
                 ...(overrideModalWorker.approvalHistory || []),
                 {
                     timestamp: nowIso,
-                    actor: overrideApprover.trim(),
+                    actor: 'ADMIN_OVERRIDE',
                     status: 'approved',
                     comment: `예외 승인(강제 발급): ${overrideReason.trim()}`,
                 },
@@ -613,8 +607,8 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 {
                     stage: 'approval',
                     timestamp: nowIso,
-                    actor: overrideApprover.trim(),
-                    note: `Human-in-the-loop 예외 승인 강제 발급 (${overrideIssueType === 'sticker' ? '스티커' : '사원증'})`,
+                    actor: 'ADMIN_OVERRIDE',
+                    note: 'Human-in-the-loop 예외 승인 강제 발급 (스티커)',
                 },
             ],
         };
@@ -623,7 +617,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         try {
             await onUpdateRecord?.(updatedWorker);
             closeOverrideModal();
-            startProcessing(overrideIssueType, [updatedWorker]);
+            startProcessing('sticker', [updatedWorker]);
         } catch (error) {
             const message = extractMessage(error);
             alert(`예외 승인 저장 중 오류가 발생했습니다: ${message}`);
@@ -996,27 +990,6 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-black text-slate-500 mb-2">승인자 성명/직책</label>
-                                <input
-                                    type="text"
-                                    value={overrideApprover}
-                                    onChange={(e) => setOverrideApprover(e.target.value)}
-                                    className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
-                                    placeholder="예: 홍길동 안전관리자"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-black text-slate-500 mb-2">강제 발급 유형</label>
-                                <select
-                                    value={overrideIssueType}
-                                    onChange={(e) => setOverrideIssueType(e.target.value as 'sticker' | 'idcard')}
-                                    className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
-                                >
-                                    <option value="sticker">스티커 발급</option>
-                                    <option value="idcard">사원증 발급</option>
-                                </select>
-                            </div>
-                            <div>
                                 <label className="block text-xs font-black text-slate-500 mb-2">예외 승인 사유</label>
                                 <textarea
                                     value={overrideReason}
@@ -1137,7 +1110,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                openOverrideModal(worker, 'sticker');
+                                                openOverrideModal(worker);
                                             }}
                                             className="w-full py-2 font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-xs bg-rose-600 text-white hover:bg-rose-500"
                                         >
@@ -1185,7 +1158,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                openOverrideModal(worker, 'sticker');
+                                                openOverrideModal(worker);
                                             }}
                                             className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-600 text-white border border-rose-700 hover:bg-rose-500"
                                         >

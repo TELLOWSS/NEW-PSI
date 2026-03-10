@@ -13,8 +13,15 @@ const resolveSupabaseEnv = () => {
 };
 
 const { supabaseUrl, supabaseAnonKey } = resolveSupabaseEnv();
+const psiAdminSecret = import.meta.env.VITE_PSI_ADMIN_SECRET;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+        headers: psiAdminSecret
+            ? { 'x-psi-admin-secret': psiAdminSecret }
+            : {},
+    },
+});
 
 type SupabaseErrorLike = {
     message?: string;
