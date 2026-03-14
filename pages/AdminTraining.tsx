@@ -52,6 +52,7 @@ const AdminTraining: React.FC = () => {
     const [mobileUrl, setMobileUrl] = useState('');
     const [message, setMessage] = useState('');
     const [failedLanguages, setFailedLanguages] = useState<string[]>([]);
+    const [failedLanguageAttempts, setFailedLanguageAttempts] = useState<Record<string, string[]>>({});
     const [savedPreset, setSavedPreset] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
     const [selectedLanguages, setSelectedLanguages] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
 
@@ -104,6 +105,7 @@ const AdminTraining: React.FC = () => {
         setMessage('');
         setMobileUrl('');
         setFailedLanguages([]);
+        setFailedLanguageAttempts({});
 
         try {
             const response = await fetch('/api/admin/create-training', {
@@ -140,6 +142,7 @@ const AdminTraining: React.FC = () => {
             setMobileUrl(data.mobileUrl || '');
             const failed = Array.isArray(data.failedLanguages) ? data.failedLanguages : [];
             setFailedLanguages(failed);
+            setFailedLanguageAttempts(data?.failedLanguageAttempts && typeof data.failedLanguageAttempts === 'object' ? data.failedLanguageAttempts : {});
             if (failed.length > 0) {
                 setMessage('생성 완료(부분 성공): 일부 언어는 음성 생성에 실패하여 텍스트 안내로 대체됩니다.');
             } else {
@@ -220,7 +223,7 @@ const AdminTraining: React.FC = () => {
                 {failedLanguages.length > 0 && (
                     <div className="mt-3">
                         <p className="text-xs font-black text-amber-700 mb-2">음성 미생성 언어 (텍스트 대체)</p>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 mb-2">
                             {failedLanguages.map((code) => (
                                 <span
                                     key={code}
@@ -229,6 +232,16 @@ const AdminTraining: React.FC = () => {
                                     {code}
                                 </span>
                             ))}
+                        </div>
+                        <div className="space-y-1">
+                            {failedLanguages.map((code) => {
+                                const attempts = failedLanguageAttempts[code] || [];
+                                return (
+                                    <p key={`${code}-attempts`} className="text-[11px] font-bold text-slate-600">
+                                        {code} 시도 코드: {attempts.length > 0 ? attempts.join(', ') : '기록 없음'}
+                                    </p>
+                                );
+                            })}
                         </div>
                     </div>
                 )}

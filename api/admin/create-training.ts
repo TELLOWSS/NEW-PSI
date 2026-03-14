@@ -47,54 +47,47 @@ const LANGUAGE_CODE_ALIAS: Record<string, LangCode> = {
     'zh-CN': 'cmn-CN',
 };
 
-const GOOGLE_TTS_VOICE_MAP: Record<LangCode, string> = {
-    'ko-KR': 'ko-KR-Standard-A',
-    'en-US': 'en-US-Standard-A',
-    'vi-VN': 'vi-VN-Standard-A',
-    'cmn-CN': 'cmn-CN-Standard-A',
-    'zh-CN': 'cmn-CN-Standard-A',
-    'th-TH': 'th-TH-Standard-A',
-    'id-ID': 'id-ID-Standard-A',
-    'uz-UZ': 'uz-UZ-Standard-A',
-    'mn-MN': 'mn-MN-Standard-A',
-    'km-KH': 'km-KH-Standard-A',
-    'ru-RU': 'ru-RU-Standard-A',
-    'ne-NP': 'ne-NP-Standard-A',
-    'my-MM': 'my-MM-Standard-A',
-    'fil-PH': 'fil-PH-Standard-A',
-    'hi-IN': 'hi-IN-Standard-A',
-    'bn-BD': 'bn-BD-Standard-A',
-    'ur-PK': 'ur-PK-Standard-A',
-    'si-LK': 'si-LK-Standard-A',
-    'kk-KZ': 'kk-KZ-Standard-A',
+const TTS_LANGUAGE_CODE_CANDIDATES: Record<string, string[]> = {
+    'vi-VN': ['vi-VN', 'vi'],
+    'mn-MN': ['mn-MN', 'mn'],
+    'ru-RU': ['ru-RU', 'ru'],
+    'cmn-CN': ['cmn-CN', 'zh-CN', 'zh'],
+    'zh-CN': ['cmn-CN', 'zh-CN', 'zh'],
+    'km-KH': ['km-KH', 'km'],
+    'id-ID': ['id-ID', 'id'],
 };
+
+class TtsSynthesisError extends Error {
+    attempts: string[];
+
+    constructor(message: string, attempts: string[]) {
+        super(message);
+        this.name = 'TtsSynthesisError';
+        this.attempts = attempts;
+    }
+}
 
 function normalizeLangCode(input: string): string {
     return LANGUAGE_CODE_ALIAS[input] || input;
 }
 
-function resolveGoogleTTSVoice(inputLangCode: string): { languageCode: string; voiceName: string } {
+function resolveGoogleTTSLanguageCode(inputLangCode: string): string {
     const normalized = normalizeLangCode(inputLangCode);
-    const mappedVoice = GOOGLE_TTS_VOICE_MAP[normalized as LangCode];
 
-    if (mappedVoice) {
-        return {
-            languageCode: normalized,
-            voiceName: mappedVoice,
-        };
-    }
+    if (normalized === 'vi-VN') return 'vi-VN';
 
     if (/^[a-z]{2,3}-[A-Z]{2}$/.test(normalized)) {
-        return {
-            languageCode: normalized,
-            voiceName: `${normalized}-Standard-A`,
-        };
+        return normalized;
     }
 
-    return {
-        languageCode: 'en-US',
-        voiceName: 'en-US-Standard-A',
-    };
+    return 'en-US';
+}
+
+function resolveGoogleTTSLanguageCandidates(inputLangCode: string): string[] {
+    const normalized = resolveGoogleTTSLanguageCode(inputLangCode);
+    const mapped = TTS_LANGUAGE_CODE_CANDIDATES[normalized] || [];
+    const candidates = [normalized, ...mapped, 'en-US'];
+    return Array.from(new Set(candidates.filter(Boolean)));
 }
 
 function getSupabaseClient() {
@@ -162,40 +155,56 @@ async function synthesizeGoogleTTS(text: string, lang: LangCode): Promise<Buffer
     const apiKey = process.env.GOOGLE_TTS_API_KEY;
     if (!apiKey) throw new Error('GOOGLE_TTS_API_KEY가 없습니다.');
 
-    const { languageCode, voiceName } = resolveGoogleTTSVoice(lang);
+    const candidates = resolveGoogleTTSLanguageCandidates(lang);
+    let lastError = '알 수 없는 오류';
+    const failedAttempts: string[] = [];
 
-    const body = {
-        input: { text },
-        voice: {
-            languageCode,
-            name: voiceName,
-        },
-        audioConfig: { audioEncoding: 'MP3' },
-    };
+    for (const languageCode of candidates) {
+        const body = {
+            input: { text },
+            voice: {
+                languageCode,
+            },
+            audioConfig: { audioEncoding: 'MP3' },
+        };
 
-    const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
+        const response = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
 
-    if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Google TTS 실패: ${errText}`);
+        if (!response.ok) {
+            const errText = await response.text();
+            lastError = `${languageCode}: ${errText}`;
+            failedAttempts.push(languageCode);
+            continue;
+        }
+
+        const raw = await response.text();
+        let data: any = null;
+
+        try {
+            data = raw ? JSON.parse(raw) : null;
+        } catch {
+            lastError = `${languageCode}: Google TTS 응답 JSON 파싱 실패`;
+            failedAttempts.push(languageCode);
+            continue;
+        }
+
+        if (!data?.audioContent) {
+            lastError = `${languageCode}: TTS 응답에 audioContent가 없습니다.`;
+            failedAttempts.push(languageCode);
+            continue;
+        }
+
+        return Buffer.from(data.audioContent, 'base64');
     }
 
-    const raw = await response.text();
-    let data: any = null;
-
-    try {
-        data = raw ? JSON.parse(raw) : null;
-    } catch {
-        throw new Error('Google TTS 응답 JSON 파싱 실패');
-    }
-
-    if (!data?.audioContent) throw new Error('TTS 응답에 audioContent가 없습니다.');
-
-    return Buffer.from(data.audioContent, 'base64');
+    throw new TtsSynthesisError(
+        `Google TTS 실패(모든 languageCode 시도 실패, 시도값: ${failedAttempts.join(', ')}): ${lastError}`,
+        failedAttempts
+    );
 }
 
 export default async function handler(req: any, res: any) {
@@ -237,6 +246,7 @@ export default async function handler(req: any, res: any) {
         const audioUrls: Record<string, string | null> = {};
         const translatedTexts: Record<string, string> = {};
         const failedLanguages: LangCode[] = [];
+        const failedLanguageAttempts: Record<string, string[]> = {};
 
         for (const lang of langs) {
             const translated = translateDummy(sourceTextKo, lang);
@@ -260,6 +270,9 @@ export default async function handler(req: any, res: any) {
             } catch (ttsError: any) {
                 audioUrls[lang] = null;
                 failedLanguages.push(lang);
+                failedLanguageAttempts[lang] = ttsError instanceof TtsSynthesisError
+                    ? ttsError.attempts
+                    : resolveGoogleTTSLanguageCandidates(lang);
                 console.warn(`[TTS 경고] ${lang} 언어 음성 생성 실패`, ttsError?.message || ttsError);
                 continue;
             }
@@ -284,6 +297,7 @@ export default async function handler(req: any, res: any) {
             mobileUrl,
             audioUrls,
             failedLanguages,
+            failedLanguageAttempts,
         });
     } catch (error: any) {
         const message = error?.message || '서버 오류';
