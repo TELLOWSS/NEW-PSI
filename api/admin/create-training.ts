@@ -5,6 +5,7 @@ type LangCode =
     | 'en-US'
     | 'vi-VN'
     | 'cmn-CN'
+    | 'zh-CN'
     | 'th-TH'
     | 'id-ID'
     | 'uz-UZ'
@@ -25,6 +26,7 @@ const ALL_LANGS: LangCode[] = [
     'en-US',
     'vi-VN',
     'cmn-CN',
+    'zh-CN',
     'th-TH',
     'id-ID',
     'uz-UZ',
@@ -40,6 +42,60 @@ const ALL_LANGS: LangCode[] = [
     'si-LK',
     'kk-KZ',
 ];
+
+const LANGUAGE_CODE_ALIAS: Record<string, LangCode> = {
+    'zh-CN': 'cmn-CN',
+};
+
+const GOOGLE_TTS_VOICE_MAP: Record<LangCode, string> = {
+    'ko-KR': 'ko-KR-Standard-A',
+    'en-US': 'en-US-Standard-A',
+    'vi-VN': 'vi-VN-Standard-A',
+    'cmn-CN': 'cmn-CN-Standard-A',
+    'zh-CN': 'cmn-CN-Standard-A',
+    'th-TH': 'th-TH-Standard-A',
+    'id-ID': 'id-ID-Standard-A',
+    'uz-UZ': 'uz-UZ-Standard-A',
+    'mn-MN': 'mn-MN-Standard-A',
+    'km-KH': 'km-KH-Standard-A',
+    'ru-RU': 'ru-RU-Standard-A',
+    'ne-NP': 'ne-NP-Standard-A',
+    'my-MM': 'my-MM-Standard-A',
+    'fil-PH': 'fil-PH-Standard-A',
+    'hi-IN': 'hi-IN-Standard-A',
+    'bn-BD': 'bn-BD-Standard-A',
+    'ur-PK': 'ur-PK-Standard-A',
+    'si-LK': 'si-LK-Standard-A',
+    'kk-KZ': 'kk-KZ-Standard-A',
+};
+
+function normalizeLangCode(input: string): string {
+    return LANGUAGE_CODE_ALIAS[input] || input;
+}
+
+function resolveGoogleTTSVoice(inputLangCode: string): { languageCode: string; voiceName: string } {
+    const normalized = normalizeLangCode(inputLangCode);
+    const mappedVoice = GOOGLE_TTS_VOICE_MAP[normalized as LangCode];
+
+    if (mappedVoice) {
+        return {
+            languageCode: normalized,
+            voiceName: mappedVoice,
+        };
+    }
+
+    if (/^[a-z]{2,3}-[A-Z]{2}$/.test(normalized)) {
+        return {
+            languageCode: normalized,
+            voiceName: `${normalized}-Standard-A`,
+        };
+    }
+
+    return {
+        languageCode: 'en-US',
+        voiceName: 'en-US-Standard-A',
+    };
+}
 
 function getSupabaseClient() {
     const supabaseUrl =
@@ -84,6 +140,7 @@ function translateDummy(koText: string, lang: LangCode): string {
     if (lang === 'en-US') return `[EN] ${koText}`;
     if (lang === 'vi-VN') return `[VI] ${koText}`;
     if (lang === 'cmn-CN') return `[ZH] ${koText}`;
+    if (lang === 'zh-CN') return `[ZH] ${koText}`;
     if (lang === 'th-TH') return `[TH] ${koText}`;
     if (lang === 'id-ID') return `[ID] ${koText}`;
     if (lang === 'uz-UZ') return `[UZ] ${koText}`;
@@ -105,10 +162,13 @@ async function synthesizeGoogleTTS(text: string, lang: LangCode): Promise<Buffer
     const apiKey = process.env.GOOGLE_TTS_API_KEY;
     if (!apiKey) throw new Error('GOOGLE_TTS_API_KEY가 없습니다.');
 
+    const { languageCode, voiceName } = resolveGoogleTTSVoice(lang);
+
     const body = {
         input: { text },
         voice: {
-            languageCode: lang,
+            languageCode,
+            name: voiceName,
         },
         audioConfig: { audioEncoding: 'MP3' },
     };
@@ -151,7 +211,9 @@ export default async function handler(req: any, res: any) {
         }
 
         const requestedLanguages = Array.isArray(selectedLanguages)
-            ? selectedLanguages.filter((code): code is LangCode => ALL_LANGS.includes(code as LangCode))
+            ? selectedLanguages
+                .map((code: string) => normalizeLangCode(code))
+                .filter((code): code is LangCode => ALL_LANGS.includes(code as LangCode))
             : [];
 
         const langs: LangCode[] = requestedLanguages.length > 0
