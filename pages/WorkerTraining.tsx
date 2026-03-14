@@ -84,14 +84,24 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
         return textMap[langKey] || textMap['en-US'] || textMap['ko-KR'] || sessionData.source_text_ko || '';
     }, [sessionData, langKey]);
 
+    if (!sessionId) {
+        return (
+            <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm max-w-2xl">
+                <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 mb-4">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m0 14v1m8-8h-1M5 12H4m12.364 5.364l-.707-.707M8.343 8.343l-.707-.707m0 8.728l.707-.707m8.021-8.021l.707-.707" />
+                    </svg>
+                </div>
+                <h2 className="text-xl font-black text-slate-900">근로자 전용 모바일 페이지 안내</h2>
+                <p className="mt-2 text-sm font-bold text-slate-600">
+                    이 화면은 근로자 전용 모바일 서명 페이지입니다. 현장에 부착된 QR코드를 스마트폰으로 스캔하여 접속해 주세요.
+                </p>
+            </div>
+        );
+    }
+
     useEffect(() => {
         const run = async () => {
-            if (!sessionId) {
-                setMessage('sessionId가 없습니다. QR URL을 다시 확인해 주세요.');
-                setLoading(false);
-                return;
-            }
-
             setLoading(true);
             const { data, error } = await supabase
                 .from('training_sessions')
