@@ -4,6 +4,7 @@ import { isSupabasePermissionError, supabase } from '../lib/supabaseClient';
 
 interface WorkerTrainingProps {
     sessionId: string;
+    simplifiedMode?: boolean;
 }
 
 type SessionRow = {
@@ -45,6 +46,10 @@ const UI_TEXT: Record<UiLocale, {
     errorPrefix: string;
     permissionDenied: string;
     sessionFetchErrorLabel: string;
+    linkInvalid: string;
+    linkExpired: string;
+    stayOnPageHint: string;
+    alreadySubmitted: string;
 }> = {
     ko: {
         title: '외국인 근로자 안전교육 확인',
@@ -76,6 +81,10 @@ const UI_TEXT: Record<UiLocale, {
         errorPrefix: '오류',
         permissionDenied: '권한이 없거나 관리자 승인이 필요합니다',
         sessionFetchErrorLabel: '세션 조회 오류',
+        linkInvalid: '유효하지 않은 접속 링크입니다. 관리자에게 올바른 링크를 요청해 주세요.',
+        linkExpired: '링크 유효기간이 만료되었습니다. 관리자에게 재발급을 요청해 주세요.',
+        stayOnPageHint: '제출 완료 전에는 뒤로가기/새로고침을 하지 마세요.',
+        alreadySubmitted: '이미 제출이 완료되었습니다. 중복 제출은 차단됩니다.',
     },
     en: {
         title: 'Safety Training Confirmation',
@@ -107,6 +116,10 @@ const UI_TEXT: Record<UiLocale, {
         errorPrefix: 'Error',
         permissionDenied: 'Access denied or administrator approval is required.',
         sessionFetchErrorLabel: 'Session fetch error',
+        linkInvalid: 'Invalid access link. Please request the correct link from your administrator.',
+        linkExpired: 'This link has expired. Please ask your administrator for a new link.',
+        stayOnPageHint: 'Do not go back or refresh before submission is complete.',
+        alreadySubmitted: 'Submission is already completed. Duplicate submission is blocked.',
     },
     vi: {
         title: 'Xác nhận đào tạo an toàn',
@@ -138,6 +151,10 @@ const UI_TEXT: Record<UiLocale, {
         errorPrefix: 'Lỗi',
         permissionDenied: 'Bạn không có quyền hoặc cần quản trị viên phê duyệt.',
         sessionFetchErrorLabel: 'Lỗi tải phiên',
+        linkInvalid: 'Liên kết truy cập không hợp lệ. Vui lòng yêu cầu quản trị viên gửi đúng liên kết.',
+        linkExpired: 'Liên kết đã hết hạn. Vui lòng yêu cầu quản trị viên cấp lại liên kết.',
+        stayOnPageHint: 'Trước khi gửi xong, vui lòng không quay lại hoặc làm mới trang.',
+        alreadySubmitted: 'Bạn đã gửi thành công trước đó. Hệ thống chặn gửi trùng lặp.',
     },
     zh: {
         title: '安全培训确认',
@@ -169,6 +186,10 @@ const UI_TEXT: Record<UiLocale, {
         errorPrefix: '错误',
         permissionDenied: '没有访问权限或需要管理员批准。',
         sessionFetchErrorLabel: '会话加载错误',
+        linkInvalid: '访问链接无效，请向管理员索取正确链接。',
+        linkExpired: '链接已过期，请联系管理员重新签发。',
+        stayOnPageHint: '提交完成前请勿返回或刷新页面。',
+        alreadySubmitted: '已提交完成，系统已阻止重复提交。',
     },
 };
 
@@ -342,15 +363,35 @@ const resolveLanguageCodeByNationality = (nationalityRaw: string): string => {
     return 'en-US';
 };
 
-const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
+const resolveNationalityByLanguageCode = (langCode: string): string => {
+    if (langCode === 'ko-KR') return '대한민국';
+    if (langCode === 'vi-VN') return '베트남';
+    if (langCode === 'cmn-CN' || langCode === 'zh-CN') return '중국';
+    if (langCode === 'th-TH') return '태국';
+    if (langCode === 'id-ID') return '인도네시아';
+    if (langCode === 'uz-UZ') return '우즈베키스탄';
+    if (langCode === 'mn-MN') return '몽골';
+    if (langCode === 'km-KH') return '캄보디아';
+    if (langCode === 'ru-RU') return '러시아';
+    if (langCode === 'ne-NP') return '네팔';
+    if (langCode === 'my-MM') return '미얀마';
+    if (langCode === 'fil-PH') return '필리핀';
+    if (langCode === 'hi-IN') return '인도';
+    if (langCode === 'kk-KZ') return '카자흐스탄';
+    return '기타';
+};
+
+const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMode = false }) => {
     const [loading, setLoading] = useState(true);
     const [sessionData, setSessionData] = useState<SessionRow | null>(null);
 
     const [workerName, setWorkerName] = useState('');
     const [nationality, setNationality] = useState('베트남');
+    const [selectedLanguageCode, setSelectedLanguageCode] = useState('vi-VN');
     const [message, setMessage] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [submitted, setSubmitted] = useState(false);
 
     const sigRef = useRef<SignatureCanvas | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -362,10 +403,32 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
         return NATIONALITY_OPTIONS.find((item) => item.value === nationality)?.langCode;
     }, [nationality]);
 
-    const effectiveLangKey = selectedNationalityLangCode || langKey;
+    const effectiveLangKey = selectedLanguageCode || selectedNationalityLangCode || langKey;
+    const searchParams = useMemo(() => new URLSearchParams(window.location.search), []);
+    const linkExpiresAtRaw = searchParams.get('exp');
+    const linkToken = searchParams.get('sig') || '';
+    const linkExpiresAt = Number(linkExpiresAtRaw || 0);
+    const isLinkExpired = Number.isFinite(linkExpiresAt) ? Date.now() > linkExpiresAt : false;
+    const isLinkMetaMissing = !linkToken || !Number.isFinite(linkExpiresAt) || linkExpiresAt <= 0;
 
     const normalizedAudioMap = useMemo(() => normalizeMapObject(sessionData?.audio_urls), [sessionData]);
     const normalizedTextMap = useMemo(() => normalizeMapObject(sessionData?.translated_texts), [sessionData]);
+
+    const availableLanguageCodes = useMemo(() => {
+        const fromAudio = Object.keys(normalizedAudioMap).filter((code) => {
+            const value = normalizedAudioMap[code];
+            return typeof value === 'string' && value.trim() && Boolean(LANGUAGE_LABELS[code]);
+        });
+
+        const fromText = Object.keys(normalizedTextMap).filter((code) => {
+            const value = normalizedTextMap[code];
+            return typeof value === 'string' && value.trim() && Boolean(LANGUAGE_LABELS[code]);
+        });
+
+        const merged = Array.from(new Set([...fromAudio, ...fromText]));
+        if (merged.length > 0) return merged;
+        return ['ko-KR', 'vi-VN', 'en-US', 'cmn-CN'];
+    }, [normalizedAudioMap, normalizedTextMap]);
 
     const selectedAudioUrl = useMemo(() => {
         const candidates = resolveLanguageCandidates(effectiveLangKey);
@@ -395,6 +458,30 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
         audio.currentTime = 0;
         setIsPlaying(false);
     }, [selectedAudioUrl]);
+
+    useEffect(() => {
+        if (!simplifiedMode) return;
+        if (submitted) return;
+
+        const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+            event.preventDefault();
+            event.returnValue = '';
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [simplifiedMode, submitted]);
+
+    useEffect(() => {
+        if (!sessionData) return;
+
+        const browserLang = (navigator.language || 'en-US').toLowerCase();
+        const matched = availableLanguageCodes.find((code) => browserLang.startsWith(code.split('-')[0].toLowerCase()));
+        const preferred = matched || availableLanguageCodes[0] || 'en-US';
+
+        setSelectedLanguageCode(preferred);
+        setNationality(resolveNationalityByLanguageCode(preferred));
+    }, [sessionData, availableLanguageCodes]);
 
     useEffect(() => {
         const run = async () => {
@@ -469,6 +556,21 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
     };
 
     const handleSubmit = async () => {
+        if (submitted) {
+            setMessage(t.alreadySubmitted);
+            return;
+        }
+
+        if (isLinkMetaMissing) {
+            setMessage(t.linkInvalid);
+            return;
+        }
+
+        if (isLinkExpired) {
+            setMessage(t.linkExpired);
+            return;
+        }
+
         if (!workerName.trim()) {
             alert(t.missingNameAlert);
             return;
@@ -494,6 +596,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                     nationality,
                     selectedAudioUrl: selectedAudioUrl || null,
                     signatureDataUrl,
+                    linkExpiresAt,
+                    linkToken,
                 }),
             });
 
@@ -505,6 +609,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
             setMessage(t.submitSuccess);
             setWorkerName('');
             sigRef.current?.clear();
+            setSubmitted(true);
         } catch (error: any) {
             setMessage(`${t.errorPrefix}: ${error?.message || t.submitFail}`);
         } finally {
@@ -520,11 +625,24 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
         return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.noSession}</div>;
     }
 
+    if (isLinkMetaMissing) {
+        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.linkInvalid}</div>;
+    }
+
+    if (isLinkExpired) {
+        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.linkExpired}</div>;
+    }
+
     return (
         <div className="space-y-6 max-w-2xl">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h2 className="text-2xl font-black text-slate-900">{t.title}</h2>
                 <p className="text-sm font-bold text-slate-500 mt-2">{t.subtitle}</p>
+                {simplifiedMode && !submitted && (
+                    <p className="mt-2 text-[11px] font-black text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 inline-block">
+                        {t.stayOnPageHint}
+                    </p>
+                )}
 
                 <div className="mt-4">
                     <label className="block text-xs font-black text-slate-500 mb-2">{t.nameLabel}</label>
@@ -538,19 +656,41 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
 
                 <div className="mt-4">
                     <label className="block text-xs font-black text-slate-500 mb-2">{t.nationalityLabel}</label>
-                    <select
-                        value={nationality}
-                        onChange={(e) => setNationality(e.target.value)}
-                        className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
-                    >
-                        {NATIONALITY_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>{option.labels[uiLocale]}</option>
-                        ))}
-                    </select>
+                    {simplifiedMode ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {availableLanguageCodes.map((code) => (
+                                <button
+                                    key={code}
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedLanguageCode(code);
+                                        setNationality(resolveNationalityByLanguageCode(code));
+                                    }}
+                                    className={`px-3 py-2 rounded-xl text-xs font-black border transition-colors ${effectiveLangKey === code ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+                                >
+                                    {LANGUAGE_LABELS[code] || code}
+                                </button>
+                            ))}
+                        </div>
+                    ) : (
+                        <select
+                            value={nationality}
+                            onChange={(e) => {
+                                const nextNationality = e.target.value;
+                                setNationality(nextNationality);
+                                setSelectedLanguageCode(resolveLanguageCodeByNationality(nextNationality));
+                            }}
+                            className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
+                        >
+                            {NATIONALITY_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>{option.labels[uiLocale]}</option>
+                            ))}
+                        </select>
+                    )}
                     <p className="mt-2 text-[11px] font-bold text-slate-500">
                         {t.autoLangLabel}: <span className="text-slate-700">{LANGUAGE_LABELS[effectiveLangKey] || 'English'} ({effectiveLangKey})</span>
                     </p>
-                    <p className="mt-1 text-[11px] font-bold text-slate-500">{t.nationalityHint}</p>
+                    {!simplifiedMode && <p className="mt-1 text-[11px] font-bold text-slate-500">{t.nationalityHint}</p>}
                 </div>
 
                 <div className="mt-4">
@@ -568,14 +708,16 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                         <p className="mt-3 text-sm font-black text-slate-700">
                             {selectedAudioUrl ? (isPlaying ? t.audioPlaying : t.audioReady) : t.audioMissing}
                         </p>
-                        <button
-                            type="button"
-                            onClick={() => void handleToggleAudio()}
-                            disabled={!selectedAudioUrl}
-                            className="mt-2 px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-black border border-slate-200 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                            {isPlaying ? t.audioPause : t.audioPlay}
-                        </button>
+                        {!simplifiedMode && (
+                            <button
+                                type="button"
+                                onClick={() => void handleToggleAudio()}
+                                disabled={!selectedAudioUrl}
+                                className="mt-2 px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-black border border-slate-200 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                                {isPlaying ? t.audioPause : t.audioPlay}
+                            </button>
+                        )}
                     </div>
                     <audio
                         ref={audioRef}
@@ -616,10 +758,10 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
 
                 <button
                     onClick={handleSubmit}
-                    disabled={submitting}
+                    disabled={submitting || submitted}
                     className="mt-6 w-full py-3 rounded-xl bg-indigo-600 text-white font-black hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                    {submitting ? t.submitting : t.submit}
+                    {submitted ? t.alreadySubmitted : (submitting ? t.submitting : t.submit)}
                 </button>
 
                 {message && <p className="mt-3 text-sm font-bold text-slate-700">{message}</p>}

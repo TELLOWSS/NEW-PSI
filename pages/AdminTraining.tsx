@@ -4,6 +4,7 @@ import type { AppSettings } from '../types';
 import { supabase } from '../lib/supabaseClient';
 
 type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
+const LINK_HISTORY_STORAGE_KEY = 'psi_training_link_history';
 
 const UI_TEXT: Record<UiLocale, {
     title: string;
@@ -47,6 +48,16 @@ const UI_TEXT: Record<UiLocale, {
     failedLangTitle: string;
     failedBadge: string;
     attemptLabel: string;
+    linkExpiryLabel: string;
+    linkExpiredBadge: string;
+    reissueLink: string;
+    reissuing: string;
+    reissueDone: string;
+    reissueFail: string;
+    historyTitle: string;
+    historyEmpty: string;
+    historyCreate: string;
+    historyReissue: string;
 }> = {
     ko: {
         title: '관리자 다국어 음성 안내 생성',
@@ -90,6 +101,16 @@ const UI_TEXT: Record<UiLocale, {
         failedLangTitle: '음성 미생성 언어 (텍스트 대체)',
         failedBadge: '일부 음성 실패',
         attemptLabel: '시도 코드',
+        linkExpiryLabel: '링크 만료 시각',
+        linkExpiredBadge: '만료됨',
+        reissueLink: '링크 재발급',
+        reissuing: '재발급 중...',
+        reissueDone: '링크를 재발급했습니다.',
+        reissueFail: '링크 재발급 실패',
+        historyTitle: '링크 생성/재발급 이력',
+        historyEmpty: '아직 기록이 없습니다.',
+        historyCreate: '초기 생성',
+        historyReissue: '재발급',
     },
     en: {
         title: 'Admin Multilingual Audio Generator',
@@ -133,6 +154,16 @@ const UI_TEXT: Record<UiLocale, {
         failedLangTitle: 'Audio failed languages (text fallback)',
         failedBadge: 'Audio partial failure',
         attemptLabel: 'Attempt codes',
+        linkExpiryLabel: 'Link expires at',
+        linkExpiredBadge: 'Expired',
+        reissueLink: 'Reissue link',
+        reissuing: 'Reissuing...',
+        reissueDone: 'Link reissued.',
+        reissueFail: 'Failed to reissue link',
+        historyTitle: 'Link issue/reissue history',
+        historyEmpty: 'No history yet.',
+        historyCreate: 'Initial issue',
+        historyReissue: 'Reissue',
     },
     vi: {
         title: 'Tạo hướng dẫn giọng nói đa ngôn ngữ',
@@ -176,6 +207,16 @@ const UI_TEXT: Record<UiLocale, {
         failedLangTitle: 'Ngôn ngữ lỗi âm thanh (thay bằng văn bản)',
         failedBadge: 'Lỗi âm thanh một phần',
         attemptLabel: 'Mã đã thử',
+        linkExpiryLabel: 'Thời điểm hết hạn liên kết',
+        linkExpiredBadge: 'Đã hết hạn',
+        reissueLink: 'Cấp lại liên kết',
+        reissuing: 'Đang cấp lại...',
+        reissueDone: 'Đã cấp lại liên kết.',
+        reissueFail: 'Cấp lại liên kết thất bại',
+        historyTitle: 'Lịch sử tạo/cấp lại liên kết',
+        historyEmpty: 'Chưa có lịch sử.',
+        historyCreate: 'Tạo ban đầu',
+        historyReissue: 'Cấp lại',
     },
     zh: {
         title: '管理员多语言语音生成',
@@ -219,6 +260,16 @@ const UI_TEXT: Record<UiLocale, {
         failedLangTitle: '语音失败语言（文本替代）',
         failedBadge: '部分语音失败',
         attemptLabel: '尝试代码',
+        linkExpiryLabel: '链接过期时间',
+        linkExpiredBadge: '已过期',
+        reissueLink: '重新签发链接',
+        reissuing: '重新签发中...',
+        reissueDone: '链接已重新签发。',
+        reissueFail: '链接重新签发失败',
+        historyTitle: '链接签发/重签历史',
+        historyEmpty: '暂无历史记录。',
+        historyCreate: '首次签发',
+        historyReissue: '重新签发',
     },
 };
 
@@ -280,13 +331,24 @@ type TrainingSessionRow = {
     created_at?: string;
 };
 
+type LinkHistoryItem = {
+    sessionId: string;
+    mobileUrl: string;
+    linkExpiresAt: number;
+    action: 'create' | 'reissue';
+    createdAt: string;
+};
+
 const AdminTraining: React.FC = () => {
     const [sourceTextKo, setSourceTextKo] = useState('');
     const [loading, setLoading] = useState(false);
     const [deletingSessionId, setDeletingSessionId] = useState('');
     const [mobileUrl, setMobileUrl] = useState('');
     const [currentSessionId, setCurrentSessionId] = useState('');
+    const [linkExpiresAt, setLinkExpiresAt] = useState<number | null>(null);
     const [message, setMessage] = useState('');
+    const [reissuingLink, setReissuingLink] = useState(false);
+    const [linkHistory, setLinkHistory] = useState<LinkHistoryItem[]>([]);
     const [failedLanguages, setFailedLanguages] = useState<string[]>([]);
     const [failedLanguageAttempts, setFailedLanguageAttempts] = useState<Record<string, string[]>>({});
     const [savedPreset, setSavedPreset] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
@@ -305,6 +367,43 @@ const AdminTraining: React.FC = () => {
         ].join('\n')
         : '';
 
+    const requestSignedMobileUrl = async (sessionId: string) => {
+        const response = await fetch('/api/admin/reissue-training-link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId }),
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        const raw = await response.text();
+        let data: any = null;
+
+        if (raw && contentType.includes('application/json')) {
+            try {
+                data = JSON.parse(raw);
+            } catch {
+                throw new Error(t.parseFail);
+            }
+        }
+
+        if (!response.ok || !data?.ok) {
+            throw new Error(data?.message || data?.error || `링크 재발급 실패 (HTTP ${response.status})`);
+        }
+
+        return {
+            mobileUrl: String(data.mobileUrl || ''),
+            linkExpiresAt: Number(data.linkExpiresAt || 0),
+        };
+    };
+
+    const appendLinkHistory = (item: LinkHistoryItem) => {
+        setLinkHistory((prev) => {
+            const next = [item, ...prev].slice(0, 30);
+            localStorage.setItem(LINK_HISTORY_STORAGE_KEY, JSON.stringify(next));
+            return next;
+        });
+    };
+
     useEffect(() => {
         const raw = localStorage.getItem('psi_app_settings');
         if (!raw) return;
@@ -315,6 +414,19 @@ const AdminTraining: React.FC = () => {
             setSelectedLanguages(preset);
         } catch {
             setSavedPreset([...CURRENT_SITE_LANGUAGE_SET]);
+        }
+    }, []);
+
+    useEffect(() => {
+        const raw = localStorage.getItem(LINK_HISTORY_STORAGE_KEY);
+        if (!raw) return;
+        try {
+            const parsed = JSON.parse(raw) as LinkHistoryItem[];
+            if (Array.isArray(parsed)) {
+                setLinkHistory(parsed.slice(0, 30));
+            }
+        } catch {
+            setLinkHistory([]);
         }
     }, []);
 
@@ -334,10 +446,10 @@ const AdminTraining: React.FC = () => {
         return rows;
     };
 
-    const hydrateSessionState = (session: TrainingSessionRow, label: string) => {
-        const baseUrl = window.location.origin || 'http://localhost:5173';
-        const restoredMobileUrl = `${baseUrl}/?mode=worker-training&sessionId=${encodeURIComponent(String(session.id))}`;
-        setMobileUrl(restoredMobileUrl);
+    const hydrateSessionState = async (session: TrainingSessionRow, label: string) => {
+        const signed = await requestSignedMobileUrl(String(session.id));
+        setMobileUrl(signed.mobileUrl);
+        setLinkExpiresAt(Number.isFinite(signed.linkExpiresAt) ? signed.linkExpiresAt : null);
         setCurrentSessionId(String(session.id));
         if (session.source_text_ko) setSourceTextKo(session.source_text_ko);
 
@@ -357,10 +469,14 @@ const AdminTraining: React.FC = () => {
 
     useEffect(() => {
         const restoreLatestSession = async () => {
-            const sessions = await fetchRecentSessions();
-            const latest = sessions[0];
-            if (!latest?.id) return;
-            hydrateSessionState(latest, t.recentLoadedPartial);
+            try {
+                const sessions = await fetchRecentSessions();
+                const latest = sessions[0];
+                if (!latest?.id) return;
+                await hydrateSessionState(latest, t.recentLoadedPartial);
+            } catch (error: any) {
+                setMessage(`${t.errorPrefix}: ${error?.message || t.reissueFail}`);
+            }
         };
 
         void restoreLatestSession();
@@ -392,6 +508,7 @@ const AdminTraining: React.FC = () => {
         setMessage('');
         setMobileUrl('');
         setCurrentSessionId('');
+        setLinkExpiresAt(null);
         setFailedLanguages([]);
         setFailedLanguageAttempts({});
 
@@ -429,6 +546,16 @@ const AdminTraining: React.FC = () => {
 
             setMobileUrl(data.mobileUrl || '');
             setCurrentSessionId(String(data.sessionId || ''));
+            setLinkExpiresAt(Number(data.linkExpiresAt || 0) || null);
+            if (data.sessionId && data.mobileUrl && data.linkExpiresAt) {
+                appendLinkHistory({
+                    sessionId: String(data.sessionId),
+                    mobileUrl: String(data.mobileUrl),
+                    linkExpiresAt: Number(data.linkExpiresAt),
+                    action: 'create',
+                    createdAt: new Date().toISOString(),
+                });
+            }
             const failed = Array.isArray(data.failedLanguages) ? data.failedLanguages : [];
             setFailedLanguages(failed);
             setFailedLanguageAttempts(data?.failedLanguageAttempts && typeof data.failedLanguageAttempts === 'object' ? data.failedLanguageAttempts : {});
@@ -462,9 +589,32 @@ const AdminTraining: React.FC = () => {
     const clearRenderedSession = () => {
         setMobileUrl('');
         setCurrentSessionId('');
+        setLinkExpiresAt(null);
         setFailedLanguages([]);
         setFailedLanguageAttempts({});
         setMessage(t.removeDone);
+    };
+
+    const handleReissueCurrentLink = async () => {
+        if (!currentSessionId) return;
+        setReissuingLink(true);
+        try {
+            const signed = await requestSignedMobileUrl(currentSessionId);
+            setMobileUrl(signed.mobileUrl);
+            setLinkExpiresAt(Number.isFinite(signed.linkExpiresAt) ? signed.linkExpiresAt : null);
+            appendLinkHistory({
+                sessionId: currentSessionId,
+                mobileUrl: signed.mobileUrl,
+                linkExpiresAt: signed.linkExpiresAt,
+                action: 'reissue',
+                createdAt: new Date().toISOString(),
+            });
+            setMessage(t.reissueDone);
+        } catch (error: any) {
+            setMessage(`${t.errorPrefix}: ${error?.message || t.reissueFail}`);
+        } finally {
+            setReissuingLink(false);
+        }
     };
 
     const handleDeleteSession = async (targetSessionId?: string) => {
@@ -504,6 +654,7 @@ const AdminTraining: React.FC = () => {
             if (sessionIdToDelete === currentSessionId) {
                 setMobileUrl('');
                 setCurrentSessionId('');
+                setLinkExpiresAt(null);
                 setFailedLanguages([]);
                 setFailedLanguageAttempts({});
             }
@@ -615,7 +766,7 @@ const AdminTraining: React.FC = () => {
                                         )}
                                         <button
                                             type="button"
-                                            onClick={() => hydrateSessionState(session, t.recentLoaded)}
+                                            onClick={() => void hydrateSessionState(session, t.recentLoaded)}
                                             className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-black border border-slate-200 hover:bg-slate-200"
                                         >
                                             {t.recentLoad}
@@ -640,6 +791,18 @@ const AdminTraining: React.FC = () => {
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
                     <h3 className="text-xl font-black text-slate-900">{t.qrTitle}</h3>
                     {currentSessionId && <p className="text-[11px] font-bold text-slate-500 mt-1">세션 ID: {currentSessionId}</p>}
+                    {linkExpiresAt && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <p className="text-[11px] font-bold text-slate-500">
+                                {t.linkExpiryLabel}: {new Date(linkExpiresAt).toLocaleString()}
+                            </p>
+                            {Date.now() > linkExpiresAt && (
+                                <span className="px-2 py-1 rounded-md border border-rose-200 bg-rose-50 text-rose-700 text-[10px] font-black">
+                                    {t.linkExpiredBadge}
+                                </span>
+                            )}
+                        </div>
+                    )}
                     <p className="text-xs font-bold text-slate-500 mt-2 break-all">{mobileUrl}</p>
                     <div className="mt-4">
                         <QRCodeCanvas value={mobileUrl} size={220} />
@@ -662,6 +825,14 @@ const AdminTraining: React.FC = () => {
                         <div className="mt-2 flex flex-wrap gap-2">
                             <button
                                 type="button"
+                                onClick={() => void handleReissueCurrentLink()}
+                                disabled={reissuingLink || !currentSessionId}
+                                className="px-4 py-2 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-black border border-indigo-200 hover:bg-indigo-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                                {reissuingLink ? t.reissuing : t.reissueLink}
+                            </button>
+                            <button
+                                type="button"
                                 onClick={clearRenderedSession}
                                 className="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-black border border-slate-200 hover:bg-slate-200"
                             >
@@ -679,6 +850,30 @@ const AdminTraining: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
+                <h3 className="text-lg font-black text-slate-900">{t.historyTitle}</h3>
+                {linkHistory.length === 0 ? (
+                    <p className="mt-3 text-sm font-bold text-slate-500">{t.historyEmpty}</p>
+                ) : (
+                    <div className="mt-3 space-y-2">
+                        {linkHistory.map((item, index) => (
+                            <div key={`${item.sessionId}-${item.createdAt}-${index}`} className="p-3 rounded-xl border border-slate-200 bg-slate-50">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="px-2 py-1 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 text-[10px] font-black">
+                                        {item.action === 'create' ? t.historyCreate : t.historyReissue}
+                                    </span>
+                                    <span className="text-[11px] font-black text-slate-600 break-all">{item.sessionId}</span>
+                                </div>
+                                <p className="mt-1 text-[11px] font-bold text-slate-500">
+                                    {new Date(item.createdAt).toLocaleString()} · {t.linkExpiryLabel}: {new Date(item.linkExpiresAt).toLocaleString()}
+                                </p>
+                                <p className="mt-1 text-[11px] font-bold text-slate-500 break-all">{item.mobileUrl}</p>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     );
 };

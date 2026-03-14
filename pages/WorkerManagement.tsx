@@ -440,18 +440,30 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [selectedTeam, setSelectedTeam] = useState('전체');
     const [filterLevel, setFilterLevel] = useState('전체');
     const [reliabilityFilter, setReliabilityFilter] = useState<'all' | 'trusted' | 'needs-review'>('all');
+    const [reasonFilter, setReasonFilter] = useState('all');
+    const [sortMode, setSortMode] = useState<'name' | 'score-desc' | 'review-first'>('review-first');
+    const [viewMode, setViewMode] = useState<'card' | 'table'>('card');
+    const [selectedWorkerIds, setSelectedWorkerIds] = useState<string[]>([]);
+    const [tableColumnVisibility, setTableColumnVisibility] = useState({
+        role: true,
+        score: true,
+        verification: true,
+        actions: true,
+    });
 
     const hasActiveFilters =
         searchTerm.trim().length > 0 ||
         selectedTeam !== '전체' ||
         filterLevel !== '전체' ||
-        reliabilityFilter !== 'all';
+        reliabilityFilter !== 'all' ||
+        reasonFilter !== 'all';
 
     const resetFilters = () => {
         setSearchTerm('');
         setSelectedTeam('전체');
         setFilterLevel('전체');
         setReliabilityFilter('all');
+        setReasonFilter('all');
     };
 
     // --- Print Modal States ---
@@ -488,7 +500,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const teams = useMemo(() => ['전체', ...Array.from(new Set(latestRecords.map(r => r.jobField))).sort()], [latestRecords]);
 
     const filteredRecords = useMemo(() => {
-        return latestRecords.filter(r => {
+        const results = latestRecords.filter(r => {
             const safeName = toDisplayString(r.name).toLowerCase();
             const safeJobField = toDisplayString(r.jobField, '미분류');
             const matchesSearch = safeName.includes(searchTerm.toLowerCase());
@@ -499,9 +511,24 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 reliabilityFilter === 'all' ||
                 (reliabilityFilter === 'trusted' && reliability.trusted) ||
                 (reliabilityFilter === 'needs-review' && !reliability.trusted);
-            return matchesSearch && matchesTeam && matchesLevel && matchesReliability;
+            const matchesReason = reasonFilter === 'all' || reliability.reasons.includes(reasonFilter);
+            return matchesSearch && matchesTeam && matchesLevel && matchesReliability && matchesReason;
         });
-    }, [latestRecords, searchTerm, selectedTeam, filterLevel, reliabilityFilter]);
+
+        return results.sort((a, b) => {
+            if (sortMode === 'name') {
+                return a.name.localeCompare(b.name, 'ko');
+            }
+
+            if (sortMode === 'score-desc') {
+                return b.safetyScore - a.safetyScore || a.name.localeCompare(b.name, 'ko');
+            }
+
+            const aTrusted = verifyIssuanceReliability(a).trusted ? 1 : 0;
+            const bTrusted = verifyIssuanceReliability(b).trusted ? 1 : 0;
+            return aTrusted - bTrusted || a.safetyScore - b.safetyScore || a.name.localeCompare(b.name, 'ko');
+        });
+    }, [latestRecords, searchTerm, selectedTeam, filterLevel, reliabilityFilter, reasonFilter, sortMode]);
 
     const filteredReliabilitySummary = useMemo(() => {
         const evaluations = filteredRecords.map((worker) => verifyIssuanceReliability(worker));
@@ -513,6 +540,153 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             untrustedCount,
         };
     }, [filteredRecords]);
+
+    const availableReasonFilters = useMemo(() => {
+        const counts = new Map<string, number>();
+
+        latestRecords.forEach((worker) => {
+            const reliability = verifyIssuanceReliability(worker);
+            reliability.reasons.forEach((reason) => {
+                counts.set(reason, (counts.get(reason) || 0) + 1);
+            });
+        });
+
+        return Array.from(counts.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 6);
+    }, [latestRecords]);
+
+    const selectedWorkers = useMemo(() => {
+        const selectedSet = new Set(selectedWorkerIds);
+        return latestRecords.filter((worker) => selectedSet.has(toDisplayString(worker.id, `${worker.name}-${worker.date}`)));
+    }, [latestRecords, selectedWorkerIds]);
+
+    const selectedTrustedWorkers = useMemo(() => {
+        return selectedWorkers.filter((worker) => verifyIssuanceReliability(worker).trusted);
+    }, [selectedWorkers]);
+
+    const selectedNeedsReviewWorkers = useMemo(() => {
+        return selectedWorkers.filter((worker) => !verifyIssuanceReliability(worker).trusted);
+    }, [selectedWorkers]);
+
+    const selectedNeedsReviewSummary = useMemo(() => {
+        const counts = new Map<string, number>();
+
+        selectedNeedsReviewWorkers.forEach((worker) => {
+            const reliability = verifyIssuanceReliability(worker);
+            reliability.reasons.forEach((reason) => {
+                counts.set(reason, (counts.get(reason) || 0) + 1);
+            });
+        });
+
+        return Array.from(counts.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+    }, [selectedNeedsReviewWorkers]);
+
+    const allVisibleSelected = filteredRecords.length > 0 && filteredRecords.every((worker) => selectedWorkerIds.includes(toDisplayString(worker.id, `${worker.name}-${worker.date}`)));
+
+    const selectedVisibleCount = useMemo(() => {
+        const selectedSet = new Set(selectedWorkerIds);
+        return filteredRecords.filter((worker) => selectedSet.has(toDisplayString(worker.id, `${worker.name}-${worker.date}`))).length;
+    }, [filteredRecords, selectedWorkerIds]);
+
+    useEffect(() => {
+        const validIds = new Set(latestRecords.map((worker) => toDisplayString(worker.id, `${worker.name}-${worker.date}`)));
+        setSelectedWorkerIds((prev) => prev.filter((id) => validIds.has(id)));
+    }, [latestRecords]);
+
+    const toggleWorkerSelection = (worker: WorkerRecord) => {
+        const workerId = toDisplayString(worker.id, `${worker.name}-${worker.date}`);
+        setSelectedWorkerIds((prev) => prev.includes(workerId) ? prev.filter((id) => id !== workerId) : [...prev, workerId]);
+    };
+
+    const selectVisibleWorkers = () => {
+        const visibleIds = filteredRecords.map((worker) => toDisplayString(worker.id, `${worker.name}-${worker.date}`));
+        setSelectedWorkerIds((prev) => {
+            const next = new Set(prev);
+            visibleIds.forEach((id) => next.add(id));
+            return Array.from(next);
+        });
+    };
+
+    const deselectVisibleWorkers = () => {
+        const visibleIds = new Set(filteredRecords.map((worker) => toDisplayString(worker.id, `${worker.name}-${worker.date}`)));
+        setSelectedWorkerIds((prev) => prev.filter((id) => !visibleIds.has(id)));
+    };
+
+    const selectVisibleTrustedWorkers = () => {
+        const visibleIds = filteredRecords
+            .filter((worker) => verifyIssuanceReliability(worker).trusted)
+            .map((worker) => toDisplayString(worker.id, `${worker.name}-${worker.date}`));
+
+        setSelectedWorkerIds((prev) => {
+            const next = new Set(prev);
+            visibleIds.forEach((id) => next.add(id));
+            return Array.from(next);
+        });
+    };
+
+    const selectVisibleNeedsReviewWorkers = () => {
+        const visibleIds = filteredRecords
+            .filter((worker) => !verifyIssuanceReliability(worker).trusted)
+            .map((worker) => toDisplayString(worker.id, `${worker.name}-${worker.date}`));
+
+        setSelectedWorkerIds((prev) => {
+            const next = new Set(prev);
+            visibleIds.forEach((id) => next.add(id));
+            return Array.from(next);
+        });
+    };
+
+    const clearAllSelections = () => {
+        setSelectedWorkerIds([]);
+    };
+
+    const toggleTableColumn = (column: keyof typeof tableColumnVisibility) => {
+        setTableColumnVisibility((prev) => ({
+            ...prev,
+            [column]: !prev[column],
+        }));
+    };
+
+    const exportSelectedWorkersToCsv = () => {
+        if (selectedWorkers.length === 0) {
+            alert('내보낼 선택 인원이 없습니다.');
+            return;
+        }
+
+        const header = ['이름', '국적', '공종', '등급', '점수', '검증상태', '예외승인', '대표사유'];
+        const rows = selectedWorkers.map((worker) => {
+            const reliability = verifyIssuanceReliability(worker);
+            const verificationLabel = reliability.trusted ? '즉시 발급 가능' : '검증 필요';
+            const overrideLabel = worker.approvalStatus === 'OVERRIDDEN' ? '예' : '아니오';
+            const primaryReason = reliability.trusted ? '확인 완료' : reliability.reasons.join(' / ');
+            return [
+                worker.name,
+                worker.nationality || '국적 미기록',
+                worker.jobField,
+                worker.safetyLevel,
+                String(worker.safetyScore),
+                verificationLabel,
+                overrideLabel,
+                primaryReason,
+            ];
+        });
+
+        const escapeCell = (value: string) => `"${String(value).replace(/"/g, '""')}"`;
+        const csv = [header, ...rows].map((row) => row.map(escapeCell).join(',')).join('\n');
+        const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const dateStamp = new Date().toISOString().slice(0, 10);
+        link.href = url;
+        link.download = `psi-selected-workers-${dateStamp}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
 
     const itemsPerPage = printType === 'sticker' ? 8 : 6;
 
@@ -566,6 +740,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         setViewType('grid'); // Default to grid
         setCurrentFlipIndex(0);
         setIsPrintMode(true);
+    };
+
+    const startProcessingSelected = (type: 'sticker' | 'idcard') => {
+        if (selectedWorkers.length === 0) {
+            alert('먼저 발급할 근로자를 선택해 주세요.');
+            return;
+        }
+        startProcessing(type, selectedWorkers);
     };
 
     const openOverrideModal = (worker: WorkerRecord) => {
@@ -1060,6 +1242,13 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             <option value="needs-review">검증 필요만</option>
                         </select>
                     </div>
+                    <div className="flex-1">
+                        <select value={sortMode} onChange={e => setSortMode(e.target.value as 'name' | 'score-desc' | 'review-first')} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[160px]">
+                            <option value="review-first">정렬: 검증 필요 우선</option>
+                            <option value="score-desc">정렬: 점수 높은 순</option>
+                            <option value="name">정렬: 이름순</option>
+                        </select>
+                    </div>
                 </div>
                 <div className="bg-indigo-50 px-6 py-4 rounded-2xl text-indigo-700 font-bold text-sm border border-indigo-100 flex items-center gap-2 shrink-0">
                     <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
@@ -1103,6 +1292,30 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-black border border-slate-200">
                     {filteredRecords.length}명
                 </span>
+                <span className="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 text-xs font-black border border-amber-200">
+                    선택됨 {selectedWorkerIds.length}명
+                </span>
+                <button
+                    type="button"
+                    onClick={() => setReliabilityFilter('all')}
+                    className={`px-2 py-1 rounded-lg text-xs font-black border transition-colors ${reliabilityFilter === 'all' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                >
+                    전체 보기
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setReliabilityFilter('trusted')}
+                    className={`px-2 py-1 rounded-lg text-xs font-black border transition-colors ${reliabilityFilter === 'trusted' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`}
+                >
+                    즉시 발급 {filteredReliabilitySummary.trustedCount}명
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setReliabilityFilter('needs-review')}
+                    className={`px-2 py-1 rounded-lg text-xs font-black border transition-colors ${reliabilityFilter === 'needs-review' ? 'bg-rose-600 text-white border-rose-600' : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'}`}
+                >
+                    검증 필요 {filteredReliabilitySummary.untrustedCount}명
+                </button>
                 {hasActiveFilters && (
                     <span className="px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-black border border-indigo-200">
                         필터 적용 중
@@ -1110,24 +1323,400 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 )}
             </div>
 
+            <div className="mt-3 no-print rounded-2xl border border-slate-200 bg-white px-4 py-3 flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-black text-slate-500">검증 사유 빠른 필터</span>
+                    <button
+                        type="button"
+                        onClick={() => setReasonFilter('all')}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-black border transition-colors ${reasonFilter === 'all' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                    >
+                        전체 사유
+                    </button>
+                    {availableReasonFilters.map(([reason, count]) => (
+                        <button
+                            key={`reason-filter-${reason}`}
+                            type="button"
+                            onClick={() => setReasonFilter(reason)}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-black border transition-colors ${reasonFilter === reason ? 'bg-rose-600 text-white border-rose-600' : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'}`}
+                            title={reason}
+                        >
+                            {reason} · {count}
+                        </button>
+                    ))}
+                </div>
+
+                {viewMode === 'table' && (
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs font-black text-slate-500">표 열 표시</span>
+                        <button
+                            type="button"
+                            onClick={() => toggleTableColumn('role')}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-black border transition-colors ${tableColumnVisibility.role ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-500 border-slate-200'}`}
+                        >
+                            공종 / 역할
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => toggleTableColumn('score')}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-black border transition-colors ${tableColumnVisibility.score ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-500 border-slate-200'}`}
+                        >
+                            등급 / 점수
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => toggleTableColumn('verification')}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-black border transition-colors ${tableColumnVisibility.verification ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-500 border-slate-200'}`}
+                        >
+                            검증 상태
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => toggleTableColumn('actions')}
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-black border transition-colors ${tableColumnVisibility.actions ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-500 border-slate-200'}`}
+                        >
+                            빠른 작업
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            <div className="mt-3 no-print rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-white px-4 py-3 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2 text-xs font-black">
+                    <span className="px-2 py-1 rounded-lg bg-white text-slate-700 border border-slate-200">
+                        전체 선택 {selectedWorkerIds.length}명
+                    </span>
+                    <span className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        즉시 발급 가능 {selectedTrustedWorkers.length}명
+                    </span>
+                    <span className="px-2 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200">
+                        검증 필요 {selectedNeedsReviewWorkers.length}명
+                    </span>
+                    {selectedVisibleCount > 0 && (
+                        <span className="px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200">
+                            현재 화면 선택 {selectedVisibleCount}명
+                        </span>
+                    )}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        onClick={allVisibleSelected ? deselectVisibleWorkers : selectVisibleWorkers}
+                        className="px-3 py-2 rounded-xl bg-white text-slate-700 border border-slate-200 text-xs font-black hover:bg-slate-50"
+                    >
+                        {allVisibleSelected ? '현재 화면 선택 해제' : '현재 화면 전체 선택'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={selectVisibleTrustedWorkers}
+                        disabled={filteredReliabilitySummary.trustedCount === 0}
+                        className="px-3 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-black hover:bg-emerald-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        현재 화면 즉시 발급 가능만 선택
+                    </button>
+                    <button
+                        type="button"
+                        onClick={selectVisibleNeedsReviewWorkers}
+                        disabled={filteredReliabilitySummary.untrustedCount === 0}
+                        className="px-3 py-2 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 text-xs font-black hover:bg-rose-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        현재 화면 검증 필요만 선택
+                    </button>
+                    <button
+                        type="button"
+                        onClick={clearAllSelections}
+                        disabled={selectedWorkerIds.length === 0}
+                        className="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 text-xs font-black hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        전체 선택 해제
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => startProcessingSelected('sticker')}
+                        disabled={selectedWorkerIds.length === 0}
+                        className="px-3 py-2 rounded-xl bg-orange-50 text-orange-700 border border-orange-200 text-xs font-black hover:bg-orange-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        선택 인원 스티커 발급
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => startProcessingSelected('idcard')}
+                        disabled={selectedWorkerIds.length === 0}
+                        className="px-3 py-2 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 text-xs font-black hover:bg-indigo-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        선택 인원 사원증 발급
+                    </button>
+                    <button
+                        type="button"
+                        onClick={exportSelectedWorkersToCsv}
+                        disabled={selectedWorkerIds.length === 0}
+                        className="px-3 py-2 rounded-xl bg-slate-900 text-white border border-slate-900 text-xs font-black hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        선택 인원 CSV 내보내기
+                    </button>
+                </div>
+            </div>
+
+            {selectedNeedsReviewWorkers.length > 0 && (
+                <div className="mt-3 no-print rounded-2xl border border-rose-200 bg-rose-50/70 px-4 py-4">
+                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+                        <div>
+                            <h4 className="text-sm font-black text-rose-800">선택 인원 검증 필요 사유 요약</h4>
+                            <p className="mt-1 text-xs font-bold text-rose-600">
+                                선택된 {selectedNeedsReviewWorkers.length}명 중 검증이 필요한 대표 사유입니다.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {selectedNeedsReviewSummary.map(([reason, count]) => (
+                                <span
+                                    key={`${reason}-${count}`}
+                                    className="px-3 py-1.5 rounded-xl bg-white text-rose-700 border border-rose-200 text-xs font-black"
+                                    title={reason}
+                                >
+                                    {reason} · {count}명
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 xl:grid-cols-2 gap-2">
+                        {selectedNeedsReviewWorkers.slice(0, 6).map((worker) => {
+                            const reliability = verifyIssuanceReliability(worker);
+                            return (
+                                <div key={`needs-review-${worker.id}`} className="rounded-xl border border-rose-200 bg-white px-3 py-2">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-black text-slate-900 truncate">{worker.name}</p>
+                                            <p className="text-[11px] font-bold text-slate-400 truncate">{worker.jobField} · {worker.nationality || '국적 미기록'}</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => onViewDetails(worker)}
+                                            className="shrink-0 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-black hover:bg-rose-100"
+                                        >
+                                            상세
+                                        </button>
+                                    </div>
+                                    <p className="mt-2 text-[11px] font-bold text-rose-600 leading-relaxed">
+                                        {reliability.reasons.join(' / ')}
+                                    </p>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    {selectedNeedsReviewWorkers.length > 6 && (
+                        <p className="mt-3 text-[11px] font-bold text-rose-500">
+                            나머지 {selectedNeedsReviewWorkers.length - 6}명도 동일하게 상세 보기에서 검증 근거를 확인할 수 있습니다.
+                        </p>
+                    )}
+                </div>
+            )}
+
             <div className="mt-3 no-print rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                 <p className="text-xs font-bold text-slate-600">
                     카드 상단을 누르면 상세 보기, 하단 버튼으로 스티커/사원증 발급을 바로 진행할 수 있습니다.
                 </p>
-                <span className="text-[11px] font-black text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2 py-1 self-start sm:self-auto">
-                    상세 / 발급 동선 분리 완료
-                </span>
+                <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                    <span className="text-[11px] font-black text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2 py-1">
+                        상세 / 발급 동선 분리 완료
+                    </span>
+                    <div className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('card')}
+                            className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-colors ${viewMode === 'card' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                        >
+                            카드 보기
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('table')}
+                            className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition-colors ${viewMode === 'table' ? 'bg-slate-900 text-white' : 'text-slate-500 hover:bg-slate-50'}`}
+                        >
+                            표 보기
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {/* List */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {viewMode === 'table' ? (
+                <div className="hidden lg:block overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm no-print">
+                    <div className="max-h-[780px] overflow-auto">
+                        <table className="min-w-full divide-y divide-slate-200">
+                            <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
+                                <tr>
+                                    <th className="sticky left-0 z-20 bg-slate-50 px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wide w-12 border-r border-slate-200">
+                                        <input
+                                            type="checkbox"
+                                            checked={allVisibleSelected}
+                                            onChange={() => (allVisibleSelected ? deselectVisibleWorkers() : selectVisibleWorkers())}
+                                            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                            aria-label="현재 화면 전체 선택"
+                                        />
+                                    </th>
+                                    <th className="sticky left-[57px] z-20 bg-slate-50 px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wide border-r border-slate-200">근로자</th>
+                                    {tableColumnVisibility.role && <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wide">공종 / 역할</th>}
+                                    {tableColumnVisibility.score && <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wide">등급 / 점수</th>}
+                                    {tableColumnVisibility.verification && <th className="px-4 py-3 text-left text-[11px] font-black text-slate-500 uppercase tracking-wide">검증 상태</th>}
+                                    {tableColumnVisibility.actions && <th className="px-4 py-3 text-right text-[11px] font-black text-slate-500 uppercase tracking-wide">빠른 작업</th>}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {filteredRecords.map(worker => {
+                                    const s = getGradeStyle(worker.safetyLevel);
+                                    const reliability = verifyIssuanceReliability(worker);
+                                    const canIssue = reliability.trusted;
+                                    const roleBadges = getRoleBadge(worker);
+                                    const isSelected = selectedWorkerIds.includes(toDisplayString(worker.id, `${worker.name}-${worker.date}`));
+                                    return (
+                                        <tr key={worker.id} className={`${isSelected ? 'bg-indigo-50/40' : 'hover:bg-slate-50'} transition-colors`}>
+                                            <td className={`sticky left-0 z-10 px-4 py-4 align-top border-r border-slate-100 ${isSelected ? 'bg-indigo-50' : 'bg-white group-hover:bg-slate-50'}`}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isSelected}
+                                                    onChange={() => toggleWorkerSelection(worker)}
+                                                    className="mt-1 w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                                    aria-label={`${worker.name} 선택`}
+                                                />
+                                            </td>
+                                            <td className={`sticky left-[57px] z-10 px-4 py-4 align-top border-r border-slate-100 ${isSelected ? 'bg-indigo-50' : 'bg-white'}`}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onViewDetails(worker)}
+                                                    className="text-left group"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`w-2.5 h-10 rounded-full ${s.bg}`}></div>
+                                                        <div>
+                                                            <p className="text-sm font-black text-slate-900 group-hover:text-indigo-700 transition-colors">{worker.name}</p>
+                                                            <p className="text-xs font-bold text-slate-400 mt-0.5">{worker.nationality || '국적 미기록'}</p>
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            </td>
+                                            {tableColumnVisibility.role && (
+                                                <td className="px-4 py-4 align-top">
+                                                    <div className="space-y-1">
+                                                        <p className="text-sm font-black text-slate-700">{worker.jobField}</p>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {roleBadges.length > 0 ? roleBadges.map((badge, index) => (
+                                                                <span key={`${worker.id}-role-${index}`} className="px-2 py-1 rounded-lg bg-slate-100 text-slate-600 text-[10px] font-black border border-slate-200">
+                                                                    {badge}
+                                                                </span>
+                                                            )) : (
+                                                                <span className="px-2 py-1 rounded-lg bg-slate-50 text-slate-400 text-[10px] font-black border border-slate-100">
+                                                                    일반 근로자
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            )}
+                                            {tableColumnVisibility.score && (
+                                                <td className="px-4 py-4 align-top">
+                                                    <div className="space-y-2">
+                                                        <span className={`inline-flex px-2.5 py-1 rounded-lg text-[10px] font-black ${s.lightBg} ${s.text} border ${s.border} border-opacity-20 whitespace-nowrap`}>
+                                                            {worker.safetyLevel} GRADE
+                                                        </span>
+                                                        <p className="text-lg font-black text-slate-900">{worker.safetyScore}<span className="ml-1 text-[10px] text-slate-400">PTS</span></p>
+                                                    </div>
+                                                </td>
+                                            )}
+                                            {tableColumnVisibility.verification && (
+                                                <td className="px-4 py-4 align-top">
+                                                    {worker.approvalStatus === 'OVERRIDDEN' ? (
+                                                        <div className="space-y-1">
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200">
+                                                                🔐 예외 승인 발급
+                                                            </span>
+                                                            <p className="text-[10px] font-bold text-amber-600 leading-tight">{worker.approvalReason || '관리자 승인 사유 기록됨'}</p>
+                                                        </div>
+                                                    ) : reliability.trusted ? (
+                                                        <div className="space-y-1">
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                                                ✅ 즉시 발급 가능
+                                                            </span>
+                                                            <p className="text-[10px] font-bold text-slate-400 leading-tight">원본 이미지, 감사이력, 증빙 해시 확인 완료</p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="space-y-1">
+                                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200">
+                                                                ⚠️ 검증 필요
+                                                            </span>
+                                                            <p className="text-[10px] font-bold text-rose-500 leading-tight">{reliability.reasons[0]}{reliability.reasons.length > 1 ? ` 외 ${reliability.reasons.length - 1}건` : ''}</p>
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            )}
+                                            {tableColumnVisibility.actions && (
+                                                <td className="px-4 py-4 align-top">
+                                                    <div className="flex justify-end gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onViewDetails(worker)}
+                                                            className="px-3 py-2 rounded-lg bg-white text-slate-700 border border-slate-200 text-[11px] font-black hover:bg-slate-50"
+                                                        >
+                                                            상세
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => canIssue && startProcessing('sticker', [worker])}
+                                                            disabled={!canIssue}
+                                                            className={`px-3 py-2 rounded-lg text-[11px] font-black border ${canIssue ? 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100' : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'}`}
+                                                        >
+                                                            ⛑ 스티커
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => canIssue && startProcessing('idcard', [worker])}
+                                                            disabled={!canIssue}
+                                                            className={`px-3 py-2 rounded-lg text-[11px] font-black border ${canIssue ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100' : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'}`}
+                                                        >
+                                                            💳 사원증
+                                                        </button>
+                                                        {!canIssue && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openOverrideModal(worker)}
+                                                                className="px-3 py-2 rounded-lg text-[11px] font-black bg-rose-600 text-white border border-rose-700 hover:bg-rose-500"
+                                                            >
+                                                                🔑 예외 승인
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            )}
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            ) : null}
+
+            <div className={`${viewMode === 'table' ? 'lg:hidden' : ''} grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6`}>
                 {filteredRecords.map(worker => {
                     const s = getGradeStyle(worker.safetyLevel);
                     const profileImageSrc = getSafeImageSrc(worker.profileImage);
                     const reliability = verifyIssuanceReliability(worker);
                     const canIssue = reliability.trusted;
+                    const isSelected = selectedWorkerIds.includes(toDisplayString(worker.id, `${worker.name}-${worker.date}`));
                     return (
-                        <div key={worker.id} className="bg-white p-5 rounded-[24px] border border-slate-100 hover:border-indigo-300 hover:shadow-2xl transition-all group relative overflow-hidden flex flex-col gap-3 min-h-[360px]">
+                        <div key={worker.id} className={`bg-white p-5 rounded-[24px] border hover:border-indigo-300 hover:shadow-2xl transition-all group relative overflow-hidden flex flex-col gap-3 min-h-[360px] ${isSelected ? 'border-indigo-300 ring-2 ring-indigo-100' : 'border-slate-100'}`}>
+                            <div className="absolute top-4 right-4 z-30">
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleWorkerSelection(worker);
+                                    }}
+                                    className={`w-7 h-7 rounded-lg border flex items-center justify-center text-[11px] font-black shadow-sm transition-colors ${isSelected ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}
+                                    aria-label={`${worker.name} 선택 토글`}
+                                >
+                                    {isSelected ? '✓' : '+'}
+                                </button>
+                            </div>
                             <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-6">
                                 <p className="text-white font-black mb-1">{worker.name}</p>
                                 <button
@@ -1187,23 +1776,34 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         🔐 예외 승인 발급
                                     </span>
                                 ) : reliability.trusted ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200 leading-tight">
-                                        ✅ OCR 검증 통과
-                                    </span>
-                                ) : (
-                                    <div className="flex items-start justify-between gap-2 w-full">
-                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200 leading-tight" title={reliability.reasons.join(', ')}>
-                                            ⚠️ 검증 필요 (구백업 가능)
+                                    <div className="w-full space-y-2">
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200 leading-tight">
+                                            ✅ OCR 검증 통과
                                         </span>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                openOverrideModal(worker);
-                                            }}
-                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-600 text-white border border-rose-700 hover:bg-rose-500 whitespace-nowrap"
-                                        >
-                                            🔒 🔑 예외 승인 및 강제 발급
-                                        </button>
+                                        <p className="text-[10px] font-bold text-slate-400 leading-tight">
+                                            원본 이미지, 감사이력, 증빙 해시가 확인된 발급 가능 데이터입니다.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="w-full space-y-2">
+                                        <div className="flex items-start justify-between gap-2 w-full">
+                                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200 leading-tight" title={reliability.reasons.join(', ')}>
+                                                ⚠️ 검증 필요 (구백업 가능)
+                                            </span>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openOverrideModal(worker);
+                                                }}
+                                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-600 text-white border border-rose-700 hover:bg-rose-500 whitespace-nowrap"
+                                            >
+                                                🔒 🔑 예외 승인 및 강제 발급
+                                            </button>
+                                        </div>
+                                        <p className="text-[10px] font-bold text-rose-500 leading-tight line-clamp-2" title={reliability.reasons.join(', ')}>
+                                            {reliability.reasons[0]}
+                                            {reliability.reasons.length > 1 ? ` 외 ${reliability.reasons.length - 1}건` : ''}
+                                        </p>
                                     </div>
                                 )}
                             </div>

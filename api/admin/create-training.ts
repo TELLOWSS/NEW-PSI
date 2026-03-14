@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { buildSignedTrainingMobileUrl, resolveLinkTtlMinutes } from '../shared/trainingLinkToken';
 
 type LangCode =
     | 'ko-KR'
@@ -289,12 +290,14 @@ export default async function handler(req: any, res: any) {
         if (updateRes.error) throw new Error(updateRes.error.message);
 
         const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || req.headers.origin || 'http://localhost:5173';
-        const mobileUrl = `${baseUrl}/?mode=worker-training&sessionId=${encodeURIComponent(sessionId)}`;
+        const { mobileUrl, linkExpiresAt, ttlMinutes } = buildSignedTrainingMobileUrl(baseUrl, sessionId, resolveLinkTtlMinutes());
 
         return res.status(200).json({
             ok: true,
             sessionId,
             mobileUrl,
+            linkExpiresAt,
+            ttlMinutes,
             audioUrls,
             failedLanguages,
             failedLanguageAttempts,

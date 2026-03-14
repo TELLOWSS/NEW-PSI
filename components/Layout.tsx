@@ -9,9 +9,11 @@ interface LayoutProps {
     children: React.ReactNode;
     currentPage: Page;
     setCurrentPage: (page: Page) => void;
+    appMode?: 'admin' | 'worker';
+    onRequestLock?: () => void;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage, appMode = 'admin', onRequestLock }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isPaidApiMode, setIsPaidApiMode] = useState(false);
 
@@ -71,6 +73,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
             window.removeEventListener(API_MODE_CHANGED_EVENT, syncApiMode);
         };
     }, []);
+
+    if (appMode === 'worker') {
+        return (
+            <div className="min-h-screen bg-slate-100 text-slate-800">
+                <main className="min-h-screen">
+                    {children}
+                </main>
+            </div>
+        );
+    }
 
     return (
         <div className="flex h-screen bg-slate-100 text-slate-800">
@@ -143,6 +155,17 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                <span className="sm:hidden">{isPaidApiMode ? '유료' : '무료'}</span>
                                <span className="hidden sm:inline">{isPaidApiMode ? '유료 API' : '무료 API'}</span>
                            </span>
+                           {onRequestLock && (
+                               <button
+                                   type="button"
+                                   onClick={onRequestLock}
+                                   className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 text-[10px] sm:text-xs font-black"
+                                   aria-label="관리자 모드 잠금"
+                               >
+                                   <span>🔒</span>
+                                   <span className="hidden sm:inline">관리자 잠금</span>
+                               </button>
+                           )}
                        </div>
                     </div>
                 </header>
