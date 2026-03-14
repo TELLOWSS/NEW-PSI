@@ -41,29 +41,43 @@ const ALL_LANGS: LangCode[] = [
     'kk-KZ',
 ];
 
-// Vercel 서버리스 환경에서는 process.env 로 모든 환경변수에 접근 가능
-// VITE_ 접두사 → Vercel이 프론트엔드 빌드 + 서버리스 함수 양쪽에 동일하게 노출
-const supabaseUrl =
-    process.env.VITE_SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    '';
-const supabaseAnonKey =
-    process.env.VITE_SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    '';
-const psiAdminSecret =
-    process.env.VITE_PSI_ADMIN_SECRET ||
-    process.env.PSI_ADMIN_SECRET ||
-    '';
+function getSupabaseClient() {
+    const supabaseUrl =
+        process.env.VITE_SUPABASE_URL ||
+        process.env.NEXT_PUBLIC_SUPABASE_URL ||
+        '';
+    const supabaseAnonKey =
+        process.env.VITE_SUPABASE_ANON_KEY ||
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+        '';
+    const psiAdminSecret =
+        process.env.VITE_PSI_ADMIN_SECRET ||
+        process.env.PSI_ADMIN_SECRET ||
+        '';
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-        headers: psiAdminSecret
-            ? { 'x-psi-admin-secret': psiAdminSecret }
-            : {},
-    },
+    if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Supabase 환경변수가 누락되었습니다. VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY를 확인해 주세요.');
+    }
+
+    return createClient(supabaseUrl, supabaseAnonKey, {
+        global: {
+            headers: psiAdminSecret
+                ? { 'x-psi-admin-secret': psiAdminSecret }
+                : {},
+        },
+    });
 }
-);
+
+function sendJsonError(res: any, statusCode: number, message: string, details?: string) {
+    const payload: { ok: false; error: string; message: string; details?: string } = {
+        ok: false,
+        error: message,
+        message,
+    };
+
+    if (details) payload.details = details;
+    return res.status(statusCode).json(payload);
+}
 
 function translateDummy(koText: string, lang: LangCode): string {
     if (lang === 'ko-KR') return koText;
@@ -110,7 +124,15 @@ async function synthesizeGoogleTTS(text: string, lang: LangCode): Promise<Buffer
         throw new Error(`Google TTS 실패: ${errText}`);
     }
 
-    const data = await response.json();
+    const raw = await response.text();
+    let data: any = null;
+
+    try {
+        data = raw ? JSON.parse(raw) : null;
+    } catch {
+        throw new Error('Google TTS 응답 JSON 파싱 실패');
+    }
+
     if (!data?.audioContent) throw new Error('TTS 응답에 audioContent가 없습니다.');
 
     return Buffer.from(data.audioContent, 'base64');
@@ -118,13 +140,14 @@ async function synthesizeGoogleTTS(text: string, lang: LangCode): Promise<Buffer
 
 export default async function handler(req: any, res: any) {
     if (req.method !== 'POST') {
-        return res.status(405).json({ ok: false, message: 'Method Not Allowed' });
+        return sendJsonError(res, 405, 'Method Not Allowed');
     }
 
     try {
+        const supabase = getSupabaseClient();
         const { sourceTextKo, selectedLanguages } = req.body || {};
         if (!sourceTextKo || typeof sourceTextKo !== 'string') {
-            return res.status(400).json({ ok: false, message: 'sourceTextKo가 필요합니다.' });
+            return sendJsonError(res, 400, 'sourceTextKo가 필요합니다.');
         }
 
         const requestedLanguages = Array.isArray(selectedLanguages)
@@ -186,6 +209,7 @@ export default async function handler(req: any, res: any) {
             audioUrls,
         });
     } catch (error: any) {
-        return res.status(500).json({ ok: false, message: error?.message || '서버 오류' });
+        const message = error?.message || '서버 오류';
+        return sendJsonError(res, 500, message);
     }
 }

@@ -100,9 +100,29 @@ const AdminTraining: React.FC = () => {
                 body: JSON.stringify({ sourceTextKo, selectedLanguages }),
             });
 
-            const data = await response.json();
-            if (!response.ok || !data.ok) {
-                throw new Error(data.message || '세션 생성 실패');
+            const contentType = response.headers.get('content-type') || '';
+            const raw = await response.text();
+            let data: any = null;
+
+            if (raw && contentType.includes('application/json')) {
+                try {
+                    data = JSON.parse(raw);
+                } catch {
+                    throw new Error('서버 JSON 응답 파싱에 실패했습니다.');
+                }
+            }
+
+            if (!response.ok) {
+                const serverMessage = data?.message || data?.error || `요청 실패 (HTTP ${response.status})`;
+                throw new Error(serverMessage);
+            }
+
+            if (!data) {
+                throw new Error('서버가 비어있는 응답을 반환했습니다.');
+            }
+
+            if (!data.ok) {
+                throw new Error(data.message || data.error || '세션 생성 실패');
             }
 
             setMobileUrl(data.mobileUrl || '');
