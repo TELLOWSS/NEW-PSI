@@ -41,18 +41,28 @@ const ALL_LANGS: LangCode[] = [
     'kk-KZ',
 ];
 
-// PSI_ADMIN_SECRET: 서버 전용 환경변수 (Vercel 대시보드에 설정)
-// → 모든 요청에 x-psi-admin-secret 헤더를 자동 첨부하여 RLS 관리자 통과
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-    {
-        global: {
-            headers: {
-                'x-psi-admin-secret': process.env.PSI_ADMIN_SECRET || '',
-            },
-        },
-    }
+// Vercel 서버리스 환경에서는 process.env 로 모든 환경변수에 접근 가능
+// VITE_ 접두사 → Vercel이 프론트엔드 빌드 + 서버리스 함수 양쪽에 동일하게 노출
+const supabaseUrl =
+    process.env.VITE_SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    '';
+const supabaseAnonKey =
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    '';
+const psiAdminSecret =
+    process.env.VITE_PSI_ADMIN_SECRET ||
+    process.env.PSI_ADMIN_SECRET ||
+    '';
+
+const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+        headers: psiAdminSecret
+            ? { 'x-psi-admin-secret': psiAdminSecret }
+            : {},
+    },
+}
 );
 
 function translateDummy(koText: string, lang: LangCode): string {
