@@ -41,9 +41,18 @@ const ALL_LANGS: LangCode[] = [
     'kk-KZ',
 ];
 
+// PSI_ADMIN_SECRET: 서버 전용 환경변수 (Vercel 대시보드에 설정)
+// → 모든 요청에 x-psi-admin-secret 헤더를 자동 첨부하여 RLS 관리자 통과
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+    {
+        global: {
+            headers: {
+                'x-psi-admin-secret': process.env.PSI_ADMIN_SECRET || '',
+            },
+        },
+    }
 );
 
 function translateDummy(koText: string, lang: LangCode): string {
