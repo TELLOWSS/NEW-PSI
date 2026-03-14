@@ -441,6 +441,19 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [filterLevel, setFilterLevel] = useState('전체');
     const [reliabilityFilter, setReliabilityFilter] = useState<'all' | 'trusted' | 'needs-review'>('all');
 
+    const hasActiveFilters =
+        searchTerm.trim().length > 0 ||
+        selectedTeam !== '전체' ||
+        filterLevel !== '전체' ||
+        reliabilityFilter !== 'all';
+
+    const resetFilters = () => {
+        setSearchTerm('');
+        setSelectedTeam('전체');
+        setFilterLevel('전체');
+        setReliabilityFilter('all');
+    };
+
     // --- Print Modal States ---
     const [isPrintMode, setIsPrintMode] = useState(false);
     const [printType, setPrintType] = useState<'sticker' | 'idcard'>('sticker');
@@ -1074,6 +1087,36 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         필터 대상 사원증 일괄 인쇄
                     </button>
                 </div>
+                <div className="w-full lg:w-auto">
+                    <button
+                        onClick={resetFilters}
+                        disabled={!hasActiveFilters}
+                        className="w-full lg:w-auto px-4 py-3 bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-black hover:bg-slate-200 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        필터 초기화
+                    </button>
+                </div>
+            </div>
+
+            <div className="mt-3 no-print flex flex-wrap items-center gap-2">
+                <span className="text-xs font-black text-slate-500">검색 결과</span>
+                <span className="px-2 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-black border border-slate-200">
+                    {filteredRecords.length}명
+                </span>
+                {hasActiveFilters && (
+                    <span className="px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-black border border-indigo-200">
+                        필터 적용 중
+                    </span>
+                )}
+            </div>
+
+            <div className="mt-3 no-print rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <p className="text-xs font-bold text-slate-600">
+                    카드 상단을 누르면 상세 보기, 하단 버튼으로 스티커/사원증 발급을 바로 진행할 수 있습니다.
+                </p>
+                <span className="text-[11px] font-black text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg px-2 py-1 self-start sm:self-auto">
+                    상세 / 발급 동선 분리 완료
+                </span>
             </div>
 
             {/* List */}
@@ -1084,75 +1127,72 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     const reliability = verifyIssuanceReliability(worker);
                     const canIssue = reliability.trusted;
                     return (
-                        <div key={worker.id} className="bg-white p-5 rounded-[24px] border border-slate-100 hover:border-indigo-300 hover:shadow-2xl transition-all cursor-pointer group relative overflow-hidden flex flex-col gap-3" onClick={() => onViewDetails(worker)}>
-                            {/* Glassmorphism Overlay Menu on Hover */}
+                        <div key={worker.id} className="bg-white p-5 rounded-[24px] border border-slate-100 hover:border-indigo-300 hover:shadow-2xl transition-all group relative overflow-hidden flex flex-col gap-3 min-h-[360px]">
                             <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-6">
                                 <p className="text-white font-black mb-1">{worker.name}</p>
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); if (canIssue) startProcessing('sticker', [worker]); }}
-                                    disabled={!canIssue}
-                                    title={!canIssue ? reliability.reasons.join(', ') : '스티커 인쇄'}
-                                    className={`w-full py-3 font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-xs ${canIssue ? 'bg-white text-slate-900 hover:bg-slate-200' : 'bg-slate-500/60 text-slate-200 cursor-not-allowed'}`}
+                                    onClick={(e) => { e.stopPropagation(); onViewDetails(worker); }}
+                                    className="w-full py-3 font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-xs bg-white text-slate-900 hover:bg-slate-200"
                                 >
-                                    <span className="text-base">⛑</span> 스티커 인쇄
+                                    <span className="text-base">📄</span> 상세 보기
                                 </button>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); if (canIssue) startProcessing('idcard', [worker]); }}
-                                    disabled={!canIssue}
-                                    title={!canIssue ? reliability.reasons.join(', ') : '사원증 인쇄'}
-                                    className={`w-full py-3 font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-xs ${canIssue ? 'bg-indigo-600 text-white hover:bg-indigo-500' : 'bg-slate-500/60 text-slate-200 cursor-not-allowed'}`}
-                                >
-                                    <span className="text-base">💳</span> 사원증 인쇄
-                                </button>
+                                {canIssue ? (
+                                    <p className="text-[10px] text-indigo-100 font-bold text-center mt-1">발급은 카드 하단 버튼에서 바로 진행할 수 있습니다.</p>
+                                ) : (
+                                    <p className="text-[10px] text-rose-200 font-bold text-center mt-1">검증 필요: OCR 재분석 후 발급</p>
+                                )}
                                 {!canIssue && (
-                                    <>
-                                        <p className="text-[10px] text-rose-200 font-bold text-center mt-1">검증 필요: OCR 재분석 후 발급</p>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                openOverrideModal(worker);
-                                            }}
-                                            className="w-full py-2 font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-xs bg-rose-600 text-white hover:bg-rose-500"
-                                        >
-                                            🔑 예외 승인 및 강제 발급
-                                        </button>
-                                    </>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            openOverrideModal(worker);
+                                        }}
+                                        className="w-full py-2 font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-xs bg-rose-600 text-white hover:bg-rose-500"
+                                    >
+                                        🔑 예외 승인 및 강제 발급
+                                    </button>
                                 )}
                             </div>
 
-                            <div className="flex items-center gap-4 relative z-10">
+                            <button
+                                type="button"
+                                onClick={() => onViewDetails(worker)}
+                                className="flex items-center gap-4 relative z-10 text-left w-full rounded-xl p-1.5 hover:bg-slate-50 transition-colors"
+                            >
                                 <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0 shadow-inner relative">
                                     {profileImageSrc ? <img src={profileImageSrc} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-2xl opacity-20">👷</div>}
                                     <div className={`absolute bottom-0 w-full h-1.5 ${s.bg}`}></div>
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                    <h4 className="text-lg font-black text-slate-800 truncate flex items-center gap-1">
-                                        {worker.name}
-                                    </h4>
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                        <span className="text-[9px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase">{worker.jobField}</span>
-                                        {getRoleBadge(worker).length > 0 && <span className="text-[9px] font-bold bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded uppercase">{getRoleBadge(worker)[0]}</span>}
+                                    <div className="flex items-start justify-between gap-2">
+                                        <h4 className="text-lg font-black text-slate-800 truncate leading-tight flex-1">{worker.name}</h4>
+                                        <span className="shrink-0 text-slate-300 group-hover:text-indigo-400 transition-colors">›</span>
+                                    </div>
+                                    <p className="mt-1 text-[11px] font-bold text-slate-400 truncate">{worker.nationality || '국적 미기록'}</p>
+                                    <div className="flex flex-wrap gap-1 mt-1 min-h-[22px]">
+                                        <span className="text-[9px] font-bold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase max-w-full truncate">{worker.jobField}</span>
+                                        {getRoleBadge(worker).length > 0 && <span className="text-[9px] font-bold bg-yellow-100 text-yellow-700 px-1.5 py-0.5 rounded uppercase max-w-full truncate">{getRoleBadge(worker)[0]}</span>}
                                     </div>
                                 </div>
-                            </div>
-                            
+                            </button>
+
                             <div className="pt-3 border-t border-slate-50 flex justify-between items-center relative z-10">
-                                <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black ${s.lightBg} ${s.text} border ${s.border} border-opacity-20`}>{worker.safetyLevel} GRADE</span>
-                                <span className="text-xl font-black text-slate-900 tracking-tighter">{worker.safetyScore}<span className="text-[9px] text-slate-300 ml-0.5 font-bold">PTS</span></span>
+                                <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black ${s.lightBg} ${s.text} border ${s.border} border-opacity-20 whitespace-nowrap`}>{worker.safetyLevel} GRADE</span>
+                                <span className="text-xl font-black text-slate-900 tracking-tighter whitespace-nowrap">{worker.safetyScore}<span className="text-[9px] text-slate-300 ml-0.5 font-bold">PTS</span></span>
                             </div>
 
-                            <div className="relative z-10">
+                            <div className="relative z-10 min-h-[52px] flex items-start">
                                 {worker.approvalStatus === 'OVERRIDDEN' ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200" title={`${worker.approvedBy || '승인자 미기록'} / ${worker.approvedAt || '-'} / ${worker.approvalReason || '-'}`}>
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200 leading-tight" title={`${worker.approvedBy || '승인자 미기록'} / ${worker.approvedAt || '-'} / ${worker.approvalReason || '-'}`}>
                                         🔐 예외 승인 발급
                                     </span>
                                 ) : reliability.trusted ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200 leading-tight">
                                         ✅ OCR 검증 통과
                                     </span>
                                 ) : (
-                                    <div className="flex items-center justify-between gap-2">
-                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200" title={reliability.reasons.join(', ')}>
+                                    <div className="flex items-start justify-between gap-2 w-full">
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200 leading-tight" title={reliability.reasons.join(', ')}>
                                             ⚠️ 검증 필요 (구백업 가능)
                                         </span>
                                         <button
@@ -1160,17 +1200,66 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 e.stopPropagation();
                                                 openOverrideModal(worker);
                                             }}
-                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-600 text-white border border-rose-700 hover:bg-rose-500"
+                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-600 text-white border border-rose-700 hover:bg-rose-500 whitespace-nowrap"
                                         >
                                             🔒 🔑 예외 승인 및 강제 발급
                                         </button>
                                     </div>
                                 )}
                             </div>
+
+                            <div className="relative z-10 sm:hidden flex gap-2 pt-1 mt-auto">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); if (canIssue) startProcessing('sticker', [worker]); }}
+                                    disabled={!canIssue}
+                                    className={`flex-1 min-h-[40px] py-2 rounded-lg text-[11px] font-black border whitespace-nowrap ${canIssue ? 'bg-white text-slate-700 border-slate-200' : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'}`}
+                                >
+                                    ⛑ 스티커
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); if (canIssue) startProcessing('idcard', [worker]); }}
+                                    disabled={!canIssue}
+                                    className={`flex-1 min-h-[40px] py-2 rounded-lg text-[11px] font-black border whitespace-nowrap ${canIssue ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'}`}
+                                >
+                                    💳 사원증
+                                </button>
+                            </div>
+
+                            <div className="relative z-10 hidden sm:flex gap-2 pt-1 mt-auto">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); if (canIssue) startProcessing('sticker', [worker]); }}
+                                    disabled={!canIssue}
+                                    className={`flex-1 min-h-[40px] py-2 rounded-lg text-[11px] font-black border transition-colors whitespace-nowrap ${canIssue ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50' : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'}`}
+                                >
+                                    ⛑ 스티커
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); if (canIssue) startProcessing('idcard', [worker]); }}
+                                    disabled={!canIssue}
+                                    className={`flex-1 min-h-[40px] py-2 rounded-lg text-[11px] font-black border transition-colors whitespace-nowrap ${canIssue ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100' : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'}`}
+                                >
+                                    💳 사원증
+                                </button>
+                            </div>
                         </div>
                     );
                 })}
             </div>
+
+            {filteredRecords.length === 0 && (
+                <div className="mt-6 bg-white border border-slate-200 rounded-2xl p-8 text-center no-print">
+                    <p className="text-base font-black text-slate-700">조건에 맞는 근로자가 없습니다.</p>
+                    <p className="mt-2 text-sm font-bold text-slate-500">검색어 또는 필터를 조정해 주세요.</p>
+                    {hasActiveFilters && (
+                        <button
+                            onClick={resetFilters}
+                            className="mt-4 px-4 py-2 rounded-lg bg-indigo-50 text-indigo-700 text-sm font-black border border-indigo-200 hover:bg-indigo-100"
+                        >
+                            필터 초기화
+                        </button>
+                    )}
+                </div>
+            )}
         </div>
     );
 };
