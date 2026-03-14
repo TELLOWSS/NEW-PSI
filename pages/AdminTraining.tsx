@@ -51,8 +51,19 @@ const AdminTraining: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [mobileUrl, setMobileUrl] = useState('');
     const [message, setMessage] = useState('');
+    const [failedLanguages, setFailedLanguages] = useState<string[]>([]);
     const [savedPreset, setSavedPreset] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
     const [selectedLanguages, setSelectedLanguages] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
+
+    const shareText = mobileUrl
+        ? [
+            '[PSI 다국어 안전교육 링크]',
+            mobileUrl,
+            failedLanguages.length > 0
+                ? `음성 미생성 언어(텍스트 대체): ${failedLanguages.join(', ')}`
+                : '모든 선택 언어의 음성 안내가 생성되었습니다.',
+        ].join('\n')
+        : '';
 
     useEffect(() => {
         const raw = localStorage.getItem('psi_app_settings');
@@ -92,6 +103,7 @@ const AdminTraining: React.FC = () => {
         setLoading(true);
         setMessage('');
         setMobileUrl('');
+        setFailedLanguages([]);
 
         try {
             const response = await fetch('/api/admin/create-training', {
@@ -126,11 +138,31 @@ const AdminTraining: React.FC = () => {
             }
 
             setMobileUrl(data.mobileUrl || '');
-            setMessage('생성 완료! 아래 QR을 근로자에게 공유하세요.');
+            const failed = Array.isArray(data.failedLanguages) ? data.failedLanguages : [];
+            setFailedLanguages(failed);
+            if (failed.length > 0) {
+                setMessage('생성 완료(부분 성공): 일부 언어는 음성 생성에 실패하여 텍스트 안내로 대체됩니다.');
+            } else {
+                setMessage('생성 완료! 아래 QR을 근로자에게 공유하세요.');
+            }
         } catch (error: any) {
             setMessage(`오류: ${error?.message || '알 수 없는 오류'}`);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleCopyShareText = async () => {
+        if (!shareText) {
+            alert('복사할 공유 텍스트가 없습니다. 먼저 생성을 완료해 주세요.');
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(shareText);
+            setMessage('공유 텍스트를 복사했습니다. 메신저에 붙여넣어 전달해 주세요.');
+        } catch {
+            setMessage('클립보드 복사에 실패했습니다. 텍스트를 직접 복사해 주세요.');
         }
     };
 
@@ -185,6 +217,21 @@ const AdminTraining: React.FC = () => {
                 </button>
 
                 {message && <p className="mt-4 text-sm font-bold text-slate-700">{message}</p>}
+                {failedLanguages.length > 0 && (
+                    <div className="mt-3">
+                        <p className="text-xs font-black text-amber-700 mb-2">음성 미생성 언어 (텍스트 대체)</p>
+                        <div className="flex flex-wrap gap-2">
+                            {failedLanguages.map((code) => (
+                                <span
+                                    key={code}
+                                    className="px-2 py-1 rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-[11px] font-black"
+                                >
+                                    {code}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {mobileUrl && (
@@ -193,6 +240,22 @@ const AdminTraining: React.FC = () => {
                     <p className="text-xs font-bold text-slate-500 mt-2 break-all">{mobileUrl}</p>
                     <div className="mt-4">
                         <QRCodeCanvas value={mobileUrl} size={220} />
+                    </div>
+                    <div className="mt-4">
+                        <p className="text-xs font-black text-slate-600 mb-2">공유 텍스트</p>
+                        <textarea
+                            value={shareText}
+                            readOnly
+                            rows={4}
+                            className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-xs"
+                        />
+                        <button
+                            type="button"
+                            onClick={handleCopyShareText}
+                            className="mt-2 px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-black border border-slate-200 hover:bg-slate-200"
+                        >
+                            공유 텍스트 복사
+                        </button>
                     </div>
                 </div>
             )}

@@ -234,29 +234,43 @@ export default async function handler(req: any, res: any) {
         }
 
         const sessionId = String(insertRes.data.id);
-        const audioUrls: Record<string, string> = {};
+        const audioUrls: Record<string, string | null> = {};
+        const translatedTexts: Record<string, string> = {};
+        const failedLanguages: LangCode[] = [];
 
         for (const lang of langs) {
             const translated = translateDummy(sourceTextKo, lang);
-            const mp3 = await synthesizeGoogleTTS(translated, lang);
-            const path = `${sessionId}/${lang}.mp3`;
+            translatedTexts[lang] = translated;
 
-            const uploadRes = await supabase.storage.from('training_audio').upload(path, mp3, {
-                contentType: 'audio/mpeg',
-                upsert: true,
-            });
+            try {
+                const mp3 = await synthesizeGoogleTTS(translated, lang);
+                const path = `${sessionId}/${lang}.mp3`;
 
-            if (uploadRes.error) {
-                throw new Error(`training_audio 업로드 실패(${lang}): ${uploadRes.error.message}`);
+                const uploadRes = await supabase.storage.from('training_audio').upload(path, mp3, {
+                    contentType: 'audio/mpeg',
+                    upsert: true,
+                });
+
+                if (uploadRes.error) {
+                    throw new Error(`training_audio 업로드 실패(${lang}): ${uploadRes.error.message}`);
+                }
+
+                const pub = supabase.storage.from('training_audio').getPublicUrl(path);
+                audioUrls[lang] = pub.data.publicUrl;
+            } catch (ttsError: any) {
+                audioUrls[lang] = null;
+                failedLanguages.push(lang);
+                console.warn(`[TTS 경고] ${lang} 언어 음성 생성 실패`, ttsError?.message || ttsError);
+                continue;
             }
-
-            const pub = supabase.storage.from('training_audio').getPublicUrl(path);
-            audioUrls[lang] = pub.data.publicUrl;
         }
 
         const updateRes = await supabase
             .from('training_sessions')
-            .update({ audio_urls: audioUrls })
+            .update({
+                audio_urls: audioUrls,
+                translated_texts: translatedTexts,
+            })
             .eq('id', sessionId);
 
         if (updateRes.error) throw new Error(updateRes.error.message);
@@ -269,6 +283,7 @@ export default async function handler(req: any, res: any) {
             sessionId,
             mobileUrl,
             audioUrls,
+            failedLanguages,
         });
     } catch (error: any) {
         const message = error?.message || '서버 오류';

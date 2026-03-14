@@ -9,7 +9,8 @@ interface WorkerTrainingProps {
 type SessionRow = {
     id: string;
     source_text_ko: string;
-    audio_urls: Record<string, string>;
+    audio_urls: Record<string, string | null>;
+    translated_texts?: Record<string, string>;
 };
 
 const LANGUAGE_LABELS: Record<string, string> = {
@@ -74,7 +75,13 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
     const selectedAudioUrl = useMemo(() => {
         if (!sessionData?.audio_urls) return '';
         const map = sessionData.audio_urls;
-        return map[langKey] || map['en-US'] || map['ko-KR'] || '';
+        return map[langKey] ?? map['en-US'] ?? map['ko-KR'] ?? '';
+    }, [sessionData, langKey]);
+
+    const selectedTranslatedText = useMemo(() => {
+        if (!sessionData) return '';
+        const textMap = sessionData.translated_texts || {};
+        return textMap[langKey] || textMap['en-US'] || textMap['ko-KR'] || sessionData.source_text_ko || '';
     }, [sessionData, langKey]);
 
     useEffect(() => {
@@ -88,7 +95,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
             setLoading(true);
             const { data, error } = await supabase
                 .from('training_sessions')
-                .select('id, source_text_ko, audio_urls')
+                .select('id, source_text_ko, audio_urls, translated_texts')
                 .eq('id', sessionId)
                 .single();
 
@@ -123,11 +130,6 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
             return;
         }
 
-        if (!selectedAudioUrl) {
-            alert('오디오 URL이 없습니다. 관리자에게 문의해 주세요.');
-            return;
-        }
-
         const signatureDataUrl = sigRef.current.toDataURL('image/png');
 
         setSubmitting(true);
@@ -141,7 +143,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                     sessionId,
                     workerName,
                     nationality,
-                    selectedAudioUrl,
+                    selectedAudioUrl: selectedAudioUrl || null,
                     signatureDataUrl,
                 }),
             });
@@ -205,8 +207,12 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                             <source src={selectedAudioUrl} type="audio/mpeg" />
                         </audio>
                     ) : (
-                        <p className="text-sm text-rose-600 font-bold">재생할 오디오가 없습니다.</p>
+                        <p className="text-sm text-amber-700 font-bold">선택한 언어 음성 파일이 없어 텍스트 안내로 대체됩니다.</p>
                     )}
+                    <div className="mt-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
+                        <p className="text-[11px] font-black text-slate-500 mb-1">안내 문구</p>
+                        <p className="text-sm font-bold text-slate-700 whitespace-pre-wrap">{selectedTranslatedText}</p>
+                    </div>
                 </div>
 
                 <div className="mt-4">

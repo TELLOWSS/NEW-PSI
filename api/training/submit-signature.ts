@@ -13,7 +13,7 @@ export default async function handler(req: any, res: any) {
     try {
         const { sessionId, workerName, nationality, selectedAudioUrl, signatureDataUrl } = req.body || {};
 
-        if (!sessionId || !workerName || !nationality || !selectedAudioUrl || !signatureDataUrl) {
+        if (!sessionId || !workerName || !nationality || !signatureDataUrl) {
             return res.status(400).json({ ok: false, message: '필수값 누락' });
         }
 
@@ -41,7 +41,7 @@ export default async function handler(req: any, res: any) {
             worker_name: workerName,
             nationality,
             signature_url: signatureUrl,
-            audio_url: selectedAudioUrl,
+            audio_url: selectedAudioUrl || null,
             submitted_at: new Date().toISOString(),
         });
 
