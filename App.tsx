@@ -9,7 +9,6 @@ import { restoreRecordFromUrl } from './utils/qrUtils';
 import { extractMessage } from './utils/errorUtils';
 import { appendAuditTrail, appendCorrectionHistory, attachEvidenceHash, deriveCompetencyProfile, deriveIntegrityScore, enforceSafetyLevel } from './utils/evidenceUtils';
 import { applyIdentityPolicy } from './utils/identityUtils';
-import { getAdminPin } from './utils/adminPinUtils';
 
 const OcrAnalysis = lazy(() => import('./pages/OcrAnalysis'));
 const WorkerManagement = lazy(() => import('./pages/WorkerManagement'));
@@ -28,10 +27,6 @@ const WorkerTraining = lazy(() => import('./pages/WorkerTraining'));
 const IDB_NAME = 'PSI_Enterprise_V4';
 const IDB_VERSION = 1;
 const WORKER_STORE = 'worker_records';
-type AppMode = 'admin' | 'worker';
-const ADMIN_LOCK_STORAGE_KEY = 'psi_admin_locked';
-const ADMIN_ACTIVITY_AT_KEY = 'psi_admin_last_activity_at';
-const ADMIN_IDLE_LOCK_MS = 10 * 60 * 1000;
 
 interface ErrorBoundaryProps {
     children?: ReactNode;
@@ -326,7 +321,6 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
 
 const App: React.FC = () => {
     const [currentPage, setCurrentPage] = useState<Page>('dashboard');
-    const [appMode, setAppMode] = useState<AppMode>('admin');
     const [isDataLoaded, setIsDataLoaded] = useState(false);
     const [workerRecords, setWorkerRecords] = useState<WorkerRecord[]>([]);
     const [safetyCheckRecords, setSafetyCheckRecords] = useState<SafetyCheckRecord[]>([]);
@@ -337,9 +331,6 @@ const App: React.FC = () => {
     const [isQrScanMode, setIsQrScanMode] = useState(false);
     const [isReanalyzing, setIsReanalyzing] = useState(false);
     const [trainingSessionId, setTrainingSessionId] = useState('');
-    const [isAdminLocked, setIsAdminLocked] = useState(false);
-    const [adminPinInput, setAdminPinInput] = useState('');
-    const [adminUnlockError, setAdminUnlockError] = useState('');
 
     // [Ref] Maintain a ref to workerRecords for stable callbacks (prevent stale closures in async handlers)
     const workerRecordsRef = useRef<WorkerRecord[]>([]);
@@ -359,13 +350,10 @@ const App: React.FC = () => {
         const sessionId = params.get('sessionId');
 
         if (mode === 'worker-training' && sessionId) {
-            setAppMode('worker');
             setTrainingSessionId(sessionId);
             setCurrentPage('worker-training');
             return;
         }
-
-        setAppMode('admin');
 
         if (qrData) {
             const restored = restoreRecordFromUrl(qrData);
@@ -376,98 +364,6 @@ const App: React.FC = () => {
             }
         }
     }, []);
-
-    useEffect(() => {
-        if (appMode !== 'admin') return;
-        const locked = localStorage.getItem(ADMIN_LOCK_STORAGE_KEY) === 'true';
-        setIsAdminLocked(locked);
-    }, [appMode]);
-
-    useEffect(() => {
-        if (appMode !== 'admin') return;
-
-        const markActivity = () => {
-            localStorage.setItem(ADMIN_ACTIVITY_AT_KEY, String(Date.now()));
-        };
-
-        if (!isAdminLocked) {
-            markActivity();
-        }
-
-        const activityEvents: Array<keyof WindowEventMap> = ['mousemove', 'keydown', 'click', 'touchstart', 'scroll'];
-        const activityHandler = () => {
-            if (!isAdminLocked) markActivity();
-        };
-
-        activityEvents.forEach((eventName) => window.addEventListener(eventName, activityHandler, { passive: true }));
-
-        const interval = window.setInterval(() => {
-            if (isAdminLocked) return;
-            const lastActivityRaw = localStorage.getItem(ADMIN_ACTIVITY_AT_KEY);
-            const lastActivityAt = lastActivityRaw ? Number(lastActivityRaw) : Date.now();
-
-            if (!Number.isFinite(lastActivityAt)) {
-                localStorage.setItem(ADMIN_ACTIVITY_AT_KEY, String(Date.now()));
-                return;
-            }
-
-            if (Date.now() - lastActivityAt >= ADMIN_IDLE_LOCK_MS) {
-                setIsAdminLocked(true);
-                localStorage.setItem(ADMIN_LOCK_STORAGE_KEY, 'true');
-            }
-        }, 30000);
-
-        return () => {
-            activityEvents.forEach((eventName) => window.removeEventListener(eventName, activityHandler));
-            window.clearInterval(interval);
-        };
-    }, [appMode, isAdminLocked]);
-
-    useEffect(() => {
-        if (appMode === 'worker' && currentPage !== 'worker-training') {
-            setCurrentPage('worker-training');
-        }
-    }, [appMode, currentPage]);
-
-    const handlePageChange = useCallback((page: Page) => {
-        if (appMode === 'worker' && page !== 'worker-training') {
-            setCurrentPage('worker-training');
-            return;
-        }
-
-        if (appMode === 'admin' && isAdminLocked) {
-            return;
-        }
-
-        setCurrentPage(page);
-    }, [appMode, isAdminLocked]);
-
-    const lockAdminMode = useCallback(() => {
-        if (appMode !== 'admin') return;
-        setIsAdminLocked(true);
-        setAdminPinInput('');
-        setAdminUnlockError('');
-        localStorage.setItem(ADMIN_LOCK_STORAGE_KEY, 'true');
-    }, [appMode]);
-
-    const unlockAdminMode = useCallback(() => {
-        const expectedPin = getAdminPin().trim();
-        if (!expectedPin) {
-            setAdminUnlockError('관리자 PIN 설정이 필요합니다. 설정 화면에서 PIN을 먼저 저장해 주세요.');
-            return;
-        }
-
-        if (adminPinInput.trim() !== expectedPin) {
-            setAdminUnlockError('관리자 PIN이 일치하지 않습니다.');
-            return;
-        }
-
-        setIsAdminLocked(false);
-        setAdminPinInput('');
-        setAdminUnlockError('');
-        localStorage.setItem(ADMIN_LOCK_STORAGE_KEY, 'false');
-        localStorage.setItem(ADMIN_ACTIVITY_AT_KEY, String(Date.now()));
-    }, [adminPinInput]);
 
     useEffect(() => {
         loadWorkerRecordsFromDB().then(data => {
@@ -690,24 +586,12 @@ const App: React.FC = () => {
         setIsReanalyzing(false);
         return null;
     }, [handleUpdateRecord]);
-
-    if (appMode === 'worker') {
-        return (
-            <ErrorBoundary>
-                <Layout currentPage={currentPage} setCurrentPage={handlePageChange} appMode="worker">
-                    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Spinner /></div>}>
-                        <WorkerTraining sessionId={trainingSessionId} simplifiedMode />
-                    </Suspense>
-                </Layout>
-            </ErrorBoundary>
-        );
-    }
     
     return (
         <ErrorBoundary>
-            <Layout currentPage={currentPage} setCurrentPage={handlePageChange} appMode={appMode} onRequestLock={lockAdminMode}>
+            <Layout currentPage={currentPage} setCurrentPage={setCurrentPage}>
                 <Suspense fallback={<div className="min-h-[240px] flex items-center justify-center"><Spinner /></div>}>
-                    {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={handlePageChange} />}
+                    {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={setCurrentPage} />}
                     {currentPage === 'ocr-analysis' && (
                         <OcrAnalysis 
                             onAnalysisComplete={addWorkerRecords} 
@@ -715,7 +599,7 @@ const App: React.FC = () => {
                             onDeleteAll={handleDeleteAll} 
                             onImport={handleImport} 
                             onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} 
-                            onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); handlePageChange('individual-report'); }}
+                            onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); setCurrentPage('individual-report'); }}
                             onDeleteRecord={handleDeleteRecord} 
                             onUpdateRecord={handleUpdateRecord} 
                         />
@@ -726,7 +610,7 @@ const App: React.FC = () => {
                             record={recordForReport} 
                             isQrScanMode={isQrScanMode}
                             history={workerRecords.filter(r => r.name === recordForReport.name && r.teamLeader === recordForReport.teamLeader)} 
-                            onBack={() => { setRecordForReport(null); setIsQrScanMode(false); handlePageChange('ocr-analysis'); }} 
+                            onBack={() => { setRecordForReport(null); setIsQrScanMode(false); setCurrentPage('ocr-analysis'); }} 
                             onUpdateRecord={(updated) => {
                                 const normalized = applyIdentityPolicy(updated, workerRecordsRef.current);
                                 handleUpdateRecord(normalized);
@@ -746,48 +630,6 @@ const App: React.FC = () => {
                     {currentPage === 'settings' && <Settings />}
                 </Suspense>
             </Layout>
-            {isAdminLocked && (
-                <div className="fixed inset-0 z-[9998] bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4 no-print">
-                    <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
-                        <div className="flex items-center gap-2">
-                            <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 font-black">🔒</span>
-                            <h3 className="text-xl font-black text-slate-900">관리자 모드 잠금</h3>
-                        </div>
-                        <p className="mt-3 text-sm font-bold text-slate-500 leading-relaxed">
-                            화면이 잠겼습니다. 관리자 PIN을 입력해야 관리자 기능을 다시 사용할 수 있습니다.
-                        </p>
-                        <div className="mt-5 space-y-3">
-                            <input
-                                type="password"
-                                value={adminPinInput}
-                                onChange={(e) => {
-                                    setAdminPinInput(e.target.value);
-                                    if (adminUnlockError) setAdminUnlockError('');
-                                }}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') unlockAdminMode();
-                                }}
-                                autoFocus
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 font-bold text-slate-800"
-                                placeholder="관리자 PIN 입력"
-                            />
-                            {adminUnlockError && (
-                                <p className="text-xs font-black text-rose-600">{adminUnlockError}</p>
-                            )}
-                            <button
-                                type="button"
-                                onClick={unlockAdminMode}
-                                className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-white font-black hover:bg-indigo-700"
-                            >
-                                잠금 해제
-                            </button>
-                            <p className="text-[11px] font-bold text-slate-400 text-center">
-                                유휴 상태 10분 후 자동 잠금이 적용됩니다.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            )}
             {modalState.type === 'workerHistory' && modalState.record && <WorkerHistoryModal workerName={modalState.workerName!} allRecords={workerRecords} initialSelectedRecord={modalState.record} onClose={() => setModalState({type:null})} onViewDetails={(r) => setModalState({type:'recordDetail', record:r})} onUpdateRecord={handleUpdateRecord} onDeleteRecord={handleDeleteRecord} />}
             {modalState.type === 'recordDetail' && modalState.record && (
                 <RecordDetailModal 
@@ -795,7 +637,7 @@ const App: React.FC = () => {
                     onClose={() => setModalState({type:null})} 
                     onBack={() => setModalState({type:'workerHistory', record:modalState.record, workerName:modalState.record?.name})} 
                     onUpdateRecord={handleUpdateRecord} 
-                    onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); handlePageChange('individual-report'); }} 
+                    onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); setCurrentPage('individual-report'); }} 
                     onReanalyze={handleReanalyzeRecord} 
                     isReanalyzing={isReanalyzing} 
                 />
