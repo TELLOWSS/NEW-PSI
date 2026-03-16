@@ -1,10 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
-import { isSupabasePermissionError, supabase } from '../lib/supabaseClient';
+import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
 
 interface WorkerTrainingProps {
     sessionId: string;
-    simplifiedMode?: boolean;
 }
 
 type SessionRow = {
@@ -264,130 +263,6 @@ const LANGUAGE_LABELS: Record<string, string> = {
     'kk-KZ': '카자흐어',
 };
 
-const LANGUAGE_CODE_ALIASES: Record<string, string> = {
-    'zh-CN': 'cmn-CN',
-    'cmn-CN': 'zh-CN',
-};
-
-type NationalityOption = {
-    value: string;
-    langCode: string;
-    labels: Record<UiLocale, string>;
-};
-
-const NATIONALITY_OPTIONS = [
-    {
-        value: '베트남',
-        langCode: 'vi-VN',
-        labels: { ko: '베트남', en: 'Vietnam', vi: 'Việt Nam', zh: '越南' },
-    },
-    {
-        value: '중국',
-        langCode: 'cmn-CN',
-        labels: { ko: '중국', en: 'China', vi: 'Trung Quốc', zh: '中国' },
-    },
-    {
-        value: '인도네시아',
-        langCode: 'id-ID',
-        labels: { ko: '인도네시아', en: 'Indonesia', vi: 'Indonesia', zh: '印度尼西亚' },
-    },
-    {
-        value: '캄보디아',
-        langCode: 'km-KH',
-        labels: { ko: '캄보디아', en: 'Cambodia', vi: 'Campuchia', zh: '柬埔寨' },
-    },
-    {
-        value: '몽골',
-        langCode: 'mn-MN',
-        labels: { ko: '몽골', en: 'Mongolia', vi: 'Mông Cổ', zh: '蒙古' },
-    },
-    {
-        value: '러시아',
-        langCode: 'ru-RU',
-        labels: { ko: '러시아', en: 'Russia', vi: 'Nga', zh: '俄罗斯' },
-    },
-    {
-        value: '우즈베키스탄',
-        langCode: 'uz-UZ',
-        labels: { ko: '우즈베키스탄', en: 'Uzbekistan', vi: 'Uzbekistan', zh: '乌兹别克斯坦' },
-    },
-    {
-        value: '네팔',
-        langCode: 'ne-NP',
-        labels: { ko: '네팔', en: 'Nepal', vi: 'Nepal', zh: '尼泊尔' },
-    },
-    {
-        value: '미얀마',
-        langCode: 'my-MM',
-        labels: { ko: '미얀마', en: 'Myanmar', vi: 'Myanmar', zh: '缅甸' },
-    },
-    {
-        value: '필리핀',
-        langCode: 'fil-PH',
-        labels: { ko: '필리핀', en: 'Philippines', vi: 'Philippines', zh: '菲律宾' },
-    },
-    {
-        value: '인도',
-        langCode: 'hi-IN',
-        labels: { ko: '인도', en: 'India', vi: 'Ấn Độ', zh: '印度' },
-    },
-    {
-        value: '카자흐스탄',
-        langCode: 'kk-KZ',
-        labels: { ko: '카자흐스탄', en: 'Kazakhstan', vi: 'Kazakhstan', zh: '哈萨克斯坦' },
-    },
-    {
-        value: '대한민국',
-        langCode: 'ko-KR',
-        labels: { ko: '대한민국', en: 'Korea', vi: 'Hàn Quốc', zh: '韩国' },
-    },
-] satisfies NationalityOption[];
-
-const normalizeMapObject = (input: unknown): Record<string, string | null> => {
-    if (!input) return {};
-    if (typeof input === 'object' && !Array.isArray(input)) {
-        const raw = input as Record<string, unknown>;
-        return Object.entries(raw).reduce<Record<string, string | null>>((acc, [key, value]) => {
-            if (typeof value === 'string') {
-                const trimmed = value.trim();
-                acc[key] = trimmed || null;
-                return acc;
-            }
-            acc[key] = null;
-            return acc;
-        }, {});
-    }
-
-    if (typeof input === 'string') {
-        try {
-            const parsed = JSON.parse(input);
-            return normalizeMapObject(parsed);
-        } catch {
-            return {};
-        }
-    }
-
-    return {};
-};
-
-const resolveUiLocaleByLangCode = (code: string): UiLocale => {
-    if (code === 'vi-VN') return 'vi';
-    if (code === 'cmn-CN' || code === 'zh-CN') return 'zh';
-    if (code === 'en-US') return 'en';
-    return 'ko';
-};
-
-const resolveLanguageCandidates = (code: string): string[] => {
-    const alias = LANGUAGE_CODE_ALIASES[code];
-    return Array.from(new Set([
-        code,
-        alias,
-        'vi-VN',
-        'en-US',
-        'ko-KR',
-    ].filter((item): item is string => Boolean(item))));
-};
-
 const resolveLanguageCodeByNationality = (nationalityRaw: string): string => {
     const nationality = (nationalityRaw || '').toLowerCase().trim();
 
@@ -413,31 +288,12 @@ const resolveLanguageCodeByNationality = (nationalityRaw: string): string => {
     return 'en-US';
 };
 
-const resolveNationalityByLanguageCode = (langCode: string): string => {
-    if (langCode === 'ko-KR') return '대한민국';
-    if (langCode === 'vi-VN') return '베트남';
-    if (langCode === 'cmn-CN' || langCode === 'zh-CN') return '중국';
-    if (langCode === 'th-TH') return '태국';
-    if (langCode === 'id-ID') return '인도네시아';
-    if (langCode === 'uz-UZ') return '우즈베키스탄';
-    if (langCode === 'mn-MN') return '몽골';
-    if (langCode === 'km-KH') return '캄보디아';
-    if (langCode === 'ru-RU') return '러시아';
-    if (langCode === 'ne-NP') return '네팔';
-    if (langCode === 'my-MM') return '미얀마';
-    if (langCode === 'fil-PH') return '필리핀';
-    if (langCode === 'hi-IN') return '인도';
-    if (langCode === 'kk-KZ') return '카자흐스탄';
-    return '기타';
-};
-
-const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMode = false }) => {
+const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
     const [loading, setLoading] = useState(true);
     const [sessionData, setSessionData] = useState<SessionRow | null>(null);
 
     const [workerName, setWorkerName] = useState('');
     const [nationality, setNationality] = useState('베트남');
-    const [selectedLanguageCode, setSelectedLanguageCode] = useState('vi-VN');
     const [message, setMessage] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -455,38 +311,6 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     const guidanceRef = useRef<HTMLDivElement | null>(null);
 
     const langKey = useMemo(() => resolveLanguageCodeByNationality(nationality), [nationality]);
-    const uiLocale = useMemo(() => resolveUiLocaleByLangCode(langKey), [langKey]);
-    const t = UI_TEXT[uiLocale];
-    const selectedNationalityLangCode = useMemo(() => {
-        return NATIONALITY_OPTIONS.find((item) => item.value === nationality)?.langCode;
-    }, [nationality]);
-
-    const effectiveLangKey = selectedLanguageCode || selectedNationalityLangCode || langKey;
-    const searchParams = useMemo(() => new URLSearchParams(window.location.search), []);
-    const linkExpiresAtRaw = searchParams.get('exp');
-    const linkToken = searchParams.get('sig') || '';
-    const linkExpiresAt = Number(linkExpiresAtRaw || 0);
-    const isLinkExpired = Number.isFinite(linkExpiresAt) ? Date.now() > linkExpiresAt : false;
-    const isLinkMetaMissing = !linkToken || !Number.isFinite(linkExpiresAt) || linkExpiresAt <= 0;
-
-    const normalizedAudioMap = useMemo(() => normalizeMapObject(sessionData?.audio_urls), [sessionData]);
-    const normalizedTextMap = useMemo(() => normalizeMapObject(sessionData?.translated_texts), [sessionData]);
-
-    const availableLanguageCodes = useMemo(() => {
-        const fromAudio = Object.keys(normalizedAudioMap).filter((code) => {
-            const value = normalizedAudioMap[code];
-            return typeof value === 'string' && value.trim() && Boolean(LANGUAGE_LABELS[code]);
-        });
-
-        const fromText = Object.keys(normalizedTextMap).filter((code) => {
-            const value = normalizedTextMap[code];
-            return typeof value === 'string' && value.trim() && Boolean(LANGUAGE_LABELS[code]);
-        });
-
-        const merged = Array.from(new Set([...fromAudio, ...fromText]));
-        if (merged.length > 0) return merged;
-        return ['ko-KR', 'vi-VN', 'en-US', 'cmn-CN'];
-    }, [normalizedAudioMap, normalizedTextMap]);
 
     const selectedAudioUrl = useMemo(() => {
         const candidates = resolveLanguageCandidates(effectiveLangKey);
@@ -578,23 +402,23 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     useEffect(() => {
         const run = async () => {
             if (!sessionId) {
+                setMessage('sessionId가 없습니다. QR URL을 다시 확인해 주세요.');
                 setLoading(false);
-                setSessionData(null);
                 return;
             }
 
             setLoading(true);
             const { data, error } = await supabase
                 .from('training_sessions')
-                .select('id, source_text_ko, audio_urls, translated_texts')
+                .select('id, source_text_ko, audio_urls')
                 .eq('id', sessionId)
                 .single();
 
             if (error) {
-                if (isSupabasePermissionError(error)) {
-                    setMessage(t.permissionDenied);
+                if (!handleSupabasePermissionError(error)) {
+                    setMessage(`세션 조회 오류: ${error.message}`);
                 } else {
-                    setMessage(`${t.sessionFetchErrorLabel}: ${error.message}`);
+                    setMessage('권한이 없거나 관리자 승인이 필요합니다');
                 }
                 setSessionData(null);
             } else {
@@ -606,65 +430,13 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
         void run();
     }, [sessionId]);
 
-    if (!sessionId) {
-        return (
-            <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm max-w-2xl">
-                <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 mb-4">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m0 14v1m8-8h-1M5 12H4m12.364 5.364l-.707-.707M8.343 8.343l-.707-.707m0 8.728l.707-.707m8.021-8.021l.707-.707" />
-                    </svg>
-                </div>
-                <h2 className="text-xl font-black text-slate-900">{t.mobileOnlyTitle}</h2>
-                <p className="mt-2 text-sm font-bold text-slate-600">
-                    {t.mobileOnlyDescription}
-                </p>
-            </div>
-        );
-    }
-
     const handleClear = () => {
         sigRef.current?.clear();
     };
 
-    const handleToggleAudio = async () => {
-        const audio = audioRef.current;
-        if (!audio || !selectedAudioUrl) {
-            setMessage(t.audioMissing);
-            return;
-        }
-
-        try {
-            if (audio.paused) {
-                await audio.play();
-                setIsPlaying(true);
-            } else {
-                audio.pause();
-                setIsPlaying(false);
-            }
-        } catch {
-            setMessage(t.audioMissing);
-            setIsPlaying(false);
-        }
-    };
-
     const handleSubmit = async () => {
-        if (submitted) {
-            setMessage(t.alreadySubmitted);
-            return;
-        }
-
-        if (isLinkMetaMissing) {
-            setMessage(t.linkInvalid);
-            return;
-        }
-
-        if (isLinkExpired) {
-            setMessage(t.linkExpired);
-            return;
-        }
-
         if (!workerName.trim()) {
-            alert(t.missingNameAlert);
+            alert('이름을 입력해 주세요.');
             return;
         }
 
@@ -674,7 +446,12 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
         }
 
         if (!sigRef.current || sigRef.current.isEmpty()) {
-            alert(t.missingSignatureAlert);
+            alert('전자서명을 먼저 입력해 주세요.');
+            return;
+        }
+
+        if (!selectedAudioUrl) {
+            alert('오디오 URL이 없습니다. 관리자에게 문의해 주세요.');
             return;
         }
 
@@ -696,101 +473,59 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                     checklist,
                     selectedAudioUrl: selectedAudioUrl || null,
                     signatureDataUrl,
-                    linkExpiresAt,
-                    linkToken,
                 }),
             });
 
             const data = await response.json();
             if (!response.ok || !data.ok) {
-                throw new Error(data.message || t.submitFail);
+                throw new Error(data.message || '제출 실패');
             }
 
-            setMessage(t.submitSuccess);
+            setMessage('제출 완료! 교육 이수 서명이 저장되었습니다.');
             setWorkerName('');
             sigRef.current?.clear();
-            setSubmitted(true);
         } catch (error: any) {
-            setMessage(`${t.errorPrefix}: ${error?.message || t.submitFail}`);
+            setMessage(`오류: ${error?.message || '알 수 없는 오류'}`);
         } finally {
             setSubmitting(false);
         }
     };
 
     if (loading) {
-        return <div className="bg-white p-6 rounded-2xl border border-slate-200 font-bold">{t.loading}</div>;
+        return <div className="bg-white p-6 rounded-2xl border border-slate-200 font-bold">불러오는 중...</div>;
     }
 
     if (!sessionData) {
-        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.noSession}</div>;
-    }
-
-    if (isLinkMetaMissing) {
-        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.linkInvalid}</div>;
-    }
-
-    if (isLinkExpired) {
-        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.linkExpired}</div>;
+        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">세션이 없습니다. 관리자에게 문의해 주세요.</div>;
     }
 
     return (
         <div className="space-y-6 max-w-2xl">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <h2 className="text-2xl font-black text-slate-900">{t.title}</h2>
-                <p className="text-sm font-bold text-slate-500 mt-2">{t.subtitle}</p>
-                {simplifiedMode && !submitted && (
-                    <p className="mt-2 text-[11px] font-black text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 inline-block">
-                        {t.stayOnPageHint}
-                    </p>
-                )}
+                <h2 className="text-2xl font-black text-slate-900">외국인 근로자 안전교육 확인</h2>
+                <p className="text-sm font-bold text-slate-500 mt-2">음성 안내를 듣고 전자서명을 제출해 주세요.</p>
 
                 <div className="mt-4">
-                    <label className="block text-xs font-black text-slate-500 mb-2">{t.nameLabel}</label>
+                    <label className="block text-xs font-black text-slate-500 mb-2">이름</label>
                     <input
                         value={workerName}
                         onChange={(e) => setWorkerName(e.target.value)}
                         className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
-                        placeholder={t.namePlaceholder}
+                        placeholder="이름 입력"
                     />
                 </div>
 
                 <div className="mt-4">
-                    <label className="block text-xs font-black text-slate-500 mb-2">{t.nationalityLabel}</label>
-                    {simplifiedMode ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                            {availableLanguageCodes.map((code) => (
-                                <button
-                                    key={code}
-                                    type="button"
-                                    onClick={() => {
-                                        setSelectedLanguageCode(code);
-                                        setNationality(resolveNationalityByLanguageCode(code));
-                                    }}
-                                    className={`px-3 py-2 rounded-xl text-xs font-black border transition-colors ${effectiveLangKey === code ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
-                                >
-                                    {LANGUAGE_LABELS[code] || code}
-                                </button>
-                            ))}
-                        </div>
-                    ) : (
-                        <select
-                            value={nationality}
-                            onChange={(e) => {
-                                const nextNationality = e.target.value;
-                                setNationality(nextNationality);
-                                setSelectedLanguageCode(resolveLanguageCodeByNationality(nextNationality));
-                            }}
-                            className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
-                        >
-                            {NATIONALITY_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>{option.labels[uiLocale]}</option>
-                            ))}
-                        </select>
-                    )}
+                    <label className="block text-xs font-black text-slate-500 mb-2">국적</label>
+                    <input
+                        value={nationality}
+                        onChange={(e) => setNationality(e.target.value)}
+                        className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
+                        placeholder="예: 베트남, 중국, 러시아, 우즈베키스탄, 카자흐스탄..."
+                    />
                     <p className="mt-2 text-[11px] font-bold text-slate-500">
-                        {t.autoLangLabel}: <span className="text-slate-700">{LANGUAGE_LABELS[effectiveLangKey] || 'English'} ({effectiveLangKey})</span>
+                        자동 언어 선택: <span className="text-slate-700">{LANGUAGE_LABELS[langKey] || '영어'} ({langKey})</span> (미지원 국가는 영어 `en-US`로 안내)
                     </p>
-                    {!simplifiedMode && <p className="mt-1 text-[11px] font-bold text-slate-500">{t.nationalityHint}</p>}
                 </div>
 
                 <div className="mt-4">
@@ -913,7 +648,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                         onClick={handleClear}
                         className="mt-2 px-4 py-2 text-xs font-black rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
                     >
-                        {t.signatureClear}
+                        서명 지우기
                     </button>
                 </div>
 
@@ -922,7 +657,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                     disabled={submitting || submitted || !isComprehensionReady}
                     className="mt-6 w-full py-3 rounded-xl bg-indigo-600 text-white font-black hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                    {submitted ? t.alreadySubmitted : (submitting ? t.submitting : t.submit)}
+                    {submitting ? '제출 중...' : '제출'}
                 </button>
 
                 {message && <p className="mt-3 text-sm font-bold text-slate-700">{message}</p>}

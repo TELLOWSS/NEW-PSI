@@ -342,24 +342,24 @@ const resolveAdminLocale = (langs: string[]): UiLocale => {
 };
 
 const LANGUAGE_OPTIONS = [
-    { code: 'ko-KR', label: { ko: '한국어', en: 'Korean', vi: 'Tiếng Hàn', zh: '韩语' } },
-    { code: 'en-US', label: { ko: '영어', en: 'English', vi: 'Tiếng Anh', zh: '英语' } },
-    { code: 'vi-VN', label: { ko: '베트남어', en: 'Vietnamese', vi: 'Tiếng Việt', zh: '越南语' } },
-    { code: 'cmn-CN', label: { ko: '중국어', en: 'Chinese', vi: 'Tiếng Trung', zh: '中文' } },
-    { code: 'th-TH', label: { ko: '태국어', en: 'Thai', vi: 'Tiếng Thái', zh: '泰语' } },
-    { code: 'id-ID', label: { ko: '인도네시아어', en: 'Indonesian', vi: 'Tiếng Indonesia', zh: '印尼语' } },
-    { code: 'uz-UZ', label: { ko: '우즈베크어', en: 'Uzbek', vi: 'Tiếng Uzbek', zh: '乌兹别克语' } },
-    { code: 'mn-MN', label: { ko: '몽골어', en: 'Mongolian', vi: 'Tiếng Mông Cổ', zh: '蒙古语' } },
-    { code: 'km-KH', label: { ko: '크메르어', en: 'Khmer', vi: 'Tiếng Khmer', zh: '高棉语' } },
-    { code: 'ru-RU', label: { ko: '러시아어', en: 'Russian', vi: 'Tiếng Nga', zh: '俄语' } },
-    { code: 'kk-KZ', label: { ko: '카자흐어', en: 'Kazakh', vi: 'Tiếng Kazakh', zh: '哈萨克语' } },
-    { code: 'ne-NP', label: { ko: '네팔어', en: 'Nepali', vi: 'Tiếng Nepal', zh: '尼泊尔语' } },
-    { code: 'my-MM', label: { ko: '미얀마어', en: 'Burmese', vi: 'Tiếng Myanmar', zh: '缅甸语' } },
-    { code: 'fil-PH', label: { ko: '필리핀어', en: 'Filipino', vi: 'Tiếng Philippines', zh: '菲律宾语' } },
-    { code: 'hi-IN', label: { ko: '힌디어', en: 'Hindi', vi: 'Tiếng Hindi', zh: '印地语' } },
-    { code: 'bn-BD', label: { ko: '벵골어', en: 'Bengali', vi: 'Tiếng Bengal', zh: '孟加拉语' } },
-    { code: 'ur-PK', label: { ko: '우르두어', en: 'Urdu', vi: 'Tiếng Urdu', zh: '乌尔都语' } },
-    { code: 'si-LK', label: { ko: '싱할라어', en: 'Sinhala', vi: 'Tiếng Sinhala', zh: '僧伽罗语' } },
+    { code: 'ko-KR', label: '한국어 (ko-KR)' },
+    { code: 'en-US', label: '영어 (en-US)' },
+    { code: 'vi-VN', label: '베트남어 (vi-VN)' },
+    { code: 'cmn-CN', label: '중국어 (cmn-CN)' },
+    { code: 'th-TH', label: '태국어 (th-TH)' },
+    { code: 'id-ID', label: '인도네시아어 (id-ID)' },
+    { code: 'uz-UZ', label: '우즈베크어 (uz-UZ)' },
+    { code: 'mn-MN', label: '몽골어 (mn-MN)' },
+    { code: 'km-KH', label: '크메르어 (km-KH)' },
+    { code: 'ru-RU', label: '러시아어 (ru-RU)' },
+    { code: 'kk-KZ', label: '카자흐어 (kk-KZ)' },
+    { code: 'ne-NP', label: '네팔어 (ne-NP)' },
+    { code: 'my-MM', label: '미얀마어 (my-MM)' },
+    { code: 'fil-PH', label: '필리핀어 (fil-PH)' },
+    { code: 'hi-IN', label: '힌디어 (hi-IN)' },
+    { code: 'bn-BD', label: '벵골어 (bn-BD)' },
+    { code: 'ur-PK', label: '우르두어 (ur-PK)' },
+    { code: 'si-LK', label: '싱할라어 (si-LK)' },
 ] as const;
 
 const CURRENT_SITE_LANGUAGE_SET = [
@@ -421,10 +421,7 @@ type ActiveQrState = {
 const AdminTraining: React.FC = () => {
     const [sourceTextKo, setSourceTextKo] = useState('');
     const [loading, setLoading] = useState(false);
-    const [deletingSessionId, setDeletingSessionId] = useState('');
     const [mobileUrl, setMobileUrl] = useState('');
-    const [currentSessionId, setCurrentSessionId] = useState('');
-    const [linkExpiresAt, setLinkExpiresAt] = useState<number | null>(null);
     const [message, setMessage] = useState('');
     const [reissuingLink, setReissuingLink] = useState(false);
     const [linkHistory, setLinkHistory] = useState<LinkHistoryItem[]>([]);
@@ -435,56 +432,6 @@ const AdminTraining: React.FC = () => {
     const [failedLanguageAttempts, setFailedLanguageAttempts] = useState<Record<string, string[]>>({});
     const [savedPreset, setSavedPreset] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
     const [selectedLanguages, setSelectedLanguages] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
-    const [recentSessions, setRecentSessions] = useState<TrainingSessionRow[]>([]);
-    const uiLocale = resolveAdminLocale(selectedLanguages);
-    const t = UI_TEXT[uiLocale];
-
-    const shareText = mobileUrl
-        ? [
-            t.shareHeader,
-            mobileUrl,
-            failedLanguages.length > 0
-                ? `${t.shareFailedPrefix}: ${failedLanguages.join(', ')}`
-                : t.shareAllAudioLine,
-        ].join('\n')
-        : '';
-
-    const requestSignedMobileUrl = async (sessionId: string) => {
-        const response = await fetch('/api/admin/reissue-training-link', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId }),
-        });
-
-        const contentType = response.headers.get('content-type') || '';
-        const raw = await response.text();
-        let data: any = null;
-
-        if (raw && contentType.includes('application/json')) {
-            try {
-                data = JSON.parse(raw);
-            } catch {
-                throw new Error(t.parseFail);
-            }
-        }
-
-        if (!response.ok || !data?.ok) {
-            throw new Error(data?.message || data?.error || `링크 재발급 실패 (HTTP ${response.status})`);
-        }
-
-        return {
-            mobileUrl: String(data.mobileUrl || ''),
-            linkExpiresAt: Number(data.linkExpiresAt || 0),
-        };
-    };
-
-    const appendLinkHistory = (item: LinkHistoryItem) => {
-        setLinkHistory((prev) => {
-            const next = [item, ...prev].slice(0, 30);
-            localStorage.setItem(LINK_HISTORY_STORAGE_KEY, JSON.stringify(next));
-            return next;
-        });
-    };
 
     const fetchAwarenessStats = async (sessionId: string) => {
         setAwarenessLoading(true);
@@ -682,22 +629,18 @@ const AdminTraining: React.FC = () => {
 
     const handleCreate = async () => {
         if (!sourceTextKo.trim()) {
-            alert(t.emptySourceAlert);
+            alert('한국어 안내 문구를 입력해 주세요.');
             return;
         }
 
         if (selectedLanguages.length === 0) {
-            alert(t.minLangAlert);
+            alert('최소 1개 언어를 선택해 주세요.');
             return;
         }
 
         setLoading(true);
         setMessage('');
         setMobileUrl('');
-        setCurrentSessionId('');
-        setLinkExpiresAt(null);
-        setFailedLanguages([]);
-        setFailedLanguageAttempts({});
 
         try {
             const response = await fetch('/api/admin/create-training', {
@@ -706,54 +649,15 @@ const AdminTraining: React.FC = () => {
                 body: JSON.stringify({ sourceTextKo, selectedLanguages }),
             });
 
-            const contentType = response.headers.get('content-type') || '';
-            const raw = await response.text();
-            let data: any = null;
-
-            if (raw && contentType.includes('application/json')) {
-                try {
-                    data = JSON.parse(raw);
-                } catch {
-                    throw new Error(t.parseFail);
-                }
-            }
-
-            if (!response.ok) {
-                const serverMessage = data?.message || data?.error || `요청 실패 (HTTP ${response.status})`;
-                throw new Error(serverMessage);
-            }
-
-            if (!data) {
-                throw new Error(t.emptyResponse);
-            }
-
-            if (!data.ok) {
-                throw new Error(data.message || data.error || t.createFail);
+            const data = await response.json();
+            if (!response.ok || !data.ok) {
+                throw new Error(data.message || '세션 생성 실패');
             }
 
             setMobileUrl(data.mobileUrl || '');
-            setCurrentSessionId(String(data.sessionId || ''));
-            setLinkExpiresAt(Number(data.linkExpiresAt || 0) || null);
-            if (data.sessionId && data.mobileUrl && data.linkExpiresAt) {
-                appendLinkHistory({
-                    sessionId: String(data.sessionId),
-                    mobileUrl: String(data.mobileUrl),
-                    linkExpiresAt: Number(data.linkExpiresAt),
-                    action: 'create',
-                    createdAt: new Date().toISOString(),
-                });
-            }
-            const failed = Array.isArray(data.failedLanguages) ? data.failedLanguages : [];
-            setFailedLanguages(failed);
-            setFailedLanguageAttempts(data?.failedLanguageAttempts && typeof data.failedLanguageAttempts === 'object' ? data.failedLanguageAttempts : {});
-            void fetchRecentSessions();
-            if (failed.length > 0) {
-                setMessage(t.partialSuccess);
-            } else {
-                setMessage(t.success);
-            }
+            setMessage('생성 완료! 아래 QR을 근로자에게 공유하세요.');
         } catch (error: any) {
-            setMessage(`${t.errorPrefix}: ${error?.message || t.createFail}`);
+            setMessage(`오류: ${error?.message || '알 수 없는 오류'}`);
         } finally {
             setLoading(false);
         }
@@ -860,26 +764,26 @@ const AdminTraining: React.FC = () => {
     return (
         <div className="space-y-6">
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
-                <h2 className="text-2xl font-black text-slate-900">{t.title}</h2>
-                <p className="text-sm font-bold text-slate-500 mt-2">{t.subtitle}</p>
+                <h2 className="text-2xl font-black text-slate-900">관리자 다국어 음성 안내 생성</h2>
+                <p className="text-sm font-bold text-slate-500 mt-2">한국어 핵심 위험성평가 문구를 입력하면 다국어 TTS와 근로자 QR 링크를 생성합니다.</p>
 
                 <textarea
                     value={sourceTextKo}
                     onChange={(e) => setSourceTextKo(e.target.value)}
                     rows={8}
-                    placeholder={t.sourcePlaceholder}
+                    placeholder="예: 이달 핵심 위험은 추락, 협착, 전도입니다."
                     className="w-full mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200 font-bold text-sm"
                 />
 
                 <div className="mt-4">
                     <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                        <p className="text-xs font-black text-slate-600">{t.selectLanguages}</p>
+                        <p className="text-xs font-black text-slate-600">생성 언어 선택 (최소 1개)</p>
                         <button
                             type="button"
                             onClick={() => setSelectedLanguages([...savedPreset])}
                             className="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[11px] font-black border border-indigo-200 hover:bg-indigo-100"
                         >
-                            {t.applyPreset}
+                            설정 기본값 적용
                         </button>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -890,7 +794,7 @@ const AdminTraining: React.FC = () => {
                                     checked={selectedLanguages.includes(lang.code)}
                                     onChange={() => toggleLanguage(lang.code)}
                                 />
-                                <span className="text-xs font-bold text-slate-700">{lang.label[uiLocale]} ({lang.code})</span>
+                                <span className="text-xs font-bold text-slate-700">{lang.label}</span>
                             </label>
                         ))}
                     </div>
@@ -904,77 +808,10 @@ const AdminTraining: React.FC = () => {
                     disabled={loading}
                     className="mt-4 px-6 py-3 rounded-xl bg-indigo-600 text-white font-black text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                    {loading ? t.creating : t.create}
+                    {loading ? '생성 중...' : '생성'}
                 </button>
 
                 {message && <p className="mt-4 text-sm font-bold text-slate-700">{message}</p>}
-                {failedLanguages.length > 0 && (
-                    <div className="mt-3">
-                        <p className="text-xs font-black text-amber-700 mb-2">{t.failedLangTitle}</p>
-                        <div className="flex flex-wrap gap-2 mb-2">
-                            {failedLanguages.map((code) => (
-                                <span
-                                    key={code}
-                                    className="px-2 py-1 rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-[11px] font-black"
-                                >
-                                    {code}
-                                </span>
-                            ))}
-                        </div>
-                        <div className="space-y-1">
-                            {failedLanguages.map((code) => {
-                                const attempts = failedLanguageAttempts[code] || [];
-                                return (
-                                    <p key={`${code}-attempts`} className="text-[11px] font-bold text-slate-600">
-                                        {code} {t.attemptLabel}: {attempts.length > 0 ? attempts.join(', ') : '-'}
-                                    </p>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
-                <h3 className="text-lg font-black text-slate-900">{t.recentTitle}</h3>
-                {recentSessions.length === 0 ? (
-                    <p className="mt-3 text-sm font-bold text-slate-500">{t.recentEmpty}</p>
-                ) : (
-                    <div className="mt-3 space-y-2">
-                        {recentSessions.map((session) => {
-                            const hasMissingAudio = Object.values(session.audio_urls || {}).some((url) => !url);
-                            const preview = (session.source_text_ko || '').trim();
-                            return (
-                                <div key={session.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50">
-                                    <p className="text-[11px] font-black text-slate-600 break-all">{session.id}</p>
-                                    <p className="mt-1 text-xs font-bold text-slate-700 line-clamp-2">{preview || '(문구 없음)'}</p>
-                                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                                        {hasMissingAudio && (
-                                            <span className="px-2 py-1 rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-[10px] font-black">
-                                                {t.failedBadge}
-                                            </span>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => void hydrateSessionState(session, t.recentLoaded)}
-                                            className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-black border border-slate-200 hover:bg-slate-200"
-                                        >
-                                            {t.recentLoad}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => void handleDeleteSession(session.id)}
-                                            disabled={deletingSessionId === session.id}
-                                            className="px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 text-[11px] font-black border border-rose-200 hover:bg-rose-100 disabled:opacity-60 disabled:cursor-not-allowed"
-                                        >
-                                            {deletingSessionId === session.id ? t.deleting : t.delete}
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )}
             </div>
 
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
@@ -1025,91 +862,13 @@ const AdminTraining: React.FC = () => {
 
             {mobileUrl && (
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
-                    <h3 className="text-xl font-black text-slate-900">{t.qrTitle}</h3>
-                    {currentSessionId && <p className="text-[11px] font-bold text-slate-500 mt-1">세션 ID: {currentSessionId}</p>}
-                    {linkExpiresAt && (
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <p className="text-[11px] font-bold text-slate-500">
-                                {t.linkExpiryLabel}: {new Date(linkExpiresAt).toLocaleString()}
-                            </p>
-                            {Date.now() > linkExpiresAt && (
-                                <span className="px-2 py-1 rounded-md border border-rose-200 bg-rose-50 text-rose-700 text-[10px] font-black">
-                                    {t.linkExpiredBadge}
-                                </span>
-                            )}
-                        </div>
-                    )}
+                    <h3 className="text-xl font-black text-slate-900">근로자 접속 QR</h3>
                     <p className="text-xs font-bold text-slate-500 mt-2 break-all">{mobileUrl}</p>
                     <div className="mt-4">
                         <QRCodeCanvas value={mobileUrl} size={220} />
                     </div>
-                    <div className="mt-4">
-                        <p className="text-xs font-black text-slate-600 mb-2">{t.shareTitle}</p>
-                        <textarea
-                            value={shareText}
-                            readOnly
-                            rows={4}
-                            className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-xs"
-                        />
-                        <button
-                            type="button"
-                            onClick={handleCopyShareText}
-                            className="mt-2 px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-black border border-slate-200 hover:bg-slate-200"
-                        >
-                            {t.sharedCopy}
-                        </button>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                            <button
-                                type="button"
-                                onClick={() => void handleReissueCurrentLink()}
-                                disabled={reissuingLink || !currentSessionId}
-                                className="px-4 py-2 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-black border border-indigo-200 hover:bg-indigo-100 disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                                {reissuingLink ? t.reissuing : t.reissueLink}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={clearRenderedSession}
-                                className="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-black border border-slate-200 hover:bg-slate-200"
-                            >
-                                {t.removeFromScreen}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleDeleteSession}
-                                disabled={!!deletingSessionId || !currentSessionId}
-                                className="px-4 py-2 rounded-lg bg-rose-50 text-rose-700 text-xs font-black border border-rose-200 hover:bg-rose-100 disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                                {deletingSessionId === currentSessionId ? t.deleting : t.deleteCurrent}
-                            </button>
-                        </div>
-                    </div>
                 </div>
             )}
-
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
-                <h3 className="text-lg font-black text-slate-900">{t.historyTitle}</h3>
-                {linkHistory.length === 0 ? (
-                    <p className="mt-3 text-sm font-bold text-slate-500">{t.historyEmpty}</p>
-                ) : (
-                    <div className="mt-3 space-y-2">
-                        {linkHistory.map((item, index) => (
-                            <div key={`${item.sessionId}-${item.createdAt}-${index}`} className="p-3 rounded-xl border border-slate-200 bg-slate-50">
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <span className="px-2 py-1 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 text-[10px] font-black">
-                                        {item.action === 'create' ? t.historyCreate : t.historyReissue}
-                                    </span>
-                                    <span className="text-[11px] font-black text-slate-600 break-all">{item.sessionId}</span>
-                                </div>
-                                <p className="mt-1 text-[11px] font-bold text-slate-500">
-                                    {new Date(item.createdAt).toLocaleString()} · {t.linkExpiryLabel}: {new Date(item.linkExpiresAt).toLocaleString()}
-                                </p>
-                                <p className="mt-1 text-[11px] font-bold text-slate-500 break-all">{item.mobileUrl}</p>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
         </div>
     );
 };

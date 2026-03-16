@@ -2,7 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import type { AppSettings } from '../types';
 import { getIsPaidApiMode, setIsPaidApiMode } from '../utils/apiModeUtils';
-import { getAdminPin, setAdminPin } from '../utils/adminPinUtils';
 
 const TRAINING_LANGUAGE_OPTIONS = [
     { code: 'ko-KR', label: '한국어 (ko-KR)' },
@@ -212,7 +211,7 @@ const Settings: React.FC = () => {
         setIsPaidApiModeState(getIsPaidApiMode());
         setFreeApiKey(localStorage.getItem('freeApiKey') || '');
         setPaidApiKey(localStorage.getItem('paidApiKey') || '');
-        setAdminPinState(getAdminPin());
+        setAdminPinState(localStorage.getItem('adminPin') || '');
         if (savedSettings) {
             try {
                 const parsed = JSON.parse(savedSettings) as AppSettings;
@@ -246,7 +245,7 @@ const Settings: React.FC = () => {
     const handlePaidApiModeToggle = (checked: boolean) => {
         if (checked) {
             const enteredPin = window.prompt('관리자 PIN 번호를 입력하세요.');
-            const savedPin = getAdminPin();
+            const savedPin = localStorage.getItem('adminPin') || '';
             if (enteredPin !== savedPin) {
                 window.alert('PIN 번호가 틀렸습니다.');
                 setIsPaidApiModeState(false);
@@ -271,7 +270,7 @@ const Settings: React.FC = () => {
 
     const handleAdminPinChange = (value: string) => {
         setAdminPinState(value);
-        setAdminPin(value);
+        localStorage.setItem('adminPin', value);
     };
 
     useEffect(() => {

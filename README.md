@@ -85,9 +85,3 @@ Next steps I recommend:
 - 앱 실행 확인: `npm install` → `npm run dev`
 - 문서 최신화 기준일: 2026-03-09
 - 협업 시작점: [GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md](GEMINI_COLLAB_MASTER_BRIEF_2026-03-09.md)
-
-## 운영 문서 (2026-03-14 업데이트)
-
-- 배포 환경변수 점검: [DEPLOYMENT_ENV_CHECKLIST.md](DEPLOYMENT_ENV_CHECKLIST.md)
-- 관리자 운영 매뉴얼: [ADMIN_OPERATION_GUIDE.md](ADMIN_OPERATION_GUIDE.md)
-- 릴리즈 노트: [RELEASE_NOTES_2026-03-14.md](RELEASE_NOTES_2026-03-14.md)
