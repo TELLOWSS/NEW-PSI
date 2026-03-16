@@ -181,6 +181,9 @@ export interface WorkerRecord {
     approvedBy?: string;
     approvedAt?: string;
     approvalReason?: string;
+    reviewStatus?: 'APPROVED' | 'REJECTED' | 'PENDING';
+    adminComment?: string;
+    reviewReason?: string;
 }
 
 export interface HighRiskWorker {

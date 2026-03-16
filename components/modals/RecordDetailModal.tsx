@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { WorkerRecord, AppSettings } from '../../types';
 import { CircularProgress } from '../shared/CircularProgress';
 import { updateAnalysisBasedOnEdits } from '../../services/geminiService';
@@ -31,7 +31,7 @@ interface RecordDetailModalProps {
     record: WorkerRecord;
     onClose: () => void;
     onBack: () => void;
-    onUpdateRecord: (record: WorkerRecord) => void;
+    onUpdateRecord: (record: WorkerRecord) => Promise<void> | void;
     onOpenReport: (record: WorkerRecord) => void;
     onReanalyze: (record: WorkerRecord) => Promise<WorkerRecord | null>;
     isReanalyzing: boolean;
@@ -45,6 +45,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const [actionType, setActionType] = useState('재교육');
     const [actionDetail, setActionDetail] = useState('');
     const [approvalComment, setApprovalComment] = useState('');
+    const [pendingApprovalAction, setPendingApprovalAction] = useState<'approved' | 'rejected' | null>(null);
     const [approverRole, setApproverRole] = useState<'safety-manager' | 'site-manager'>('safety-manager');
     const [strictRoleGate, setStrictRoleGate] = useState(false);
     
@@ -77,6 +78,76 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         setHasChanges(false);
         alert('저장되었습니다.');
     };
+
+    const hasCriticalReviewEdits = useMemo(() => {
+        const watchFields: (keyof WorkerRecord)[] = [
+            'safetyScore',
+            'safetyLevel',
+            'fullText',
+            'koreanTranslation',
+            'aiInsights',
+            'aiInsights_native',
+            'strengths',
+            'weakAreas',
+            'suggestions',
+            'handwrittenAnswers',
+        ];
+
+        return watchFields.some((field) => JSON.stringify(initialRecord[field]) !== JSON.stringify(record[field]));
+    }, [initialRecord, record]);
+
+    const runSecondaryProcessing = async (baseRecord: WorkerRecord): Promise<WorkerRecord> => {
+        setIsUpdatingAnalysis(true);
+        try {
+            const updatedAnalysis = await updateAnalysisBasedOnEdits(baseRecord);
+            if (updatedAnalysis) {
+                return {
+                    ...baseRecord,
+                    ...updatedAnalysis,
+                    auditTrail: [
+                        ...(baseRecord.auditTrail || []),
+                        {
+                            stage: 'reassessment',
+                            timestamp: new Date().toISOString(),
+                            actor: 'manager',
+                            note: buildReassessmentAuditNote(baseRecord, updatedAnalysis),
+                        }
+                    ]
+                };
+            }
+
+            return {
+                ...baseRecord,
+                auditTrail: [
+                    ...(baseRecord.auditTrail || []),
+                    {
+                        stage: 'reassessment',
+                        timestamp: new Date().toISOString(),
+                        actor: 'manager',
+                        note: '2차 재가공 실패: AI가 갱신 결과를 반환하지 않음',
+                    }
+                ]
+            };
+        } catch (e) {
+            const errorMessage = e instanceof Error ? e.message : 'unknown error';
+            return {
+                ...baseRecord,
+                auditTrail: [
+                    ...(baseRecord.auditTrail || []),
+                    {
+                        stage: 'reassessment',
+                        timestamp: new Date().toISOString(),
+                        actor: 'manager',
+                        note: `2차 재가공 오류: ${errorMessage}`,
+                    }
+                ]
+            };
+        } finally {
+            setIsUpdatingAnalysis(false);
+        }
+    };
+
+    const showReviewCommentField = hasCriticalReviewEdits || pendingApprovalAction === 'rejected' || approvalComment.trim().length > 0;
 
     const handleOpenReportClick = () => {
         if (hasChanges) {
@@ -122,7 +193,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         alert('조치 이력이 등록되었습니다.');
     };
 
-    const handleApprove = (status: 'approved' | 'rejected') => {
+    const handleApprove = async (status: 'approved' | 'rejected') => {
+        setPendingApprovalAction(status);
+
         if (status === 'approved') {
             const effectiveRole = strictRoleGate ? 'safety-manager' : approverRole;
             const blockers = getApprovalBlockers(record, effectiveRole);
@@ -140,21 +213,37 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     ]
                 };
                 setRecord(nextRecord);
-                onUpdateRecord(nextRecord);
+                await onUpdateRecord(nextRecord);
                 alert(`승인을 진행할 수 없습니다.\n(검증 기준: ${effectiveRole === 'safety-manager' ? '안전관리자(엄격)' : '현장소장(기본)'})\n\n${blockers.map((item, idx) => `${idx + 1}. ${item}`).join('\n')}`);
                 return;
             }
         }
 
+        const trimmedComment = approvalComment.trim();
+        const commentRequired = status === 'rejected' || hasCriticalReviewEdits;
+        if (commentRequired && trimmedComment.length === 0) {
+            alert(status === 'rejected'
+                ? '반려 사유(Comment)는 필수입니다.'
+                : '수정 사항이 있으므로 승인 사유(Comment)는 필수입니다.');
+            return;
+        }
+
         const nextRecord: WorkerRecord = {
             ...record,
+            reviewStatus: status === 'approved' ? 'APPROVED' : 'REJECTED',
+            adminComment: trimmedComment || undefined,
+            reviewReason: trimmedComment || undefined,
+            approvalStatus: status === 'approved' ? 'APPROVED' : 'PENDING',
+            approvedBy: status === 'approved' ? 'safety-manager' : record.approvedBy,
+            approvedAt: status === 'approved' ? new Date().toISOString() : record.approvedAt,
+            approvalReason: trimmedComment || record.approvalReason,
             approvalHistory: [
                 ...(record.approvalHistory || []),
                 {
                     timestamp: new Date().toISOString(),
                     actor: 'safety-manager',
                     status,
-                    comment: approvalComment.trim() || undefined,
+                    comment: trimmedComment || undefined,
                 }
             ],
             auditTrail: [
@@ -163,15 +252,30 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     stage: 'approval',
                     timestamp: new Date().toISOString(),
                     actor: 'safety-manager',
-                    note: status === 'approved' ? '최종 승인' : '반려',
+                    note: status === 'approved'
+                        ? `최종 승인${trimmedComment ? ` (${trimmedComment})` : ''}`
+                        : `반려${trimmedComment ? ` (${trimmedComment})` : ''}`,
                 }
             ]
         };
-        setRecord(nextRecord);
-        onUpdateRecord(nextRecord);
+
+        if (status === 'rejected') {
+            setRecord(nextRecord);
+            await onUpdateRecord(nextRecord);
+            setApprovalComment('');
+            setPendingApprovalAction(null);
+            setHasChanges(false);
+            alert('반려 처리되었습니다.');
+            return;
+        }
+
+        const finalApprovedRecord = await runSecondaryProcessing(nextRecord);
+        setRecord(finalApprovedRecord);
+        await onUpdateRecord(finalApprovedRecord);
         setApprovalComment('');
+        setPendingApprovalAction(null);
         setHasChanges(false);
-        alert(status === 'approved' ? '승인 처리되었습니다.' : '반려 처리되었습니다.');
+        alert('최종 승인 처리되었습니다. 코멘트 기반 확정 데이터로 2차 가공이 실행되었습니다.');
     };
 
     const handleAnswerChange = (index: number, field: 'answerText' | 'koreanTranslation', value: string) => {
@@ -203,67 +307,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     };
 
     const handleReflectChanges = async () => {
-        const confirmMsg = hasChanges
-            ? `현재 수정된 정보(국적: ${record.nationality}, 점수: ${record.safetyScore}점, 팀장: ${record.teamLeader}, 직책: ${record.role}, 임무 등)를 바탕으로\nAI 분석 및 모국어 번역을 새로 생성하시겠습니까?`
-            : `저장된 현재 정보 기준으로 2차 재가공을 실행합니다.\n(국적: ${record.nationality}, 점수: ${record.safetyScore}점, 팀장: ${record.teamLeader}, 직책: ${record.role})\n계속하시겠습니까?`;
-        
-        if (confirm(confirmMsg)) {
-            setIsUpdatingAnalysis(true);
-            try {
-                const updatedAnalysis = await updateAnalysisBasedOnEdits(record);
-                if (updatedAnalysis) {
-                    setRecord(prev => ({
-                        ...prev,
-                        ...updatedAnalysis,
-                        auditTrail: [
-                            ...(prev.auditTrail || []),
-                            {
-                                stage: 'reassessment',
-                                timestamp: new Date().toISOString(),
-                                actor: 'manager',
-                                note: buildReassessmentAuditNote(prev, updatedAnalysis),
-                            }
-                        ]
-                    }));
-                    setHasChanges(true); 
-                    alert("2차 재가공이 완료되었습니다. 결과 반영을 위해 '1차 저장(기본정보)' 버튼으로 저장하세요.");
-                } else {
-                    setRecord(prev => ({
-                        ...prev,
-                        auditTrail: [
-                            ...(prev.auditTrail || []),
-                            {
-                                stage: 'reassessment',
-                                timestamp: new Date().toISOString(),
-                                actor: 'manager',
-                                note: '2차 재가공 실패: AI가 갱신 결과를 반환하지 않음',
-                            }
-                        ]
-                    }));
-                    setHasChanges(true);
-                    alert("분석 갱신에 실패했습니다.");
-                }
-            } catch (e) {
-                console.error(e);
-                const errorMessage = e instanceof Error ? e.message : 'unknown error';
-                setRecord(prev => ({
-                    ...prev,
-                    auditTrail: [
-                        ...(prev.auditTrail || []),
-                        {
-                            stage: 'reassessment',
-                            timestamp: new Date().toISOString(),
-                            actor: 'manager',
-                            note: `2차 재가공 오류: ${errorMessage}`,
-                        }
-                    ]
-                }));
-                setHasChanges(true);
-                alert(`2차 재가공 중 오류가 발생했습니다.\n\n사유: ${errorMessage}`);
-            } finally {
-                setIsUpdatingAnalysis(false);
-            }
-        }
+        alert('2차 가공은 승인 코멘트가 포함된 [최종 승인]에서만 자동 실행됩니다.');
     };
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'original' | 'profile') => {
@@ -377,7 +421,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                             <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4">
                                 <h4 className="text-sm font-black text-indigo-800 mb-2">모바일 작업 순서 안내</h4>
                                 <p className="text-xs text-indigo-700 font-bold leading-relaxed">
-                                    1) 근로자 정보 수정 → 2) 상단 <span className="underline">1차 저장</span> → 3) <span className="underline">2차 재가공</span>(AI 분석/번역 갱신) → 4) 다시 저장 → 5) 하단 <span className="underline">안전 리포트 보기</span>
+                                    1) 근로자 정보 수정 → 2) 상단 <span className="underline">1차 저장</span> → 3) 하단 승인영역 코멘트 작성 → 4) <span className="underline">최종 승인</span>(2차 가공 자동 실행) → 5) 안전 리포트 보기
                                 </p>
                             </div>
 
@@ -390,11 +434,11 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                     1차 저장
                                 </button>
                                 <button
-                                    onClick={handleReflectChanges}
-                                    disabled={isUpdatingAnalysis}
-                                    className={`px-2 py-2 rounded-xl text-[11px] font-black transition-colors ${isUpdatingAnalysis ? 'bg-slate-100 text-slate-400' : 'bg-violet-100 text-violet-700 hover:bg-violet-200'}`}
+                                    onClick={() => { void handleApprove('approved'); }}
+                                    disabled={isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0)}
+                                    className={`px-2 py-2 rounded-xl text-[11px] font-black transition-colors ${isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0) ? 'bg-slate-100 text-slate-400' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'}`}
                                 >
-                                    2차 재가공
+                                    최종 승인(수정)
                                 </button>
                                 <button
                                     onClick={handleOpenReportClick}
@@ -455,7 +499,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         ) : (
                                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                                         )}
-                                        2차 재가공 (AI 분석/번역 갱신)
+                                        승인 전 직접 실행 불가
                                     </button>
                                 </div>
 
@@ -685,15 +729,38 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                     시스템 정책상 안전관리자 엄격 승인 기준이 강제 적용됩니다.
                                                 </div>
                                             )}
-                                            <textarea
-                                                value={approvalComment}
-                                                onChange={(e) => setApprovalComment(e.target.value)}
-                                                placeholder="승인 또는 반려 사유를 입력하세요"
-                                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium min-h-[80px]"
-                                            />
+                                            {showReviewCommentField ? (
+                                                <textarea
+                                                    value={approvalComment}
+                                                    onChange={(e) => setApprovalComment(e.target.value)}
+                                                    placeholder="수정/반려 사유(Comment)를 입력하세요"
+                                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium min-h-[80px]"
+                                                />
+                                            ) : (
+                                                <div className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-500">
+                                                    점수/분석/판독 결과를 수정하거나 반려를 선택하면 사유(Comment) 입력창이 활성화됩니다.
+                                                </div>
+                                            )}
+                                            {(hasCriticalReviewEdits || pendingApprovalAction === 'rejected') && (
+                                                <p className="mt-2 text-[11px] font-black text-rose-600">
+                                                    수정 또는 반려 처리 시 사유(Comment) 입력은 필수입니다.
+                                                </p>
+                                            )}
                                             <div className="mt-3 flex flex-col sm:flex-row gap-2 justify-end">
-                                                <button onClick={() => handleApprove('rejected')} className="w-full sm:w-auto px-4 py-2 bg-rose-100 text-rose-700 rounded-xl text-sm font-black hover:bg-rose-200">반려</button>
-                                                <button onClick={() => handleApprove('approved')} className="w-full sm:w-auto px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-black hover:bg-emerald-700">승인</button>
+                                                <button
+                                                    onClick={() => { void handleApprove('rejected'); }}
+                                                    disabled={isUpdatingAnalysis}
+                                                    className={`w-full sm:w-auto px-4 py-2 rounded-xl text-sm font-black ${isUpdatingAnalysis ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-rose-100 text-rose-700 hover:bg-rose-200'}`}
+                                                >
+                                                    반려(재촬영/재작성 요망)
+                                                </button>
+                                                <button
+                                                    onClick={() => { void handleApprove('approved'); }}
+                                                    disabled={isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0)}
+                                                    className={`w-full sm:w-auto px-4 py-2 rounded-xl text-sm font-black ${isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0) ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
+                                                >
+                                                    최종 승인(수정)
+                                                </button>
                                             </div>
                                             <div className="mt-3 text-xs text-slate-500 font-bold">누적 승인 이력: {(record.approvalHistory || []).length}건</div>
                                         </div>
