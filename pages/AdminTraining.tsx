@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabaseClient';
 type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
 const LINK_HISTORY_STORAGE_KEY = 'psi_training_link_history';
 const ACTIVE_QR_STATE_STORAGE_KEY = 'psi_training_active_qr_state';
+const SAFETY_LEVEL_MIGRATION_REPORT_KEY = 'psi_migrated_safety_level_report_v20260316';
 
 const UI_TEXT: Record<UiLocale, {
     title: string;
@@ -411,6 +412,13 @@ type ActiveQrState = {
     failedLanguageAttempts: Record<string, string[]>;
 };
 
+type SafetyLevelMigrationReport = {
+    runAt: string;
+    totalRecords: number;
+    changedCount: number;
+    criteria: string;
+};
+
 const AdminTraining: React.FC = () => {
     const t = UI_TEXT.ko;
     const [sourceTextKo, setSourceTextKo] = useState('');
@@ -423,6 +431,7 @@ const AdminTraining: React.FC = () => {
     const [deletingSessionId, setDeletingSessionId] = useState('');
     const [linkHistory, setLinkHistory] = useState<LinkHistoryItem[]>([]);
     const [recentSessions, setRecentSessions] = useState<TrainingSessionRow[]>([]);
+    const [migrationReport, setMigrationReport] = useState<SafetyLevelMigrationReport | null>(null);
     const [awarenessStats, setAwarenessStats] = useState<AwarenessStats | null>(null);
     const [awarenessLoading, setAwarenessLoading] = useState(false);
     const [awarenessError, setAwarenessError] = useState('');
@@ -466,6 +475,25 @@ const AdminTraining: React.FC = () => {
                 : t.shareAllAudioLine,
         ].join('\n')
         : '';
+
+    const loadMigrationReport = () => {
+        const raw = localStorage.getItem(SAFETY_LEVEL_MIGRATION_REPORT_KEY);
+        if (!raw) {
+            setMigrationReport(null);
+            return;
+        }
+
+        try {
+            const parsed = JSON.parse(raw) as SafetyLevelMigrationReport;
+            if (parsed && typeof parsed === 'object') {
+                setMigrationReport(parsed);
+                return;
+            }
+            setMigrationReport(null);
+        } catch {
+            setMigrationReport(null);
+        }
+    };
 
     const fetchAwarenessStats = async (sessionId: string) => {
         setAwarenessLoading(true);
@@ -555,6 +583,10 @@ const AdminTraining: React.FC = () => {
         } catch {
             localStorage.removeItem(ACTIVE_QR_STATE_STORAGE_KEY);
         }
+    }, []);
+
+    useEffect(() => {
+        loadMigrationReport();
     }, []);
 
     useEffect(() => {
@@ -818,7 +850,6 @@ const AdminTraining: React.FC = () => {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
                 <h2 className="text-2xl font-black text-slate-900">관리자 다국어 음성 안내 생성</h2>
                 <p className="text-sm font-bold text-slate-500 mt-2">한국어 핵심 위험성평가 문구를 입력하면 다국어 TTS와 근로자 QR 링크를 생성합니다.</p>
-
                 <textarea
                     value={sourceTextKo}
                     onChange={(e) => setSourceTextKo(e.target.value)}
@@ -869,6 +900,39 @@ const AdminTraining: React.FC = () => {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
                 <h3 className="text-lg font-black text-slate-900">{t.awarenessTitle}</h3>
                 <p className="mt-1 text-xs font-bold text-slate-500">{t.awarenessSubtitle}</p>
+                {migrationReport ? (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">
+                            백필 완료
+                        </span>
+                        <p className="text-[11px] font-bold text-emerald-700">
+                            전체 {migrationReport.totalRecords}건 / 변경 {migrationReport.changedCount}건 · 기준 {migrationReport.criteria} · 실행 {new Date(migrationReport.runAt).toLocaleString('ko-KR')}
+                        </p>
+                        <button
+                            type="button"
+                            onClick={loadMigrationReport}
+                            className="inline-flex items-center rounded-lg border border-emerald-200 bg-white px-2 py-1 text-[10px] font-black text-emerald-700 hover:bg-emerald-50"
+                        >
+                            새로고침
+                        </button>
+                    </div>
+                ) : (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">
+                            백필 대기
+                        </span>
+                        <p className="text-[11px] font-bold text-amber-700">
+                            실행 기록이 없습니다. 앱 대시보드 최초 로드 시 1회 자동 실행됩니다.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={loadMigrationReport}
+                            className="inline-flex items-center rounded-lg border border-amber-200 bg-white px-2 py-1 text-[10px] font-black text-amber-700 hover:bg-amber-50"
+                        >
+                            새로고침
+                        </button>
+                    </div>
+                )}
 
                 {!currentSessionId ? (
                     <p className="mt-3 text-sm font-bold text-slate-500">{t.recentEmpty}</p>

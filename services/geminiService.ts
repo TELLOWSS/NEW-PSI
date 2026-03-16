@@ -4,6 +4,7 @@ import { getWindowProp } from '../utils/windowUtils';
 import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, HandwrittenAnswer, OcrErrorType } from '../types';
 import { extractMessage } from '../utils/errorUtils';
 import { deriveIntegrityScore, enforceSafetyLevel } from '../utils/evidenceUtils';
+import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { getIsPaidApiMode } from '../utils/apiModeUtils';
 
 /**
@@ -318,9 +319,7 @@ const clampScore = (value: unknown, fallback = 0): number => {
 };
 
 const scoreToSafetyLevel = (score: number): WorkerRecord['safetyLevel'] => {
-    if (score >= 80) return '고급';
-    if (score >= 60) return '중급';
-    return '초급';
+    return getSafetyLevelFromScore(score);
 };
 
 const normalizeScoreReasoning = (value: unknown): string[] => {
@@ -343,7 +342,7 @@ const enforceScoreGradeConsistency = (
     const scoreReasoning = normalizeScoreReasoning(reasoningInput);
 
     if (requestedLevel && requestedLevel !== derivedLevel) {
-        scoreReasoning.push(`점수-등급 정합성 검증에 따라 등급을 ${derivedLevel}으로 보정함 (기준: 80/60점)`);
+        scoreReasoning.push(`점수-등급 정합성 검증에 따라 등급을 ${derivedLevel}으로 보정함 (기준: 90/70점)`);
     }
 
     return {

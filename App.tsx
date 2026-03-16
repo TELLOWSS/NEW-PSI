@@ -27,6 +27,8 @@ const WorkerTraining = lazy(() => import('./pages/WorkerTraining'));
 const IDB_NAME = 'PSI_Enterprise_V4';
 const IDB_VERSION = 1;
 const WORKER_STORE = 'worker_records';
+const SAFETY_LEVEL_MIGRATION_KEY = 'psi_migrated_safety_level_v20260316';
+const SAFETY_LEVEL_MIGRATION_REPORT_KEY = 'psi_migrated_safety_level_report_v20260316';
 
 interface ErrorBoundaryProps {
     children?: ReactNode;
@@ -370,6 +372,32 @@ const App: React.FC = () => {
             const sortedData = sanitizeRecords(data).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             setWorkerRecords(sortedData);
             setIsDataLoaded(true);
+
+            const migrated = localStorage.getItem(SAFETY_LEVEL_MIGRATION_KEY) === 'done';
+            if (!migrated && sortedData.length > 0) {
+                void (async () => {
+                    try {
+                        let changedCount = 0;
+                        for (const record of sortedData) {
+                            const original = data.find((item) => item?.id === record.id) as WorkerRecord | undefined;
+                            if (original?.safetyLevel !== record.safetyLevel) changedCount += 1;
+                            await saveRecordToDB(record);
+                        }
+                        localStorage.setItem(SAFETY_LEVEL_MIGRATION_KEY, 'done');
+
+                        const report = {
+                            runAt: new Date().toISOString(),
+                            totalRecords: sortedData.length,
+                            changedCount,
+                            criteria: '90/70',
+                        };
+                        localStorage.setItem(SAFETY_LEVEL_MIGRATION_REPORT_KEY, JSON.stringify(report));
+                        console.info('[PSI][SafetyLevelMigration]', report);
+                    } catch (error) {
+                        console.warn('Safety level migration skipped:', error);
+                    }
+                })();
+            }
         });
         const savedChecks = localStorage.getItem('psi_safety_checks');
         if (savedChecks) {

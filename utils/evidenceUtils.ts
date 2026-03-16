@@ -1,4 +1,5 @@
 import type { WorkerRecord, AuditTrailEntry, CorrectionEntry, SafetyCompetencyProfile, AppSettings } from '../types';
+import { getSafetyLevelFromScore } from './safetyLevelUtils';
 
 const textEncoder = new TextEncoder();
 
@@ -149,18 +150,9 @@ export function getApprovalBlockers(record: WorkerRecord, approverRole: 'safety-
 }
 
 export function enforceSafetyLevel(record: WorkerRecord): WorkerRecord {
-    const confidence = typeof record.ocrConfidence === 'number' ? record.ocrConfidence : 1;
     const integrity = typeof record.integrityScore === 'number' ? record.integrityScore : deriveIntegrityScore(record);
     const score = typeof record.safetyScore === 'number' ? record.safetyScore : 0;
-
-    let safetyLevel: WorkerRecord['safetyLevel'] = '초급';
-    if (score >= 75) safetyLevel = '고급';
-    else if (score >= 50) safetyLevel = '중급';
-
-    const hasHighRiskSignal = record.selfAssessedRiskLevel === '상' || integrity < 60;
-    if (confidence < 0.7 || hasHighRiskSignal) {
-        safetyLevel = '초급';
-    }
+    const safetyLevel = getSafetyLevelFromScore(score);
 
     return {
         ...record,
