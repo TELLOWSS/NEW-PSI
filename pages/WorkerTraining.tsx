@@ -31,6 +31,16 @@ const UI_TEXT: Record<UiLocale, {
     audioReady: string;
     audioMissing: string;
     guidanceLabel: string;
+    comprehensionTitle: string;
+    comprehensionDescription: string;
+    progressLabel: string;
+    progressPending: string;
+    progressReady: string;
+    checkRiskReview: string;
+    checkPpeConfirm: string;
+    checkEmergencyConfirm: string;
+    submitBlockedAlert: string;
+    understandingPledgeHint: string;
     signatureLabel: string;
     signatureClear: string;
     submit: string;
@@ -66,6 +76,16 @@ const UI_TEXT: Record<UiLocale, {
         audioReady: '버튼을 눌러 음성을 재생하세요',
         audioMissing: '선택한 언어 음성 파일이 없어 텍스트 안내로 대체됩니다.',
         guidanceLabel: '안내 문구',
+        comprehensionTitle: '위험성평가 이해 확인',
+        comprehensionDescription: '안내 문구를 끝까지 읽고 아래 항목에 체크해야 제출할 수 있습니다.',
+        progressLabel: '안내 문구 확인 진행도',
+        progressPending: '아직 끝까지 확인하지 않았습니다.',
+        progressReady: '안내 문구를 끝까지 확인했습니다.',
+        checkRiskReview: '내 작업 공정의 주요 위험요인과 통제조치를 확인했습니다.',
+        checkPpeConfirm: '작업 시작 전 보호구(PPE) 착용 기준을 이해했습니다.',
+        checkEmergencyConfirm: '비상상황 발생 시 보고/대피 절차를 이해했습니다.',
+        submitBlockedAlert: '위험성평가 이해 확인(끝까지 읽기 + 체크 항목)을 완료해 주세요.',
+        understandingPledgeHint: '서명은 “위험성평가를 이해하고 준수하겠다”는 확약입니다.',
         signatureLabel: '전자서명',
         signatureClear: '서명 지우기',
         submit: '제출하기',
@@ -101,6 +121,16 @@ const UI_TEXT: Record<UiLocale, {
         audioReady: 'Tap the button to play audio',
         audioMissing: 'No audio file for this language. Showing text guidance instead.',
         guidanceLabel: 'Guidance Text',
+        comprehensionTitle: 'Comprehension Check',
+        comprehensionDescription: 'You can submit only after reading the guidance to the end and checking all items.',
+        progressLabel: 'Guidance review progress',
+        progressPending: 'Please scroll to the end of the guidance text.',
+        progressReady: 'Guidance text reviewed to the end.',
+        checkRiskReview: 'I reviewed major hazards and control measures for my assigned process.',
+        checkPpeConfirm: 'I understand required PPE before starting work.',
+        checkEmergencyConfirm: 'I understand emergency reporting and evacuation procedures.',
+        submitBlockedAlert: 'Please complete the comprehension checks (read to end + all check items).',
+        understandingPledgeHint: 'This signature is a pledge that you understand and will follow the risk assessment.',
         signatureLabel: 'Signature',
         signatureClear: 'Clear Signature',
         submit: 'Submit',
@@ -136,6 +166,16 @@ const UI_TEXT: Record<UiLocale, {
         audioReady: 'Nhấn nút để phát âm thanh',
         audioMissing: 'Không có tệp âm thanh cho ngôn ngữ này. Sẽ hiển thị hướng dẫn dạng văn bản.',
         guidanceLabel: 'Nội dung hướng dẫn',
+        comprehensionTitle: 'Xác nhận đã hiểu',
+        comprehensionDescription: 'Chỉ có thể gửi sau khi đọc hết nội dung hướng dẫn và chọn tất cả mục bên dưới.',
+        progressLabel: 'Tiến độ đọc hướng dẫn',
+        progressPending: 'Vui lòng cuộn xuống cuối nội dung hướng dẫn.',
+        progressReady: 'Đã đọc đến cuối nội dung hướng dẫn.',
+        checkRiskReview: 'Tôi đã xem các rủi ro chính và biện pháp kiểm soát cho công đoạn làm việc của mình.',
+        checkPpeConfirm: 'Tôi hiểu yêu cầu trang bị bảo hộ (PPE) trước khi làm việc.',
+        checkEmergencyConfirm: 'Tôi hiểu quy trình báo cáo và sơ tán khi khẩn cấp.',
+        submitBlockedAlert: 'Vui lòng hoàn tất bước xác nhận hiểu nội dung (đọc đến cuối + đánh dấu các mục).',
+        understandingPledgeHint: 'Chữ ký này là cam kết rằng bạn đã hiểu và sẽ tuân thủ đánh giá rủi ro.',
         signatureLabel: 'Chữ ký điện tử',
         signatureClear: 'Xóa chữ ký',
         submit: 'Gửi',
@@ -171,6 +211,16 @@ const UI_TEXT: Record<UiLocale, {
         audioReady: '点击按钮播放语音',
         audioMissing: '该语言没有音频文件，将显示文本指引。',
         guidanceLabel: '指引文本',
+        comprehensionTitle: '理解确认',
+        comprehensionDescription: '必须先将指引阅读到末尾并勾选全部项目后，才能提交。',
+        progressLabel: '指引阅读进度',
+        progressPending: '请滚动到指引文本底部。',
+        progressReady: '已阅读到指引文本末尾。',
+        checkRiskReview: '我已确认本工序的主要风险因素与控制措施。',
+        checkPpeConfirm: '我已理解开工前个人防护装备(PPE)佩戴要求。',
+        checkEmergencyConfirm: '我已理解紧急情况报告与疏散流程。',
+        submitBlockedAlert: '请先完成理解确认（阅读至末尾 + 勾选项目）。',
+        understandingPledgeHint: '该签名表示“我已理解并承诺遵守风险评估要求”。',
         signatureLabel: '电子签名',
         signatureClear: '清除签名',
         submit: '提交',
@@ -392,9 +442,17 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     const [submitting, setSubmitting] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
     const [submitted, setSubmitted] = useState(false);
+    const [hasReviewedGuidance, setHasReviewedGuidance] = useState(false);
+    const [guidanceProgress, setGuidanceProgress] = useState(0);
+    const [checklist, setChecklist] = useState({
+        riskReview: false,
+        ppeConfirm: false,
+        emergencyConfirm: false,
+    });
 
     const sigRef = useRef<SignatureCanvas | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const guidanceRef = useRef<HTMLDivElement | null>(null);
 
     const langKey = useMemo(() => resolveLanguageCodeByNationality(nationality), [nationality]);
     const uiLocale = useMemo(() => resolveUiLocaleByLangCode(langKey), [langKey]);
@@ -451,6 +509,9 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
         return sessionData.source_text_ko || '';
     }, [sessionData, normalizedTextMap, effectiveLangKey]);
 
+    const isChecklistComplete = checklist.riskReview && checklist.ppeConfirm && checklist.emergencyConfirm;
+    const isComprehensionReady = hasReviewedGuidance && isChecklistComplete;
+
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
@@ -458,6 +519,37 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
         audio.currentTime = 0;
         setIsPlaying(false);
     }, [selectedAudioUrl]);
+
+    useEffect(() => {
+        setHasReviewedGuidance(false);
+        setGuidanceProgress(0);
+        setChecklist({
+            riskReview: false,
+            ppeConfirm: false,
+            emergencyConfirm: false,
+        });
+    }, [effectiveLangKey, sessionId]);
+
+    useEffect(() => {
+        const node = guidanceRef.current;
+        if (!node) return;
+
+        const syncProgress = () => {
+            const maxScrollable = node.scrollHeight - node.clientHeight;
+            if (maxScrollable <= 0) {
+                setGuidanceProgress(100);
+                setHasReviewedGuidance(true);
+                return;
+            }
+
+            const progress = Math.min(100, Math.round((node.scrollTop / maxScrollable) * 100));
+            setGuidanceProgress(progress);
+            setHasReviewedGuidance(node.scrollTop + node.clientHeight >= node.scrollHeight - 4);
+        };
+
+        const rafId = window.requestAnimationFrame(syncProgress);
+        return () => window.cancelAnimationFrame(rafId);
+    }, [selectedTranslatedText]);
 
     useEffect(() => {
         if (!simplifiedMode) return;
@@ -576,6 +668,11 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             return;
         }
 
+        if (!isComprehensionReady) {
+            alert(t.submitBlockedAlert);
+            return;
+        }
+
         if (!sigRef.current || sigRef.current.isEmpty()) {
             alert(t.missingSignatureAlert);
             return;
@@ -594,6 +691,9 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                     sessionId,
                     workerName,
                     nationality,
+                    selectedLanguageCode: effectiveLangKey,
+                    reviewedGuidance: hasReviewedGuidance,
+                    checklist,
                     selectedAudioUrl: selectedAudioUrl || null,
                     signatureDataUrl,
                     linkExpiresAt,
@@ -729,12 +829,73 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                     />
                     <div className="mt-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
                         <p className="text-[11px] font-black text-slate-500 mb-1">{t.guidanceLabel}</p>
-                        <p className="text-sm font-bold text-slate-700 whitespace-pre-wrap">{selectedTranslatedText}</p>
+                        <div
+                            ref={guidanceRef}
+                            onScroll={() => {
+                                const node = guidanceRef.current;
+                                if (!node) return;
+                                const maxScrollable = node.scrollHeight - node.clientHeight;
+                                if (maxScrollable <= 0) {
+                                    setGuidanceProgress(100);
+                                    setHasReviewedGuidance(true);
+                                    return;
+                                }
+
+                                const progress = Math.min(100, Math.round((node.scrollTop / maxScrollable) * 100));
+                                setGuidanceProgress(progress);
+                                setHasReviewedGuidance(node.scrollTop + node.clientHeight >= node.scrollHeight - 4);
+                            }}
+                            className="max-h-52 overflow-y-auto pr-1"
+                        >
+                            <p className="text-sm font-bold text-slate-700 whitespace-pre-wrap">{selectedTranslatedText}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-4 p-4 rounded-xl border border-indigo-200 bg-indigo-50/50">
+                    <p className="text-sm font-black text-indigo-900">{t.comprehensionTitle}</p>
+                    <p className="text-[11px] font-bold text-indigo-700 mt-1">{t.comprehensionDescription}</p>
+                    <p className="mt-3 text-[11px] font-black text-slate-600">
+                        {t.progressLabel}: <span className="text-slate-800">{guidanceProgress}%</span>
+                    </p>
+                    <p className={`mt-1 text-[11px] font-black ${hasReviewedGuidance ? 'text-emerald-700' : 'text-amber-700'}`}>
+                        {hasReviewedGuidance ? t.progressReady : t.progressPending}
+                    </p>
+
+                    <div className="mt-3 space-y-2">
+                        <label className="flex items-start gap-2 text-xs font-bold text-slate-700">
+                            <input
+                                type="checkbox"
+                                checked={checklist.riskReview}
+                                onChange={(event) => setChecklist((prev) => ({ ...prev, riskReview: event.target.checked }))}
+                                className="mt-0.5"
+                            />
+                            <span>{t.checkRiskReview}</span>
+                        </label>
+                        <label className="flex items-start gap-2 text-xs font-bold text-slate-700">
+                            <input
+                                type="checkbox"
+                                checked={checklist.ppeConfirm}
+                                onChange={(event) => setChecklist((prev) => ({ ...prev, ppeConfirm: event.target.checked }))}
+                                className="mt-0.5"
+                            />
+                            <span>{t.checkPpeConfirm}</span>
+                        </label>
+                        <label className="flex items-start gap-2 text-xs font-bold text-slate-700">
+                            <input
+                                type="checkbox"
+                                checked={checklist.emergencyConfirm}
+                                onChange={(event) => setChecklist((prev) => ({ ...prev, emergencyConfirm: event.target.checked }))}
+                                className="mt-0.5"
+                            />
+                            <span>{t.checkEmergencyConfirm}</span>
+                        </label>
                     </div>
                 </div>
 
                 <div className="mt-4">
                     <label className="block text-xs font-black text-slate-500 mb-2">{t.signatureLabel}</label>
+                    <p className="mb-2 text-[11px] font-bold text-slate-600">{t.understandingPledgeHint}</p>
                     <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
                         <SignatureCanvas
                             ref={(ref) => {
@@ -758,7 +919,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
 
                 <button
                     onClick={handleSubmit}
-                    disabled={submitting || submitted}
+                    disabled={submitting || submitted || !isComprehensionReady}
                     className="mt-6 w-full py-3 rounded-xl bg-indigo-600 text-white font-black hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                     {submitted ? t.alreadySubmitted : (submitting ? t.submitting : t.submit)}

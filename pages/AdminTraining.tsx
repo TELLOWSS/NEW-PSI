@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabaseClient';
 
 type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
 const LINK_HISTORY_STORAGE_KEY = 'psi_training_link_history';
+const ACTIVE_QR_STATE_STORAGE_KEY = 'psi_training_active_qr_state';
 
 const UI_TEXT: Record<UiLocale, {
     title: string;
@@ -58,6 +59,18 @@ const UI_TEXT: Record<UiLocale, {
     historyEmpty: string;
     historyCreate: string;
     historyReissue: string;
+    awarenessTitle: string;
+    awarenessSubtitle: string;
+    statSubmitted: string;
+    statConfirmed: string;
+    statUnconfirmed: string;
+    statRate: string;
+    statNationalities: string;
+    statDataSource: string;
+    statSourceAckTable: string;
+    statSourceSubmissionGate: string;
+    statLoading: string;
+    statErrorPrefix: string;
 }> = {
     ko: {
         title: '관리자 다국어 음성 안내 생성',
@@ -111,6 +124,18 @@ const UI_TEXT: Record<UiLocale, {
         historyEmpty: '아직 기록이 없습니다.',
         historyCreate: '초기 생성',
         historyReissue: '재발급',
+        awarenessTitle: '위험성평가 인지·확약 통계',
+        awarenessSubtitle: '현재 세션에서 위험성평가를 명확히 인지하고 확약한 인원을 즉시 확인합니다.',
+        statSubmitted: '제출 인원',
+        statConfirmed: '이해·확약 인원',
+        statUnconfirmed: '미확약 인원',
+        statRate: '확약률',
+        statNationalities: '참여 국적 수',
+        statDataSource: '산출 기준',
+        statSourceAckTable: '확약 상세 테이블',
+        statSourceSubmissionGate: '제출 게이트 로직',
+        statLoading: '통계 불러오는 중...',
+        statErrorPrefix: '통계 오류',
     },
     en: {
         title: 'Admin Multilingual Audio Generator',
@@ -164,6 +189,18 @@ const UI_TEXT: Record<UiLocale, {
         historyEmpty: 'No history yet.',
         historyCreate: 'Initial issue',
         historyReissue: 'Reissue',
+        awarenessTitle: 'Risk Awareness & Pledge Metrics',
+        awarenessSubtitle: 'See how many workers clearly understood and pledged for this session.',
+        statSubmitted: 'Submitted workers',
+        statConfirmed: 'Confirmed understanding',
+        statUnconfirmed: 'Unconfirmed',
+        statRate: 'Confirmation rate',
+        statNationalities: 'Nationality count',
+        statDataSource: 'Data source',
+        statSourceAckTable: 'Acknowledgement detail table',
+        statSourceSubmissionGate: 'Submission gate logic',
+        statLoading: 'Loading metrics...',
+        statErrorPrefix: 'Metrics error',
     },
     vi: {
         title: 'Tạo hướng dẫn giọng nói đa ngôn ngữ',
@@ -217,6 +254,18 @@ const UI_TEXT: Record<UiLocale, {
         historyEmpty: 'Chưa có lịch sử.',
         historyCreate: 'Tạo ban đầu',
         historyReissue: 'Cấp lại',
+        awarenessTitle: 'Thống kê nhận thức & cam kết rủi ro',
+        awarenessSubtitle: 'Xem ngay số công nhân đã hiểu rõ và cam kết trong phiên hiện tại.',
+        statSubmitted: 'Số người đã gửi',
+        statConfirmed: 'Số người đã hiểu/cam kết',
+        statUnconfirmed: 'Chưa cam kết',
+        statRate: 'Tỷ lệ cam kết',
+        statNationalities: 'Số quốc tịch tham gia',
+        statDataSource: 'Nguồn dữ liệu',
+        statSourceAckTable: 'Bảng chi tiết cam kết',
+        statSourceSubmissionGate: 'Logic chặn gửi',
+        statLoading: 'Đang tải thống kê...',
+        statErrorPrefix: 'Lỗi thống kê',
     },
     zh: {
         title: '管理员多语言语音生成',
@@ -270,6 +319,18 @@ const UI_TEXT: Record<UiLocale, {
         historyEmpty: '暂无历史记录。',
         historyCreate: '首次签发',
         historyReissue: '重新签发',
+        awarenessTitle: '风险认知与承诺统计',
+        awarenessSubtitle: '即时查看本会话中已明确理解并承诺的工人数。',
+        statSubmitted: '已提交人数',
+        statConfirmed: '已理解/承诺人数',
+        statUnconfirmed: '未承诺人数',
+        statRate: '承诺率',
+        statNationalities: '参与国籍数',
+        statDataSource: '统计依据',
+        statSourceAckTable: '承诺明细表',
+        statSourceSubmissionGate: '提交门槛逻辑',
+        statLoading: '统计加载中...',
+        statErrorPrefix: '统计错误',
     },
 };
 
@@ -339,6 +400,24 @@ type LinkHistoryItem = {
     createdAt: string;
 };
 
+type AwarenessStats = {
+    submittedWorkers: number;
+    confirmedWorkers: number;
+    unconfirmedWorkers: number;
+    confirmationRate: number;
+    nationalityCount: number;
+    ackDataSource: 'training_acknowledgements' | 'submission_gate';
+};
+
+type ActiveQrState = {
+    sourceTextKo: string;
+    mobileUrl: string;
+    currentSessionId: string;
+    linkExpiresAt: number | null;
+    failedLanguages: string[];
+    failedLanguageAttempts: Record<string, string[]>;
+};
+
 const AdminTraining: React.FC = () => {
     const [sourceTextKo, setSourceTextKo] = useState('');
     const [loading, setLoading] = useState(false);
@@ -349,6 +428,9 @@ const AdminTraining: React.FC = () => {
     const [message, setMessage] = useState('');
     const [reissuingLink, setReissuingLink] = useState(false);
     const [linkHistory, setLinkHistory] = useState<LinkHistoryItem[]>([]);
+    const [awarenessStats, setAwarenessStats] = useState<AwarenessStats | null>(null);
+    const [awarenessLoading, setAwarenessLoading] = useState(false);
+    const [awarenessError, setAwarenessError] = useState('');
     const [failedLanguages, setFailedLanguages] = useState<string[]>([]);
     const [failedLanguageAttempts, setFailedLanguageAttempts] = useState<Record<string, string[]>>({});
     const [savedPreset, setSavedPreset] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
@@ -404,6 +486,50 @@ const AdminTraining: React.FC = () => {
         });
     };
 
+    const fetchAwarenessStats = async (sessionId: string) => {
+        setAwarenessLoading(true);
+        setAwarenessError('');
+        try {
+            const response = await fetch('/api/admin/training-awareness-stats', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sessionId }),
+            });
+
+            const contentType = response.headers.get('content-type') || '';
+            const raw = await response.text();
+            let data: any = null;
+
+            if (raw && contentType.includes('application/json')) {
+                try {
+                    data = JSON.parse(raw);
+                } catch {
+                    throw new Error(t.parseFail);
+                }
+            }
+
+            if (!response.ok || !data?.ok) {
+                throw new Error(data?.message || `통계 조회 실패 (HTTP ${response.status})`);
+            }
+
+            setAwarenessStats({
+                submittedWorkers: Number(data.submittedWorkers || 0),
+                confirmedWorkers: Number(data.confirmedWorkers || 0),
+                unconfirmedWorkers: Number(data.unconfirmedWorkers || 0),
+                confirmationRate: Number(data.confirmationRate || 0),
+                nationalityCount: Number(data.nationalityCount || 0),
+                ackDataSource: data.ackDataSource === 'training_acknowledgements'
+                    ? 'training_acknowledgements'
+                    : 'submission_gate',
+            });
+        } catch (error: any) {
+            setAwarenessStats(null);
+            setAwarenessError(error?.message || t.createFail);
+        } finally {
+            setAwarenessLoading(false);
+        }
+    };
+
     useEffect(() => {
         const raw = localStorage.getItem('psi_app_settings');
         if (!raw) return;
@@ -429,6 +555,44 @@ const AdminTraining: React.FC = () => {
             setLinkHistory([]);
         }
     }, []);
+
+    useEffect(() => {
+        const raw = localStorage.getItem(ACTIVE_QR_STATE_STORAGE_KEY);
+        if (!raw) return;
+
+        try {
+            const parsed = JSON.parse(raw) as ActiveQrState;
+            if (!parsed?.currentSessionId || !parsed?.mobileUrl) return;
+            setSourceTextKo(parsed.sourceTextKo || '');
+            setMobileUrl(parsed.mobileUrl || '');
+            setCurrentSessionId(parsed.currentSessionId || '');
+            setLinkExpiresAt(typeof parsed.linkExpiresAt === 'number' ? parsed.linkExpiresAt : null);
+            setFailedLanguages(Array.isArray(parsed.failedLanguages) ? parsed.failedLanguages : []);
+            setFailedLanguageAttempts(parsed.failedLanguageAttempts && typeof parsed.failedLanguageAttempts === 'object'
+                ? parsed.failedLanguageAttempts
+                : {});
+        } catch {
+            localStorage.removeItem(ACTIVE_QR_STATE_STORAGE_KEY);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!currentSessionId || !mobileUrl) {
+            localStorage.removeItem(ACTIVE_QR_STATE_STORAGE_KEY);
+            return;
+        }
+
+        const payload: ActiveQrState = {
+            sourceTextKo,
+            mobileUrl,
+            currentSessionId,
+            linkExpiresAt,
+            failedLanguages,
+            failedLanguageAttempts,
+        };
+
+        localStorage.setItem(ACTIVE_QR_STATE_STORAGE_KEY, JSON.stringify(payload));
+    }, [sourceTextKo, mobileUrl, currentSessionId, linkExpiresAt, failedLanguages, failedLanguageAttempts]);
 
     const fetchRecentSessions = async (): Promise<TrainingSessionRow[]> => {
         const loadWithColumn = async (column: string) => {
@@ -470,6 +634,14 @@ const AdminTraining: React.FC = () => {
     useEffect(() => {
         const restoreLatestSession = async () => {
             try {
+                const persistedRaw = localStorage.getItem(ACTIVE_QR_STATE_STORAGE_KEY);
+                if (persistedRaw) {
+                    const persisted = JSON.parse(persistedRaw) as ActiveQrState;
+                    if (persisted?.currentSessionId && persisted?.mobileUrl) {
+                        return;
+                    }
+                }
+
                 const sessions = await fetchRecentSessions();
                 const latest = sessions[0];
                 if (!latest?.id) return;
@@ -481,6 +653,21 @@ const AdminTraining: React.FC = () => {
 
         void restoreLatestSession();
     }, []);
+
+    useEffect(() => {
+        if (!currentSessionId) {
+            setAwarenessStats(null);
+            setAwarenessError('');
+            return;
+        }
+
+        void fetchAwarenessStats(currentSessionId);
+        const timerId = window.setInterval(() => {
+            void fetchAwarenessStats(currentSessionId);
+        }, 20000);
+
+        return () => window.clearInterval(timerId);
+    }, [currentSessionId]);
 
     const toggleLanguage = (code: string) => {
         setSelectedLanguages((prev) => {
@@ -592,6 +779,9 @@ const AdminTraining: React.FC = () => {
         setLinkExpiresAt(null);
         setFailedLanguages([]);
         setFailedLanguageAttempts({});
+        setAwarenessStats(null);
+        setAwarenessError('');
+        localStorage.removeItem(ACTIVE_QR_STATE_STORAGE_KEY);
         setMessage(t.removeDone);
     };
 
@@ -784,6 +974,52 @@ const AdminTraining: React.FC = () => {
                             );
                         })}
                     </div>
+                )}
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
+                <h3 className="text-lg font-black text-slate-900">{t.awarenessTitle}</h3>
+                <p className="mt-1 text-xs font-bold text-slate-500">{t.awarenessSubtitle}</p>
+
+                {!currentSessionId ? (
+                    <p className="mt-3 text-sm font-bold text-slate-500">{t.recentEmpty}</p>
+                ) : awarenessLoading ? (
+                    <p className="mt-3 text-sm font-bold text-slate-500">{t.statLoading}</p>
+                ) : awarenessError ? (
+                    <p className="mt-3 text-sm font-bold text-rose-700">{t.statErrorPrefix}: {awarenessError}</p>
+                ) : awarenessStats ? (
+                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
+                            <p className="text-[11px] font-black text-slate-500">{t.statSubmitted}</p>
+                            <p className="mt-1 text-xl font-black text-slate-900">{awarenessStats.submittedWorkers}</p>
+                        </div>
+                        <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50">
+                            <p className="text-[11px] font-black text-emerald-700">{t.statConfirmed}</p>
+                            <p className="mt-1 text-xl font-black text-emerald-800">{awarenessStats.confirmedWorkers}</p>
+                        </div>
+                        <div className="p-3 rounded-xl border border-amber-200 bg-amber-50">
+                            <p className="text-[11px] font-black text-amber-700">{t.statUnconfirmed}</p>
+                            <p className="mt-1 text-xl font-black text-amber-800">{awarenessStats.unconfirmedWorkers}</p>
+                        </div>
+                        <div className="p-3 rounded-xl border border-indigo-200 bg-indigo-50">
+                            <p className="text-[11px] font-black text-indigo-700">{t.statRate}</p>
+                            <p className="mt-1 text-xl font-black text-indigo-800">{awarenessStats.confirmationRate}%</p>
+                        </div>
+                        <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
+                            <p className="text-[11px] font-black text-slate-500">{t.statNationalities}</p>
+                            <p className="mt-1 text-xl font-black text-slate-900">{awarenessStats.nationalityCount}</p>
+                        </div>
+                        <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
+                            <p className="text-[11px] font-black text-slate-500">{t.statDataSource}</p>
+                            <p className="mt-1 text-[12px] font-black text-slate-900">
+                                {awarenessStats.ackDataSource === 'training_acknowledgements'
+                                    ? t.statSourceAckTable
+                                    : t.statSourceSubmissionGate}
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    <p className="mt-3 text-sm font-bold text-slate-500">{t.recentEmpty}</p>
                 )}
             </div>
 

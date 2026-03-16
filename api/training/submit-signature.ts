@@ -16,6 +16,9 @@ export default async function handler(req: any, res: any) {
             sessionId,
             workerName,
             nationality,
+            selectedLanguageCode,
+            reviewedGuidance,
+            checklist,
             selectedAudioUrl,
             signatureDataUrl,
             linkExpiresAt,
@@ -87,7 +90,40 @@ export default async function handler(req: any, res: any) {
 
         if (insert.error) throw new Error(insert.error.message);
 
-        return res.status(200).json({ ok: true, signatureUrl });
+        const checklistPayload = (checklist && typeof checklist === 'object')
+            ? {
+                riskReview: Boolean((checklist as any).riskReview),
+                ppeConfirm: Boolean((checklist as any).ppeConfirm),
+                emergencyConfirm: Boolean((checklist as any).emergencyConfirm),
+            }
+            : {
+                riskReview: false,
+                ppeConfirm: false,
+                emergencyConfirm: false,
+            };
+
+        const comprehensionComplete = Boolean(reviewedGuidance)
+            && checklistPayload.riskReview
+            && checklistPayload.ppeConfirm
+            && checklistPayload.emergencyConfirm;
+
+        const ackInsert = await supabase.from('training_acknowledgements').upsert({
+            session_id: sessionId,
+            worker_name: normalizedWorkerName,
+            selected_language_code: selectedLanguageCode || null,
+            reviewed_guidance: Boolean(reviewedGuidance),
+            checklist: checklistPayload,
+            comprehension_complete: comprehensionComplete,
+            submitted_at: new Date().toISOString(),
+        }, {
+            onConflict: 'session_id,worker_name',
+        });
+
+        if (ackInsert.error) {
+            console.warn('[submit-signature] training_acknowledgements insert skipped:', ackInsert.error.message);
+        }
+
+        return res.status(200).json({ ok: true, signatureUrl, comprehensionComplete });
     } catch (error: any) {
         return res.status(500).json({ ok: false, message: error?.message || '서명 제출 실패' });
     }
