@@ -288,12 +288,51 @@ const resolveLanguageCodeByNationality = (nationalityRaw: string): string => {
     return 'en-US';
 };
 
+const resolveUiLocaleFromLanguageCode = (code: string): UiLocale => {
+    if (code.startsWith('ko')) return 'ko';
+    if (code.startsWith('vi')) return 'vi';
+    if (code.startsWith('cmn') || code.startsWith('zh')) return 'zh';
+    return 'en';
+};
+
+const resolveLanguageCandidates = (languageCode: string): string[] => {
+    const normalized = String(languageCode || '').trim();
+    if (!normalized) return ['en-US'];
+
+    const base = normalized.split('-')[0];
+    const candidates = [normalized, `${base.toLowerCase()}-${normalized.split('-')[1] || ''}`, base, 'en-US']
+        .filter(Boolean);
+    return Array.from(new Set(candidates));
+};
+
+const resolveNationalityByLanguageCode = (code: string): string => {
+    if (code.startsWith('ko')) return '대한민국';
+    if (code.startsWith('vi')) return '베트남';
+    if (code.startsWith('cmn') || code.startsWith('zh')) return '중국';
+    if (code.startsWith('th')) return '태국';
+    if (code.startsWith('id')) return '인도네시아';
+    if (code.startsWith('uz')) return '우즈베키스탄';
+    if (code.startsWith('mn')) return '몽골';
+    if (code.startsWith('km')) return '캄보디아';
+    if (code.startsWith('ru')) return '러시아';
+    if (code.startsWith('kk')) return '카자흐스탄';
+    if (code.startsWith('ne')) return '네팔';
+    if (code.startsWith('my')) return '미얀마';
+    if (code.startsWith('fil')) return '필리핀';
+    if (code.startsWith('hi')) return '인도';
+    if (code.startsWith('bn')) return '방글라데시';
+    if (code.startsWith('ur')) return '파키스탄';
+    if (code.startsWith('si')) return '스리랑카';
+    return '기타';
+};
+
 const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
     const [loading, setLoading] = useState(true);
     const [sessionData, setSessionData] = useState<SessionRow | null>(null);
 
     const [workerName, setWorkerName] = useState('');
     const [nationality, setNationality] = useState('베트남');
+    const [selectedLanguageCode, setSelectedLanguageCode] = useState('en-US');
     const [message, setMessage] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -311,6 +350,65 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
     const guidanceRef = useRef<HTMLDivElement | null>(null);
 
     const langKey = useMemo(() => resolveLanguageCodeByNationality(nationality), [nationality]);
+    const effectiveLangKey = selectedLanguageCode || langKey;
+    const t = UI_TEXT[resolveUiLocaleFromLanguageCode(effectiveLangKey)];
+    const simplifiedMode = useMemo(() => {
+        const queryMode = new URLSearchParams(window.location.search).get('mode');
+        const isMobileUa = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent || '');
+        return queryMode === 'worker-training' || isMobileUa;
+    }, []);
+
+    const normalizedAudioMap = useMemo(() => {
+        if (!sessionData?.audio_urls || typeof sessionData.audio_urls !== 'object') return {} as Record<string, string>;
+        const source = sessionData.audio_urls as Record<string, unknown>;
+        const map: Record<string, string> = {};
+        Object.entries(source).forEach(([key, value]) => {
+            if (typeof value === 'string' && value.trim()) {
+                map[key] = value.trim();
+                const base = key.split('-')[0];
+                if (base) map[base] = map[base] || value.trim();
+            }
+        });
+        return map;
+    }, [sessionData]);
+
+    const normalizedTextMap = useMemo(() => {
+        const source = (sessionData?.translated_texts && typeof sessionData.translated_texts === 'object')
+            ? sessionData.translated_texts as Record<string, unknown>
+            : {};
+        const map: Record<string, string> = {};
+        Object.entries(source).forEach(([key, value]) => {
+            if (typeof value === 'string' && value.trim()) {
+                map[key] = value.trim();
+                const base = key.split('-')[0];
+                if (base) map[base] = map[base] || value.trim();
+            }
+        });
+        return map;
+    }, [sessionData]);
+
+    const availableLanguageCodes = useMemo(() => {
+        const codes = new Set<string>([
+            ...Object.keys(normalizedAudioMap),
+            ...Object.keys(normalizedTextMap),
+        ]);
+        if (codes.size === 0) codes.add('en-US');
+        return Array.from(codes);
+    }, [normalizedAudioMap, normalizedTextMap]);
+
+    const handleToggleAudio = async () => {
+        const audio = audioRef.current;
+        if (!audio || !selectedAudioUrl) return;
+        if (isPlaying) {
+            audio.pause();
+            return;
+        }
+        try {
+            await audio.play();
+        } catch {
+            setIsPlaying(false);
+        }
+    };
 
     const selectedAudioUrl = useMemo(() => {
         const candidates = resolveLanguageCandidates(effectiveLangKey);
@@ -410,7 +508,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
             setLoading(true);
             const { data, error } = await supabase
                 .from('training_sessions')
-                .select('id, source_text_ko, audio_urls')
+                .select('id, source_text_ko, audio_urls, translated_texts')
                 .eq('id', sessionId)
                 .single();
 
@@ -482,6 +580,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
             }
 
             setMessage('제출 완료! 교육 이수 서명이 저장되었습니다.');
+            setSubmitted(true);
             setWorkerName('');
             sigRef.current?.clear();
         } catch (error: any) {

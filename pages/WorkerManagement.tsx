@@ -4,6 +4,7 @@ import type { WorkerRecord } from '../types';
 import { generateReportUrl } from '../utils/qrUtils';
 import { extractMessage } from '../utils/errorUtils';
 import { getWindowProp } from '../utils/windowUtils';
+import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 
 // [시스템] QR 코드 생성 상태 관리 및 동기화 컴포넌트
 interface QRCodeProps {
@@ -160,11 +161,8 @@ const toRoleSafe = (value: unknown): WorkerRecord['role'] => {
     return 'worker';
 };
 
-const toSafetyLevelSafe = (value: unknown, score: number): WorkerRecord['safetyLevel'] => {
-    if (value === '고급' || value === '중급' || value === '초급') return value;
-    if (score >= 80) return '고급';
-    if (score >= 50) return '중급';
-    return '초급';
+const toSafetyLevelSafe = (_value: unknown, score: number): WorkerRecord['safetyLevel'] => {
+    return getSafetyLevelFromScore(score);
 };
 
 interface IssuanceReliabilityResult {
@@ -469,7 +467,13 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             const key = `${r.name}-${r.teamLeader || '미지정'}-${r.jobField}`;
             if (!map.has(key) || new Date(r.date) > new Date(map.get(key)!.date)) map.set(key, r);
         });
-        return Array.from(map.values()).sort((a,b) => a.name.localeCompare(b.name));
+
+        return Array.from(map.values())
+            .map((record) => ({
+                ...record,
+                safetyLevel: getSafetyLevelFromScore(Number(record.safetyScore)),
+            }))
+            .sort((a,b) => a.name.localeCompare(b.name));
     }, [workerRecords]);
 
     const teams = useMemo(() => ['전체', ...Array.from(new Set(latestRecords.map(r => r.jobField))).sort()], [latestRecords]);

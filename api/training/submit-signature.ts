@@ -28,13 +28,18 @@ export default async function handler(req: any, res: any) {
             return res.status(400).json({ ok: false, message: '필수값 누락' });
         }
 
+        const normalizedWorkerName = String(workerName).trim();
+        if (!normalizedWorkerName) {
+            return res.status(400).json({ ok: false, message: '근로자 이름이 필요합니다.' });
+        }
+
         const match = String(signatureDataUrl).match(/^data:image\/png;base64,(.+)$/);
         if (!match?.[1]) {
             return res.status(400).json({ ok: false, message: '서명 데이터 형식 오류' });
         }
 
         const fileBuffer = Buffer.from(match[1], 'base64');
-        const safeName = String(workerName).replace(/[^\w가-힣-]/g, '_');
+        const safeName = normalizedWorkerName.replace(/[^\w가-힣-]/g, '_');
         const path = `${sessionId}/${Date.now()}_${safeName}.png`;
 
         const upload = await supabase.storage.from('signatures').upload(path, fileBuffer, {
@@ -49,7 +54,7 @@ export default async function handler(req: any, res: any) {
 
         const insert = await supabase.from('training_logs').insert({
             session_id: sessionId,
-            worker_name: workerName,
+            worker_name: normalizedWorkerName,
             nationality,
             signature_url: signatureUrl,
             audio_url: selectedAudioUrl,

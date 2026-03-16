@@ -334,13 +334,6 @@ const UI_TEXT: Record<UiLocale, {
     },
 };
 
-const resolveAdminLocale = (langs: string[]): UiLocale => {
-    if (langs.includes('vi-VN')) return 'vi';
-    if (langs.includes('cmn-CN') || langs.includes('zh-CN')) return 'zh';
-    if (langs.includes('en-US')) return 'en';
-    return 'ko';
-};
-
 const LANGUAGE_OPTIONS = [
     { code: 'ko-KR', label: '한국어 (ko-KR)' },
     { code: 'en-US', label: '영어 (en-US)' },
@@ -376,7 +369,7 @@ const CURRENT_SITE_LANGUAGE_SET = [
     'my-MM',
 ] as const;
 
-const VALID_LANGUAGE_CODES = new Set(LANGUAGE_OPTIONS.map((item) => item.code));
+const VALID_LANGUAGE_CODES = new Set<string>(LANGUAGE_OPTIONS.map((item) => item.code));
 
 const normalizeLanguagePreset = (input?: string[]): string[] => {
     if (!Array.isArray(input)) return [...CURRENT_SITE_LANGUAGE_SET];
@@ -419,12 +412,17 @@ type ActiveQrState = {
 };
 
 const AdminTraining: React.FC = () => {
+    const t = UI_TEXT.ko;
     const [sourceTextKo, setSourceTextKo] = useState('');
     const [loading, setLoading] = useState(false);
     const [mobileUrl, setMobileUrl] = useState('');
+    const [currentSessionId, setCurrentSessionId] = useState('');
+    const [linkExpiresAt, setLinkExpiresAt] = useState<number | null>(null);
     const [message, setMessage] = useState('');
     const [reissuingLink, setReissuingLink] = useState(false);
+    const [deletingSessionId, setDeletingSessionId] = useState('');
     const [linkHistory, setLinkHistory] = useState<LinkHistoryItem[]>([]);
+    const [recentSessions, setRecentSessions] = useState<TrainingSessionRow[]>([]);
     const [awarenessStats, setAwarenessStats] = useState<AwarenessStats | null>(null);
     const [awarenessLoading, setAwarenessLoading] = useState(false);
     const [awarenessError, setAwarenessError] = useState('');
@@ -432,6 +430,42 @@ const AdminTraining: React.FC = () => {
     const [failedLanguageAttempts, setFailedLanguageAttempts] = useState<Record<string, string[]>>({});
     const [savedPreset, setSavedPreset] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
     const [selectedLanguages, setSelectedLanguages] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
+
+    const appendLinkHistory = (item: LinkHistoryItem) => {
+        setLinkHistory((prev) => {
+            const next = [item, ...prev].slice(0, 30);
+            localStorage.setItem(LINK_HISTORY_STORAGE_KEY, JSON.stringify(next));
+            return next;
+        });
+    };
+
+    const requestSignedMobileUrl = async (sessionId: string) => {
+        const response = await fetch('/api/admin/reissue-training-link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId }),
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data?.ok) {
+            throw new Error(data?.message || t.reissueFail);
+        }
+
+        return {
+            mobileUrl: String(data.mobileUrl || ''),
+            linkExpiresAt: Number(data.linkExpiresAt || 0),
+        };
+    };
+
+    const shareText = mobileUrl
+        ? [
+            t.shareHeader,
+            mobileUrl,
+            failedLanguages.length > 0
+                ? `${t.shareFailedPrefix}: ${failedLanguages.join(', ')}`
+                : t.shareAllAudioLine,
+        ].join('\n')
+        : '';
 
     const fetchAwarenessStats = async (sessionId: string) => {
         setAwarenessLoading(true);
@@ -654,7 +688,25 @@ const AdminTraining: React.FC = () => {
                 throw new Error(data.message || '세션 생성 실패');
             }
 
+            const nextSessionId = String(data.sessionId || '');
             setMobileUrl(data.mobileUrl || '');
+            setCurrentSessionId(nextSessionId);
+            setLinkExpiresAt(Number.isFinite(Number(data.linkExpiresAt)) ? Number(data.linkExpiresAt) : null);
+            setFailedLanguages(Array.isArray(data.failedLanguages) ? data.failedLanguages : []);
+            setFailedLanguageAttempts(data.failedLanguageAttempts && typeof data.failedLanguageAttempts === 'object'
+                ? data.failedLanguageAttempts
+                : {});
+
+            if (nextSessionId && data.mobileUrl) {
+                appendLinkHistory({
+                    sessionId: nextSessionId,
+                    mobileUrl: String(data.mobileUrl),
+                    linkExpiresAt: Number(data.linkExpiresAt || 0),
+                    action: 'create',
+                    createdAt: new Date().toISOString(),
+                });
+            }
+
             setMessage('생성 완료! 아래 QR을 근로자에게 공유하세요.');
         } catch (error: any) {
             setMessage(`오류: ${error?.message || '알 수 없는 오류'}`);

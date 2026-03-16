@@ -8,6 +8,7 @@ import { getWindowProp } from '../utils/windowUtils';
 import { createEvidencePackagePdfBlob } from '../utils/evidenceReportUtils';
 import { verifyEvidenceManifest, formatEvidenceVerificationSummary } from '../utils/evidenceVerificationUtils';
 import type { EvidenceManifest, EvidenceManifestVerificationResult } from '../utils/evidenceVerificationUtils';
+import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 
 type ReportType = 'worker-report' | 'team-report';
 type GenMode = 'combined-pdf' | 'individual-pdf' | 'individual-img';
@@ -72,8 +73,16 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         return Math.min(100, Math.round((bulkProgress.current / bulkProgress.total) * 100));
     }, [bulkProgress.current, bulkProgress.total]);
 
+    const scoredRecords = useMemo(
+        () => workerRecords.map((record) => ({
+            ...record,
+            safetyLevel: getSafetyLevelFromScore(Number(record.safetyScore)),
+        })),
+        [workerRecords],
+    );
+
     // 공종 목록 추출
-    const teams = useMemo(() => ['전체', ...Array.from(new Set(workerRecords.map(r => r.jobField))).sort()], [workerRecords]);
+    const teams = useMemo(() => ['전체', ...Array.from(new Set(scoredRecords.map(r => r.jobField))).sort()], [scoredRecords]);
 
     const parseRecordDate = (value: string): Date | null => {
         if (!value) return null;
@@ -164,7 +173,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
     // 필터링 로직
     const filteredRecords = useMemo(() => {
-        let result = workerRecords;
+        let result = scoredRecords;
         if (activeTab === 'team-report' && selectedTeam !== '전체') {
             result = result.filter(r => r.jobField === selectedTeam);
         }
@@ -182,7 +191,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         }
         // 최신 데이터 기준 정렬 (이름순)
         return result.sort((a,b) => a.name.localeCompare(b.name));
-    }, [workerRecords, activeTab, selectedTeam, filterLevel, datePreset, resolvedDateRange]);
+    }, [scoredRecords, activeTab, selectedTeam, filterLevel, datePreset, resolvedDateRange]);
 
     // 필터 변경 시 미리보기 인덱스 초기화
     useEffect(() => {
@@ -214,11 +223,11 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const currentPreviewRecord = filteredRecords[previewIndex];
     const currentPreviewHistory = useMemo(() => {
         if (!currentPreviewRecord) return [];
-        return workerRecords.filter(r => 
+        return scoredRecords.filter(r => 
             r.name === currentPreviewRecord.name && 
             (r.teamLeader || '미지정') === (currentPreviewRecord.teamLeader || '미지정')
         );
-    }, [currentPreviewRecord, workerRecords]);
+    }, [currentPreviewRecord, scoredRecords]);
 
     // 렌더링 안정화 대기 함수
     const waitForRender = async (ms: number = 1500) => {
@@ -332,7 +341,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 if (abortRef.current) break;
 
                 const record = filteredRecords[i];
-                const workerHistory = workerRecords.filter(r => 
+                const workerHistory = scoredRecords.filter(r => 
                     r.name === record.name && 
                     (r.teamLeader || '미지정') === (record.teamLeader || '미지정')
                 );
@@ -613,7 +622,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     record.teamLeader || '미지정',
                     record.date,
                     record.safetyScore,
-                    record.safetyLevel,
+                    getSafetyLevelFromScore(Number(record.safetyScore)),
                     typeof record.ocrConfidence === 'number' ? record.ocrConfidence.toFixed(3) : '',
                     typeof record.integrityScore === 'number' ? record.integrityScore : '',
                     record.matchMethod || '',
@@ -740,7 +749,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             record.teamLeader || '미지정',
             record.date,
             record.safetyScore,
-            record.safetyLevel,
+            getSafetyLevelFromScore(Number(record.safetyScore)),
             typeof record.ocrConfidence === 'number' ? record.ocrConfidence.toFixed(3) : '',
             typeof record.integrityScore === 'number' ? record.integrityScore : '',
             record.matchMethod || '',
@@ -1165,12 +1174,17 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                             <td className="px-6 py-3 text-slate-600">{r.jobField}</td>
                                             <td className="px-6 py-3 font-black text-indigo-600">{r.safetyScore}</td>
                                             <td className="px-6 py-3">
+                                                {(() => {
+                                                    const safetyLevel = getSafetyLevelFromScore(Number(r.safetyScore));
+                                                    return (
                                                 <span className={`px-2 py-1 rounded text-xs font-bold ${
-                                                    r.safetyLevel === '고급' ? 'bg-green-100 text-green-700' :
-                                                    r.safetyLevel === '중급' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                                                    safetyLevel === '고급' ? 'bg-green-100 text-green-700' :
+                                                    safetyLevel === '중급' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
                                                 }`}>
-                                                    {r.safetyLevel}
+                                                    {safetyLevel}
                                                 </span>
+                                                    );
+                                                })()}
                                             </td>
                                             <td className="px-6 py-3 text-slate-500 truncate max-w-xs">{r.weakAreas.join(', ')}</td>
                                             <td className="px-6 py-3 text-right">
