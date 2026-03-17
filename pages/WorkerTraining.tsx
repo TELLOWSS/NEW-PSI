@@ -59,6 +59,60 @@ type UiText = {
     permissionDenied: string;
 };
 
+type WorkerListItem = {
+    id: string;
+    name: string;
+    nationality: string;
+};
+
+type GroupUiText = {
+    proxyModeTitle: string;
+    workerSelectLabel: string;
+    workerSelectHint: string;
+    selectedCountLabel: string;
+    playAudioOnceHint: string;
+    audioCompletedLabel: string;
+    signatureQueueTitle: string;
+    signaturePadHint: string;
+    submitGroup: string;
+    missingWorkerAlert: string;
+    audioRequiredAlert: string;
+    missingGroupSignatureAlert: string;
+    groupSubmitSuccess: string;
+};
+
+const groupUiTranslations: Record<TrainingAudioLanguageCode, GroupUiText> = {
+    'ko-KR': {
+        proxyModeTitle: '예외자 그룹 대면 서명 모드', workerSelectLabel: '명단에서 근로자 다중 선택', workerSelectHint: '수기 입력은 금지되며 등록된 workers 명단만 선택됩니다.',
+        selectedCountLabel: '선택 인원', playAudioOnceHint: '선택 언어 음성을 1회 끝까지 재생하면 아래 연속 서명란이 열립니다.', audioCompletedLabel: '음성 1회 청취 완료',
+        signatureQueueTitle: '연속 서명란', signaturePadHint: '폰을 순서대로 전달해 각 근로자가 본인 서명란에 서명하세요.', submitGroup: '그룹 대면 서명 저장',
+        missingWorkerAlert: '서명할 근로자를 1명 이상 선택해 주세요.', audioRequiredAlert: '그룹 대면 서명은 선택 언어 음성을 1회 끝까지 재생해야 진행할 수 있습니다.',
+        missingGroupSignatureAlert: '서명 누락 근로자가 있습니다. 모든 선택 인원의 서명을 완료해 주세요.', groupSubmitSuccess: '그룹 대면 서명이 저장되었습니다.',
+    },
+    'cmn-CN': {
+        proxyModeTitle: '例外人员现场集体签名模式', workerSelectLabel: '从名单中多选工人', workerSelectHint: '禁止手工输入，只能从已登记 workers 名单选择。',
+        selectedCountLabel: '已选人数', playAudioOnceHint: '所选语言音频完整播放 1 次后，下方连续签名区将开启。', audioCompletedLabel: '已完成一次音频收听',
+        signatureQueueTitle: '连续签名区', signaturePadHint: '请依次传递手机，让每位工人在自己的签名框签字。', submitGroup: '保存集体现场签名',
+        missingWorkerAlert: '请至少选择 1 名工人。', audioRequiredAlert: '集体现场签名前必须完整播放所选语言音频 1 次。',
+        missingGroupSignatureAlert: '存在未签名工人。请完成所有已选人员签名。', groupSubmitSuccess: '集体现场签名已保存。',
+    },
+    'vi-VN': {
+        proxyModeTitle: 'Chế độ ký trực tiếp theo nhóm cho ngoại lệ', workerSelectLabel: 'Chọn nhiều công nhân từ danh sách', workerSelectHint: 'Cấm nhập tay, chỉ được chọn từ danh sách workers đã đăng ký.',
+        selectedCountLabel: 'Số người đã chọn', playAudioOnceHint: 'Phát hết audio ngôn ngữ đã chọn 1 lần để mở danh sách ký liên tiếp bên dưới.', audioCompletedLabel: 'Đã nghe audio 1 lần',
+        signatureQueueTitle: 'Danh sách ký liên tiếp', signaturePadHint: 'Chuyển điện thoại lần lượt để từng công nhân ký vào đúng ô của mình.', submitGroup: 'Lưu ký trực tiếp theo nhóm',
+        missingWorkerAlert: 'Vui lòng chọn ít nhất 1 công nhân.', audioRequiredAlert: 'Chế độ ký nhóm yêu cầu phát hết audio ngôn ngữ đã chọn 1 lần.',
+        missingGroupSignatureAlert: 'Vẫn còn công nhân chưa ký. Vui lòng hoàn tất chữ ký của tất cả người đã chọn.', groupSubmitSuccess: 'Đã lưu ký trực tiếp theo nhóm.',
+    },
+    'km-KH': { proxyModeTitle: 'Group Face-to-Face Signature', workerSelectLabel: 'Select Multiple Workers', workerSelectHint: 'Only registered workers list can be used.', selectedCountLabel: 'Selected', playAudioOnceHint: 'Play selected language audio once to unlock signatures.', audioCompletedLabel: 'Audio Completed', signatureQueueTitle: 'Signature Queue', signaturePadHint: 'Pass phone and collect signatures in order.', submitGroup: 'Save Group Signature', missingWorkerAlert: 'Select at least one worker.', audioRequiredAlert: 'Play audio once before group signing.', missingGroupSignatureAlert: 'Some signatures are missing.', groupSubmitSuccess: 'Group signature saved.' },
+    'id-ID': { proxyModeTitle: 'Mode Tanda Tangan Tatap Muka Grup', workerSelectLabel: 'Pilih Banyak Pekerja dari Daftar', workerSelectHint: 'Input manual dilarang. Pilih hanya dari daftar workers terdaftar.', selectedCountLabel: 'Jumlah dipilih', playAudioOnceHint: 'Putar audio bahasa terpilih 1 kali penuh untuk membuka area tanda tangan berurutan.', audioCompletedLabel: 'Audio 1 kali selesai', signatureQueueTitle: 'Antrian Tanda Tangan', signaturePadHint: 'Oper ponsel bergiliran agar tiap pekerja menandatangani kolomnya.', submitGroup: 'Simpan Tanda Tangan Grup', missingWorkerAlert: 'Pilih minimal 1 pekerja.', audioRequiredAlert: 'Mode grup mewajibkan audio bahasa terpilih diputar penuh 1 kali.', missingGroupSignatureAlert: 'Masih ada pekerja belum tanda tangan.', groupSubmitSuccess: 'Tanda tangan grup berhasil disimpan.' },
+    'mn-MN': { proxyModeTitle: 'Group Face-to-Face Signature', workerSelectLabel: 'Select Multiple Workers', workerSelectHint: 'Only registered workers list can be used.', selectedCountLabel: 'Selected', playAudioOnceHint: 'Play selected language audio once to unlock signatures.', audioCompletedLabel: 'Audio Completed', signatureQueueTitle: 'Signature Queue', signaturePadHint: 'Pass phone and collect signatures in order.', submitGroup: 'Save Group Signature', missingWorkerAlert: 'Select at least one worker.', audioRequiredAlert: 'Play audio once before group signing.', missingGroupSignatureAlert: 'Some signatures are missing.', groupSubmitSuccess: 'Group signature saved.' },
+    'my-MM': { proxyModeTitle: 'Group Face-to-Face Signature', workerSelectLabel: 'Select Multiple Workers', workerSelectHint: 'Only registered workers list can be used.', selectedCountLabel: 'Selected', playAudioOnceHint: 'Play selected language audio once to unlock signatures.', audioCompletedLabel: 'Audio Completed', signatureQueueTitle: 'Signature Queue', signaturePadHint: 'Pass phone and collect signatures in order.', submitGroup: 'Save Group Signature', missingWorkerAlert: 'Select at least one worker.', audioRequiredAlert: 'Play audio once before group signing.', missingGroupSignatureAlert: 'Some signatures are missing.', groupSubmitSuccess: 'Group signature saved.' },
+    'ru-RU': { proxyModeTitle: 'Режим групповой очной подписи', workerSelectLabel: 'Выберите нескольких работников из списка', workerSelectHint: 'Ручной ввод запрещен. Выбор только из таблицы workers.', selectedCountLabel: 'Выбрано', playAudioOnceHint: 'После полного воспроизведения аудио 1 раз откроются последовательные поля подписи.', audioCompletedLabel: 'Аудио 1 раз прослушано', signatureQueueTitle: 'Очередь подписей', signaturePadHint: 'Передавайте телефон по очереди, каждый подписывает свой блок.', submitGroup: 'Сохранить групповую подпись', missingWorkerAlert: 'Выберите минимум одного работника.', audioRequiredAlert: 'Для групповой подписи нужно полностью прослушать аудио 1 раз.', missingGroupSignatureAlert: 'Есть работники без подписи.', groupSubmitSuccess: 'Групповая подпись сохранена.' },
+    'uz-UZ': { proxyModeTitle: 'Group Face-to-Face Signature', workerSelectLabel: 'Select Multiple Workers', workerSelectHint: 'Only registered workers list can be used.', selectedCountLabel: 'Selected', playAudioOnceHint: 'Play selected language audio once to unlock signatures.', audioCompletedLabel: 'Audio Completed', signatureQueueTitle: 'Signature Queue', signaturePadHint: 'Pass phone and collect signatures in order.', submitGroup: 'Save Group Signature', missingWorkerAlert: 'Select at least one worker.', audioRequiredAlert: 'Play audio once before group signing.', missingGroupSignatureAlert: 'Some signatures are missing.', groupSubmitSuccess: 'Group signature saved.' },
+    'th-TH': { proxyModeTitle: 'โหมดลงนามแบบกลุ่มต่อหน้า', workerSelectLabel: 'เลือกพนักงานหลายคนจากรายชื่อ', workerSelectHint: 'ห้ามกรอกชื่อเอง ต้องเลือกจากรายชื่อ workers ที่ลงทะเบียนเท่านั้น', selectedCountLabel: 'จำนวนที่เลือก', playAudioOnceHint: 'เปิดเสียงภาษาที่เลือกให้จบ 1 รอบ แล้วช่องลงนามต่อเนื่องจะเปิดใช้งาน', audioCompletedLabel: 'ฟังเสียงครบ 1 รอบแล้ว', signatureQueueTitle: 'คิวลงนามต่อเนื่อง', signaturePadHint: 'ส่งต่อโทรศัพท์ตามลำดับ ให้แต่ละคนลงนามในช่องของตนเอง', submitGroup: 'บันทึกการลงนามแบบกลุ่ม', missingWorkerAlert: 'กรุณาเลือกพนักงานอย่างน้อย 1 คน', audioRequiredAlert: 'โหมดกลุ่มต้องเปิดเสียงภาษาที่เลือกให้จบ 1 รอบก่อน', missingGroupSignatureAlert: 'ยังมีผู้ที่ไม่ได้ลงนามครบ', groupSubmitSuccess: 'บันทึกการลงนามแบบกลุ่มเรียบร้อย' },
+    'kk-KZ': { proxyModeTitle: 'Group Face-to-Face Signature', workerSelectLabel: 'Select Multiple Workers', workerSelectHint: 'Only registered workers list can be used.', selectedCountLabel: 'Selected', playAudioOnceHint: 'Play selected language audio once to unlock signatures.', audioCompletedLabel: 'Audio Completed', signatureQueueTitle: 'Signature Queue', signaturePadHint: 'Pass phone and collect signatures in order.', submitGroup: 'Save Group Signature', missingWorkerAlert: 'Select at least one worker.', audioRequiredAlert: 'Play audio once before group signing.', missingGroupSignatureAlert: 'Some signatures are missing.', groupSubmitSuccess: 'Group signature saved.' },
+};
+
 const uiTranslations: Record<TrainingAudioLanguageCode, UiText> = {
     'ko-KR': {
         title: '외국인 근로자 안전교육 확인', subtitle: '음성 안내를 듣고 전자서명을 제출해 주세요.', nameLabel: '이름', namePlaceholder: '이름 입력',
@@ -203,20 +257,30 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [hasAudioStarted, setHasAudioStarted] = useState(false);
+    const [groupAudioCompleted, setGroupAudioCompleted] = useState(false);
     const [hasScrolledToEnd, setHasScrolledToEnd] = useState(false);
     const [guidanceProgress, setGuidanceProgress] = useState(0);
     const [hasAcknowledged, setHasAcknowledged] = useState(false);
+    const [workersLoading, setWorkersLoading] = useState(false);
+    const [workerOptions, setWorkerOptions] = useState<WorkerListItem[]>([]);
+    const [selectedWorkerIds, setSelectedWorkerIds] = useState<string[]>([]);
 
     const sigRef = useRef<SignatureCanvas | null>(null);
+    const groupSigRefs = useRef<Record<string, SignatureCanvas | null>>({});
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const guidanceRef = useRef<HTMLDivElement | null>(null);
 
     const effectiveLangKey = selectedLanguageCode || resolveTrainingLanguageByNationality(nationality);
     const uiText = uiTranslations[effectiveLangKey] || uiTranslations['ko-KR'];
+    const groupText = groupUiTranslations[effectiveLangKey] || groupUiTranslations['ko-KR'];
     const simplifiedMode = useMemo(() => {
         const queryMode = new URLSearchParams(window.location.search).get('mode');
         const isMobileUa = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent || '');
         return queryMode === 'worker-training' || isMobileUa;
+    }, []);
+    const isGroupProxyMode = useMemo(() => {
+        const queryMode = new URLSearchParams(window.location.search).get('mode');
+        return queryMode === 'manager-group-proxy';
     }, []);
 
     const normalizedAudioMap = useMemo(() => {
@@ -264,6 +328,19 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
             || '';
     }, [sessionData, normalizedTextMap, effectiveLangKey]);
 
+    const languageMatchedWorkers = useMemo(() => {
+        return workerOptions.filter((worker) => resolveTrainingLanguageByNationality(worker.nationality) === effectiveLangKey);
+    }, [workerOptions, effectiveLangKey]);
+
+    const selectedWorkers = useMemo(() => {
+        const selectedSet = new Set(selectedWorkerIds);
+        return languageMatchedWorkers.filter((worker) => selectedSet.has(worker.id));
+    }, [languageMatchedWorkers, selectedWorkerIds]);
+
+    const canUseGroupSignature = isGroupProxyMode
+        ? groupAudioCompleted && selectedWorkers.length > 0
+        : false;
+
     const hasEngagementProof = hasAudioStarted || hasScrolledToEnd;
     const canUseSignature = hasEngagementProof && hasAcknowledged;
 
@@ -277,11 +354,47 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
 
     useEffect(() => {
         setHasAudioStarted(false);
+        setGroupAudioCompleted(false);
         setHasScrolledToEnd(false);
         setGuidanceProgress(0);
         setHasAcknowledged(false);
+        setSelectedWorkerIds([]);
+        groupSigRefs.current = {};
         sigRef.current?.clear();
     }, [effectiveLangKey, sessionId]);
+
+    useEffect(() => {
+        if (!isGroupProxyMode) return;
+
+        const run = async () => {
+            setWorkersLoading(true);
+            const result = await supabase
+                .from('workers')
+                .select('id, name, nationality')
+                .limit(5000);
+
+            if (result.error) {
+                setMessage(`${uiText.errorPrefix}: workers 조회 실패 - ${result.error.message}`);
+                setWorkerOptions([]);
+                setWorkersLoading(false);
+                return;
+            }
+
+            const rows = Array.isArray(result.data) ? result.data : [];
+            const normalized = rows
+                .map((row: any) => ({
+                    id: String(row?.id || '').trim(),
+                    name: String(row?.name || '').trim(),
+                    nationality: String(row?.nationality || '').trim(),
+                }))
+                .filter((row) => row.id && row.name);
+
+            setWorkerOptions(normalized);
+            setWorkersLoading(false);
+        };
+
+        void run();
+    }, [isGroupProxyMode, uiText.errorPrefix]);
 
     useEffect(() => {
         const node = guidanceRef.current;
@@ -365,6 +478,79 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
         sigRef.current?.clear();
     };
 
+    const toggleWorkerSelection = (workerId: string) => {
+        setSelectedWorkerIds((previous) => {
+            if (previous.includes(workerId)) return previous.filter((id) => id !== workerId);
+            return [...previous, workerId];
+        });
+    };
+
+    const handleGroupPadClear = (workerId: string) => {
+        groupSigRefs.current[workerId]?.clear();
+    };
+
+    const handleGroupProxySubmit = async () => {
+        if (selectedWorkers.length === 0) {
+            alert(groupText.missingWorkerAlert);
+            return;
+        }
+
+        if (!groupAudioCompleted) {
+            alert(groupText.audioRequiredAlert);
+            return;
+        }
+
+        const signatures = selectedWorkers.map((worker) => {
+            const pad = groupSigRefs.current[worker.id];
+            if (!pad || pad.isEmpty()) return null;
+            return {
+                workerId: worker.id,
+                signatureDataUrl: pad.toDataURL('image/png'),
+            };
+        });
+
+        if (signatures.some((item) => item === null)) {
+            alert(groupText.missingGroupSignatureAlert);
+            return;
+        }
+
+        setSubmitting(true);
+        setMessage('');
+
+        try {
+            const response = await fetch('/api/training/submit-group-proxy-signatures', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId,
+                    selectedLanguageCode: effectiveLangKey,
+                    selectedAudioUrl: selectedAudioUrl || null,
+                    audioPlayed: true,
+                    checklist: {
+                        riskReview: true,
+                        ppeConfirm: true,
+                        emergencyConfirm: true,
+                    },
+                    signatures: signatures.filter(Boolean),
+                }),
+            });
+
+            const data = await response.json();
+            if (!response.ok || !data.ok) {
+                throw new Error(data.message || uiText.submitFail);
+            }
+
+            setMessage(`${groupText.groupSubmitSuccess} (${data.insertedCount || selectedWorkers.length}명)`);
+            setSubmitted(true);
+            setSelectedWorkerIds([]);
+            groupSigRefs.current = {};
+        } catch (error: any) {
+            setMessage(`${uiText.errorPrefix}: ${error?.message || uiText.submitFail}`);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     const handleSubmit = async () => {
         if (!workerName.trim()) {
             alert(uiText.missingNameAlert);
@@ -444,15 +630,51 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                 <h2 className="text-2xl font-black text-slate-900">{uiText.title}</h2>
                 <p className="text-sm font-bold text-slate-500 mt-2">{uiText.subtitle}</p>
 
-                <div className="mt-4">
-                    <label className="block text-xs font-black text-slate-500 mb-2">{uiText.nameLabel}</label>
-                    <input
-                        value={workerName}
-                        onChange={(e) => setWorkerName(e.target.value)}
-                        className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
-                        placeholder={uiText.namePlaceholder}
-                    />
-                </div>
+                {!isGroupProxyMode && (
+                    <div className="mt-4">
+                        <label className="block text-xs font-black text-slate-500 mb-2">{uiText.nameLabel}</label>
+                        <input
+                            value={workerName}
+                            onChange={(e) => setWorkerName(e.target.value)}
+                            className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
+                            placeholder={uiText.namePlaceholder}
+                        />
+                    </div>
+                )}
+
+                {isGroupProxyMode && (
+                    <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4 space-y-3">
+                        <p className="text-sm font-black text-indigo-900">{groupText.proxyModeTitle}</p>
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs font-black text-slate-600">{groupText.workerSelectLabel}</p>
+                            <p className="text-xs font-black text-indigo-700">{groupText.selectedCountLabel}: {selectedWorkers.length}</p>
+                        </div>
+                        <p className="text-[11px] font-bold text-slate-600">{groupText.workerSelectHint}</p>
+
+                        <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2">
+                            {workersLoading ? (
+                                <p className="px-2 py-2 text-xs font-bold text-slate-500">{uiText.loading}</p>
+                            ) : languageMatchedWorkers.length === 0 ? (
+                                <p className="px-2 py-2 text-xs font-bold text-slate-500">{uiText.noSession}</p>
+                            ) : (
+                                languageMatchedWorkers.map((worker) => {
+                                    const checked = selectedWorkerIds.includes(worker.id);
+                                    return (
+                                        <label key={worker.id} className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-slate-50">
+                                            <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                onChange={() => toggleWorkerSelection(worker.id)}
+                                            />
+                                            <span className="text-sm font-bold text-slate-800">{worker.name}</span>
+                                            <span className="text-[11px] font-bold text-slate-500">({worker.nationality})</span>
+                                        </label>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 <div className="mt-5">
                     <div className="flex items-center justify-between gap-3 mb-2">
@@ -502,7 +724,10 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                                 setHasAudioStarted(true);
                             }}
                             onPause={() => setIsPlaying(false)}
-                            onEnded={() => setIsPlaying(false)}
+                            onEnded={() => {
+                                setIsPlaying(false);
+                                if (isGroupProxyMode) setGroupAudioCompleted(true);
+                            }}
                         />
                     ) : null}
 
@@ -543,23 +768,64 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                     </p>
                 </div>
 
-                <SignaturePadSection
-                    selectedLanguageCode={selectedLanguageCode}
-                    uiText={uiText}
-                    hasEngagementProof={hasEngagementProof}
-                    hasAcknowledged={hasAcknowledged}
-                    setHasAcknowledged={setHasAcknowledged}
-                    canUseSignature={canUseSignature}
-                    sigRef={sigRef}
-                    handleClear={handleClear}
-                />
+                {isGroupProxyMode && (
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-black text-slate-900">{groupText.signatureQueueTitle}</p>
+                            <span className={`text-xs font-black ${groupAudioCompleted ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                {groupAudioCompleted ? groupText.audioCompletedLabel : groupText.playAudioOnceHint}
+                            </span>
+                        </div>
+                        <p className="text-[11px] font-bold text-slate-600">{groupText.signaturePadHint}</p>
+
+                        {canUseGroupSignature && selectedWorkers.map((worker) => (
+                            <div key={worker.id} className="rounded-xl border border-slate-200 p-3">
+                                <p className="text-sm font-black text-slate-800">{worker.name}</p>
+                                <p className="text-[11px] font-bold text-slate-500 mb-2">worker_id: {worker.id}</p>
+                                <div className="relative border border-slate-200 rounded-xl overflow-hidden bg-white">
+                                    <SignatureCanvas
+                                        ref={(ref) => {
+                                            groupSigRefs.current[worker.id] = ref;
+                                        }}
+                                        penColor="black"
+                                        canvasProps={{
+                                            width: 700,
+                                            height: 180,
+                                            className: 'w-full h-[180px]',
+                                        }}
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => handleGroupPadClear(worker.id)}
+                                    className="mt-2 px-3 py-1.5 text-xs font-black rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                                >
+                                    {uiText.signatureClear}
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {!isGroupProxyMode && (
+                    <SignaturePadSection
+                        selectedLanguageCode={selectedLanguageCode}
+                        uiText={uiText}
+                        hasEngagementProof={hasEngagementProof}
+                        hasAcknowledged={hasAcknowledged}
+                        setHasAcknowledged={setHasAcknowledged}
+                        canUseSignature={canUseSignature}
+                        sigRef={sigRef}
+                        handleClear={handleClear}
+                    />
+                )}
 
                 <button
-                    onClick={handleSubmit}
-                    disabled={submitting || submitted || !canUseSignature}
+                    onClick={isGroupProxyMode ? handleGroupProxySubmit : handleSubmit}
+                    disabled={submitting || submitted || (isGroupProxyMode ? !canUseGroupSignature : !canUseSignature)}
                     className="mt-6 w-full py-3 rounded-xl bg-indigo-600 text-white font-black hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                    {submitting ? uiText.submitting : uiText.submit}
+                    {submitting ? uiText.submitting : (isGroupProxyMode ? groupText.submitGroup : uiText.submit)}
                 </button>
 
                 {message && <p className="mt-3 text-sm font-bold text-slate-700">{message}</p>}
