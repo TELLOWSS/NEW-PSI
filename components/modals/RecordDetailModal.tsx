@@ -4,7 +4,7 @@ import type { WorkerRecord, AppSettings } from '../../types';
 import { CircularProgress } from '../shared/CircularProgress';
 import { updateAnalysisBasedOnEdits } from '../../services/geminiService';
 import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
-import { deriveCompetencyProfile, getApprovalBlockers } from '../../utils/evidenceUtils';
+import { deriveCompetencyProfile, enforceSafetyLevel, getApprovalBlockers } from '../../utils/evidenceUtils';
 
 const buildReassessmentAuditNote = (before: WorkerRecord, updated: Partial<WorkerRecord>): string => {
     const beforeScore = typeof before.safetyScore === 'number' ? before.safetyScore : 0;
@@ -52,8 +52,16 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const docInputRef = useRef<HTMLInputElement>(null); // For Document Image
     const profileInputRef = useRef<HTMLInputElement>(null); // For Profile Photo
 
+    const getConsistentRecord = (baseRecord: WorkerRecord): WorkerRecord => {
+        const withCompetency = {
+            ...baseRecord,
+            competencyProfile: deriveCompetencyProfile(baseRecord),
+        };
+        return enforceSafetyLevel(withCompetency);
+    };
+
     useEffect(() => { 
-        setRecord(initialRecord); 
+        setRecord(getConsistentRecord(initialRecord)); 
         setHasChanges(false); 
     }, [initialRecord]);
 
@@ -69,7 +77,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     }, []);
 
     const handleChange = <K extends keyof WorkerRecord>(field: K, value: WorkerRecord[K]) => {
-        setRecord(prev => ({ ...prev, [field]: value } as WorkerRecord));
+        setRecord(prev => getConsistentRecord({ ...prev, [field]: value } as WorkerRecord));
         setHasChanges(true);
     };
 
@@ -100,10 +108,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             }
             : record;
 
-        onUpdateRecord(nextRecord);
-        if (shouldResetApproval) {
-            setRecord(nextRecord);
-        }
+        const consistentRecord = getConsistentRecord(nextRecord);
+        onUpdateRecord(consistentRecord);
+        setRecord(consistentRecord);
         setHasChanges(false);
         alert(shouldResetApproval ? '저장되었습니다. 핵심 변경으로 승인 상태가 재검토 대기로 변경되었습니다.' : '저장되었습니다.');
     };
@@ -194,7 +201,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             alert('조치 내용을 입력해주세요.');
             return;
         }
-        const nextRecord: WorkerRecord = {
+        const nextRecord: WorkerRecord = getConsistentRecord({
             ...record,
             actionHistory: [
                 ...(record.actionHistory || []),
@@ -214,7 +221,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     note: `${actionType}: ${actionDetail.trim()}`,
                 }
             ]
-        };
+        });
         setRecord(nextRecord);
         onUpdateRecord(nextRecord);
         setActionDetail('');
@@ -257,7 +264,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             return;
         }
 
-        const nextRecord: WorkerRecord = {
+        const nextRecord: WorkerRecord = getConsistentRecord({
             ...record,
             reviewStatus: status === 'approved' ? 'APPROVED' : 'REJECTED',
             adminComment: trimmedComment || undefined,
@@ -286,7 +293,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                         : `반려${trimmedComment ? ` (${trimmedComment})` : ''}`,
                 }
             ]
-        };
+        });
 
         if (status === 'rejected') {
             setRecord(nextRecord);
@@ -299,8 +306,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         }
 
         const finalApprovedRecord = await runSecondaryProcessing(nextRecord);
-        setRecord(finalApprovedRecord);
-        await onUpdateRecord(finalApprovedRecord);
+        const consistentFinalRecord = getConsistentRecord(finalApprovedRecord);
+        setRecord(consistentFinalRecord);
+        await onUpdateRecord(consistentFinalRecord);
         setApprovalComment('');
         setPendingApprovalAction(null);
         setHasChanges(false);
@@ -329,7 +337,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         if(confirm("이미지를 다시 OCR로 분석하시겠습니까? (현재 수정사항은 사라질 수 있습니다)")) {
             const updatedRecord = await onReanalyze(record);
             if (updatedRecord) {
-                setRecord(updatedRecord);
+                setRecord(getConsistentRecord(updatedRecord));
                 alert('이미지 재분석이 완료되었습니다.');
             }
         }
@@ -360,7 +368,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
     const hasOriginalImage = !!record.originalImage && record.originalImage.length > 50;
     const hasProfileImage = !!record.profileImage && record.profileImage.length > 50;
-    const competencyProfile = record.competencyProfile || deriveCompetencyProfile(record);
+    const competencyProfile = useMemo(() => deriveCompetencyProfile(record), [record]);
     const isKorean = record.nationality === '대한민국' || record.nationality === '한국' || (record.nationality || '').toLowerCase().includes('korea');
     const timelineLocale = isKorean ? 'ko-KR' : 'en-US';
     const timelineDateTimeOptions: Intl.DateTimeFormatOptions = {

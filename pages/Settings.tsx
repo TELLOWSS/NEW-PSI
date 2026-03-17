@@ -48,6 +48,11 @@ const normalizeTrainingLanguagePreset = (input?: string[]): string[] => {
     return normalized;
 };
 
+const toFiniteOr = (value: unknown, fallback: number): number => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+};
+
 // [Guide Component] CSS-based Infographics for Beginners
 const SettingsGuide: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     return (
@@ -159,6 +164,10 @@ const Settings: React.FC = () => {
             repeatViolationPenalty: 1,
             version: 'v1.0.0',
         },
+        safetyLevelThresholds: {
+            advancedMin: 90,
+            intermediateMin: 70,
+        },
         approvalPolicy: {
             strictRoleGate: false,
         },
@@ -182,6 +191,18 @@ const Settings: React.FC = () => {
         nextVersion: string;
         weights: AppSettings['competencyWeights'];
     }>>([]);
+
+    const normalizedAdvancedThreshold = Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.advancedMin ?? 90)));
+    const normalizedIntermediateThreshold = Math.min(
+        normalizedAdvancedThreshold,
+        Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.intermediateMin ?? 70)))
+    );
+
+    const getPreviewSafetyLevel = (score: number): '초급' | '중급' | '고급' => {
+        if (score >= normalizedAdvancedThreshold) return '고급';
+        if (score >= normalizedIntermediateThreshold) return '중급';
+        return '초급';
+    };
 
     const weightSum =
         (settings.competencyWeights?.psychological || 0) +
@@ -226,6 +247,10 @@ const Settings: React.FC = () => {
                     approvalPolicy: {
                         ...prev.approvalPolicy,
                         ...(parsed.approvalPolicy || {}),
+                    },
+                    safetyLevelThresholds: {
+                        advancedMin: toFiniteOr(parsed.safetyLevelThresholds?.advancedMin, prev.safetyLevelThresholds?.advancedMin ?? 90),
+                        intermediateMin: toFiniteOr(parsed.safetyLevelThresholds?.intermediateMin, prev.safetyLevelThresholds?.intermediateMin ?? 70),
                     },
                     feedbackChannel: {
                         ...prev.feedbackChannel,
@@ -307,6 +332,13 @@ const Settings: React.FC = () => {
             ...settings,
             jobFields: fields,
             trainingLanguagePreset: normalizeTrainingLanguagePreset(settings.trainingLanguagePreset),
+            safetyLevelThresholds: {
+                advancedMin: Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.advancedMin ?? 90))),
+                intermediateMin: Math.min(
+                    Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.advancedMin ?? 90))),
+                    Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.intermediateMin ?? 70)))
+                ),
+            },
         };
 
         if (previousVersion !== nextVersion) {
@@ -511,6 +543,73 @@ const Settings: React.FC = () => {
                         <input type="checkbox" checked={!!settings.approvalPolicy?.strictRoleGate} onChange={(e) => setSettings({ ...settings, approvalPolicy: { ...(settings.approvalPolicy || { strictRoleGate: false }), strictRoleGate: e.target.checked } })} className="w-5 h-5 rounded border-slate-300 text-amber-600" />
                         <span className="text-sm font-bold text-slate-700">항상 안전관리자 엄격 기준으로 승인 차단 규칙 적용</span>
                     </label>
+                </div>
+
+                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-emerald-200 lg:col-span-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">안전 등급 컷오프 설정</h3>
+                        <button
+                            type="button"
+                            onClick={() => setSettings((prev) => ({
+                                ...prev,
+                                safetyLevelThresholds: {
+                                    advancedMin: 90,
+                                    intermediateMin: 70,
+                                },
+                            }))}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-black border border-emerald-200 hover:bg-emerald-100"
+                        >
+                            기준 복원 (90/70)
+                        </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">고급 최소 점수 (고급: score ≥ advancedMin)</label>
+                            <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={settings.safetyLevelThresholds?.advancedMin ?? 90}
+                                onChange={(e) => setSettings({
+                                    ...settings,
+                                    safetyLevelThresholds: {
+                                        advancedMin: Number(e.target.value) || 0,
+                                        intermediateMin: settings.safetyLevelThresholds?.intermediateMin ?? 70,
+                                    },
+                                })}
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">중급 최소 점수 (중급: score ≥ intermediateMin)</label>
+                            <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={settings.safetyLevelThresholds?.intermediateMin ?? 70}
+                                onChange={(e) => setSettings({
+                                    ...settings,
+                                    safetyLevelThresholds: {
+                                        advancedMin: settings.safetyLevelThresholds?.advancedMin ?? 90,
+                                        intermediateMin: Number(e.target.value) || 0,
+                                    },
+                                })}
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"
+                            />
+                        </div>
+                    </div>
+                    <p className="mt-3 text-xs text-slate-500 leading-relaxed">
+                        저장 시 자동 보정 규칙: 0~100 범위로 정규화되며, 중급 최소 점수는 고급 최소 점수를 초과할 수 없습니다.
+                    </p>
+                    <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-3">
+                        <p className="text-[11px] font-black text-slate-600 mb-2">실시간 등급 예시</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs font-bold">
+                            <div className="bg-white border border-slate-200 rounded-lg px-3 py-2">68점 → {getPreviewSafetyLevel(68)}</div>
+                            <div className="bg-white border border-slate-200 rounded-lg px-3 py-2">75점 → {getPreviewSafetyLevel(75)}</div>
+                            <div className="bg-white border border-slate-200 rounded-lg px-3 py-2">92점 → {getPreviewSafetyLevel(92)}</div>
+                        </div>
+                        <p className="mt-2 text-[11px] text-slate-500">현재 기준: 고급 ≥ {normalizedAdvancedThreshold}, 중급 ≥ {normalizedIntermediateThreshold}, 그 미만 초급</p>
+                    </div>
                 </div>
 
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-200 lg:col-span-2">

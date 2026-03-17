@@ -659,17 +659,20 @@ const App: React.FC = () => {
                 </Suspense>
             </Layout>
             {modalState.type === 'workerHistory' && modalState.record && <WorkerHistoryModal workerName={modalState.workerName!} allRecords={workerRecords} initialSelectedRecord={modalState.record} onClose={() => setModalState({type:null})} onViewDetails={(r) => setModalState({type:'recordDetail', record:r})} onUpdateRecord={handleUpdateRecord} onDeleteRecord={handleDeleteRecord} />}
-            {modalState.type === 'recordDetail' && modalState.record && (
+            {modalState.type === 'recordDetail' && modalState.record && (() => {
+                const latestRecord = workerRecords.find((item) => item.id === modalState.record!.id) || modalState.record!;
+                return (
                 <RecordDetailModal 
-                    record={modalState.record} 
+                    record={latestRecord} 
                     onClose={() => setModalState({type:null})} 
-                    onBack={() => setModalState({type:'workerHistory', record:modalState.record, workerName:modalState.record?.name})} 
+                    onBack={() => setModalState({type:'workerHistory', record:latestRecord, workerName:latestRecord.name})} 
                     onUpdateRecord={handleUpdateRecord} 
                     onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); setCurrentPage('individual-report'); }} 
                     onReanalyze={handleReanalyzeRecord} 
                     isReanalyzing={isReanalyzing} 
                 />
-            )}
+                );
+            })()}
 
             {/* Undo Delete Toast */}
             {showUndoToast && (

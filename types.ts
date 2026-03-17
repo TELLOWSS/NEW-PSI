@@ -37,6 +37,10 @@ export interface AppSettings {
         repeatViolationPenalty: number;
         version: string;
     };
+    safetyLevelThresholds?: {
+        advancedMin: number;
+        intermediateMin: number;
+    };
     approvalPolicy?: {
         strictRoleGate: boolean;
     };
