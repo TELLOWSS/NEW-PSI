@@ -200,11 +200,10 @@ export default async function handler(req: any, res: any) {
             })()
             : (req.body || {});
 
-        const { sourceTextKo, selectedLanguages, files } = requestBody;
+        const { sourceTextKo, selectedLanguages } = requestBody;
 
         const normalizedSourceText = typeof sourceTextKo === 'string' ? sourceTextKo.trim() : '';
-        const hasFiles = !!files && typeof files === 'object' && Object.keys(files).length > 0;
-        const shouldSkipTranslation = !normalizedSourceText || !hasFiles;
+        const shouldSkipTranslation = !normalizedSourceText;
 
         const requestedLanguages = Array.isArray(selectedLanguages)
             ? selectedLanguages.filter((code: string): code is TrainingAudioLanguageCode => TRAINING_AUDIO_LANGUAGE_SET.has(code))
@@ -220,7 +219,7 @@ export default async function handler(req: any, res: any) {
 
         if (shouldSkipTranslation) {
             console.info('[create-training] translation skipped', {
-                reason: !normalizedSourceText ? 'empty_source_text' : 'no_files',
+                reason: 'empty_source_text',
             });
         }
         const emptyAudioUrls: Record<string, never> = {};
