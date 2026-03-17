@@ -7,9 +7,6 @@ import {
     type TrainingAudioLanguageCode,
 } from '../../utils/trainingLanguageUtils';
 
-// Vercel Hobby 플랜 Node.js 런타임 최대 실행시간 선언
-export const maxDuration = 10;
-
 // ─── 순수 유틸 (throw 없음) ─────────────────────────────────────────────────
 
 function safeGetEnv(): {

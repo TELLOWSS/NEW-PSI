@@ -1,4 +1,4 @@
-import crypto from 'crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
 const DEFAULT_LINK_TTL_MINUTES = 12 * 60;
 
@@ -16,7 +16,7 @@ const buildPayload = (sessionId: string, expiresAt: number) => `${sessionId}.${e
 
 const signPayload = (payload: string) => {
     const secret = resolveTokenSecret();
-    return crypto.createHmac('sha256', secret).update(payload).digest('hex');
+    return createHmac('sha256', secret).update(payload).digest('hex');
 };
 
 export const resolveLinkTtlMinutes = () => {
@@ -50,7 +50,7 @@ export const verifyTrainingLinkToken = (sessionId: string, expiresAtRaw: unknown
         if (expectedBuffer.length !== tokenBuffer.length) {
             return { ok: false as const, reason: 'invalid' as const };
         }
-        const match = crypto.timingSafeEqual(expectedBuffer, tokenBuffer);
+        const match = timingSafeEqual(expectedBuffer, tokenBuffer);
         return match
             ? { ok: true as const }
             : { ok: false as const, reason: 'invalid' as const };
