@@ -252,6 +252,7 @@ const Settings: React.FC = () => {
                         advancedMin: toFiniteOr(parsed.safetyLevelThresholds?.advancedMin, prev.safetyLevelThresholds?.advancedMin ?? 90),
                         intermediateMin: toFiniteOr(parsed.safetyLevelThresholds?.intermediateMin, prev.safetyLevelThresholds?.intermediateMin ?? 70),
                     },
+                    batchSplitSize: toFiniteOr(parsed.batchSplitSize, prev.batchSplitSize ?? 50),
                     feedbackChannel: {
                         ...prev.feedbackChannel,
                         ...(parsed.feedbackChannel || {}),
@@ -339,6 +340,7 @@ const Settings: React.FC = () => {
                     Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.intermediateMin ?? 70)))
                 ),
             },
+            batchSplitSize: Math.min(500, Math.max(10, Math.round(settings.batchSplitSize ?? 50))),
         };
 
         if (previousVersion !== nextVersion) {
@@ -609,6 +611,55 @@ const Settings: React.FC = () => {
                             <div className="bg-white border border-slate-200 rounded-lg px-3 py-2">92점 → {getPreviewSafetyLevel(92)}</div>
                         </div>
                         <p className="mt-2 text-[11px] text-slate-500">현재 기준: 고급 ≥ {normalizedAdvancedThreshold}, 중급 ≥ {normalizedIntermediateThreshold}, 그 미만 초급</p>
+                    </div>
+                </div>
+
+                {/* OCR 배치 분할 단위 설정 */}
+                <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-violet-200 lg:col-span-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <div>
+                            <h3 className="text-lg sm:text-xl font-bold text-slate-900">OCR 일괄 분석 배치 크기</h3>
+                            <p className="text-xs text-slate-500 mt-1">전체 재분석 시 한 번에 처리할 최대 건수입니다. API 할당량 절약을 위해 50~100건을 권장합니다.</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setSettings((prev) => ({ ...prev, batchSplitSize: 50 }))}
+                            className="px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 text-[11px] font-black border border-violet-200 hover:bg-violet-100"
+                        >
+                            기본값 복원 (50)
+                        </button>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <input
+                            type="range"
+                            min={10}
+                            max={300}
+                            step={10}
+                            value={settings.batchSplitSize ?? 50}
+                            onChange={(e) => setSettings({ ...settings, batchSplitSize: Number(e.target.value) })}
+                            className="flex-1 accent-violet-600"
+                        />
+                        <input
+                            type="number"
+                            min={10}
+                            max={500}
+                            step={10}
+                            value={settings.batchSplitSize ?? 50}
+                            onChange={(e) => setSettings({ ...settings, batchSplitSize: Number(e.target.value) || 50 })}
+                            className="w-20 p-2 bg-slate-50 border border-slate-200 rounded-xl font-black text-center text-sm"
+                        />
+                        <span className="text-sm font-bold text-slate-600 whitespace-nowrap">건 / 회</span>
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[11px]">
+                        <div className={`p-2 rounded-lg border ${(settings.batchSplitSize ?? 50) <= 50 ? 'bg-emerald-50 border-emerald-200 text-emerald-700 font-black' : 'border-slate-200 text-slate-500'}`}>
+                            10~50건<br/><span className="font-normal">절약 모드</span>
+                        </div>
+                        <div className={`p-2 rounded-lg border ${(settings.batchSplitSize ?? 50) > 50 && (settings.batchSplitSize ?? 50) <= 150 ? 'bg-violet-50 border-violet-200 text-violet-700 font-black' : 'border-slate-200 text-slate-500'}`}>
+                            51~150건<br/><span className="font-normal">균형 모드</span>
+                        </div>
+                        <div className={`p-2 rounded-lg border ${(settings.batchSplitSize ?? 50) > 150 ? 'bg-amber-50 border-amber-200 text-amber-700 font-black' : 'border-slate-200 text-slate-500'}`}>
+                            151건 이상<br/><span className="font-normal">⚠️ 할당량 주의</span>
+                        </div>
                     </div>
                 </div>
 

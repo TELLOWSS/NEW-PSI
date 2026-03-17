@@ -18,7 +18,7 @@ interface ApiQuotaState {
 }
 
 const QUOTA_STATE_KEY = 'psi_api_quota_state';
-const QUOTA_RECOVERY_MINUTES = 60; // 1 hour default recovery time
+const QUOTA_RECOVERY_MINUTES = 15; // 기본 복구 대기(짧게) + UI에서 수동 해제 가능
 const OCR_MODEL_PRIMARY = 'gemini-3.0-flash';
 const OCR_MODEL_FALLBACK = 'gemini-3-flash-preview';
 const REASONING_MODEL_PRIMARY = 'gemini-3.1-pro-preview';
@@ -798,7 +798,7 @@ async function callGeminiWithRetry(
             // 429: Too Many Requests, RESOURCE_EXHAUSTED
             if (errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED') || errorMsg.includes('quota')) {
                 // [IMPROVED] Use setQuotaExhausted to track quota state
-                setQuotaExhausted(60); // Set 60-minute recovery time
+                setQuotaExhausted(); // 기본 복구 대기 사용
                 
                 // [IMPROVED] Cap wait time to avoid exceeding total wait budget
                 const waitTime = Math.min(15000 * (i + 1), 60000); // Cap at 60s

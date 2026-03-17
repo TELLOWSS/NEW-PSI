@@ -41,6 +41,7 @@ export interface AppSettings {
         advancedMin: number;
         intermediateMin: number;
     };
+    batchSplitSize?: number; // 일괄 재분석 분할 단위 (기본 50건)
     approvalPolicy?: {
         strictRoleGate: boolean;
     };

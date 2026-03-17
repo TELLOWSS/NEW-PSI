@@ -2,11 +2,12 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { FileUpload } from '../components/FileUpload';
 import { Spinner } from '../components/Spinner';
-import { analyzeWorkerRiskAssessment, updateAnalysisBasedOnEdits, getQuotaState, setQuotaExhausted, isRateLimitError, validateImageFormat, isFormatCompatibleWithAI } from '../services/geminiService';
+import { analyzeWorkerRiskAssessment, updateAnalysisBasedOnEdits, getQuotaState, setQuotaExhausted, clearQuotaState, isRateLimitError, validateImageFormat, isFormatCompatibleWithAI } from '../services/geminiService';
 import { extractMessage } from '../utils/errorUtils';
-import type { WorkerRecord, OcrErrorType } from '../types';
+import type { WorkerRecord, OcrErrorType, AppSettings } from '../types';
 import { fileToBase64 } from '../utils/fileUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
+import { getApiCallState, incrementApiCallCount, resetApiCallCount, type DailyCounterState } from '../utils/apiCounterUtils';
 
 const buildReassessmentAuditNote = (before: WorkerRecord, updated: Partial<WorkerRecord>): string => {
     const beforeScore = typeof before.safetyScore === 'number' ? before.safetyScore : 0;
@@ -149,6 +150,32 @@ const isFailedRecord = (r: WorkerRecord): boolean => {
     return false;
 };
 
+const isHardRetryTarget = (r: WorkerRecord): boolean => {
+    if (r.ocrErrorType) return true;
+    if (r.safetyScore === 0) return true;
+
+    const insight = String(r.aiInsights || '').toLowerCase();
+    return (
+        insight.includes('429') ||
+        insight.includes('resource_exhausted') ||
+        insight.includes('할당량') ||
+        insight.includes('분석 실패') ||
+        insight.includes('재시도 필요') ||
+        insight.includes('원본 이미지 데이터 소실')
+    );
+};
+
+// 우선순위 점수: 낮을수록 먼저 처리 (0=최고우선)
+const getRetryPriorityScore = (r: WorkerRecord): number => {
+    if (r.safetyScore === 0 && r.ocrErrorType) return 0; // 완전 실패
+    if (r.safetyScore === 0) return 1;                    // 점수 없음
+    if (r.ocrErrorType) return 2;                         // OCR 오류
+    const insight = String(r.aiInsights || '').toLowerCase();
+    if (insight.includes('할당량') || insight.includes('분석 실패') || insight.includes('재시도 필요')) return 3;
+    if (typeof r.ocrConfidence === 'number' && r.ocrConfidence < 0.5) return 4; // 신뢰도 극저
+    return 5; // 저신뢰
+};
+
 const getFlag = (nationality: string) => {
     const n = (nationality || '').toLowerCase();
     if (n.includes('베트남') || n.includes('vietnam')) return '🇻🇳';
@@ -215,6 +242,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [filterField, setFilterField] = useState<string>('all');
     const [filterLeader, setFilterLeader] = useState<string>('all');
     const [filterTrust, setFilterTrust] = useState<'all' | 'pending' | 'finalized'>('all');
+    const [dailyCounter, setDailyCounter] = useState<DailyCounterState>(() => getApiCallState());
     const [importValidationSummary, setImportValidationSummary] = useState<string>('');
     const [importValidationDetails, setImportValidationDetails] = useState<string>('');
 
@@ -335,6 +363,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         setCooldownTime(0);
     };
 
+    const getBatchSplitSize = (): number => {
+        try {
+            const raw = localStorage.getItem('psi_app_settings');
+            if (!raw) return 50;
+            const parsed = JSON.parse(raw) as AppSettings;
+            const size = parsed.batchSplitSize;
+            if (typeof size === 'number' && size >= 10 && size <= 500) return size;
+        } catch { /* ignore */ }
+        return 50;
+    };
+
     const runBatchAnalysis = async (targetRecords: WorkerRecord[], title: string) => {
         const total = targetRecords.length;
         if (total === 0) return alert('재분석할 대상이 없습니다.');
@@ -344,8 +383,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         if (quotaState.isExhausted) {
             const recoveryTime = Math.ceil((quotaState.nextRetryTime - Date.now()) / 1000);
             if (recoveryTime > 0) {
-                alert(`⚠️ API 할당량이 소진되었습니다.\n복구 시간: ${recoveryTime}초 대기 필요\n${new Date(quotaState.nextRetryTime).toLocaleTimeString()}에 다시 시도해주세요.`);
-                return;
+                const forceRetry = confirm(`⚠️ API 할당량 대기 상태입니다.\n예상 복구: 약 ${recoveryTime}초 후\n\n지금 즉시 재시도(대기상태 해제) 하시겠습니까?\n※ 즉시 재시도 시 429가 다시 발생할 수 있습니다.`);
+                if (!forceRetry) {
+                    alert(`복구 대기 중입니다.\n${new Date(quotaState.nextRetryTime).toLocaleTimeString()} 이후 재시도 권장`);
+                    return;
+                }
+                clearQuotaState();
             }
         }
         
@@ -361,8 +404,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         // Start with a 4s buffer. If we hit limits, increase this dynamically.
         let dynamicDelayBuffer = 4;
 
-        // Clone array to avoid index issues if array changes
-        const processQueue = [...targetRecords];
+        // [Priority Queue] 고위험→실패→저신뢰 순으로 정렬
+        const processQueue = [...targetRecords].sort((a, b) => getRetryPriorityScore(a) - getRetryPriorityScore(b));
 
         try {
             for (let i = 0; i < processQueue.length; i++) {
@@ -461,13 +504,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 console.warn(`Rate limit hit for ${record.name}. Cooling down...`);
                                 
                                 // Mark quota as exhausted and trigger recovery timer
-                                setQuotaExhausted(60); // 60분 복구 대기
+                                setQuotaExhausted(15); // 15분 복구 대기
                                 
                                 // Permanently increase delay buffer for future requests
-                                dynamicDelayBuffer = Math.min(20, dynamicDelayBuffer + 5);
+                                dynamicDelayBuffer = Math.min(10, dynamicDelayBuffer + 2);
                                 
-                                // Wait 60 seconds then retry loop
-                                await waitWithCountdown(60, "⚠️ API 할당량 초과! 60초 냉각 중");
+                                // Wait 30 seconds then retry loop
+                                await waitWithCountdown(30, "⚠️ API 할당량 초과! 냉각 중");
                                 retryCount++;
                             } else {
                                 // Other errors (format, parsing) -> fail immediately
@@ -491,8 +534,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         };
                         onUpdateRecord(updatedRecord);
                         
-                        if (isFailedRecord(updatedRecord)) failCount++;
-                        else successCount++;
+                        if (isFailedRecord(updatedRecord)) {
+                            failCount++;
+                            const next = incrementApiCallCount('fail');
+                            setDailyCounter(next);
+                        } else {
+                            successCount++;
+                            const next = incrementApiCallCount('success');
+                            setDailyCounter(next);
+                        }
 
                         // Adaptive Rate Limit Buffer
                         if (i < processQueue.length - 1) {
@@ -606,12 +656,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         if (isRateLimitError(eMsg)) {
                             retryCount++;
                             console.warn(`Rate limit hit for ${record.name} (attempt ${retryCount}/${MAX_TEXT_RETRIES})`);
-                            setQuotaExhausted(60);
+                            setQuotaExhausted(15);
                             dynamicDelayBuffer = Math.min(10, dynamicDelayBuffer + 2); // throttle 증가
                             
                             if (retryCount < MAX_TEXT_RETRIES) {
-                                // 60초 대기 후 재시도
-                                await waitWithCountdown(60, "⚠️ API 할당량 초과! 냉각 중");
+                                // 30초 대기 후 재시도
+                                await waitWithCountdown(30, "⚠️ API 할당량 초과! 냉각 중");
                             } else {
                                 // Max retries reached
                                 failCount++;
@@ -647,14 +697,28 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     };
 
     const handleBatchReanalyze = () => {
-        if (confirm(`전체 ${recordsWithImages.length}건 재분석 하시겠습니까?\n\n[주의] 10,000장 등 대량 데이터의 경우 무료 티어는 하루 제한(1,500건)이 있으므로 분할 처리가 권장됩니다.\n\n계속하시겠습니까?`)) {
-            runBatchAnalysis(recordsWithImages, "전체 재분석");
+        const splitSize = getBatchSplitSize();
+        const total = recordsWithImages.length;
+        const splitWarning = total > splitSize
+            ? `\n\n⚠️ 현재 분할 단위: ${splitSize}건 (설정에서 변경 가능)\n${total}건 중 ${splitSize}건씩 우선순위 순으로 처리됩니다.`
+            : '';
+        if (confirm(`전체 ${total}건 재분석 하시겠습니까?\n[주의] 무료 티어 한도는 시점/계정 상태에 따라 변동됩니다.${splitWarning}\n\n계속하시겠습니까?`)) {
+            // 분할 단위가 total보다 작으면 우선순위 상위 splitSize건만 처리
+            const sortedByPriority = [...recordsWithImages].sort((a, b) => getRetryPriorityScore(a) - getRetryPriorityScore(b));
+            const batch = total > splitSize ? sortedByPriority.slice(0, splitSize) : sortedByPriority;
+            runBatchAnalysis(batch, total > splitSize ? `전체 재분석 (${batch.length}/${total}건 우선 처리)` : "전체 재분석");
         }
     };
 
     const handleRetryFailed = () => {
-        if (confirm(`실패 또는 점수 미달인 ${failedRecords.length}건만 재시도 하시겠습니까?`)) {
-            runBatchAnalysis(failedRecords, "실패 건 재분석");
+        const hardTargets = failedRecords.filter(isHardRetryTarget);
+        if (hardTargets.length === 0) {
+            alert('재시도할 하드 실패 건이 없습니다.\n(점수 미달/저신뢰 건은 개별 검토를 권장합니다.)');
+            return;
+        }
+
+        if (confirm(`하드 실패 ${hardTargets.length}건만 우선 재시도 하시겠습니까?\n(할당량 절약을 위해 저신뢰 경고 건은 제외)`)) {
+            runBatchAnalysis(hardTargets, "하드 실패 재분석");
         }
     };
 
@@ -890,7 +954,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </h3>
                         <p className="text-slate-400 font-medium">
                             <span className="text-indigo-400 font-bold">스마트 스로틀링(Smart Throttling)</span> 및 <span className="text-indigo-400 font-bold">Gemini Flash</span> 최적화로, 
-                            10,000장 이상의 대량 기록도 API 할당량에 맞춰 자동으로 속도를 조절하며 전수 분석합니다. (무료 티어: 하루 1,500장 권장)
+                            10,000장 이상의 대량 기록도 API 할당량에 맞춰 자동으로 속도를 조절하며 전수 분석합니다. (무료 티어 한도는 계정/시점별 변동)
                         </p>
                         <div className="flex justify-center lg:justify-start gap-8 mt-6">
                             <div className="text-center">
@@ -904,6 +968,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <div className="text-center">
                                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">신뢰도 미달(&lt;70%)</p>
                                 <p className={`text-2xl font-black ${lowConfidenceCount > 0 ? 'text-amber-400' : 'text-slate-400'}`}>{lowConfidenceCount}</p>
+                            </div>
+                            <div className="text-center border-l border-white/10 pl-8">
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">오늘 API 호출</p>
+                                <p className={`text-2xl font-black ${dailyCounter.count > 800 ? 'text-rose-400' : dailyCounter.count > 400 ? 'text-amber-400' : 'text-emerald-400'}`}>{dailyCounter.count}</p>
+                                <p className="text-[9px] text-slate-600 mt-0.5">✓{dailyCounter.successCount} ✗{dailyCounter.failCount}</p>
+                                <button onClick={() => { resetApiCallCount(); setDailyCounter(getApiCallState()); }} className="text-[9px] text-slate-500 hover:text-slate-300 underline mt-0.5" title="오늘 카운터 초기화">초기화</button>
                             </div>
                         </div>
                     </div>
