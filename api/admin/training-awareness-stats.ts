@@ -47,41 +47,6 @@ function resolveChecklistComplete(checklist: unknown): boolean {
     return Boolean(value.riskReview) && Boolean(value.ppeConfirm) && Boolean(value.emergencyConfirm);
 }
 
-async function fetchTrainingLogsBySessionIdWithFallback(supabase: any, sessionId: string) {
-    const bySessionId = await supabase
-        .from('training_logs')
-        .select('worker_name, nationality')
-        .eq('session_id', sessionId)
-        .limit(5000);
-
-    if (!bySessionId.error) {
-        return {
-            result: bySessionId,
-            logKey: 'session_id' as const,
-        };
-    }
-
-    const errText = String(bySessionId.error?.message || '').toLowerCase();
-    const needsTrainingIdFallback = errText.includes('session_id') && errText.includes('does not exist');
-    if (!needsTrainingIdFallback) {
-        return {
-            result: bySessionId,
-            logKey: 'session_id' as const,
-        };
-    }
-
-    const byTrainingId = await supabase
-        .from('training_logs')
-        .select('worker_name, nationality')
-        .eq('training_id', sessionId)
-        .limit(5000);
-
-    return {
-        result: byTrainingId,
-        logKey: 'training_id' as const,
-    };
-}
-
 export default async function handler(req: any, res: any) {
     if (req.method !== 'POST') {
         return sendJsonError(res, 405, 'Method Not Allowed');
@@ -95,7 +60,11 @@ export default async function handler(req: any, res: any) {
 
         const supabase = getSupabaseClient();
 
-        const { result: logsResult, logKey } = await fetchTrainingLogsBySessionIdWithFallback(supabase, sessionId);
+        const logsResult = await supabase
+            .from('training_logs')
+            .select('worker_name, nationality')
+            .eq('session_id', sessionId)
+            .limit(5000);
 
         if (logsResult.error) {
             throw new Error(logsResult.error.message);
@@ -148,7 +117,6 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({
             ok: true,
             sessionId,
-            trainingLogsKey: logKey,
             submittedWorkers,
             confirmedWorkers,
             unconfirmedWorkers: Math.max(0, submittedWorkers - confirmedWorkers),

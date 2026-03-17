@@ -5,48 +5,6 @@ const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 );
 
-async function insertTrainingLogWithFallback(
-    sessionId: string,
-    workerName: string,
-    nationality: unknown,
-    signatureUrl: string,
-    selectedAudioUrl: unknown,
-) {
-    const basePayload = {
-        worker_name: workerName,
-        nationality,
-        signature_url: signatureUrl,
-        audio_url: selectedAudioUrl || null,
-        submitted_at: new Date().toISOString(),
-    };
-
-    const bySessionId = await supabase.from('training_logs').insert({
-        session_id: sessionId,
-        ...basePayload,
-    });
-
-    if (!bySessionId.error) {
-        return { ok: true as const, key: 'session_id' as const };
-    }
-
-    const errorMessage = String(bySessionId.error?.message || '').toLowerCase();
-    const needsTrainingIdFallback = errorMessage.includes('session_id') && errorMessage.includes('does not exist');
-    if (!needsTrainingIdFallback) {
-        throw new Error(bySessionId.error.message);
-    }
-
-    const byTrainingId = await supabase.from('training_logs').insert({
-        training_id: sessionId,
-        ...basePayload,
-    });
-
-    if (byTrainingId.error) {
-        throw new Error(byTrainingId.error.message);
-    }
-
-    return { ok: true as const, key: 'training_id' as const };
-}
-
 export default async function handler(req: any, res: any) {
     if (req.method !== 'POST') {
         return res.status(405).json({ ok: false, message: 'Method Not Allowed' });
@@ -106,13 +64,16 @@ export default async function handler(req: any, res: any) {
         const pub = supabase.storage.from('signatures').getPublicUrl(path);
         const signatureUrl = pub.data.publicUrl;
 
-        const logInsertResult = await insertTrainingLogWithFallback(
-            sessionId,
-            normalizedWorkerName,
+        const insert = await supabase.from('training_logs').insert({
+            session_id: sessionId,
+            worker_name: normalizedWorkerName,
             nationality,
-            signatureUrl,
-            selectedAudioUrl,
-        );
+            signature_url: signatureUrl,
+            audio_url: selectedAudioUrl || null,
+            submitted_at: new Date().toISOString(),
+        });
+
+        if (insert.error) throw new Error(insert.error.message);
 
         const checklistPayload = (checklist && typeof checklist === 'object')
             ? {
@@ -154,7 +115,6 @@ export default async function handler(req: any, res: any) {
             ok: true,
             signatureUrl,
             comprehensionComplete,
-            trainingLogsKey: logInsertResult.key,
         });
     } catch (error: any) {
         return res.status(500).json({ ok: false, message: error?.message || '서명 제출 실패' });
