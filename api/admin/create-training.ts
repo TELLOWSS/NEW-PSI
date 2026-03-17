@@ -1,11 +1,50 @@
 import { createClient } from '@supabase/supabase-js';
 import { buildSignedTrainingMobileUrl, resolveLinkTtlMinutes } from '../shared/trainingLinkToken';
-import {
-    TRAINING_AUDIO_LANGUAGE_CODES,
-    TRAINING_AUDIO_LANGUAGES,
-    TRAINING_AUDIO_LANGUAGE_SET,
-    type TrainingAudioLanguageCode,
-} from '../../utils/trainingLanguageUtils';
+
+// ─── 백엔드 전용 언어 코드 (프론트엔드 utils 의존성 제거) ────────────────────
+
+type TrainingAudioLanguageCode =
+    | 'ko-KR'
+    | 'cmn-CN'
+    | 'vi-VN'
+    | 'km-KH'
+    | 'id-ID'
+    | 'mn-MN'
+    | 'my-MM'
+    | 'ru-RU'
+    | 'uz-UZ'
+    | 'th-TH'
+    | 'kk-KZ';
+
+const TRAINING_AUDIO_LANGUAGE_CODES: TrainingAudioLanguageCode[] = [
+    'ko-KR',
+    'cmn-CN',
+    'vi-VN',
+    'km-KH',
+    'id-ID',
+    'mn-MN',
+    'my-MM',
+    'ru-RU',
+    'uz-UZ',
+    'th-TH',
+    'kk-KZ',
+];
+
+const TRAINING_AUDIO_LANGUAGE_LABELS: Record<TrainingAudioLanguageCode, string> = {
+    'ko-KR': '한국어',
+    'cmn-CN': '중국어',
+    'vi-VN': '베트남어',
+    'km-KH': '크메르어',
+    'id-ID': '인도네시아어',
+    'mn-MN': '몽골어',
+    'my-MM': '미얀마어',
+    'ru-RU': '러시아어',
+    'uz-UZ': '우즈베크어',
+    'th-TH': '태국어',
+    'kk-KZ': '카자흐어',
+};
+
+const TRAINING_AUDIO_LANGUAGE_SET = new Set<string>(TRAINING_AUDIO_LANGUAGE_CODES);
 
 // ─── 순수 유틸 (throw 없음) ─────────────────────────────────────────────────
 
@@ -83,8 +122,7 @@ async function translateSingleLanguageSafe(
     languageCode: TrainingAudioLanguageCode,
 ): Promise<[TrainingAudioLanguageCode, string | null]> {
     try {
-        const languageLabel =
-            TRAINING_AUDIO_LANGUAGES.find((item) => item.code === languageCode)?.label || languageCode;
+        const languageLabel = TRAINING_AUDIO_LANGUAGE_LABELS[languageCode] || languageCode;
 
         const response = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
