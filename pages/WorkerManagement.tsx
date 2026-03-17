@@ -443,6 +443,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [isPrintMode, setIsPrintMode] = useState(false);
     const [printType, setPrintType] = useState<'sticker' | 'idcard'>('sticker');
     const [workersToPrint, setWorkersToPrint] = useState<WorkerRecord[]>([]);
+    const [printTrustMode, setPrintTrustMode] = useState<'trusted' | 'fallback'>('trusted');
     const [renderLimit, setRenderLimit] = useState(0); // [NEW] For Progressive Rendering
     
     // View Mode Toggle (Grid vs Flip)
@@ -530,11 +531,19 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
         const excludedCandidates = reliabilityEvaluations.filter((item) => !item.reliability.trusted);
 
-        const printableWorkers = trustedCandidates
+        const trustedPrintableWorkers = trustedCandidates
             .map((worker, index) => normalizeWorkerForPrint(worker, index))
             .filter((worker): worker is WorkerRecord => worker !== null);
 
-        if (printableWorkers.length === 0) {
+        const allPrintableWorkers = targetWorkers
+            .map((worker, index) => normalizeWorkerForPrint(worker, index))
+            .filter((worker): worker is WorkerRecord => worker !== null);
+
+        const printableWorkers = trustedPrintableWorkers.length > 0
+            ? trustedPrintableWorkers
+            : allPrintableWorkers;
+
+        if (allPrintableWorkers.length === 0) {
             const sampleReasons = excludedCandidates
                 .flatMap((item) => item.reliability.reasons)
                 .slice(0, 3)
@@ -542,7 +551,11 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             return alert(`발급 가능한 신뢰 데이터가 없습니다.\n\n검증 기준: OCR 원본 이미지 + OCR 감사이력 + 증빙 해시\n참고 사유: ${sampleReasons || '데이터 누락'}`);
         }
 
-        if (excludedCandidates.length > 0) {
+        const nextPrintTrustMode: 'trusted' | 'fallback' = trustedPrintableWorkers.length === 0 ? 'fallback' : 'trusted';
+
+        if (trustedPrintableWorkers.length === 0) {
+            alert(`검증 통과 데이터가 없어 필터 대상 ${allPrintableWorkers.length}명을 예외 출력 모드로 진행합니다.\n\n권장: OCR 재분석 후 재발급으로 최신 증빙 정합성을 확보하세요.`);
+        } else if (excludedCandidates.length > 0) {
             const reasonSummary = excludedCandidates
                 .flatMap((item) => item.reliability.reasons)
                 .slice(0, 3)
@@ -553,6 +566,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         // Reset states
         setWorkersToPrint(printableWorkers);
         setPrintType(type);
+        setPrintTrustMode(nextPrintTrustMode);
         setRenderLimit(Math.min(5, printableWorkers.length)); // 초기 프레임 즉시 표시
         setViewType('grid'); // Default to grid
         setCurrentFlipIndex(0);
@@ -722,6 +736,9 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <p className="text-slate-500 text-sm font-bold">
                                     총 {workersToPrint.length}명 대기 중
                                 </p>
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black border ${printTrustMode === 'fallback' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                                    {printTrustMode === 'fallback' ? '⚠ 예외 출력 모드' : '✅ 검증 통과 출력'}
+                                </span>
                                 {/* View Toggle */}
                                 <div className="flex bg-slate-100 p-1 rounded-lg">
                                     <button 
@@ -801,6 +818,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
                 {/* Print Preview Area */}
                 <div className="p-8 flex flex-col items-center min-h-screen bg-slate-100 print:bg-white print:p-0">
+                    {printTrustMode === 'fallback' && (
+                        <div className="w-full max-w-[210mm] mb-4 no-print">
+                            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 shadow-sm">
+                                <p className="text-sm font-black">예외 출력 모드로 인쇄 중입니다.</p>
+                                <p className="text-xs font-bold mt-1">검증 통과 데이터가 없어 현재 필터 대상 전체를 출력합니다. 운영 권장사항은 OCR 재분석 후 재발급입니다.</p>
+                            </div>
+                        </div>
+                    )}
                     
                     {viewType === 'grid' ? (
                         /* GRID VIEW (Progressive Rendering) */
@@ -1025,18 +1050,18 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             )}
 
             {/* Controls */}
-            <div className="bg-white p-6 rounded-[30px] shadow-xl border border-slate-100 flex flex-col lg:flex-row gap-4 items-center no-print">
-                <div className="flex-1 w-full relative min-w-[200px]">
+            <div className="bg-white p-6 rounded-[30px] shadow-xl border border-slate-100 flex flex-col gap-4 items-stretch no-print">
+                <div className="w-full relative min-w-0">
                     <svg className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={3}/></svg>
                     <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="근로자 이름으로 검색..." className="w-full bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500 rounded-2xl pl-14 pr-6 py-4 font-bold text-base transition-all shadow-inner" />
                 </div>
-                <div className="flex gap-4 w-full lg:w-auto">
-                    <div className="flex-1">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
+                    <div className="min-w-0">
                         <select value={selectedTeam} onChange={e => setSelectedTeam(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[140px]">
                             {teams.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                     </div>
-                    <div className="flex-1">
+                    <div className="min-w-0">
                         <select value={filterLevel} onChange={e => setFilterLevel(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[120px]">
                             <option value="전체">전체 등급</option>
                             <option value="초급">초급</option>
@@ -1044,7 +1069,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             <option value="고급">고급</option>
                         </select>
                     </div>
-                    <div className="flex-1">
+                    <div className="min-w-0">
                         <select value={reliabilityFilter} onChange={e => setReliabilityFilter(e.target.value as 'all' | 'trusted' | 'needs-review')} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[150px]">
                             <option value="all">검증 상태: 전체</option>
                             <option value="trusted">검증 통과만</option>
@@ -1052,28 +1077,36 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         </select>
                     </div>
                 </div>
-                <div className="bg-indigo-50 px-6 py-4 rounded-2xl text-indigo-700 font-bold text-sm border border-indigo-100 flex items-center gap-2 shrink-0">
-                    <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-                    발급 대기: {filteredRecords.length}명
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
+                    <div className="bg-indigo-50 px-4 py-3 rounded-2xl text-indigo-700 font-bold text-sm border border-indigo-100 flex items-center gap-2 min-w-0">
+                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                        <span className="truncate">발급 대기: {filteredRecords.length}명</span>
+                    </div>
+                    <div className="bg-emerald-50 px-4 py-3 rounded-2xl text-emerald-700 font-bold text-sm border border-emerald-100 flex items-center gap-2 min-w-0">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        <span className="truncate">검증통과: {filteredReliabilitySummary.trustedCount}명</span>
+                    </div>
+                    <div className="bg-rose-50 px-4 py-3 rounded-2xl text-rose-700 font-bold text-sm border border-rose-100 flex items-center gap-2 min-w-0">
+                        <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                        <span className="truncate">검증필요: {filteredReliabilitySummary.untrustedCount}명</span>
+                    </div>
                 </div>
-                <div className="bg-emerald-50 px-6 py-4 rounded-2xl text-emerald-700 font-bold text-sm border border-emerald-100 flex items-center gap-2 shrink-0">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    검증통과: {filteredReliabilitySummary.trustedCount}명
-                </div>
-                <div className="bg-rose-50 px-6 py-4 rounded-2xl text-rose-700 font-bold text-sm border border-rose-100 flex items-center gap-2 shrink-0">
-                    <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                    검증필요: {filteredReliabilitySummary.untrustedCount}명
-                </div>
-                <div className="flex gap-2 w-full lg:w-auto">
+                {filteredRecords.length > 0 && filteredReliabilitySummary.trustedCount === 0 && (
+                    <div className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
+                        <p className="text-sm font-black">현재 필터 결과에는 검증 통과 데이터가 없습니다.</p>
+                        <p className="text-xs font-bold mt-1">지금 인쇄하면 예외 출력 모드로 진행됩니다. 가능하면 OCR 재분석 후 출력하세요.</p>
+                    </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 w-full">
                     <button
                         onClick={() => startProcessing('sticker', filteredRecords)}
-                        className="flex-1 lg:flex-none px-4 py-3 bg-orange-50 text-orange-700 border border-orange-200 rounded-xl text-xs font-black hover:bg-orange-100 transition-colors"
+                        className="w-full px-4 py-3 bg-orange-50 text-orange-700 border border-orange-200 rounded-xl text-xs sm:text-sm font-black hover:bg-orange-100 transition-colors whitespace-normal break-keep"
                     >
                         필터 대상 스티커 일괄 인쇄
                     </button>
                     <button
                         onClick={() => startProcessing('idcard', filteredRecords)}
-                        className="flex-1 lg:flex-none px-4 py-3 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-black hover:bg-indigo-100 transition-colors"
+                        className="w-full px-4 py-3 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs sm:text-sm font-black hover:bg-indigo-100 transition-colors whitespace-normal break-keep"
                     >
                         필터 대상 사원증 일괄 인쇄
                     </button>
@@ -1117,8 +1150,9 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 openOverrideModal(worker);
                                             }}
                                             className="w-full py-2 font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-xs bg-rose-600 text-white hover:bg-rose-500"
+                                            title="관리자 예외 승인 후 강제 발급"
                                         >
-                                            🔑 예외 승인 및 강제 발급
+                                            🔑 예외 발급
                                         </button>
                                     </>
                                 )}
@@ -1145,7 +1179,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <span className="text-xl font-black text-slate-900 tracking-tighter">{worker.safetyScore}<span className="text-[9px] text-slate-300 ml-0.5 font-bold">PTS</span></span>
                             </div>
 
-                            <div className="relative z-10">
+                            <div className="relative z-10 min-h-[42px] flex items-center">
                                 {worker.approvalStatus === 'OVERRIDDEN' ? (
                                     <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200" title={`${worker.approvedBy || '승인자 미기록'} / ${worker.approvedAt || '-'} / ${worker.approvalReason || '-'}`}>
                                         🔐 예외 승인 발급
@@ -1164,9 +1198,10 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 e.stopPropagation();
                                                 openOverrideModal(worker);
                                             }}
-                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-600 text-white border border-rose-700 hover:bg-rose-500"
+                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-600 text-white border border-rose-700 hover:bg-rose-500 shrink-0"
+                                            title="관리자 예외 승인 후 강제 발급"
                                         >
-                                            🔒 🔑 예외 승인 및 강제 발급
+                                            🔑 예외 발급
                                         </button>
                                     </div>
                                 )}

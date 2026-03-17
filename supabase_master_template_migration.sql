@@ -24,6 +24,9 @@ create table if not exists public.record_master_companies (
     updated_at timestamptz not null default now()
 );
 
+create unique index if not exists record_master_companies_name_lower_uidx
+    on public.record_master_companies (lower(name));
+
 create index if not exists record_master_companies_updated_idx
     on public.record_master_companies (updated_at desc);
 
@@ -88,26 +91,26 @@ create policy record_master_templates_select
 on public.record_master_templates
 for select
 to anon, authenticated
-using (public.psi_is_admin_request() or auth.role() = 'authenticated');
+using (public.psi_is_admin_request());
 
 create policy record_master_templates_insert
 on public.record_master_templates
 for insert
 to anon, authenticated
-with check (public.psi_is_admin_request() or auth.role() = 'authenticated');
+with check (public.psi_is_admin_request());
 
 create policy record_master_templates_update
 on public.record_master_templates
 for update
 to anon, authenticated
-using (public.psi_is_admin_request() or auth.role() = 'authenticated')
-with check (public.psi_is_admin_request() or auth.role() = 'authenticated');
+using (public.psi_is_admin_request())
+with check (public.psi_is_admin_request());
 
 create policy record_master_templates_delete
 on public.record_master_templates
 for delete
 to anon, authenticated
-using (public.psi_is_admin_request() or auth.role() = 'authenticated');
+using (public.psi_is_admin_request());
 
 drop policy if exists record_master_companies_select on public.record_master_companies;
 drop policy if exists record_master_companies_insert on public.record_master_companies;
@@ -118,26 +121,26 @@ create policy record_master_companies_select
 on public.record_master_companies
 for select
 to anon, authenticated
-using (public.psi_is_admin_request() or auth.role() = 'authenticated');
+using (public.psi_is_admin_request());
 
 create policy record_master_companies_insert
 on public.record_master_companies
 for insert
 to anon, authenticated
-with check (public.psi_is_admin_request() or auth.role() = 'authenticated');
+with check (public.psi_is_admin_request());
 
 create policy record_master_companies_update
 on public.record_master_companies
 for update
 to anon, authenticated
-using (public.psi_is_admin_request() or auth.role() = 'authenticated')
-with check (public.psi_is_admin_request() or auth.role() = 'authenticated');
+using (public.psi_is_admin_request())
+with check (public.psi_is_admin_request());
 
 create policy record_master_companies_delete
 on public.record_master_companies
 for delete
 to anon, authenticated
-using (public.psi_is_admin_request() or auth.role() = 'authenticated');
+using (public.psi_is_admin_request());
 
 drop policy if exists record_master_assignments_select on public.record_master_assignments;
 drop policy if exists record_master_assignments_insert on public.record_master_assignments;
@@ -148,25 +151,34 @@ create policy record_master_assignments_select
 on public.record_master_assignments
 for select
 to anon, authenticated
-using (public.psi_is_admin_request() or auth.role() = 'authenticated');
+using (public.psi_is_admin_request());
 
 create policy record_master_assignments_insert
 on public.record_master_assignments
 for insert
 to anon, authenticated
-with check (public.psi_is_admin_request() or auth.role() = 'authenticated');
+with check (public.psi_is_admin_request());
 
 create policy record_master_assignments_update
 on public.record_master_assignments
 for update
 to anon, authenticated
-using (public.psi_is_admin_request() or auth.role() = 'authenticated')
-with check (public.psi_is_admin_request() or auth.role() = 'authenticated');
+using (public.psi_is_admin_request())
+with check (public.psi_is_admin_request());
 
 create policy record_master_assignments_delete
 on public.record_master_assignments
 for delete
 to anon, authenticated
-using (public.psi_is_admin_request() or auth.role() = 'authenticated');
+using (public.psi_is_admin_request());
 
 commit;
+
+-- 빠른 점검 쿼리 (선택)
+-- select count(*) as template_count from public.record_master_templates;
+-- select count(*) as company_count from public.record_master_companies;
+-- select count(*) as assignment_count from public.record_master_assignments;
+
+-- 샘플 입력 (선택)
+-- insert into public.record_master_templates (name, version, field_schema)
+-- values ('위험성평가 전파교육 기본형', 'v1.0.0', '이름, 근로자ID(worker_id), 국적, 공종, 위험요인, 통제조치, 확인서명');
