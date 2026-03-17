@@ -112,38 +112,47 @@ async function translateScripts(
         .join('\n');
 
     try {
-        const response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [
-                        {
-                            parts: [
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const response = await (async () => {
+            try {
+                return await fetch(
+                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        signal: controller.signal,
+                        body: JSON.stringify({
+                            contents: [
                                 {
-                                    text: [
-                                        '다음 한국어 위험성평가 교육 대본을 각 언어로 자연스럽고 현장 안전교육 문체로 번역하세요.',
-                                        '반드시 JSON 객체만 반환하고, 키는 언어코드 그대로 유지하세요.',
-                                        '값은 번역 문자열만 넣으세요.',
-                                        '',
-                                        '[언어 목록]',
-                                        languageGuide,
-                                        '',
-                                        '[원문]',
-                                        sourceTextKo,
-                                    ].join('\n'),
+                                    parts: [
+                                        {
+                                            text: [
+                                                '다음 한국어 위험성평가 교육 대본을 각 언어로 자연스럽고 현장 안전교육 문체로 번역하세요.',
+                                                '반드시 JSON 객체만 반환하고, 키는 언어코드 그대로 유지하세요.',
+                                                '값은 번역 문자열만 넣으세요.',
+                                                '',
+                                                '[언어 목록]',
+                                                languageGuide,
+                                                '',
+                                                '[원문]',
+                                                sourceTextKo,
+                                            ].join('\n'),
+                                        },
+                                    ],
                                 },
                             ],
-                        },
-                    ],
-                    generationConfig: {
-                        temperature: 0.2,
-                        responseMimeType: 'application/json',
-                    },
-                }),
+                            generationConfig: {
+                                temperature: 0.2,
+                                responseMimeType: 'application/json',
+                            },
+                        }),
+                    }
+                );
+            } finally {
+                clearTimeout(timeoutId);
             }
-        );
+        })();
 
         if (!response.ok) {
             return {
@@ -181,9 +190,21 @@ export default async function handler(req: any, res: any) {
         }
 
         const { client: supabase, authMode } = getSupabaseClient();
-        const { sourceTextKo, selectedLanguages } = req.body || {};
+        const requestBody = typeof req.body === 'string'
+            ? (() => {
+                try {
+                    return JSON.parse(req.body || '{}');
+                } catch {
+                    return {};
+                }
+            })()
+            : (req.body || {});
+
+        const { sourceTextKo, selectedLanguages, files } = requestBody;
 
         const normalizedSourceText = typeof sourceTextKo === 'string' ? sourceTextKo.trim() : '';
+        const hasFiles = !!files && typeof files === 'object' && Object.keys(files).length > 0;
+        const shouldSkipTranslation = !normalizedSourceText || !hasFiles;
 
         const requestedLanguages = Array.isArray(selectedLanguages)
             ? selectedLanguages.filter((code: string): code is TrainingAudioLanguageCode => TRAINING_AUDIO_LANGUAGE_SET.has(code))
@@ -193,7 +214,15 @@ export default async function handler(req: any, res: any) {
             ? requestedLanguages
             : [...TRAINING_AUDIO_LANGUAGE_CODES];
 
-        const translatedTexts = await translateScripts(normalizedSourceText, langs);
+        const translatedTexts = shouldSkipTranslation
+            ? {}
+            : await translateScripts(normalizedSourceText, langs);
+
+        if (shouldSkipTranslation) {
+            console.info('[create-training] translation skipped', {
+                reason: !normalizedSourceText ? 'empty_source_text' : 'no_files',
+            });
+        }
         const emptyAudioUrls: Record<string, never> = {};
         const generatedId = createUuidV4();
         const insertCandidates: Array<Record<string, unknown>> = [
@@ -263,6 +292,7 @@ export default async function handler(req: any, res: any) {
             ttlMinutes,
             audioUrls: {},
             translatedTexts,
+            translationSkipped: shouldSkipTranslation,
         });
     } catch (error: any) {
         console.error('Create Training Error:', error);
