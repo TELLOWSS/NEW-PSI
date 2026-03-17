@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { buildSignedTrainingMobileUrl, resolveLinkTtlMinutes } from '../shared/trainingLinkToken';
+import { buildSignedTrainingMobileUrl, resolveLinkTtlMinutes } from '../shared/trainingLinkToken.js';
 
 function getSupabaseClient() {
     const supabaseUrl =
