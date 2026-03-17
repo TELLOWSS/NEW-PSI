@@ -95,7 +95,7 @@ export default async function handler(req: any, res: any) {
             .from('training_sessions')
             .update({
                 audio_urls: audioUrls,
-                original_script: typeof originalScript === 'string' ? originalScript : null,
+                original_script: typeof originalScript === 'string' ? originalScript : '',
             })
             .eq('id', sessionId);
 

@@ -639,11 +639,6 @@ const AdminTraining: React.FC = () => {
     }, [currentSessionId]);
 
     const handleCreate = async () => {
-        if (!sourceTextKo.trim()) {
-            alert('한국어 안내 문구를 입력해 주세요.');
-            return;
-        }
-
         setLoading(true);
         setMessage('');
         setMobileUrl('');

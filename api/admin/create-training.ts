@@ -63,6 +63,13 @@ async function translateScripts(
     ) as Record<string, string>;
 
     const apiKey = resolveGeminiApiKey();
+    if (!sourceTextKo.trim()) {
+        return {
+            ...fallback,
+            'ko-KR': sourceTextKo,
+        };
+    }
+
     if (!apiKey) {
         return {
             ...fallback,
@@ -147,9 +154,6 @@ export default async function handler(req: any, res: any) {
         const { sourceTextKo, selectedLanguages } = req.body || {};
 
         const normalizedSourceText = typeof sourceTextKo === 'string' ? sourceTextKo.trim() : '';
-        if (!normalizedSourceText) {
-            return sendJsonError(res, 400, 'sourceTextKo가 필요합니다.');
-        }
 
         const requestedLanguages = Array.isArray(selectedLanguages)
             ? selectedLanguages.filter((code: string): code is TrainingAudioLanguageCode => TRAINING_AUDIO_LANGUAGE_SET.has(code))
@@ -160,36 +164,58 @@ export default async function handler(req: any, res: any) {
             : [...TRAINING_AUDIO_LANGUAGE_CODES];
 
         const translatedTexts = await translateScripts(normalizedSourceText, langs);
-        const emptyAudioUrls = {} as Record<string, never>;
-
-        let insertRes = await supabase
-            .from('training_sessions')
-            .insert({
+        const emptyAudioUrls: Record<string, never> = {};
+        const insertCandidates: Array<Record<string, unknown>> = [
+            {
                 source_text_ko: normalizedSourceText,
                 original_script: normalizedSourceText,
                 audio_urls: emptyAudioUrls,
                 translated_texts: translatedTexts,
-            })
-            .select('id')
-            .single();
+            },
+            {
+                source_text_ko: normalizedSourceText,
+                original_script: normalizedSourceText,
+                audio_urls: emptyAudioUrls,
+            },
+            {
+                source_text_ko: normalizedSourceText,
+                audio_urls: emptyAudioUrls,
+            },
+            {
+                source_text_ko: normalizedSourceText,
+            },
+            {},
+        ];
 
-        if (insertRes.error) {
-            // 하위 스키마 호환: optional 컬럼이 없는 DB에서도 세션 생성 시도
-            insertRes = await supabase
+        let insertedSessionId = '';
+        let lastInsertErrorMessage = '';
+
+        for (let index = 0; index < insertCandidates.length; index += 1) {
+            const candidate = insertCandidates[index];
+            const insertRes = await supabase
                 .from('training_sessions')
-                .insert({
-                    source_text_ko: normalizedSourceText,
-                    audio_urls: {},
-                })
+                .insert(candidate)
                 .select('id')
                 .single();
+
+            if (!insertRes.error && insertRes.data?.id) {
+                insertedSessionId = String(insertRes.data.id);
+                break;
+            }
+
+            lastInsertErrorMessage = insertRes.error?.message || 'training_sessions insert 실패';
+            console.error('[create-training] insert attempt failed', {
+                attempt: index + 1,
+                candidateKeys: Object.keys(candidate),
+                error: insertRes.error,
+            });
         }
 
-        if (insertRes.error || !insertRes.data?.id) {
-            throw new Error(insertRes.error?.message || 'training_sessions insert 실패');
+        if (!insertedSessionId) {
+            throw new Error(lastInsertErrorMessage || 'training_sessions insert 실패');
         }
 
-        const sessionId = String(insertRes.data.id);
+        const sessionId = insertedSessionId;
         const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || req.headers.origin || 'http://localhost:5173';
         const { mobileUrl, linkExpiresAt, ttlMinutes } = buildSignedTrainingMobileUrl(baseUrl, sessionId, resolveLinkTtlMinutes());
 
@@ -205,7 +231,9 @@ export default async function handler(req: any, res: any) {
     } catch (error: any) {
         console.error('Create Training Error:', error);
         return res.status(500).json({
+            ok: false,
             error: '서버 내부 오류',
+            message: '서버 내부 오류',
             details: error?.message || 'Unknown error',
         });
     }
