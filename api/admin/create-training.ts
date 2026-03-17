@@ -74,50 +74,49 @@ async function translateScripts(
         .map((item) => `- ${item.code}: ${item.label}`)
         .join('\n');
 
-    const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [
-                    {
-                        parts: [
-                            {
-                                text: [
-                                    '다음 한국어 위험성평가 교육 대본을 각 언어로 자연스럽고 현장 안전교육 문체로 번역하세요.',
-                                    '반드시 JSON 객체만 반환하고, 키는 언어코드 그대로 유지하세요.',
-                                    '값은 번역 문자열만 넣으세요.',
-                                    '',
-                                    '[언어 목록]',
-                                    languageGuide,
-                                    '',
-                                    '[원문]',
-                                    sourceTextKo,
-                                ].join('\n'),
-                            },
-                        ],
-                    },
-                ],
-                generationConfig: {
-                    temperature: 0.2,
-                    responseMimeType: 'application/json',
-                },
-            }),
-        }
-    );
-
-    if (!response.ok) {
-        return {
-            ...fallback,
-            'ko-KR': sourceTextKo,
-        };
-    }
-
-    const data = await response.json();
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-
     try {
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [
+                        {
+                            parts: [
+                                {
+                                    text: [
+                                        '다음 한국어 위험성평가 교육 대본을 각 언어로 자연스럽고 현장 안전교육 문체로 번역하세요.',
+                                        '반드시 JSON 객체만 반환하고, 키는 언어코드 그대로 유지하세요.',
+                                        '값은 번역 문자열만 넣으세요.',
+                                        '',
+                                        '[언어 목록]',
+                                        languageGuide,
+                                        '',
+                                        '[원문]',
+                                        sourceTextKo,
+                                    ].join('\n'),
+                                },
+                            ],
+                        },
+                    ],
+                    generationConfig: {
+                        temperature: 0.2,
+                        responseMimeType: 'application/json',
+                    },
+                }),
+            }
+        );
+
+        if (!response.ok) {
+            return {
+                ...fallback,
+                'ko-KR': sourceTextKo,
+            };
+        }
+
+        const data = await response.json();
+        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
         const parsed = JSON.parse(rawText) as Record<string, unknown>;
         const translated: Record<string, string> = {};
 
@@ -139,15 +138,16 @@ async function translateScripts(
 }
 
 export default async function handler(req: any, res: any) {
-    if (req.method !== 'POST') {
-        return sendJsonError(res, 405, 'Method Not Allowed');
-    }
-
     try {
+        if (req.method !== 'POST') {
+            return sendJsonError(res, 405, 'Method Not Allowed');
+        }
+
         const supabase = getSupabaseClient();
         const { sourceTextKo, selectedLanguages } = req.body || {};
 
-        if (!sourceTextKo || typeof sourceTextKo !== 'string') {
+        const normalizedSourceText = typeof sourceTextKo === 'string' ? sourceTextKo.trim() : '';
+        if (!normalizedSourceText) {
             return sendJsonError(res, 400, 'sourceTextKo가 필요합니다.');
         }
 
@@ -159,21 +159,31 @@ export default async function handler(req: any, res: any) {
             ? requestedLanguages
             : [...TRAINING_AUDIO_LANGUAGE_CODES];
 
-        const translatedTexts = await translateScripts(sourceTextKo, langs);
-        const emptyAudioUrls = Object.fromEntries(
-            TRAINING_AUDIO_LANGUAGE_CODES.map((code) => [code, null])
-        ) as Record<string, null>;
+        const translatedTexts = await translateScripts(normalizedSourceText, langs);
+        const emptyAudioUrls = {} as Record<string, never>;
 
-        const insertRes = await supabase
+        let insertRes = await supabase
             .from('training_sessions')
             .insert({
-                source_text_ko: sourceTextKo,
-                original_script: sourceTextKo,
+                source_text_ko: normalizedSourceText,
+                original_script: normalizedSourceText,
                 audio_urls: emptyAudioUrls,
                 translated_texts: translatedTexts,
             })
             .select('id')
             .single();
+
+        if (insertRes.error) {
+            // 하위 스키마 호환: optional 컬럼이 없는 DB에서도 세션 생성 시도
+            insertRes = await supabase
+                .from('training_sessions')
+                .insert({
+                    source_text_ko: normalizedSourceText,
+                    audio_urls: {},
+                })
+                .select('id')
+                .single();
+        }
 
         if (insertRes.error || !insertRes.data?.id) {
             throw new Error(insertRes.error?.message || 'training_sessions insert 실패');
@@ -189,10 +199,14 @@ export default async function handler(req: any, res: any) {
             mobileUrl,
             linkExpiresAt,
             ttlMinutes,
-            audioUrls: emptyAudioUrls,
+            audioUrls: {},
             translatedTexts,
         });
     } catch (error: any) {
-        return sendJsonError(res, 500, error?.message || '서버 오류');
+        console.error('Create Training Error:', error);
+        return res.status(500).json({
+            error: '서버 내부 오류',
+            details: error?.message || 'Unknown error',
+        });
     }
 }

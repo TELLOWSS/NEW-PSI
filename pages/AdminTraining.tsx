@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '../lib/supabaseClient';
+import { postAdminJson } from '../utils/adminApiClient';
 import {
     TRAINING_AUDIO_LANGUAGE_CODES,
     TRAINING_AUDIO_LANGUAGES,
@@ -428,16 +429,11 @@ const AdminTraining: React.FC = () => {
     };
 
     const requestSignedMobileUrl = async (sessionId: string) => {
-        const response = await fetch('/api/admin/reissue-training-link', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId }),
-        });
-
-        const data = await response.json();
-        if (!response.ok || !data?.ok) {
-            throw new Error(data?.message || t.reissueFail);
-        }
+        const data = await postAdminJson<{ ok: boolean; mobileUrl?: string; linkExpiresAt?: number }>(
+            '/api/admin/reissue-training-link',
+            { sessionId },
+            { fallbackMessage: t.reissueFail }
+        );
 
         return {
             mobileUrl: String(data.mobileUrl || ''),
@@ -485,27 +481,11 @@ const AdminTraining: React.FC = () => {
         setAwarenessLoading(true);
         setAwarenessError('');
         try {
-            const response = await fetch('/api/admin/training-awareness-stats', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId }),
-            });
-
-            const contentType = response.headers.get('content-type') || '';
-            const raw = await response.text();
-            let data: any = null;
-
-            if (raw && contentType.includes('application/json')) {
-                try {
-                    data = JSON.parse(raw);
-                } catch {
-                    throw new Error(t.parseFail);
-                }
-            }
-
-            if (!response.ok || !data?.ok) {
-                throw new Error(data?.message || `통계 조회 실패 (HTTP ${response.status})`);
-            }
+            const data = await postAdminJson<any>(
+                '/api/admin/training-awareness-stats',
+                { sessionId },
+                { fallbackMessage: '통계 조회 실패' }
+            );
 
             setAwarenessStats({
                 submittedWorkers: Number(data.submittedWorkers || 0),
@@ -669,16 +649,11 @@ const AdminTraining: React.FC = () => {
         setMobileUrl('');
 
         try {
-            const response = await fetch('/api/admin/create-training', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sourceTextKo, selectedLanguages: TRAINING_AUDIO_LANGUAGE_CODES }),
-            });
-
-            const data = await response.json();
-            if (!response.ok || !data.ok) {
-                throw new Error(data.message || '세션 생성 실패');
-            }
+            const data = await postAdminJson<any>(
+                '/api/admin/create-training',
+                { sourceTextKo, selectedLanguages: TRAINING_AUDIO_LANGUAGE_CODES },
+                { fallbackMessage: '세션 생성 실패' }
+            );
 
             const nextSessionId = String(data.sessionId || '');
             const uploadPayload: Record<string, { fileName: string; contentType: string; base64: string }> = {};
@@ -699,19 +674,15 @@ const AdminTraining: React.FC = () => {
                 };
             }
 
-            const syncResponse = await fetch('/api/admin/upload-training-audio', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            const syncData = await postAdminJson<any>(
+                '/api/admin/upload-training-audio',
+                {
                     sessionId: nextSessionId,
                     originalScript: sourceTextKo,
                     files: uploadPayload,
-                }),
-            });
-            const syncData = await syncResponse.json();
-            if (!syncResponse.ok || !syncData.ok) {
-                throw new Error(syncData.message || 'MP3 업로드 저장 실패');
-            }
+                },
+                { fallbackMessage: 'MP3 업로드 저장 실패' }
+            );
             const nextAudioUrls = (syncData.audioUrls && typeof syncData.audioUrls === 'object')
                 ? syncData.audioUrls as Record<string, string | null>
                 : Object.fromEntries(TRAINING_AUDIO_LANGUAGE_CODES.map((code) => [code, null]));
@@ -803,27 +774,11 @@ const AdminTraining: React.FC = () => {
 
         setDeletingSessionId(sessionIdToDelete);
         try {
-            const response = await fetch('/api/admin/delete-training-session', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId: sessionIdToDelete }),
-            });
-
-            const contentType = response.headers.get('content-type') || '';
-            const raw = await response.text();
-            let data: any = null;
-
-            if (raw && contentType.includes('application/json')) {
-                try {
-                    data = JSON.parse(raw);
-                } catch {
-                    throw new Error(t.parseFail);
-                }
-            }
-
-            if (!response.ok || !data?.ok) {
-                throw new Error(data?.message || data?.error || `세션 삭제 실패 (HTTP ${response.status})`);
-            }
+            await postAdminJson<any>(
+                '/api/admin/delete-training-session',
+                { sessionId: sessionIdToDelete },
+                { fallbackMessage: '세션 삭제 실패' }
+            );
 
             if (sessionIdToDelete === currentSessionId) {
                 setMobileUrl('');
