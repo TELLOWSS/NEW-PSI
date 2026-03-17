@@ -12,6 +12,11 @@ function getSupabaseClient() {
         process.env.VITE_SUPABASE_URL ||
         process.env.NEXT_PUBLIC_SUPABASE_URL ||
         '';
+    const supabaseServiceRoleKey =
+        process.env.SUPABASE_SERVICE_ROLE_KEY ||
+        process.env.SUPABASE_SERVICE_KEY ||
+        process.env.SERVICE_ROLE_KEY ||
+        '';
     const supabaseAnonKey =
         process.env.VITE_SUPABASE_ANON_KEY ||
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
@@ -21,17 +26,22 @@ function getSupabaseClient() {
         process.env.PSI_ADMIN_SECRET ||
         '';
 
-    if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error('Supabase 환경변수가 누락되었습니다. VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY를 확인해 주세요.');
+    if (!supabaseUrl || (!supabaseServiceRoleKey && !supabaseAnonKey)) {
+        throw new Error('Supabase 환경변수가 누락되었습니다. SUPABASE_SERVICE_ROLE_KEY 또는 VITE_SUPABASE_ANON_KEY를 확인해 주세요.');
     }
 
-    return createClient(supabaseUrl, supabaseAnonKey, {
+    const keyToUse = supabaseServiceRoleKey || supabaseAnonKey;
+    const authMode = supabaseServiceRoleKey ? 'service_role' : 'anon_with_admin_header';
+
+    const client = createClient(supabaseUrl, keyToUse, {
         global: {
             headers: psiAdminSecret
                 ? { 'x-psi-admin-secret': psiAdminSecret }
                 : {},
         },
     });
+
+    return { client, authMode };
 }
 
 function sendJsonError(res: any, statusCode: number, message: string, details?: string) {
@@ -52,6 +62,26 @@ function resolveGeminiApiKey() {
         process.env.GOOGLE_API_KEY ||
         ''
     );
+}
+
+function createUuidV4() {
+    if (typeof globalThis.crypto?.randomUUID === 'function') {
+        return globalThis.crypto.randomUUID();
+    }
+
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+        const rand = Math.floor(Math.random() * 16);
+        const value = char === 'x' ? rand : ((rand & 0x3) | 0x8);
+        return value.toString(16);
+    });
+}
+
+function formatSupabaseError(error: any) {
+    if (!error) return 'unknown';
+    const parts = [error.message, error.details, error.hint, error.code]
+        .filter((item) => typeof item === 'string' && item.trim().length > 0)
+        .map((item) => String(item).trim());
+    return parts.length > 0 ? parts.join(' | ') : JSON.stringify(error);
 }
 
 async function translateScripts(
@@ -150,7 +180,7 @@ export default async function handler(req: any, res: any) {
             return sendJsonError(res, 405, 'Method Not Allowed');
         }
 
-        const supabase = getSupabaseClient();
+        const { client: supabase, authMode } = getSupabaseClient();
         const { sourceTextKo, selectedLanguages } = req.body || {};
 
         const normalizedSourceText = typeof sourceTextKo === 'string' ? sourceTextKo.trim() : '';
@@ -165,23 +195,28 @@ export default async function handler(req: any, res: any) {
 
         const translatedTexts = await translateScripts(normalizedSourceText, langs);
         const emptyAudioUrls: Record<string, never> = {};
+        const generatedId = createUuidV4();
         const insertCandidates: Array<Record<string, unknown>> = [
             {
+                id: generatedId,
                 source_text_ko: normalizedSourceText,
                 original_script: normalizedSourceText,
                 audio_urls: emptyAudioUrls,
                 translated_texts: translatedTexts,
             },
             {
+                id: generatedId,
                 source_text_ko: normalizedSourceText,
                 original_script: normalizedSourceText,
                 audio_urls: emptyAudioUrls,
             },
             {
+                id: generatedId,
                 source_text_ko: normalizedSourceText,
                 audio_urls: emptyAudioUrls,
             },
             {
+                id: generatedId,
                 source_text_ko: normalizedSourceText,
             },
             {},
@@ -203,16 +238,17 @@ export default async function handler(req: any, res: any) {
                 break;
             }
 
-            lastInsertErrorMessage = insertRes.error?.message || 'training_sessions insert 실패';
+            lastInsertErrorMessage = formatSupabaseError(insertRes.error);
             console.error('[create-training] insert attempt failed', {
                 attempt: index + 1,
                 candidateKeys: Object.keys(candidate),
+                authMode,
                 error: insertRes.error,
             });
         }
 
         if (!insertedSessionId) {
-            throw new Error(lastInsertErrorMessage || 'training_sessions insert 실패');
+            throw new Error(`training_sessions insert 실패 | auth=${authMode} | ${lastInsertErrorMessage || 'unknown error'}`);
         }
 
         const sessionId = insertedSessionId;
