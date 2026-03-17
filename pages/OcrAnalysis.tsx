@@ -8,6 +8,9 @@ import type { WorkerRecord, OcrErrorType, AppSettings } from '../types';
 import { fileToBase64 } from '../utils/fileUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { getApiCallState, incrementApiCallCount, resetApiCallCount, type DailyCounterState } from '../utils/apiCounterUtils';
+import { MasterTemplateList, type MasterTemplate } from '../components/shared/MasterTemplateList';
+import { MasterAssignment, type MasterAssignmentItem, type MasterCompany } from '../components/shared/MasterAssignment';
+import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
 
 const buildReassessmentAuditNote = (before: WorkerRecord, updated: Partial<WorkerRecord>): string => {
     const beforeScore = typeof before.safetyScore === 'number' ? before.safetyScore : 0;
@@ -245,6 +248,227 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [dailyCounter, setDailyCounter] = useState<DailyCounterState>(() => getApiCallState());
     const [importValidationSummary, setImportValidationSummary] = useState<string>('');
     const [importValidationDetails, setImportValidationDetails] = useState<string>('');
+    const [masterTemplates, setMasterTemplates] = useState<MasterTemplate[]>([]);
+    const [selectedMasterTemplateId, setSelectedMasterTemplateId] = useState('');
+    const [masterCompanies, setMasterCompanies] = useState<MasterCompany[]>([]);
+    const [masterAssignments, setMasterAssignments] = useState<MasterAssignmentItem[]>([]);
+
+    const loadMasterData = useCallback(async () => {
+        const [templateResult, companyResult, assignmentResult] = await Promise.all([
+            supabase
+                .from('record_master_templates')
+                .select('id, name, version, field_schema, updated_at')
+                .order('updated_at', { ascending: false }),
+            supabase
+                .from('record_master_companies')
+                .select('id, name')
+                .order('updated_at', { ascending: false }),
+            supabase
+                .from('record_master_assignments')
+                .select('id, company_id, template_id, status, effective_date')
+                .order('updated_at', { ascending: false }),
+        ]);
+
+        if (templateResult.error || companyResult.error || assignmentResult.error) {
+            const firstError = templateResult.error || companyResult.error || assignmentResult.error;
+            if (!handleSupabasePermissionError(firstError)) {
+                alert(`마스터 데이터 조회 실패: ${firstError?.message || '알 수 없는 오류'}`);
+            }
+            return;
+        }
+
+        const mappedTemplates: MasterTemplate[] = (templateResult.data || []).map((row: any) => ({
+            id: String(row.id),
+            name: String(row.name || ''),
+            version: String(row.version || ''),
+            fieldSchema: String(row.field_schema || ''),
+            updatedAt: String(row.updated_at || '').replace('T', ' ').slice(0, 16),
+        }));
+
+        const mappedCompanies: MasterCompany[] = (companyResult.data || []).map((row: any) => ({
+            id: String(row.id),
+            name: String(row.name || ''),
+        }));
+
+        const mappedAssignments: MasterAssignmentItem[] = (assignmentResult.data || []).map((row: any) => ({
+            id: String(row.id),
+            companyId: String(row.company_id),
+            templateId: String(row.template_id),
+            status: row.status === 'inactive' ? 'inactive' : 'active',
+            effectiveDate: String(row.effective_date || ''),
+        }));
+
+        setMasterTemplates(mappedTemplates);
+        setMasterCompanies(mappedCompanies);
+        setMasterAssignments(mappedAssignments);
+        setSelectedMasterTemplateId((prev) => prev || mappedTemplates[0]?.id || '');
+    }, []);
+
+    useEffect(() => {
+        void loadMasterData();
+    }, [loadMasterData]);
+
+    const handleCreateMasterTemplate = async (payload: { name: string; version: string; fieldSchema: string }) => {
+        const result = await supabase
+            .from('record_master_templates')
+            .insert({
+                name: payload.name,
+                version: payload.version,
+                field_schema: payload.fieldSchema,
+            })
+            .select('id, name, version, field_schema, updated_at')
+            .single();
+
+        if (result.error) {
+            if (!handleSupabasePermissionError(result.error)) {
+                alert(`템플릿 생성 실패: ${result.error.message}`);
+            }
+            return;
+        }
+
+        const next: MasterTemplate = {
+            id: String(result.data.id),
+            name: String(result.data.name || ''),
+            version: String(result.data.version || ''),
+            fieldSchema: String(result.data.field_schema || ''),
+            updatedAt: String(result.data.updated_at || '').replace('T', ' ').slice(0, 16),
+        };
+
+        setMasterTemplates((prev) => [next, ...prev]);
+        setSelectedMasterTemplateId(next.id);
+    };
+
+    const handleDeleteMasterTemplate = async (templateId: string) => {
+        if (!confirm('해당 템플릿을 삭제하시겠습니까?')) return;
+
+        const result = await supabase
+            .from('record_master_templates')
+            .delete()
+            .eq('id', templateId);
+
+        if (result.error) {
+            if (!handleSupabasePermissionError(result.error)) {
+                alert(`템플릿 삭제 실패: ${result.error.message}`);
+            }
+            return;
+        }
+
+        setMasterTemplates((prev) => prev.filter((item) => item.id !== templateId));
+        setMasterAssignments((prev) => prev.filter((item) => item.templateId !== templateId));
+        setSelectedMasterTemplateId((prev) => (prev === templateId ? '' : prev));
+    };
+
+    const handleAddMasterCompany = async (companyName: string) => {
+        const normalized = companyName.trim();
+        if (!normalized) return;
+
+        const result = await supabase
+            .from('record_master_companies')
+            .insert({ name: normalized })
+            .select('id, name')
+            .single();
+
+        if (result.error) {
+            if (!handleSupabasePermissionError(result.error)) {
+                alert(`업체 추가 실패: ${result.error.message}`);
+            }
+            return;
+        }
+
+        setMasterCompanies((prev) => [{ id: String(result.data.id), name: String(result.data.name || '') }, ...prev]);
+    };
+
+    const handleDeleteMasterCompany = async (companyId: string) => {
+        const result = await supabase
+            .from('record_master_companies')
+            .delete()
+            .eq('id', companyId);
+
+        if (result.error) {
+            if (!handleSupabasePermissionError(result.error)) {
+                alert(`업체 삭제 실패: ${result.error.message}`);
+            }
+            return;
+        }
+
+        setMasterCompanies((prev) => prev.filter((company) => company.id !== companyId));
+        setMasterAssignments((prev) => prev.filter((item) => item.companyId !== companyId));
+    };
+
+    const handleCreateMasterAssignment = async (payload: { companyId: string; templateId: string; effectiveDate: string }) => {
+        const result = await supabase
+            .from('record_master_assignments')
+            .upsert(
+                {
+                    company_id: payload.companyId,
+                    template_id: payload.templateId,
+                    status: 'active',
+                    effective_date: payload.effectiveDate,
+                },
+                { onConflict: 'company_id,template_id' }
+            )
+            .select('id, company_id, template_id, status, effective_date')
+            .single();
+
+        if (result.error) {
+            if (!handleSupabasePermissionError(result.error)) {
+                alert(`매핑 저장 실패: ${result.error.message}`);
+            }
+            return;
+        }
+
+        const next: MasterAssignmentItem = {
+            id: String(result.data.id),
+            companyId: String(result.data.company_id),
+            templateId: String(result.data.template_id),
+            status: result.data.status === 'inactive' ? 'inactive' : 'active',
+            effectiveDate: String(result.data.effective_date || ''),
+        };
+
+        setMasterAssignments((prev) => {
+            const existingIndex = prev.findIndex((item) => item.id === next.id);
+            if (existingIndex >= 0) {
+                return prev.map((item, index) => (index === existingIndex ? next : item));
+            }
+            return [next, ...prev.filter((item) => !(item.companyId === next.companyId && item.templateId === next.templateId))];
+        });
+    };
+
+    const handleDeleteMasterAssignment = async (assignmentId: string) => {
+        const result = await supabase
+            .from('record_master_assignments')
+            .delete()
+            .eq('id', assignmentId);
+
+        if (result.error) {
+            if (!handleSupabasePermissionError(result.error)) {
+                alert(`매핑 삭제 실패: ${result.error.message}`);
+            }
+            return;
+        }
+
+        setMasterAssignments((prev) => prev.filter((item) => item.id !== assignmentId));
+    };
+
+    const handleSetMasterAssignmentStatus = async (assignmentId: string, status: 'active' | 'inactive') => {
+        const result = await supabase
+            .from('record_master_assignments')
+            .update({ status })
+            .eq('id', assignmentId)
+            .select('id')
+            .single();
+
+        if (result.error) {
+            if (!handleSupabasePermissionError(result.error)) {
+                alert(`상태 변경 실패: ${result.error.message}`);
+            }
+            return;
+        }
+
+        setMasterAssignments((prev) => prev.map((item) => (
+            item.id === assignmentId ? { ...item, status } : item
+        )));
+    };
 
     const getExpectedSafetyLevel = useCallback((record: WorkerRecord): WorkerRecord['safetyLevel'] => {
         const score = typeof record.safetyScore === 'number' ? record.safetyScore : 0;
@@ -1065,6 +1289,32 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 )}
             </div>
 
+            <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 sm:p-6 space-y-5">
+                <div className="flex flex-col gap-1">
+                    <h3 className="text-xl font-black text-slate-900">기록 데이터 마스터 템플릿 중심 관리</h3>
+                    <p className="text-sm font-bold text-slate-500">기존 구성원 명부 중심이 아닌, 템플릿 정의와 업체별 연결을 우선하는 운영 구조입니다.</p>
+                </div>
+
+                <MasterTemplateList
+                    templates={masterTemplates}
+                    selectedTemplateId={selectedMasterTemplateId}
+                    onSelectTemplate={setSelectedMasterTemplateId}
+                    onCreateTemplate={handleCreateMasterTemplate}
+                    onDeleteTemplate={handleDeleteMasterTemplate}
+                />
+
+                <MasterAssignment
+                    companies={masterCompanies}
+                    templates={masterTemplates}
+                    assignments={masterAssignments}
+                    onAddCompany={handleAddMasterCompany}
+                    onDeleteCompany={handleDeleteMasterCompany}
+                    onCreateAssignment={handleCreateMasterAssignment}
+                    onDeleteAssignment={handleDeleteMasterAssignment}
+                    onSetAssignmentStatus={handleSetMasterAssignmentStatus}
+                />
+            </div>
+
             {primaryFailedRecord && primaryFailedErrorType && (
                 <div className="bg-rose-50 border-2 border-rose-200 rounded-3xl p-5 sm:p-6 shadow-lg">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -1084,6 +1334,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             )}
 
             <div className="bg-white p-6 rounded-2xl shadow-xl border border-slate-100 flex flex-col gap-4 no-print">
+                <div className="flex items-center justify-between gap-3">
+                    <h4 className="text-base sm:text-lg font-black text-slate-900">검색 및 필터링</h4>
+                    <span className="text-[11px] font-bold text-slate-500">데이터 목록 전용</span>
+                </div>
+
                 <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
                     <div className="relative flex-1 w-full">
                         <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={2}/></svg>
