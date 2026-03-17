@@ -20,286 +20,96 @@ type SessionRow = {
     translated_texts?: unknown;
 };
 
-type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
-
-const UI_TEXT: Record<UiLocale, {
+type UiText = {
     title: string;
     subtitle: string;
     nameLabel: string;
     namePlaceholder: string;
-    nationalityLabel: string;
-    nationalityHint: string;
-    autoLangLabel: string;
-    audioGuideLabel: string;
-    audioPlay: string;
-    audioPause: string;
-    audioPlaying: string;
-    audioReady: string;
-    audioMissing: string;
-    guidanceLabel: string;
-    comprehensionTitle: string;
-    comprehensionDescription: string;
-    progressLabel: string;
-    progressPending: string;
-    progressReady: string;
-    checkRiskReview: string;
-    checkPpeConfirm: string;
-    checkEmergencyConfirm: string;
-    submitBlockedAlert: string;
-    understandingPledgeHint: string;
-    signatureLabel: string;
-    signatureClear: string;
-    submit: string;
-    submitting: string;
+    loading: string;
+    noSession: string;
+    errorPrefix: string;
     missingNameAlert: string;
     missingSignatureAlert: string;
     submitSuccess: string;
     submitFail: string;
-    mobileOnlyTitle: string;
-    mobileOnlyDescription: string;
-    loading: string;
-    noSession: string;
-    errorPrefix: string;
-    permissionDenied: string;
+    submit: string;
+    submitting: string;
+    signatureLabel: string;
+    signatureClear: string;
+    languageSelectLabel: string;
+    selectedNationalityLabel: string;
+    selectedAudioLabel: string;
+    mp3Connected: string;
+    mp3Missing: string;
+    audioRecorded: string;
+    audioActivateHint: string;
+    audioHiddenHint: string;
+    translatedScriptLabel: string;
+    scrollLabel: string;
+    scriptReadSaved: string;
+    scriptScrollHint: string;
+    signatureDefenseTitle: string;
+    signatureDefenseDescription: string;
+    acknowledgedLabel: string;
+    canvasActivationHint: string;
+    engagementRequiredAlert: string;
+    acknowledgeRequiredAlert: string;
+    sessionIdMissing: string;
     sessionFetchErrorLabel: string;
-    linkInvalid: string;
-    linkExpired: string;
-    stayOnPageHint: string;
-    alreadySubmitted: string;
-}> = {
-    ko: {
-        title: '외국인 근로자 안전교육 확인',
-        subtitle: '음성 안내를 듣고 전자서명을 제출해 주세요.',
-        nameLabel: '이름',
-        namePlaceholder: '이름 입력',
-        nationalityLabel: '국적',
-        nationalityHint: '국적을 선택하면 화면 언어가 자동으로 변경됩니다.',
-        autoLangLabel: '자동 언어 선택',
-        audioGuideLabel: '음성 안내',
-        audioPlay: '재생',
-        audioPause: '일시정지',
-        audioPlaying: '재생 중',
-        audioReady: '버튼을 눌러 음성을 재생하세요',
-        audioMissing: '선택한 언어 음성 파일이 없어 텍스트 안내로 대체됩니다.',
-        guidanceLabel: '안내 문구',
-        comprehensionTitle: '위험성평가 이해 확인',
-        comprehensionDescription: '안내 문구를 끝까지 읽고 아래 항목에 체크해야 제출할 수 있습니다.',
-        progressLabel: '안내 문구 확인 진행도',
-        progressPending: '아직 끝까지 확인하지 않았습니다.',
-        progressReady: '안내 문구를 끝까지 확인했습니다.',
-        checkRiskReview: '내 작업 공정의 주요 위험요인과 통제조치를 확인했습니다.',
-        checkPpeConfirm: '작업 시작 전 보호구(PPE) 착용 기준을 이해했습니다.',
-        checkEmergencyConfirm: '비상상황 발생 시 보고/대피 절차를 이해했습니다.',
-        submitBlockedAlert: '위험성평가 이해 확인(끝까지 읽기 + 체크 항목)을 완료해 주세요.',
-        understandingPledgeHint: '서명은 “위험성평가를 이해하고 준수하겠다”는 확약입니다.',
-        signatureLabel: '전자서명',
-        signatureClear: '서명 지우기',
-        submit: '제출하기',
-        submitting: '제출 중...',
-        missingNameAlert: '이름을 입력해 주세요.',
-        missingSignatureAlert: '전자서명을 먼저 입력해 주세요.',
-        submitSuccess: '제출 완료! 교육 이수 서명이 저장되었습니다.',
-        submitFail: '제출 실패',
-        mobileOnlyTitle: '근로자 전용 모바일 페이지 안내',
-        mobileOnlyDescription: '이 화면은 근로자 전용 모바일 서명 페이지입니다. 현장에 부착된 QR코드를 스마트폰으로 스캔하여 접속해 주세요.',
-        loading: '불러오는 중...',
-        noSession: '세션이 없습니다. 관리자에게 문의해 주세요.',
-        errorPrefix: '오류',
-        permissionDenied: '권한이 없거나 관리자 승인이 필요합니다',
-        sessionFetchErrorLabel: '세션 조회 오류',
-        linkInvalid: '유효하지 않은 접속 링크입니다. 관리자에게 올바른 링크를 요청해 주세요.',
-        linkExpired: '링크 유효기간이 만료되었습니다. 관리자에게 재발급을 요청해 주세요.',
-        stayOnPageHint: '제출 완료 전에는 뒤로가기/새로고침을 하지 마세요.',
-        alreadySubmitted: '이미 제출이 완료되었습니다. 중복 제출은 차단됩니다.',
-    },
-    en: {
-        title: 'Safety Training Confirmation',
-        subtitle: 'Listen to the audio guidance and submit your signature.',
-        nameLabel: 'Name',
-        namePlaceholder: 'Enter your name',
-        nationalityLabel: 'Nationality',
-        nationalityHint: 'Choose nationality to switch UI language automatically.',
-        autoLangLabel: 'Auto language',
-        audioGuideLabel: 'Audio Guidance',
-        audioPlay: 'Play',
-        audioPause: 'Pause',
-        audioPlaying: 'Playing',
-        audioReady: 'Tap the button to play audio',
-        audioMissing: 'No audio file for this language. Showing text guidance instead.',
-        guidanceLabel: 'Guidance Text',
-        comprehensionTitle: 'Comprehension Check',
-        comprehensionDescription: 'You can submit only after reading the guidance to the end and checking all items.',
-        progressLabel: 'Guidance review progress',
-        progressPending: 'Please scroll to the end of the guidance text.',
-        progressReady: 'Guidance text reviewed to the end.',
-        checkRiskReview: 'I reviewed major hazards and control measures for my assigned process.',
-        checkPpeConfirm: 'I understand required PPE before starting work.',
-        checkEmergencyConfirm: 'I understand emergency reporting and evacuation procedures.',
-        submitBlockedAlert: 'Please complete the comprehension checks (read to end + all check items).',
-        understandingPledgeHint: 'This signature is a pledge that you understand and will follow the risk assessment.',
-        signatureLabel: 'Signature',
-        signatureClear: 'Clear Signature',
-        submit: 'Submit',
-        submitting: 'Submitting...',
-        missingNameAlert: 'Please enter your name.',
-        missingSignatureAlert: 'Please provide your signature first.',
-        submitSuccess: 'Submitted! Your training signature is saved.',
-        submitFail: 'Submit failed',
-        mobileOnlyTitle: 'Worker Mobile-Only Page',
-        mobileOnlyDescription: 'This page is for workers only. Please scan the on-site QR code with your smartphone to access it.',
-        loading: 'Loading...',
-        noSession: 'Session not found. Please contact your administrator.',
-        errorPrefix: 'Error',
-        permissionDenied: 'Access denied or administrator approval is required.',
-        sessionFetchErrorLabel: 'Session fetch error',
-        linkInvalid: 'Invalid access link. Please request the correct link from your administrator.',
-        linkExpired: 'This link has expired. Please ask your administrator for a new link.',
-        stayOnPageHint: 'Do not go back or refresh before submission is complete.',
-        alreadySubmitted: 'Submission is already completed. Duplicate submission is blocked.',
-    },
-    vi: {
-        title: 'Xác nhận đào tạo an toàn',
-        subtitle: 'Vui lòng nghe hướng dẫn âm thanh và ký tên điện tử.',
-        nameLabel: 'Họ tên',
-        namePlaceholder: 'Nhập họ tên',
-        nationalityLabel: 'Quốc tịch',
-        nationalityHint: 'Chọn quốc tịch để tự động đổi ngôn ngữ giao diện.',
-        autoLangLabel: 'Ngôn ngữ tự động',
-        audioGuideLabel: 'Hướng dẫn âm thanh',
-        audioPlay: 'Phát',
-        audioPause: 'Tạm dừng',
-        audioPlaying: 'Đang phát',
-        audioReady: 'Nhấn nút để phát âm thanh',
-        audioMissing: 'Không có tệp âm thanh cho ngôn ngữ này. Sẽ hiển thị hướng dẫn dạng văn bản.',
-        guidanceLabel: 'Nội dung hướng dẫn',
-        comprehensionTitle: 'Xác nhận đã hiểu',
-        comprehensionDescription: 'Chỉ có thể gửi sau khi đọc hết nội dung hướng dẫn và chọn tất cả mục bên dưới.',
-        progressLabel: 'Tiến độ đọc hướng dẫn',
-        progressPending: 'Vui lòng cuộn xuống cuối nội dung hướng dẫn.',
-        progressReady: 'Đã đọc đến cuối nội dung hướng dẫn.',
-        checkRiskReview: 'Tôi đã xem các rủi ro chính và biện pháp kiểm soát cho công đoạn làm việc của mình.',
-        checkPpeConfirm: 'Tôi hiểu yêu cầu trang bị bảo hộ (PPE) trước khi làm việc.',
-        checkEmergencyConfirm: 'Tôi hiểu quy trình báo cáo và sơ tán khi khẩn cấp.',
-        submitBlockedAlert: 'Vui lòng hoàn tất bước xác nhận hiểu nội dung (đọc đến cuối + đánh dấu các mục).',
-        understandingPledgeHint: 'Chữ ký này là cam kết rằng bạn đã hiểu và sẽ tuân thủ đánh giá rủi ro.',
-        signatureLabel: 'Chữ ký điện tử',
-        signatureClear: 'Xóa chữ ký',
-        submit: 'Gửi',
-        submitting: 'Đang gửi...',
-        missingNameAlert: 'Vui lòng nhập họ tên.',
-        missingSignatureAlert: 'Vui lòng ký tên trước.',
-        submitSuccess: 'Đã gửi! Chữ ký đào tạo đã được lưu.',
-        submitFail: 'Gửi thất bại',
-        mobileOnlyTitle: 'Trang di động dành cho công nhân',
-        mobileOnlyDescription: 'Trang này chỉ dành cho công nhân. Vui lòng quét mã QR tại hiện trường bằng điện thoại để truy cập.',
-        loading: 'Đang tải...',
-        noSession: 'Không tìm thấy phiên. Vui lòng liên hệ quản trị viên.',
-        errorPrefix: 'Lỗi',
-        permissionDenied: 'Bạn không có quyền hoặc cần quản trị viên phê duyệt.',
-        sessionFetchErrorLabel: 'Lỗi tải phiên',
-        linkInvalid: 'Liên kết truy cập không hợp lệ. Vui lòng yêu cầu quản trị viên gửi đúng liên kết.',
-        linkExpired: 'Liên kết đã hết hạn. Vui lòng yêu cầu quản trị viên cấp lại liên kết.',
-        stayOnPageHint: 'Trước khi gửi xong, vui lòng không quay lại hoặc làm mới trang.',
-        alreadySubmitted: 'Bạn đã gửi thành công trước đó. Hệ thống chặn gửi trùng lặp.',
-    },
-    zh: {
-        title: '安全培训确认',
-        subtitle: '请先收听语音指引后提交电子签名。',
-        nameLabel: '姓名',
-        namePlaceholder: '请输入姓名',
-        nationalityLabel: '国籍',
-        nationalityHint: '选择国籍后，界面语言会自动切换。',
-        autoLangLabel: '自动语言',
-        audioGuideLabel: '语音指引',
-        audioPlay: '播放',
-        audioPause: '暂停',
-        audioPlaying: '播放中',
-        audioReady: '点击按钮播放语音',
-        audioMissing: '该语言没有音频文件，将显示文本指引。',
-        guidanceLabel: '指引文本',
-        comprehensionTitle: '理解确认',
-        comprehensionDescription: '必须先将指引阅读到末尾并勾选全部项目后，才能提交。',
-        progressLabel: '指引阅读进度',
-        progressPending: '请滚动到指引文本底部。',
-        progressReady: '已阅读到指引文本末尾。',
-        checkRiskReview: '我已确认本工序的主要风险因素与控制措施。',
-        checkPpeConfirm: '我已理解开工前个人防护装备(PPE)佩戴要求。',
-        checkEmergencyConfirm: '我已理解紧急情况报告与疏散流程。',
-        submitBlockedAlert: '请先完成理解确认（阅读至末尾 + 勾选项目）。',
-        understandingPledgeHint: '该签名表示“我已理解并承诺遵守风险评估要求”。',
-        signatureLabel: '电子签名',
-        signatureClear: '清除签名',
-        submit: '提交',
-        submitting: '提交中...',
-        missingNameAlert: '请输入姓名。',
-        missingSignatureAlert: '请先完成签名。',
-        submitSuccess: '提交完成！培训签名已保存。',
-        submitFail: '提交失败',
-        mobileOnlyTitle: '工人专用手机页面',
-        mobileOnlyDescription: '此页面仅供工人使用。请使用手机扫描现场张贴的二维码进入。',
-        loading: '加载中...',
-        noSession: '未找到会话，请联系管理员。',
-        errorPrefix: '错误',
-        permissionDenied: '没有访问权限或需要管理员批准。',
-        sessionFetchErrorLabel: '会话加载错误',
-        linkInvalid: '访问链接无效，请向管理员索取正确链接。',
-        linkExpired: '链接已过期，请联系管理员重新签发。',
-        stayOnPageHint: '提交完成前请勿返回或刷新页面。',
-        alreadySubmitted: '已提交完成，系统已阻止重复提交。',
-    },
+    permissionDenied: string;
 };
 
-const LANGUAGE_LABELS: Record<string, string> = {
-    'ko-KR': '한국어',
-    'en-US': '영어',
-    'vi-VN': '베트남어',
-    'cmn-CN': '중국어',
-    'th-TH': '태국어',
-    'id-ID': '인도네시아어',
-    'uz-UZ': '우즈베크어',
-    'mn-MN': '몽골어',
-    'km-KH': '크메르어',
-    'ru-RU': '러시아어',
-    'ne-NP': '네팔어',
-    'my-MM': '미얀마어',
-    'fil-PH': '필리핀어',
-    'hi-IN': '힌디어',
-    'bn-BD': '벵골어',
-    'ur-PK': '우르두어',
-    'si-LK': '싱할라어',
-    'kk-KZ': '카자흐어',
-};
-
-const resolveLanguageCodeByNationality = (nationalityRaw: string): string => {
-    const nationality = (nationalityRaw || '').toLowerCase().trim();
-
-    if (!nationality) return 'en-US';
-    if (nationality.includes('한국') || nationality.includes('대한민국') || nationality.includes('korea')) return 'ko-KR';
-    if (nationality.includes('베트남') || nationality.includes('vietnam')) return 'vi-VN';
-    if (nationality.includes('중국') || nationality.includes('china')) return 'cmn-CN';
-    if (nationality.includes('태국') || nationality.includes('thailand')) return 'th-TH';
-    if (nationality.includes('인도네시아') || nationality.includes('indonesia')) return 'id-ID';
-    if (nationality.includes('우즈베키스탄') || nationality.includes('uzbek')) return 'uz-UZ';
-    if (nationality.includes('몽골') || nationality.includes('mongolia')) return 'mn-MN';
-    if (nationality.includes('캄보디아') || nationality.includes('cambodia') || nationality.includes('khmer')) return 'km-KH';
-    if (nationality.includes('러시아') || nationality.includes('russia')) return 'ru-RU';
-    if (nationality.includes('네팔') || nationality.includes('nepal')) return 'ne-NP';
-    if (nationality.includes('미얀마') || nationality.includes('myanmar')) return 'my-MM';
-    if (nationality.includes('필리핀') || nationality.includes('philippines') || nationality.includes('filipino')) return 'fil-PH';
-    if (nationality.includes('인도') || nationality.includes('india') || nationality.includes('hindi')) return 'hi-IN';
-    if (nationality.includes('방글라데시') || nationality.includes('bangladesh') || nationality.includes('bengali')) return 'bn-BD';
-    if (nationality.includes('파키스탄') || nationality.includes('pakistan') || nationality.includes('urdu')) return 'ur-PK';
-    if (nationality.includes('스리랑카') || nationality.includes('sri lanka') || nationality.includes('sinhala')) return 'si-LK';
-    if (nationality.includes('카자흐스탄') || nationality.includes('kazakhstan') || nationality.includes('kazakh')) return 'kk-KZ';
-
-    return 'en-US';
-};
-
-const resolveUiLocaleFromLanguageCode = (code: string): UiLocale => {
-    if (code.startsWith('ko')) return 'ko';
-    if (code.startsWith('vi')) return 'vi';
-    if (code.startsWith('cmn') || code.startsWith('zh')) return 'zh';
-    return 'en';
+const uiTranslations: Record<TrainingAudioLanguageCode, UiText> = {
+    'ko-KR': {
+        title: '외국인 근로자 안전교육 확인', subtitle: '음성 안내를 듣고 전자서명을 제출해 주세요.', nameLabel: '이름', namePlaceholder: '이름 입력',
+        loading: '불러오는 중...', noSession: '세션이 없습니다. 관리자에게 문의해 주세요.', errorPrefix: '오류', missingNameAlert: '이름을 입력해 주세요.',
+        missingSignatureAlert: '전자서명을 먼저 입력해 주세요.', submitSuccess: '제출 완료! 교육 이수 서명이 저장되었습니다.', submitFail: '제출 실패',
+        submit: '제출하기', submitting: '제출 중...', signatureLabel: '전자서명', signatureClear: '초기화', languageSelectLabel: '11개국 언어 선택',
+        selectedNationalityLabel: '선택 국적', selectedAudioLabel: '선택 언어 오디오', mp3Connected: 'MP3 연결됨', mp3Missing: 'MP3 미업로드',
+        audioRecorded: '오디오 재생 기록이 확인되었습니다.', audioActivateHint: '재생 버튼을 누르면 체크박스/서명이 활성화됩니다.',
+        audioHiddenHint: '관리자가 해당 언어 MP3를 올리지 않아 오디오 플레이어를 숨겼습니다. 아래 대본을 끝까지 읽으면 서명이 활성화됩니다.',
+        translatedScriptLabel: '번역 대본', scrollLabel: '스크롤', scriptReadSaved: '대본 끝까지 읽기 기록이 저장되었습니다.',
+        scriptScrollHint: '대본을 끝까지 스크롤하면 체크박스/서명이 활성화됩니다.', signatureDefenseTitle: '전자 서명 방어 로직',
+        signatureDefenseDescription: '오디오 1회 재생 또는 번역 대본 끝까지 읽기 중 하나가 확인되어야 체크박스와 전자서명이 활성화됩니다.',
+        acknowledgedLabel: '위험성평가 내용을 숙지했습니다', canvasActivationHint: '오디오 재생 또는 끝까지 읽기 완료 후 체크박스를 선택하면 전자서명 캔버스가 활성화됩니다.',
+        engagementRequiredAlert: '오디오를 1회 재생하거나 대본을 끝까지 스크롤한 후에만 서명할 수 있습니다.',
+        acknowledgeRequiredAlert: '위험성평가 내용을 숙지했습니다 체크를 먼저 진행해 주세요.', sessionIdMissing: 'sessionId가 없습니다. QR URL을 다시 확인해 주세요.',
+        sessionFetchErrorLabel: '세션 조회 오류', permissionDenied: '권한이 없거나 관리자 승인이 필요합니다',
+    },
+    'cmn-CN': {
+        title: '外籍工人安全培训确认', subtitle: '请收听语音指引并提交电子签名。', nameLabel: '姓名', namePlaceholder: '请输入姓名',
+        loading: '加载中...', noSession: '未找到会话，请联系管理员。', errorPrefix: '错误', missingNameAlert: '请输入姓名。',
+        missingSignatureAlert: '请先完成签名。', submitSuccess: '提交完成！培训签名已保存。', submitFail: '提交失败', submit: '提交', submitting: '提交中...',
+        signatureLabel: '电子签名', signatureClear: '重置', languageSelectLabel: '选择语言（11种）', selectedNationalityLabel: '所选国籍', selectedAudioLabel: '所选语言音频',
+        mp3Connected: 'MP3 已连接', mp3Missing: 'MP3 未上传', audioRecorded: '已记录音频播放。', audioActivateHint: '点击播放后将激活复选框和签名。',
+        audioHiddenHint: '管理员未上传该语言MP3。请完整阅读下方文本后激活签名。', translatedScriptLabel: '翻译文本', scrollLabel: '滚动',
+        scriptReadSaved: '已记录阅读到文本末尾。', scriptScrollHint: '滚动到文本末尾后将激活复选框和签名。', signatureDefenseTitle: '电子签名防护逻辑',
+        signatureDefenseDescription: '必须满足“播放音频一次”或“将译文阅读到末尾”之一，才能激活复选框和电子签名。', acknowledgedLabel: '我已理解风险评估内容',
+        canvasActivationHint: '完成播放或阅读到末尾并勾选后，电子签名画布才会启用。', engagementRequiredAlert: '请先播放音频一次或将文本滚动到末尾后再签名。',
+        acknowledgeRequiredAlert: '请先勾选“我已理解风险评估内容”。', sessionIdMissing: '缺少 sessionId。请重新检查二维码链接。',
+        sessionFetchErrorLabel: '会话加载错误', permissionDenied: '没有权限或需要管理员批准。',
+    },
+    'vi-VN': {
+        title: 'Xác nhận đào tạo an toàn cho công nhân', subtitle: 'Vui lòng nghe hướng dẫn âm thanh và gửi chữ ký điện tử.', nameLabel: 'Họ tên', namePlaceholder: 'Nhập họ tên',
+        loading: 'Đang tải...', noSession: 'Không tìm thấy phiên. Vui lòng liên hệ quản trị viên.', errorPrefix: 'Lỗi', missingNameAlert: 'Vui lòng nhập họ tên.',
+        missingSignatureAlert: 'Vui lòng ký tên trước.', submitSuccess: 'Gửi thành công! Chữ ký đào tạo đã được lưu.', submitFail: 'Gửi thất bại', submit: 'Gửi', submitting: 'Đang gửi...',
+        signatureLabel: 'Chữ ký điện tử', signatureClear: 'Xóa', languageSelectLabel: 'Chọn ngôn ngữ (11)', selectedNationalityLabel: 'Quốc tịch đã chọn', selectedAudioLabel: 'Âm thanh ngôn ngữ đã chọn',
+        mp3Connected: 'Đã kết nối MP3', mp3Missing: 'Chưa có MP3', audioRecorded: 'Đã ghi nhận phát âm thanh.', audioActivateHint: 'Nhấn phát để kích hoạt checkbox/chữ ký.',
+        audioHiddenHint: 'Quản trị viên chưa tải MP3 ngôn ngữ này. Hãy đọc hết văn bản bên dưới để kích hoạt chữ ký.', translatedScriptLabel: 'Kịch bản dịch', scrollLabel: 'Cuộn',
+        scriptReadSaved: 'Đã ghi nhận đọc đến cuối kịch bản.', scriptScrollHint: 'Cuộn đến cuối kịch bản để kích hoạt checkbox/chữ ký.', signatureDefenseTitle: 'Cơ chế bảo vệ chữ ký điện tử',
+        signatureDefenseDescription: 'Phải xác nhận ít nhất một điều kiện: phát âm thanh 1 lần hoặc đọc hết kịch bản dịch, thì checkbox và chữ ký mới được kích hoạt.',
+        acknowledgedLabel: 'Tôi đã hiểu nội dung đánh giá rủi ro', canvasActivationHint: 'Hoàn tất phát âm thanh/đọc hết và chọn checkbox để bật khung chữ ký.',
+        engagementRequiredAlert: 'Bạn chỉ có thể ký sau khi phát âm thanh 1 lần hoặc cuộn đến cuối kịch bản.', acknowledgeRequiredAlert: 'Vui lòng tích trước mục đã hiểu nội dung đánh giá rủi ro.',
+        sessionIdMissing: 'Không có sessionId. Vui lòng kiểm tra lại URL QR.', sessionFetchErrorLabel: 'Lỗi tải phiên', permissionDenied: 'Bạn không có quyền hoặc cần quản trị viên phê duyệt.',
+    },
+    'km-KH': { title: 'ការបញ្ជាក់ការបណ្តុះបណ្តាលសុវត្ថិភាព', subtitle: 'សូមស្តាប់ការណែនាំសំឡេង ហើយដាក់ស្នាមហត្ថលេខាអេឡិចត្រូនិក។', nameLabel: 'ឈ្មោះ', namePlaceholder: 'បញ្ចូលឈ្មោះ', loading: 'កំពុងផ្ទុក...', noSession: 'រកមិនឃើញសម័យ។', errorPrefix: 'កំហុស', missingNameAlert: 'សូមបញ្ចូលឈ្មោះ។', missingSignatureAlert: 'សូមចុះហត្ថលេខាមុន។', submitSuccess: 'បានដាក់ស្នើដោយជោគជ័យ។', submitFail: 'ដាក់ស្នើបរាជ័យ', submit: 'ដាក់ស្នើ', submitting: 'កំពុងដាក់ស្នើ...', signatureLabel: 'ហត្ថលេខាអេឡិចត្រូនិក', signatureClear: 'សម្អាត', languageSelectLabel: 'ជ្រើសរើសភាសា (១១)', selectedNationalityLabel: 'សញ្ជាតិដែលបានជ្រើស', selectedAudioLabel: 'សំឡេងភាសាដែលបានជ្រើស', mp3Connected: 'បានភ្ជាប់ MP3', mp3Missing: 'មិនទាន់មាន MP3', audioRecorded: 'បានកត់ត្រាការចាក់សំឡេង។', audioActivateHint: 'ចុចចាក់សំឡេង ដើម្បីបើកប្រអប់ធីក/ហត្ថលេខា។', audioHiddenHint: 'អ្នកគ្រប់គ្រងមិនទាន់អាប់ឡូដ MP3 សម្រាប់ភាសានេះទេ។ សូមអានអត្ថបទឲ្យចប់ ដើម្បីបើកហត្ថលេខា។', translatedScriptLabel: 'អត្ថបទបកប្រែ', scrollLabel: 'រមូរ', scriptReadSaved: 'បានកត់ត្រាការអានដល់ចុងអត្ថបទ។', scriptScrollHint: 'សូមរមូរដល់ចុងអត្ថបទ ដើម្បីបើកប្រអប់ធីក/ហត្ថលេខា។', signatureDefenseTitle: 'លោជិកការពារហត្ថលេខាអេឡិចត្រូនិក', signatureDefenseDescription: 'ត្រូវបំពេញយ៉ាងហោចណាស់មួយលក្ខខណ្ឌ៖ ចាក់សំឡេង១ដង ឬ អានអត្ថបទដល់ចុង។', acknowledgedLabel: 'ខ្ញុំបានយល់ពីមាតិកាការវាយតម្លៃហានិភ័យ', canvasActivationHint: 'បន្ទាប់ពីបំពេញលក្ខខណ្ឌ និងធីកប្រអប់ នឹងបើកផ្ទាំងហត្ថលេខា។', engagementRequiredAlert: 'សូមចាក់សំឡេង១ដង ឬ រមូរអត្ថបទដល់ចុង មុនចុះហត្ថលេខា។', acknowledgeRequiredAlert: 'សូមធីកថាអ្នកបានយល់ពីមាតិកាការវាយតម្លៃហានិភ័យជាមុន។', sessionIdMissing: 'មិនមាន sessionId ទេ។ សូមពិនិត្យ URL QR ម្ដងទៀត។', sessionFetchErrorLabel: 'កំហុសក្នុងការទាញសម័យ', permissionDenied: 'គ្មានសិទ្ធិចូលប្រើ ឬ ត្រូវការការអនុម័តពីអ្នកគ្រប់គ្រង។' },
+    'id-ID': { title: 'Konfirmasi Pelatihan Keselamatan', subtitle: 'Dengarkan panduan audio dan kirim tanda tangan elektronik.', nameLabel: 'Nama', namePlaceholder: 'Masukkan nama', loading: 'Memuat...', noSession: 'Sesi tidak ditemukan.', errorPrefix: 'Error', missingNameAlert: 'Silakan masukkan nama.', missingSignatureAlert: 'Silakan tanda tangan dulu.', submitSuccess: 'Berhasil dikirim.', submitFail: 'Gagal kirim', submit: 'Kirim', submitting: 'Mengirim...', signatureLabel: 'Tanda Tangan Elektronik', signatureClear: 'Reset', languageSelectLabel: 'Pilih Bahasa (11)', selectedNationalityLabel: 'Kewarganegaraan Terpilih', selectedAudioLabel: 'Audio Bahasa Terpilih', mp3Connected: 'MP3 Terhubung', mp3Missing: 'MP3 Belum Ada', audioRecorded: 'Pemutaran audio tercatat.', audioActivateHint: 'Putar audio untuk mengaktifkan centang/tanda tangan.', audioHiddenHint: 'Admin belum unggah MP3 bahasa ini. Baca naskah sampai akhir untuk mengaktifkan tanda tangan.', translatedScriptLabel: 'Naskah Terjemahan', scrollLabel: 'Gulir', scriptReadSaved: 'Membaca sampai akhir tercatat.', scriptScrollHint: 'Gulir sampai akhir untuk mengaktifkan centang/tanda tangan.', signatureDefenseTitle: 'Logika Perlindungan Tanda Tangan', signatureDefenseDescription: 'Putar audio sekali ATAU baca naskah sampai akhir agar centang/tanda tangan aktif.', acknowledgedLabel: 'Saya memahami isi penilaian risiko', canvasActivationHint: 'Setelah syarat terpenuhi + centang, kanvas tanda tangan aktif.', engagementRequiredAlert: 'Putar audio sekali atau gulir sampai akhir sebelum menandatangani.', acknowledgeRequiredAlert: 'Centang dulu bahwa Anda memahami isi penilaian risiko.', sessionIdMissing: 'sessionId tidak ada. Periksa URL QR.', sessionFetchErrorLabel: 'Kesalahan memuat sesi', permissionDenied: 'Akses ditolak atau perlu persetujuan admin.' },
+    'mn-MN': { title: 'Аюулгүй ажиллагааны сургалтын баталгаажуулалт', subtitle: 'Аудио зааврыг сонсоод цахим гарын үсгээ илгээнэ үү.', nameLabel: 'Нэр', namePlaceholder: 'Нэрээ оруулна уу', loading: 'Ачаалж байна...', noSession: 'Сесс олдсонгүй.', errorPrefix: 'Алдаа', missingNameAlert: 'Нэрээ оруулна уу.', missingSignatureAlert: 'Эхлээд гарын үсгээ зурна уу.', submitSuccess: 'Амжилттай илгээлээ.', submitFail: 'Илгээхэд алдаа гарлаа', submit: 'Илгээх', submitting: 'Илгээж байна...', signatureLabel: 'Цахим гарын үсэг', signatureClear: 'Цэвэрлэх', languageSelectLabel: 'Хэл сонгох (11)', selectedNationalityLabel: 'Сонгосон иргэншил', selectedAudioLabel: 'Сонгосон хэлний аудио', mp3Connected: 'MP3 холбогдсон', mp3Missing: 'MP3 байхгүй', audioRecorded: 'Аудио тоглуулсан нь бүртгэгдлээ.', audioActivateHint: 'Аудио тоглуулж checkbox/гарын үсгийг идэвхжүүлнэ үү.', audioHiddenHint: 'Энэ хэлний MP3-ийг админ оруулаагүй байна. Доорх текстийг дуустал уншиж гарын үсгийг идэвхжүүлнэ үү.', translatedScriptLabel: 'Орчуулсан текст', scrollLabel: 'Гүйлгэх', scriptReadSaved: 'Текстийг дуустал уншсан нь бүртгэгдлээ.', scriptScrollHint: 'Текстийг дуустал гүйлгэж checkbox/гарын үсгийг идэвхжүүлнэ үү.', signatureDefenseTitle: 'Цахим гарын үсгийн хамгаалалтын логик', signatureDefenseDescription: 'Нэг нөхцөлийг заавал хангана: 1 удаа аудио тоглуулах ЭСВЭЛ текстийг дуустал унших.', acknowledgedLabel: 'Би эрсдэлийн үнэлгээний агуулгыг ойлгосон', canvasActivationHint: 'Нөхцөл биелж, checkbox сонгогдсоны дараа гарын үсгийн талбар идэвхжинэ.', engagementRequiredAlert: 'Гарын үсэг зурахаас өмнө 1 удаа аудио тоглуулах эсвэл текстийг дуустал гүйлгэнэ үү.', acknowledgeRequiredAlert: 'Эхлээд эрсдэлийн үнэлгээг ойлгосноо сонгоно уу.', sessionIdMissing: 'sessionId алга байна. QR URL-ээ шалгана уу.', sessionFetchErrorLabel: 'Сесс ачаалах алдаа', permissionDenied: 'Нэвтрэх эрхгүй эсвэл админы зөвшөөрөл шаардлагатай.' },
+    'my-MM': { title: 'လုံခြုံရေးသင်တန်း အတည်ပြုခြင်း', subtitle: 'အသံညွှန်ကြားချက်ကိုနားထောင်ပြီး အီလက်ထရွန်နစ်လက်မှတ်တင်ပြပါ။', nameLabel: 'အမည်', namePlaceholder: 'အမည်ဖြည့်ပါ', loading: 'ဖတ်သိမ်းနေသည်...', noSession: 'Session မတွေ့ပါ။', errorPrefix: 'အမှား', missingNameAlert: 'အမည်ဖြည့်ပါ။', missingSignatureAlert: 'လက်မှတ်ကိုအရင်ရေးပါ။', submitSuccess: 'အောင်မြင်စွာတင်ပြပြီးပါပြီ။', submitFail: 'တင်ပြမှုမအောင်မြင်ပါ', submit: 'တင်ပြမည်', submitting: 'တင်ပြနေသည်...', signatureLabel: 'အီလက်ထရွန်နစ် လက်မှတ်', signatureClear: 'ဖျက်မည်', languageSelectLabel: 'ဘာသာစကားရွေးချယ်ရန် (11)', selectedNationalityLabel: 'ရွေးချယ်ထားသော နိုင်ငံသား', selectedAudioLabel: 'ရွေးချယ်ထားသော ဘာသာစကားအသံ', mp3Connected: 'MP3 ချိတ်ဆက်ပြီး', mp3Missing: 'MP3 မရှိသေးပါ', audioRecorded: 'အသံဖွင့်ထားမှုကိုမှတ်တမ်းတင်ပြီးပါပြီ။', audioActivateHint: 'checkbox/လက်မှတ်ကိုဖွင့်ရန် အသံဖွင့်ပါ။', audioHiddenHint: 'ဤဘာသာစကားအတွက် MP3 ကို admin မတင်ရသေးပါ။ အောက်ပါစာကိုအဆုံးအထိဖတ်ပြီး လက်မှတ်ကိုဖွင့်ပါ။', translatedScriptLabel: 'ဘာသာပြန်စာသား', scrollLabel: 'ရွှေ့', scriptReadSaved: 'စာသားအဆုံးအထိဖတ်ထားမှုကို မှတ်တမ်းတင်ပြီးပါပြီ။', scriptScrollHint: 'စာသားအဆုံးအထိရွှေ့ပြီး checkbox/လက်မှတ်ကိုဖွင့်ပါ။', signatureDefenseTitle: 'အီလက်ထရွန်နစ် လက်မှတ်ကာကွယ်ရေး လိုဂစ်', signatureDefenseDescription: 'အနည်းဆုံး တစ်ခုခုကို ပြီးမြောက်ရမည် - အသံကို ၁ ကြိမ်ဖွင့်ခြင်း သို့မဟုတ် စာသားအဆုံးအထိဖတ်ခြင်း။', acknowledgedLabel: 'အန္တရာယ်အကဲဖြတ်ချက် အကြောင်းအရာကို နားလည်ပြီးပါပြီ', canvasActivationHint: 'လိုအပ်ချက်ပြီးပြီး checkbox ရွေးပြီးမှ လက်မှတ် canvas ဖွင့်မည်။', engagementRequiredAlert: 'လက်မှတ်ရေးမီ အသံကို ၁ ကြိမ်ဖွင့်ပါ သို့မဟုတ် စာသားအဆုံးအထိရွှေ့ဖတ်ပါ။', acknowledgeRequiredAlert: 'အန္တရာယ်အကဲဖြတ်ချက်ကို နားလည်ကြောင်းကို အရင်ရွေးပါ။', sessionIdMissing: 'sessionId မရှိပါ။ QR URL ကို ပြန်စစ်ပါ။', sessionFetchErrorLabel: 'Session ဖတ်ယူမှု အမှား', permissionDenied: 'ဝင်ရောက်ခွင့်မရှိပါ သို့မဟုတ် admin အတည်ပြုချက်လိုအပ်သည်။' },
+    'ru-RU': { title: 'Подтверждение обучения по безопасности', subtitle: 'Прослушайте аудиоинструкцию и отправьте электронную подпись.', nameLabel: 'Имя', namePlaceholder: 'Введите имя', loading: 'Загрузка...', noSession: 'Сессия не найдена.', errorPrefix: 'Ошибка', missingNameAlert: 'Введите имя.', missingSignatureAlert: 'Сначала поставьте подпись.', submitSuccess: 'Успешно отправлено.', submitFail: 'Ошибка отправки', submit: 'Отправить', submitting: 'Отправка...', signatureLabel: 'Электронная подпись', signatureClear: 'Сброс', languageSelectLabel: 'Выбор языка (11)', selectedNationalityLabel: 'Выбранная национальность', selectedAudioLabel: 'Аудио выбранного языка', mp3Connected: 'MP3 подключен', mp3Missing: 'MP3 не загружен', audioRecorded: 'Воспроизведение аудио зафиксировано.', audioActivateHint: 'Нажмите воспроизведение, чтобы активировать чекбокс/подпись.', audioHiddenHint: 'Для этого языка MP3 не загружен. Прочитайте текст до конца для активации подписи.', translatedScriptLabel: 'Переведенный текст', scrollLabel: 'Прокрутка', scriptReadSaved: 'Прочтение до конца зафиксировано.', scriptScrollHint: 'Прокрутите до конца, чтобы активировать чекбокс/подпись.', signatureDefenseTitle: 'Логика защиты электронной подписи', signatureDefenseDescription: 'Нужно выполнить одно из условий: 1 раз воспроизвести аудио ИЛИ прочитать текст до конца.', acknowledgedLabel: 'Я ознакомился с оценкой рисков', canvasActivationHint: 'После выполнения условия и отметки чекбокса поле подписи активируется.', engagementRequiredAlert: 'Перед подписью воспроизведите аудио 1 раз или прокрутите текст до конца.', acknowledgeRequiredAlert: 'Сначала отметьте, что вы ознакомились с оценкой рисков.', sessionIdMissing: 'Отсутствует sessionId. Проверьте QR-ссылку.', sessionFetchErrorLabel: 'Ошибка загрузки сессии', permissionDenied: 'Доступ запрещен или требуется одобрение администратора.' },
+    'uz-UZ': { title: 'Xavfsizlik bo‘yicha o‘qitishni tasdiqlash', subtitle: 'Audio yo‘riqnomani tinglab, elektron imzoni yuboring.', nameLabel: 'Ism', namePlaceholder: 'Ismingizni kiriting', loading: 'Yuklanmoqda...', noSession: 'Sessiya topilmadi.', errorPrefix: 'Xato', missingNameAlert: 'Iltimos, ismingizni kiriting.', missingSignatureAlert: 'Avval imzo qo‘ying.', submitSuccess: 'Muvaffaqiyatli yuborildi.', submitFail: 'Yuborishda xatolik', submit: 'Yuborish', submitting: 'Yuborilmoqda...', signatureLabel: 'Elektron imzo', signatureClear: 'Tozalash', languageSelectLabel: 'Tilni tanlang (11)', selectedNationalityLabel: 'Tanlangan millat', selectedAudioLabel: 'Tanlangan til audiosi', mp3Connected: 'MP3 ulangan', mp3Missing: 'MP3 yuklanmagan', audioRecorded: 'Audio ijrosi qayd etildi.', audioActivateHint: 'Checkbox/imzoni faollashtirish uchun audioni bosing.', audioHiddenHint: 'Bu til uchun MP3 yuklanmagan. Imzoni faollashtirish uchun matnni oxirigacha o‘qing.', translatedScriptLabel: 'Tarjima matni', scrollLabel: 'Skroll', scriptReadSaved: 'Matnni oxirigacha o‘qish qayd etildi.', scriptScrollHint: 'Checkbox/imzoni faollashtirish uchun matnni oxirigacha aylantiring.', signatureDefenseTitle: 'Elektron imzo himoya mantiqi', signatureDefenseDescription: 'Quyidagidan kamida bittasi bajarilishi shart: audioni 1 marta eshitish yoki matnni oxirigacha o‘qish.', acknowledgedLabel: 'Men xavfni baholash mazmunini tushundim', canvasActivationHint: 'Shart bajarilib, checkbox belgilangandan keyin imzo oynasi faollashadi.', engagementRequiredAlert: 'Imzo qo‘yishdan oldin audioni 1 marta eshiting yoki matnni oxirigacha aylantiring.', acknowledgeRequiredAlert: 'Avval xavfni baholashni tushunganingizni belgilang.', sessionIdMissing: 'sessionId yo‘q. QR URL manzilini tekshiring.', sessionFetchErrorLabel: 'Sessiyani olishda xato', permissionDenied: 'Kirish taqiqlangan yoki administrator tasdig‘i kerak.' },
+    'th-TH': { title: 'ยืนยันการอบรมความปลอดภัย', subtitle: 'โปรดฟังคำแนะนำเสียงและส่งลายเซ็นอิเล็กทรอนิกส์', nameLabel: 'ชื่อ', namePlaceholder: 'กรอกชื่อ', loading: 'กำลังโหลด...', noSession: 'ไม่พบเซสชัน', errorPrefix: 'ข้อผิดพลาด', missingNameAlert: 'โปรดกรอกชื่อ', missingSignatureAlert: 'โปรดลงลายเซ็นก่อน', submitSuccess: 'ส่งสำเร็จ', submitFail: 'ส่งไม่สำเร็จ', submit: 'ส่ง', submitting: 'กำลังส่ง...', signatureLabel: 'ลายเซ็นอิเล็กทรอนิกส์', signatureClear: 'รีเซ็ต', languageSelectLabel: 'เลือกภาษา (11 ภาษา)', selectedNationalityLabel: 'สัญชาติที่เลือก', selectedAudioLabel: 'เสียงตามภาษาที่เลือก', mp3Connected: 'เชื่อมต่อ MP3 แล้ว', mp3Missing: 'ยังไม่มี MP3', audioRecorded: 'บันทึกการเล่นเสียงแล้ว', audioActivateHint: 'กดเล่นเสียงเพื่อเปิดใช้งานเช็กบ็อกซ์/ลายเซ็น', audioHiddenHint: 'ผู้ดูแลยังไม่ได้อัปโหลด MP3 ภาษานี้ กรุณาอ่านสคริปต์จนจบเพื่อเปิดใช้งานลายเซ็น', translatedScriptLabel: 'สคริปต์แปล', scrollLabel: 'เลื่อน', scriptReadSaved: 'บันทึกการอ่านจนจบแล้ว', scriptScrollHint: 'เลื่อนจนสุดเพื่อเปิดใช้งานเช็กบ็อกซ์/ลายเซ็น', signatureDefenseTitle: 'ตรรกะป้องกันลายเซ็นอิเล็กทรอนิกส์', signatureDefenseDescription: 'ต้องเล่นเสียง 1 ครั้ง หรืออ่านสคริปต์จนสุด อย่างใดอย่างหนึ่งก่อน จึงจะเปิดใช้งานเช็กบ็อกซ์/ลายเซ็น', acknowledgedLabel: 'ฉันเข้าใจเนื้อหาการประเมินความเสี่ยงแล้ว', canvasActivationHint: 'เมื่อทำครบเงื่อนไขและติ๊กเช็กบ็อกซ์แล้ว พื้นที่ลายเซ็นจะใช้งานได้', engagementRequiredAlert: 'ต้องเล่นเสียง 1 ครั้งหรือเลื่อนอ่านจนจบก่อนลงลายเซ็น', acknowledgeRequiredAlert: 'โปรดติ๊กว่าเข้าใจเนื้อหาการประเมินความเสี่ยงก่อน', sessionIdMissing: 'ไม่พบ sessionId กรุณาตรวจสอบ URL QR', sessionFetchErrorLabel: 'ข้อผิดพลาดในการโหลดเซสชัน', permissionDenied: 'ไม่มีสิทธิ์เข้าถึงหรือรอผู้ดูแลอนุมัติ' },
+    'kk-KZ': { title: 'Қауіпсіздік оқытуын растау', subtitle: 'Аудио нұсқаулықты тыңдап, электрондық қолтаңбаңызды жіберіңіз.', nameLabel: 'Аты-жөні', namePlaceholder: 'Аты-жөніңізді енгізіңіз', loading: 'Жүктелуде...', noSession: 'Сессия табылмады.', errorPrefix: 'Қате', missingNameAlert: 'Аты-жөніңізді енгізіңіз.', missingSignatureAlert: 'Алдымен қолтаңба қойыңыз.', submitSuccess: 'Сәтті жіберілді.', submitFail: 'Жіберу сәтсіз аяқталды', submit: 'Жіберу', submitting: 'Жіберілуде...', signatureLabel: 'Электрондық қолтаңба', signatureClear: 'Тазарту', languageSelectLabel: 'Тілді таңдаңыз (11)', selectedNationalityLabel: 'Таңдалған ұлт', selectedAudioLabel: 'Таңдалған тілдегі аудио', mp3Connected: 'MP3 қосылған', mp3Missing: 'MP3 жүктелмеген', audioRecorded: 'Аудио ойнату тіркелді.', audioActivateHint: 'Чекбокс/қолтаңбаны белсендіру үшін аудионы ойнатыңыз.', audioHiddenHint: 'Бұл тілге MP3 жүктелмеген. Қолтаңбаны белсендіру үшін мәтінді соңына дейін оқыңыз.', translatedScriptLabel: 'Аударма мәтіні', scrollLabel: 'Жылжыту', scriptReadSaved: 'Мәтінді соңына дейін оқу тіркелді.', scriptScrollHint: 'Чекбокс/қолтаңбаны белсендіру үшін мәтінді соңына дейін жылжытыңыз.', signatureDefenseTitle: 'Электрондық қолтаңбаны қорғау логикасы', signatureDefenseDescription: 'Кемінде бір шарт орындалуы керек: аудионы 1 рет тыңдау НЕМЕСЕ мәтінді соңына дейін оқу.', acknowledgedLabel: 'Мен тәуекелді бағалау мазмұнын түсіндім', canvasActivationHint: 'Шарт орындалып, чекбокс белгіленгеннен кейін қолтаңба алаңы белсенді болады.', engagementRequiredAlert: 'Қол қою алдында аудионы 1 рет тыңдаңыз немесе мәтінді соңына дейін жылжытыңыз.', acknowledgeRequiredAlert: 'Алдымен тәуекелді бағалауды түсінгеніңізді белгілеңіз.', sessionIdMissing: 'sessionId жоқ. QR URL мекенжайын тексеріңіз.', sessionFetchErrorLabel: 'Сессияны жүктеу қатесі', permissionDenied: 'Қолжетімсіз немесе әкімші мақұлдауы қажет.' },
 };
 
 const resolveLanguageCandidates = (languageCode: string): string[] => {
@@ -312,26 +122,75 @@ const resolveLanguageCandidates = (languageCode: string): string[] => {
     return Array.from(new Set(candidates));
 };
 
-const resolveNationalityByLanguageCode = (code: string): string => {
-    if (code.startsWith('ko')) return '대한민국';
-    if (code.startsWith('vi')) return '베트남';
-    if (code.startsWith('cmn') || code.startsWith('zh')) return '중국';
-    if (code.startsWith('th')) return '태국';
-    if (code.startsWith('id')) return '인도네시아';
-    if (code.startsWith('uz')) return '우즈베키스탄';
-    if (code.startsWith('mn')) return '몽골';
-    if (code.startsWith('km')) return '캄보디아';
-    if (code.startsWith('ru')) return '러시아';
-    if (code.startsWith('kk')) return '카자흐스탄';
-    if (code.startsWith('ne')) return '네팔';
-    if (code.startsWith('my')) return '미얀마';
-    if (code.startsWith('fil')) return '필리핀';
-    if (code.startsWith('hi')) return '인도';
-    if (code.startsWith('bn')) return '방글라데시';
-    if (code.startsWith('ur')) return '파키스탄';
-    if (code.startsWith('si')) return '스리랑카';
-    return '기타';
+type SignaturePadSectionProps = {
+    selectedLanguageCode: TrainingAudioLanguageCode;
+    uiText: UiText;
+    hasEngagementProof: boolean;
+    hasAcknowledged: boolean;
+    setHasAcknowledged: (value: boolean) => void;
+    canUseSignature: boolean;
+    sigRef: React.MutableRefObject<SignatureCanvas | null>;
+    handleClear: () => void;
 };
+
+const SignaturePadSection: React.FC<SignaturePadSectionProps> = ({
+    selectedLanguageCode,
+    uiText,
+    hasEngagementProof,
+    hasAcknowledged,
+    setHasAcknowledged,
+    canUseSignature,
+    sigRef,
+    handleClear,
+}) => (
+    <div
+        data-language={selectedLanguageCode}
+        className={`mt-4 rounded-2xl border p-4 ${hasEngagementProof ? 'border-emerald-200 bg-emerald-50/60' : 'border-amber-200 bg-amber-50/60'}`}
+    >
+        <p className="text-sm font-black text-slate-900">{uiText.signatureDefenseTitle}</p>
+        <p className="mt-1 text-[11px] font-bold text-slate-600">{uiText.signatureDefenseDescription}</p>
+
+        <label className={`mt-4 flex items-start gap-3 rounded-xl border px-3 py-3 ${hasEngagementProof ? 'border-emerald-200 bg-white' : 'border-slate-200 bg-slate-100 opacity-60'}`}>
+            <input
+                type="checkbox"
+                disabled={!hasEngagementProof}
+                checked={hasAcknowledged}
+                onChange={(e) => setHasAcknowledged(e.target.checked)}
+                className="mt-1"
+            />
+            <span className="text-sm font-black text-slate-800">{uiText.acknowledgedLabel}</span>
+        </label>
+
+        <div className="mt-4">
+            <label className="block text-xs font-black text-slate-500 mb-2">{uiText.signatureLabel}</label>
+            <div className="relative border border-slate-200 rounded-xl overflow-hidden bg-white">
+                <SignatureCanvas
+                    ref={(ref) => {
+                        sigRef.current = ref;
+                    }}
+                    penColor="black"
+                    canvasProps={{
+                        width: 700,
+                        height: 220,
+                        className: `w-full h-[220px] ${canUseSignature ? '' : 'pointer-events-none opacity-40'}`,
+                    }}
+                />
+                {!canUseSignature && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white/70 px-6 text-center text-sm font-black text-slate-600">
+                        {uiText.canvasActivationHint}
+                    </div>
+                )}
+            </div>
+            <button
+                onClick={handleClear}
+                disabled={!canUseSignature}
+                className="mt-2 px-4 py-2 text-xs font-black rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+                {uiText.signatureClear}
+            </button>
+        </div>
+    </div>
+);
 
 const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
     const [loading, setLoading] = useState(true);
@@ -353,7 +212,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
     const guidanceRef = useRef<HTMLDivElement | null>(null);
 
     const effectiveLangKey = selectedLanguageCode || resolveTrainingLanguageByNationality(nationality);
-    const t = UI_TEXT[resolveUiLocaleFromLanguageCode(effectiveLangKey)];
+    const uiText = uiTranslations[effectiveLangKey] || uiTranslations['ko-KR'];
     const simplifiedMode = useMemo(() => {
         const queryMode = new URLSearchParams(window.location.search).get('mode');
         const isMobileUa = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent || '');
@@ -385,10 +244,20 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
         return map;
     }, [sessionData]);
 
-    const selectedAudioUrl = useMemo(() => normalizedAudioMap[effectiveLangKey] || '', [normalizedAudioMap, effectiveLangKey]);
+    const selectedAudioUrl = useMemo(() => {
+        const candidates = resolveLanguageCandidates(effectiveLangKey);
+        for (const key of candidates) {
+            if (normalizedAudioMap[key]) return normalizedAudioMap[key];
+        }
+        return '';
+    }, [normalizedAudioMap, effectiveLangKey]);
 
     const selectedTranslatedText = useMemo(() => {
         if (!sessionData) return '';
+        const candidates = resolveLanguageCandidates(effectiveLangKey);
+        for (const key of candidates) {
+            if (normalizedTextMap[key]) return normalizedTextMap[key];
+        }
         return normalizedTextMap[effectiveLangKey]
             || sessionData.original_script
             || sessionData.source_text_ko
@@ -451,7 +320,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
     useEffect(() => {
         const run = async () => {
             if (!sessionId) {
-                setMessage('sessionId가 없습니다. QR URL을 다시 확인해 주세요.');
+                setMessage(uiText.sessionIdMissing);
                 setLoading(false);
                 return;
             }
@@ -465,9 +334,9 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
 
             if (error) {
                 if (!handleSupabasePermissionError(error)) {
-                    setMessage(`세션 조회 오류: ${error.message}`);
+                    setMessage(`${uiText.sessionFetchErrorLabel}: ${error.message}`);
                 } else {
-                    setMessage('권한이 없거나 관리자 승인이 필요합니다');
+                    setMessage(uiText.permissionDenied);
                 }
                 setSessionData(null);
             } else {
@@ -477,7 +346,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
         };
 
         void run();
-    }, [sessionId]);
+    }, [sessionId, uiText.permissionDenied, uiText.sessionFetchErrorLabel, uiText.sessionIdMissing]);
 
     useEffect(() => {
         const browserLang = (navigator.language || 'ko-KR').toLowerCase();
@@ -498,22 +367,22 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
 
     const handleSubmit = async () => {
         if (!workerName.trim()) {
-            alert(t.missingNameAlert);
+            alert(uiText.missingNameAlert);
             return;
         }
 
         if (!hasEngagementProof) {
-            alert('오디오를 1회 재생하거나 대본을 끝까지 스크롤한 후에만 서명할 수 있습니다.');
+            alert(uiText.engagementRequiredAlert);
             return;
         }
 
         if (!hasAcknowledged) {
-            alert('위험성평가 내용을 숙지했습니다 체크를 먼저 진행해 주세요.');
+            alert(uiText.acknowledgeRequiredAlert);
             return;
         }
 
         if (!sigRef.current || sigRef.current.isEmpty()) {
-            alert(t.missingSignatureAlert);
+            alert(uiText.missingSignatureAlert);
             return;
         }
 
@@ -550,45 +419,45 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                 throw new Error(data.message || '제출 실패');
             }
 
-            setMessage(t.submitSuccess);
+            setMessage(uiText.submitSuccess);
             setSubmitted(true);
             setWorkerName('');
             sigRef.current?.clear();
         } catch (error: any) {
-            setMessage(`${t.errorPrefix}: ${error?.message || '알 수 없는 오류'}`);
+            setMessage(`${uiText.errorPrefix}: ${error?.message || uiText.submitFail}`);
         } finally {
             setSubmitting(false);
         }
     };
 
     if (loading) {
-        return <div className="bg-white p-6 rounded-2xl border border-slate-200 font-bold">{t.loading}</div>;
+        return <div className="bg-white p-6 rounded-2xl border border-slate-200 font-bold">{uiText.loading}</div>;
     }
 
     if (!sessionData) {
-        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.noSession}</div>;
+        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{uiText.noSession}</div>;
     }
 
     return (
         <div className="space-y-6 max-w-2xl">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <h2 className="text-2xl font-black text-slate-900">{t.title}</h2>
-                <p className="text-sm font-bold text-slate-500 mt-2">{t.subtitle}</p>
+                <h2 className="text-2xl font-black text-slate-900">{uiText.title}</h2>
+                <p className="text-sm font-bold text-slate-500 mt-2">{uiText.subtitle}</p>
 
                 <div className="mt-4">
-                    <label className="block text-xs font-black text-slate-500 mb-2">{t.nameLabel}</label>
+                    <label className="block text-xs font-black text-slate-500 mb-2">{uiText.nameLabel}</label>
                     <input
                         value={workerName}
                         onChange={(e) => setWorkerName(e.target.value)}
                         className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
-                        placeholder={t.namePlaceholder}
+                        placeholder={uiText.namePlaceholder}
                     />
                 </div>
 
                 <div className="mt-5">
                     <div className="flex items-center justify-between gap-3 mb-2">
-                        <label className="block text-xs font-black text-slate-500">11개국 언어 선택</label>
-                        <span className="text-[11px] font-bold text-slate-500">선택 국적: {nationality}</span>
+                        <label className="block text-xs font-black text-slate-500">{uiText.languageSelectLabel}</label>
+                        <span className="text-[11px] font-bold text-slate-500">{uiText.selectedNationalityLabel}: {nationality}</span>
                     </div>
                     <div className="overflow-x-auto pb-2">
                         <div className="flex gap-2 min-w-max">
@@ -613,11 +482,11 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                 <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                     <div className="flex items-center justify-between gap-3 mb-3">
                         <div>
-                            <p className="text-xs font-black text-slate-500">선택 언어 오디오</p>
+                            <p className="text-xs font-black text-slate-500">{uiText.selectedAudioLabel}</p>
                             <p className="text-sm font-black text-slate-900">{TRAINING_AUDIO_LANGUAGES.find((item) => item.code === effectiveLangKey)?.flag} {effectiveLangKey}</p>
                         </div>
                         <span className={`text-[11px] font-black ${selectedAudioUrl ? 'text-emerald-700' : 'text-amber-700'}`}>
-                            {selectedAudioUrl ? 'MP3 연결됨' : 'MP3 미업로드'}
+                            {selectedAudioUrl ? uiText.mp3Connected : uiText.mp3Missing}
                         </span>
                     </div>
 
@@ -639,15 +508,15 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
 
                     <p className={`mt-3 text-xs font-bold ${selectedAudioUrl ? 'text-slate-600' : 'text-amber-700'}`}>
                         {selectedAudioUrl
-                            ? (isPlaying ? '오디오 재생 기록이 확인되었습니다.' : '재생 버튼을 누르면 체크박스/서명이 활성화됩니다.')
-                            : '관리자가 해당 언어 MP3를 올리지 않아 오디오 플레이어를 숨겼습니다. 아래 대본을 끝까지 읽으면 서명이 활성화됩니다.'}
+                            ? (isPlaying ? uiText.audioRecorded : uiText.audioActivateHint)
+                            : uiText.audioHiddenHint}
                     </p>
                 </div>
 
                 <div className="mt-4 p-4 rounded-2xl border border-slate-200 bg-white">
                     <div className="flex items-center justify-between gap-3 mb-2">
-                        <p className="text-xs font-black text-slate-500">번역 대본</p>
-                        <span className={`text-[11px] font-black ${hasScrolledToEnd ? 'text-emerald-700' : 'text-amber-700'}`}>스크롤 {guidanceProgress}%</span>
+                        <p className="text-xs font-black text-slate-500">{uiText.translatedScriptLabel}</p>
+                        <span className={`text-[11px] font-black ${hasScrolledToEnd ? 'text-emerald-700' : 'text-amber-700'}`}>{uiText.scrollLabel} {guidanceProgress}%</span>
                     </div>
                     <div
                         ref={guidanceRef}
@@ -670,63 +539,27 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                         <p className="text-sm font-bold text-slate-700 whitespace-pre-wrap leading-7">{selectedTranslatedText}</p>
                     </div>
                     <p className={`mt-2 text-[11px] font-black ${hasScrolledToEnd ? 'text-emerald-700' : 'text-slate-500'}`}>
-                        {hasScrolledToEnd ? '대본 끝까지 읽기 기록이 저장되었습니다.' : '대본을 끝까지 스크롤하면 체크박스/서명이 활성화됩니다.'}
+                        {hasScrolledToEnd ? uiText.scriptReadSaved : uiText.scriptScrollHint}
                     </p>
                 </div>
 
-                <div className={`mt-4 rounded-2xl border p-4 ${hasEngagementProof ? 'border-emerald-200 bg-emerald-50/60' : 'border-amber-200 bg-amber-50/60'}`}>
-                    <p className="text-sm font-black text-slate-900">전자 서명 방어 로직</p>
-                    <p className="mt-1 text-[11px] font-bold text-slate-600">
-                        오디오 1회 재생 또는 번역 대본 끝까지 읽기 중 하나가 확인되어야 체크박스와 전자서명이 활성화됩니다.
-                    </p>
-
-                    <label className={`mt-4 flex items-start gap-3 rounded-xl border px-3 py-3 ${hasEngagementProof ? 'border-emerald-200 bg-white' : 'border-slate-200 bg-slate-100 opacity-60'}`}>
-                        <input
-                            type="checkbox"
-                            disabled={!hasEngagementProof}
-                            checked={hasAcknowledged}
-                            onChange={(e) => setHasAcknowledged(e.target.checked)}
-                            className="mt-1"
-                        />
-                        <span className="text-sm font-black text-slate-800">위험성평가 내용을 숙지했습니다</span>
-                    </label>
-
-                    <div className="mt-4">
-                        <label className="block text-xs font-black text-slate-500 mb-2">{t.signatureLabel}</label>
-                        <div className="relative border border-slate-200 rounded-xl overflow-hidden bg-white">
-                            <SignatureCanvas
-                                ref={(ref) => {
-                                    sigRef.current = ref;
-                                }}
-                                penColor="black"
-                                canvasProps={{
-                                    width: 700,
-                                    height: 220,
-                                    className: `w-full h-[220px] ${canUseSignature ? '' : 'pointer-events-none opacity-40'}`,
-                                }}
-                            />
-                            {!canUseSignature && (
-                                <div className="absolute inset-0 flex items-center justify-center bg-white/70 px-6 text-center text-sm font-black text-slate-600">
-                                    오디오 재생 또는 끝까지 읽기 완료 후 체크박스를 선택하면 전자서명 캔버스가 활성화됩니다.
-                                </div>
-                            )}
-                        </div>
-                        <button
-                            onClick={handleClear}
-                            disabled={!canUseSignature}
-                            className="mt-2 px-4 py-2 text-xs font-black rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {t.signatureClear}
-                        </button>
-                    </div>
-                </div>
+                <SignaturePadSection
+                    selectedLanguageCode={selectedLanguageCode}
+                    uiText={uiText}
+                    hasEngagementProof={hasEngagementProof}
+                    hasAcknowledged={hasAcknowledged}
+                    setHasAcknowledged={setHasAcknowledged}
+                    canUseSignature={canUseSignature}
+                    sigRef={sigRef}
+                    handleClear={handleClear}
+                />
 
                 <button
                     onClick={handleSubmit}
                     disabled={submitting || submitted || !canUseSignature}
                     className="mt-6 w-full py-3 rounded-xl bg-indigo-600 text-white font-black hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                    {submitting ? t.submitting : t.submit}
+                    {submitting ? uiText.submitting : uiText.submit}
                 </button>
 
                 {message && <p className="mt-3 text-sm font-bold text-slate-700">{message}</p>}
