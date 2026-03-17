@@ -7,7 +7,20 @@ import {
     type TrainingAudioLanguageCode,
 } from '../../utils/trainingLanguageUtils';
 
-function getSupabaseClient() {
+// Vercel Hobby 플랜 Node.js 런타임 최대 실행시간 선언
+export const maxDuration = 10;
+
+// ─── 순수 유틸 (throw 없음) ─────────────────────────────────────────────────
+
+function safeGetEnv(): {
+    supabaseUrl: string;
+    supabaseKey: string;
+    authMode: string;
+    psiAdminSecret: string;
+    geminiApiKey: string;
+    appBaseUrl: string;
+    envError: string | null;
+} {
     const supabaseUrl =
         process.env.VITE_SUPABASE_URL ||
         process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -25,50 +38,31 @@ function getSupabaseClient() {
         process.env.VITE_PSI_ADMIN_SECRET ||
         process.env.PSI_ADMIN_SECRET ||
         '';
-
-    if (!supabaseUrl || (!supabaseServiceRoleKey && !supabaseAnonKey)) {
-        throw new Error('Supabase 환경변수가 누락되었습니다. SUPABASE_SERVICE_ROLE_KEY 또는 VITE_SUPABASE_ANON_KEY를 확인해 주세요.');
-    }
-
-    const keyToUse = supabaseServiceRoleKey || supabaseAnonKey;
-    const authMode = supabaseServiceRoleKey ? 'service_role' : 'anon_with_admin_header';
-
-    const client = createClient(supabaseUrl, keyToUse, {
-        global: {
-            headers: psiAdminSecret
-                ? { 'x-psi-admin-secret': psiAdminSecret }
-                : {},
-        },
-    });
-
-    return { client, authMode };
-}
-
-function sendJsonError(res: any, statusCode: number, message: string, details?: string) {
-    const payload: { ok: false; error: string; message: string; details?: string } = {
-        ok: false,
-        error: message,
-        message,
-    };
-
-    if (details) payload.details = details;
-    return res.status(statusCode).json(payload);
-}
-
-function resolveGeminiApiKey() {
-    return (
+    const geminiApiKey =
         process.env.GEMINI_API_KEY ||
         process.env.GOOGLE_GEMINI_API_KEY ||
         process.env.GOOGLE_API_KEY ||
-        ''
-    );
+        '';
+    const appBaseUrl =
+        process.env.NEXT_PUBLIC_APP_BASE_URL || '';
+
+    const supabaseKey = supabaseServiceRoleKey || supabaseAnonKey;
+    const authMode = supabaseServiceRoleKey ? 'service_role' : 'anon_with_admin_header';
+    const envError = !supabaseUrl || !supabaseKey
+        ? `환경변수 누락: VITE_SUPABASE_URL=${!!supabaseUrl}, SUPABASE_KEY=${!!supabaseKey}`
+        : null;
+
+    return { supabaseUrl, supabaseKey, authMode, psiAdminSecret, geminiApiKey, appBaseUrl, envError };
 }
 
-function createUuidV4() {
-    if (typeof globalThis.crypto?.randomUUID === 'function') {
-        return globalThis.crypto.randomUUID();
+function createUuidV4(): string {
+    try {
+        if (typeof globalThis.crypto?.randomUUID === 'function') {
+            return globalThis.crypto.randomUUID();
+        }
+    } catch {
+        // 폴백
     }
-
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
         const rand = Math.floor(Math.random() * 16);
         const value = char === 'x' ? rand : ((rand & 0x3) | 0x8);
@@ -76,252 +70,238 @@ function createUuidV4() {
     });
 }
 
-function formatSupabaseError(error: any) {
+function formatSupabaseError(error: any): string {
     if (!error) return 'unknown';
     const parts = [error.message, error.details, error.hint, error.code]
-        .filter((item) => typeof item === 'string' && item.trim().length > 0)
+        .filter((item) => typeof item === 'string' && String(item).trim().length > 0)
         .map((item) => String(item).trim());
     return parts.length > 0 ? parts.join(' | ') : JSON.stringify(error);
 }
 
-const TRANSLATION_TIMEOUT_MS = 7000;
-const REQUEST_TIMEOUT_MS = 8000;
+// ─── 번역: 언어 1개 (절대 throw 안 함) ────────────────────────────────────
 
-type CreateTrainingSuccessPayload = {
-    ok: true;
-    sessionId: string;
-    mobileUrl: string;
-    linkExpiresAt: number;
-    ttlMinutes: number;
-    audioUrls: Record<string, never>;
-    translatedTexts: Record<string, string>;
-    translationSkipped: boolean;
-};
-
-async function translateSingleLanguage(
+async function translateSingleLanguageSafe(
     apiKey: string,
     sourceTextKo: string,
     languageCode: TrainingAudioLanguageCode,
 ): Promise<[TrainingAudioLanguageCode, string | null]> {
-    const languageLabel = TRAINING_AUDIO_LANGUAGES.find((item) => item.code === languageCode)?.label || languageCode;
-
-    const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [
-                    {
-                        parts: [
-                            {
-                                text: [
-                                    '다음 한국어 위험성평가 교육 대본을 지정 언어로만 번역하세요.',
-                                    '반드시 JSON 객체만 반환하고 키는 "translated"만 사용하세요.',
-                                    '',
-                                    `[대상 언어] ${languageCode} (${languageLabel})`,
-                                    '[원문]',
-                                    sourceTextKo,
-                                ].join('\n'),
-                            },
-                        ],
-                    },
-                ],
-                generationConfig: {
-                    temperature: 0.2,
-                    responseMimeType: 'application/json',
-                },
-            }),
-        }
-    );
-
-    if (!response.ok) {
-        return [languageCode, null];
-    }
-
-    const data = await response.json();
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-    const parsed = JSON.parse(rawText) as Record<string, unknown>;
-    const translated = typeof parsed?.translated === 'string' ? parsed.translated.trim() : '';
-
-    return [languageCode, translated || null];
-}
-
-async function translateScriptsParallelWithTimeout(
-    sourceTextKo: string,
-    targetLanguages: TrainingAudioLanguageCode[],
-): Promise<Record<string, string>> {
-    const apiKey = resolveGeminiApiKey();
-    if (!sourceTextKo.trim() || !apiKey) {
-        return {};
-    }
-
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
     try {
-        const translationTask = Promise.all(
-            targetLanguages.map((languageCode) => translateSingleLanguage(apiKey, sourceTextKo, languageCode))
+        const languageLabel =
+            TRAINING_AUDIO_LANGUAGES.find((item) => item.code === languageCode)?.label || languageCode;
+
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [
+                        {
+                            parts: [
+                                {
+                                    text: [
+                                        '다음 한국어 위험성평가 교육 대본을 지정 언어로만 번역하세요.',
+                                        '반드시 JSON 객체만 반환하고 키는 "translated"만 사용하세요.',
+                                        '',
+                                        `[대상 언어] ${languageCode} (${languageLabel})`,
+                                        '[원문]',
+                                        sourceTextKo,
+                                    ].join('\n'),
+                                },
+                            ],
+                        },
+                    ],
+                    generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
+                }),
+            }
         );
 
-        const timeoutTask = new Promise<never>((_, reject) => {
-            timeoutId = setTimeout(() => reject(new Error('TRANSLATION_TIMEOUT')), TRANSLATION_TIMEOUT_MS);
+        if (!response.ok) return [languageCode, null];
+
+        const data = await response.json();
+        const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+        const parsed = JSON.parse(rawText) as Record<string, unknown>;
+        const translated = typeof parsed?.translated === 'string' ? parsed.translated.trim() : '';
+        return [languageCode, translated || null];
+    } catch {
+        return [languageCode, null];
+    }
+}
+
+// ─── 번역 전체: 병렬 + 7초 강제 타임아웃 (절대 throw 안 함) ─────────────────
+
+async function translateParallelSafe(
+    sourceTextKo: string,
+    apiKey: string,
+    langs: TrainingAudioLanguageCode[],
+): Promise<Record<string, string>> {
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+    try {
+        const workPromise = Promise.all(
+            langs.map((code) => translateSingleLanguageSafe(apiKey, sourceTextKo, code))
+        // Promise.all 내부 개별 항목은 이미 절대 throw 안 하므로 추가 .catch 불필요
+        );
+
+        const timerPromise = new Promise<'TIMEOUT'>((resolve) => {
+            timerId = setTimeout(() => resolve('TIMEOUT'), 7000);
         });
 
-        const entries = await Promise.race([translationTask, timeoutTask]);
-        const translatedTexts: Record<string, string> = {};
+        const raceResult = await Promise.race([workPromise, timerPromise]);
 
-        for (const [code, value] of entries) {
-            if (value) translatedTexts[code] = value;
+        if (raceResult === 'TIMEOUT') {
+            console.warn('[create-training] translation timed out after 7s, skipping');
+            // race 패자(workPromise)가 나중에 resolve/reject돼도 프로세스가 죽지 않도록
+            // 명시적으로 빈 catch 연결
+            workPromise.catch(() => {});
+            return {};
         }
 
-        if (sourceTextKo.trim()) {
-            translatedTexts['ko-KR'] = sourceTextKo;
+        const texts: Record<string, string> = {};
+        for (const [code, value] of raceResult) {
+            if (value) texts[code] = value;
         }
-
-        return translatedTexts;
-    } catch (error: any) {
-        console.error('[create-training] translation failed or timed out', {
-            message: error?.message || 'unknown',
-        });
+        texts['ko-KR'] = sourceTextKo;
+        return texts;
+    } catch {
         return {};
     } finally {
-        if (timeoutId) clearTimeout(timeoutId);
+        if (timerId) clearTimeout(timerId);
     }
 }
 
-async function executeCreateTraining(req: any): Promise<CreateTrainingSuccessPayload> {
-    const { client: supabase, authMode } = getSupabaseClient();
-    const requestBody = typeof req.body === 'string'
-        ? (() => {
-            try {
-                return JSON.parse(req.body || '{}');
-            } catch {
-                return {};
-            }
-        })()
-        : (req.body || {});
-
-    const { sourceTextKo, selectedLanguages } = requestBody;
-
-    const normalizedSourceText = typeof sourceTextKo === 'string' ? sourceTextKo.trim() : '';
-    const shouldSkipTranslation = !normalizedSourceText;
-
-    const requestedLanguages = Array.isArray(selectedLanguages)
-        ? selectedLanguages.filter((code: string): code is TrainingAudioLanguageCode => TRAINING_AUDIO_LANGUAGE_SET.has(code))
-        : [];
-
-    const langs = requestedLanguages.length > 0
-        ? requestedLanguages
-        : [...TRAINING_AUDIO_LANGUAGE_CODES];
-
-    const translatedTexts = shouldSkipTranslation
-        ? {}
-        : await translateScriptsParallelWithTimeout(normalizedSourceText, langs);
-
-    if (shouldSkipTranslation) {
-        console.info('[create-training] translation skipped', {
-            reason: 'empty_source_text',
-        });
-    }
-
-    const emptyAudioUrls: Record<string, never> = {};
-    const generatedId = createUuidV4();
-    const insertCandidates: Array<Record<string, unknown>> = [
-        {
-            id: generatedId,
-            source_text_ko: normalizedSourceText,
-            original_script: normalizedSourceText,
-            audio_urls: emptyAudioUrls,
-            translated_texts: translatedTexts,
-        },
-        {
-            id: generatedId,
-            source_text_ko: normalizedSourceText,
-            original_script: normalizedSourceText,
-            audio_urls: emptyAudioUrls,
-        },
-        {
-            id: generatedId,
-            source_text_ko: normalizedSourceText,
-            audio_urls: emptyAudioUrls,
-        },
-        {
-            id: generatedId,
-            source_text_ko: normalizedSourceText,
-        },
-        {},
-    ];
-
-    let insertedSessionId = '';
-    let lastInsertErrorMessage = '';
-
-    for (let index = 0; index < insertCandidates.length; index += 1) {
-        const candidate = insertCandidates[index];
-        const insertRes = await supabase
-            .from('training_sessions')
-            .insert(candidate)
-            .select('id')
-            .single();
-
-        if (!insertRes.error && insertRes.data?.id) {
-            insertedSessionId = String(insertRes.data.id);
-            break;
-        }
-
-        lastInsertErrorMessage = formatSupabaseError(insertRes.error);
-        console.error('[create-training] insert attempt failed', {
-            attempt: index + 1,
-            candidateKeys: Object.keys(candidate),
-            authMode,
-            error: insertRes.error,
-        });
-    }
-
-    if (!insertedSessionId) {
-        throw new Error(`training_sessions insert 실패 | auth=${authMode} | ${lastInsertErrorMessage || 'unknown error'}`);
-    }
-
-    const sessionId = insertedSessionId;
-    const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || req.headers.origin || 'http://localhost:5173';
-    const { mobileUrl, linkExpiresAt, ttlMinutes } = buildSignedTrainingMobileUrl(baseUrl, sessionId, resolveLinkTtlMinutes());
-
-    return {
-        ok: true,
-        sessionId,
-        mobileUrl,
-        linkExpiresAt,
-        ttlMinutes,
-        audioUrls: {},
-        translatedTexts,
-        translationSkipped: shouldSkipTranslation,
-    };
-}
+// ─── 핸들러 (단일 try-catch, 절대 죽지 않는 구조) ────────────────────────────
 
 export default async function handler(req: any, res: any) {
     try {
+        // 1) METHOD 체크
         if (req.method !== 'POST') {
-            return sendJsonError(res, 405, 'Method Not Allowed');
+            return res.status(405).json({ ok: false, error: 'Method Not Allowed', message: 'Method Not Allowed' });
         }
 
-        const result = await Promise.race([
-            executeCreateTraining(req),
-            new Promise<never>((_, reject) => {
-                setTimeout(() => reject(new Error('REQUEST_TIMEOUT')), REQUEST_TIMEOUT_MS);
-            }),
-        ]);
+        // 2) 환경변수 사전 검사 (throw 없이 즉시 응답)
+        const env = safeGetEnv();
+        if (env.envError) {
+            console.error('[create-training] env missing:', env.envError);
+            return res.status(500).json({
+                ok: false,
+                error: '환경변수 누락',
+                message: env.envError,
+                details: 'Supabase URL/KEY 환경변수를 Vercel 대시보드에서 설정해 주세요.',
+            });
+        }
 
-        return res.status(200).json(result);
+        // 3) Supabase 클라이언트 지연 초기화 (here, inside handler)
+        const supabase = createClient(env.supabaseUrl, env.supabaseKey, {
+            global: {
+                headers: env.psiAdminSecret ? { 'x-psi-admin-secret': env.psiAdminSecret } : {},
+            },
+        });
+
+        // 4) 요청 본문 파싱
+        let requestBody: Record<string, unknown> = {};
+        try {
+            requestBody = typeof req.body === 'string'
+                ? JSON.parse(req.body || '{}')
+                : (req.body || {});
+        } catch {
+            requestBody = {};
+        }
+
+        const { sourceTextKo, selectedLanguages } = requestBody as {
+            sourceTextKo?: unknown;
+            selectedLanguages?: unknown;
+        };
+
+        const normalizedSourceText = typeof sourceTextKo === 'string' ? sourceTextKo.trim() : '';
+
+        // 5) 번역 (빈 텍스트면 즉시 스킵, 아니면 병렬+7초 타임아웃)
+        let translatedTexts: Record<string, string> = {};
+        const shouldSkipTranslation = !normalizedSourceText || !env.geminiApiKey;
+
+        if (!shouldSkipTranslation) {
+            const requestedLanguages = Array.isArray(selectedLanguages)
+                ? (selectedLanguages as string[]).filter(
+                      (code): code is TrainingAudioLanguageCode => TRAINING_AUDIO_LANGUAGE_SET.has(code)
+                  )
+                : [];
+            const langs = requestedLanguages.length > 0 ? requestedLanguages : [...TRAINING_AUDIO_LANGUAGE_CODES];
+            translatedTexts = await translateParallelSafe(normalizedSourceText, env.geminiApiKey, langs);
+        }
+
+        // 6) DB Insert (다단계 fallback)
+        const generatedId = createUuidV4();
+        const insertCandidates: Array<Record<string, unknown>> = [
+            { id: generatedId, source_text_ko: normalizedSourceText, original_script: normalizedSourceText, audio_urls: {}, translated_texts: translatedTexts },
+            { id: generatedId, source_text_ko: normalizedSourceText, original_script: normalizedSourceText, audio_urls: {} },
+            { id: generatedId, source_text_ko: normalizedSourceText, audio_urls: {} },
+            { id: generatedId, source_text_ko: normalizedSourceText },
+            {},
+        ];
+
+        let insertedSessionId = '';
+        let lastInsertError = '';
+
+        for (let i = 0; i < insertCandidates.length; i += 1) {
+            try {
+                const insertRes = await supabase
+                    .from('training_sessions')
+                    .insert(insertCandidates[i])
+                    .select('id')
+                    .single();
+
+                if (!insertRes.error && insertRes.data?.id) {
+                    insertedSessionId = String(insertRes.data.id);
+                    break;
+                }
+                lastInsertError = formatSupabaseError(insertRes.error);
+                console.error('[create-training] insert attempt', i + 1, 'failed:', lastInsertError);
+            } catch (insertErr: any) {
+                lastInsertError = insertErr?.message || 'insert exception';
+                console.error('[create-training] insert attempt', i + 1, 'exception:', lastInsertError);
+            }
+        }
+
+        if (!insertedSessionId) {
+            return res.status(500).json({
+                ok: false,
+                error: 'DB Insert 실패',
+                message: `training_sessions insert 실패 | auth=${env.authMode}`,
+                details: lastInsertError || 'unknown',
+            });
+        }
+
+        // 7) 링크 생성
+        const baseUrl = env.appBaseUrl || req.headers?.origin || 'http://localhost:5173';
+        let mobileUrl = '';
+        let linkExpiresAt = 0;
+        let ttlMinutes = 0;
+        try {
+            const linkResult = buildSignedTrainingMobileUrl(baseUrl, insertedSessionId, resolveLinkTtlMinutes());
+            mobileUrl = linkResult.mobileUrl;
+            linkExpiresAt = linkResult.linkExpiresAt;
+            ttlMinutes = linkResult.ttlMinutes;
+        } catch (linkErr: any) {
+            console.error('[create-training] link build failed:', linkErr?.message);
+        }
+
+        return res.status(200).json({
+            ok: true,
+            sessionId: insertedSessionId,
+            mobileUrl,
+            linkExpiresAt,
+            ttlMinutes,
+            audioUrls: {},
+            translatedTexts,
+            translationSkipped: shouldSkipTranslation,
+        });
+
     } catch (error: any) {
-        console.error('Create Training Error:', error);
-
-        if (error?.message === 'REQUEST_TIMEOUT') {
-            return sendJsonError(res, 504, '요청 시간 초과', `8초 제한을 초과하여 요청을 중단했습니다. (${REQUEST_TIMEOUT_MS}ms)`);
-        }
-
+        // 최종 방어망: 어떤 에러도 여기서 잡아 JSON으로 반환
+        console.error('[create-training] unhandled error:', error);
         return res.status(500).json({
             ok: false,
-            error: '서버 내부 오류',
-            message: '서버 내부 오류',
+            error: '서버 로직 에러',
+            message: '서버 로직 에러',
             details: error?.message || 'Unknown error',
         });
     }
