@@ -42,6 +42,11 @@ function getSupabaseClient() {
         process.env.VITE_SUPABASE_URL ||
         process.env.NEXT_PUBLIC_SUPABASE_URL ||
         '';
+    const supabaseServiceRoleKey =
+        process.env.SUPABASE_SERVICE_ROLE_KEY ||
+        process.env.SUPABASE_SERVICE_KEY ||
+        process.env.SERVICE_ROLE_KEY ||
+        '';
     const supabaseAnonKey =
         process.env.VITE_SUPABASE_ANON_KEY ||
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
@@ -50,12 +55,13 @@ function getSupabaseClient() {
         process.env.VITE_PSI_ADMIN_SECRET ||
         process.env.PSI_ADMIN_SECRET ||
         '';
+    const keyToUse = supabaseServiceRoleKey || supabaseAnonKey;
 
-    if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error('Supabase 환경변수가 누락되었습니다.');
+    if (!supabaseUrl || !keyToUse) {
+        throw new Error('Supabase 환경변수가 누락되었습니다. SUPABASE_SERVICE_ROLE_KEY 또는 VITE_SUPABASE_ANON_KEY를 확인해 주세요.');
     }
 
-    return createClient(supabaseUrl, supabaseAnonKey, {
+    return createClient(supabaseUrl, keyToUse, {
         global: {
             headers: psiAdminSecret ? { 'x-psi-admin-secret': psiAdminSecret } : {},
         },

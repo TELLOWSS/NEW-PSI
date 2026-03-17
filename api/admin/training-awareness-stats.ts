@@ -5,6 +5,11 @@ function getSupabaseClient() {
         process.env.VITE_SUPABASE_URL ||
         process.env.NEXT_PUBLIC_SUPABASE_URL ||
         '';
+    const supabaseServiceRoleKey =
+        process.env.SUPABASE_SERVICE_ROLE_KEY ||
+        process.env.SUPABASE_SERVICE_KEY ||
+        process.env.SERVICE_ROLE_KEY ||
+        '';
     const supabaseAnonKey =
         process.env.VITE_SUPABASE_ANON_KEY ||
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
@@ -13,12 +18,13 @@ function getSupabaseClient() {
         process.env.VITE_PSI_ADMIN_SECRET ||
         process.env.PSI_ADMIN_SECRET ||
         '';
+    const keyToUse = supabaseServiceRoleKey || supabaseAnonKey;
 
-    if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error('Supabase 환경변수가 누락되었습니다.');
+    if (!supabaseUrl || !keyToUse) {
+        throw new Error('Supabase 환경변수가 누락되었습니다. SUPABASE_SERVICE_ROLE_KEY 또는 VITE_SUPABASE_ANON_KEY를 확인해 주세요.');
     }
 
-    return createClient(supabaseUrl, supabaseAnonKey, {
+    return createClient(supabaseUrl, keyToUse, {
         global: {
             headers: psiAdminSecret
                 ? { 'x-psi-admin-secret': psiAdminSecret }
@@ -41,6 +47,41 @@ function resolveChecklistComplete(checklist: unknown): boolean {
     return Boolean(value.riskReview) && Boolean(value.ppeConfirm) && Boolean(value.emergencyConfirm);
 }
 
+async function fetchTrainingLogsBySessionIdWithFallback(supabase: any, sessionId: string) {
+    const bySessionId = await supabase
+        .from('training_logs')
+        .select('worker_name, nationality')
+        .eq('session_id', sessionId)
+        .limit(5000);
+
+    if (!bySessionId.error) {
+        return {
+            result: bySessionId,
+            logKey: 'session_id' as const,
+        };
+    }
+
+    const errText = String(bySessionId.error?.message || '').toLowerCase();
+    const needsTrainingIdFallback = errText.includes('session_id') && errText.includes('does not exist');
+    if (!needsTrainingIdFallback) {
+        return {
+            result: bySessionId,
+            logKey: 'session_id' as const,
+        };
+    }
+
+    const byTrainingId = await supabase
+        .from('training_logs')
+        .select('worker_name, nationality')
+        .eq('training_id', sessionId)
+        .limit(5000);
+
+    return {
+        result: byTrainingId,
+        logKey: 'training_id' as const,
+    };
+}
+
 export default async function handler(req: any, res: any) {
     if (req.method !== 'POST') {
         return sendJsonError(res, 405, 'Method Not Allowed');
@@ -54,11 +95,7 @@ export default async function handler(req: any, res: any) {
 
         const supabase = getSupabaseClient();
 
-        const logsResult = await supabase
-            .from('training_logs')
-            .select('worker_name, nationality')
-            .eq('session_id', sessionId)
-            .limit(5000);
+        const { result: logsResult, logKey } = await fetchTrainingLogsBySessionIdWithFallback(supabase, sessionId);
 
         if (logsResult.error) {
             throw new Error(logsResult.error.message);
@@ -111,6 +148,7 @@ export default async function handler(req: any, res: any) {
         return res.status(200).json({
             ok: true,
             sessionId,
+            trainingLogsKey: logKey,
             submittedWorkers,
             confirmedWorkers,
             unconfirmedWorkers: Math.max(0, submittedWorkers - confirmedWorkers),
