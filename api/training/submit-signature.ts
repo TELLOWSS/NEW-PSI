@@ -17,6 +17,9 @@ export default async function handler(req: any, res: any) {
             nationality,
             selectedLanguageCode,
             reviewedGuidance,
+            audioPlayed,
+            scrolledToEnd,
+            acknowledgedRiskAssessment,
             checklist,
             selectedAudioUrl,
             signatureDataUrl,
@@ -24,7 +27,7 @@ export default async function handler(req: any, res: any) {
             linkToken,
         } = req.body || {};
 
-        if (!sessionId || !workerName || !nationality || !selectedAudioUrl || !signatureDataUrl) {
+        if (!sessionId || !workerName || !nationality || !signatureDataUrl) {
             return res.status(400).json({ ok: false, message: '필수값 누락' });
         }
 
@@ -36,6 +39,15 @@ export default async function handler(req: any, res: any) {
         const match = String(signatureDataUrl).match(/^data:image\/png;base64,(.+)$/);
         if (!match?.[1]) {
             return res.status(400).json({ ok: false, message: '서명 데이터 형식 오류' });
+        }
+
+        const hasEngagementProof = Boolean(reviewedGuidance) || Boolean(audioPlayed) || Boolean(scrolledToEnd);
+        if (!hasEngagementProof) {
+            return res.status(400).json({ ok: false, message: '오디오 재생 또는 대본 끝까지 읽기 기록이 필요합니다.' });
+        }
+
+        if (!acknowledgedRiskAssessment) {
+            return res.status(400).json({ ok: false, message: '위험성평가 숙지 체크가 필요합니다.' });
         }
 
         const fileBuffer = Buffer.from(match[1], 'base64');
@@ -57,7 +69,7 @@ export default async function handler(req: any, res: any) {
             worker_name: normalizedWorkerName,
             nationality,
             signature_url: signatureUrl,
-            audio_url: selectedAudioUrl,
+            audio_url: selectedAudioUrl || null,
             submitted_at: new Date().toISOString(),
         });
 
@@ -68,17 +80,20 @@ export default async function handler(req: any, res: any) {
                 riskReview: Boolean((checklist as any).riskReview),
                 ppeConfirm: Boolean((checklist as any).ppeConfirm),
                 emergencyConfirm: Boolean((checklist as any).emergencyConfirm),
+                audioPlayed: Boolean(audioPlayed),
+                scrolledToEnd: Boolean(scrolledToEnd),
+                acknowledgedRiskAssessment: Boolean(acknowledgedRiskAssessment),
             }
             : {
-                riskReview: false,
-                ppeConfirm: false,
-                emergencyConfirm: false,
+                riskReview: Boolean(acknowledgedRiskAssessment),
+                ppeConfirm: Boolean(acknowledgedRiskAssessment),
+                emergencyConfirm: Boolean(acknowledgedRiskAssessment),
+                audioPlayed: Boolean(audioPlayed),
+                scrolledToEnd: Boolean(scrolledToEnd),
+                acknowledgedRiskAssessment: Boolean(acknowledgedRiskAssessment),
             };
 
-        const comprehensionComplete = Boolean(reviewedGuidance)
-            && checklistPayload.riskReview
-            && checklistPayload.ppeConfirm
-            && checklistPayload.emergencyConfirm;
+        const comprehensionComplete = hasEngagementProof && Boolean(acknowledgedRiskAssessment);
 
         const ackInsert = await supabase.from('training_acknowledgements').upsert({
             session_id: sessionId,

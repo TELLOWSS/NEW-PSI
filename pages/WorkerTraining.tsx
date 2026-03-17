@@ -1,6 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
+import {
+    TRAINING_AUDIO_LANGUAGES,
+    TRAINING_AUDIO_LANGUAGE_NATIONALITY,
+    resolveTrainingLanguageByNationality,
+    type TrainingAudioLanguageCode,
+} from '../utils/trainingLanguageUtils';
 
 interface WorkerTrainingProps {
     sessionId: string;
@@ -9,6 +15,7 @@ interface WorkerTrainingProps {
 type SessionRow = {
     id: string;
     source_text_ko: string;
+    original_script?: string;
     audio_urls: unknown;
     translated_texts?: unknown;
 };
@@ -329,28 +336,23 @@ const resolveNationalityByLanguageCode = (code: string): string => {
 const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
     const [loading, setLoading] = useState(true);
     const [sessionData, setSessionData] = useState<SessionRow | null>(null);
-
     const [workerName, setWorkerName] = useState('');
-    const [nationality, setNationality] = useState('베트남');
-    const [selectedLanguageCode, setSelectedLanguageCode] = useState('en-US');
+    const [selectedLanguageCode, setSelectedLanguageCode] = useState<TrainingAudioLanguageCode>('ko-KR');
+    const [nationality, setNationality] = useState('대한민국');
     const [message, setMessage] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
     const [submitted, setSubmitted] = useState(false);
-    const [hasReviewedGuidance, setHasReviewedGuidance] = useState(false);
+    const [hasAudioStarted, setHasAudioStarted] = useState(false);
+    const [hasScrolledToEnd, setHasScrolledToEnd] = useState(false);
     const [guidanceProgress, setGuidanceProgress] = useState(0);
-    const [checklist, setChecklist] = useState({
-        riskReview: false,
-        ppeConfirm: false,
-        emergencyConfirm: false,
-    });
+    const [hasAcknowledged, setHasAcknowledged] = useState(false);
 
     const sigRef = useRef<SignatureCanvas | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const guidanceRef = useRef<HTMLDivElement | null>(null);
 
-    const langKey = useMemo(() => resolveLanguageCodeByNationality(nationality), [nationality]);
-    const effectiveLangKey = selectedLanguageCode || langKey;
+    const effectiveLangKey = selectedLanguageCode || resolveTrainingLanguageByNationality(nationality);
     const t = UI_TEXT[resolveUiLocaleFromLanguageCode(effectiveLangKey)];
     const simplifiedMode = useMemo(() => {
         const queryMode = new URLSearchParams(window.location.search).get('mode');
@@ -365,8 +367,6 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
         Object.entries(source).forEach(([key, value]) => {
             if (typeof value === 'string' && value.trim()) {
                 map[key] = value.trim();
-                const base = key.split('-')[0];
-                if (base) map[base] = map[base] || value.trim();
             }
         });
         return map;
@@ -380,59 +380,23 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
         Object.entries(source).forEach(([key, value]) => {
             if (typeof value === 'string' && value.trim()) {
                 map[key] = value.trim();
-                const base = key.split('-')[0];
-                if (base) map[base] = map[base] || value.trim();
             }
         });
         return map;
     }, [sessionData]);
 
-    const availableLanguageCodes = useMemo(() => {
-        const codes = new Set<string>([
-            ...Object.keys(normalizedAudioMap),
-            ...Object.keys(normalizedTextMap),
-        ]);
-        if (codes.size === 0) codes.add('en-US');
-        return Array.from(codes);
-    }, [normalizedAudioMap, normalizedTextMap]);
-
-    const handleToggleAudio = async () => {
-        const audio = audioRef.current;
-        if (!audio || !selectedAudioUrl) return;
-        if (isPlaying) {
-            audio.pause();
-            return;
-        }
-        try {
-            await audio.play();
-        } catch {
-            setIsPlaying(false);
-        }
-    };
-
-    const selectedAudioUrl = useMemo(() => {
-        const candidates = resolveLanguageCandidates(effectiveLangKey);
-        for (const code of candidates) {
-            const value = normalizedAudioMap[code];
-            if (typeof value === 'string' && value.trim()) return value;
-        }
-
-        const firstAvailable = Object.values(normalizedAudioMap).find((value) => typeof value === 'string' && value.trim());
-        return (firstAvailable as string) || '';
-    }, [normalizedAudioMap, effectiveLangKey]);
+    const selectedAudioUrl = useMemo(() => normalizedAudioMap[effectiveLangKey] || '', [normalizedAudioMap, effectiveLangKey]);
 
     const selectedTranslatedText = useMemo(() => {
         if (!sessionData) return '';
-        const candidates = resolveLanguageCandidates(effectiveLangKey);
-        for (const code of candidates) {
-            const value = normalizedTextMap[code];
-            if (typeof value === 'string' && value.trim()) return value;
-        }
-        return sessionData.source_text_ko || '';
+        return normalizedTextMap[effectiveLangKey]
+            || sessionData.original_script
+            || sessionData.source_text_ko
+            || '';
     }, [sessionData, normalizedTextMap, effectiveLangKey]);
 
-    const isChecklistComplete = checklist.riskReview && checklist.ppeConfirm && checklist.emergencyConfirm;
-    const isComprehensionReady = hasReviewedGuidance && isChecklistComplete;
+    const hasEngagementProof = hasAudioStarted || hasScrolledToEnd;
+    const canUseSignature = hasEngagementProof && hasAcknowledged;
 
     useEffect(() => {
         const audio = audioRef.current;
@@ -443,13 +407,11 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
     }, [selectedAudioUrl]);
 
     useEffect(() => {
-        setHasReviewedGuidance(false);
+        setHasAudioStarted(false);
+        setHasScrolledToEnd(false);
         setGuidanceProgress(0);
-        setChecklist({
-            riskReview: false,
-            ppeConfirm: false,
-            emergencyConfirm: false,
-        });
+        setHasAcknowledged(false);
+        sigRef.current?.clear();
     }, [effectiveLangKey, sessionId]);
 
     useEffect(() => {
@@ -460,13 +422,14 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
             const maxScrollable = node.scrollHeight - node.clientHeight;
             if (maxScrollable <= 0) {
                 setGuidanceProgress(100);
-                setHasReviewedGuidance(true);
+                setHasScrolledToEnd(true);
                 return;
             }
 
             const progress = Math.min(100, Math.round((node.scrollTop / maxScrollable) * 100));
+            const reachedEnd = node.scrollTop + node.clientHeight >= node.scrollHeight - 4;
             setGuidanceProgress(progress);
-            setHasReviewedGuidance(node.scrollTop + node.clientHeight >= node.scrollHeight - 4);
+            setHasScrolledToEnd(reachedEnd);
         };
 
         const rafId = window.requestAnimationFrame(syncProgress);
@@ -474,8 +437,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
     }, [selectedTranslatedText]);
 
     useEffect(() => {
-        if (!simplifiedMode) return;
-        if (submitted) return;
+        if (!simplifiedMode || submitted) return;
 
         const handleBeforeUnload = (event: BeforeUnloadEvent) => {
             event.preventDefault();
@@ -485,17 +447,6 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
         window.addEventListener('beforeunload', handleBeforeUnload);
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [simplifiedMode, submitted]);
-
-    useEffect(() => {
-        if (!sessionData) return;
-
-        const browserLang = (navigator.language || 'en-US').toLowerCase();
-        const matched = availableLanguageCodes.find((code) => browserLang.startsWith(code.split('-')[0].toLowerCase()));
-        const preferred = matched || availableLanguageCodes[0] || 'en-US';
-
-        setSelectedLanguageCode(preferred);
-        setNationality(resolveNationalityByLanguageCode(preferred));
-    }, [sessionData, availableLanguageCodes]);
 
     useEffect(() => {
         const run = async () => {
@@ -508,7 +459,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
             setLoading(true);
             const { data, error } = await supabase
                 .from('training_sessions')
-                .select('id, source_text_ko, audio_urls, translated_texts')
+                .select('id, source_text_ko, original_script, audio_urls, translated_texts')
                 .eq('id', sessionId)
                 .single();
 
@@ -528,28 +479,41 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
         void run();
     }, [sessionId]);
 
+    useEffect(() => {
+        const browserLang = (navigator.language || 'ko-KR').toLowerCase();
+        const matched = TRAINING_AUDIO_LANGUAGES.find((item) => browserLang.startsWith(item.code.split('-')[0].toLowerCase()));
+        const nextCode = matched?.code || 'ko-KR';
+        setSelectedLanguageCode(nextCode);
+        setNationality(TRAINING_AUDIO_LANGUAGE_NATIONALITY[nextCode]);
+    }, []);
+
+    const handleLanguageSelect = (code: TrainingAudioLanguageCode) => {
+        setSelectedLanguageCode(code);
+        setNationality(TRAINING_AUDIO_LANGUAGE_NATIONALITY[code]);
+    };
+
     const handleClear = () => {
         sigRef.current?.clear();
     };
 
     const handleSubmit = async () => {
         if (!workerName.trim()) {
-            alert('이름을 입력해 주세요.');
+            alert(t.missingNameAlert);
             return;
         }
 
-        if (!isComprehensionReady) {
-            alert(t.submitBlockedAlert);
+        if (!hasEngagementProof) {
+            alert('오디오를 1회 재생하거나 대본을 끝까지 스크롤한 후에만 서명할 수 있습니다.');
+            return;
+        }
+
+        if (!hasAcknowledged) {
+            alert('위험성평가 내용을 숙지했습니다 체크를 먼저 진행해 주세요.');
             return;
         }
 
         if (!sigRef.current || sigRef.current.isEmpty()) {
-            alert('전자서명을 먼저 입력해 주세요.');
-            return;
-        }
-
-        if (!selectedAudioUrl) {
-            alert('오디오 URL이 없습니다. 관리자에게 문의해 주세요.');
+            alert(t.missingSignatureAlert);
             return;
         }
 
@@ -567,8 +531,15 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                     workerName,
                     nationality,
                     selectedLanguageCode: effectiveLangKey,
-                    reviewedGuidance: hasReviewedGuidance,
-                    checklist,
+                    reviewedGuidance: hasEngagementProof,
+                    audioPlayed: hasAudioStarted,
+                    scrolledToEnd: hasScrolledToEnd,
+                    acknowledgedRiskAssessment: hasAcknowledged,
+                    checklist: {
+                        riskReview: hasAcknowledged,
+                        ppeConfirm: hasAcknowledged,
+                        emergencyConfirm: hasAcknowledged,
+                    },
                     selectedAudioUrl: selectedAudioUrl || null,
                     signatureDataUrl,
                 }),
@@ -579,184 +550,183 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                 throw new Error(data.message || '제출 실패');
             }
 
-            setMessage('제출 완료! 교육 이수 서명이 저장되었습니다.');
+            setMessage(t.submitSuccess);
             setSubmitted(true);
             setWorkerName('');
             sigRef.current?.clear();
         } catch (error: any) {
-            setMessage(`오류: ${error?.message || '알 수 없는 오류'}`);
+            setMessage(`${t.errorPrefix}: ${error?.message || '알 수 없는 오류'}`);
         } finally {
             setSubmitting(false);
         }
     };
 
     if (loading) {
-        return <div className="bg-white p-6 rounded-2xl border border-slate-200 font-bold">불러오는 중...</div>;
+        return <div className="bg-white p-6 rounded-2xl border border-slate-200 font-bold">{t.loading}</div>;
     }
 
     if (!sessionData) {
-        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">세션이 없습니다. 관리자에게 문의해 주세요.</div>;
+        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.noSession}</div>;
     }
 
     return (
         <div className="space-y-6 max-w-2xl">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <h2 className="text-2xl font-black text-slate-900">외국인 근로자 안전교육 확인</h2>
-                <p className="text-sm font-bold text-slate-500 mt-2">음성 안내를 듣고 전자서명을 제출해 주세요.</p>
+                <h2 className="text-2xl font-black text-slate-900">{t.title}</h2>
+                <p className="text-sm font-bold text-slate-500 mt-2">{t.subtitle}</p>
 
                 <div className="mt-4">
-                    <label className="block text-xs font-black text-slate-500 mb-2">이름</label>
+                    <label className="block text-xs font-black text-slate-500 mb-2">{t.nameLabel}</label>
                     <input
                         value={workerName}
                         onChange={(e) => setWorkerName(e.target.value)}
                         className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
-                        placeholder="이름 입력"
+                        placeholder={t.namePlaceholder}
                     />
                 </div>
 
-                <div className="mt-4">
-                    <label className="block text-xs font-black text-slate-500 mb-2">국적</label>
-                    <input
-                        value={nationality}
-                        onChange={(e) => setNationality(e.target.value)}
-                        className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
-                        placeholder="예: 베트남, 중국, 러시아, 우즈베키스탄, 카자흐스탄..."
-                    />
-                    <p className="mt-2 text-[11px] font-bold text-slate-500">
-                        자동 언어 선택: <span className="text-slate-700">{LANGUAGE_LABELS[langKey] || '영어'} ({langKey})</span> (미지원 국가는 영어 `en-US`로 안내)
-                    </p>
-                </div>
-
-                <div className="mt-4">
-                    <label className="block text-xs font-black text-slate-500 mb-2">{t.audioGuideLabel}</label>
-                    <div className="mt-2 flex flex-col items-center">
-                        <button
-                            type="button"
-                            onClick={() => void handleToggleAudio()}
-                            disabled={!selectedAudioUrl}
-                            className={`relative w-36 h-36 rounded-full border-4 font-black text-5xl flex items-center justify-center transition-all ${isPlaying ? 'bg-indigo-600 border-indigo-700 text-white animate-pulse scale-105 shadow-2xl' : 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-lg'} ${!selectedAudioUrl ? 'opacity-60 cursor-not-allowed' : 'hover:scale-105'}`}
-                        >
-                            {isPlaying ? '⏸' : '🔊'}
-                            {isPlaying && <span className="absolute inset-0 rounded-full border-4 border-indigo-300 animate-ping" />}
-                        </button>
-                        <p className="mt-3 text-sm font-black text-slate-700">
-                            {selectedAudioUrl ? (isPlaying ? t.audioPlaying : t.audioReady) : t.audioMissing}
-                        </p>
-                        {!simplifiedMode && (
-                            <button
-                                type="button"
-                                onClick={() => void handleToggleAudio()}
-                                disabled={!selectedAudioUrl}
-                                className="mt-2 px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-black border border-slate-200 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                                {isPlaying ? t.audioPause : t.audioPlay}
-                            </button>
-                        )}
+                <div className="mt-5">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                        <label className="block text-xs font-black text-slate-500">11개국 언어 선택</label>
+                        <span className="text-[11px] font-bold text-slate-500">선택 국적: {nationality}</span>
                     </div>
-                    <audio
-                        ref={audioRef}
-                        src={selectedAudioUrl || undefined}
-                        preload="none"
-                        onPlay={() => setIsPlaying(true)}
-                        onPause={() => setIsPlaying(false)}
-                        onEnded={() => setIsPlaying(false)}
-                    />
-                    <div className="mt-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
-                        <p className="text-[11px] font-black text-slate-500 mb-1">{t.guidanceLabel}</p>
-                        <div
-                            ref={guidanceRef}
-                            onScroll={() => {
-                                const node = guidanceRef.current;
-                                if (!node) return;
-                                const maxScrollable = node.scrollHeight - node.clientHeight;
-                                if (maxScrollable <= 0) {
-                                    setGuidanceProgress(100);
-                                    setHasReviewedGuidance(true);
-                                    return;
-                                }
-
-                                const progress = Math.min(100, Math.round((node.scrollTop / maxScrollable) * 100));
-                                setGuidanceProgress(progress);
-                                setHasReviewedGuidance(node.scrollTop + node.clientHeight >= node.scrollHeight - 4);
-                            }}
-                            className="max-h-52 overflow-y-auto pr-1"
-                        >
-                            <p className="text-sm font-bold text-slate-700 whitespace-pre-wrap">{selectedTranslatedText}</p>
+                    <div className="overflow-x-auto pb-2">
+                        <div className="flex gap-2 min-w-max">
+                            {TRAINING_AUDIO_LANGUAGES.map((lang) => {
+                                const active = lang.code === effectiveLangKey;
+                                return (
+                                    <button
+                                        key={lang.code}
+                                        type="button"
+                                        onClick={() => handleLanguageSelect(lang.code)}
+                                        className={`min-w-[84px] rounded-2xl border px-3 py-3 text-center transition-all ${active ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-200 bg-white'}`}
+                                    >
+                                        <div className="text-2xl">{lang.flag}</div>
+                                        <div className={`mt-1 text-[11px] font-black ${active ? 'text-indigo-700' : 'text-slate-600'}`}>{lang.shortLabel}</div>
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                 </div>
 
-                <div className="mt-4 p-4 rounded-xl border border-indigo-200 bg-indigo-50/50">
-                    <p className="text-sm font-black text-indigo-900">{t.comprehensionTitle}</p>
-                    <p className="text-[11px] font-bold text-indigo-700 mt-1">{t.comprehensionDescription}</p>
-                    <p className="mt-3 text-[11px] font-black text-slate-600">
-                        {t.progressLabel}: <span className="text-slate-800">{guidanceProgress}%</span>
-                    </p>
-                    <p className={`mt-1 text-[11px] font-black ${hasReviewedGuidance ? 'text-emerald-700' : 'text-amber-700'}`}>
-                        {hasReviewedGuidance ? t.progressReady : t.progressPending}
-                    </p>
-
-                    <div className="mt-3 space-y-2">
-                        <label className="flex items-start gap-2 text-xs font-bold text-slate-700">
-                            <input
-                                type="checkbox"
-                                checked={checklist.riskReview}
-                                onChange={(event) => setChecklist((prev) => ({ ...prev, riskReview: event.target.checked }))}
-                                className="mt-0.5"
-                            />
-                            <span>{t.checkRiskReview}</span>
-                        </label>
-                        <label className="flex items-start gap-2 text-xs font-bold text-slate-700">
-                            <input
-                                type="checkbox"
-                                checked={checklist.ppeConfirm}
-                                onChange={(event) => setChecklist((prev) => ({ ...prev, ppeConfirm: event.target.checked }))}
-                                className="mt-0.5"
-                            />
-                            <span>{t.checkPpeConfirm}</span>
-                        </label>
-                        <label className="flex items-start gap-2 text-xs font-bold text-slate-700">
-                            <input
-                                type="checkbox"
-                                checked={checklist.emergencyConfirm}
-                                onChange={(event) => setChecklist((prev) => ({ ...prev, emergencyConfirm: event.target.checked }))}
-                                className="mt-0.5"
-                            />
-                            <span>{t.checkEmergencyConfirm}</span>
-                        </label>
+                <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                        <div>
+                            <p className="text-xs font-black text-slate-500">선택 언어 오디오</p>
+                            <p className="text-sm font-black text-slate-900">{TRAINING_AUDIO_LANGUAGES.find((item) => item.code === effectiveLangKey)?.flag} {effectiveLangKey}</p>
+                        </div>
+                        <span className={`text-[11px] font-black ${selectedAudioUrl ? 'text-emerald-700' : 'text-amber-700'}`}>
+                            {selectedAudioUrl ? 'MP3 연결됨' : 'MP3 미업로드'}
+                        </span>
                     </div>
+
+                    {selectedAudioUrl ? (
+                        <audio
+                            ref={audioRef}
+                            src={selectedAudioUrl}
+                            controls
+                            preload="metadata"
+                            className="w-full"
+                            onPlay={() => {
+                                setIsPlaying(true);
+                                setHasAudioStarted(true);
+                            }}
+                            onPause={() => setIsPlaying(false)}
+                            onEnded={() => setIsPlaying(false)}
+                        />
+                    ) : null}
+
+                    <p className={`mt-3 text-xs font-bold ${selectedAudioUrl ? 'text-slate-600' : 'text-amber-700'}`}>
+                        {selectedAudioUrl
+                            ? (isPlaying ? '오디오 재생 기록이 확인되었습니다.' : '재생 버튼을 누르면 체크박스/서명이 활성화됩니다.')
+                            : '관리자가 해당 언어 MP3를 올리지 않아 오디오 플레이어를 숨겼습니다. 아래 대본을 끝까지 읽으면 서명이 활성화됩니다.'}
+                    </p>
                 </div>
 
-                <div className="mt-4">
-                    <label className="block text-xs font-black text-slate-500 mb-2">{t.signatureLabel}</label>
-                    <p className="mb-2 text-[11px] font-bold text-slate-600">{t.understandingPledgeHint}</p>
-                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
-                        <SignatureCanvas
-                            ref={(ref) => {
-                                sigRef.current = ref;
-                            }}
-                            penColor="black"
-                            canvasProps={{
-                                width: 700,
-                                height: 220,
-                                className: 'w-full h-[220px]'
-                            }}
-                        />
+                <div className="mt-4 p-4 rounded-2xl border border-slate-200 bg-white">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                        <p className="text-xs font-black text-slate-500">번역 대본</p>
+                        <span className={`text-[11px] font-black ${hasScrolledToEnd ? 'text-emerald-700' : 'text-amber-700'}`}>스크롤 {guidanceProgress}%</span>
                     </div>
-                    <button
-                        onClick={handleClear}
-                        className="mt-2 px-4 py-2 text-xs font-black rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    <div
+                        ref={guidanceRef}
+                        onScroll={() => {
+                            const node = guidanceRef.current;
+                            if (!node) return;
+                            const maxScrollable = node.scrollHeight - node.clientHeight;
+                            if (maxScrollable <= 0) {
+                                setGuidanceProgress(100);
+                                setHasScrolledToEnd(true);
+                                return;
+                            }
+                            const progress = Math.min(100, Math.round((node.scrollTop / maxScrollable) * 100));
+                            const reachedEnd = node.scrollTop + node.clientHeight >= node.scrollHeight - 4;
+                            setGuidanceProgress(progress);
+                            setHasScrolledToEnd(reachedEnd);
+                        }}
+                        className="max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-4"
                     >
-                        서명 지우기
-                    </button>
+                        <p className="text-sm font-bold text-slate-700 whitespace-pre-wrap leading-7">{selectedTranslatedText}</p>
+                    </div>
+                    <p className={`mt-2 text-[11px] font-black ${hasScrolledToEnd ? 'text-emerald-700' : 'text-slate-500'}`}>
+                        {hasScrolledToEnd ? '대본 끝까지 읽기 기록이 저장되었습니다.' : '대본을 끝까지 스크롤하면 체크박스/서명이 활성화됩니다.'}
+                    </p>
+                </div>
+
+                <div className={`mt-4 rounded-2xl border p-4 ${hasEngagementProof ? 'border-emerald-200 bg-emerald-50/60' : 'border-amber-200 bg-amber-50/60'}`}>
+                    <p className="text-sm font-black text-slate-900">전자 서명 방어 로직</p>
+                    <p className="mt-1 text-[11px] font-bold text-slate-600">
+                        오디오 1회 재생 또는 번역 대본 끝까지 읽기 중 하나가 확인되어야 체크박스와 전자서명이 활성화됩니다.
+                    </p>
+
+                    <label className={`mt-4 flex items-start gap-3 rounded-xl border px-3 py-3 ${hasEngagementProof ? 'border-emerald-200 bg-white' : 'border-slate-200 bg-slate-100 opacity-60'}`}>
+                        <input
+                            type="checkbox"
+                            disabled={!hasEngagementProof}
+                            checked={hasAcknowledged}
+                            onChange={(e) => setHasAcknowledged(e.target.checked)}
+                            className="mt-1"
+                        />
+                        <span className="text-sm font-black text-slate-800">위험성평가 내용을 숙지했습니다</span>
+                    </label>
+
+                    <div className="mt-4">
+                        <label className="block text-xs font-black text-slate-500 mb-2">{t.signatureLabel}</label>
+                        <div className="relative border border-slate-200 rounded-xl overflow-hidden bg-white">
+                            <SignatureCanvas
+                                ref={(ref) => {
+                                    sigRef.current = ref;
+                                }}
+                                penColor="black"
+                                canvasProps={{
+                                    width: 700,
+                                    height: 220,
+                                    className: `w-full h-[220px] ${canUseSignature ? '' : 'pointer-events-none opacity-40'}`,
+                                }}
+                            />
+                            {!canUseSignature && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-white/70 px-6 text-center text-sm font-black text-slate-600">
+                                    오디오 재생 또는 끝까지 읽기 완료 후 체크박스를 선택하면 전자서명 캔버스가 활성화됩니다.
+                                </div>
+                            )}
+                        </div>
+                        <button
+                            onClick={handleClear}
+                            disabled={!canUseSignature}
+                            className="mt-2 px-4 py-2 text-xs font-black rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {t.signatureClear}
+                        </button>
+                    </div>
                 </div>
 
                 <button
                     onClick={handleSubmit}
-                    disabled={submitting || submitted || !isComprehensionReady}
+                    disabled={submitting || submitted || !canUseSignature}
                     className="mt-6 w-full py-3 rounded-xl bg-indigo-600 text-white font-black hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                    {submitting ? '제출 중...' : '제출'}
+                    {submitting ? t.submitting : t.submit}
                 </button>
 
                 {message && <p className="mt-3 text-sm font-bold text-slate-700">{message}</p>}

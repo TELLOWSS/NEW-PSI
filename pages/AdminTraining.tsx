@@ -2,6 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import type { AppSettings } from '../types';
 import { supabase } from '../lib/supabaseClient';
+import {
+    TRAINING_AUDIO_LANGUAGE_CODES,
+    TRAINING_AUDIO_LANGUAGES,
+    type TrainingAudioLanguageCode,
+} from '../utils/trainingLanguageUtils';
 
 type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
 const LINK_HISTORY_STORAGE_KEY = 'psi_training_link_history';
@@ -335,56 +340,20 @@ const UI_TEXT: Record<UiLocale, {
     },
 };
 
-const LANGUAGE_OPTIONS = [
-    { code: 'ko-KR', label: '한국어 (ko-KR)' },
-    { code: 'en-US', label: '영어 (en-US)' },
-    { code: 'vi-VN', label: '베트남어 (vi-VN)' },
-    { code: 'cmn-CN', label: '중국어 (cmn-CN)' },
-    { code: 'th-TH', label: '태국어 (th-TH)' },
-    { code: 'id-ID', label: '인도네시아어 (id-ID)' },
-    { code: 'uz-UZ', label: '우즈베크어 (uz-UZ)' },
-    { code: 'mn-MN', label: '몽골어 (mn-MN)' },
-    { code: 'km-KH', label: '크메르어 (km-KH)' },
-    { code: 'ru-RU', label: '러시아어 (ru-RU)' },
-    { code: 'kk-KZ', label: '카자흐어 (kk-KZ)' },
-    { code: 'ne-NP', label: '네팔어 (ne-NP)' },
-    { code: 'my-MM', label: '미얀마어 (my-MM)' },
-    { code: 'fil-PH', label: '필리핀어 (fil-PH)' },
-    { code: 'hi-IN', label: '힌디어 (hi-IN)' },
-    { code: 'bn-BD', label: '벵골어 (bn-BD)' },
-    { code: 'ur-PK', label: '우르두어 (ur-PK)' },
-    { code: 'si-LK', label: '싱할라어 (si-LK)' },
-] as const;
-
-const CURRENT_SITE_LANGUAGE_SET = [
-    'ko-KR',
-    'vi-VN',
-    'cmn-CN',
-    'mn-MN',
-    'id-ID',
-    'ru-RU',
-    'kk-KZ',
-    'uz-UZ',
-    'th-TH',
-    'km-KH',
-    'my-MM',
-] as const;
-
-const VALID_LANGUAGE_CODES = new Set<string>(LANGUAGE_OPTIONS.map((item) => item.code));
-
-const normalizeLanguagePreset = (input?: string[]): string[] => {
-    if (!Array.isArray(input)) return [...CURRENT_SITE_LANGUAGE_SET];
-    const normalized = Array.from(new Set(input.filter((code) => VALID_LANGUAGE_CODES.has(code))));
-    if (normalized.length === 0) return [...CURRENT_SITE_LANGUAGE_SET];
-    return normalized;
-};
+const LANGUAGE_OPTIONS = TRAINING_AUDIO_LANGUAGES.map((item) => ({
+    code: item.code,
+    label: `${item.flag} ${item.label} (${item.code})`,
+}));
 
 type TrainingSessionRow = {
     id: string;
     source_text_ko?: string;
     audio_urls?: Record<string, string | null>;
+    original_script?: string;
     created_at?: string;
 };
+
+type TrainingAudioFileMap = Partial<Record<TrainingAudioLanguageCode, File | null>>;
 
 type LinkHistoryItem = {
     sessionId: string;
@@ -420,6 +389,7 @@ type SafetyLevelMigrationReport = {
 };
 
 const AdminTraining: React.FC = () => {
+    // 관리자 UI는 요구사항에 따라 항상 한국어 고정
     const t = UI_TEXT.ko;
     const [sourceTextKo, setSourceTextKo] = useState('');
     const [loading, setLoading] = useState(false);
@@ -437,8 +407,8 @@ const AdminTraining: React.FC = () => {
     const [awarenessError, setAwarenessError] = useState('');
     const [failedLanguages, setFailedLanguages] = useState<string[]>([]);
     const [failedLanguageAttempts, setFailedLanguageAttempts] = useState<Record<string, string[]>>({});
-    const [savedPreset, setSavedPreset] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
-    const [selectedLanguages, setSelectedLanguages] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
+    const [audioFiles, setAudioFiles] = useState<TrainingAudioFileMap>({});
+    const [uploadedAudioUrls, setUploadedAudioUrls] = useState<Record<string, string | null>>({});
 
     const appendLinkHistory = (item: LinkHistoryItem) => {
         setLinkHistory((prev) => {
@@ -471,10 +441,17 @@ const AdminTraining: React.FC = () => {
             t.shareHeader,
             mobileUrl,
             failedLanguages.length > 0
-                ? `${t.shareFailedPrefix}: ${failedLanguages.join(', ')}`
-                : t.shareAllAudioLine,
+                ? `미첨부/미업로드 언어: ${failedLanguages.join(', ')}`
+                : '11개국 MP3 업로드가 반영되었습니다.',
         ].join('\n')
         : '';
+
+    const setAudioFile = (code: TrainingAudioLanguageCode, file: File | null) => {
+        setAudioFiles((prev) => ({
+            ...prev,
+            [code]: file,
+        }));
+    };
 
     const loadMigrationReport = () => {
         const raw = localStorage.getItem(SAFETY_LEVEL_MIGRATION_REPORT_KEY);
@@ -540,19 +517,6 @@ const AdminTraining: React.FC = () => {
     };
 
     useEffect(() => {
-        const raw = localStorage.getItem('psi_app_settings');
-        if (!raw) return;
-        try {
-            const parsed = JSON.parse(raw) as AppSettings;
-            const preset = normalizeLanguagePreset(parsed.trainingLanguagePreset);
-            setSavedPreset(preset);
-            setSelectedLanguages(preset);
-        } catch {
-            setSavedPreset([...CURRENT_SITE_LANGUAGE_SET]);
-        }
-    }, []);
-
-    useEffect(() => {
         const raw = localStorage.getItem(LINK_HISTORY_STORAGE_KEY);
         if (!raw) return;
         try {
@@ -611,7 +575,7 @@ const AdminTraining: React.FC = () => {
         const loadWithColumn = async (column: string) => {
             return supabase
                 .from('training_sessions')
-                .select('id, source_text_ko, audio_urls, created_at')
+                .select('id, source_text_ko, original_script, audio_urls, created_at')
                 .order(column, { ascending: false })
                 .limit(5);
         };
@@ -628,9 +592,12 @@ const AdminTraining: React.FC = () => {
         setMobileUrl(signed.mobileUrl);
         setLinkExpiresAt(Number.isFinite(signed.linkExpiresAt) ? signed.linkExpiresAt : null);
         setCurrentSessionId(String(session.id));
-        if (session.source_text_ko) setSourceTextKo(session.source_text_ko);
+        if (session.original_script || session.source_text_ko) {
+            setSourceTextKo(session.original_script || session.source_text_ko || '');
+        }
 
         const restoredAudioUrls = session.audio_urls || {};
+        setUploadedAudioUrls(restoredAudioUrls);
         const restoredFailed = Object.entries(restoredAudioUrls)
             .filter(([, url]) => !url)
             .map(([lang]) => lang);
@@ -682,25 +649,9 @@ const AdminTraining: React.FC = () => {
         return () => window.clearInterval(timerId);
     }, [currentSessionId]);
 
-    const toggleLanguage = (code: string) => {
-        setSelectedLanguages((prev) => {
-            if (prev.includes(code)) {
-                const next = prev.filter((item) => item !== code);
-                if (next.length === 0) return prev;
-                return next;
-            }
-            return [...prev, code];
-        });
-    };
-
     const handleCreate = async () => {
         if (!sourceTextKo.trim()) {
             alert('한국어 안내 문구를 입력해 주세요.');
-            return;
-        }
-
-        if (selectedLanguages.length === 0) {
-            alert('최소 1개 언어를 선택해 주세요.');
             return;
         }
 
@@ -712,7 +663,7 @@ const AdminTraining: React.FC = () => {
             const response = await fetch('/api/admin/create-training', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sourceTextKo, selectedLanguages }),
+                body: JSON.stringify({ sourceTextKo, selectedLanguages: TRAINING_AUDIO_LANGUAGE_CODES }),
             });
 
             const data = await response.json();
@@ -721,13 +672,54 @@ const AdminTraining: React.FC = () => {
             }
 
             const nextSessionId = String(data.sessionId || '');
+            const nextAudioUrls: Record<string, string | null> = Object.fromEntries(
+                TRAINING_AUDIO_LANGUAGE_CODES.map((code) => [code, null])
+            );
+
+            for (const language of TRAINING_AUDIO_LANGUAGES) {
+                const file = audioFiles[language.code];
+                if (!file) continue;
+
+                const isMp3 = file.type === 'audio/mpeg' || file.name.toLowerCase().endsWith('.mp3');
+                if (!isMp3) {
+                    throw new Error(`${language.label} 파일은 MP3 형식만 업로드할 수 있습니다.`);
+                }
+
+                const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+                const storagePath = `${nextSessionId}/${language.code}-${sanitizedName}`;
+                const uploadRes = await supabase.storage.from('training_audio').upload(storagePath, file, {
+                    contentType: 'audio/mpeg',
+                    upsert: true,
+                });
+
+                if (uploadRes.error) {
+                    throw new Error(`${language.label} MP3 업로드 실패: ${uploadRes.error.message}`);
+                }
+
+                const publicUrl = supabase.storage.from('training_audio').getPublicUrl(storagePath).data.publicUrl;
+                nextAudioUrls[language.code] = `${publicUrl}?v=${Date.now()}`;
+            }
+
+            const syncResponse = await fetch('/api/admin/update-training-audio', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: nextSessionId,
+                    originalScript: sourceTextKo,
+                    audioUrls: nextAudioUrls,
+                }),
+            });
+            const syncData = await syncResponse.json();
+            if (!syncResponse.ok || !syncData.ok) {
+                throw new Error(syncData.message || 'audio_urls 저장 실패');
+            }
+
             setMobileUrl(data.mobileUrl || '');
             setCurrentSessionId(nextSessionId);
             setLinkExpiresAt(Number.isFinite(Number(data.linkExpiresAt)) ? Number(data.linkExpiresAt) : null);
-            setFailedLanguages(Array.isArray(data.failedLanguages) ? data.failedLanguages : []);
-            setFailedLanguageAttempts(data.failedLanguageAttempts && typeof data.failedLanguageAttempts === 'object'
-                ? data.failedLanguageAttempts
-                : {});
+            setUploadedAudioUrls(nextAudioUrls);
+            setFailedLanguages(TRAINING_AUDIO_LANGUAGES.filter((lang) => !nextAudioUrls[lang.code]).map((lang) => lang.label));
+            setFailedLanguageAttempts({});
 
             if (nextSessionId && data.mobileUrl) {
                 appendLinkHistory({
@@ -739,7 +731,8 @@ const AdminTraining: React.FC = () => {
                 });
             }
 
-            setMessage('생성 완료! 아래 QR을 근로자에게 공유하세요.');
+            await fetchRecentSessions();
+            setMessage('세션 생성 및 11개국 MP3 업로드 반영이 완료되었습니다. 아래 QR을 근로자에게 공유하세요.');
         } catch (error: any) {
             setMessage(`오류: ${error?.message || '알 수 없는 오류'}`);
         } finally {
@@ -767,6 +760,7 @@ const AdminTraining: React.FC = () => {
         setLinkExpiresAt(null);
         setFailedLanguages([]);
         setFailedLanguageAttempts({});
+        setUploadedAudioUrls({});
         setAwarenessStats(null);
         setAwarenessError('');
         localStorage.removeItem(ACTIVE_QR_STATE_STORAGE_KEY);
@@ -835,6 +829,7 @@ const AdminTraining: React.FC = () => {
                 setLinkExpiresAt(null);
                 setFailedLanguages([]);
                 setFailedLanguageAttempts({});
+                setUploadedAudioUrls({});
             }
             await fetchRecentSessions();
             setMessage(t.deleteDone);
@@ -849,7 +844,7 @@ const AdminTraining: React.FC = () => {
         <div className="space-y-6">
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
                 <h2 className="text-2xl font-black text-slate-900">관리자 다국어 음성 안내 생성</h2>
-                <p className="text-sm font-bold text-slate-500 mt-2">한국어 핵심 위험성평가 문구를 입력하면 다국어 TTS와 근로자 QR 링크를 생성합니다.</p>
+                <p className="text-sm font-bold text-slate-500 mt-2">관리자 화면은 항상 한국어로 고정됩니다. 한국어 원본 대본을 입력하고 11개국 MP3 파일을 업로드한 뒤 QR 링크를 배포하세요.</p>
                 <textarea
                     value={sourceTextKo}
                     onChange={(e) => setSourceTextKo(e.target.value)}
@@ -859,31 +854,34 @@ const AdminTraining: React.FC = () => {
                 />
 
                 <div className="mt-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                        <p className="text-xs font-black text-slate-600">생성 언어 선택 (최소 1개)</p>
-                        <button
-                            type="button"
-                            onClick={() => setSelectedLanguages([...savedPreset])}
-                            className="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-[11px] font-black border border-indigo-200 hover:bg-indigo-100"
-                        >
-                            설정 기본값 적용
-                        </button>
+                    <div className="mb-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+                        <p className="text-xs font-black text-indigo-800">고정 업로드 대상 언어 코드</p>
+                        <p className="mt-1 text-[11px] font-bold text-indigo-700 break-all">{JSON.stringify(TRAINING_AUDIO_LANGUAGE_CODES)}</p>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {LANGUAGE_OPTIONS.map((lang) => (
-                            <label key={lang.code} className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 bg-slate-50">
-                                <input
-                                    type="checkbox"
-                                    checked={selectedLanguages.includes(lang.code)}
-                                    onChange={() => toggleLanguage(lang.code)}
-                                />
-                                <span className="text-xs font-bold text-slate-700">{lang.label}</span>
-                            </label>
-                        ))}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {TRAINING_AUDIO_LANGUAGES.map((lang) => {
+                            const selectedFile = audioFiles[lang.code];
+                            const uploadedUrl = uploadedAudioUrls[lang.code];
+                            return (
+                                <div key={lang.code} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                                    <div className="flex items-center justify-between gap-3 mb-2">
+                                        <p className="text-sm font-black text-slate-800">{lang.flag} {lang.label} 음성 첨부</p>
+                                        <span className="text-[10px] font-black text-slate-500">{lang.code}</span>
+                                    </div>
+                                    <input
+                                        type="file"
+                                        accept=".mp3,audio/mpeg"
+                                        onChange={(e) => setAudioFile(lang.code, e.target.files?.[0] || null)}
+                                        className="block w-full text-xs font-bold text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:text-xs file:font-black file:text-white hover:file:bg-indigo-700"
+                                    />
+                                    <p className="mt-2 text-[11px] font-bold text-slate-500">선택 파일: {selectedFile?.name || '없음'}</p>
+                                    <p className={`mt-1 text-[11px] font-bold ${uploadedUrl ? 'text-emerald-700' : 'text-amber-700'}`}>
+                                        {uploadedUrl ? '업로드 URL 저장됨' : '미업로드 시 근로자 화면에서 오디오 플레이어가 숨겨집니다.'}
+                                    </p>
+                                </div>
+                            );
+                        })}
                     </div>
-                    <p className="mt-2 text-[11px] font-bold text-slate-500">
-                        기본값은 설정 페이지의 "다국어 교육 기본 언어 세트"를 따르며, 미설정 시 현장 다국적 기본 세트가 적용됩니다.
-                    </p>
                 </div>
 
                 <button
