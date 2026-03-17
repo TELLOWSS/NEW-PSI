@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import type { AppSettings } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import {
     TRAINING_AUDIO_LANGUAGE_CODES,
@@ -355,6 +354,16 @@ type TrainingSessionRow = {
 
 type TrainingAudioFileMap = Partial<Record<TrainingAudioLanguageCode, File | null>>;
 
+const readFileAsBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+        const result = typeof reader.result === 'string' ? reader.result : '';
+        resolve(result.replace(/^data:audio\/[a-z0-9.+-]+;base64,/i, ''));
+    };
+    reader.onerror = () => reject(reader.error || new Error('파일 읽기 실패'));
+    reader.readAsDataURL(file);
+});
+
 type LinkHistoryItem = {
     sessionId: string;
     mobileUrl: string;
@@ -672,9 +681,7 @@ const AdminTraining: React.FC = () => {
             }
 
             const nextSessionId = String(data.sessionId || '');
-            const nextAudioUrls: Record<string, string | null> = Object.fromEntries(
-                TRAINING_AUDIO_LANGUAGE_CODES.map((code) => [code, null])
-            );
+            const uploadPayload: Record<string, { fileName: string; contentType: string; base64: string }> = {};
 
             for (const language of TRAINING_AUDIO_LANGUAGES) {
                 const file = audioFiles[language.code];
@@ -685,34 +692,29 @@ const AdminTraining: React.FC = () => {
                     throw new Error(`${language.label} 파일은 MP3 형식만 업로드할 수 있습니다.`);
                 }
 
-                const sanitizedName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-                const storagePath = `${nextSessionId}/${language.code}-${sanitizedName}`;
-                const uploadRes = await supabase.storage.from('training_audio').upload(storagePath, file, {
-                    contentType: 'audio/mpeg',
-                    upsert: true,
-                });
-
-                if (uploadRes.error) {
-                    throw new Error(`${language.label} MP3 업로드 실패: ${uploadRes.error.message}`);
-                }
-
-                const publicUrl = supabase.storage.from('training_audio').getPublicUrl(storagePath).data.publicUrl;
-                nextAudioUrls[language.code] = `${publicUrl}?v=${Date.now()}`;
+                uploadPayload[language.code] = {
+                    fileName: file.name,
+                    contentType: file.type || 'audio/mpeg',
+                    base64: await readFileAsBase64(file),
+                };
             }
 
-            const syncResponse = await fetch('/api/admin/update-training-audio', {
+            const syncResponse = await fetch('/api/admin/upload-training-audio', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     sessionId: nextSessionId,
                     originalScript: sourceTextKo,
-                    audioUrls: nextAudioUrls,
+                    files: uploadPayload,
                 }),
             });
             const syncData = await syncResponse.json();
             if (!syncResponse.ok || !syncData.ok) {
-                throw new Error(syncData.message || 'audio_urls 저장 실패');
+                throw new Error(syncData.message || 'MP3 업로드 저장 실패');
             }
+            const nextAudioUrls = (syncData.audioUrls && typeof syncData.audioUrls === 'object')
+                ? syncData.audioUrls as Record<string, string | null>
+                : Object.fromEntries(TRAINING_AUDIO_LANGUAGE_CODES.map((code) => [code, null]));
 
             setMobileUrl(data.mobileUrl || '');
             setCurrentSessionId(nextSessionId);
