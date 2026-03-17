@@ -6,6 +6,7 @@ import { analyzeWorkerRiskAssessment, updateAnalysisBasedOnEdits, getQuotaState,
 import { extractMessage } from '../utils/errorUtils';
 import type { WorkerRecord, OcrErrorType } from '../types';
 import { fileToBase64 } from '../utils/fileUtils';
+import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 
 const buildReassessmentAuditNote = (before: WorkerRecord, updated: Partial<WorkerRecord>): string => {
     const beforeScore = typeof before.safetyScore === 'number' ? before.safetyScore : 0;
@@ -212,21 +213,40 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [filterLevel, setFilterLevel] = useState<string>('all');
     const [filterField, setFilterField] = useState<string>('all');
-    const [filterLeader, setFilterLeader] = useState<string>('all'); 
+    const [filterLeader, setFilterLeader] = useState<string>('all');
+    const [filterTrust, setFilterTrust] = useState<'all' | 'pending' | 'finalized'>('all');
     const [importValidationSummary, setImportValidationSummary] = useState<string>('');
     const [importValidationDetails, setImportValidationDetails] = useState<string>('');
 
     const getExpectedSafetyLevel = useCallback((record: WorkerRecord): WorkerRecord['safetyLevel'] => {
         const score = typeof record.safetyScore === 'number' ? record.safetyScore : 0;
-        const confidence = typeof record.ocrConfidence === 'number' ? record.ocrConfidence : 1;
-        const integrity = typeof record.integrityScore === 'number' ? record.integrityScore : 100;
-        const hasHighRiskSignal = record.selfAssessedRiskLevel === '상' || integrity < 60;
-
-        if (confidence < 0.7 || hasHighRiskSignal) return '초급';
-        if (score >= 75) return '고급';
-        if (score >= 50) return '중급';
-        return '초급';
+        return getSafetyLevelFromScore(score);
     }, []);
+
+    const isGradeFinalizedByReview = useCallback((record: WorkerRecord): boolean => {
+        if (record.reviewStatus === 'APPROVED') return true;
+        if (record.approvalStatus === 'APPROVED' || record.approvalStatus === 'OVERRIDDEN') return true;
+
+        const approvalHistory = record.approvalHistory || [];
+        if (approvalHistory.length === 0) return false;
+        const latest = approvalHistory[approvalHistory.length - 1];
+        return latest?.status === 'approved';
+    }, []);
+
+    const needsGradeRevalidation = useCallback((record: WorkerRecord): boolean => {
+        if (isGradeFinalizedByReview(record)) return false;
+        return record.safetyLevel !== getExpectedSafetyLevel(record);
+    }, [getExpectedSafetyLevel, isGradeFinalizedByReview]);
+
+    const getReviewTrustState = useCallback((record: WorkerRecord): 'FINALIZED' | 'PENDING' | 'NONE' => {
+        if (isGradeFinalizedByReview(record)) return 'FINALIZED';
+
+        const hasReviewTrail = (record.approvalHistory || []).length > 0;
+        const isPending = record.reviewStatus === 'PENDING' || record.approvalStatus === 'PENDING';
+
+        if (isPending || hasReviewTrail) return 'PENDING';
+        return 'NONE';
+    }, [isGradeFinalizedByReview]);
     
     // Strict stop control
     const stopRef = useRef<boolean>(false);
@@ -255,10 +275,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
             const matchesLevel = filterLevel === 'all' || r.safetyLevel === filterLevel;
             const matchesField = filterField === 'all' || r.jobField === filterField;
-            const matchesLeader = filterLeader === 'all' || (r.teamLeader || '미지정') === filterLeader; 
-            return matchesSearch && matchesLevel && matchesField && matchesLeader;
+            const matchesLeader = filterLeader === 'all' || (r.teamLeader || '미지정') === filterLeader;
+            const trustState = getReviewTrustState(r);
+            const matchesTrust =
+                filterTrust === 'all' ||
+                (filterTrust === 'pending' && trustState === 'PENDING') ||
+                (filterTrust === 'finalized' && trustState === 'FINALIZED');
+
+            return matchesSearch && matchesLevel && matchesField && matchesLeader && matchesTrust;
         });
-    }, [existingRecords, searchTerm, filterLevel, filterField, filterLeader]);
+    }, [existingRecords, searchTerm, filterLevel, filterField, filterLeader, filterTrust, getReviewTrustState]);
 
     const recordsWithImages = useMemo(() => {
         return existingRecords.filter(r => r.originalImage && r.originalImage.length > 200);
@@ -1002,6 +1028,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             ))}
                         </select>
                     </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <label className="text-xs font-bold text-slate-500">신뢰 상태:</label>
+                        <select value={filterTrust} onChange={(e) => setFilterTrust(e.target.value as 'all' | 'pending' | 'finalized')} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
+                            <option value="all">전체</option>
+                            <option value="pending">재검토 대기</option>
+                            <option value="finalized">최종확정</option>
+                        </select>
+                    </div>
                     <button onClick={handleBatchTextAnalysis} 
                         disabled={isAnalyzing}
                         className="w-full md:w-auto px-5 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-black text-sm shadow-md transition-all flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1079,8 +1113,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             <div className="flex flex-col items-center gap-1">
                                                 <span className={`px-3 py-1 rounded-full text-xs font-black shadow-sm ${getSafetyLevelClass(r.safetyLevel)}`}>{r.safetyScore}</span>
                                                 <span className="text-[10px] font-black text-slate-500">{r.safetyLevel}</span>
-                                                {r.safetyLevel !== getExpectedSafetyLevel(r) && (
+                                                {needsGradeRevalidation(r) && (
                                                     <span className="text-[9px] font-black text-rose-600 bg-rose-100 px-2 py-0.5 rounded">등급 재검증 필요</span>
+                                                )}
+                                                {getReviewTrustState(r) === 'PENDING' && (
+                                                    <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded">재검토 대기</span>
+                                                )}
+                                                {getReviewTrustState(r) === 'FINALIZED' && (
+                                                    <span className="text-[9px] font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">최종확정</span>
                                                 )}
                                             </div>
                                         </td>

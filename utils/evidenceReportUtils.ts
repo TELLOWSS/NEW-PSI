@@ -1,11 +1,9 @@
 import type { WorkerRecord } from '../types';
 import { getWindowProp } from './windowUtils';
 
-const line = (doc: any, text: string, x: number, y: number, maxWidth = 180) => {
-    const lines = doc.splitTextToSize(text, maxWidth);
-    doc.text(lines, x, y);
-    return y + (lines.length * 6);
-};
+const A4_CANVAS_WIDTH = 1240;
+const A4_CANVAS_HEIGHT = 1754;
+const CANVAS_MARGIN = 72;
 
 export function exportEvidencePackageCsv(record: WorkerRecord) {
     const escapeCsv = (value: unknown) => {
@@ -31,36 +29,85 @@ export function exportEvidencePackageCsv(record: WorkerRecord) {
     URL.revokeObjectURL(url);
 }
 
-function renderEvidenceToDoc(doc: any, record: WorkerRecord) {
-    let y = 15;
+type EvidenceLine = {
+    text: string;
+    kind: 'title' | 'section' | 'body';
+};
 
-    doc.setFontSize(15);
-    doc.text('PSI 사건 체인 증빙 패키지', 15, y);
-    y += 8;
+const pushWrappedLines = (
+    ctx: CanvasRenderingContext2D,
+    text: string,
+    maxWidth: number,
+    out: string[]
+) => {
+    const source = String(text ?? '').trim();
+    if (!source) {
+        out.push('-');
+        return;
+    }
 
-    doc.setFontSize(10);
-    y = line(doc, `근로자: ${record.name}  |  사번: ${record.employeeId || '-'}  |  공종: ${record.jobField}`, 15, y);
-    y = line(doc, `등급: ${record.safetyLevel} (${record.safetyScore}점)  |  OCR 신뢰도: ${typeof record.ocrConfidence === 'number' ? (record.ocrConfidence * 100).toFixed(0) + '%' : '-'}`, 15, y);
-    y = line(doc, `무결성: ${typeof record.integrityScore === 'number' ? record.integrityScore : '-'}  |  증빙해시: ${record.evidenceHash || '-'}`, 15, y);
-    y += 3;
+    const words = source.split(/\s+/);
+    let current = '';
 
-    doc.setFontSize(12);
-    doc.text('1) OCR 결과 요약', 15, y);
-    y += 6;
-    doc.setFontSize(10);
-    y = line(doc, `요약 인사이트: ${record.aiInsights || '-'}`, 15, y);
-    y = line(doc, `취약영역: ${(record.weakAreas || []).join(', ') || '-'}`, 15, y);
-    y += 3;
+    const appendCurrent = () => {
+        if (current.trim().length > 0) {
+            out.push(current.trim());
+        }
+        current = '';
+    };
 
-    doc.setFontSize(12);
-    doc.text('2) 정정 이력', 15, y);
-    y += 6;
-    doc.setFontSize(10);
+    for (const word of words) {
+        const candidate = current ? `${current} ${word}` : word;
+        if (ctx.measureText(candidate).width <= maxWidth) {
+            current = candidate;
+            continue;
+        }
+
+        if (current) {
+            appendCurrent();
+        }
+
+        if (ctx.measureText(word).width <= maxWidth) {
+            current = word;
+            continue;
+        }
+
+        let chunk = '';
+        for (const char of word) {
+            const charCandidate = chunk + char;
+            if (ctx.measureText(charCandidate).width <= maxWidth) {
+                chunk = charCandidate;
+            } else {
+                if (chunk) out.push(chunk);
+                chunk = char;
+            }
+        }
+        if (chunk) {
+            current = chunk;
+        }
+    }
+
+    appendCurrent();
+};
+
+const buildEvidenceLines = (record: WorkerRecord): EvidenceLine[] => {
+    const lines: EvidenceLine[] = [];
+
+    lines.push({ text: 'PSI 사건 체인 증빙 패키지', kind: 'title' });
+    lines.push({ text: `근로자: ${record.name}  |  사번: ${record.employeeId || '-'}  |  공종: ${record.jobField}`, kind: 'body' });
+    lines.push({ text: `등급: ${record.safetyLevel} (${record.safetyScore}점)  |  OCR 신뢰도: ${typeof record.ocrConfidence === 'number' ? (record.ocrConfidence * 100).toFixed(0) + '%' : '-'}`, kind: 'body' });
+    lines.push({ text: `무결성: ${typeof record.integrityScore === 'number' ? record.integrityScore : '-'}  |  증빙해시: ${record.evidenceHash || '-'}`, kind: 'body' });
+
+    lines.push({ text: '1) OCR 결과 요약', kind: 'section' });
+    lines.push({ text: `요약 인사이트: ${record.aiInsights || '-'}`, kind: 'body' });
+    lines.push({ text: `취약영역: ${(record.weakAreas || []).join(', ') || '-'}`, kind: 'body' });
+
+    lines.push({ text: '2) 정정 이력', kind: 'section' });
     if ((record.correctionHistory || []).length === 0) {
-        y = line(doc, '- 정정 이력 없음', 15, y);
+        lines.push({ text: '- 정정 이력 없음', kind: 'body' });
     } else {
         for (const item of record.correctionHistory || []) {
-            y = line(doc, `- ${new Date(item.timestamp).toLocaleString()} | ${item.actor} | ${item.changedFields.join(', ')} | ${item.reason}`, 15, y);
+            lines.push({ text: `- ${new Date(item.timestamp).toLocaleString()} | ${item.actor} | ${item.changedFields.join(', ')} | ${item.reason}`, kind: 'body' });
             if (item.previousValues && item.nextValues) {
                 const details = item.changedFields
                     .slice(0, 5)
@@ -70,66 +117,109 @@ function renderEvidenceToDoc(doc: any, record: WorkerRecord) {
                         return `${field}: ${before} -> ${after}`;
                     })
                     .join(' | ');
-                y = line(doc, `  · 변경 상세: ${details}`, 15, y);
-            }
-            if (y > 270) {
-                doc.addPage();
-                y = 15;
+                lines.push({ text: `  · 변경 상세: ${details}`, kind: 'body' });
             }
         }
     }
-    y += 3;
 
-    doc.setFontSize(12);
-    doc.text('3) 조치/교육 이력', 15, y);
-    y += 6;
-    doc.setFontSize(10);
+    lines.push({ text: '3) 조치/교육 이력', kind: 'section' });
     if ((record.actionHistory || []).length === 0) {
-        y = line(doc, '- 조치 이력 없음', 15, y);
+        lines.push({ text: '- 조치 이력 없음', kind: 'body' });
     } else {
         for (const item of record.actionHistory || []) {
-            y = line(doc, `- ${new Date(item.timestamp).toLocaleString()} | ${item.actor} | ${item.actionType} | ${item.detail}`, 15, y);
-            if (y > 270) {
-                doc.addPage();
-                y = 15;
-            }
+            lines.push({ text: `- ${new Date(item.timestamp).toLocaleString()} | ${item.actor} | ${item.actionType} | ${item.detail}`, kind: 'body' });
         }
     }
-    y += 3;
 
-    doc.setFontSize(12);
-    doc.text('4) 승인/검토 이력', 15, y);
-    y += 6;
-    doc.setFontSize(10);
+    lines.push({ text: '4) 승인/검토 이력', kind: 'section' });
     if ((record.approvalHistory || []).length === 0) {
-        y = line(doc, '- 승인 이력 없음', 15, y);
+        lines.push({ text: '- 승인 이력 없음', kind: 'body' });
     } else {
         for (const item of record.approvalHistory || []) {
-            y = line(doc, `- ${new Date(item.timestamp).toLocaleString()} | ${item.actor} | ${item.status} | ${item.comment || '-'}`, 15, y);
-            if (y > 270) {
-                doc.addPage();
-                y = 15;
-            }
+            lines.push({ text: `- ${new Date(item.timestamp).toLocaleString()} | ${item.actor} | ${item.status} | ${item.comment || '-'}`, kind: 'body' });
         }
     }
 
-    y += 3;
-    doc.setFontSize(12);
-    doc.text('5) 감사 트레일 (최근)', 15, y);
-    y += 6;
-    doc.setFontSize(10);
+    lines.push({ text: '5) 감사 트레일 (최근)', kind: 'section' });
     const audit = (record.auditTrail || []).slice(-20);
     if (audit.length === 0) {
-        y = line(doc, '- 감사 이력 없음', 15, y);
+        lines.push({ text: '- 감사 이력 없음', kind: 'body' });
     } else {
         for (const item of audit) {
-            y = line(doc, `- ${new Date(item.timestamp).toLocaleString()} | [${item.stage}] ${item.actor} | ${item.note || '-'}`, 15, y);
-            if (y > 270) {
-                doc.addPage();
-                y = 15;
-            }
+            lines.push({ text: `- ${new Date(item.timestamp).toLocaleString()} | [${item.stage}] ${item.actor} | ${item.note || '-'}`, kind: 'body' });
         }
     }
+
+    return lines;
+};
+
+const createCanvasPage = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = A4_CANVAS_WIDTH;
+    canvas.height = A4_CANVAS_HEIGHT;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#0f172a';
+    return { canvas, ctx };
+};
+
+const renderEvidenceToCanvases = (record: WorkerRecord): HTMLCanvasElement[] => {
+    const pages: HTMLCanvasElement[] = [];
+    const firstPage = createCanvasPage();
+    if (!firstPage) return pages;
+
+    let pageCanvas = firstPage.canvas;
+    let ctx = firstPage.ctx;
+    let y = CANVAS_MARGIN;
+    const maxWidth = A4_CANVAS_WIDTH - CANVAS_MARGIN * 2;
+    const bottomLimit = A4_CANVAS_HEIGHT - CANVAS_MARGIN;
+
+    const startNewPage = () => {
+        pages.push(pageCanvas);
+        const next = createCanvasPage();
+        if (!next) return false;
+        pageCanvas = next.canvas;
+        ctx = next.ctx;
+        y = CANVAS_MARGIN;
+        return true;
+    };
+
+    const ensureSpace = (heightNeeded: number) => {
+        if (y + heightNeeded <= bottomLimit) return true;
+        return startNewPage();
+    };
+
+    const drawLineBlock = (content: string, kind: EvidenceLine['kind']) => {
+        const fontSize = kind === 'title' ? 44 : kind === 'section' ? 30 : 22;
+        const weight = kind === 'title' ? 800 : kind === 'section' ? 700 : 400;
+        const lineHeight = kind === 'title' ? 58 : kind === 'section' ? 42 : 34;
+        const spacingAfter = kind === 'title' ? 20 : kind === 'section' ? 10 : 6;
+
+        ctx.font = `${weight} ${fontSize}px "Noto Sans KR", "Pretendard", sans-serif`;
+        const wrapped: string[] = [];
+        pushWrappedLines(ctx, content, maxWidth, wrapped);
+
+        const blockHeight = wrapped.length * lineHeight + spacingAfter;
+        if (!ensureSpace(blockHeight)) return;
+
+        for (const line of wrapped) {
+            ctx.fillText(line, CANVAS_MARGIN, y);
+            y += lineHeight;
+        }
+        y += spacingAfter;
+    };
+
+    const lines = buildEvidenceLines(record);
+    for (const item of lines) {
+        drawLineBlock(item.text, item.kind);
+    }
+
+    pages.push(pageCanvas);
+    return pages;
 }
 
 export async function createEvidencePackagePdfBlob(record: WorkerRecord): Promise<Blob | null> {
@@ -141,7 +231,17 @@ export async function createEvidencePackagePdfBlob(record: WorkerRecord): Promis
     }
 
     const doc = new JsPDF('p', 'mm', 'a4');
-    renderEvidenceToDoc(doc, record);
+    const canvases = renderEvidenceToCanvases(record);
+    if (canvases.length === 0) {
+        return null;
+    }
+
+    canvases.forEach((canvas, index) => {
+        if (index > 0) doc.addPage();
+        const imageData = canvas.toDataURL('image/png');
+        doc.addImage(imageData, 'PNG', 0, 0, 210, 297, undefined, 'FAST');
+    });
+
     const blob = doc.output('blob');
     return blob;
 }

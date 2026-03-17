@@ -74,9 +74,38 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     };
 
     const handleSave = () => {
-        onUpdateRecord(record);
+        const approvalWasFinalized =
+            record.reviewStatus === 'APPROVED' ||
+            record.approvalStatus === 'APPROVED' ||
+            record.approvalStatus === 'OVERRIDDEN';
+
+        const shouldResetApproval = approvalWasFinalized && hasCriticalReviewEdits;
+
+        const nextRecord: WorkerRecord = shouldResetApproval
+            ? {
+                ...record,
+                reviewStatus: 'PENDING',
+                approvalStatus: 'PENDING',
+                approvedBy: undefined,
+                approvedAt: undefined,
+                auditTrail: [
+                    ...(record.auditTrail || []),
+                    {
+                        stage: 'validation',
+                        timestamp: new Date().toISOString(),
+                        actor: 'manager',
+                        note: '핵심 항목 수정으로 승인 상태를 재검토 대기로 전환',
+                    }
+                ],
+            }
+            : record;
+
+        onUpdateRecord(nextRecord);
+        if (shouldResetApproval) {
+            setRecord(nextRecord);
+        }
         setHasChanges(false);
-        alert('저장되었습니다.');
+        alert(shouldResetApproval ? '저장되었습니다. 핵심 변경으로 승인 상태가 재검토 대기로 변경되었습니다.' : '저장되었습니다.');
     };
 
     const hasCriticalReviewEdits = useMemo(() => {
