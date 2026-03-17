@@ -23,6 +23,18 @@ export function deriveIntegrityScore(record: WorkerRecord): number {
 
     if ((record.aiInsights || '').includes('반복')) score -= 10;
 
+    const adjustmentHistory = record.scoreAdjustmentHistory || [];
+    const invalidAdjustmentCount = adjustmentHistory.filter((entry) => {
+        const hasValidDrop = entry.previousScore > entry.nextScore;
+        const hasCode = !!entry.reasonCode;
+        const hasEvidence = (entry.evidenceSummary || '').trim().length >= 3;
+        const hasDetail = (entry.reasonDetail || '').trim().length >= 3;
+        return hasValidDrop && (!hasCode || !hasEvidence || !hasDetail);
+    }).length;
+    if (invalidAdjustmentCount > 0) {
+        score -= Math.min(20, invalidAdjustmentCount * 8);
+    }
+
     return Math.max(0, Math.min(100, score));
 }
 
@@ -234,6 +246,7 @@ export async function attachEvidenceHash(record: WorkerRecord): Promise<WorkerRe
         integrityScore: record.integrityScore ?? null,
         competencyProfile: record.competencyProfile ?? null,
         correctionHistory: record.correctionHistory || [],
+        scoreAdjustmentHistory: record.scoreAdjustmentHistory || [],
         actionHistory: record.actionHistory || [],
         approvalHistory: record.approvalHistory || [],
         auditTrail: record.auditTrail || [],

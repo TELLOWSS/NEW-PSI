@@ -122,6 +122,18 @@ const buildEvidenceLines = (record: WorkerRecord): EvidenceLine[] => {
         }
     }
 
+    lines.push({ text: '2-1) 점수 조정 무결성 이력', kind: 'section' });
+    if ((record.scoreAdjustmentHistory || []).length === 0) {
+        lines.push({ text: '- 점수 조정 이력 없음', kind: 'body' });
+    } else {
+        for (const item of record.scoreAdjustmentHistory || []) {
+            lines.push({
+                text: `- ${new Date(item.timestamp).toLocaleString()} | ${item.actor} | ${item.previousScore}→${item.nextScore} | ${item.reasonCode} | ${item.reasonDetail} | 증빙: ${item.evidenceSummary}`,
+                kind: 'body',
+            });
+        }
+    }
+
     lines.push({ text: '3) 조치/교육 이력', kind: 'section' });
     if ((record.actionHistory || []).length === 0) {
         lines.push({ text: '- 조치 이력 없음', kind: 'body' });

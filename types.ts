@@ -103,6 +103,23 @@ export interface CorrectionEntry {
     nextValues?: Record<string, unknown>;
 }
 
+export type ScoreAdjustmentReasonCode =
+    | 'BEHAVIOR_NON_COMPLIANCE'
+    | 'UNDERSTANDING_GAP'
+    | 'DOCUMENT_INCONSISTENCY'
+    | 'EVIDENCE_INSUFFICIENT'
+    | 'OTHER';
+
+export interface ScoreAdjustmentEntry {
+    timestamp: string;
+    actor: string;
+    previousScore: number;
+    nextScore: number;
+    reasonCode: ScoreAdjustmentReasonCode;
+    reasonDetail: string;
+    evidenceSummary: string;
+}
+
 export interface SafetyCompetencyProfile {
     psychologicalScore: number;
     jobUnderstandingScore: number;
@@ -176,6 +193,7 @@ export interface WorkerRecord {
     profileImage?: string;  // Base64 encoded worker profile photo (Managed by User)
     filename?: string; // Original filename for reference
     correctionHistory?: CorrectionEntry[];
+    scoreAdjustmentHistory?: ScoreAdjustmentEntry[];
     actionHistory?: ActionEntry[];
     approvalHistory?: ApprovalEntry[];
     auditTrail?: AuditTrailEntry[];

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import type { WorkerRecord, AppSettings } from '../../types';
+import type { WorkerRecord, AppSettings, ScoreAdjustmentReasonCode, ScoreAdjustmentEntry } from '../../types';
 import { CircularProgress } from '../shared/CircularProgress';
 import { updateAnalysisBasedOnEdits } from '../../services/geminiService';
 import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
@@ -27,6 +27,14 @@ const buildReassessmentAuditNote = (before: WorkerRecord, updated: Partial<Worke
     return `2차 재가공 실행 (${parts.join(' | ')})`;
 };
 
+const SCORE_REASON_OPTIONS: Array<{ code: ScoreAdjustmentReasonCode; label: string; impact: string }> = [
+    { code: 'BEHAVIOR_NON_COMPLIANCE', label: '현장 지적(행동 위반)', impact: '개선이행도·숙련도 중심 감점' },
+    { code: 'UNDERSTANDING_GAP', label: '수기 위험성평가 이해도 부족', impact: '위험성평가 이해도·업무이해도 중심 감점' },
+    { code: 'DOCUMENT_INCONSISTENCY', label: '문서 내용 불일치', impact: '무결성·이해도 교차 감점' },
+    { code: 'EVIDENCE_INSUFFICIENT', label: '증빙 부족/확인 불가', impact: '무결성 점수 중심 감점' },
+    { code: 'OTHER', label: '기타(관리자 수기 판단)', impact: '관리자 근거 기반 감점' },
+];
+
 interface RecordDetailModalProps {
     record: WorkerRecord;
     onClose: () => void;
@@ -48,6 +56,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const [pendingApprovalAction, setPendingApprovalAction] = useState<'approved' | 'rejected' | null>(null);
     const [approverRole, setApproverRole] = useState<'safety-manager' | 'site-manager'>('safety-manager');
     const [strictRoleGate, setStrictRoleGate] = useState(false);
+    const [scoreReasonCode, setScoreReasonCode] = useState<ScoreAdjustmentReasonCode | ''>('');
+    const [scoreReasonDetail, setScoreReasonDetail] = useState('');
+    const [scoreEvidenceSummary, setScoreEvidenceSummary] = useState('');
     
     const docInputRef = useRef<HTMLInputElement>(null); // For Document Image
     const profileInputRef = useRef<HTMLInputElement>(null); // For Profile Photo
@@ -63,6 +74,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     useEffect(() => { 
         setRecord(getConsistentRecord(initialRecord)); 
         setHasChanges(false); 
+        setScoreReasonCode('');
+        setScoreReasonDetail('');
+        setScoreEvidenceSummary('');
     }, [initialRecord]);
 
     useEffect(() => {
@@ -81,6 +95,44 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         setHasChanges(true);
     };
 
+    const scoreDropAmount = useMemo(() => {
+        const before = typeof initialRecord.safetyScore === 'number' ? initialRecord.safetyScore : 0;
+        const after = typeof record.safetyScore === 'number' ? record.safetyScore : 0;
+        return Math.max(0, before - after);
+    }, [initialRecord.safetyScore, record.safetyScore]);
+
+    const scoreDropNeedsIntegrityReason = scoreDropAmount > 0;
+
+    const buildScoreAdjustmentEntry = (): ScoreAdjustmentEntry | null => {
+        if (!scoreDropNeedsIntegrityReason) return null;
+
+        const previousScore = typeof initialRecord.safetyScore === 'number' ? initialRecord.safetyScore : 0;
+        const nextScore = typeof record.safetyScore === 'number' ? record.safetyScore : 0;
+
+        if (!scoreReasonCode) {
+            alert('점수 하향 사유 코드를 선택해주세요.');
+            return null;
+        }
+        if (scoreReasonDetail.trim().length < 3) {
+            alert('점수 하향 상세 사유를 3자 이상 입력해주세요.');
+            return null;
+        }
+        if (scoreEvidenceSummary.trim().length < 3) {
+            alert('증빙 요약(현장 지적/기록 근거)을 3자 이상 입력해주세요.');
+            return null;
+        }
+
+        return {
+            timestamp: new Date().toISOString(),
+            actor: 'manager',
+            previousScore,
+            nextScore,
+            reasonCode: scoreReasonCode,
+            reasonDetail: scoreReasonDetail.trim(),
+            evidenceSummary: scoreEvidenceSummary.trim(),
+        };
+    };
+
     const handleSave = () => {
         const approvalWasFinalized =
             record.reviewStatus === 'APPROVED' ||
@@ -89,7 +141,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
         const shouldResetApproval = approvalWasFinalized && hasCriticalReviewEdits;
 
-        const nextRecord: WorkerRecord = shouldResetApproval
+        const scoreAdjustmentEntry = buildScoreAdjustmentEntry();
+        if (scoreDropNeedsIntegrityReason && !scoreAdjustmentEntry) return;
+
+        const nextRecordBase: WorkerRecord = shouldResetApproval
             ? {
                 ...record,
                 reviewStatus: 'PENDING',
@@ -108,9 +163,31 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             }
             : record;
 
+        const nextRecord: WorkerRecord = scoreAdjustmentEntry
+            ? {
+                ...nextRecordBase,
+                scoreAdjustmentHistory: [
+                    ...(nextRecordBase.scoreAdjustmentHistory || []),
+                    scoreAdjustmentEntry,
+                ],
+                auditTrail: [
+                    ...(nextRecordBase.auditTrail || []),
+                    {
+                        stage: 'validation',
+                        timestamp: new Date().toISOString(),
+                        actor: 'manager',
+                        note: `점수 하향 무결성 검증: ${scoreAdjustmentEntry.reasonCode} | ${scoreAdjustmentEntry.reasonDetail} | 증빙: ${scoreAdjustmentEntry.evidenceSummary}`,
+                    }
+                ],
+            }
+            : nextRecordBase;
+
         const consistentRecord = getConsistentRecord(nextRecord);
         onUpdateRecord(consistentRecord);
         setRecord(consistentRecord);
+        setScoreReasonCode('');
+        setScoreReasonDetail('');
+        setScoreEvidenceSummary('');
         setHasChanges(false);
         alert(shouldResetApproval ? '저장되었습니다. 핵심 변경으로 승인 상태가 재검토 대기로 변경되었습니다.' : '저장되었습니다.');
     };
@@ -264,7 +341,13 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             return;
         }
 
-        const nextRecord: WorkerRecord = getConsistentRecord({
+        const scoreAdjustmentEntry = buildScoreAdjustmentEntry();
+        if (scoreDropNeedsIntegrityReason && !scoreAdjustmentEntry) {
+            setPendingApprovalAction(null);
+            return;
+        }
+
+        const nextRecordBase: WorkerRecord = {
             ...record,
             reviewStatus: status === 'approved' ? 'APPROVED' : 'REJECTED',
             adminComment: trimmedComment || undefined,
@@ -293,11 +376,33 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                         : `반려${trimmedComment ? ` (${trimmedComment})` : ''}`,
                 }
             ]
-        });
+        };
+
+        const nextRecord: WorkerRecord = getConsistentRecord(scoreAdjustmentEntry
+            ? {
+                ...nextRecordBase,
+                scoreAdjustmentHistory: [
+                    ...(nextRecordBase.scoreAdjustmentHistory || []),
+                    scoreAdjustmentEntry,
+                ],
+                auditTrail: [
+                    ...(nextRecordBase.auditTrail || []),
+                    {
+                        stage: 'validation',
+                        timestamp: new Date().toISOString(),
+                        actor: 'manager',
+                        note: `점수 하향 무결성 검증: ${scoreAdjustmentEntry.reasonCode} | ${scoreAdjustmentEntry.reasonDetail} | 증빙: ${scoreAdjustmentEntry.evidenceSummary}`,
+                    }
+                ],
+            }
+            : nextRecordBase);
 
         if (status === 'rejected') {
             setRecord(nextRecord);
             await onUpdateRecord(nextRecord);
+            setScoreReasonCode('');
+            setScoreReasonDetail('');
+            setScoreEvidenceSummary('');
             setApprovalComment('');
             setPendingApprovalAction(null);
             setHasChanges(false);
@@ -309,6 +414,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         const consistentFinalRecord = getConsistentRecord(finalApprovedRecord);
         setRecord(consistentFinalRecord);
         await onUpdateRecord(consistentFinalRecord);
+        setScoreReasonCode('');
+        setScoreReasonDetail('');
+        setScoreEvidenceSummary('');
         setApprovalComment('');
         setPendingApprovalAction(null);
         setHasChanges(false);
@@ -722,6 +830,43 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 <div className="bg-rose-50 rounded-xl p-3 border border-rose-200 text-rose-700">반복위반 페널티: -{competencyProfile.repeatViolationPenalty}</div>
                                             </div>
                                         </div>
+
+                                        {scoreDropNeedsIntegrityReason && (
+                                            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-rose-200 shadow-sm">
+                                                <h4 className="text-sm font-black text-rose-700 mb-2">점수 하향 무결성 검증 (필수)</h4>
+                                                <p className="text-xs text-slate-600 font-bold mb-3">점수 하향: {initialRecord.safetyScore} → {record.safetyScore} (총 {scoreDropAmount}점 하향)</p>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                    <select
+                                                        value={scoreReasonCode}
+                                                        onChange={(e) => setScoreReasonCode(e.target.value as ScoreAdjustmentReasonCode)}
+                                                        className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm"
+                                                    >
+                                                        <option value="">사유 코드 선택</option>
+                                                        {SCORE_REASON_OPTIONS.map((item) => (
+                                                            <option key={item.code} value={item.code}>{item.label}</option>
+                                                        ))}
+                                                    </select>
+                                                    <input
+                                                        type="text"
+                                                        value={scoreEvidenceSummary}
+                                                        onChange={(e) => setScoreEvidenceSummary(e.target.value)}
+                                                        placeholder="증빙 요약 (예: 현장 지적 2건, 작업전 TBM 미이행)"
+                                                        className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium"
+                                                    />
+                                                </div>
+                                                <textarea
+                                                    value={scoreReasonDetail}
+                                                    onChange={(e) => setScoreReasonDetail(e.target.value)}
+                                                    placeholder="상세 사유 (행동 위반/이해도 부족/문서불일치 등 분리 기재)"
+                                                    className="mt-3 w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium min-h-[72px]"
+                                                />
+                                                <div className="mt-2 text-[11px] text-slate-500 font-bold">
+                                                    {scoreReasonCode
+                                                        ? `영향 지표: ${SCORE_REASON_OPTIONS.find((item) => item.code === scoreReasonCode)?.impact || '-'}`
+                                                        : '영향 지표: 사유 코드를 선택하면 표시됩니다.'}
+                                                </div>
+                                            </div>
+                                        )}
 
                                         <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm">
                                             <h4 className="text-sm font-black text-slate-800 mb-4">조치 이력 등록 (S165/S166)</h4>
