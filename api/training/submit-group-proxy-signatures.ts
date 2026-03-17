@@ -70,6 +70,7 @@ export default async function handler(req: any, res: any) {
             selectedLanguageCode,
             selectedAudioUrl,
             audioPlayed,
+            isManagerProxy,
             checklist,
             signatures,
         } = req.body || {};
@@ -160,6 +161,7 @@ export default async function handler(req: any, res: any) {
                 signature_url: publicUrl,
                 audio_url: selectedAudioUrl || null,
                 selected_language_code: selectedLanguageCode || null,
+                is_manager_proxy: Boolean(isManagerProxy ?? true),
                 signature_method: 'manager_group_proxy',
                 submitted_at: new Date().toISOString(),
             });

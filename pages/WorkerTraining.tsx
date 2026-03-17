@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
+import { AuthGateway, type AuthenticatedWorker } from '../components/AuthGateway';
 import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
 import {
     TRAINING_AUDIO_LANGUAGES,
@@ -249,6 +250,7 @@ const SignaturePadSection: React.FC<SignaturePadSectionProps> = ({
 const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
     const [loading, setLoading] = useState(true);
     const [sessionData, setSessionData] = useState<SessionRow | null>(null);
+    const [authenticatedWorker, setAuthenticatedWorker] = useState<AuthenticatedWorker | null>(null);
     const [workerName, setWorkerName] = useState('');
     const [selectedLanguageCode, setSelectedLanguageCode] = useState<TrainingAudioLanguageCode>('ko-KR');
     const [nationality, setNationality] = useState('대한민국');
@@ -469,6 +471,16 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
         setNationality(TRAINING_AUDIO_LANGUAGE_NATIONALITY[nextCode]);
     }, []);
 
+    const handleGatewayAuthenticated = (worker: AuthenticatedWorker) => {
+        setAuthenticatedWorker(worker);
+        setWorkerName(worker.name);
+        setNationality(worker.nationality || '대한민국');
+
+        const resolvedLanguage = resolveTrainingLanguageByNationality(worker.nationality || '대한민국');
+        setSelectedLanguageCode(resolvedLanguage);
+        setMessage('');
+    };
+
     const handleLanguageSelect = (code: TrainingAudioLanguageCode) => {
         setSelectedLanguageCode(code);
         setNationality(TRAINING_AUDIO_LANGUAGE_NATIONALITY[code]);
@@ -526,6 +538,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                     selectedLanguageCode: effectiveLangKey,
                     selectedAudioUrl: selectedAudioUrl || null,
                     audioPlayed: true,
+                    isManagerProxy: true,
+                    gatewayWorkerId: authenticatedWorker?.workerId || null,
                     checklist: {
                         riskReview: true,
                         ppeConfirm: true,
@@ -552,6 +566,11 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
     };
 
     const handleSubmit = async () => {
+        if (!authenticatedWorker?.workerId) {
+            alert('본인 확인이 필요합니다.');
+            return;
+        }
+
         if (!workerName.trim()) {
             alert(uiText.missingNameAlert);
             return;
@@ -583,6 +602,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     sessionId,
+                    workerId: authenticatedWorker.workerId,
                     workerName,
                     nationality,
                     selectedLanguageCode: effectiveLangKey,
@@ -597,6 +617,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                     },
                     selectedAudioUrl: selectedAudioUrl || null,
                     signatureDataUrl,
+                    isManagerProxy: false,
                 }),
             });
 
@@ -607,7 +628,6 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
 
             setMessage(uiText.submitSuccess);
             setSubmitted(true);
-            setWorkerName('');
             sigRef.current?.clear();
         } catch (error: any) {
             setMessage(`${uiText.errorPrefix}: ${error?.message || uiText.submitFail}`);
@@ -615,6 +635,18 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
             setSubmitting(false);
         }
     };
+
+    if (!authenticatedWorker) {
+        return (
+            <div className="space-y-6 max-w-2xl">
+                <AuthGateway
+                    onAuthenticated={handleGatewayAuthenticated}
+                    title={isGroupProxyMode ? '대면 서명 전 근로자 본인 확인' : '교육 시작 전 근로자 본인 확인'}
+                    subtitle="핸드폰 번호/생년월일/여권번호 중 하나를 선택해 등록 정보와 일치하는지 확인합니다."
+                />
+            </div>
+        );
+    }
 
     if (loading) {
         return <div className="bg-white p-6 rounded-2xl border border-slate-200 font-bold">{uiText.loading}</div>;
@@ -630,17 +662,12 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                 <h2 className="text-2xl font-black text-slate-900">{uiText.title}</h2>
                 <p className="text-sm font-bold text-slate-500 mt-2">{uiText.subtitle}</p>
 
-                {!isGroupProxyMode && (
-                    <div className="mt-4">
-                        <label className="block text-xs font-black text-slate-500 mb-2">{uiText.nameLabel}</label>
-                        <input
-                            value={workerName}
-                            onChange={(e) => setWorkerName(e.target.value)}
-                            className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
-                            placeholder={uiText.namePlaceholder}
-                        />
-                    </div>
-                )}
+                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+                    <p className="text-xs font-black text-emerald-700">본인 확인 완료</p>
+                    <p className="mt-1 text-sm font-black text-slate-900">{authenticatedWorker.name}</p>
+                    <p className="text-[11px] font-bold text-slate-600">worker_id: {authenticatedWorker.workerId}</p>
+                    <p className="text-[11px] font-bold text-slate-600">{uiText.selectedNationalityLabel}: {nationality}</p>
+                </div>
 
                 {isGroupProxyMode && (
                     <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4 space-y-3">
@@ -678,26 +705,14 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
 
                 <div className="mt-5">
                     <div className="flex items-center justify-between gap-3 mb-2">
-                        <label className="block text-xs font-black text-slate-500">{uiText.languageSelectLabel}</label>
+                        <label className="block text-xs font-black text-slate-500">자동 설정 언어</label>
                         <span className="text-[11px] font-bold text-slate-500">{uiText.selectedNationalityLabel}: {nationality}</span>
                     </div>
-                    <div className="overflow-x-auto pb-2">
-                        <div className="flex gap-2 min-w-max">
-                            {TRAINING_AUDIO_LANGUAGES.map((lang) => {
-                                const active = lang.code === effectiveLangKey;
-                                return (
-                                    <button
-                                        key={lang.code}
-                                        type="button"
-                                        onClick={() => handleLanguageSelect(lang.code)}
-                                        className={`min-w-[84px] rounded-2xl border px-3 py-3 text-center transition-all ${active ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-200 bg-white'}`}
-                                    >
-                                        <div className="text-2xl">{lang.flag}</div>
-                                        <div className={`mt-1 text-[11px] font-black ${active ? 'text-indigo-700' : 'text-slate-600'}`}>{lang.shortLabel}</div>
-                                    </button>
-                                );
-                            })}
-                        </div>
+                    <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-3 py-3">
+                        <p className="text-sm font-black text-indigo-900">
+                            {TRAINING_AUDIO_LANGUAGES.find((item) => item.code === effectiveLangKey)?.flag} {effectiveLangKey}
+                        </p>
+                        <p className="text-[11px] font-bold text-indigo-700 mt-1">국적 기반으로 자동 선택되었습니다.</p>
                     </div>
                 </div>
 

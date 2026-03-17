@@ -13,6 +13,7 @@ export default async function handler(req: any, res: any) {
     try {
         const {
             sessionId,
+            workerId,
             workerName,
             nationality,
             selectedLanguageCode,
@@ -23,11 +24,12 @@ export default async function handler(req: any, res: any) {
             checklist,
             selectedAudioUrl,
             signatureDataUrl,
+            isManagerProxy,
             linkExpiresAt,
             linkToken,
         } = req.body || {};
 
-        if (!sessionId || !workerName || !nationality || !signatureDataUrl) {
+        if (!sessionId || !workerId || !workerName || !nationality || !signatureDataUrl) {
             return res.status(400).json({ ok: false, message: '필수값 누락' });
         }
 
@@ -66,10 +68,14 @@ export default async function handler(req: any, res: any) {
 
         const insert = await supabase.from('training_logs').insert({
             session_id: sessionId,
+            worker_id: String(workerId).trim(),
             worker_name: normalizedWorkerName,
             nationality,
             signature_url: signatureUrl,
             audio_url: selectedAudioUrl || null,
+            selected_language_code: selectedLanguageCode || null,
+            is_manager_proxy: Boolean(isManagerProxy),
+            signature_method: Boolean(isManagerProxy) ? 'manager_proxy' : 'worker_self',
             submitted_at: new Date().toISOString(),
         });
 
