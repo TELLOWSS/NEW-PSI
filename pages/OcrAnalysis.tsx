@@ -120,6 +120,19 @@ const getOcrErrorMobileLabel = (errorType: OcrErrorType): string => {
     }
 };
 
+const normalizeRetryImageData = (image?: string): string => {
+    if (!image || typeof image !== 'string') return '';
+    const trimmed = image.trim();
+    const withoutHeader = trimmed.includes('base64,')
+        ? trimmed.split('base64,').pop() || ''
+        : trimmed;
+    return withoutHeader.replace(/[\r\n\s]/g, '');
+};
+
+const hasRetryableOriginalImage = (image?: string): boolean => {
+    return normalizeRetryImageData(image).length >= 100;
+};
+
 // [강화된 실패 판단 로직 - 안전성 강화]
 const isFailedRecord = (r: WorkerRecord): boolean => {
     if (r.ocrErrorType) return true;
@@ -536,14 +549,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, [existingRecords, searchTerm, filterLevel, filterField, filterLeader, filterTrust, getReviewTrustState]);
 
     const recordsWithImages = useMemo(() => {
-        return existingRecords.filter(r => r.originalImage && r.originalImage.length > 200);
+        return existingRecords.filter(r => hasRetryableOriginalImage(r.originalImage));
     }, [existingRecords]);
 
     const failedRecords = useMemo(() => {
         return existingRecords.filter(r => 
             isFailedRecord(r) && 
-            r.originalImage && 
-            r.originalImage.length > 200
+            hasRetryableOriginalImage(r.originalImage)
         );
     }, [existingRecords]);
 
@@ -614,8 +626,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         }
         
         setIsAnalyzing(true);
+        setProgress(`[${title}] 재분석 준비 중...`);
         setBatchProgress({ current: 0, total });
         stopRef.current = false;
+        await new Promise((resolve) => window.requestAnimationFrame(() => resolve(null)));
         
         let successCount = 0;
         let failCount = 0;
@@ -638,7 +652,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 
                 try {
                     // 1. Data Integrity Check
-                    if (!record.originalImage || record.originalImage.length < 500) {
+                    if (!hasRetryableOriginalImage(record.originalImage)) {
                         console.warn(`Skipping ${record.id}: Image loss.`);
                         const errorRecord: WorkerRecord = {
                             ...record,
@@ -653,7 +667,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     }
 
                     // [Step 3] Image Format Validation
-                    const cleanImage = record.originalImage.replace(/^data:image\/[a-z0-9]+;base64,/i, '').replace(/\s/g, '');
+                    const cleanImage = normalizeRetryImageData(record.originalImage);
                     const formatValidation = validateImageFormat(cleanImage);
                     
                     if (!formatValidation.isValid) {
@@ -705,12 +719,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                     while (retryCount < MAX_RETRIES) {
                         try {
-                            const results = await analyzeWorkerRiskAssessment(record.originalImage, '', record.filename || record.name);
+                                const results = await analyzeWorkerRiskAssessment(record.originalImage || cleanImage, '', record.filename || record.name);
                             if (results && results.length > 0) {
                                 apiResult = results[0];
-                                  const insightText = String(apiResult.aiInsights || '');
+                                                                const insightText = String(apiResult.aiInsights || '');
                                 // Check if result itself indicates failure from service (e.g. Quota Error)
-                                  if ((apiResult.safetyScore === 0 && insightText.includes('오류')) || insightText.includes('429') || insightText.includes('RESOURCE_EXHAUSTED')) {
+                                                                    if ((apiResult.safetyScore === 0 && (insightText.includes('오류') || insightText.includes('실패'))) || insightText.includes('429') || insightText.includes('RESOURCE_EXHAUSTED')) {
                                       throw new Error(insightText || '분석 실패');
                                 }
                                 break; // Success!
@@ -772,7 +786,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                     } else {
                         // Final Failure after retries
-                        const errorRecord: WorkerRecord = {
+                                const errorRecord: WorkerRecord = {
                             ...record,
                             aiInsights: "⛔ 반복적인 API 오류로 분석 실패 (재시도 필요)",
                             ocrErrorType: 'UNKNOWN',
@@ -1391,7 +1405,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         <tbody className="divide-y divide-slate-50 font-medium">
                             {filteredRecords.map((r: WorkerRecord) => {
                                 const isManager = isManagementRole(r.jobField);
-                                const hasImage = r.originalImage && r.originalImage.length > 200;
+                                const hasImage = hasRetryableOriginalImage(r.originalImage);
                                 const failed = isFailedRecord(r);
                                 const rowErrorType = failed ? getOcrErrorTypeFromRecord(r) : null;
                                 const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
