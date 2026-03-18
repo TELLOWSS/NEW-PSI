@@ -1,11 +1,11 @@
 /**
  * POST /api/admin/safety-management
  *
- * 안전행동 관리 통합 API (3가지 액션)
+ * 안전행동/근로자 관리 통합 API (4가지 액션)
  *
  * Body 형식:
  *   {
- *     action: 'record-unsafe-behavior' | 'register-coaching-action' | 'evaluate-worker-integrity',
+ *     action: 'record-unsafe-behavior' | 'register-coaching-action' | 'evaluate-worker-integrity' | 'bulk-upload-workers',
  *     payload: { ... 액션별 필드 }
  *   }
  *
@@ -34,12 +34,57 @@ export const COACHING_ACTION_PRESETS = [
     '재교육', '현장코칭', '작업중지', '보호구개선', '안전조회 특별교육', '서면경고', '기타',
 ] as const;
 
+const ALLOWED_JOB_FIELDS = [
+    '형틀',
+    '철근',
+    '갱폼',
+    '알폼',
+    '시스템',
+    '할석미장견출',
+    '해체정리',
+    '직영(용역포함)',
+    '콘크리트비계',
+] as const;
+
+const JOB_FIELD_ALIASES: Record<string, string> = {
+    '형틀': '형틀',
+    '철근': '철근',
+    '갱폼': '갱폼',
+    '알폼': '알폼',
+    '시스템': '시스템',
+    '할석미장견출': '할석미장견출',
+    '해체정리': '해체정리',
+    '직영(용역포함)': '직영(용역포함)',
+    '직영용역포함': '직영(용역포함)',
+    '직영': '직영(용역포함)',
+    '콘크리트비계': '콘크리트비계',
+};
+
 // -----------------------------------------------------------------------
 // 유틸
 // -----------------------------------------------------------------------
 function checkTimeline(educationAt: string | null, signatureAt: string | null): boolean {
     if (!educationAt || !signatureAt) return false;
     return new Date(educationAt).getTime() <= new Date(signatureAt).getTime();
+}
+
+function normalizePhone(raw: string): string {
+    return String(raw || '').replace(/\D/g, '');
+}
+
+function normalizeBirthDate(raw: string): string {
+    return String(raw || '').replace(/\D/g, '');
+}
+
+function normalizePassport(raw: string): string {
+    return String(raw || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+}
+
+function normalizeJobField(raw: string): string {
+    const base = String(raw || '').trim();
+    if (!base) return '';
+    const compact = base.replace(/\s+/g, '');
+    return JOB_FIELD_ALIASES[compact] || JOB_FIELD_ALIASES[base] || base;
 }
 
 // -----------------------------------------------------------------------
@@ -343,6 +388,142 @@ async function handleEvaluateWorkerIntegrity(payload: any): Promise<any> {
 }
 
 // -----------------------------------------------------------------------
+// 액션 4: 근로자 대량 업로드
+// -----------------------------------------------------------------------
+async function handleBulkUploadWorkers(payload: any): Promise<any> {
+    const workers = Array.isArray(payload?.workers) ? payload.workers : [];
+
+    if (workers.length === 0) {
+        throw new Error('workers 배열이 비어 있습니다.');
+    }
+    if (workers.length > 5000) {
+        throw new Error('1회 최대 5000명까지 업로드 가능합니다.');
+    }
+
+    const normalizedRows = workers.map((item: any, index: number) => {
+        const rowNo = index + 1;
+        const name = String(item?.name || '').trim();
+        const nationality = String(item?.nationality || '').trim();
+        const jobField = normalizeJobField(String(item?.job_field || item?.jobField || '').trim());
+        const teamName = String(item?.team_name || item?.teamName || '').trim();
+        const phoneNumber = normalizePhone(item?.phone_number || item?.phoneNumber || '');
+        const birthDate = normalizeBirthDate(item?.birth_date || item?.birthDate || '');
+        const passportNumber = normalizePassport(item?.passport_number || item?.passportNumber || '');
+
+        if (!name) throw new Error(`${rowNo}번째 줄: 이름 필수`);
+        if (!nationality) throw new Error(`${rowNo}번째 줄: 국적 필수`);
+        if (!jobField) throw new Error(`${rowNo}번째 줄: 공종 필수`);
+        if (!teamName) throw new Error(`${rowNo}번째 줄: 팀명 필수`);
+        if (!(ALLOWED_JOB_FIELDS as readonly string[]).includes(jobField)) {
+            throw new Error(`${rowNo}번째 줄: 허용되지 않은 공종(${jobField})`);
+        }
+        if (!phoneNumber && !birthDate && !passportNumber) {
+            throw new Error(`${rowNo}번째 줄: 핸드폰/생년월일/여권번호 중 최소 1개 필수`);
+        }
+        if (birthDate && !(birthDate.length === 6 || birthDate.length === 8)) {
+            throw new Error(`${rowNo}번째 줄: 생년월일은 6자리 또는 8자리만 허용`);
+        }
+
+        return {
+            name,
+            nationality,
+            job_field: jobField,
+            team_name: teamName,
+            phone_number: phoneNumber || null,
+            birth_date: birthDate || null,
+            passport_number: passportNumber || null,
+            updated_at: new Date().toISOString(),
+        };
+    });
+
+    const { data: existingRows, error: existingError } = await supabase
+        .from('workers')
+        .select('name, phone_number, birth_date, passport_number')
+        .limit(100000);
+
+    if (existingError) throw new Error(existingError.message);
+
+    const existingByPhone = new Set<string>();
+    const existingByBirth = new Set<string>();
+    const existingByPassport = new Set<string>();
+
+    (existingRows || []).forEach((row: any) => {
+        const name = String(row?.name || '').trim().toLowerCase();
+        const phone = normalizePhone(row?.phone_number || '');
+        const birth = normalizeBirthDate(row?.birth_date || '');
+        const passport = normalizePassport(row?.passport_number || '');
+
+        if (name && phone) existingByPhone.add(`${name}|${phone}`);
+        if (name && birth) existingByBirth.add(`${name}|${birth}`);
+        if (name && passport) existingByPassport.add(`${name}|${passport}`);
+    });
+
+    const seenUploadByPhone = new Set<string>();
+    const seenUploadByBirth = new Set<string>();
+    const seenUploadByPassport = new Set<string>();
+
+    const dedupedRows: any[] = [];
+    let skippedDuplicateCount = 0;
+
+    normalizedRows.forEach((row) => {
+        const name = String(row.name || '').trim().toLowerCase();
+        const phone = normalizePhone(row.phone_number || '');
+        const birth = normalizeBirthDate(row.birth_date || '');
+        const passport = normalizePassport(row.passport_number || '');
+
+        const phoneKey = name && phone ? `${name}|${phone}` : '';
+        const birthKey = name && birth ? `${name}|${birth}` : '';
+        const passportKey = name && passport ? `${name}|${passport}` : '';
+
+        const isDuplicate =
+            (phoneKey && (existingByPhone.has(phoneKey) || seenUploadByPhone.has(phoneKey))) ||
+            (birthKey && (existingByBirth.has(birthKey) || seenUploadByBirth.has(birthKey))) ||
+            (passportKey && (existingByPassport.has(passportKey) || seenUploadByPassport.has(passportKey)));
+
+        if (isDuplicate) {
+            skippedDuplicateCount += 1;
+            return;
+        }
+
+        dedupedRows.push(row);
+        if (phoneKey) seenUploadByPhone.add(phoneKey);
+        if (birthKey) seenUploadByBirth.add(birthKey);
+        if (passportKey) seenUploadByPassport.add(passportKey);
+    });
+
+    if (dedupedRows.length === 0) {
+        return {
+            requested: normalizedRows.length,
+            inserted: 0,
+            skippedDuplicateCount,
+        };
+    }
+
+    const { error: insertError } = await supabase
+        .from('workers')
+        .insert(dedupedRows);
+
+    if (insertError) {
+        if (String(insertError.message || '').includes('job_field') || String(insertError.message || '').includes('team_name')) {
+            throw new Error('workers 테이블에 공종/팀 컬럼이 없습니다. DB에 job_field, team_name 컬럼을 먼저 추가해 주세요.');
+        }
+        const { error: upsertError } = await supabase
+            .from('workers')
+            .upsert(dedupedRows, { onConflict: 'id' });
+
+        if (upsertError) {
+            throw new Error(upsertError.message);
+        }
+    }
+
+    return {
+        requested: normalizedRows.length,
+        inserted: dedupedRows.length,
+        skippedDuplicateCount,
+    };
+}
+
+// -----------------------------------------------------------------------
 // 메인 핸들러
 // -----------------------------------------------------------------------
 export default async function handler(req: any, res: any) {
@@ -370,6 +551,10 @@ export default async function handler(req: any, res: any) {
 
             case 'evaluate-worker-integrity':
                 data = await handleEvaluateWorkerIntegrity(payload);
+                break;
+
+            case 'bulk-upload-workers':
+                data = await handleBulkUploadWorkers(payload);
                 break;
 
             default:

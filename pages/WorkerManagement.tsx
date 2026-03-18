@@ -5,6 +5,7 @@ import { generateReportUrl } from '../utils/qrUtils';
 import { extractMessage } from '../utils/errorUtils';
 import { getWindowProp } from '../utils/windowUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
+import * as XLSX from 'xlsx';
 
 // [시스템] QR 코드 생성 상태 관리 및 동기화 컴포넌트
 interface QRCodeProps {
@@ -432,10 +433,47 @@ interface WorkerManagementProps {
     onUpdateRecord?: (worker: WorkerRecord) => Promise<void> | void;
 }
 
+interface BulkWorkerUploadRow {
+    name: string;
+    nationality: string;
+    job_field: string;
+    team_name: string;
+    phone_number?: string;
+    birth_date?: string;
+    passport_number?: string;
+}
+
+const ALLOWED_JOB_FIELDS = [
+    '형틀',
+    '철근',
+    '갱폼',
+    '알폼',
+    '시스템',
+    '할석미장견출',
+    '해체정리',
+    '직영(용역포함)',
+    '콘크리트비계',
+] as const;
+
+const JOB_FIELD_ALIASES: Record<string, string> = {
+    '형틀': '형틀',
+    '철근': '철근',
+    '갱폼': '갱폼',
+    '알폼': '알폼',
+    '시스템': '시스템',
+    '할석미장견출': '할석미장견출',
+    '해체정리': '해체정리',
+    '직영(용역포함)': '직영(용역포함)',
+    '직영용역포함': '직영(용역포함)',
+    '직영': '직영(용역포함)',
+    '콘크리트비계': '콘크리트비계',
+};
+
 const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onViewDetails, onUpdateRecord }) => {
     // --- Main View States ---
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedTeam, setSelectedTeam] = useState('전체');
+    const [selectedJobField, setSelectedJobField] = useState('전체');
+    const [selectedCrew, setSelectedCrew] = useState('전체');
     const [filterLevel, setFilterLevel] = useState('전체');
     const [reliabilityFilter, setReliabilityFilter] = useState<'all' | 'trusted' | 'needs-review'>('all');
 
@@ -456,10 +494,189 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [overridePin, setOverridePin] = useState('');
     const [overrideReason, setOverrideReason] = useState('');
     const [isOverrideSubmitting, setIsOverrideSubmitting] = useState(false);
+    const [isBulkUploading, setIsBulkUploading] = useState(false);
+    const [bulkUploadMessage, setBulkUploadMessage] = useState<string | null>(null);
+    const bulkFileInputRef = useRef<HTMLInputElement | null>(null);
 
     const getPrintSafeId = (id: unknown) => {
         const raw = typeof id === 'string' ? id : (typeof id === 'number' || typeof id === 'boolean') ? String(id) : 'unknown';
         return raw.replace(/[^a-zA-Z0-9_-]/g, '_');
+    };
+
+    const normalizePhone = (raw: unknown) => String(raw || '').replace(/\D/g, '');
+    const normalizeBirthDate = (raw: unknown) => String(raw || '').replace(/\D/g, '');
+    const normalizePassport = (raw: unknown) => String(raw || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    const normalizeJobField = (raw: unknown) => {
+        const base = String(raw || '').trim();
+        if (!base) return '';
+        const compact = base.replace(/\s+/g, '');
+        return JOB_FIELD_ALIASES[compact] || JOB_FIELD_ALIASES[base] || base;
+    };
+
+    const normalizeHeader = (header: string) => String(header || '').trim().toLowerCase().replace(/\s+/g, '');
+
+    const extractValueByAliases = (row: Record<string, unknown>, aliases: string[]) => {
+        const entries = Object.entries(row || {});
+        for (const [key, value] of entries) {
+            const normalizedKey = normalizeHeader(key);
+            if (aliases.some((alias) => normalizedKey === normalizeHeader(alias))) {
+                return String(value ?? '').trim();
+            }
+        }
+        return '';
+    };
+
+    const parseSpreadsheetFile = async (file: File): Promise<Record<string, unknown>[]> => {
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        if (!firstSheetName) return [];
+        const sheet = workbook.Sheets[firstSheetName];
+        return XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+            defval: '',
+            raw: false,
+            blankrows: false,
+        });
+    };
+
+    const handleDownloadTemplate = () => {
+        const headers = ['이름', '국적', '공종', '팀명', '핸드폰번호', '생년월일', '여권번호'];
+        const sampleRows = [
+            ['홍길동', '대한민국', '형틀', '김철수팀', '01012345678', '900101', 'M12345678'],
+            ['왕샤오밍', '중국', '철근', '박영수팀', '01098765432', '', 'E12345678'],
+        ];
+
+        const templateSheet = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
+        templateSheet['!cols'] = [
+            { wch: 14 },
+            { wch: 14 },
+            { wch: 18 },
+            { wch: 16 },
+            { wch: 16 },
+            { wch: 12 },
+            { wch: 16 },
+        ];
+
+        const jobFieldRows = ALLOWED_JOB_FIELDS.map((item) => [item]);
+        const jobFieldSheet = XLSX.utils.aoa_to_sheet([['허용 공종'], ...jobFieldRows]);
+
+        const noteRows = [
+            ['업로드 가이드'],
+            ['1) 이름, 국적, 공종, 팀명은 필수 입력'],
+            ['2) 핸드폰번호/생년월일/여권번호 중 1개 이상 필수'],
+            ['3) 생년월일은 6자리 또는 8자리만 허용'],
+            [`4) 공종은 허용 목록만 사용: ${ALLOWED_JOB_FIELDS.join(', ')}`],
+        ];
+        const noteSheet = XLSX.utils.aoa_to_sheet(noteRows);
+        noteSheet['!cols'] = [{ wch: 120 }];
+
+        const templateSheetWithValidation = templateSheet as any;
+        templateSheetWithValidation['!dataValidation'] = [
+            {
+                type: 'list',
+                allowBlank: false,
+                sqref: 'C2:C2000',
+                formula1: `'공종목록'!$A$2:$A$${ALLOWED_JOB_FIELDS.length + 1}`,
+                showErrorMessage: true,
+                errorTitle: '공종 입력 오류',
+                error: '허용된 공종 목록에서 선택해 주세요.',
+            },
+        ];
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, templateSheet, '근로자업로드양식');
+        XLSX.utils.book_append_sheet(workbook, jobFieldSheet, '공종목록');
+        XLSX.utils.book_append_sheet(workbook, noteSheet, '안내');
+
+        XLSX.writeFile(workbook, 'workers_bulk_upload_template.xlsx');
+    };
+
+    const validateAndNormalizeRows = (rawRows: Record<string, unknown>[]): BulkWorkerUploadRow[] => {
+        return rawRows.map((row, index) => {
+            const excelRowNo = index + 2;
+            const name = extractValueByAliases(row, ['이름', '성명', 'name', 'worker_name']);
+            const nationality = extractValueByAliases(row, ['국적', 'nationality']);
+            const jobField = normalizeJobField(extractValueByAliases(row, ['공종', '직종', 'job_field', 'jobfield']));
+            const teamName = extractValueByAliases(row, ['팀명', '팀', 'team_name', 'team']);
+            const phoneNumber = normalizePhone(extractValueByAliases(row, ['핸드폰번호', '전화번호', '휴대폰', 'phone', 'phone_number']));
+            const birthDate = normalizeBirthDate(extractValueByAliases(row, ['생년월일', 'birth', 'birth_date']));
+            const passportNumber = normalizePassport(extractValueByAliases(row, ['여권번호', 'passport', 'passport_number']));
+
+            if (!name) {
+                throw new Error(`${excelRowNo}번째 줄의 필수 키(이름)가 누락되었습니다.`);
+            }
+            if (!nationality) {
+                throw new Error(`${excelRowNo}번째 줄의 필수 키(국적)가 누락되었습니다.`);
+            }
+            if (!jobField) {
+                throw new Error(`${excelRowNo}번째 줄의 필수 키(공종)가 누락되었습니다.`);
+            }
+            if (!teamName) {
+                throw new Error(`${excelRowNo}번째 줄의 필수 키(팀명)가 누락되었습니다.`);
+            }
+            if (!(ALLOWED_JOB_FIELDS as readonly string[]).includes(jobField)) {
+                throw new Error(`${excelRowNo}번째 줄의 공종(${jobField})이 허용 목록에 없습니다. 허용 공종: ${ALLOWED_JOB_FIELDS.join(', ')}`);
+            }
+            if (!phoneNumber && !birthDate && !passportNumber) {
+                throw new Error(`${excelRowNo}번째 줄의 필수 키(핸드폰번호/생년월일/여권번호 중 1개 이상)가 누락되었습니다.`);
+            }
+            if (birthDate && !(birthDate.length === 6 || birthDate.length === 8)) {
+                throw new Error(`${excelRowNo}번째 줄의 생년월일은 6자리 또는 8자리만 허용됩니다.`);
+            }
+
+            return {
+                name,
+                nationality,
+                job_field: jobField,
+                team_name: teamName,
+                phone_number: phoneNumber || undefined,
+                birth_date: birthDate || undefined,
+                passport_number: passportNumber || undefined,
+            };
+        });
+    };
+
+    const handleBulkFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setBulkUploadMessage(null);
+        setIsBulkUploading(true);
+
+        try {
+            const parsedRows = await parseSpreadsheetFile(file);
+            if (!parsedRows.length) {
+                throw new Error('업로드 파일에서 유효한 데이터 행을 찾지 못했습니다.');
+            }
+
+            const normalizedRows = validateAndNormalizeRows(parsedRows);
+
+            const response = await fetch('/api/admin/safety-management', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'bulk-upload-workers',
+                    payload: {
+                        workers: normalizedRows,
+                    },
+                }),
+            });
+
+            const data = await response.json();
+            if (!response.ok || !data?.ok) {
+                throw new Error(data?.message || '근로자 대량 업로드 실패');
+            }
+
+            const requested = Number(data?.data?.requested || normalizedRows.length);
+            const inserted = Number(data?.data?.inserted || 0);
+            const skipped = Number(data?.data?.skippedDuplicateCount || 0);
+            setBulkUploadMessage(`✅ 업로드 완료: 요청 ${requested}명 / 신규 ${inserted}명 / 중복 건너뜀 ${skipped}명`);
+        } catch (error: any) {
+            setBulkUploadMessage(`❌ ${extractMessage(error)}`);
+        } finally {
+            setIsBulkUploading(false);
+            if (bulkFileInputRef.current) bulkFileInputRef.current.value = '';
+        }
     };
 
     const latestRecords = useMemo(() => {
@@ -477,23 +694,26 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             .sort((a,b) => a.name.localeCompare(b.name));
     }, [workerRecords]);
 
-    const teams = useMemo(() => ['전체', ...Array.from(new Set(latestRecords.map(r => r.jobField))).sort()], [latestRecords]);
+    const jobFields = useMemo(() => ['전체', ...Array.from(new Set(latestRecords.map(r => r.jobField))).sort()], [latestRecords]);
+    const crews = useMemo(() => ['전체', ...Array.from(new Set(latestRecords.map(r => r.teamLeader || '미지정'))).sort()], [latestRecords]);
 
     const filteredRecords = useMemo(() => {
         return latestRecords.filter(r => {
             const safeName = toDisplayString(r.name).toLowerCase();
             const safeJobField = toDisplayString(r.jobField, '미분류');
+            const safeCrew = toDisplayString(r.teamLeader, '미지정');
             const matchesSearch = safeName.includes(searchTerm.toLowerCase());
-            const matchesTeam = selectedTeam === '전체' || safeJobField === selectedTeam;
+            const matchesJobField = selectedJobField === '전체' || safeJobField === selectedJobField;
+            const matchesCrew = selectedCrew === '전체' || safeCrew === selectedCrew;
             const matchesLevel = filterLevel === '전체' || r.safetyLevel === filterLevel;
             const reliability = verifyIssuanceReliability(r);
             const matchesReliability =
                 reliabilityFilter === 'all' ||
                 (reliabilityFilter === 'trusted' && reliability.trusted) ||
                 (reliabilityFilter === 'needs-review' && !reliability.trusted);
-            return matchesSearch && matchesTeam && matchesLevel && matchesReliability;
+            return matchesSearch && matchesJobField && matchesCrew && matchesLevel && matchesReliability;
         });
-    }, [latestRecords, searchTerm, selectedTeam, filterLevel, reliabilityFilter]);
+    }, [latestRecords, searchTerm, selectedJobField, selectedCrew, filterLevel, reliabilityFilter]);
 
     const filteredReliabilitySummary = useMemo(() => {
         const evaluations = filteredRecords.map((worker) => verifyIssuanceReliability(worker));
@@ -1051,14 +1271,48 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
             {/* Controls */}
             <div className="bg-white p-6 rounded-[30px] shadow-xl border border-slate-100 flex flex-col gap-4 items-stretch no-print">
+                <input
+                    ref={bulkFileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    className="hidden"
+                    onChange={handleBulkFileChange}
+                />
                 <div className="w-full relative min-w-0">
                     <svg className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={3}/></svg>
                     <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="근로자 이름으로 검색..." className="w-full bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500 rounded-2xl pl-14 pr-6 py-4 font-bold text-base transition-all shadow-inner" />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 w-full">
+                    <button
+                        type="button"
+                        onClick={handleDownloadTemplate}
+                        className="w-full px-4 py-3 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-xs sm:text-sm font-black hover:bg-emerald-100 transition-colors"
+                    >
+                        업로드 양식 다운로드
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => bulkFileInputRef.current?.click()}
+                        disabled={isBulkUploading}
+                        className="w-full px-4 py-3 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs sm:text-sm font-black hover:bg-indigo-100 transition-colors disabled:opacity-60"
+                    >
+                        {isBulkUploading ? '엑셀 대량 업로드 처리 중...' : '엑셀 대량 업로드'}
+                    </button>
+                </div>
+                {bulkUploadMessage && (
+                    <div className={`w-full rounded-2xl px-4 py-3 text-sm font-bold border ${bulkUploadMessage.startsWith('✅') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                        {bulkUploadMessage}
+                    </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 w-full">
                     <div className="min-w-0">
-                        <select value={selectedTeam} onChange={e => setSelectedTeam(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[140px]">
-                            {teams.map(t => <option key={t} value={t}>{t}</option>)}
+                        <select value={selectedJobField} onChange={e => setSelectedJobField(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[140px]">
+                            {jobFields.map(field => <option key={field} value={field}>{`공종: ${field}`}</option>)}
+                        </select>
+                    </div>
+                    <div className="min-w-0">
+                        <select value={selectedCrew} onChange={e => setSelectedCrew(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[140px]">
+                            {crews.map(crew => <option key={crew} value={crew}>{`팀: ${crew}`}</option>)}
                         </select>
                     </div>
                     <div className="min-w-0">
