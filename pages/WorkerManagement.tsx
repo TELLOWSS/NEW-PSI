@@ -13,6 +13,67 @@ interface QRCodeProps {
     onLoad?: (success: boolean) => void;
 }
 
+type PrintModeErrorBoundaryProps = {
+    children: React.ReactNode;
+    onExit: () => void;
+    resetKey: string;
+};
+
+type PrintModeErrorBoundaryState = {
+    hasError: boolean;
+    errorMessage: string;
+};
+
+class PrintModeErrorBoundary extends React.Component<PrintModeErrorBoundaryProps, PrintModeErrorBoundaryState> {
+    constructor(props: PrintModeErrorBoundaryProps) {
+        super(props);
+        this.state = { hasError: false, errorMessage: '' };
+    }
+
+    static getDerivedStateFromError(error: unknown): PrintModeErrorBoundaryState {
+        return {
+            hasError: true,
+            errorMessage: extractMessage(error),
+        };
+    }
+
+    componentDidCatch(error: unknown) {
+        console.error('[WorkerManagement][PrintMode] render crash:', error);
+    }
+
+    componentDidUpdate(prevProps: PrintModeErrorBoundaryProps) {
+        if (prevProps.resetKey !== this.props.resetKey && this.state.hasError) {
+            this.setState({ hasError: false, errorMessage: '' });
+        }
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="fixed inset-0 z-[5000] bg-rose-50 flex items-center justify-center p-6">
+                    <div className="w-full max-w-xl rounded-3xl border border-rose-200 bg-white shadow-2xl p-6">
+                        <h3 className="text-xl font-black text-rose-700">인쇄 화면을 표시하는 중 오류가 발생했습니다.</h3>
+                        <p className="mt-2 text-sm font-bold text-slate-600 break-words">
+                            {this.state.errorMessage || '알 수 없는 렌더링 오류'}
+                        </p>
+                        <div className="mt-6 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={this.props.onExit}
+                                className="px-4 py-2 rounded-xl bg-slate-900 text-white text-sm font-black"
+                            >
+                                인쇄 화면 닫기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        return this.props.children;
+    }
+}
+
 const QRCodeComponent: React.FC<QRCodeProps> = React.memo(({ record, onLoad }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -483,6 +544,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [workersToPrint, setWorkersToPrint] = useState<WorkerRecord[]>([]);
     const [printTrustMode, setPrintTrustMode] = useState<'trusted' | 'fallback'>('trusted');
     const [renderLimit, setRenderLimit] = useState(0); // [NEW] For Progressive Rendering
+    const [printRuntimeError, setPrintRuntimeError] = useState<string | null>(null);
+    const [printDiagnostics, setPrintDiagnostics] = useState<{
+        startedAt: string;
+        targetType: 'sticker' | 'idcard';
+        targetCount: number;
+        trustedCount: number;
+        fallbackUsed: boolean;
+    } | null>(null);
     
     // View Mode Toggle (Grid vs Flip)
     const [viewType, setViewType] = useState<'grid' | 'flip'>('grid');
@@ -740,6 +809,8 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const startProcessing = (type: 'sticker' | 'idcard', targetWorkers: WorkerRecord[]) => {
         if (targetWorkers.length === 0) return alert('발급할 근로자 데이터가 없습니다.');
 
+        setPrintRuntimeError(null);
+
         const reliabilityEvaluations = targetWorkers.map((worker) => ({
             worker,
             reliability: verifyIssuanceReliability(worker),
@@ -772,6 +843,13 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         }
 
         const nextPrintTrustMode: 'trusted' | 'fallback' = trustedPrintableWorkers.length === 0 ? 'fallback' : 'trusted';
+        setPrintDiagnostics({
+            startedAt: new Date().toISOString(),
+            targetType: type,
+            targetCount: printableWorkers.length,
+            trustedCount: trustedPrintableWorkers.length,
+            fallbackUsed: nextPrintTrustMode === 'fallback',
+        });
 
         if (trustedPrintableWorkers.length === 0) {
             alert(`검증 통과 데이터가 없어 필터 대상 ${allPrintableWorkers.length}명을 예외 출력 모드로 진행합니다.\n\n권장: OCR 재분석 후 재발급으로 최신 증빙 정합성을 확보하세요.`);
@@ -895,13 +973,58 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 batchSize: 5,
             };
             const key = 'psi_render_metrics';
-            const existing = JSON.parse(localStorage.getItem(key) || '[]');
-            const next = [metric, ...existing].slice(0, 30);
-            localStorage.setItem(key, JSON.stringify(next));
-            console.info('[PSI][RenderMetric]', metric);
+            try {
+                const raw = localStorage.getItem(key);
+                const parsed = raw ? JSON.parse(raw) : [];
+                const existing = Array.isArray(parsed) ? parsed : [];
+                const next = [metric, ...existing].slice(0, 30);
+                localStorage.setItem(key, JSON.stringify(next));
+                console.info('[PSI][RenderMetric]', metric);
+            } catch (error) {
+                console.warn('[PSI][RenderMetric] localStorage parse/store failed:', error);
+            }
             renderStartTimeRef.current = null;
         }
     }, [isPrintMode, renderLimit, workersToPrint.length]);
+
+    useEffect(() => {
+        if (!isPrintMode) return;
+
+        const handleRuntimeError = (event: ErrorEvent) => {
+            const message = event?.message || '인쇄 모드 런타임 오류';
+            console.error('[WorkerManagement][PrintMode][ErrorEvent]', {
+                message,
+                filename: event?.filename,
+                lineno: event?.lineno,
+                colno: event?.colno,
+            });
+            setPrintRuntimeError(message);
+        };
+
+        const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+            const message = extractMessage(event?.reason);
+            console.error('[WorkerManagement][PrintMode][UnhandledRejection]', {
+                message,
+                reason: event?.reason,
+            });
+            setPrintRuntimeError(message || '인쇄 모드 비동기 오류');
+        };
+
+        window.addEventListener('error', handleRuntimeError);
+        window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+        return () => {
+            window.removeEventListener('error', handleRuntimeError);
+            window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+        };
+    }, [isPrintMode]);
+
+    useEffect(() => {
+        if (!isPrintMode) return;
+        if (workersToPrint.length > 0) return;
+        setPrintRuntimeError('인쇄할 데이터가 비어 있어 인쇄 모드를 종료했습니다. 다시 시도해 주세요.');
+        setIsPrintMode(false);
+    }, [isPrintMode, workersToPrint.length]);
 
     // Navigation for Flip View
     const handleNext = () => setCurrentFlipIndex(prev => Math.min(workersToPrint.length - 1, prev + 1));
@@ -923,22 +1046,44 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         `;
         document.head.appendChild(style);
         setTimeout(() => {
-            window.print();
-            document.head.removeChild(style);
+            try {
+                if (typeof window.print !== 'function') throw new Error('window.print를 사용할 수 없습니다.');
+                window.print();
+            } catch (error) {
+                const message = extractMessage(error);
+                setPrintRuntimeError(message || '현재 장 인쇄 중 오류가 발생했습니다.');
+            } finally {
+                document.head.removeChild(style);
+            }
         }, 300); // 렌더링 대기
     };
 
     const handlePrintAll = () => {
         // 인쇄 전 렌더링 시간을 잠시 확보
-        setTimeout(() => window.print(), 500);
+        setTimeout(() => {
+            try {
+                if (typeof window.print !== 'function') throw new Error('window.print를 사용할 수 없습니다.');
+                window.print();
+            } catch (error) {
+                const message = extractMessage(error);
+                setPrintRuntimeError(message || '전체 인쇄 중 오류가 발생했습니다.');
+            }
+        }, 500);
     };
 
     const isRenderingComplete = renderLimit >= workersToPrint.length;
     const progressPercentage = workersToPrint.length > 0 ? Math.round((renderLimit / workersToPrint.length) * 100) : 0;
 
     if (isPrintMode) {
+        const printResetKey = `${printType}-${workersToPrint.length}-${renderLimit}-${viewType}`;
         return (
+            <PrintModeErrorBoundary onExit={() => setIsPrintMode(false)} resetKey={printResetKey}>
             <div className="fixed inset-0 bg-slate-100 z-[3000] overflow-y-auto font-sans">
+                {printRuntimeError && (
+                    <div className="sticky top-0 z-[4000] bg-rose-50 border-b border-rose-200 px-6 py-3 no-print">
+                        <p className="text-sm font-black text-rose-700">⚠️ {printRuntimeError}</p>
+                    </div>
+                )}
                 {/* Print Control Header */}
                 <div className="sticky top-0 bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center z-[3001] no-print shadow-sm">
                     <div className="flex items-center gap-6">
@@ -1036,6 +1181,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     </div>
                 </div>
 
+                {printDiagnostics && (
+                    <div className="px-8 py-2 no-print border-b border-slate-200 bg-slate-50">
+                        <p className="text-xs font-bold text-slate-600">
+                            진단: {printDiagnostics.targetType === 'sticker' ? '스티커' : '사원증'} / 대상 {printDiagnostics.targetCount}명 / 검증통과 {printDiagnostics.trustedCount}명 / 예외모드 {printDiagnostics.fallbackUsed ? 'ON' : 'OFF'} / 시작 {new Date(printDiagnostics.startedAt).toLocaleTimeString()}
+                        </p>
+                    </div>
+                )}
+
                 {/* Print Preview Area */}
                 <div className="p-8 flex flex-col items-center min-h-screen bg-slate-100 print:bg-white print:p-0">
                     {printTrustMode === 'fallback' && (
@@ -1111,6 +1264,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     }
                 `}</style>
             </div>
+            </PrintModeErrorBoundary>
         );
     }
 
