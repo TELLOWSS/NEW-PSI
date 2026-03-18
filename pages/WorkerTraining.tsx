@@ -530,22 +530,25 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
         setMessage('');
 
         try {
-            const response = await fetch('/api/training/submit-group-proxy-signatures', {
+            const response = await fetch('/api/training/submit-training', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    sessionId,
-                    selectedLanguageCode: effectiveLangKey,
-                    selectedAudioUrl: selectedAudioUrl || null,
-                    audioPlayed: true,
-                    isManagerProxy: true,
-                    gatewayWorkerId: authenticatedWorker?.workerId || null,
-                    checklist: {
-                        riskReview: true,
-                        ppeConfirm: true,
-                        emergencyConfirm: true,
+                    type: 'group',
+                    payload: {
+                        sessionId,
+                        selectedLanguageCode: effectiveLangKey,
+                        selectedAudioUrl: selectedAudioUrl || null,
+                        audioPlayed: true,
+                        isManagerProxy: true,
+                        gatewayWorkerId: authenticatedWorker?.workerId || null,
+                        checklist: {
+                            riskReview: true,
+                            ppeConfirm: true,
+                            emergencyConfirm: true,
+                        },
+                        signatures: signatures.filter(Boolean),
                     },
-                    signatures: signatures.filter(Boolean),
                 }),
             });
 
@@ -554,7 +557,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
                 throw new Error(data.message || uiText.submitFail);
             }
 
-            setMessage(`${groupText.groupSubmitSuccess} (${data.insertedCount || selectedWorkers.length}명)`);
+            setMessage(`${groupText.groupSubmitSuccess} (${data.data?.insertedCount || selectedWorkers.length}명)`);
             setSubmitted(true);
             setSelectedWorkerIds([]);
             groupSigRefs.current = {};
@@ -597,27 +600,30 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
         setMessage('');
 
         try {
-            const response = await fetch('/api/training/submit-signature', {
+            const response = await fetch('/api/training/submit-training', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    sessionId,
-                    workerId: authenticatedWorker.workerId,
-                    workerName,
-                    nationality,
-                    selectedLanguageCode: effectiveLangKey,
-                    reviewedGuidance: hasEngagementProof,
-                    audioPlayed: hasAudioStarted,
-                    scrolledToEnd: hasScrolledToEnd,
-                    acknowledgedRiskAssessment: hasAcknowledged,
-                    checklist: {
-                        riskReview: hasAcknowledged,
-                        ppeConfirm: hasAcknowledged,
-                        emergencyConfirm: hasAcknowledged,
+                    type: 'single',
+                    payload: {
+                        sessionId,
+                        workerId: authenticatedWorker.workerId,
+                        workerName,
+                        nationality,
+                        selectedLanguageCode: effectiveLangKey,
+                        reviewedGuidance: hasEngagementProof,
+                        audioPlayed: hasAudioStarted,
+                        scrolledToEnd: hasScrolledToEnd,
+                        acknowledgedRiskAssessment: hasAcknowledged,
+                        checklist: {
+                            riskReview: hasAcknowledged,
+                            ppeConfirm: hasAcknowledged,
+                            emergencyConfirm: hasAcknowledged,
+                        },
+                        selectedAudioUrl: selectedAudioUrl || null,
+                        signatureDataUrl,
+                        isManagerProxy: false,
                     },
-                    selectedAudioUrl: selectedAudioUrl || null,
-                    signatureDataUrl,
-                    isManagerProxy: false,
                 }),
             });
 

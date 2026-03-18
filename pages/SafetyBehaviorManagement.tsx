@@ -172,7 +172,10 @@ const ObserveTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth }) 
                 evidence_note: evidenceNote || undefined,
             }));
 
-            const data = await callApi('/api/admin/record-unsafe-behavior', { records });
+            const data = await callApi('/api/admin/safety-management', {
+                action: 'record-unsafe-behavior',
+                payload: { records },
+            });
             setResult({ ok: true, message: `${data.inserted}건 등록 완료` });
             setSelectedWorkers(new Set());
             setBehaviorPreset(null);
@@ -343,7 +346,10 @@ const CoachingTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth })
                 followup_checked_at: new Date().toISOString(),
             }));
 
-            const data = await callApi('/api/admin/register-coaching-action', { records });
+            const data = await callApi('/api/admin/safety-management', {
+                action: 'register-coaching-action',
+                payload: { records },
+            });
             setResult({ ok: true, message: `${data.inserted}건 코칭 등록 완료` });
             setSelectedWorkers(new Set());
             setActionType(null);
@@ -482,14 +488,17 @@ const ReviewTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth }) =
         setError(null);
         try {
             const allWorkerIds = DUMMY_WORKERS.map((w) => w.id);
-            const data = await callApi('/api/admin/evaluate-worker-integrity', {
-                worker_ids: allWorkerIds,
-                assessment_month: assessmentMonth,
+            const data = await callApi('/api/admin/safety-management', {
+                action: 'evaluate-worker-integrity',
+                payload: {
+                    worker_ids: allWorkerIds,
+                    assessment_month: assessmentMonth,
+                },
             });
 
             const nameMap = Object.fromEntries(DUMMY_WORKERS.map((w) => [w.id, w.name]));
 
-            const rows: IntegrityReviewRow[] = (data.results || []).map((r: any) => ({
+            const rows: IntegrityReviewRow[] = (data.data?.results || []).map((r: any) => ({
                 worker_id: r.worker_id,
                 worker_name: nameMap[r.worker_id] || r.worker_id,
                 integrity_status: r.integrity_status,
