@@ -235,6 +235,18 @@ interface OcrAnalysisProps {
     onUpdateRecord: (record: WorkerRecord) => void;
 }
 
+type RetryDiagnostics = {
+    total: number;
+    success: number;
+    fail: number;
+    serverSuccess: number;
+    clientFallbackSuccess: number;
+    preflightFail: number;
+    processingFail: number;
+    serverRouteFail: number;
+    lastUpdatedAt: string;
+};
+
 const OcrAnalysis: React.FC<OcrAnalysisProps> = ({ 
     onAnalysisComplete, 
     existingRecords, 
@@ -262,6 +274,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [selectedMasterTemplateId, setSelectedMasterTemplateId] = useState('');
     const [masterCompanies, setMasterCompanies] = useState<MasterCompany[]>([]);
     const [masterAssignments, setMasterAssignments] = useState<MasterAssignmentItem[]>([]);
+    const [retryDiagnostics, setRetryDiagnostics] = useState<RetryDiagnostics | null>(null);
 
     const loadMasterData = useCallback(async () => {
         const [templateResult, companyResult, assignmentResult] = await Promise.all([
@@ -596,6 +609,37 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         setCooldownTime(0);
     };
 
+    const requestServerRetryAnalysis = useCallback(async (record: WorkerRecord): Promise<WorkerRecord> => {
+        const response = await fetch('/api/ocr/retry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                recordId: record.id,
+                imageSource: record.originalImage,
+                filenameHint: record.filename || record.name,
+            }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data?.ok || !data?.record) {
+            throw new Error(data?.message || '서버 OCR 재분석 실패');
+        }
+
+        return {
+            ...record,
+            ...data.record,
+            id: record.id,
+            originalImage: record.originalImage,
+            profileImage: record.profileImage,
+            filename: record.filename,
+            role: record.role !== 'worker' ? record.role : data.record.role,
+            isTranslator: record.isTranslator || data.record.isTranslator,
+            isSignalman: record.isSignalman || data.record.isSignalman,
+            ocrErrorType: undefined,
+            ocrErrorMessage: undefined,
+        } as WorkerRecord;
+    }, []);
+
     const getBatchSplitSize = (): number => {
         try {
             const raw = localStorage.getItem('psi_app_settings');
@@ -629,11 +673,27 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         setProgress(`[${title}] 재분석 준비 중...`);
         setBatchProgress({ current: 0, total });
         stopRef.current = false;
+        setRetryDiagnostics({
+            total,
+            success: 0,
+            fail: 0,
+            serverSuccess: 0,
+            clientFallbackSuccess: 0,
+            preflightFail: 0,
+            processingFail: 0,
+            serverRouteFail: 0,
+            lastUpdatedAt: new Date().toISOString(),
+        });
         await new Promise((resolve) => window.requestAnimationFrame(() => resolve(null)));
         
         let successCount = 0;
         let failCount = 0;
         let stopped = false;
+        let serverSuccessCount = 0;
+        let clientFallbackSuccessCount = 0;
+        let preflightFailCount = 0;
+        let processingFailCount = 0;
+        let serverRouteFailCount = 0;
         
         // [Adaptive Throttling State]
         // Start with a 4s buffer. If we hit limits, increase this dynamically.
@@ -663,6 +723,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         };
                         onUpdateRecord(errorRecord);
                         failCount++;
+                        preflightFailCount++;
+                        setRetryDiagnostics({
+                            total,
+                            success: successCount,
+                            fail: failCount,
+                            serverSuccess: serverSuccessCount,
+                            clientFallbackSuccess: clientFallbackSuccessCount,
+                            preflightFail: preflightFailCount,
+                            processingFail: processingFailCount,
+                            serverRouteFail: serverRouteFailCount,
+                            lastUpdatedAt: new Date().toISOString(),
+                        });
                         continue; 
                     }
 
@@ -681,6 +753,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         };
                         onUpdateRecord(errorRecord);
                         failCount++;
+                        preflightFailCount++;
+                        setRetryDiagnostics({
+                            total,
+                            success: successCount,
+                            fail: failCount,
+                            serverSuccess: serverSuccessCount,
+                            clientFallbackSuccess: clientFallbackSuccessCount,
+                            preflightFail: preflightFailCount,
+                            processingFail: processingFailCount,
+                            serverRouteFail: serverRouteFailCount,
+                            lastUpdatedAt: new Date().toISOString(),
+                        });
                         continue;
                     }
                     
@@ -695,6 +779,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         };
                         onUpdateRecord(errorRecord);
                         failCount++;
+                        preflightFailCount++;
+                        setRetryDiagnostics({
+                            total,
+                            success: successCount,
+                            fail: failCount,
+                            serverSuccess: serverSuccessCount,
+                            clientFallbackSuccess: clientFallbackSuccessCount,
+                            preflightFail: preflightFailCount,
+                            processingFail: processingFailCount,
+                            serverRouteFail: serverRouteFailCount,
+                            lastUpdatedAt: new Date().toISOString(),
+                        });
                         continue;
                     }
                     
@@ -709,6 +805,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         };
                         onUpdateRecord(errorRecord);
                         failCount++;
+                        preflightFailCount++;
+                        setRetryDiagnostics({
+                            total,
+                            success: successCount,
+                            fail: failCount,
+                            serverSuccess: serverSuccessCount,
+                            clientFallbackSuccess: clientFallbackSuccessCount,
+                            preflightFail: preflightFailCount,
+                            processingFail: processingFailCount,
+                            serverRouteFail: serverRouteFailCount,
+                            lastUpdatedAt: new Date().toISOString(),
+                        });
                         continue;
                     }
 
@@ -716,20 +824,43 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     let apiResult = null;
                     let retryCount = 0;
                     const MAX_RETRIES = 3; 
+                    let usedClientFallback = false;
 
                     while (retryCount < MAX_RETRIES) {
                         try {
+                            setProgress(`[${title}] ${record.name || '미상'} 서버 OCR 재분석 요청 중...`);
+
+                            try {
+                                apiResult = await requestServerRetryAnalysis(record);
+                                usedClientFallback = false;
+                            } catch (serverError: any) {
+                                const serverMessage = extractMessage(serverError);
+                                const shouldFallbackToClient =
+                                    serverMessage.toLowerCase().includes('failed to fetch') ||
+                                    serverMessage.includes('404') ||
+                                    serverMessage.includes('Method Not Allowed');
+
+                                if (!shouldFallbackToClient) {
+                                    serverRouteFailCount++;
+                                    throw serverError;
+                                }
+
+                                setProgress(`[${title}] ${record.name || '미상'} 브라우저 OCR 폴백 실행 중...`);
                                 const results = await analyzeWorkerRiskAssessment(record.originalImage || cleanImage, '', record.filename || record.name);
-                            if (results && results.length > 0) {
-                                apiResult = results[0];
-                                                                const insightText = String(apiResult.aiInsights || '');
-                                // Check if result itself indicates failure from service (e.g. Quota Error)
-                                                                    if ((apiResult.safetyScore === 0 && (insightText.includes('오류') || insightText.includes('실패'))) || insightText.includes('429') || insightText.includes('RESOURCE_EXHAUSTED')) {
-                                      throw new Error(insightText || '분석 실패');
+                                if (results && results.length > 0) {
+                                    apiResult = results[0];
+                                    usedClientFallback = true;
+                                } else {
+                                    throw new Error('Empty result from AI');
+                                }
+                            }
+
+                            if (apiResult) {
+                                const insightText = String(apiResult.aiInsights || '');
+                                if ((apiResult.safetyScore === 0 && (insightText.includes('오류') || insightText.includes('실패'))) || insightText.includes('429') || insightText.includes('RESOURCE_EXHAUSTED')) {
+                                    throw new Error(insightText || '분석 실패');
                                 }
                                 break; // Success!
-                            } else {
-                                throw new Error("Empty result from AI");
                             }
                         } catch (err: any) {
                             const errMsg = err.message || JSON.stringify(err);
@@ -771,13 +902,31 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         
                         if (isFailedRecord(updatedRecord)) {
                             failCount++;
+                            processingFailCount++;
                             const next = incrementApiCallCount('fail');
                             setDailyCounter(next);
                         } else {
                             successCount++;
+                            if (usedClientFallback) {
+                                clientFallbackSuccessCount++;
+                            } else {
+                                serverSuccessCount++;
+                            }
                             const next = incrementApiCallCount('success');
                             setDailyCounter(next);
                         }
+
+                        setRetryDiagnostics({
+                            total,
+                            success: successCount,
+                            fail: failCount,
+                            serverSuccess: serverSuccessCount,
+                            clientFallbackSuccess: clientFallbackSuccessCount,
+                            preflightFail: preflightFailCount,
+                            processingFail: processingFailCount,
+                            serverRouteFail: serverRouteFailCount,
+                            lastUpdatedAt: new Date().toISOString(),
+                        });
 
                         // Adaptive Rate Limit Buffer
                         if (i < processQueue.length - 1) {
@@ -794,6 +943,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         };
                         onUpdateRecord(errorRecord);
                         failCount++;
+                        processingFailCount++;
+                        setRetryDiagnostics({
+                            total,
+                            success: successCount,
+                            fail: failCount,
+                            serverSuccess: serverSuccessCount,
+                            clientFallbackSuccess: clientFallbackSuccessCount,
+                            preflightFail: preflightFailCount,
+                            processingFail: processingFailCount,
+                            serverRouteFail: serverRouteFailCount,
+                            lastUpdatedAt: new Date().toISOString(),
+                        });
                         // Safety cooldown even on fail
                         await waitWithCountdown(2, "오류 복구 중");
                     }
@@ -810,6 +971,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     };
                     onUpdateRecord(errorRecord);
                     failCount++;
+                    processingFailCount++;
+                    setRetryDiagnostics({
+                        total,
+                        success: successCount,
+                        fail: failCount,
+                        serverSuccess: serverSuccessCount,
+                        clientFallbackSuccess: clientFallbackSuccessCount,
+                        preflightFail: preflightFailCount,
+                        processingFail: processingFailCount,
+                        serverRouteFail: serverRouteFailCount,
+                        lastUpdatedAt: new Date().toISOString(),
+                    });
                 }
             }
         } catch (globalErr: unknown) {
@@ -823,9 +996,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             setBatchProgress({ current: 0, total: 0 });
             
             if (stopped) {
-                alert(`분석이 중단되었습니다.\n(성공: ${successCount}, 실패: ${failCount})`);
+                alert(`분석이 중단되었습니다.\n(성공: ${successCount}, 실패: ${failCount})\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 폴백 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}`);
             } else {
-                alert(`${title} 완료.\n성공: ${successCount}\n실패: ${failCount}\n\n* 실패 건은 '실패/대기 건 재분석' 버튼으로 다시 시도할 수 있습니다.`);
+                alert(`${title} 완료.\n성공: ${successCount}\n실패: ${failCount}\n\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 폴백 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}\n\n* 실패 건은 '실패/대기 건 재분석' 버튼으로 다시 시도할 수 있습니다.`);
             }
         }
     };
@@ -1282,6 +1455,36 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             </button>
                         </div>
                         <p className="text-center text-xs text-slate-400 mt-2 font-medium">대량 분석 중입니다. 창을 닫지 마세요.</p>
+                    </div>
+                )}
+
+                {retryDiagnostics && (
+                    <div className="mt-6 pt-5 border-t border-white/10 animate-fade-in">
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-300">서버 성공</p>
+                                <p className="mt-1 text-2xl font-black text-emerald-200">{retryDiagnostics.serverSuccess}</p>
+                            </div>
+                            <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-cyan-300">폴백 성공</p>
+                                <p className="mt-1 text-2xl font-black text-cyan-200">{retryDiagnostics.clientFallbackSuccess}</p>
+                            </div>
+                            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-3">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-amber-300">사전 검증 실패</p>
+                                <p className="mt-1 text-2xl font-black text-amber-200">{retryDiagnostics.preflightFail}</p>
+                            </div>
+                            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-rose-300">OCR 처리 실패</p>
+                                <p className="mt-1 text-2xl font-black text-rose-200">{retryDiagnostics.processingFail}</p>
+                            </div>
+                            <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-3">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-violet-300">서버 라우트 실패</p>
+                                <p className="mt-1 text-2xl font-black text-violet-200">{retryDiagnostics.serverRouteFail}</p>
+                            </div>
+                        </div>
+                        <p className="mt-3 text-[11px] font-bold text-slate-400">
+                            마지막 재분석 집계 · 총 {retryDiagnostics.total}건 / 성공 {retryDiagnostics.success}건 / 실패 {retryDiagnostics.fail}건
+                        </p>
                     </div>
                 )}
 
