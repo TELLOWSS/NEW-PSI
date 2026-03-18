@@ -133,6 +133,31 @@ const hasRetryableOriginalImage = (image?: string): boolean => {
     return normalizeRetryImageData(image).length >= 100;
 };
 
+const getPreflightFailureReason = (record: WorkerRecord): string | null => {
+    const rawImage = String(record.originalImage || '').trim();
+    if (!rawImage) return '원본 이미지가 없습니다. 문서 이미지를 다시 등록해야 합니다.';
+
+    const cleanImage = normalizeRetryImageData(rawImage);
+    if (!cleanImage || cleanImage.length < 100) {
+        return '이미지 데이터가 너무 짧거나 손상되었습니다. 원본 문서를 다시 업로드해야 합니다.';
+    }
+
+    const formatValidation = validateImageFormat(cleanImage);
+    if (!formatValidation.isValid) {
+        return `이미지 데이터 손상 또는 base64 형식 오류입니다. (${formatValidation.error || '형식 오류'})`;
+    }
+
+    if (!formatValidation.supportedFormat) {
+        return `지원하지 않는 파일 형식입니다. 감지 형식: ${formatValidation.detectedFormat}`;
+    }
+
+    if (!isFormatCompatibleWithAI(formatValidation.detectedFormat)) {
+        return `AI 미지원 형식입니다. JPG/PNG/WebP/HEIC로 변환 후 다시 등록하세요. (현재: ${formatValidation.detectedFormat})`;
+    }
+
+    return null;
+};
+
 // [강화된 실패 판단 로직 - 안전성 강화]
 const isFailedRecord = (r: WorkerRecord): boolean => {
     if (r.ocrErrorType) return true;
@@ -581,6 +606,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const primaryFailedErrorType = useMemo<OcrErrorType | null>(() => {
         if (!primaryFailedRecord) return null;
         return getOcrErrorTypeFromRecord(primaryFailedRecord);
+    }, [primaryFailedRecord]);
+
+    const primaryFailedPreflightReason = useMemo(() => {
+        if (!primaryFailedRecord) return null;
+        return getPreflightFailureReason(primaryFailedRecord);
     }, [primaryFailedRecord]);
 
     const handleRetryCapture = useCallback(() => {
@@ -1543,6 +1573,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <p className="text-xs font-black text-rose-600 uppercase tracking-widest">OCR 오류 자동 분류</p>
                             <h4 className="text-lg sm:text-xl font-black text-rose-800 mt-1">{primaryFailedRecord.name || '미상'} · {getOcrErrorTypeKoreanLabel(primaryFailedErrorType)}</h4>
                             <p className="text-sm font-bold text-rose-700 mt-2">{getOcrErrorGuideMessage(primaryFailedErrorType)}</p>
+                            {primaryFailedPreflightReason && (
+                                <p className="text-xs font-black text-rose-900 mt-2">사전검증 실패 사유: {primaryFailedPreflightReason}</p>
+                            )}
                         </div>
                         <button
                             onClick={handleRetryCapture}
@@ -1614,6 +1647,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
                                 const rowGuideSummary = rowErrorType ? getOcrErrorGuideSummary(rowErrorType) : '';
                                 const rowGuideMobile = rowErrorType ? getOcrErrorMobileLabel(rowErrorType) : '';
+                                const preflightReason = failed ? getPreflightFailureReason(r) : null;
                                 
                                 return (
                                     <tr key={r.id} className={`hover:bg-indigo-50/30 transition-colors group ${isManager ? 'bg-slate-50/50 opacity-80' : ''} ${failed ? 'bg-rose-50/50' : ''}`} onClick={() => onViewDetails(r)}>
@@ -1642,6 +1676,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                             {rowGuideSummary}
                                                         </span>
                                                     </>
+                                                )}
+                                                {failed && preflightReason && (
+                                                    <span className="text-[10px] text-amber-700 font-black mt-1 leading-snug">
+                                                        사전검증: {preflightReason}
+                                                    </span>
                                                 )}
                                             </div>
                                         </td>
