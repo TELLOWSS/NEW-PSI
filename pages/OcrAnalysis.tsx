@@ -124,9 +124,6 @@ const getOcrErrorMobileLabel = (errorType: OcrErrorType): string => {
 const isFailedRecord = (r: WorkerRecord): boolean => {
     if (r.ocrErrorType) return true;
 
-    // OCR 신뢰도 임계치 미달이면 검증 대기열로 분류
-    if (typeof r.ocrConfidence === 'number' && r.ocrConfidence < 0.7) return true;
-
     // 안전 점수가 0일 경우 실패
     if (r.safetyScore === 0) return true;
     
@@ -853,7 +850,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         if (stopRef.current) { stopped = true; break; }
 
                         if (updatedAnalysis) {
-                            const mergedRecord: WorkerRecord = {
+                            const mergedBase: WorkerRecord = {
                                 ...record,
                                 ...updatedAnalysis,
                                 auditTrail: [
@@ -866,6 +863,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     }
                                 ]
                             };
+                            const mergedRecord: WorkerRecord = isFailedRecord(mergedBase)
+                                ? mergedBase
+                                : {
+                                    ...mergedBase,
+                                    ocrErrorType: undefined,
+                                    ocrErrorMessage: undefined,
+                                };
                             onUpdateRecord(mergedRecord);
                             successCount++;
                         } else {
