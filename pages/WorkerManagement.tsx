@@ -567,6 +567,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [bulkUploadMessage, setBulkUploadMessage] = useState<string | null>(null);
     const bulkFileInputRef = useRef<HTMLInputElement | null>(null);
     const printAreaRef = useRef<HTMLDivElement | null>(null);
+    const singlePrintBackupRef = useRef<{
+        workers: WorkerRecord[];
+        renderLimit: number;
+        viewType: 'grid' | 'flip';
+        currentFlipIndex: number;
+    } | null>(null);
 
     const getPrintSafeId = (id: unknown) => {
         const raw = typeof id === 'string' ? id : (typeof id === 'number' || typeof id === 'boolean') ? String(id) : 'unknown';
@@ -1099,32 +1105,36 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         const currentWorker = workersToPrint[currentFlipIndex];
         if (!currentWorker) return;
 
-        const safeId = getPrintSafeId(currentWorker.id);
-        const style = document.createElement('style');
-        style.innerHTML = `
-            @media print {
-                .print-item { display: none !important; }
-                .print-item-${safeId} { display: flex !important; position: absolute; top: 0; left: 0; }
-                .print-container { display: block !important; }
-                @page { size: auto; margin: 0mm; }
-            }
-        `;
-        document.head.appendChild(style);
-
-        const cleanup = () => {
-            if (style.parentNode) {
-                style.parentNode.removeChild(style);
-            }
-            window.removeEventListener('afterprint', cleanup);
+        singlePrintBackupRef.current = {
+            workers: workersToPrint,
+            renderLimit,
+            viewType,
+            currentFlipIndex,
         };
 
-        window.addEventListener('afterprint', cleanup);
+        const restore = () => {
+            const backup = singlePrintBackupRef.current;
+            if (!backup) return;
+            setWorkersToPrint(backup.workers);
+            setRenderLimit(backup.renderLimit);
+            setViewType(backup.viewType);
+            setCurrentFlipIndex(backup.currentFlipIndex);
+            singlePrintBackupRef.current = null;
+            window.removeEventListener('afterprint', restore);
+        };
+
+        setWorkersToPrint([currentWorker]);
+        setRenderLimit(1);
+        setViewType('grid');
+        setCurrentFlipIndex(0);
+
+        window.addEventListener('afterprint', restore);
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
                 try {
                     performPrint(`PSI-${printType}-current`);
                 } finally {
-                    setTimeout(cleanup, 2000);
+                    setTimeout(restore, 2000);
                 }
             });
         });
