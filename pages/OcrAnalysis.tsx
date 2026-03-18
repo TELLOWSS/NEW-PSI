@@ -9,8 +9,13 @@ import { fileToBase64 } from '../utils/fileUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { getApiCallState, incrementApiCallCount, resetApiCallCount, type DailyCounterState } from '../utils/apiCounterUtils';
 import { MasterTemplateList, type MasterTemplate } from '../components/shared/MasterTemplateList';
-import { MasterAssignment, type MasterAssignmentItem, type MasterCompany } from '../components/shared/MasterAssignment';
+import { MasterAssignment, type MasterAssignmentItem, type MasterGroup } from '../components/shared/MasterAssignment';
 import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
+
+const buildMasterDataLoadErrorMessage = (rawMessage?: string) => {
+    const message = String(rawMessage || '알 수 없는 오류');
+    return `기록 양식/배정 데이터 조회 실패: ${message}\n\n현재 group 전용 모드입니다. Supabase에 group 뷰/컬럼이 적용되었는지 확인해 주세요.`;
+};
 
 const buildReassessmentAuditNote = (before: WorkerRecord, updated: Partial<WorkerRecord>): string => {
     const beforeScore = typeof before.safetyScore === 'number' ? before.safetyScore : 0;
@@ -297,30 +302,68 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [importValidationDetails, setImportValidationDetails] = useState<string>('');
     const [masterTemplates, setMasterTemplates] = useState<MasterTemplate[]>([]);
     const [selectedMasterTemplateId, setSelectedMasterTemplateId] = useState('');
-    const [masterCompanies, setMasterCompanies] = useState<MasterCompany[]>([]);
+    const [masterGroups, setMasterGroups] = useState<MasterGroup[]>([]);
     const [masterAssignments, setMasterAssignments] = useState<MasterAssignmentItem[]>([]);
     const [retryDiagnostics, setRetryDiagnostics] = useState<RetryDiagnostics | null>(null);
 
+    const fetchMasterGroups = useCallback(async () => {
+        return supabase
+            .from('record_master_groups')
+            .select('id, name')
+            .order('updated_at', { ascending: false });
+    }, []);
+
+    const fetchMasterAssignments = useCallback(async () => {
+        const assignmentViewResult = await supabase
+            .from('record_master_assignment_groups')
+            .select('id, group_id, template_id, status, effective_date')
+            .order('updated_at', { ascending: false });
+
+        if (!assignmentViewResult.error) {
+            return assignmentViewResult;
+        }
+
+        const groupColumnResult = await supabase
+            .from('record_master_assignments')
+            .select('id, group_id, template_id, status, effective_date')
+            .order('updated_at', { ascending: false });
+
+        if (!groupColumnResult.error) {
+            return groupColumnResult;
+        }
+
+        return groupColumnResult;
+    }, []);
+
+    const insertMasterGroup = useCallback(async (name: string) => {
+        return supabase
+            .from('record_master_groups')
+            .insert({ name })
+            .select('id, name')
+            .single();
+    }, []);
+
+    const deleteMasterGroup = useCallback(async (groupId: string) => {
+        return supabase
+            .from('record_master_groups')
+            .delete()
+            .eq('id', groupId);
+    }, []);
+
     const loadMasterData = useCallback(async () => {
-        const [templateResult, companyResult, assignmentResult] = await Promise.all([
+        const [templateResult, groupResult, assignmentResult] = await Promise.all([
             supabase
                 .from('record_master_templates')
                 .select('id, name, version, field_schema, updated_at')
                 .order('updated_at', { ascending: false }),
-            supabase
-                .from('record_master_companies')
-                .select('id, name')
-                .order('updated_at', { ascending: false }),
-            supabase
-                .from('record_master_assignments')
-                .select('id, company_id, template_id, status, effective_date')
-                .order('updated_at', { ascending: false }),
+            fetchMasterGroups(),
+            fetchMasterAssignments(),
         ]);
 
-        if (templateResult.error || companyResult.error || assignmentResult.error) {
-            const firstError = templateResult.error || companyResult.error || assignmentResult.error;
+        if (templateResult.error || groupResult.error || assignmentResult.error) {
+            const firstError = templateResult.error || groupResult.error || assignmentResult.error;
             if (!handleSupabasePermissionError(firstError)) {
-                alert(`마스터 데이터 조회 실패: ${firstError?.message || '알 수 없는 오류'}`);
+                alert(buildMasterDataLoadErrorMessage(firstError?.message));
             }
             return;
         }
@@ -333,24 +376,24 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             updatedAt: String(row.updated_at || '').replace('T', ' ').slice(0, 16),
         }));
 
-        const mappedCompanies: MasterCompany[] = (companyResult.data || []).map((row: any) => ({
+        const mappedGroups: MasterGroup[] = (groupResult.data || []).map((row: any) => ({
             id: String(row.id),
             name: String(row.name || ''),
         }));
 
         const mappedAssignments: MasterAssignmentItem[] = (assignmentResult.data || []).map((row: any) => ({
             id: String(row.id),
-            companyId: String(row.company_id),
+            groupId: String(row.group_id || ''),
             templateId: String(row.template_id),
             status: row.status === 'inactive' ? 'inactive' : 'active',
             effectiveDate: String(row.effective_date || ''),
         }));
 
         setMasterTemplates(mappedTemplates);
-        setMasterCompanies(mappedCompanies);
+        setMasterGroups(mappedGroups);
         setMasterAssignments(mappedAssignments);
         setSelectedMasterTemplateId((prev) => prev || mappedTemplates[0]?.id || '');
-    }, []);
+    }, [fetchMasterAssignments, fetchMasterGroups]);
 
     useEffect(() => {
         void loadMasterData();
@@ -406,68 +449,63 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         setSelectedMasterTemplateId((prev) => (prev === templateId ? '' : prev));
     };
 
-    const handleAddMasterCompany = async (companyName: string) => {
-        const normalized = companyName.trim();
+    const handleAddMasterGroup = async (groupName: string) => {
+        const normalized = groupName.trim();
         if (!normalized) return;
 
-        const result = await supabase
-            .from('record_master_companies')
-            .insert({ name: normalized })
-            .select('id, name')
-            .single();
+        const result = await insertMasterGroup(normalized);
 
         if (result.error) {
             if (!handleSupabasePermissionError(result.error)) {
-                alert(`업체 추가 실패: ${result.error.message}`);
+                alert(`공종/팀 그룹 추가 실패: ${result.error.message}`);
             }
             return;
         }
 
-        setMasterCompanies((prev) => [{ id: String(result.data.id), name: String(result.data.name || '') }, ...prev]);
+        setMasterGroups((prev) => [{ id: String(result.data.id), name: String(result.data.name || '') }, ...prev]);
     };
 
-    const handleDeleteMasterCompany = async (companyId: string) => {
-        const result = await supabase
-            .from('record_master_companies')
-            .delete()
-            .eq('id', companyId);
+    const handleDeleteMasterGroup = async (groupId: string) => {
+        const result = await deleteMasterGroup(groupId);
 
         if (result.error) {
             if (!handleSupabasePermissionError(result.error)) {
-                alert(`업체 삭제 실패: ${result.error.message}`);
+                alert(`공종/팀 그룹 삭제 실패: ${result.error.message}`);
             }
             return;
         }
 
-        setMasterCompanies((prev) => prev.filter((company) => company.id !== companyId));
-        setMasterAssignments((prev) => prev.filter((item) => item.companyId !== companyId));
+        setMasterGroups((prev) => prev.filter((group) => group.id !== groupId));
+        setMasterAssignments((prev) => prev.filter((item) => item.groupId !== groupId));
     };
 
-    const handleCreateMasterAssignment = async (payload: { companyId: string; templateId: string; effectiveDate: string }) => {
-        const result = await supabase
+    const handleCreateMasterAssignment = async (payload: { groupId: string; templateId: string; effectiveDate: string }) => {
+        const primaryResult = await supabase
             .from('record_master_assignments')
             .upsert(
                 {
-                    company_id: payload.companyId,
+                    group_id: payload.groupId,
                     template_id: payload.templateId,
                     status: 'active',
                     effective_date: payload.effectiveDate,
                 },
-                { onConflict: 'company_id,template_id' }
+                { onConflict: 'group_id,template_id' }
             )
-            .select('id, company_id, template_id, status, effective_date')
+            .select('id, group_id, template_id, status, effective_date')
             .single();
+
+        const result = primaryResult;
 
         if (result.error) {
             if (!handleSupabasePermissionError(result.error)) {
-                alert(`매핑 저장 실패: ${result.error.message}`);
+                alert(`배정 저장 실패: ${result.error.message}`);
             }
             return;
         }
 
         const next: MasterAssignmentItem = {
             id: String(result.data.id),
-            companyId: String(result.data.company_id),
+            groupId: String((result.data as any).group_id || ''),
             templateId: String(result.data.template_id),
             status: result.data.status === 'inactive' ? 'inactive' : 'active',
             effectiveDate: String(result.data.effective_date || ''),
@@ -478,7 +516,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             if (existingIndex >= 0) {
                 return prev.map((item, index) => (index === existingIndex ? next : item));
             }
-            return [next, ...prev.filter((item) => !(item.companyId === next.companyId && item.templateId === next.templateId))];
+            return [next, ...prev.filter((item) => !(item.groupId === next.groupId && item.templateId === next.templateId))];
         });
     };
 
@@ -490,7 +528,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
         if (result.error) {
             if (!handleSupabasePermissionError(result.error)) {
-                alert(`매핑 삭제 실패: ${result.error.message}`);
+                alert(`배정 삭제 실패: ${result.error.message}`);
             }
             return;
         }
@@ -1542,8 +1580,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
             <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 sm:p-6 space-y-5">
                 <div className="flex flex-col gap-1">
-                    <h3 className="text-xl font-black text-slate-900">기록 데이터 마스터 템플릿 중심 관리</h3>
-                    <p className="text-sm font-bold text-slate-500">기존 구성원 명부 중심이 아닌, 템플릿 정의와 업체별 연결을 우선하는 운영 구조입니다.</p>
+                    <h3 className="text-xl font-black text-slate-900">기록 양식·공종/팀 배정 관리</h3>
+                    <p className="text-sm font-bold text-slate-500">기록 양식을 만들고, 공종/팀별로 사용할 양식을 쉽게 지정할 수 있습니다.</p>
                 </div>
 
                 <MasterTemplateList
@@ -1555,11 +1593,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 />
 
                 <MasterAssignment
-                    companies={masterCompanies}
+                    groups={masterGroups}
                     templates={masterTemplates}
                     assignments={masterAssignments}
-                    onAddCompany={handleAddMasterCompany}
-                    onDeleteCompany={handleDeleteMasterCompany}
+                    onAddGroup={handleAddMasterGroup}
+                    onDeleteGroup={handleDeleteMasterGroup}
                     onCreateAssignment={handleCreateMasterAssignment}
                     onDeleteAssignment={handleDeleteMasterAssignment}
                     onSetAssignmentStatus={handleSetMasterAssignmentStatus}

@@ -43,8 +43,8 @@ export const MasterTemplateList: React.FC<MasterTemplateListProps> = ({
     return (
         <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4">
             <div>
-                <h4 className="text-lg font-black text-slate-900">기록 데이터 마스터 템플릿 관리</h4>
-                <p className="text-xs font-bold text-slate-500 mt-1">양식 정의 / 서식 버전 관리의 중심 영역</p>
+                <h4 className="text-lg font-black text-slate-900">기록 양식 관리</h4>
+                <p className="text-xs font-bold text-slate-500 mt-1">OCR 기록에 사용할 입력 항목과 버전을 관리합니다.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -72,13 +72,13 @@ export const MasterTemplateList: React.FC<MasterTemplateListProps> = ({
             <textarea
                 value={templateFieldSchema}
                 onChange={(e) => setTemplateFieldSchema(e.target.value)}
-                placeholder="필드 스키마(쉼표 구분)"
+                placeholder="입력 항목 목록(쉼표 구분)"
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold min-h-[72px]"
             />
 
             <div className="space-y-2">
                 {templates.length === 0 ? (
-                    <p className="text-sm font-bold text-slate-400">등록된 마스터 템플릿이 없습니다.</p>
+                    <p className="text-sm font-bold text-slate-400">등록된 기록 양식이 없습니다.</p>
                 ) : templates.map((template) => {
                     const selected = template.id === selectedTemplateId;
                     return (
