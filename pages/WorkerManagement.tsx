@@ -566,6 +566,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [isBulkUploading, setIsBulkUploading] = useState(false);
     const [bulkUploadMessage, setBulkUploadMessage] = useState<string | null>(null);
     const bulkFileInputRef = useRef<HTMLInputElement | null>(null);
+    const printAreaRef = useRef<HTMLDivElement | null>(null);
 
     const getPrintSafeId = (id: unknown) => {
         const raw = typeof id === 'string' ? id : (typeof id === 'number' || typeof id === 'boolean') ? String(id) : 'unknown';
@@ -1030,6 +1031,70 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const handleNext = () => setCurrentFlipIndex(prev => Math.min(workersToPrint.length - 1, prev + 1));
     const handlePrev = () => setCurrentFlipIndex(prev => Math.max(0, prev - 1));
 
+        const printUsingFallbackWindow = (title: string) => {
+                const source = printAreaRef.current;
+                if (!source) {
+                        setPrintRuntimeError('인쇄 영역을 찾을 수 없어 새 창 인쇄를 실행할 수 없습니다.');
+                        return;
+                }
+
+                const styleTags = Array.from(document.querySelectorAll('style')).map((node) => node.outerHTML).join('\n');
+                const linkTags = Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map((node) => node.outerHTML).join('\n');
+                const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1280,height=900');
+
+                if (!printWindow) {
+                        setPrintRuntimeError('브라우저 팝업 차단으로 인쇄 창을 열지 못했습니다. 팝업 허용 후 다시 시도해 주세요.');
+                        return;
+                }
+
+                const html = `<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${title}</title>
+    ${linkTags}
+    ${styleTags}
+    <style>
+        @page { size: A4; margin: 0; }
+        body { margin: 0; background: #fff; }
+        .no-print { display: none !important; }
+        .print-color-exact { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        .break-inside-avoid { break-inside: avoid; page-break-inside: avoid; }
+    </style>
+</head>
+<body>
+    <div id="print-root">${source.innerHTML}</div>
+    <script>
+        window.addEventListener('load', function () {
+            setTimeout(function () {
+                try { window.focus(); window.print(); } catch (e) {}
+            }, 250);
+        });
+    </script>
+</body>
+</html>`;
+
+                printWindow.document.open();
+                printWindow.document.write(html);
+                printWindow.document.close();
+        };
+
+        const performPrint = (title: string) => {
+                try {
+                        if (typeof window.print !== 'function') {
+                                throw new Error('window.print를 사용할 수 없습니다.');
+                        }
+                        window.focus();
+                        window.print();
+                } catch (error) {
+                        const message = extractMessage(error);
+                        console.error('[WorkerManagement][PrintMode] primary print failed, fallback window will be used:', error);
+                        setPrintRuntimeError(`${message || '인쇄 호출 실패'} 새 창 인쇄로 재시도합니다.`);
+                        printUsingFallbackWindow(title);
+                }
+        };
+
     const printCurrentOnly = () => {
         const currentWorker = workersToPrint[currentFlipIndex];
         if (!currentWorker) return;
@@ -1045,30 +1110,30 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             }
         `;
         document.head.appendChild(style);
-        setTimeout(() => {
-            try {
-                if (typeof window.print !== 'function') throw new Error('window.print를 사용할 수 없습니다.');
-                window.print();
-            } catch (error) {
-                const message = extractMessage(error);
-                setPrintRuntimeError(message || '현재 장 인쇄 중 오류가 발생했습니다.');
-            } finally {
-                document.head.removeChild(style);
+
+        const cleanup = () => {
+            if (style.parentNode) {
+                style.parentNode.removeChild(style);
             }
-        }, 300); // 렌더링 대기
+            window.removeEventListener('afterprint', cleanup);
+        };
+
+        window.addEventListener('afterprint', cleanup);
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                try {
+                    performPrint(`PSI-${printType}-current`);
+                } finally {
+                    setTimeout(cleanup, 2000);
+                }
+            });
+        });
     };
 
     const handlePrintAll = () => {
-        // 인쇄 전 렌더링 시간을 잠시 확보
-        setTimeout(() => {
-            try {
-                if (typeof window.print !== 'function') throw new Error('window.print를 사용할 수 없습니다.');
-                window.print();
-            } catch (error) {
-                const message = extractMessage(error);
-                setPrintRuntimeError(message || '전체 인쇄 중 오류가 발생했습니다.');
-            }
-        }, 500);
+        requestAnimationFrame(() => {
+            performPrint(`PSI-${printType}-all`);
+        });
     };
 
     const isRenderingComplete = renderLimit >= workersToPrint.length;
@@ -1190,7 +1255,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 )}
 
                 {/* Print Preview Area */}
-                <div className="p-8 flex flex-col items-center min-h-screen bg-slate-100 print:bg-white print:p-0">
+                <div ref={printAreaRef} className="p-8 flex flex-col items-center min-h-screen bg-slate-100 print:bg-white print:p-0">
                     {printTrustMode === 'fallback' && (
                         <div className="w-full max-w-[210mm] mb-4 no-print">
                             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 shadow-sm">
