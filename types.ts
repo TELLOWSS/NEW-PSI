@@ -13,6 +13,7 @@ export type Page =
     'individual-report' |
     'admin-training' |
     'worker-training' |
+    'safety-behavior-management' |
     'settings'; // Added
 
 export type ModalState = {
@@ -259,4 +260,125 @@ export interface RiskForecastData {
     }[];
     focusTeams: string[];
     aiAdvice: string;
+}
+
+// ============================================================
+// 개인안전역량 무결성 검증 타입 (2026-03-18 추가)
+// supabase_safety_integrity_migration.sql 테이블 구조와 대응
+// ============================================================
+
+/** 불안전행동 심각도 */
+export type UnsafeBehaviorSeverity = '낮음' | '보통' | '높음' | '즉시조치';
+
+/** 코칭·재교육 조치 유형 */
+export type CoachingActionType = '재교육' | '현장코칭' | '작업중지' | '보호구개선' | '기타';
+
+/** 코칭 후 후속 확인 결과 */
+export type CoachingFollowupResult = '개선됨' | '재발' | '확인중';
+
+/** 월별 무결성 판정 상태 */
+export type IntegrityStatus = '확정' | '검증보류' | '재교육필요' | '관리자검토';
+
+/** 무결성 판정 사유 코드 */
+export type IntegrityReasonCode =
+    | 'EDUCATION_INCOMPLETE'     // 교육/서명 미완료
+    | 'COACHING_MISSING'         // 불안전행동 후 코칭 이력 없음
+    | 'REPEAT_VIOLATION'         // 동일 위험행동 2회 이상 재발
+    | 'TIMELINE_MISMATCH'        // 시간 순서 불일치 (관찰→코칭→교육→작성 역전)
+    | 'DOCUMENT_INSUFFICIENT'    // 기록지 품질 미달
+    | 'FOLLOWUP_PENDING';        // 후속확인 미완료(확인중 상태)
+
+/**
+ * safety_behavior_observations 테이블 대응
+ * 현장에서 관찰된 불안전행동 기록.
+ * unsafe_behavior_flag = false 이면 "해당 월 이상 없음" 확인 기록으로 사용.
+ */
+export interface SafetyBehaviorObservation {
+    id: string;
+    worker_id: string;
+    assessment_month: string;          // 'YYYY-MM'
+    observed_at?: string;              // ISO 8601
+    observer_name?: string;
+    unsafe_behavior_flag: boolean;
+    unsafe_behavior_type?: string;
+    severity_level?: UnsafeBehaviorSeverity;
+    evidence_note?: string;
+    evidence_photo_url?: string;
+    related_risk_category?: string;
+    created_at: string;
+}
+
+/**
+ * safety_coaching_actions 테이블 대응
+ * 불안전행동 관찰 후 실시된 재교육·코칭·시정조치.
+ * source_observation_id 로 관찰 건과 연결.
+ */
+export interface SafetyCoachingAction {
+    id: string;
+    worker_id: string;
+    assessment_month: string;
+    source_observation_id?: string;
+    action_type: CoachingActionType;
+    action_detail?: string;
+    action_completed_at?: string;
+    coach_name?: string;
+    followup_result?: CoachingFollowupResult;
+    followup_checked_at?: string;
+    created_at: string;
+}
+
+/**
+ * worker_integrity_reviews 테이블 대응
+ * 월별 무결성 자동판정 결과 (문서축 + 실천축).
+ */
+export interface WorkerIntegrityReview {
+    id: string;
+    worker_id: string;
+    assessment_month: string;
+    education_session_id?: string;
+
+    // 점수 구성요소
+    document_score?: number;           // w1·w2·w3 기록지 품질 합산
+    education_score?: number;          // w4 교육이수도
+    improvement_score?: number;        // w5 개선이행도
+    repeat_violation_penalty: number;  // w6 월별 반복위반 패널티
+
+    // 판정 결과
+    integrity_status: IntegrityStatus;
+    integrity_reason_codes: IntegrityReasonCode[];
+    computed_total_score?: number;
+
+    // 자동판정 메타
+    auto_evaluated_at?: string;
+
+    // 관리자 최종 처리
+    approved_by?: string;
+    approved_at?: string;
+    approval_comment?: string;
+
+    created_at: string;
+    updated_at: string;
+}
+
+/**
+ * 관리자 화면용 근로자별 월별 무결성 요약
+ * (worker_integrity_reviews + safety_behavior_observations + safety_coaching_actions 조인 뷰)
+ */
+export interface WorkerMonthlyIntegritySummary {
+    worker_id: string;
+    worker_name: string;
+    assessment_month: string;
+    nationality?: string;
+    job_field?: string;
+    unsafe_behavior_count: number;
+    coaching_completed_count: number;
+    repeat_violation_count: number;
+    education_completed: boolean;
+    document_score?: number;
+    integrity_status: IntegrityStatus;
+    integrity_reason_codes: IntegrityReasonCode[];
+    last_observation_date?: string;
+    last_coaching_date?: string;
+    approved_by?: string;
+    approved_at?: string;
 }

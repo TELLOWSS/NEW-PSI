@@ -23,6 +23,7 @@ const IndividualReport = lazy(() => import('./pages/IndividualReport'));
 const Settings = lazy(() => import('./pages/Settings'));
 const AdminTraining = lazy(() => import('./pages/AdminTraining'));
 const WorkerTraining = lazy(() => import('./pages/WorkerTraining'));
+const SafetyBehaviorManagement = lazy(() => import('./pages/SafetyBehaviorManagement'));
 
 const IDB_NAME = 'PSI_Enterprise_V4';
 const IDB_VERSION = 1;
@@ -653,6 +654,7 @@ const App: React.FC = () => {
                     {currentPage === 'reports' && <Reports workerRecords={workerRecords} briefingData={briefingData} setBriefingData={setBriefingData} forecastData={forecastData} setForecastData={setForecastData} />}
                     {currentPage === 'admin-training' && <AdminTraining />}
                     {currentPage === 'worker-training' && <WorkerTraining sessionId={trainingSessionId} />}
+                    {currentPage === 'safety-behavior-management' && <SafetyBehaviorManagement />}
                     {currentPage === 'feedback' && <Feedback />}
                     {currentPage === 'introduction' && <Introduction />}
                     {currentPage === 'settings' && <Settings />}
