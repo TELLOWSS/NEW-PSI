@@ -504,12 +504,32 @@ interface BulkWorkerUploadRow {
     passport_number?: string;
 }
 
+type BulkUploadSummary = {
+    status: 'success' | 'error';
+    requested: number;
+    inserted: number;
+    skipped: number;
+    fileName: string;
+    message: string;
+};
+
+type ManualWorkerForm = {
+    name: string;
+    nationality: string;
+    job_field: string;
+    team_name: string;
+    phone_number: string;
+    birth_date: string;
+    passport_number: string;
+};
+
 const ALLOWED_JOB_FIELDS = [
     '형틀',
     '철근',
     '갱폼',
     '알폼',
     '시스템',
+    '관리',
     '할석미장견출',
     '해체정리',
     '직영(용역포함)',
@@ -522,6 +542,8 @@ const JOB_FIELD_ALIASES: Record<string, string> = {
     '갱폼': '갱폼',
     '알폼': '알폼',
     '시스템': '시스템',
+    '관리': '관리',
+    '관리도': '관리',
     '할석미장견출': '할석미장견출',
     '해체정리': '해체정리',
     '직영(용역포함)': '직영(용역포함)',
@@ -565,6 +587,17 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [isOverrideSubmitting, setIsOverrideSubmitting] = useState(false);
     const [isBulkUploading, setIsBulkUploading] = useState(false);
     const [bulkUploadMessage, setBulkUploadMessage] = useState<string | null>(null);
+    const [bulkUploadSummary, setBulkUploadSummary] = useState<BulkUploadSummary | null>(null);
+    const [isManualRegistering, setIsManualRegistering] = useState(false);
+    const [manualWorkerForm, setManualWorkerForm] = useState<ManualWorkerForm>({
+        name: '',
+        nationality: '',
+        job_field: ALLOWED_JOB_FIELDS[0],
+        team_name: '',
+        phone_number: '',
+        birth_date: '',
+        passport_number: '',
+    });
     const bulkFileInputRef = useRef<HTMLInputElement | null>(null);
     const printAreaRef = useRef<HTMLDivElement | null>(null);
     const singlePrintBackupRef = useRef<{
@@ -717,6 +750,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         if (!file) return;
 
         setBulkUploadMessage(null);
+        setBulkUploadSummary(null);
         setIsBulkUploading(true);
 
         try {
@@ -747,11 +781,114 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             const inserted = Number(data?.data?.inserted || 0);
             const skipped = Number(data?.data?.skippedDuplicateCount || 0);
             setBulkUploadMessage(`✅ 업로드 완료: 요청 ${requested}명 / 신규 ${inserted}명 / 중복 건너뜀 ${skipped}명`);
+            setBulkUploadSummary({
+                status: 'success',
+                requested,
+                inserted,
+                skipped,
+                fileName: file.name,
+                message: '엑셀 업로드가 정상 처리되었습니다.',
+            });
         } catch (error: any) {
             setBulkUploadMessage(`❌ ${extractMessage(error)}`);
+            setBulkUploadSummary({
+                status: 'error',
+                requested: 0,
+                inserted: 0,
+                skipped: 0,
+                fileName: file.name,
+                message: extractMessage(error),
+            });
         } finally {
             setIsBulkUploading(false);
             if (bulkFileInputRef.current) bulkFileInputRef.current.value = '';
+        }
+    };
+
+    const handleManualRegisterWorker = async () => {
+        const name = manualWorkerForm.name.trim();
+        const nationality = manualWorkerForm.nationality.trim();
+        const jobField = normalizeJobField(manualWorkerForm.job_field);
+        const teamName = manualWorkerForm.team_name.trim();
+        const phoneNumber = normalizePhone(manualWorkerForm.phone_number);
+        const birthDate = normalizeBirthDate(manualWorkerForm.birth_date);
+        const passportNumber = normalizePassport(manualWorkerForm.passport_number);
+
+        if (!name) return alert('이름을 입력해 주세요.');
+        if (!nationality) return alert('국적을 입력해 주세요.');
+        if (!jobField) return alert('공종을 선택해 주세요.');
+        if (!(ALLOWED_JOB_FIELDS as readonly string[]).includes(jobField)) return alert('허용된 공종만 등록할 수 있습니다.');
+        if (!teamName) return alert('팀명을 입력해 주세요.');
+        if (!phoneNumber && !birthDate && !passportNumber) {
+            return alert('핸드폰번호/생년월일/여권번호 중 1개 이상 입력해 주세요.');
+        }
+        if (birthDate && !(birthDate.length === 6 || birthDate.length === 8)) {
+            return alert('생년월일은 6자리 또는 8자리만 입력해 주세요.');
+        }
+
+        setIsManualRegistering(true);
+        try {
+            const response = await fetch('/api/admin/safety-management', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'bulk-upload-workers',
+                    payload: {
+                        workers: [
+                            {
+                                name,
+                                nationality,
+                                job_field: jobField,
+                                team_name: teamName,
+                                phone_number: phoneNumber || undefined,
+                                birth_date: birthDate || undefined,
+                                passport_number: passportNumber || undefined,
+                            },
+                        ],
+                    },
+                }),
+            });
+
+            const data = await response.json();
+            if (!response.ok || !data?.ok) {
+                throw new Error(data?.message || '근로자 등록 실패');
+            }
+
+            const requested = Number(data?.data?.requested || 1);
+            const inserted = Number(data?.data?.inserted || 0);
+            const skipped = Number(data?.data?.skippedDuplicateCount || 0);
+            setBulkUploadMessage(`✅ 프로그램 등록 완료: 요청 ${requested}명 / 신규 ${inserted}명 / 중복 건너뜀 ${skipped}명`);
+            setBulkUploadSummary({
+                status: 'success',
+                requested,
+                inserted,
+                skipped,
+                fileName: '프로그램 내 직접 등록',
+                message: '프로그램에서 근로자 등록이 완료되었습니다.',
+            });
+
+            setManualWorkerForm({
+                name: '',
+                nationality: '',
+                job_field: ALLOWED_JOB_FIELDS[0],
+                team_name: '',
+                phone_number: '',
+                birth_date: '',
+                passport_number: '',
+            });
+        } catch (error: any) {
+            const message = extractMessage(error);
+            setBulkUploadMessage(`❌ ${message}`);
+            setBulkUploadSummary({
+                status: 'error',
+                requested: 0,
+                inserted: 0,
+                skipped: 0,
+                fileName: '프로그램 내 직접 등록',
+                message,
+            });
+        } finally {
+            setIsManualRegistering(false);
         }
     };
 
@@ -1528,9 +1665,102 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         {isBulkUploading ? '엑셀 대량 업로드 처리 중...' : '엑셀 대량 업로드'}
                     </button>
                 </div>
+
+                <div className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <p className="text-sm font-black text-slate-800">프로그램에서 근로자 직접 등록</p>
+                    <p className="mt-1 text-[11px] font-bold text-slate-500">엑셀 없이 1명씩 바로 등록할 수 있습니다. (공종: 관리 포함)</p>
+                    <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-2">
+                        <input
+                            type="text"
+                            value={manualWorkerForm.name}
+                            onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, name: e.target.value }))}
+                            placeholder="이름*"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
+                        />
+                        <input
+                            type="text"
+                            value={manualWorkerForm.nationality}
+                            onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, nationality: e.target.value }))}
+                            placeholder="국적*"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
+                        />
+                        <select
+                            value={manualWorkerForm.job_field}
+                            onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, job_field: e.target.value }))}
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
+                        >
+                            {ALLOWED_JOB_FIELDS.map((field) => (
+                                <option key={field} value={field}>{field}</option>
+                            ))}
+                        </select>
+                        <input
+                            type="text"
+                            value={manualWorkerForm.team_name}
+                            onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, team_name: e.target.value }))}
+                            placeholder="팀명*"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
+                        />
+                    </div>
+                    <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <input
+                            type="text"
+                            value={manualWorkerForm.phone_number}
+                            onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, phone_number: e.target.value }))}
+                            placeholder="핸드폰번호 (선택)"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
+                        />
+                        <input
+                            type="text"
+                            value={manualWorkerForm.birth_date}
+                            onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, birth_date: e.target.value }))}
+                            placeholder="생년월일 6/8자리 (선택)"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
+                        />
+                        <input
+                            type="text"
+                            value={manualWorkerForm.passport_number}
+                            onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, passport_number: e.target.value }))}
+                            placeholder="여권번호 (선택)"
+                            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleManualRegisterWorker}
+                        disabled={isManualRegistering || isBulkUploading}
+                        className="mt-3 inline-flex items-center rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+                    >
+                        {isManualRegistering ? '프로그램 등록 처리 중...' : '프로그램에서 1명 등록'}
+                    </button>
+                </div>
+
                 {bulkUploadMessage && (
                     <div className={`w-full rounded-2xl px-4 py-3 text-sm font-bold border ${bulkUploadMessage.startsWith('✅') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
                         {bulkUploadMessage}
+                    </div>
+                )}
+                {bulkUploadSummary && (
+                    <div className={`w-full rounded-2xl border px-4 py-3 ${bulkUploadSummary.status === 'success' ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
+                        <p className={`text-xs font-black ${bulkUploadSummary.status === 'success' ? 'text-emerald-800' : 'text-rose-800'}`}>
+                            업로드/등록 현황 요약
+                        </p>
+                        <p className={`mt-1 text-[11px] font-bold ${bulkUploadSummary.status === 'success' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                            소스: {bulkUploadSummary.fileName} · {bulkUploadSummary.message}
+                        </p>
+                        <div className="mt-2 grid grid-cols-3 gap-2">
+                            <div className="rounded-lg border border-white/70 bg-white px-2 py-2">
+                                <p className="text-[10px] font-black text-slate-500">요청</p>
+                                <p className="text-sm font-black text-slate-900">{bulkUploadSummary.requested}</p>
+                            </div>
+                            <div className="rounded-lg border border-white/70 bg-white px-2 py-2">
+                                <p className="text-[10px] font-black text-slate-500">신규 등록</p>
+                                <p className="text-sm font-black text-emerald-700">{bulkUploadSummary.inserted}</p>
+                            </div>
+                            <div className="rounded-lg border border-white/70 bg-white px-2 py-2">
+                                <p className="text-[10px] font-black text-slate-500">중복 건너뜀</p>
+                                <p className="text-sm font-black text-amber-700">{bulkUploadSummary.skipped}</p>
+                            </div>
+                        </div>
                     </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3 w-full">
