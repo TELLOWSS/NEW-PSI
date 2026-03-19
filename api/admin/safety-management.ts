@@ -481,90 +481,21 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
         };
     });
 
-    const { data: existingRows, error: existingError } = await supabase
-        .from('workers')
-        .select('name, phone_number, birth_date, passport_number')
-        .limit(100000);
-
-    if (existingError) throw new Error(existingError.message);
-
-    const existingByPhone = new Set<string>();
-    const existingByBirth = new Set<string>();
-    const existingByPassport = new Set<string>();
-
-    (existingRows || []).forEach((row: any) => {
-        const name = String(row?.name || '').trim().toLowerCase();
-        const phone = normalizePhone(row?.phone_number || '');
-        const birth = normalizeBirthDate(row?.birth_date || '');
-        const passport = normalizePassport(row?.passport_number || '');
-
-        if (name && phone) existingByPhone.add(`${name}|${phone}`);
-        if (name && birth) existingByBirth.add(`${name}|${birth}`);
-        if (name && passport) existingByPassport.add(`${name}|${passport}`);
-    });
-
-    const seenUploadByPhone = new Set<string>();
-    const seenUploadByBirth = new Set<string>();
-    const seenUploadByPassport = new Set<string>();
-
-    const dedupedRows: any[] = [];
-    let skippedDuplicateCount = 0;
-
-    normalizedRows.forEach((row) => {
-        const name = String(row.name || '').trim().toLowerCase();
-        const phone = normalizePhone(row.phone_number || '');
-        const birth = normalizeBirthDate(row.birth_date || '');
-        const passport = normalizePassport(row.passport_number || '');
-
-        const phoneKey = name && phone ? `${name}|${phone}` : '';
-        const birthKey = name && birth ? `${name}|${birth}` : '';
-        const passportKey = name && passport ? `${name}|${passport}` : '';
-
-        const isDuplicate =
-            (phoneKey && (existingByPhone.has(phoneKey) || seenUploadByPhone.has(phoneKey))) ||
-            (birthKey && (existingByBirth.has(birthKey) || seenUploadByBirth.has(birthKey))) ||
-            (passportKey && (existingByPassport.has(passportKey) || seenUploadByPassport.has(passportKey)));
-
-        if (isDuplicate) {
-            skippedDuplicateCount += 1;
-            return;
-        }
-
-        dedupedRows.push(row);
-        if (phoneKey) seenUploadByPhone.add(phoneKey);
-        if (birthKey) seenUploadByBirth.add(birthKey);
-        if (passportKey) seenUploadByPassport.add(passportKey);
-    });
-
-    if (dedupedRows.length === 0) {
-        return {
-            requested: normalizedRows.length,
-            inserted: 0,
-            skippedDuplicateCount,
-        };
-    }
-
     const { error: insertError } = await supabase
         .from('workers')
-        .insert(dedupedRows);
+        .insert(normalizedRows);
 
     if (insertError) {
-        if (String(insertError.message || '').includes('job_field') || String(insertError.message || '').includes('team_name')) {
-            throw new Error('workers 테이블에 공종/팀 컬럼이 없습니다. DB에 job_field, team_name 컬럼을 먼저 추가해 주세요.');
-        }
-        const { error: upsertError } = await supabase
-            .from('workers')
-            .upsert(dedupedRows, { onConflict: 'id' });
-
-        if (upsertError) {
-            throw new Error(upsertError.message);
-        }
+        const rawMessage = [insertError.message, (insertError as any).details, (insertError as any).hint]
+            .filter((item) => Boolean(String(item || '').trim()))
+            .join(' | ');
+        throw new Error(rawMessage || 'workers insert failed');
     }
 
     return {
         requested: normalizedRows.length,
-        inserted: dedupedRows.length,
-        skippedDuplicateCount,
+        inserted: normalizedRows.length,
+        skippedDuplicateCount: 0,
     };
 }
 
