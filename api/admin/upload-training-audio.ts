@@ -73,7 +73,7 @@ function sendJsonError(res: any, statusCode: number, message: string) {
 }
 
 function normalizeBase64(raw: string) {
-    return String(raw || '').replace(/^data:audio\/mpeg;base64,/i, '').trim();
+    return String(raw || '').replace(/^data:audio\/[a-z0-9.+-]+;base64,/i, '').trim();
 }
 
 export default async function handler(req: any, res: any) {
@@ -102,8 +102,16 @@ export default async function handler(req: any, res: any) {
             const base64 = normalizeBase64(item.base64);
 
             if (!base64) continue;
-            if (!(contentType === 'audio/mpeg' || fileName.toLowerCase().endsWith('.mp3'))) {
-                return sendJsonError(res, 400, `${code} 파일은 MP3만 허용됩니다.`);
+            const lowerFileName = fileName.toLowerCase();
+            const isSupportedAudio =
+                contentType === 'audio/mpeg' ||
+                contentType === 'audio/mp4' ||
+                contentType === 'audio/x-m4a' ||
+                lowerFileName.endsWith('.mp3') ||
+                lowerFileName.endsWith('.m4a');
+
+            if (!isSupportedAudio) {
+                return sendJsonError(res, 400, `${code} 파일은 MP3 또는 M4A만 허용됩니다.`);
             }
 
             const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -111,7 +119,9 @@ export default async function handler(req: any, res: any) {
             const binary = Buffer.from(base64, 'base64');
 
             const uploadRes = await supabase.storage.from('training_audio').upload(path, binary, {
-                contentType: 'audio/mpeg',
+                contentType: lowerFileName.endsWith('.m4a')
+                    ? 'audio/mp4'
+                    : (contentType || 'audio/mpeg'),
                 upsert: true,
             });
 

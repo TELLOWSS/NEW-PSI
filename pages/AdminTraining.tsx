@@ -447,7 +447,7 @@ const AdminTraining: React.FC = () => {
             mobileUrl,
             failedLanguages.length > 0
                 ? `미첨부/미업로드 언어: ${failedLanguages.join(', ')}`
-                : '11개국 MP3 업로드가 반영되었습니다.',
+                : '11개국 MP3/M4A 업로드가 반영되었습니다.',
         ].join('\n')
         : '';
 
@@ -657,9 +657,15 @@ const AdminTraining: React.FC = () => {
                 const file = audioFiles[language.code];
                 if (!file) continue;
 
-                const isMp3 = file.type === 'audio/mpeg' || file.name.toLowerCase().endsWith('.mp3');
-                if (!isMp3) {
-                    throw new Error(`${language.label} 파일은 MP3 형식만 업로드할 수 있습니다.`);
+                const lowerName = file.name.toLowerCase();
+                const isSupportedAudio =
+                    file.type === 'audio/mpeg' ||
+                    file.type === 'audio/mp4' ||
+                    file.type === 'audio/x-m4a' ||
+                    lowerName.endsWith('.mp3') ||
+                    lowerName.endsWith('.m4a');
+                if (!isSupportedAudio) {
+                    throw new Error(`${language.label} 파일은 MP3 또는 M4A 형식만 업로드할 수 있습니다.`);
                 }
 
                 uploadPayload[language.code] = {
@@ -676,7 +682,7 @@ const AdminTraining: React.FC = () => {
                     originalScript: sourceTextKo,
                     files: uploadPayload,
                 },
-                { fallbackMessage: 'MP3 업로드 저장 실패' }
+                { fallbackMessage: 'MP3/M4A 업로드 저장 실패' }
             );
             const nextAudioUrls = (syncData.audioUrls && typeof syncData.audioUrls === 'object')
                 ? syncData.audioUrls as Record<string, string | null>
@@ -700,7 +706,7 @@ const AdminTraining: React.FC = () => {
             }
 
             await fetchRecentSessions();
-            setMessage('세션 생성 및 11개국 MP3 업로드 반영이 완료되었습니다. 아래 QR을 근로자에게 공유하세요.');
+            setMessage('세션 생성 및 11개국 MP3/M4A 업로드 반영이 완료되었습니다. 아래 QR을 근로자에게 공유하세요.');
         } catch (error: any) {
             setMessage(`오류: ${error?.message || '알 수 없는 오류'}`);
         } finally {
@@ -796,7 +802,7 @@ const AdminTraining: React.FC = () => {
         <div className="space-y-6">
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
                 <h2 className="text-2xl font-black text-slate-900">관리자 다국어 음성 안내 생성</h2>
-                <p className="text-sm font-bold text-slate-500 mt-2">관리자 화면은 항상 한국어로 고정됩니다. 한국어 원본 대본을 입력하고 11개국 MP3 파일을 업로드한 뒤 QR 링크를 배포하세요.</p>
+                <p className="text-sm font-bold text-slate-500 mt-2">관리자 화면은 항상 한국어로 고정됩니다. 한국어 원본 대본을 입력하고 11개국 MP3/M4A 파일을 업로드한 뒤 QR 링크를 배포하세요.</p>
                 <textarea
                     value={sourceTextKo}
                     onChange={(e) => setSourceTextKo(e.target.value)}
@@ -822,7 +828,7 @@ const AdminTraining: React.FC = () => {
                                     </div>
                                     <input
                                         type="file"
-                                        accept=".mp3,audio/mpeg"
+                                        accept=".mp3,.m4a,audio/mpeg,audio/mp4,audio/x-m4a"
                                         onChange={(e) => setAudioFile(lang.code, e.target.files?.[0] || null)}
                                         className="block w-full text-xs font-bold text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:text-xs file:font-black file:text-white hover:file:bg-indigo-700"
                                     />
