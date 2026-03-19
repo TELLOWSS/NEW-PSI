@@ -825,8 +825,11 @@ const AdminTraining: React.FC = () => {
                     uploadFile = await compressAudioToMp3(file, {
                         targetBitrateKbps: 64,
                     });
-                } catch {
+                } catch (error) {
+                    console.error('Audio Compression Failed:', error);
                     if (file.size > MAX_ORIGINAL_AUDIO_UPLOAD_BYTES) {
+                        setIsAudioUploadProcessing(false);
+                        setLoading(false);
                         alert(STRICT_AUDIO_GUARD_MESSAGE);
                         throw new Error(STRICT_AUDIO_GUARD_MESSAGE);
                     }
@@ -899,6 +902,8 @@ const AdminTraining: React.FC = () => {
 
             setMessage(`세션 생성 및 11개국 MP3/M4A 업로드 반영이 완료되었습니다${compressionSummary}. 아래 QR을 근로자에게 공유하세요.`);
         } catch (error: any) {
+            setIsAudioUploadProcessing(false);
+            setLoading(false);
             setMessage(`오류: ${error?.message || '알 수 없는 오류'}`);
         } finally {
             setIsAudioUploadProcessing(false);

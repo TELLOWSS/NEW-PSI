@@ -6,9 +6,10 @@ type CompressionOptions = {
 
 const MP3_FRAME_SAMPLE_COUNT = 1152;
 const DEFAULT_BITRATE_KBPS = 64;
+const ENFORCED_SAMPLE_RATE = 44100;
 
 type BrowserAudioContextConstructor = {
-    new (): AudioContext;
+    new (contextOptions?: AudioContextOptions): AudioContext;
 };
 
 const readFileAsArrayBuffer = (file: File): Promise<ArrayBuffer> => {
@@ -33,7 +34,7 @@ const createAudioContext = (): AudioContext => {
         throw new Error('이 브라우저는 오디오 디코딩을 지원하지 않습니다.');
     }
 
-    return new contextConstructor();
+    return new contextConstructor({ sampleRate: ENFORCED_SAMPLE_RATE });
 };
 
 const decodeAudioBuffer = async (audioContext: AudioContext, inputBuffer: ArrayBuffer): Promise<AudioBuffer> => {
@@ -85,7 +86,7 @@ export async function compressAudioToMp3(file: File, options: CompressionOptions
         const audioBuffer = await decodeAudioBuffer(audioContext, inputBuffer);
         const monoFloat32 = extractFirstChannelMono(audioBuffer);
         const pcm = floatToInt16(monoFloat32);
-        const sampleRate = Math.round(audioBuffer.sampleRate);
+        const sampleRate = Math.round(audioBuffer.sampleRate) || ENFORCED_SAMPLE_RATE;
 
         const lameNamespace = lamejs as any;
         const Mp3Encoder = lameNamespace?.Mp3Encoder || lameNamespace?.default?.Mp3Encoder;
