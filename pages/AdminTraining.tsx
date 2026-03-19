@@ -7,7 +7,6 @@ import {
     TRAINING_AUDIO_LANGUAGES,
     type TrainingAudioLanguageCode,
 } from '../utils/trainingLanguageUtils';
-import { compressAudioToMp3 } from '../utils/audioCompression';
 
 type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
 const LINK_HISTORY_STORAGE_KEY = 'psi_training_link_history';
@@ -16,8 +15,10 @@ const SAFETY_LEVEL_MIGRATION_REPORT_KEY = 'psi_migrated_safety_level_report_v202
 const EXCLUDE_CURRENT_SESSION_FLUSH_TOGGLE_KEY = 'psi_exclude_current_session_flush_toggle_v1';
 const FLUSH_SELECTED_SESSIONS_STORAGE_KEY = 'psi_flush_selected_sessions_v1';
 const FLUSH_SUMMARY_HISTORY_STORAGE_KEY = 'psi_flush_summary_history_v1';
-const MAX_ORIGINAL_AUDIO_UPLOAD_BYTES = 3 * 1024 * 1024;
-const STRICT_AUDIO_GUARD_MESSAGE = '오디오 압축에 실패했습니다. 서버 트래픽 보호를 위해 3MB 이하의 파일만 업로드할 수 있습니다.';
+const SOFT_WARNING_AUDIO_UPLOAD_BYTES = 3 * 1024 * 1024;
+const MAX_AUDIO_UPLOAD_BYTES = 10 * 1024 * 1024;
+const SOFT_WARNING_UPLOAD_MESSAGE = "파일 용량이 큽니다. 트래픽 절약을 위해 카카오톡 '내게 쓰기'로 전송 후 다운로드하여 업로드하는 것을 권장합니다.";
+const HARD_BLOCK_UPLOAD_MESSAGE = '10MB를 초과한 파일은 업로드할 수 없습니다. 10MB 이하 파일만 첨부해 주세요.';
 
 const UI_TEXT: Record<UiLocale, {
     title: string;
@@ -447,6 +448,7 @@ const AdminTraining: React.FC = () => {
     const [excludeCurrentSessionFromFlush, setExcludeCurrentSessionFromFlush] = useState(false);
     const [flushSummary, setFlushSummary] = useState<FlushSummary | null>(null);
     const [flushSummaryHistory, setFlushSummaryHistory] = useState<FlushSummary[]>([]);
+    const [uploadWarningMessage, setUploadWarningMessage] = useState('');
 
     const appendLinkHistory = (item: LinkHistoryItem) => {
         setLinkHistory((prev) => {
@@ -785,6 +787,7 @@ const AdminTraining: React.FC = () => {
         setLoading(true);
         setIsAudioUploadProcessing(false);
         setMessage('');
+        setUploadWarningMessage('');
         setMobileUrl('');
         setFlushSummary(null);
 
@@ -799,11 +802,9 @@ const AdminTraining: React.FC = () => {
             const nextAudioUrls: Record<string, string | null> = Object.fromEntries(
                 TRAINING_AUDIO_LANGUAGE_CODES.map((code) => [code, null])
             ) as Record<string, string | null>;
-            let totalOriginalBytes = 0;
-            let totalCompressedBytes = 0;
 
             setIsAudioUploadProcessing(true);
-            setMessage('오디오 압축 및 업로드 중...');
+            setMessage('오디오 업로드 중...');
 
             for (const language of TRAINING_AUDIO_LANGUAGES) {
                 const file = audioFiles[language.code];
@@ -820,32 +821,24 @@ const AdminTraining: React.FC = () => {
                     throw new Error(`${language.label} 파일은 MP3 또는 M4A 형식만 업로드할 수 있습니다.`);
                 }
 
-                let uploadFile: File;
-                try {
-                    uploadFile = await compressAudioToMp3(file, {
-                        targetBitrateKbps: 64,
-                    });
-                } catch (error) {
-                    console.error('Audio Compression Failed:', error);
-                    if (file.size > MAX_ORIGINAL_AUDIO_UPLOAD_BYTES) {
-                        setIsAudioUploadProcessing(false);
-                        setLoading(false);
-                        alert(STRICT_AUDIO_GUARD_MESSAGE);
-                        throw new Error(STRICT_AUDIO_GUARD_MESSAGE);
-                    }
-                    uploadFile = file;
+                if (file.size > MAX_AUDIO_UPLOAD_BYTES) {
+                    setIsAudioUploadProcessing(false);
+                    setLoading(false);
+                    alert(HARD_BLOCK_UPLOAD_MESSAGE);
+                    throw new Error(HARD_BLOCK_UPLOAD_MESSAGE);
                 }
 
-                totalOriginalBytes += file.size;
-                totalCompressedBytes += uploadFile.size;
+                if (file.size > SOFT_WARNING_AUDIO_UPLOAD_BYTES && !uploadWarningMessage) {
+                    setUploadWarningMessage(SOFT_WARNING_UPLOAD_MESSAGE);
+                }
 
-                const safeFileName = uploadFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+                const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
                 const filePath = `${nextSessionId}/${language.code}-${safeFileName}`;
 
                 const uploadRes = await supabase.storage
                     .from('training_audio')
-                    .upload(filePath, uploadFile, {
-                        contentType: uploadFile.type || 'audio/mpeg',
+                    .upload(filePath, file, {
+                        contentType: file.type || 'audio/mpeg',
                         upsert: true,
                     });
 
@@ -893,14 +886,7 @@ const AdminTraining: React.FC = () => {
             }
 
             await fetchRecentSessions();
-            const reductionRate = totalOriginalBytes > 0
-                ? ((1 - (totalCompressedBytes / totalOriginalBytes)) * 100)
-                : 0;
-            const compressionSummary = totalOriginalBytes > 0
-                ? ` (압축: ${formatSizeInMb(totalOriginalBytes)} → ${formatSizeInMb(totalCompressedBytes)}, ${reductionRate.toFixed(1)}% 절감)`
-                : '';
-
-            setMessage(`세션 생성 및 11개국 MP3/M4A 업로드 반영이 완료되었습니다${compressionSummary}. 아래 QR을 근로자에게 공유하세요.`);
+            setMessage('세션 생성 및 11개국 MP3/M4A 업로드 반영이 완료되었습니다. 아래 QR을 근로자에게 공유하세요.');
         } catch (error: any) {
             setIsAudioUploadProcessing(false);
             setLoading(false);
@@ -1148,6 +1134,11 @@ const AdminTraining: React.FC = () => {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
                 <h2 className="text-2xl font-black text-slate-900">관리자 다국어 음성 안내 생성</h2>
                 <p className="text-sm font-bold text-slate-500 mt-2">관리자 화면은 항상 한국어로 고정됩니다. 한국어 원본 대본을 입력하고 11개국 MP3/M4A 파일을 업로드한 뒤 QR 링크를 배포하세요.</p>
+                {uploadWarningMessage && (
+                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+                        <p className="text-xs font-black text-amber-800">{uploadWarningMessage}</p>
+                    </div>
+                )}
                 <textarea
                     value={sourceTextKo}
                     onChange={(e) => setSourceTextKo(e.target.value)}
@@ -1193,7 +1184,7 @@ const AdminTraining: React.FC = () => {
                     className="mt-4 px-6 py-3 rounded-xl bg-indigo-600 text-white font-black text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                     {loading
-                        ? (isAudioUploadProcessing ? '오디오 압축 및 업로드 중...' : '생성 중...')
+                        ? (isAudioUploadProcessing ? '오디오 업로드 중...' : '생성 중...')
                         : '생성'}
                 </button>
 
@@ -1282,7 +1273,7 @@ const AdminTraining: React.FC = () => {
                 {loading && isAudioUploadProcessing && (
                     <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2">
                         <span className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-300 border-t-indigo-600" />
-                        <span className="text-xs font-black text-indigo-700">오디오 압축 및 업로드 중...</span>
+                        <span className="text-xs font-black text-indigo-700">오디오 업로드 중...</span>
                     </div>
                 )}
 
