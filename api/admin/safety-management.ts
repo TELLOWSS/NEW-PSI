@@ -536,6 +536,7 @@ async function handleFlushAudioStorage(payload: any): Promise<any> {
             ? payload.excludeSessionIds.map((id: any) => String(id || '').trim()).filter(Boolean)
             : []
     );
+    const excludedSessionCount = excludeSessionIdSet.size;
 
     if (mode === 'sessions' && requestSessionIds.length === 0) {
         throw new Error('mode=sessions 인 경우 sessionIds 배열이 필요합니다.');
@@ -561,6 +562,8 @@ async function handleFlushAudioStorage(payload: any): Promise<any> {
         return {
             mode,
             targetSessionCount: 0,
+            excludedSessionCount,
+            scannedFileCount: 0,
             updatedSessionCount: 0,
             removedFileCount: 0,
             removedSessionCount: 0,
@@ -572,21 +575,47 @@ async function handleFlushAudioStorage(payload: any): Promise<any> {
     const removablePaths: string[] = [];
     const failedSessionIds: string[] = [];
     let removedSessionCount = 0;
+    let scannedFileCount = 0;
+
+    const listAudioPathsBySession = async (sessionId: string): Promise<string[] | null> => {
+        const pageSize = 1000;
+        let offset = 0;
+        const paths: string[] = [];
+
+        while (true) {
+            const { data: listedFiles, error: listError } = await supabase.storage
+                .from('training_audio')
+                .list(sessionId, { limit: pageSize, offset });
+
+            if (listError) {
+                return null;
+            }
+
+            const rows = listedFiles || [];
+            scannedFileCount += rows.length;
+
+            const pagePaths = rows
+                .map((file: any) => String(file?.name || ''))
+                .filter((name: string) => /\.(mp3|m4a)$/i.test(name))
+                .map((name: string) => `${sessionId}/${name}`);
+
+            paths.push(...pagePaths);
+
+            if (rows.length < pageSize) {
+                break;
+            }
+            offset += pageSize;
+        }
+
+        return paths;
+    };
 
     for (const sessionId of uniqueSessionIds) {
-        const { data: listedFiles, error: listError } = await supabase.storage
-            .from('training_audio')
-            .list(sessionId, { limit: 1000 });
-
-        if (listError) {
+        const audioPaths = await listAudioPathsBySession(sessionId);
+        if (audioPaths === null) {
             failedSessionIds.push(sessionId);
             continue;
         }
-
-        const audioPaths = (listedFiles || [])
-            .map((file: any) => String(file?.name || ''))
-            .filter((name: string) => /\.(mp3|m4a)$/i.test(name))
-            .map((name: string) => `${sessionId}/${name}`);
 
         if (audioPaths.length > 0) {
             removablePaths.push(...audioPaths);
@@ -629,6 +658,8 @@ async function handleFlushAudioStorage(payload: any): Promise<any> {
     return {
         mode,
         targetSessionCount: uniqueSessionIds.length,
+        excludedSessionCount,
+        scannedFileCount,
         updatedSessionCount,
         removedFileCount,
         removedSessionCount,

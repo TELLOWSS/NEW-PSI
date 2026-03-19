@@ -395,6 +395,8 @@ type SafetyLevelMigrationReport = {
 type FlushSummary = {
     mode: 'all' | 'sessions';
     targetSessionCount: number;
+    excludedSessionCount: number;
+    scannedFileCount: number;
     updatedSessionCount: number;
     removedFileCount: number;
     failedSessionCount: number;
@@ -433,7 +435,7 @@ const AdminTraining: React.FC = () => {
     const [isAudioUploadProcessing, setIsAudioUploadProcessing] = useState(false);
     const [isFlushingAudioStorage, setIsFlushingAudioStorage] = useState(false);
     const [selectedFlushSessionIds, setSelectedFlushSessionIds] = useState<Set<string>>(new Set());
-    const [excludeCurrentSessionFromFlush, setExcludeCurrentSessionFromFlush] = useState(true);
+    const [excludeCurrentSessionFromFlush, setExcludeCurrentSessionFromFlush] = useState(false);
     const [flushSummary, setFlushSummary] = useState<FlushSummary | null>(null);
     const [flushSummaryHistory, setFlushSummaryHistory] = useState<FlushSummary[]>([]);
 
@@ -556,7 +558,7 @@ const AdminTraining: React.FC = () => {
     useEffect(() => {
         const raw = localStorage.getItem(EXCLUDE_CURRENT_SESSION_FLUSH_TOGGLE_KEY);
         if (raw === null) return;
-        setExcludeCurrentSessionFromFlush(raw !== 'false');
+        setExcludeCurrentSessionFromFlush(raw === 'true');
     }, []);
 
     useEffect(() => {
@@ -601,6 +603,8 @@ const AdminTraining: React.FC = () => {
                 .map((entry: any) => ({
                     mode: entry?.mode === 'sessions' ? 'sessions' : 'all',
                     targetSessionCount: Number(entry?.targetSessionCount || 0),
+                    excludedSessionCount: Number(entry?.excludedSessionCount || 0),
+                    scannedFileCount: Number(entry?.scannedFileCount || 0),
                     updatedSessionCount: Number(entry?.updatedSessionCount || 0),
                     removedFileCount: Number(entry?.removedFileCount || 0),
                     failedSessionCount: Number(entry?.failedSessionCount || 0),
@@ -973,6 +977,8 @@ const AdminTraining: React.FC = () => {
         try {
             const response = await postAdminJson<{ data?: {
                 targetSessionCount?: number;
+                excludedSessionCount?: number;
+                scannedFileCount?: number;
                 updatedSessionCount?: number;
                 removedFileCount?: number;
                 failedSessionCount?: number;
@@ -990,12 +996,15 @@ const AdminTraining: React.FC = () => {
 
             const result = response?.data || {};
             setUploadedAudioUrls({});
+            setAudioFiles({});
             setFailedLanguages(TRAINING_AUDIO_LANGUAGES.map((lang) => lang.label));
             setFailedLanguageAttempts({});
             setSelectedFlushSessionIds(new Set());
             pushFlushSummary({
                 mode: 'all',
                 targetSessionCount: Number(result.targetSessionCount || 0),
+                excludedSessionCount: Number(result.excludedSessionCount || 0),
+                scannedFileCount: Number(result.scannedFileCount || 0),
                 updatedSessionCount: Number(result.updatedSessionCount || 0),
                 removedFileCount: Number(result.removedFileCount || 0),
                 failedSessionCount: Number(result.failedSessionCount || 0),
@@ -1006,6 +1015,8 @@ const AdminTraining: React.FC = () => {
 
             setMessage(
                 `과거 음성 데이터 일괄 비우기 완료: 세션 ${Number(result.targetSessionCount || 0)}건 대상, ` +
+                `제외 ${Number(result.excludedSessionCount || 0)}건, ` +
+                `스캔 ${Number(result.scannedFileCount || 0)}개, ` +
                 `오디오 파일 ${Number(result.removedFileCount || 0)}개 삭제, ` +
                 `audio_urls ${Number(result.updatedSessionCount || 0)}건 초기화` +
                 (Number(result.failedSessionCount || 0) > 0 ? `, 일부 세션 실패 ${Number(result.failedSessionCount || 0)}건` : '')
@@ -1037,6 +1048,8 @@ const AdminTraining: React.FC = () => {
         try {
             const response = await postAdminJson<{ data?: {
                 targetSessionCount?: number;
+                excludedSessionCount?: number;
+                scannedFileCount?: number;
                 updatedSessionCount?: number;
                 removedFileCount?: number;
                 failedSessionCount?: number;
@@ -1055,6 +1068,7 @@ const AdminTraining: React.FC = () => {
             const result = response?.data || {};
             if (currentSessionId && sessionIds.includes(currentSessionId)) {
                 setUploadedAudioUrls({});
+                setAudioFiles({});
                 setFailedLanguages(TRAINING_AUDIO_LANGUAGES.map((lang) => lang.label));
                 setFailedLanguageAttempts({});
             }
@@ -1064,6 +1078,8 @@ const AdminTraining: React.FC = () => {
             pushFlushSummary({
                 mode: 'sessions',
                 targetSessionCount: Number(result.targetSessionCount || 0),
+                excludedSessionCount: Number(result.excludedSessionCount || 0),
+                scannedFileCount: Number(result.scannedFileCount || 0),
                 updatedSessionCount: Number(result.updatedSessionCount || 0),
                 removedFileCount: Number(result.removedFileCount || 0),
                 failedSessionCount: Number(result.failedSessionCount || 0),
@@ -1072,6 +1088,8 @@ const AdminTraining: React.FC = () => {
 
             setMessage(
                 `선택 세션 음성 비우기 완료: 세션 ${Number(result.targetSessionCount || 0)}건 대상, ` +
+                `제외 ${Number(result.excludedSessionCount || 0)}건, ` +
+                `스캔 ${Number(result.scannedFileCount || 0)}개, ` +
                 `오디오 파일 ${Number(result.removedFileCount || 0)}개 삭제, ` +
                 `audio_urls ${Number(result.updatedSessionCount || 0)}건 초기화` +
                 (Number(result.failedSessionCount || 0) > 0 ? `, 일부 세션 실패 ${Number(result.failedSessionCount || 0)}건` : '')
@@ -1155,7 +1173,7 @@ const AdminTraining: React.FC = () => {
                         onChange={(e) => setExcludeCurrentSessionFromFlush(e.target.checked)}
                         className="h-3.5 w-3.5 accent-indigo-600"
                     />
-                    현재 로드 세션 제외 유지
+                    현재 로드 세션 제외 유지 (기본 OFF)
                 </label>
 
                 <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -1249,6 +1267,10 @@ const AdminTraining: React.FC = () => {
                                 <p className="text-sm font-black text-emerald-900">{flushSummary.failedSessionCount}</p>
                             </div>
                         </div>
+
+                        <p className="mt-2 text-[10px] font-bold text-emerald-700">
+                            제외 세션: {flushSummary.excludedSessionCount}건 · 스캔 파일: {flushSummary.scannedFileCount}개
+                        </p>
 
                         {flushSummaryHistory.length > 0 && (
                             <div className="mt-3 rounded-lg border border-emerald-200 bg-white p-2">
