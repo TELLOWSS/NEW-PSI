@@ -413,6 +413,13 @@ const formatSessionCreatedAt = (value?: string): string => {
     return parsed.toLocaleString('ko-KR');
 };
 
+const isSessionAudioFlushed = (session?: TrainingSessionRow): boolean => {
+    if (!session?.audio_urls || typeof session.audio_urls !== 'object') return true;
+    const values = Object.values(session.audio_urls);
+    if (values.length === 0) return true;
+    return values.every((value) => !value);
+};
+
 const AdminTraining: React.FC = () => {
     // 관리자 UI는 요구사항에 따라 항상 한국어 고정
     const t = UI_TEXT.ko;
@@ -764,7 +771,11 @@ const AdminTraining: React.FC = () => {
     useEffect(() => {
         setSelectedFlushSessionIds((prev) => {
             if (prev.size === 0) return prev;
-            const validSessionIds = new Set(recentSessions.map((session) => session.id));
+            const validSessionIds = new Set(
+                recentSessions
+                    .filter((session) => !isSessionAudioFlushed(session))
+                    .map((session) => session.id)
+            );
             const next = new Set(Array.from(prev).filter((id) => validSessionIds.has(id)));
             return next.size === prev.size ? prev : next;
         });
@@ -1211,29 +1222,39 @@ const AdminTraining: React.FC = () => {
                             {recentSessions.map((session) => {
                                 const checked = selectedFlushSessionIds.has(session.id);
                                 const isCurrentSession = session.id === currentSessionId;
+                                const isFlushedSession = isSessionAudioFlushed(session);
                                 const shouldDisableCurrentSession = isCurrentSession && excludeCurrentSessionFromFlush;
+                                const shouldDisableSelection = shouldDisableCurrentSession || isFlushedSession;
                                 return (
                                     <label
                                         key={session.id}
-                                        className={`flex items-center gap-2 rounded-lg border px-2 py-1 text-[11px] font-bold cursor-pointer ${checked ? 'border-rose-300 bg-rose-50 text-rose-700' : 'border-slate-200 bg-white text-slate-600'}`}
+                                        className={`flex items-center gap-2 rounded-lg border px-2 py-1 text-[11px] font-bold ${shouldDisableSelection ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'} ${checked ? 'border-rose-300 bg-rose-50 text-rose-700' : isFlushedSession ? 'border-slate-200 bg-slate-100 text-slate-400' : 'border-slate-200 bg-white text-slate-600'}`}
                                     >
                                         <input
                                             type="checkbox"
-                                            checked={checked}
-                                            disabled={shouldDisableCurrentSession}
+                                            checked={checked && !shouldDisableSelection}
+                                            disabled={shouldDisableSelection}
                                             onChange={() => toggleFlushSession(session.id)}
                                             className="h-3.5 w-3.5 accent-rose-600 disabled:opacity-50 disabled:cursor-not-allowed"
                                         />
                                         <span className="min-w-0">
                                             <span className="block truncate">
                                                 {session.id}
+                                                {isFlushedSession && (
+                                                    <span className="ml-2 inline-flex items-center rounded-full border border-slate-300 bg-slate-200 px-1.5 py-0.5 text-[10px] font-black text-slate-600">
+                                                        음성 비워짐
+                                                    </span>
+                                                )}
                                                 {isCurrentSession && (
                                                     <span className="ml-2 inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-black text-indigo-700">
                                                         현재 로드됨
                                                     </span>
                                                 )}
                                             </span>
-                                            <span className="block text-[10px] font-semibold text-slate-500">생성: {formatSessionCreatedAt(session.created_at)}</span>
+                                            <span className="block text-[10px] font-semibold text-slate-500">
+                                                생성: {formatSessionCreatedAt(session.created_at)}
+                                                {isFlushedSession ? ' · 용량 0MB 상태' : ''}
+                                            </span>
                                         </span>
                                     </label>
                                 );
