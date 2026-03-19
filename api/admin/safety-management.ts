@@ -16,8 +16,19 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+    process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SERVICE_ROLE_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+    {
+        global: {
+            headers: (process.env.VITE_PSI_ADMIN_SECRET || process.env.PSI_ADMIN_SECRET)
+                ? { 'x-psi-admin-secret': process.env.VITE_PSI_ADMIN_SECRET || process.env.PSI_ADMIN_SECRET || '' }
+                : {},
+        },
+    }
 );
 
 // -----------------------------------------------------------------------
