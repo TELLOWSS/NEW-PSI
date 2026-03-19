@@ -87,6 +87,48 @@ function normalizeJobField(raw: string): string {
     return JOB_FIELD_ALIASES[compact] || JOB_FIELD_ALIASES[base] || base;
 }
 
+function toTrainingAudioRelativePath(raw: unknown): string | null {
+    const value = String(raw || '').trim();
+    if (!value) return null;
+
+    let candidate = value;
+    if (/^https?:\/\//i.test(candidate)) {
+        try {
+            const parsed = new URL(candidate);
+            candidate = parsed.pathname || '';
+        } catch {
+            return null;
+        }
+    }
+
+    candidate = candidate.split('?')[0] || '';
+    candidate = candidate.replace(/^\/+/, '');
+
+    const knownPrefixes = [
+        'storage/v1/object/public/training_audio/',
+        'storage/v1/object/sign/training_audio/',
+        'storage/v1/object/authenticated/training_audio/',
+        'training_audio/',
+    ];
+
+    for (const prefix of knownPrefixes) {
+        if (candidate.startsWith(prefix)) {
+            candidate = candidate.slice(prefix.length);
+            break;
+        }
+    }
+
+    const bucketSegmentIndex = candidate.indexOf('/training_audio/');
+    if (bucketSegmentIndex >= 0) {
+        candidate = candidate.slice(bucketSegmentIndex + '/training_audio/'.length);
+    }
+
+    candidate = decodeURIComponent(candidate).replace(/^\/+/, '');
+    if (!candidate || candidate.endsWith('/')) return null;
+
+    return candidate;
+}
+
 // -----------------------------------------------------------------------
 // 액션 1: 불안전행동 기록
 // -----------------------------------------------------------------------
@@ -173,7 +215,7 @@ async function handleRegisterCoachingAction(payload: any): Promise<any> {
 
         return {
             worker_id: String(raw.worker_id).trim(),
-            assessment_month,
+            assessment_month: assessmentMonth,
             source_observation_id: raw.source_observation_id?.trim() || null,
             action_type: raw.action_type,
             action_detail: raw.action_detail?.trim() || null,
@@ -543,14 +585,39 @@ async function handleFlushAudioStorage(payload: any): Promise<any> {
     }
 
     let targetSessionIds: string[] = requestSessionIds;
+    let targetSessionRows: Array<{ id: string; audio_urls?: Record<string, string | null> | null }> = [];
+
     if (mode === 'all') {
         const { data: sessions, error: sessionsError } = await supabase
             .from('training_sessions')
-            .select('id');
+            .select('id, audio_urls');
 
         if (sessionsError) throw new Error(sessionsError.message);
 
-        targetSessionIds = (sessions || []).map((row: any) => String(row.id || '')).filter(Boolean);
+        targetSessionRows = (sessions || []).map((row: any) => ({
+            id: String(row.id || ''),
+            audio_urls: row.audio_urls && typeof row.audio_urls === 'object'
+                ? row.audio_urls as Record<string, string | null>
+                : null,
+        })).filter((row) => Boolean(row.id));
+        targetSessionIds = targetSessionRows.map((row) => row.id);
+    } else {
+        const { data: sessions, error: sessionsError } = await supabase
+            .from('training_sessions')
+            .select('id, audio_urls')
+            .in('id', requestSessionIds);
+
+        if (sessionsError) throw new Error(sessionsError.message);
+
+        targetSessionRows = (sessions || []).map((row: any) => ({
+            id: String(row.id || ''),
+            audio_urls: row.audio_urls && typeof row.audio_urls === 'object'
+                ? row.audio_urls as Record<string, string | null>
+                : null,
+        })).filter((row) => Boolean(row.id));
+        if (targetSessionRows.length > 0) {
+            targetSessionIds = targetSessionRows.map((row) => row.id);
+        }
     }
 
     if (excludeSessionIdSet.size > 0) {
@@ -573,14 +640,27 @@ async function handleFlushAudioStorage(payload: any): Promise<any> {
     }
 
     const removablePaths: string[] = [];
+    const removablePathSet = new Set<string>();
     const failedSessionIds: string[] = [];
     let removedSessionCount = 0;
     let scannedFileCount = 0;
 
-    const listAudioPathsBySession = async (sessionId: string): Promise<string[] | null> => {
+    const audioUrlPathsBySession = new Map<string, string[]>();
+    for (const row of targetSessionRows) {
+        if (!row?.id || !row.audio_urls || typeof row.audio_urls !== 'object') continue;
+        const sessionPaths = Object.values(row.audio_urls)
+            .map((urlValue) => toTrainingAudioRelativePath(urlValue))
+            .filter((path): path is string => Boolean(path));
+        if (sessionPaths.length > 0) {
+            audioUrlPathsBySession.set(row.id, Array.from(new Set(sessionPaths)));
+        }
+    }
+
+    const listAudioPathsBySession = async (sessionId: string): Promise<{ paths: string[]; listFailed: boolean }> => {
         const pageSize = 1000;
         let offset = 0;
         const paths: string[] = [];
+        let listFailed = false;
 
         while (true) {
             const { data: listedFiles, error: listError } = await supabase.storage
@@ -588,7 +668,8 @@ async function handleFlushAudioStorage(payload: any): Promise<any> {
                 .list(sessionId, { limit: pageSize, offset });
 
             if (listError) {
-                return null;
+                listFailed = true;
+                break;
             }
 
             const rows = listedFiles || [];
@@ -607,18 +688,27 @@ async function handleFlushAudioStorage(payload: any): Promise<any> {
             offset += pageSize;
         }
 
-        return paths;
+        return { paths, listFailed };
     };
 
     for (const sessionId of uniqueSessionIds) {
-        const audioPaths = await listAudioPathsBySession(sessionId);
-        if (audioPaths === null) {
+        const listed = await listAudioPathsBySession(sessionId);
+        const fromAudioUrls = (audioUrlPathsBySession.get(sessionId) || [])
+            .filter((path) => path.startsWith(`${sessionId}/`));
+        const mergedPaths = Array.from(new Set([...listed.paths, ...fromAudioUrls]));
+
+        if (listed.listFailed && mergedPaths.length === 0) {
             failedSessionIds.push(sessionId);
             continue;
         }
 
-        if (audioPaths.length > 0) {
-            removablePaths.push(...audioPaths);
+        if (mergedPaths.length > 0) {
+            for (const path of mergedPaths) {
+                if (!removablePathSet.has(path)) {
+                    removablePathSet.add(path);
+                    removablePaths.push(path);
+                }
+            }
             removedSessionCount += 1;
         }
     }

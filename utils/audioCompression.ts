@@ -1,4 +1,4 @@
-import * as lamejs from 'lamejs';
+import * as lamejs from 'lamejs/lame.all.js';
 
 type CompressionOptions = {
     targetBitrateKbps?: number;
@@ -81,7 +81,11 @@ export async function compressAudioToMp3(file: File, options: CompressionOptions
         const resampled = resampleMono(mono, decoded.sampleRate, targetSampleRate);
         const pcm = floatToInt16(resampled);
 
-        const Mp3Encoder = (lamejs as any).Mp3Encoder;
+        const lameNamespace = lamejs as any;
+        const Mp3Encoder = lameNamespace?.Mp3Encoder || lameNamespace?.default?.Mp3Encoder;
+        if (typeof Mp3Encoder !== 'function') {
+            throw new Error('lamejs Mp3Encoder를 초기화할 수 없습니다.');
+        }
         const encoder = new Mp3Encoder(1, targetSampleRate, targetBitrateKbps);
         const chunks: Uint8Array[] = [];
 

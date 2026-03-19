@@ -680,6 +680,23 @@ const AdminTraining: React.FC = () => {
         return rows;
     };
 
+    const syncCurrentSessionAudioState = (rows: TrainingSessionRow[]) => {
+        if (!currentSessionId) return;
+        const current = rows.find((session) => session.id === currentSessionId);
+        if (!current) return;
+
+        const nextAudioUrls = (current.audio_urls && typeof current.audio_urls === 'object')
+            ? current.audio_urls
+            : {};
+
+        setUploadedAudioUrls(nextAudioUrls);
+        setFailedLanguages(
+            TRAINING_AUDIO_LANGUAGES
+                .filter((lang) => !nextAudioUrls[lang.code])
+                .map((lang) => lang.label)
+        );
+    };
+
     const hydrateSessionState = async (session: TrainingSessionRow, label: string) => {
         const signed = await requestSignedMobileUrl(String(session.id));
         setMobileUrl(signed.mobileUrl);
@@ -995,9 +1012,7 @@ const AdminTraining: React.FC = () => {
             );
 
             const result = response?.data || {};
-            setUploadedAudioUrls({});
             setAudioFiles({});
-            setFailedLanguages(TRAINING_AUDIO_LANGUAGES.map((lang) => lang.label));
             setFailedLanguageAttempts({});
             setSelectedFlushSessionIds(new Set());
             pushFlushSummary({
@@ -1011,7 +1026,8 @@ const AdminTraining: React.FC = () => {
                 runAt: new Date().toISOString(),
             });
 
-            await fetchRecentSessions();
+            const refreshedRows = await fetchRecentSessions();
+            syncCurrentSessionAudioState(refreshedRows);
 
             setMessage(
                 `과거 음성 데이터 일괄 비우기 완료: 세션 ${Number(result.targetSessionCount || 0)}건 대상, ` +
@@ -1067,13 +1083,12 @@ const AdminTraining: React.FC = () => {
 
             const result = response?.data || {};
             if (currentSessionId && sessionIds.includes(currentSessionId)) {
-                setUploadedAudioUrls({});
                 setAudioFiles({});
-                setFailedLanguages(TRAINING_AUDIO_LANGUAGES.map((lang) => lang.label));
                 setFailedLanguageAttempts({});
             }
 
-            await fetchRecentSessions();
+            const refreshedRows = await fetchRecentSessions();
+            syncCurrentSessionAudioState(refreshedRows);
             setSelectedFlushSessionIds(new Set());
             pushFlushSummary({
                 mode: 'sessions',
