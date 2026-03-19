@@ -7,11 +7,15 @@ import {
     TRAINING_AUDIO_LANGUAGES,
     type TrainingAudioLanguageCode,
 } from '../utils/trainingLanguageUtils';
+import { compressAudioToMp3 } from '../utils/audioCompression';
 
 type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
 const LINK_HISTORY_STORAGE_KEY = 'psi_training_link_history';
 const ACTIVE_QR_STATE_STORAGE_KEY = 'psi_training_active_qr_state';
 const SAFETY_LEVEL_MIGRATION_REPORT_KEY = 'psi_migrated_safety_level_report_v20260316';
+const EXCLUDE_CURRENT_SESSION_FLUSH_TOGGLE_KEY = 'psi_exclude_current_session_flush_toggle_v1';
+const FLUSH_SELECTED_SESSIONS_STORAGE_KEY = 'psi_flush_selected_sessions_v1';
+const FLUSH_SUMMARY_HISTORY_STORAGE_KEY = 'psi_flush_summary_history_v1';
 
 const UI_TEXT: Record<UiLocale, {
     title: string;
@@ -355,16 +359,6 @@ type TrainingSessionRow = {
 
 type TrainingAudioFileMap = Partial<Record<TrainingAudioLanguageCode, File | null>>;
 
-const readFileAsBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-        const result = typeof reader.result === 'string' ? reader.result : '';
-        resolve(result.replace(/^data:audio\/[a-z0-9.+-]+;base64,/i, ''));
-    };
-    reader.onerror = () => reject(reader.error || new Error('파일 읽기 실패'));
-    reader.readAsDataURL(file);
-});
-
 type LinkHistoryItem = {
     sessionId: string;
     mobileUrl: string;
@@ -398,6 +392,23 @@ type SafetyLevelMigrationReport = {
     criteria: string;
 };
 
+type FlushSummary = {
+    mode: 'all' | 'sessions';
+    targetSessionCount: number;
+    updatedSessionCount: number;
+    removedFileCount: number;
+    failedSessionCount: number;
+    runAt: string;
+};
+
+const formatSizeInMb = (bytes: number): string => `${(bytes / (1024 * 1024)).toFixed(2)}MB`;
+const formatSessionCreatedAt = (value?: string): string => {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '-';
+    return parsed.toLocaleString('ko-KR');
+};
+
 const AdminTraining: React.FC = () => {
     // 관리자 UI는 요구사항에 따라 항상 한국어 고정
     const t = UI_TEXT.ko;
@@ -419,6 +430,12 @@ const AdminTraining: React.FC = () => {
     const [failedLanguageAttempts, setFailedLanguageAttempts] = useState<Record<string, string[]>>({});
     const [audioFiles, setAudioFiles] = useState<TrainingAudioFileMap>({});
     const [uploadedAudioUrls, setUploadedAudioUrls] = useState<Record<string, string | null>>({});
+    const [isAudioUploadProcessing, setIsAudioUploadProcessing] = useState(false);
+    const [isFlushingAudioStorage, setIsFlushingAudioStorage] = useState(false);
+    const [selectedFlushSessionIds, setSelectedFlushSessionIds] = useState<Set<string>>(new Set());
+    const [excludeCurrentSessionFromFlush, setExcludeCurrentSessionFromFlush] = useState(true);
+    const [flushSummary, setFlushSummary] = useState<FlushSummary | null>(null);
+    const [flushSummaryHistory, setFlushSummaryHistory] = useState<FlushSummary[]>([]);
 
     const appendLinkHistory = (item: LinkHistoryItem) => {
         setLinkHistory((prev) => {
@@ -426,6 +443,24 @@ const AdminTraining: React.FC = () => {
             localStorage.setItem(LINK_HISTORY_STORAGE_KEY, JSON.stringify(next));
             return next;
         });
+    };
+
+    const pushFlushSummary = (item: FlushSummary) => {
+        setFlushSummary(item);
+        setFlushSummaryHistory((prev) => {
+            const next = [item, ...prev].slice(0, 3);
+            localStorage.setItem(FLUSH_SUMMARY_HISTORY_STORAGE_KEY, JSON.stringify(next));
+            return next;
+        });
+    };
+
+    const clearFlushSummaryHistory = () => {
+        const ok = window.confirm('최근 비우기 이력을 초기화하시겠습니까?');
+        if (!ok) return;
+        setFlushSummary(null);
+        setFlushSummaryHistory([]);
+        localStorage.removeItem(FLUSH_SUMMARY_HISTORY_STORAGE_KEY);
+        setMessage('최근 비우기 이력을 초기화했습니다.');
     };
 
     const requestSignedMobileUrl = async (sessionId: string) => {
@@ -515,6 +550,71 @@ const AdminTraining: React.FC = () => {
             }
         } catch {
             setLinkHistory([]);
+        }
+    }, []);
+
+    useEffect(() => {
+        const raw = localStorage.getItem(EXCLUDE_CURRENT_SESSION_FLUSH_TOGGLE_KEY);
+        if (raw === null) return;
+        setExcludeCurrentSessionFromFlush(raw !== 'false');
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem(EXCLUDE_CURRENT_SESSION_FLUSH_TOGGLE_KEY, excludeCurrentSessionFromFlush ? 'true' : 'false');
+    }, [excludeCurrentSessionFromFlush]);
+
+    useEffect(() => {
+        const raw = localStorage.getItem(FLUSH_SELECTED_SESSIONS_STORAGE_KEY);
+        if (!raw) return;
+
+        try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+                const normalized = parsed
+                    .map((item: unknown) => String(item || '').trim())
+                    .filter((item: string) => Boolean(item));
+                if (normalized.length > 0) {
+                    setSelectedFlushSessionIds(new Set(normalized));
+                }
+            }
+        } catch {
+            localStorage.removeItem(FLUSH_SELECTED_SESSIONS_STORAGE_KEY);
+        }
+    }, []);
+
+    useEffect(() => {
+        localStorage.setItem(
+            FLUSH_SELECTED_SESSIONS_STORAGE_KEY,
+            JSON.stringify(Array.from(selectedFlushSessionIds))
+        );
+    }, [selectedFlushSessionIds]);
+
+    useEffect(() => {
+        const raw = localStorage.getItem(FLUSH_SUMMARY_HISTORY_STORAGE_KEY);
+        if (!raw) return;
+
+        try {
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) return;
+
+            const normalized = parsed
+                .map((entry: any) => ({
+                    mode: entry?.mode === 'sessions' ? 'sessions' : 'all',
+                    targetSessionCount: Number(entry?.targetSessionCount || 0),
+                    updatedSessionCount: Number(entry?.updatedSessionCount || 0),
+                    removedFileCount: Number(entry?.removedFileCount || 0),
+                    failedSessionCount: Number(entry?.failedSessionCount || 0),
+                    runAt: String(entry?.runAt || ''),
+                }))
+                .filter((entry: FlushSummary) => entry.runAt)
+                .slice(0, 3);
+
+            setFlushSummaryHistory(normalized);
+            if (normalized.length > 0) {
+                setFlushSummary(normalized[0]);
+            }
+        } catch {
+            localStorage.removeItem(FLUSH_SUMMARY_HISTORY_STORAGE_KEY);
         }
     }, []);
 
@@ -638,10 +738,21 @@ const AdminTraining: React.FC = () => {
         return () => window.clearInterval(timerId);
     }, [currentSessionId]);
 
+    useEffect(() => {
+        setSelectedFlushSessionIds((prev) => {
+            if (prev.size === 0) return prev;
+            const validSessionIds = new Set(recentSessions.map((session) => session.id));
+            const next = new Set(Array.from(prev).filter((id) => validSessionIds.has(id)));
+            return next.size === prev.size ? prev : next;
+        });
+    }, [recentSessions]);
+
     const handleCreate = async () => {
         setLoading(true);
+        setIsAudioUploadProcessing(false);
         setMessage('');
         setMobileUrl('');
+        setFlushSummary(null);
 
         try {
             const data = await postAdminJson<any>(
@@ -651,7 +762,14 @@ const AdminTraining: React.FC = () => {
             );
 
             const nextSessionId = String(data.sessionId || '');
-            const uploadPayload: Record<string, { fileName: string; contentType: string; base64: string }> = {};
+            const nextAudioUrls: Record<string, string | null> = Object.fromEntries(
+                TRAINING_AUDIO_LANGUAGE_CODES.map((code) => [code, null])
+            ) as Record<string, string | null>;
+            let totalOriginalBytes = 0;
+            let totalCompressedBytes = 0;
+
+            setIsAudioUploadProcessing(true);
+            setMessage('오디오 압축 및 업로드 중...');
 
             for (const language of TRAINING_AUDIO_LANGUAGES) {
                 const file = audioFiles[language.code];
@@ -668,31 +786,54 @@ const AdminTraining: React.FC = () => {
                     throw new Error(`${language.label} 파일은 MP3 또는 M4A 형식만 업로드할 수 있습니다.`);
                 }
 
-                uploadPayload[language.code] = {
-                    fileName: file.name,
-                    contentType: file.type || 'audio/mpeg',
-                    base64: await readFileAsBase64(file),
-                };
+                const compressedFile = await compressAudioToMp3(file, {
+                    targetBitrateKbps: 48,
+                    targetSampleRate: 22050,
+                });
+                totalOriginalBytes += file.size;
+                totalCompressedBytes += compressedFile.size;
+
+                const safeFileName = compressedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+                const filePath = `${nextSessionId}/${language.code}-${safeFileName}`;
+
+                const uploadRes = await supabase.storage
+                    .from('training_audio')
+                    .upload(filePath, compressedFile, {
+                        contentType: 'audio/mpeg',
+                        upsert: true,
+                    });
+
+                if (uploadRes.error) {
+                    throw new Error(`${language.label} 업로드 실패: ${uploadRes.error.message}`);
+                }
+
+                const publicUrl = supabase.storage
+                    .from('training_audio')
+                    .getPublicUrl(filePath)
+                    .data
+                    .publicUrl;
+
+                nextAudioUrls[language.code] = `${publicUrl}?v=${Date.now()}`;
             }
 
-            const syncData = await postAdminJson<any>(
-                '/api/admin/upload-training-audio',
+            const syncData = await postAdminJson<{ audioUrls?: Record<string, string | null> }>(
+                '/api/admin/update-training-audio',
                 {
                     sessionId: nextSessionId,
+                    audioUrls: nextAudioUrls,
                     originalScript: sourceTextKo,
-                    files: uploadPayload,
                 },
                 { fallbackMessage: 'MP3/M4A 업로드 저장 실패' }
             );
-            const nextAudioUrls = (syncData.audioUrls && typeof syncData.audioUrls === 'object')
+            const resolvedAudioUrls = (syncData.audioUrls && typeof syncData.audioUrls === 'object')
                 ? syncData.audioUrls as Record<string, string | null>
-                : Object.fromEntries(TRAINING_AUDIO_LANGUAGE_CODES.map((code) => [code, null]));
+                : nextAudioUrls;
 
             setMobileUrl(data.mobileUrl || '');
             setCurrentSessionId(nextSessionId);
             setLinkExpiresAt(Number.isFinite(Number(data.linkExpiresAt)) ? Number(data.linkExpiresAt) : null);
-            setUploadedAudioUrls(nextAudioUrls);
-            setFailedLanguages(TRAINING_AUDIO_LANGUAGES.filter((lang) => !nextAudioUrls[lang.code]).map((lang) => lang.label));
+            setUploadedAudioUrls(resolvedAudioUrls);
+            setFailedLanguages(TRAINING_AUDIO_LANGUAGES.filter((lang) => !resolvedAudioUrls[lang.code]).map((lang) => lang.label));
             setFailedLanguageAttempts({});
 
             if (nextSessionId && data.mobileUrl) {
@@ -706,10 +847,18 @@ const AdminTraining: React.FC = () => {
             }
 
             await fetchRecentSessions();
-            setMessage('세션 생성 및 11개국 MP3/M4A 업로드 반영이 완료되었습니다. 아래 QR을 근로자에게 공유하세요.');
+            const reductionRate = totalOriginalBytes > 0
+                ? ((1 - (totalCompressedBytes / totalOriginalBytes)) * 100)
+                : 0;
+            const compressionSummary = totalOriginalBytes > 0
+                ? ` (압축: ${formatSizeInMb(totalOriginalBytes)} → ${formatSizeInMb(totalCompressedBytes)}, ${reductionRate.toFixed(1)}% 절감)`
+                : '';
+
+            setMessage(`세션 생성 및 11개국 MP3/M4A 업로드 반영이 완료되었습니다${compressionSummary}. 아래 QR을 근로자에게 공유하세요.`);
         } catch (error: any) {
             setMessage(`오류: ${error?.message || '알 수 없는 오류'}`);
         } finally {
+            setIsAudioUploadProcessing(false);
             setLoading(false);
         }
     };
@@ -798,6 +947,142 @@ const AdminTraining: React.FC = () => {
         }
     };
 
+    const toggleFlushSession = (sessionId: string) => {
+        setSelectedFlushSessionIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(sessionId)) {
+                next.delete(sessionId);
+            } else {
+                next.add(sessionId);
+            }
+            return next;
+        });
+    };
+
+    const handleFlushAudioStorage = async () => {
+        const ok = window.confirm(
+            (currentSessionId && excludeCurrentSessionFromFlush)
+                ? '과거 교육 세션의 음성 파일이 삭제되어 용량이 확보됩니다. (현재 로드 세션은 제외, 텍스트 대본은 유지) 진행하시겠습니까?'
+                : '과거 교육 세션의 모든 음성 파일이 삭제되어 용량이 확보됩니다. (텍스트 대본은 유지됨) 진행하시겠습니까?'
+        );
+        if (!ok) return;
+
+        setIsFlushingAudioStorage(true);
+        setMessage('과거 음성 데이터 일괄 비우기 실행 중...');
+
+        try {
+            const response = await postAdminJson<{ data?: {
+                targetSessionCount?: number;
+                updatedSessionCount?: number;
+                removedFileCount?: number;
+                failedSessionCount?: number;
+            } }>(
+                '/api/admin/safety-management',
+                {
+                    action: 'flush-audio-storage',
+                    payload: {
+                        mode: 'all',
+                        excludeSessionIds: (currentSessionId && excludeCurrentSessionFromFlush) ? [currentSessionId] : [],
+                    },
+                },
+                { fallbackMessage: '과거 음성 데이터 비우기 실패' }
+            );
+
+            const result = response?.data || {};
+            setUploadedAudioUrls({});
+            setFailedLanguages(TRAINING_AUDIO_LANGUAGES.map((lang) => lang.label));
+            setFailedLanguageAttempts({});
+            setSelectedFlushSessionIds(new Set());
+            pushFlushSummary({
+                mode: 'all',
+                targetSessionCount: Number(result.targetSessionCount || 0),
+                updatedSessionCount: Number(result.updatedSessionCount || 0),
+                removedFileCount: Number(result.removedFileCount || 0),
+                failedSessionCount: Number(result.failedSessionCount || 0),
+                runAt: new Date().toISOString(),
+            });
+
+            await fetchRecentSessions();
+
+            setMessage(
+                `과거 음성 데이터 일괄 비우기 완료: 세션 ${Number(result.targetSessionCount || 0)}건 대상, ` +
+                `오디오 파일 ${Number(result.removedFileCount || 0)}개 삭제, ` +
+                `audio_urls ${Number(result.updatedSessionCount || 0)}건 초기화` +
+                (Number(result.failedSessionCount || 0) > 0 ? `, 일부 세션 실패 ${Number(result.failedSessionCount || 0)}건` : '')
+            );
+        } catch (error: any) {
+            setMessage(`오류: ${error?.message || '과거 음성 데이터 비우기 실패'}`);
+        } finally {
+            setIsFlushingAudioStorage(false);
+        }
+    };
+
+    const handleFlushSelectedSessions = async () => {
+        const sessionIds = Array.from(selectedFlushSessionIds).filter(
+            (id) => !(excludeCurrentSessionFromFlush && id === currentSessionId)
+        );
+        if (sessionIds.length === 0) {
+            alert((currentSessionId && excludeCurrentSessionFromFlush)
+                ? '현재 로드된 세션을 제외하고 비우기 대상 세션을 1개 이상 선택해 주세요.'
+                : '비우기 대상 세션을 1개 이상 선택해 주세요.');
+            return;
+        }
+
+        const ok = window.confirm(`선택한 ${sessionIds.length}개 세션의 음성 파일만 삭제합니다. (텍스트 대본은 유지됨) 진행하시겠습니까?`);
+        if (!ok) return;
+
+        setIsFlushingAudioStorage(true);
+        setMessage('선택 세션 음성 데이터 비우기 실행 중...');
+
+        try {
+            const response = await postAdminJson<{ data?: {
+                targetSessionCount?: number;
+                updatedSessionCount?: number;
+                removedFileCount?: number;
+                failedSessionCount?: number;
+            } }>(
+                '/api/admin/safety-management',
+                {
+                    action: 'flush-audio-storage',
+                    payload: {
+                        mode: 'sessions',
+                        sessionIds,
+                    },
+                },
+                { fallbackMessage: '선택 세션 음성 데이터 비우기 실패' }
+            );
+
+            const result = response?.data || {};
+            if (currentSessionId && sessionIds.includes(currentSessionId)) {
+                setUploadedAudioUrls({});
+                setFailedLanguages(TRAINING_AUDIO_LANGUAGES.map((lang) => lang.label));
+                setFailedLanguageAttempts({});
+            }
+
+            await fetchRecentSessions();
+            setSelectedFlushSessionIds(new Set());
+            pushFlushSummary({
+                mode: 'sessions',
+                targetSessionCount: Number(result.targetSessionCount || 0),
+                updatedSessionCount: Number(result.updatedSessionCount || 0),
+                removedFileCount: Number(result.removedFileCount || 0),
+                failedSessionCount: Number(result.failedSessionCount || 0),
+                runAt: new Date().toISOString(),
+            });
+
+            setMessage(
+                `선택 세션 음성 비우기 완료: 세션 ${Number(result.targetSessionCount || 0)}건 대상, ` +
+                `오디오 파일 ${Number(result.removedFileCount || 0)}개 삭제, ` +
+                `audio_urls ${Number(result.updatedSessionCount || 0)}건 초기화` +
+                (Number(result.failedSessionCount || 0) > 0 ? `, 일부 세션 실패 ${Number(result.failedSessionCount || 0)}건` : '')
+            );
+        } catch (error: any) {
+            setMessage(`오류: ${error?.message || '선택 세션 음성 데이터 비우기 실패'}`);
+        } finally {
+            setIsFlushingAudioStorage(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
@@ -847,8 +1132,147 @@ const AdminTraining: React.FC = () => {
                     disabled={loading}
                     className="mt-4 px-6 py-3 rounded-xl bg-indigo-600 text-white font-black text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                    {loading ? '생성 중...' : '생성'}
+                    {loading
+                        ? (isAudioUploadProcessing ? '오디오 압축 및 업로드 중...' : '생성 중...')
+                        : '생성'}
                 </button>
+
+                <button
+                    type="button"
+                    onClick={handleFlushAudioStorage}
+                    disabled={loading || isFlushingAudioStorage}
+                    className="mt-3 px-6 py-3 rounded-xl bg-rose-600 text-white font-black text-sm hover:bg-rose-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                    {isFlushingAudioStorage
+                        ? '과거 음성 데이터 일괄 비우기 실행 중...'
+                        : '과거 음성 데이터 일괄 비우기 (용량 확보)'}
+                </button>
+
+                <label className="mt-3 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700">
+                    <input
+                        type="checkbox"
+                        checked={excludeCurrentSessionFromFlush}
+                        onChange={(e) => setExcludeCurrentSessionFromFlush(e.target.checked)}
+                        className="h-3.5 w-3.5 accent-indigo-600"
+                    />
+                    현재 로드 세션 제외 유지
+                </label>
+
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs font-black text-slate-700">선택 세션만 비우기</p>
+                    {recentSessions.length === 0 ? (
+                        <p className="mt-2 text-[11px] font-bold text-slate-500">선택 가능한 최근 세션이 없습니다.</p>
+                    ) : (
+                        <div className="mt-2 space-y-2">
+                            {recentSessions.map((session) => {
+                                const checked = selectedFlushSessionIds.has(session.id);
+                                const isCurrentSession = session.id === currentSessionId;
+                                const shouldDisableCurrentSession = isCurrentSession && excludeCurrentSessionFromFlush;
+                                return (
+                                    <label
+                                        key={session.id}
+                                        className={`flex items-center gap-2 rounded-lg border px-2 py-1 text-[11px] font-bold cursor-pointer ${checked ? 'border-rose-300 bg-rose-50 text-rose-700' : 'border-slate-200 bg-white text-slate-600'}`}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            disabled={shouldDisableCurrentSession}
+                                            onChange={() => toggleFlushSession(session.id)}
+                                            className="h-3.5 w-3.5 accent-rose-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        />
+                                        <span className="min-w-0">
+                                            <span className="block truncate">
+                                                {session.id}
+                                                {isCurrentSession && (
+                                                    <span className="ml-2 inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-black text-indigo-700">
+                                                        현재 로드됨
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <span className="block text-[10px] font-semibold text-slate-500">생성: {formatSessionCreatedAt(session.created_at)}</span>
+                                        </span>
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    <button
+                        type="button"
+                        onClick={handleFlushSelectedSessions}
+                        disabled={loading || isFlushingAudioStorage || selectedFlushSessionIds.size === 0}
+                        className="mt-3 px-4 py-2 rounded-lg bg-rose-500 text-white font-black text-xs hover:bg-rose-600 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                        {isFlushingAudioStorage
+                            ? '선택 세션 비우기 실행 중...'
+                            : `선택 세션만 비우기 (${selectedFlushSessionIds.size})`}
+                    </button>
+                </div>
+
+                {loading && isAudioUploadProcessing && (
+                    <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2">
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-300 border-t-indigo-600" />
+                        <span className="text-xs font-black text-indigo-700">오디오 압축 및 업로드 중...</span>
+                    </div>
+                )}
+
+                {isFlushingAudioStorage && (
+                    <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2">
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-rose-300 border-t-rose-600" />
+                        <span className="text-xs font-black text-rose-700">과거 음성 데이터 일괄 비우기 실행 중...</span>
+                    </div>
+                )}
+
+                {flushSummary && (
+                    <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                        <p className="text-xs font-black text-emerald-800">
+                            비우기 완료 요약 ({flushSummary.mode === 'all' ? '전체' : '선택 세션'})
+                        </p>
+                        <p className="mt-1 text-[10px] font-bold text-emerald-700">
+                            실행 시각: {formatSessionCreatedAt(flushSummary.runAt)}
+                        </p>
+                        <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <div className="rounded-lg border border-emerald-200 bg-white px-2 py-2">
+                                <p className="text-[10px] font-black text-emerald-700">대상 세션</p>
+                                <p className="text-sm font-black text-emerald-900">{flushSummary.targetSessionCount}</p>
+                            </div>
+                            <div className="rounded-lg border border-emerald-200 bg-white px-2 py-2">
+                                <p className="text-[10px] font-black text-emerald-700">초기화 세션</p>
+                                <p className="text-sm font-black text-emerald-900">{flushSummary.updatedSessionCount}</p>
+                            </div>
+                            <div className="rounded-lg border border-emerald-200 bg-white px-2 py-2">
+                                <p className="text-[10px] font-black text-emerald-700">삭제 파일</p>
+                                <p className="text-sm font-black text-emerald-900">{flushSummary.removedFileCount}</p>
+                            </div>
+                            <div className="rounded-lg border border-emerald-200 bg-white px-2 py-2">
+                                <p className="text-[10px] font-black text-emerald-700">실패 세션</p>
+                                <p className="text-sm font-black text-emerald-900">{flushSummary.failedSessionCount}</p>
+                            </div>
+                        </div>
+
+                        {flushSummaryHistory.length > 0 && (
+                            <div className="mt-3 rounded-lg border border-emerald-200 bg-white p-2">
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="text-[10px] font-black text-emerald-700">최근 비우기 이력 (최대 3회)</p>
+                                    <button
+                                        type="button"
+                                        onClick={clearFlushSummaryHistory}
+                                        className="inline-flex items-center rounded-md border border-emerald-200 bg-white px-2 py-0.5 text-[10px] font-black text-emerald-700 hover:bg-emerald-50"
+                                    >
+                                        이력 초기화
+                                    </button>
+                                </div>
+                                <div className="mt-1 space-y-1">
+                                    {flushSummaryHistory.map((entry, index) => (
+                                        <p key={`${entry.runAt}-${index}`} className="text-[10px] font-bold text-slate-700">
+                                            {index + 1}. {formatSessionCreatedAt(entry.runAt)} · {entry.mode === 'all' ? '전체' : '선택'} · 파일 {entry.removedFileCount}개 · 세션 {entry.updatedSessionCount}건
+                                        </p>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {message && <p className="mt-4 text-sm font-bold text-slate-700">{message}</p>}
             </div>

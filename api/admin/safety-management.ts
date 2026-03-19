@@ -5,7 +5,7 @@
  *
  * Body 형식:
  *   {
- *     action: 'record-unsafe-behavior' | 'register-coaching-action' | 'evaluate-worker-integrity' | 'bulk-upload-workers',
+ *     action: 'record-unsafe-behavior' | 'register-coaching-action' | 'evaluate-worker-integrity' | 'bulk-upload-workers' | 'flush-audio-storage',
  *     payload: { ... 액션별 필드 }
  *   }
  *
@@ -524,6 +524,120 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
 }
 
 // -----------------------------------------------------------------------
+// 액션 5: 과거 교육 음성 스토리지 일괄 비우기
+// -----------------------------------------------------------------------
+async function handleFlushAudioStorage(payload: any): Promise<any> {
+    const mode = payload?.mode === 'sessions' ? 'sessions' : 'all';
+    const requestSessionIds: string[] = Array.isArray(payload?.sessionIds)
+        ? payload.sessionIds.map((id: any) => String(id || '').trim()).filter(Boolean)
+        : [];
+    const excludeSessionIdSet = new Set<string>(
+        Array.isArray(payload?.excludeSessionIds)
+            ? payload.excludeSessionIds.map((id: any) => String(id || '').trim()).filter(Boolean)
+            : []
+    );
+
+    if (mode === 'sessions' && requestSessionIds.length === 0) {
+        throw new Error('mode=sessions 인 경우 sessionIds 배열이 필요합니다.');
+    }
+
+    let targetSessionIds: string[] = requestSessionIds;
+    if (mode === 'all') {
+        const { data: sessions, error: sessionsError } = await supabase
+            .from('training_sessions')
+            .select('id');
+
+        if (sessionsError) throw new Error(sessionsError.message);
+
+        targetSessionIds = (sessions || []).map((row: any) => String(row.id || '')).filter(Boolean);
+    }
+
+    if (excludeSessionIdSet.size > 0) {
+        targetSessionIds = targetSessionIds.filter((id) => !excludeSessionIdSet.has(id));
+    }
+
+    const uniqueSessionIds: string[] = Array.from(new Set(targetSessionIds));
+    if (uniqueSessionIds.length === 0) {
+        return {
+            mode,
+            targetSessionCount: 0,
+            updatedSessionCount: 0,
+            removedFileCount: 0,
+            removedSessionCount: 0,
+            failedSessionCount: 0,
+            failedSessionIds: [],
+        };
+    }
+
+    const removablePaths: string[] = [];
+    const failedSessionIds: string[] = [];
+    let removedSessionCount = 0;
+
+    for (const sessionId of uniqueSessionIds) {
+        const { data: listedFiles, error: listError } = await supabase.storage
+            .from('training_audio')
+            .list(sessionId, { limit: 1000 });
+
+        if (listError) {
+            failedSessionIds.push(sessionId);
+            continue;
+        }
+
+        const audioPaths = (listedFiles || [])
+            .map((file: any) => String(file?.name || ''))
+            .filter((name: string) => /\.(mp3|m4a)$/i.test(name))
+            .map((name: string) => `${sessionId}/${name}`);
+
+        if (audioPaths.length > 0) {
+            removablePaths.push(...audioPaths);
+            removedSessionCount += 1;
+        }
+    }
+
+    let removedFileCount = 0;
+    for (let index = 0; index < removablePaths.length; index += 100) {
+        const chunk = removablePaths.slice(index, index + 100);
+        if (chunk.length === 0) continue;
+
+        const { error: removeError } = await supabase.storage
+            .from('training_audio')
+            .remove(chunk);
+
+        if (removeError) {
+            throw new Error(`스토리지 삭제 실패: ${removeError.message}`);
+        }
+        removedFileCount += chunk.length;
+    }
+
+    let updatedSessionCount = 0;
+    for (let index = 0; index < uniqueSessionIds.length; index += 200) {
+        const chunkSessionIds = uniqueSessionIds.slice(index, index + 200);
+        if (chunkSessionIds.length === 0) continue;
+
+        const { error: updateError } = await supabase
+            .from('training_sessions')
+            .update({ audio_urls: {} })
+            .in('id', chunkSessionIds);
+
+        if (updateError) {
+            throw new Error(`training_sessions audio_urls 초기화 실패: ${updateError.message}`);
+        }
+
+        updatedSessionCount += chunkSessionIds.length;
+    }
+
+    return {
+        mode,
+        targetSessionCount: uniqueSessionIds.length,
+        updatedSessionCount,
+        removedFileCount,
+        removedSessionCount,
+        failedSessionCount: failedSessionIds.length,
+        failedSessionIds,
+    };
+}
+
+// -----------------------------------------------------------------------
 // 메인 핸들러
 // -----------------------------------------------------------------------
 export default async function handler(req: any, res: any) {
@@ -555,6 +669,10 @@ export default async function handler(req: any, res: any) {
 
             case 'bulk-upload-workers':
                 data = await handleBulkUploadWorkers(payload);
+                break;
+
+            case 'flush-audio-storage':
+                data = await handleFlushAudioStorage(payload);
                 break;
 
             default:
