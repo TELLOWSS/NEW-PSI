@@ -16,6 +16,8 @@ const SAFETY_LEVEL_MIGRATION_REPORT_KEY = 'psi_migrated_safety_level_report_v202
 const EXCLUDE_CURRENT_SESSION_FLUSH_TOGGLE_KEY = 'psi_exclude_current_session_flush_toggle_v1';
 const FLUSH_SELECTED_SESSIONS_STORAGE_KEY = 'psi_flush_selected_sessions_v1';
 const FLUSH_SUMMARY_HISTORY_STORAGE_KEY = 'psi_flush_summary_history_v1';
+const MAX_ORIGINAL_AUDIO_UPLOAD_BYTES = 3 * 1024 * 1024;
+const STRICT_AUDIO_GUARD_MESSAGE = '오디오 압축에 실패했습니다. 서버 트래픽 보호를 위해 3MB 이하의 파일만 업로드할 수 있습니다.';
 
 const UI_TEXT: Record<UiLocale, {
     title: string;
@@ -807,20 +809,29 @@ const AdminTraining: React.FC = () => {
                     throw new Error(`${language.label} 파일은 MP3 또는 M4A 형식만 업로드할 수 있습니다.`);
                 }
 
-                const compressedFile = await compressAudioToMp3(file, {
-                    targetBitrateKbps: 48,
-                    targetSampleRate: 22050,
-                });
-                totalOriginalBytes += file.size;
-                totalCompressedBytes += compressedFile.size;
+                let uploadFile: File;
+                try {
+                    uploadFile = await compressAudioToMp3(file, {
+                        targetBitrateKbps: 64,
+                    });
+                } catch {
+                    if (file.size > MAX_ORIGINAL_AUDIO_UPLOAD_BYTES) {
+                        alert(STRICT_AUDIO_GUARD_MESSAGE);
+                        throw new Error(STRICT_AUDIO_GUARD_MESSAGE);
+                    }
+                    uploadFile = file;
+                }
 
-                const safeFileName = compressedFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+                totalOriginalBytes += file.size;
+                totalCompressedBytes += uploadFile.size;
+
+                const safeFileName = uploadFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
                 const filePath = `${nextSessionId}/${language.code}-${safeFileName}`;
 
                 const uploadRes = await supabase.storage
                     .from('training_audio')
-                    .upload(filePath, compressedFile, {
-                        contentType: 'audio/mpeg',
+                    .upload(filePath, uploadFile, {
+                        contentType: uploadFile.type || 'audio/mpeg',
                         upsert: true,
                     });
 

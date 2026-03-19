@@ -69,16 +69,17 @@ const normalizeFileName = (fileName: string): string => {
 };
 
 export async function compressAudioToMp3(file: File, options: CompressionOptions = {}): Promise<File> {
-    const targetBitrateKbps = Math.min(64, Math.max(24, options.targetBitrateKbps || DEFAULT_BITRATE_KBPS));
-    const targetSampleRate = options.targetSampleRate || DEFAULT_SAMPLE_RATE;
+    const targetBitrateKbps = Math.min(64, Math.max(64, options.targetBitrateKbps || 64));
 
     const inputBuffer = await file.arrayBuffer();
     const audioContext = new AudioContext();
 
     try {
         const decoded = await audioContext.decodeAudioData(inputBuffer.slice(0));
+        const decodedSampleRate = Math.round(Number(decoded.sampleRate) || DEFAULT_SAMPLE_RATE);
+        const encoderSampleRate = Math.max(8000, Math.min(48000, decodedSampleRate));
         const mono = mixToMono(decoded);
-        const resampled = resampleMono(mono, decoded.sampleRate, targetSampleRate);
+        const resampled = resampleMono(mono, decoded.sampleRate, encoderSampleRate);
         const pcm = floatToInt16(resampled);
 
         const lameNamespace = lamejs as any;
@@ -86,7 +87,7 @@ export async function compressAudioToMp3(file: File, options: CompressionOptions
         if (typeof Mp3Encoder !== 'function') {
             throw new Error('lamejs Mp3Encoder를 초기화할 수 없습니다.');
         }
-        const encoder = new Mp3Encoder(1, targetSampleRate, targetBitrateKbps);
+        const encoder = new Mp3Encoder(1, encoderSampleRate, targetBitrateKbps);
         const chunks: Uint8Array[] = [];
 
         for (let offset = 0; offset < pcm.length; offset += MP3_FRAME_SAMPLE_COUNT) {
