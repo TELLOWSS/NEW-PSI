@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { buildSignedTrainingMobileUrl, resolveLinkTtlMinutes } from '../shared/trainingLinkToken.js';
-import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../shared/adminAuthGuard';
+import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../shared/adminAuthGuard.js';
 
 // ─── 백엔드 전용 언어 코드 (프론트엔드 utils 의존성 제거) ────────────────────
 

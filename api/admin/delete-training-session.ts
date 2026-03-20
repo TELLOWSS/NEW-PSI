@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../shared/adminAuthGuard';
+import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../shared/adminAuthGuard.js';
 
 function getSupabaseClient() {
     const supabaseUrl =

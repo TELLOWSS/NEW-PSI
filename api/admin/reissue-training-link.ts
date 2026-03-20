@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { buildSignedTrainingMobileUrl, resolveLinkTtlMinutes } from '../shared/trainingLinkToken.js';
-import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../shared/adminAuthGuard';
+import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../shared/adminAuthGuard.js';
 
 function getSupabaseClient() {
     const supabaseUrl =
