@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { supabase } from '../lib/supabaseClient';
 import { postAdminJson } from '../utils/adminApiClient';
@@ -406,6 +406,14 @@ type FlushSummary = {
     runAt: string;
 };
 
+type SignatureRosterRow = {
+    id: string;
+    submitted_at: string;
+    nationality: string;
+    worker_name: string;
+    signature_url: string;
+};
+
 const formatSizeInMb = (bytes: number): string => `${(bytes / (1024 * 1024)).toFixed(2)}MB`;
 const formatSessionCreatedAt = (value?: string): string => {
     if (!value) return '-';
@@ -449,6 +457,11 @@ const AdminTraining: React.FC = () => {
     const [flushSummary, setFlushSummary] = useState<FlushSummary | null>(null);
     const [flushSummaryHistory, setFlushSummaryHistory] = useState<FlushSummary[]>([]);
     const [uploadWarningMessage, setUploadWarningMessage] = useState('');
+    const [signatureRoster, setSignatureRoster] = useState<SignatureRosterRow[]>([]);
+    const [rosterLoading, setRosterLoading] = useState(false);
+    const [rosterError, setRosterError] = useState('');
+    const [signatureModalUrl, setSignatureModalUrl] = useState('');
+    const rosterPollingRef = useRef<number | null>(null);
 
     const appendLinkHistory = (item: LinkHistoryItem) => {
         setLinkHistory((prev) => {
@@ -524,6 +537,34 @@ const AdminTraining: React.FC = () => {
             setMigrationReport(null);
         }
     };
+
+    const fetchSignatureRoster = useCallback(async (sessionId: string) => {
+        if (!sessionId) return;
+        setRosterLoading(true);
+        setRosterError('');
+        try {
+            const { data, error } = await supabase
+                .from('training_logs')
+                .select('id, submitted_at, nationality, worker_name, signature_url')
+                .eq('session_id', sessionId)
+                .order('submitted_at', { ascending: false })
+                .limit(200);
+            if (error) throw new Error(error.message);
+            setSignatureRoster(
+                (data || []).map((row: any) => ({
+                    id: String(row.id ?? ''),
+                    submitted_at: String(row.submitted_at ?? ''),
+                    nationality: String(row.nationality ?? ''),
+                    worker_name: String(row.worker_name ?? ''),
+                    signature_url: String(row.signature_url ?? ''),
+                }))
+            );
+        } catch (e: any) {
+            setRosterError(e?.message || '명부 조회 실패');
+        } finally {
+            setRosterLoading(false);
+        }
+    }, []);
 
     const fetchAwarenessStats = async (sessionId: string) => {
         setAwarenessLoading(true);
@@ -763,12 +804,24 @@ const AdminTraining: React.FC = () => {
         }
 
         void fetchAwarenessStats(currentSessionId);
-        const timerId = window.setInterval(() => {
+        void fetchSignatureRoster(currentSessionId);
+
+        const awarenessTimerId = window.setInterval(() => {
             void fetchAwarenessStats(currentSessionId);
         }, 20000);
 
-        return () => window.clearInterval(timerId);
-    }, [currentSessionId]);
+        rosterPollingRef.current = window.setInterval(() => {
+            void fetchSignatureRoster(currentSessionId);
+        }, 10000);
+
+        return () => {
+            window.clearInterval(awarenessTimerId);
+            if (rosterPollingRef.current !== null) {
+                window.clearInterval(rosterPollingRef.current);
+                rosterPollingRef.current = null;
+            }
+        };
+    }, [currentSessionId, fetchSignatureRoster]);
 
     useEffect(() => {
         setSelectedFlushSessionIds((prev) => {
@@ -1420,6 +1473,121 @@ const AdminTraining: React.FC = () => {
                     <p className="mt-3 text-sm font-bold text-slate-500">{t.recentEmpty}</p>
                 )}
             </div>
+
+            {/* 위험성평가 서명 완료 명부 */}
+            {currentSessionId && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div>
+                            <h3 className="text-lg font-black text-slate-900">위험성평가 서명 완료 명부</h3>
+                            <p className="mt-1 text-xs font-bold text-slate-500">현재 세션에 제출된 서명 목록 · 10초마다 자동 갱신</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => void fetchSignatureRoster(currentSessionId)}
+                            disabled={rosterLoading}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                            {rosterLoading ? '불러오는 중...' : '새로고침'}
+                        </button>
+                    </div>
+
+                    {rosterError && (
+                        <p className="mt-3 text-sm font-bold text-rose-700">오류: {rosterError}</p>
+                    )}
+
+                    {!rosterError && signatureRoster.length === 0 && !rosterLoading && (
+                        <p className="mt-3 text-sm font-bold text-slate-400">아직 제출된 서명이 없습니다.</p>
+                    )}
+
+                    {signatureRoster.length > 0 && (
+                        <div className="mt-4 overflow-x-auto">
+                            <table className="min-w-full text-sm">
+                                <thead>
+                                    <tr className="border-b border-slate-200 bg-slate-50">
+                                        <th className="px-3 py-2 text-left text-[11px] font-black text-slate-500 whitespace-nowrap">순번</th>
+                                        <th className="px-3 py-2 text-left text-[11px] font-black text-slate-500 whitespace-nowrap">제출 시간</th>
+                                        <th className="px-3 py-2 text-left text-[11px] font-black text-slate-500 whitespace-nowrap">국적</th>
+                                        <th className="px-3 py-2 text-left text-[11px] font-black text-slate-500 whitespace-nowrap">이름</th>
+                                        <th className="px-3 py-2 text-left text-[11px] font-black text-slate-500 whitespace-nowrap">서명 확인</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {signatureRoster.map((row, index) => (
+                                        <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50/60">
+                                            <td className="px-3 py-2 text-xs font-bold text-slate-500 whitespace-nowrap">
+                                                {signatureRoster.length - index}
+                                            </td>
+                                            <td className="px-3 py-2 text-xs font-bold text-slate-700 whitespace-nowrap">
+                                                {row.submitted_at
+                                                    ? new Date(row.submitted_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                                                    : '-'}
+                                            </td>
+                                            <td className="px-3 py-2 text-xs font-bold text-slate-700 whitespace-nowrap">
+                                                {row.nationality || '-'}
+                                            </td>
+                                            <td className="px-3 py-2 text-xs font-black text-slate-900 whitespace-nowrap">
+                                                {row.worker_name || '-'}
+                                            </td>
+                                            <td className="px-3 py-2">
+                                                {row.signature_url ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setSignatureModalUrl(row.signature_url)}
+                                                        className="block rounded border border-slate-200 bg-white hover:border-indigo-300 overflow-hidden"
+                                                        title="클릭하면 원본 서명을 크게 볼 수 있습니다"
+                                                    >
+                                                        <img
+                                                            src={row.signature_url}
+                                                            alt={`${row.worker_name} 서명`}
+                                                            style={{ height: 40, maxWidth: 120, objectFit: 'contain', display: 'block' }}
+                                                        />
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-[11px] font-bold text-slate-400">–</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    <p className="mt-2 text-[11px] font-bold text-slate-400 text-right">총 {signatureRoster.length}명</p>
+                </div>
+            )}
+
+            {/* 서명 원본 팝업 Modal */}
+            {signatureModalUrl && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+                    onClick={() => setSignatureModalUrl('')}
+                >
+                    <div
+                        className="relative bg-white rounded-2xl shadow-2xl p-5 max-w-lg w-full"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between mb-3">
+                            <p className="text-sm font-black text-slate-900">서명 원본</p>
+                            <button
+                                type="button"
+                                onClick={() => setSignatureModalUrl('')}
+                                className="text-slate-400 hover:text-slate-700 text-lg font-black leading-none"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <img
+                            src={signatureModalUrl}
+                            alt="서명 원본"
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50"
+                            style={{ maxHeight: '70vh', objectFit: 'contain' }}
+                        />
+                        <p className="mt-3 text-[11px] font-bold text-slate-400 break-all">{signatureModalUrl}</p>
+                    </div>
+                </div>
+            )}
 
             {mobileUrl && (
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
