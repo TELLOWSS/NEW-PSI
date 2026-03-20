@@ -123,10 +123,7 @@ async function handleSingleSignature(payload: any): Promise<any> {
         throw new Error('위험성평가 숙지 체크가 필요합니다.');
     }
 
-    const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-    );
+    const supabase = getSupabaseClient();
 
     const fileBuffer = Buffer.from(match[1], 'base64');
     const path = buildSignatureStoragePath(sessionId);
@@ -372,6 +369,18 @@ export default async function handler(req: any, res: any) {
         });
     } catch (err: any) {
         console.error('[submit-training] error:', err);
-        return res.status(500).json({ ok: false, message: err?.message || '서명 제출 실패' });
+        // 디버그: 실제 Supabase raw error 정보를 그대로 반환 (임시 진단 모드)
+        const debugInfo = {
+            message: err?.message || null,
+            code: err?.code || null,
+            details: err?.details || null,
+            hint: err?.hint || null,
+            stack: err?.stack ? String(err.stack).substring(0, 500) : null,
+        };
+        return res.status(500).json({
+            ok: false,
+            message: err?.message || '서명 제출 실패',
+            debug: debugInfo,
+        });
     }
 }
