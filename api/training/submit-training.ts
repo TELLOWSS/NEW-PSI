@@ -26,6 +26,25 @@ function buildSignatureStoragePath(sessionId: string, options?: { prefix?: strin
         : `${normalizedSessionId}/${fileName}`;
 }
 
+async function insertTrainingLogWithSchemaFallback(supabase: any, row: Record<string, unknown>) {
+    const firstTry = await supabase.from('training_logs').insert(row);
+    if (!firstTry.error) return;
+
+    const message = String(firstTry.error?.message || '').toLowerCase();
+    const details = String((firstTry.error as any)?.details || '').toLowerCase();
+    const missingAudioUrlColumn = message.includes('audio_url') || details.includes('audio_url');
+
+    if (!missingAudioUrlColumn) {
+        throw new Error(firstTry.error.message || 'training_logs 저장 실패');
+    }
+
+    const { audio_url: _ignoredAudioUrl, ...fallbackRow } = row;
+    const secondTry = await supabase.from('training_logs').insert(fallbackRow);
+    if (secondTry.error) {
+        throw new Error(secondTry.error.message || 'training_logs 저장 실패');
+    }
+}
+
 // -----------------------------------------------------------------------
 // Supabase 클라이언트 생성
 // -----------------------------------------------------------------------
@@ -122,7 +141,8 @@ async function handleSingleSignature(payload: any): Promise<any> {
     const pub = supabase.storage.from('signatures').getPublicUrl(path);
     const signatureUrl = pub.data.publicUrl;
 
-    const { error: logError } = await supabase.from('training_logs').insert({
+    try {
+        await insertTrainingLogWithSchemaFallback(supabase, {
         session_id: sessionId,
         worker_id: String(workerId).trim(),
         worker_name: normalizedWorkerName,
@@ -133,9 +153,10 @@ async function handleSingleSignature(payload: any): Promise<any> {
         is_manager_proxy: Boolean(isManagerProxy),
         signature_method: Boolean(isManagerProxy) ? 'manager_proxy' : 'worker_self',
         submitted_at: new Date().toISOString(),
-    });
-
-    if (logError) throw new Error(`training_logs 저장 실패: ${logError.message}`);
+        });
+    } catch (error: any) {
+        throw new Error(`training_logs 저장 실패: ${error?.message || 'unknown error'}`);
+    }
 
     const checklistPayload = (checklist && typeof checklist === 'object')
         ? {
@@ -275,20 +296,22 @@ async function handleGroupSignatures(payload: any): Promise<any> {
 
         const publicUrl = supabase.storage.from('signatures').getPublicUrl(path).data.publicUrl;
 
-        const { error: logErr } = await supabase.from('training_logs').insert({
-            session_id: sessionId,
-            worker_id: worker.id,
-            worker_name: worker.name,
-            nationality: worker.nationality || null,
-            signature_url: publicUrl,
-            audio_url: selectedAudioUrl || null,
-            selected_language_code: selectedLanguageCode || null,
-            is_manager_proxy: Boolean(isManagerProxy ?? true),
-            signature_method: 'manager_group_proxy',
-            submitted_at: new Date().toISOString(),
-        });
-
-        if (logErr) throw new Error(`training_logs 저장 실패(${worker.id}): ${logErr.message}`);
+        try {
+            await insertTrainingLogWithSchemaFallback(supabase, {
+                session_id: sessionId,
+                worker_id: worker.id,
+                worker_name: worker.name,
+                nationality: worker.nationality || null,
+                signature_url: publicUrl,
+                audio_url: selectedAudioUrl || null,
+                selected_language_code: selectedLanguageCode || null,
+                is_manager_proxy: Boolean(isManagerProxy ?? true),
+                signature_method: 'manager_group_proxy',
+                submitted_at: new Date().toISOString(),
+            });
+        } catch (error: any) {
+            throw new Error(`training_logs 저장 실패(${worker.id}): ${error?.message || 'unknown error'}`);
+        }
 
         const { error: ackErr } = await supabase.from('training_acknowledgements').upsert({
             session_id: sessionId,
