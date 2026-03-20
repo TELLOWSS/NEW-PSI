@@ -461,6 +461,8 @@ const AdminTraining: React.FC = () => {
     const [rosterLoading, setRosterLoading] = useState(false);
     const [rosterError, setRosterError] = useState('');
     const [signatureModalUrl, setSignatureModalUrl] = useState('');
+    const [deletingRosterRowId, setDeletingRosterRowId] = useState('');
+    const [deletingAllRoster, setDeletingAllRoster] = useState(false);
     const rosterPollingRef = useRef<number | null>(null);
 
     const appendLinkHistory = (item: LinkHistoryItem) => {
@@ -563,6 +565,44 @@ const AdminTraining: React.FC = () => {
             setRosterError(e?.message || '명부 조회 실패');
         } finally {
             setRosterLoading(false);
+        }
+    }, []);
+
+    const deleteRosterRow = useCallback(async (id: string) => {
+        if (!window.confirm('이 기록을 삭제하시겠습니까?\n(테스트 기록 정리 용도)')) return;
+        setDeletingRosterRowId(id);
+        setRosterError('');
+        try {
+            const { error } = await supabase
+                .from('training_logs')
+                .delete()
+                .eq('id', id);
+            if (error) throw new Error(error.message);
+            setSignatureRoster((prev) => prev.filter((r) => r.id !== id));
+        } catch (e: any) {
+            setRosterError(e?.message || '삭제 실패');
+        } finally {
+            setDeletingRosterRowId('');
+        }
+    }, []);
+
+    const deleteAllRosterRows = useCallback(async (sessionId: string, count: number) => {
+        if (!sessionId) return;
+        const ok = window.confirm(`현재 세션의 서명 기록 ${count}건을 모두 삭제하시겠습니까?\n테스트 기록 정리 시에만 사용하세요.`);
+        if (!ok) return;
+        setDeletingAllRoster(true);
+        setRosterError('');
+        try {
+            const { error } = await supabase
+                .from('training_logs')
+                .delete()
+                .eq('session_id', sessionId);
+            if (error) throw new Error(error.message);
+            setSignatureRoster([]);
+        } catch (e: any) {
+            setRosterError(e?.message || '전체 삭제 실패');
+        } finally {
+            setDeletingAllRoster(false);
         }
     }, []);
 
@@ -1482,14 +1522,26 @@ const AdminTraining: React.FC = () => {
                             <h3 className="text-lg font-black text-slate-900">위험성평가 서명 완료 명부</h3>
                             <p className="mt-1 text-xs font-bold text-slate-500">현재 세션에 제출된 서명 목록 · 10초마다 자동 갱신</p>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => void fetchSignatureRoster(currentSessionId)}
-                            disabled={rosterLoading}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-                        >
-                            {rosterLoading ? '불러오는 중...' : '새로고침'}
-                        </button>
+                        <div className="flex items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => void fetchSignatureRoster(currentSessionId)}
+                                disabled={rosterLoading || deletingAllRoster}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                            >
+                                {rosterLoading ? '불러오는 중...' : '새로고침'}
+                            </button>
+                            {signatureRoster.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={() => void deleteAllRosterRows(currentSessionId, signatureRoster.length)}
+                                    disabled={deletingAllRoster || rosterLoading}
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-black text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                                >
+                                    {deletingAllRoster ? '삭제 중...' : `전체 삭제 (${signatureRoster.length}건)`}
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     {rosterError && (
@@ -1510,6 +1562,7 @@ const AdminTraining: React.FC = () => {
                                         <th className="px-3 py-2 text-left text-[11px] font-black text-slate-500 whitespace-nowrap">국적</th>
                                         <th className="px-3 py-2 text-left text-[11px] font-black text-slate-500 whitespace-nowrap">이름</th>
                                         <th className="px-3 py-2 text-left text-[11px] font-black text-slate-500 whitespace-nowrap">서명 확인</th>
+                                        <th className="px-3 py-2 text-left text-[11px] font-black text-slate-500 whitespace-nowrap">삭제</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -1546,6 +1599,17 @@ const AdminTraining: React.FC = () => {
                                                 ) : (
                                                     <span className="text-[11px] font-bold text-slate-400">–</span>
                                                 )}
+                                            </td>
+                                            <td className="px-3 py-2 whitespace-nowrap">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void deleteRosterRow(row.id)}
+                                                    disabled={deletingRosterRowId === row.id || deletingAllRoster}
+                                                    className="rounded px-2 py-1 text-[11px] font-black text-rose-600 hover:bg-rose-50 disabled:opacity-40"
+                                                    title="이 기록 삭제"
+                                                >
+                                                    {deletingRosterRowId === row.id ? '…' : '삭제'}
+                                                </button>
                                             </td>
                                         </tr>
                                     ))}
