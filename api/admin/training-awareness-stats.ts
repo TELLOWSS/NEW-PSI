@@ -65,6 +65,27 @@ export default async function handler(req: any, res: any) {
 
         const supabase = getSupabaseClient();
 
+        let targetMode: 'submitted_only' | 'attendance_only' = 'submitted_only';
+        let targetWorkerNames: string[] = [];
+
+        const sessionMetaResult = await supabase
+            .from('training_sessions')
+            .select('target_mode, target_worker_names')
+            .eq('id', sessionId)
+            .single();
+
+        if (!sessionMetaResult.error && sessionMetaResult.data) {
+            const sessionRow = sessionMetaResult.data as any;
+            targetMode = sessionRow?.target_mode === 'attendance_only'
+                ? 'attendance_only'
+                : 'submitted_only';
+            if (Array.isArray(sessionRow?.target_worker_names)) {
+                targetWorkerNames = sessionRow.target_worker_names
+                    .map((item: unknown) => String(item || '').trim().toLowerCase())
+                    .filter((item: string) => Boolean(item));
+            }
+        }
+
         const logsResult = await supabase
             .from('training_logs')
             .select('worker_name, nationality')
@@ -85,7 +106,7 @@ export default async function handler(req: any, res: any) {
             if (nationality) nationalitySet.add(nationality);
         }
 
-        let confirmedWorkers = workerSet.size;
+        let confirmedSet = new Set<string>(workerSet);
         let ackDataSource: 'training_acknowledgements' | 'submission_gate' = 'submission_gate';
 
         const ackResult = await supabase
@@ -95,7 +116,7 @@ export default async function handler(req: any, res: any) {
             .limit(5000);
 
         if (!ackResult.error && Array.isArray(ackResult.data)) {
-            const confirmedSet = new Set<string>();
+            confirmedSet = new Set<string>();
 
             for (const row of ackResult.data) {
                 const workerName = String((row as any)?.worker_name || '').trim().toLowerCase();
@@ -109,22 +130,36 @@ export default async function handler(req: any, res: any) {
                     confirmedSet.add(workerName);
                 }
             }
-
-            confirmedWorkers = confirmedSet.size;
             ackDataSource = 'training_acknowledgements';
         }
 
         const submittedWorkers = workerSet.size;
-        const confirmationRate = submittedWorkers > 0
-            ? Math.round((confirmedWorkers / submittedWorkers) * 100)
+        const targetSet = new Set<string>(targetWorkerNames);
+        const useAttendanceTarget = targetMode === 'attendance_only' && targetSet.size > 0;
+
+        let targetedWorkers = submittedWorkers;
+        let confirmedWorkers = confirmedSet.size;
+        let excludedWorkers = 0;
+
+        if (useAttendanceTarget) {
+            targetedWorkers = targetSet.size;
+            confirmedWorkers = Array.from(confirmedSet).filter((worker) => targetSet.has(worker)).length;
+            excludedWorkers = Array.from(workerSet).filter((worker) => !targetSet.has(worker)).length;
+        }
+
+        const confirmationRate = targetedWorkers > 0
+            ? Math.round((confirmedWorkers / targetedWorkers) * 100)
             : 0;
 
         return res.status(200).json({
             ok: true,
             sessionId,
+            targetMode,
             submittedWorkers,
+            targetedWorkers,
             confirmedWorkers,
-            unconfirmedWorkers: Math.max(0, submittedWorkers - confirmedWorkers),
+            unconfirmedWorkers: Math.max(0, targetedWorkers - confirmedWorkers),
+            excludedWorkers,
             confirmationRate,
             nationalityCount: nationalitySet.size,
             ackDataSource,

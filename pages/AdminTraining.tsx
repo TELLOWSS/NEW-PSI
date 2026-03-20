@@ -358,6 +358,10 @@ type TrainingSessionRow = {
     audio_urls?: Record<string, string | null>;
     original_script?: string;
     created_at?: string;
+    training_title?: string;
+    training_category?: 'monthly_risk' | 'special_safety';
+    target_mode?: 'submitted_only' | 'attendance_only';
+    target_worker_names?: string[];
 };
 
 type TrainingAudioFileMap = Partial<Record<TrainingAudioLanguageCode, File | null>>;
@@ -371,9 +375,12 @@ type LinkHistoryItem = {
 };
 
 type AwarenessStats = {
+    targetMode: 'submitted_only' | 'attendance_only';
     submittedWorkers: number;
+    targetedWorkers: number;
     confirmedWorkers: number;
     unconfirmedWorkers: number;
+    excludedWorkers: number;
     confirmationRate: number;
     nationalityCount: number;
     ackDataSource: 'training_acknowledgements' | 'submission_gate';
@@ -429,10 +436,20 @@ const isSessionAudioFlushed = (session?: TrainingSessionRow): boolean => {
     return values.every((value) => !value);
 };
 
+const buildDefaultTrainingTitle = (): string => {
+    const now = new Date();
+    return `${now.getMonth() + 1}월 위험성평가 전파교육`;
+};
+
 const AdminTraining: React.FC = () => {
     // 관리자 UI는 요구사항에 따라 항상 한국어 고정
     const t = UI_TEXT.ko;
     const [sourceTextKo, setSourceTextKo] = useState('');
+    const [trainingTitle, setTrainingTitle] = useState(buildDefaultTrainingTitle());
+    const [trainingCategory, setTrainingCategory] = useState<'monthly_risk' | 'special_safety'>('monthly_risk');
+    const [targetMode, setTargetMode] = useState<'submitted_only' | 'attendance_only'>('submitted_only');
+    const [targetWorkerNamesText, setTargetWorkerNamesText] = useState('');
+    const [savingTargets, setSavingTargets] = useState(false);
     const [loading, setLoading] = useState(false);
     const [mobileUrl, setMobileUrl] = useState('');
     const [currentSessionId, setCurrentSessionId] = useState('');
@@ -627,9 +644,12 @@ const AdminTraining: React.FC = () => {
             );
 
             setAwarenessStats({
+                targetMode: data.targetMode === 'attendance_only' ? 'attendance_only' : 'submitted_only',
                 submittedWorkers: Number(data.submittedWorkers || 0),
+                targetedWorkers: Number(data.targetedWorkers || data.submittedWorkers || 0),
                 confirmedWorkers: Number(data.confirmedWorkers || 0),
                 unconfirmedWorkers: Number(data.unconfirmedWorkers || 0),
+                excludedWorkers: Number(data.excludedWorkers || 0),
                 confirmationRate: Number(data.confirmationRate || 0),
                 nationalityCount: Number(data.nationalityCount || 0),
                 ackDataSource: data.ackDataSource === 'training_acknowledgements'
@@ -770,7 +790,7 @@ const AdminTraining: React.FC = () => {
         const loadWithColumn = async (column: string) => {
             return supabase
                 .from('training_sessions')
-                .select('id, source_text_ko, original_script, audio_urls, created_at')
+                .select('id, source_text_ko, original_script, audio_urls, created_at, training_title, training_category, target_mode, target_worker_names')
                 .order(column, { ascending: false })
                 .limit(5);
         };
@@ -807,6 +827,10 @@ const AdminTraining: React.FC = () => {
         if (session.original_script || session.source_text_ko) {
             setSourceTextKo(session.original_script || session.source_text_ko || '');
         }
+        setTrainingTitle(String(session.training_title || buildDefaultTrainingTitle()));
+        setTrainingCategory(session.training_category === 'special_safety' ? 'special_safety' : 'monthly_risk');
+        setTargetMode(session.target_mode === 'attendance_only' ? 'attendance_only' : 'submitted_only');
+        setTargetWorkerNamesText(Array.isArray(session.target_worker_names) ? session.target_worker_names.join('\n') : '');
 
         const restoredAudioUrls = session.audio_urls || {};
         setUploadedAudioUrls(restoredAudioUrls);
@@ -895,9 +919,25 @@ const AdminTraining: React.FC = () => {
         setFlushSummary(null);
 
         try {
+            const normalizedTargetWorkerNames = Array.from(
+                new Set(
+                    targetWorkerNamesText
+                        .split(/\r?\n/)
+                        .map((item) => item.trim())
+                        .filter((item) => item.length > 0)
+                )
+            ).slice(0, 5000);
+
             const data = await postAdminJson<any>(
                 '/api/admin/create-training',
-                { sourceTextKo, selectedLanguages: TRAINING_AUDIO_LANGUAGE_CODES },
+                {
+                    sourceTextKo,
+                    selectedLanguages: TRAINING_AUDIO_LANGUAGE_CODES,
+                    trainingTitle,
+                    trainingCategory,
+                    targetMode,
+                    targetWorkerNames: normalizedTargetWorkerNames,
+                },
                 { fallbackMessage: '세션 생성 실패' }
             );
 
@@ -997,6 +1037,45 @@ const AdminTraining: React.FC = () => {
         } finally {
             setIsAudioUploadProcessing(false);
             setLoading(false);
+        }
+    };
+
+    const handleSaveSessionTargets = async () => {
+        if (!currentSessionId) {
+            setMessage('현재 세션이 없습니다. 먼저 세션을 생성하거나 불러와 주세요.');
+            return;
+        }
+
+        setSavingTargets(true);
+        try {
+            const normalizedTargetWorkerNames = Array.from(
+                new Set(
+                    targetWorkerNamesText
+                        .split(/\r?\n/)
+                        .map((item) => item.trim())
+                        .filter((item) => item.length > 0)
+                )
+            ).slice(0, 5000);
+
+            await postAdminJson<any>(
+                '/api/admin/update-training-targets',
+                {
+                    sessionId: currentSessionId,
+                    trainingTitle,
+                    trainingCategory,
+                    targetMode,
+                    targetWorkerNames: normalizedTargetWorkerNames,
+                },
+                { fallbackMessage: '세션 대상자 설정 저장 실패' }
+            );
+
+            await fetchRecentSessions();
+            await fetchAwarenessStats(currentSessionId);
+            setMessage('세션 대상자/교육명을 저장했습니다. 통계를 갱신했습니다.');
+        } catch (error: any) {
+            setMessage(`오류: ${error?.message || '세션 대상자 설정 저장 실패'}`);
+        } finally {
+            setSavingTargets(false);
         }
     };
 
@@ -1237,6 +1316,59 @@ const AdminTraining: React.FC = () => {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
                 <h2 className="text-2xl font-black text-slate-900">관리자 다국어 음성 안내 생성</h2>
                 <p className="text-sm font-bold text-slate-500 mt-2">관리자 화면은 항상 한국어로 고정됩니다. 한국어 원본 대본을 입력하고 11개국 MP3/M4A 파일을 업로드한 뒤 QR 링크를 배포하세요.</p>
+
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-xs font-black text-slate-600">교육명(월별/특별)</p>
+                        <input
+                            value={trainingTitle}
+                            onChange={(e) => setTrainingTitle(e.target.value)}
+                            placeholder="예: 4월 위험성평가 전파교육"
+                            className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800"
+                        />
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p className="text-xs font-black text-slate-600">교육 유형</p>
+                        <select
+                            value={trainingCategory}
+                            onChange={(e) => setTrainingCategory(e.target.value === 'special_safety' ? 'special_safety' : 'monthly_risk')}
+                            className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800"
+                        >
+                            <option value="monthly_risk">월별 위험성평가 전파교육</option>
+                            <option value="special_safety">특별안전보건교육</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p className="text-xs font-black text-slate-600">이수 모수 산정 방식</p>
+                    <select
+                        value={targetMode}
+                        onChange={(e) => setTargetMode(e.target.value === 'attendance_only' ? 'attendance_only' : 'submitted_only')}
+                        className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800"
+                    >
+                        <option value="submitted_only">제출자 기준(기본) - 미출근자는 자동 제외</option>
+                        <option value="attendance_only">당일 출근자 명단 기준 - 명단 내 인원만 모수</option>
+                    </select>
+                    <p className="mt-2 text-[11px] font-bold text-slate-500">
+                        건설업 특성상 당일 미출근자를 미이수로 잡지 않으려면 기본값(제출자 기준)을 사용하세요.
+                    </p>
+                </div>
+
+                {targetMode === 'attendance_only' && (
+                    <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 p-3">
+                        <p className="text-xs font-black text-indigo-800">당일 출근자 명단 (줄바꿈으로 입력)</p>
+                        <p className="mt-1 text-[11px] font-bold text-indigo-700">예: 홍길동↵김민수↵Sokha Chan</p>
+                        <textarea
+                            value={targetWorkerNamesText}
+                            onChange={(e) => setTargetWorkerNamesText(e.target.value)}
+                            rows={4}
+                            placeholder="당일 실제 출근자만 입력"
+                            className="mt-2 w-full rounded-lg border border-indigo-200 bg-white p-3 text-sm font-bold text-slate-800"
+                        />
+                    </div>
+                )}
                 {uploadWarningMessage && (
                     <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
                         <p className="text-xs font-black text-amber-800">{uploadWarningMessage}</p>
@@ -1289,6 +1421,15 @@ const AdminTraining: React.FC = () => {
                     {loading
                         ? (isAudioUploadProcessing ? '오디오 업로드 중...' : '생성 중...')
                         : '생성'}
+                </button>
+
+                <button
+                    type="button"
+                    onClick={handleSaveSessionTargets}
+                    disabled={!currentSessionId || savingTargets || loading}
+                    className="mt-3 ml-2 px-6 py-3 rounded-xl bg-slate-700 text-white font-black text-sm hover:bg-slate-800 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                    {savingTargets ? '대상자 저장 중...' : '현재 세션 대상자/교육명 저장'}
                 </button>
 
                 <button
@@ -1489,10 +1630,14 @@ const AdminTraining: React.FC = () => {
                 ) : awarenessError ? (
                     <p className="mt-3 text-sm font-bold text-rose-700">{t.statErrorPrefix}: {awarenessError}</p>
                 ) : awarenessStats ? (
-                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
                             <p className="text-[11px] font-black text-slate-500">{t.statSubmitted}</p>
                             <p className="mt-1 text-xl font-black text-slate-900">{awarenessStats.submittedWorkers}</p>
+                        </div>
+                        <div className="p-3 rounded-xl border border-indigo-200 bg-indigo-50">
+                            <p className="text-[11px] font-black text-indigo-700">모수(평가 대상)</p>
+                            <p className="mt-1 text-xl font-black text-indigo-800">{awarenessStats.targetedWorkers}</p>
                         </div>
                         <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50">
                             <p className="text-[11px] font-black text-emerald-700">{t.statConfirmed}</p>
@@ -1511,11 +1656,23 @@ const AdminTraining: React.FC = () => {
                             <p className="mt-1 text-xl font-black text-slate-900">{awarenessStats.nationalityCount}</p>
                         </div>
                         <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
+                            <p className="text-[11px] font-black text-slate-500">모수 제외 인원</p>
+                            <p className="mt-1 text-xl font-black text-slate-900">{awarenessStats.excludedWorkers}</p>
+                        </div>
+                        <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
                             <p className="text-[11px] font-black text-slate-500">{t.statDataSource}</p>
                             <p className="mt-1 text-[12px] font-black text-slate-900">
                                 {awarenessStats.ackDataSource === 'training_acknowledgements'
                                     ? t.statSourceAckTable
                                     : t.statSourceSubmissionGate}
+                            </p>
+                        </div>
+                        <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
+                            <p className="text-[11px] font-black text-slate-500">모수 기준</p>
+                            <p className="mt-1 text-[12px] font-black text-slate-900">
+                                {awarenessStats.targetMode === 'attendance_only'
+                                    ? '당일 출근자 명단 기준'
+                                    : '제출자 기준(미출근 자동 제외)'}
                             </p>
                         </div>
                     </div>

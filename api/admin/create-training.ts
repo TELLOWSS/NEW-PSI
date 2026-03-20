@@ -247,12 +247,28 @@ export default async function handler(req: any, res: any) {
             requestBody = {};
         }
 
-        const { sourceTextKo, selectedLanguages } = requestBody as {
+        const { sourceTextKo, selectedLanguages, trainingTitle, trainingCategory, targetMode, targetWorkerNames } = requestBody as {
             sourceTextKo?: unknown;
             selectedLanguages?: unknown;
+            trainingTitle?: unknown;
+            trainingCategory?: unknown;
+            targetMode?: unknown;
+            targetWorkerNames?: unknown;
         };
 
         const normalizedSourceText = typeof sourceTextKo === 'string' ? sourceTextKo.trim() : '';
+        const normalizedTrainingTitle = typeof trainingTitle === 'string' ? trainingTitle.trim() : '';
+        const normalizedTrainingCategory = trainingCategory === 'special_safety' ? 'special_safety' : 'monthly_risk';
+        const normalizedTargetMode = targetMode === 'attendance_only' ? 'attendance_only' : 'submitted_only';
+        const normalizedTargetWorkerNames = Array.isArray(targetWorkerNames)
+            ? Array.from(
+                new Set(
+                    targetWorkerNames
+                        .map((item: unknown) => String(item || '').trim())
+                        .filter((item: string) => item.length > 0)
+                )
+            ).slice(0, 5000)
+            : [];
 
         // 5) 번역 (빈 텍스트면 즉시 스킵, 아니면 병렬+7초 타임아웃)
         let translatedTexts: Record<string, string> = {};
@@ -271,6 +287,27 @@ export default async function handler(req: any, res: any) {
         // 6) DB Insert (다단계 fallback)
         const generatedId = createUuidV4();
         const insertCandidates: Array<Record<string, unknown>> = [
+            {
+                id: generatedId,
+                source_text_ko: normalizedSourceText,
+                original_script: normalizedSourceText,
+                audio_urls: {},
+                translated_texts: translatedTexts,
+                training_title: normalizedTrainingTitle || null,
+                training_category: normalizedTrainingCategory,
+                target_mode: normalizedTargetMode,
+                target_worker_names: normalizedTargetWorkerNames,
+            },
+            {
+                id: generatedId,
+                source_text_ko: normalizedSourceText,
+                original_script: normalizedSourceText,
+                audio_urls: {},
+                translated_texts: translatedTexts,
+                training_title: normalizedTrainingTitle || null,
+                training_category: normalizedTrainingCategory,
+                target_mode: normalizedTargetMode,
+            },
             { id: generatedId, source_text_ko: normalizedSourceText, original_script: normalizedSourceText, audio_urls: {}, translated_texts: translatedTexts },
             { id: generatedId, source_text_ko: normalizedSourceText, original_script: normalizedSourceText, audio_urls: {} },
             { id: generatedId, source_text_ko: normalizedSourceText, audio_urls: {} },
