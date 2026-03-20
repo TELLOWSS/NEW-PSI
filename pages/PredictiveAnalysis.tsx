@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import type { WorkerRecord } from '../types';
 
 // 관리 직군 필터링 함수
@@ -20,42 +20,104 @@ interface Link {
     value: number; // 굵기 결정
 }
 
+const clampOntologyZoom = (value: number) => Math.min(1.8, Math.max(0.7, Number(value.toFixed(2))));
+
+const getOntologyLabelLimit = (group: Node['group']) => {
+    if (group === 'worker') return 8;
+    if (group === 'action') return 10;
+    return 9;
+};
+
+const shortenOntologyLabel = (label: string, group: Node['group']) => {
+    const normalized = String(label || '').trim();
+    const limit = getOntologyLabelLimit(group);
+    if (normalized.length <= limit) return normalized;
+    return `${normalized.slice(0, Math.max(0, limit - 1))}…`;
+};
+
+const getTouchDistance = (touches: React.TouchList) => {
+    if (touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+};
+
 // 간단한 포스 그래프 시각화 컴포넌트 (SVG 기반)
-const OntologyGraph: React.FC<{ nodes: Node[], links: Link[] }> = ({ nodes, links }) => {
+const OntologyGraph: React.FC<{ nodes: Node[], links: Link[]; spacingStrength: number }> = ({ nodes, links, spacingStrength }) => {
     // 렌더링 최적화를 위해 노드 좌표를 미리 계산 (시뮬레이션 단순화)
     const [positions, setPositions] = useState<Record<string, { x: number, y: number }>>({});
 
     useEffect(() => {
         const newPos: Record<string, { x: number, y: number }> = {};
-        const width = 800;
-        const height = 500;
+        const width = 1000;
+        const height = 700;
+        const margin = 28;
         const centerX = width / 2;
         const centerY = height / 2;
 
         // 그룹별 배치 전략
         nodes.forEach((node, i) => {
             const angle = (i / nodes.length) * 2 * Math.PI;
-            let radius = 200;
+            let radius = 240;
             
-            if (node.group === 'risk') radius = 50; // 위험요인은 중앙
-            if (node.group === 'job') radius = 150; // 공종은 중간
-            if (node.group === 'worker') radius = 250; // 근로자는 외곽
-            if (node.group === 'action') radius = 300; // 조치는 최외곽
+            if (node.group === 'risk') radius = 95; // 위험요인은 중앙
+            if (node.group === 'job') radius = 210; // 공종은 중간
+            if (node.group === 'worker') radius = 285; // 근로자는 외곽
+            if (node.group === 'action') radius = 320; // 조치는 최외곽
 
             // 노드 ID 해시를 이용한 랜덤성 부여 (일관된 위치 보장)
             const hash = node.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-            const noise = (hash % 50) - 25;
+            const noise = (hash % 30) - 15;
 
             newPos[node.id] = {
                 x: centerX + Math.cos(angle) * radius + noise,
                 y: centerY + Math.sin(angle) * radius + noise
             };
         });
+
+        const relaxIterations = 16 + Math.round(spacingStrength * 12);
+        const minDistance = 30 + Math.round(spacingStrength * 24);
+        const nodeIds = nodes.map((node) => node.id);
+
+        for (let iteration = 0; iteration < relaxIterations; iteration++) {
+            for (let i = 0; i < nodeIds.length; i++) {
+                for (let j = i + 1; j < nodeIds.length; j++) {
+                    const leftId = nodeIds[i];
+                    const rightId = nodeIds[j];
+                    const left = newPos[leftId];
+                    const right = newPos[rightId];
+                    if (!left || !right) continue;
+
+                    const dx = right.x - left.x;
+                    const dy = right.y - left.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy) || 0.001;
+
+                    if (distance >= minDistance) continue;
+
+                    const push = (minDistance - distance) / 2;
+                    const ux = dx / distance;
+                    const uy = dy / distance;
+
+                    left.x -= ux * push;
+                    left.y -= uy * push;
+                    right.x += ux * push;
+                    right.y += uy * push;
+                }
+            }
+
+            for (const nodeId of nodeIds) {
+                const point = newPos[nodeId];
+                if (!point) continue;
+                point.x = Math.min(width - margin, Math.max(margin, point.x));
+                point.y = Math.min(height - margin, Math.max(margin, point.y));
+            }
+        }
+
         setPositions(newPos);
-    }, [nodes]);
+    }, [nodes, spacingStrength]);
 
     return (
-        <svg viewBox="0 0 800 500" className="w-full h-full bg-slate-900 rounded-2xl shadow-inner border border-slate-700">
+        <svg viewBox="0 0 1000 700" className="w-full h-full bg-slate-900 rounded-2xl shadow-inner border border-slate-700">
             <defs>
                 <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="28" refY="3.5" orient="auto">
                     <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
@@ -87,12 +149,14 @@ const OntologyGraph: React.FC<{ nodes: Node[], links: Link[] }> = ({ nodes, link
                 if (node.group === 'worker') color = "#3b82f6"; // Blue
                 if (node.group === 'job') color = "#10b981"; // Emerald
                 if (node.group === 'action') color = "#f59e0b"; // Amber
+                const displayLabel = shortenOntologyLabel(node.label, node.group);
 
                 return (
                     <g key={node.id} transform={`translate(${pos.x},${pos.y})`} className="cursor-pointer hover:scale-110 transition-transform">
+                        <title>{node.label}</title>
                         <circle r={Math.max(5, Math.sqrt(node.value) * 3 + 5)} fill={color} stroke="#1e293b" strokeWidth="2" />
-                        <text y={-10} textAnchor="middle" fill="white" fontSize="10" fontWeight="bold" className="pointer-events-none select-none drop-shadow-md">
-                            {node.label}
+                        <text y={-10} textAnchor="middle" fill="white" fontSize="9" fontWeight="bold" className="pointer-events-none select-none drop-shadow-md">
+                            {displayLabel}
                         </text>
                     </g>
                 );
@@ -109,6 +173,29 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
 
     const [todayDate, setTodayDate] = useState('');
     const [nextMonth, setNextMonth] = useState('');
+    const [ontologyZoom, setOntologyZoom] = useState(1);
+    const [ontologySpacingStrength, setOntologySpacingStrength] = useState(0.5);
+    const ontologyViewportRef = useRef<HTMLDivElement | null>(null);
+    const [isPanningOntology, setIsPanningOntology] = useState(false);
+    const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
+    const hasAutoCenteredRef = useRef(false);
+    const touchStateRef = useRef<{
+        mode: 'none' | 'pan' | 'pinch';
+        startX: number;
+        startY: number;
+        startScrollLeft: number;
+        startScrollTop: number;
+        startDistance: number;
+        startZoom: number;
+    }>({
+        mode: 'none',
+        startX: 0,
+        startY: 0,
+        startScrollLeft: 0,
+        startScrollTop: 0,
+        startDistance: 0,
+        startZoom: 1,
+    });
 
     useEffect(() => {
         const d = new Date();
@@ -208,6 +295,121 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
         }));
     }, [sourceRecords, nextMonth]);
 
+    const handleOntologyMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+        if (event.button !== 0) return;
+        const viewport = ontologyViewportRef.current;
+        if (!viewport) return;
+
+        setIsPanningOntology(true);
+        panStartRef.current = {
+            x: event.clientX,
+            y: event.clientY,
+            scrollLeft: viewport.scrollLeft,
+            scrollTop: viewport.scrollTop,
+        };
+    };
+
+    const handleOntologyMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+        if (!isPanningOntology) return;
+        const viewport = ontologyViewportRef.current;
+        if (!viewport) return;
+
+        const deltaX = event.clientX - panStartRef.current.x;
+        const deltaY = event.clientY - panStartRef.current.y;
+        viewport.scrollLeft = panStartRef.current.scrollLeft - deltaX;
+        viewport.scrollTop = panStartRef.current.scrollTop - deltaY;
+    };
+
+    const stopOntologyPanning = () => {
+        setIsPanningOntology(false);
+    };
+
+    const centerOntologyViewport = () => {
+        const viewport = ontologyViewportRef.current;
+        if (!viewport) return;
+        viewport.scrollLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2);
+        viewport.scrollTop = Math.max(0, (viewport.scrollHeight - viewport.clientHeight) / 2);
+    };
+
+    const handleResetOntologyView = () => {
+        setOntologyZoom(1);
+        requestAnimationFrame(() => {
+            centerOntologyViewport();
+        });
+    };
+
+    useEffect(() => {
+        if (hasAutoCenteredRef.current) return;
+        if (graphData.nodes.length === 0) return;
+
+        requestAnimationFrame(() => {
+            centerOntologyViewport();
+            hasAutoCenteredRef.current = true;
+        });
+    }, [graphData.nodes.length]);
+
+    const handleOntologyTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+        const viewport = ontologyViewportRef.current;
+        if (!viewport) return;
+
+        if (event.touches.length === 1) {
+            const touch = event.touches[0];
+            touchStateRef.current = {
+                ...touchStateRef.current,
+                mode: 'pan',
+                startX: touch.clientX,
+                startY: touch.clientY,
+                startScrollLeft: viewport.scrollLeft,
+                startScrollTop: viewport.scrollTop,
+            };
+            setIsPanningOntology(true);
+            return;
+        }
+
+        if (event.touches.length === 2) {
+            touchStateRef.current = {
+                ...touchStateRef.current,
+                mode: 'pinch',
+                startDistance: getTouchDistance(event.touches),
+                startZoom: ontologyZoom,
+            };
+            setIsPanningOntology(false);
+        }
+    };
+
+    const handleOntologyTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+        const viewport = ontologyViewportRef.current;
+        if (!viewport) return;
+
+        if (touchStateRef.current.mode === 'pan' && event.touches.length === 1) {
+            event.preventDefault();
+            const touch = event.touches[0];
+            const deltaX = touch.clientX - touchStateRef.current.startX;
+            const deltaY = touch.clientY - touchStateRef.current.startY;
+            viewport.scrollLeft = touchStateRef.current.startScrollLeft - deltaX;
+            viewport.scrollTop = touchStateRef.current.startScrollTop - deltaY;
+            return;
+        }
+
+        if (touchStateRef.current.mode === 'pinch' && event.touches.length === 2) {
+            event.preventDefault();
+            const nextDistance = getTouchDistance(event.touches);
+            if (touchStateRef.current.startDistance <= 0 || nextDistance <= 0) return;
+            const scaleRatio = nextDistance / touchStateRef.current.startDistance;
+            const nextZoom = clampOntologyZoom(touchStateRef.current.startZoom * scaleRatio);
+            setOntologyZoom(nextZoom);
+        }
+    };
+
+    const handleOntologyTouchEnd = () => {
+        touchStateRef.current = {
+            ...touchStateRef.current,
+            mode: 'none',
+            startDistance: 0,
+        };
+        setIsPanningOntology(false);
+    };
+
     return (
         <div className="space-y-8 animate-fade-in-up">
             {/* Header: Meeting Context */}
@@ -240,16 +442,84 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
                             위험 요인 온톨로지 맵 (Risk Ontology Map)
                         </h3>
-                        <div className="flex gap-4 text-[10px] font-bold text-slate-400">
-                            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div>근로자</span>
-                            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div>공종</span>
-                            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-rose-500"></div>위험요인</span>
-                            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-500"></div>예방대책</span>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-2 py-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setOntologyZoom((prev) => clampOntologyZoom(prev - 0.1))}
+                                    className="w-7 h-7 rounded-lg bg-slate-700 text-slate-100 font-black hover:bg-slate-600"
+                                    aria-label="온톨리지 축소"
+                                >
+                                    −
+                                </button>
+                                <span className="text-[11px] font-black text-slate-200 min-w-[52px] text-center">{Math.round(ontologyZoom * 100)}%</span>
+                                <button
+                                    type="button"
+                                    onClick={() => setOntologyZoom((prev) => clampOntologyZoom(prev + 0.1))}
+                                    className="w-7 h-7 rounded-lg bg-slate-700 text-slate-100 font-black hover:bg-slate-600"
+                                    aria-label="온톨리지 확대"
+                                >
+                                    +
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setOntologyZoom(1)}
+                                    className="ml-1 px-2 h-7 rounded-lg bg-slate-700 text-[11px] font-black text-slate-100 hover:bg-slate-600"
+                                >
+                                    100%
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleResetOntologyView}
+                                    className="px-2 h-7 rounded-lg bg-indigo-700 text-[11px] font-black text-white hover:bg-indigo-600"
+                                >
+                                    초기화
+                                </button>
+                            </div>
+                            <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-2 py-1">
+                                <span className="text-[11px] font-black text-slate-300 whitespace-nowrap">간격</span>
+                                <input
+                                    type="range"
+                                    min={0}
+                                    max={1}
+                                    step={0.05}
+                                    value={ontologySpacingStrength}
+                                    onChange={(event) => setOntologySpacingStrength(Number(event.target.value))}
+                                    className="w-20 accent-indigo-500"
+                                    aria-label="온톨리지 노드 간격 조절"
+                                />
+                                <span className="text-[11px] font-black text-slate-200 w-8 text-right">{Math.round(ontologySpacingStrength * 100)}</span>
+                            </div>
+                            <div className="flex gap-4 text-[10px] font-bold text-slate-400">
+                                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div>근로자</span>
+                                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div>공종</span>
+                                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-rose-500"></div>위험요인</span>
+                                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-500"></div>예방대책</span>
+                            </div>
                         </div>
                     </div>
-                    <div className="flex-1 min-h-[400px] relative border border-slate-800 rounded-2xl bg-slate-950/50">
+                    <div
+                        ref={ontologyViewportRef}
+                        className={`flex-1 min-h-[400px] relative border border-slate-800 rounded-2xl bg-slate-950/50 overflow-auto ${isPanningOntology ? 'cursor-grabbing' : 'cursor-grab'}`}
+                        onMouseDown={handleOntologyMouseDown}
+                        onMouseMove={handleOntologyMouseMove}
+                        onMouseUp={stopOntologyPanning}
+                        onMouseLeave={stopOntologyPanning}
+                        onTouchStart={handleOntologyTouchStart}
+                        onTouchMove={handleOntologyTouchMove}
+                        onTouchEnd={handleOntologyTouchEnd}
+                        onTouchCancel={handleOntologyTouchEnd}
+                        style={{ touchAction: 'none' }}
+                    >
                         {graphData.nodes.length > 0 ? (
-                            <OntologyGraph nodes={graphData.nodes} links={graphData.links} />
+                            <div className="min-w-[900px] min-h-[620px] w-full h-full flex items-center justify-center p-4">
+                                <div
+                                    className="w-full h-full transition-transform duration-200"
+                                    style={{ transform: `scale(${ontologyZoom})`, transformOrigin: 'center center' }}
+                                >
+                                    <OntologyGraph nodes={graphData.nodes} links={graphData.links} spacingStrength={ontologySpacingStrength} />
+                                </div>
+                            </div>
                         ) : (
                             <div className="w-full h-full flex flex-col items-center justify-center text-slate-600">
                                 <p>데이터 부족 또는 분석 대기 중</p>

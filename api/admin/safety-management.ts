@@ -285,6 +285,151 @@ async function handleRegisterCoachingAction(payload: any): Promise<any> {
 }
 
 // -----------------------------------------------------------------------
+// 액션 2-B: 관찰+코칭 통합 등록 (1회 호출)
+// -----------------------------------------------------------------------
+async function handleRecordSafetyClosureLoop(payload: any): Promise<any> {
+    const body = payload || {};
+    const rawList = Array.isArray(body.records) ? body.records : [body];
+
+    if (rawList.length === 0) throw new Error('등록할 데이터가 없습니다.');
+    if (rawList.length > 100) throw new Error('1회 최대 100건까지 등록 가능합니다.');
+
+    const nowIso = new Date().toISOString();
+
+    const normalizedRows = rawList.map((raw: any) => {
+        const assessmentMonth = String(raw.assessment_month || '').trim();
+        if (!assessmentMonth.match(/^\d{4}-\d{2}$/)) {
+            throw new Error(`assessment_month 형식 오류: '${assessmentMonth}' (YYYY-MM 필요)`);
+        }
+        if (!raw.worker_id) throw new Error('worker_id 필수');
+
+        const actionType = raw.action_type ? String(raw.action_type).trim() : '';
+        const registerCoaching = Boolean(actionType);
+
+        return {
+            worker_id: String(raw.worker_id).trim(),
+            assessment_month: assessmentMonth,
+            observed_at: raw.observed_at || nowIso,
+            observer_name: raw.observer_name?.trim() || null,
+            unsafe_behavior_flag: Boolean(raw.unsafe_behavior_flag),
+            unsafe_behavior_type: raw.unsafe_behavior_type?.trim() || null,
+            severity_level: raw.severity_level || null,
+            evidence_note: raw.evidence_note?.trim() || null,
+            evidence_photo_url: raw.evidence_photo_url?.trim() || null,
+            related_risk_category: raw.related_risk_category?.trim() || null,
+            action_type: registerCoaching ? actionType : null,
+            action_detail: registerCoaching ? (raw.action_detail?.trim() || null) : null,
+            action_completed_at: registerCoaching ? (raw.action_completed_at || nowIso) : null,
+            coach_name: registerCoaching ? (raw.coach_name?.trim() || null) : null,
+            followup_result: registerCoaching ? (raw.followup_result || null) : null,
+            followup_checked_at: registerCoaching ? (raw.followup_checked_at || nowIso) : null,
+            created_at: nowIso,
+            register_coaching: registerCoaching,
+        };
+    });
+
+    const observationRows = normalizedRows.map((row) => ({
+        worker_id: row.worker_id,
+        assessment_month: row.assessment_month,
+        observed_at: row.observed_at,
+        observer_name: row.observer_name,
+        unsafe_behavior_flag: row.unsafe_behavior_flag,
+        unsafe_behavior_type: row.unsafe_behavior_type,
+        severity_level: row.severity_level,
+        evidence_note: row.evidence_note,
+        evidence_photo_url: row.evidence_photo_url,
+        related_risk_category: row.related_risk_category,
+        created_at: row.created_at,
+    }));
+
+    const { data: observationData, error: observationError } = await supabase
+        .from('safety_behavior_observations')
+        .insert(observationRows)
+        .select('id');
+
+    if (observationError) throw new Error(observationError.message);
+
+    const observationIds = (observationData || []).map((row: any) => row.id);
+
+    const coachingRows = normalizedRows
+        .map((row, index) => ({ row, sourceObservationId: observationIds[index] }))
+        .filter((item) => item.row.register_coaching && item.row.action_type)
+        .map((item) => ({
+            worker_id: item.row.worker_id,
+            assessment_month: item.row.assessment_month,
+            source_observation_id: item.sourceObservationId || null,
+            action_type: item.row.action_type,
+            action_detail: item.row.action_detail,
+            action_completed_at: item.row.action_completed_at,
+            coach_name: item.row.coach_name,
+            followup_result: item.row.followup_result,
+            followup_checked_at: item.row.followup_checked_at,
+            created_at: nowIso,
+        }));
+
+    let coachingIds: any[] = [];
+    if (coachingRows.length > 0) {
+        const { data: coachingData, error: coachingError } = await supabase
+            .from('safety_coaching_actions')
+            .insert(coachingRows)
+            .select('id');
+
+        if (coachingError) throw new Error(coachingError.message);
+        coachingIds = (coachingData || []).map((row: any) => row.id);
+    }
+
+    const flaggedWorkerMonths = normalizedRows
+        .filter((row) => row.unsafe_behavior_flag)
+        .map((row) => ({ worker_id: row.worker_id, assessment_month: row.assessment_month }));
+
+    for (const { worker_id, assessment_month } of flaggedWorkerMonths) {
+        await supabase
+            .from('worker_integrity_reviews')
+            .upsert(
+                {
+                    worker_id,
+                    assessment_month,
+                    integrity_status: '검증보류',
+                    integrity_reason_codes: ['COACHING_MISSING'],
+                    updated_at: nowIso,
+                },
+                { onConflict: 'worker_id,assessment_month', ignoreDuplicates: false }
+            )
+            .eq('integrity_status', '확정');
+    }
+
+    const improvedRecords = coachingRows.filter((row) => row.followup_result === '개선됨');
+    for (const rec of improvedRecords) {
+        const { data: reviewData } = await supabase
+            .from('worker_integrity_reviews')
+            .select('id, integrity_reason_codes')
+            .eq('worker_id', rec.worker_id)
+            .eq('assessment_month', rec.assessment_month)
+            .single();
+
+        if (reviewData) {
+            const updatedCodes = (reviewData.integrity_reason_codes || []).filter(
+                (code: string) => code !== 'COACHING_MISSING'
+            );
+            await supabase
+                .from('worker_integrity_reviews')
+                .update({
+                    integrity_reason_codes: updatedCodes,
+                    updated_at: nowIso,
+                })
+                .eq('id', reviewData.id);
+        }
+    }
+
+    return {
+        inserted_observations: observationIds.length,
+        inserted_coaching: coachingIds.length,
+        observation_ids: observationIds,
+        coaching_ids: coachingIds,
+    };
+}
+
+// -----------------------------------------------------------------------
 // 액션 3: 무결성 자동 판정
 // -----------------------------------------------------------------------
 async function handleEvaluateWorkerIntegrity(payload: any): Promise<any> {
@@ -927,6 +1072,10 @@ export default async function handler(req: any, res: any) {
 
             case 'register-coaching-action':
                 data = await handleRegisterCoachingAction(payload);
+                break;
+
+            case 'record-safety-closure-loop':
+                data = await handleRecordSafetyClosureLoop(payload);
                 break;
 
             case 'evaluate-worker-integrity':

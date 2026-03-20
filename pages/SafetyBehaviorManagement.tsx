@@ -9,8 +9,9 @@
  * - 트래픽라이트(🟢🟡🔴) 뱃지로 무결성 상태 시각화
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { postAdminJson } from '../utils/adminApiClient';
+import type { WorkerRecord } from '../types';
 
 // -----------------------------------------------------------------------
 // 상수 / 프리셋 목록 (API와 동기화)
@@ -57,7 +58,7 @@ const FOLLOWUP_PRESETS = [
 // -----------------------------------------------------------------------
 // 타입
 // -----------------------------------------------------------------------
-type Tab = 'observe' | 'coaching' | 'review';
+type Tab = 'observe' | 'review';
 type TrafficLight = 'green' | 'yellow' | 'red';
 
 interface IntegrityReviewRow {
@@ -72,19 +73,22 @@ interface IntegrityReviewRow {
 interface WorkerOption {
     id: string;
     name: string;
+    label: string;
     trade?: string;
+    nationality?: string;
+    team?: string;
 }
 
 // -----------------------------------------------------------------------
 // 더미 근로자 목록 (실제 구현에서는 Supabase에서 조회)
 // -----------------------------------------------------------------------
 const DUMMY_WORKERS: WorkerOption[] = [
-    { id: 'w001', name: '김철수', trade: '철근' },
-    { id: 'w002', name: '이영희', trade: '거푸집' },
-    { id: 'w003', name: '박민준', trade: '콘크리트' },
-    { id: 'w004', name: '최지아', trade: '배관' },
-    { id: 'w005', name: '정해진', trade: '전기' },
-    { id: 'w006', name: '한승우', trade: '도장' },
+    { id: 'w001', name: '김철수', label: '김철수 (철근/A팀)', trade: '철근', team: 'A팀' },
+    { id: 'w002', name: '이영희', label: '이영희 (거푸집/B팀)', trade: '거푸집', team: 'B팀' },
+    { id: 'w003', name: '박민준', label: '박민준 (콘크리트/C팀)', trade: '콘크리트', team: 'C팀' },
+    { id: 'w004', name: '최지아', label: '최지아 (배관/D팀)', trade: '배관', team: 'D팀' },
+    { id: 'w005', name: '정해진', label: '정해진 (전기/E팀)', trade: '전기', team: 'E팀' },
+    { id: 'w006', name: '한승우', label: '한승우 (도장/F팀)', trade: '도장', team: 'F팀' },
 ];
 
 // -----------------------------------------------------------------------
@@ -113,6 +117,24 @@ function reasonCodeToKo(code: string): string {
     return map[code] || code;
 }
 
+function buildWorkerOptionLabel(worker: Pick<WorkerRecord, 'name' | 'jobField' | 'teamLeader' | 'nationality' | 'employeeId' | 'qrId'>): string {
+    const name = String(worker.name || '').trim() || '이름없음';
+    const field = String(worker.jobField || '').trim();
+    const team = String(worker.teamLeader || '').trim();
+    const nationality = String(worker.nationality || '').trim();
+    const employeeId = String(worker.employeeId || '').trim();
+    const qrId = String(worker.qrId || '').trim();
+
+    const identityTag = employeeId
+        ? `사번:${employeeId}`
+        : (qrId ? `QR:${qrId.slice(-6)}` : '식별자없음');
+    const profileTag = field || team
+        ? `${field || '미분류'}${team ? `/${team}` : ''}`
+        : (nationality || '미상');
+
+    return `${name} (${profileTag} · ${identityTag})`;
+}
+
 // -----------------------------------------------------------------------
 // 공통 API 호출 헬퍼
 // -----------------------------------------------------------------------
@@ -125,12 +147,17 @@ async function callApi(endpoint: string, body: object): Promise<{ ok: boolean; [
 // -----------------------------------------------------------------------
 // 탭: 불안전행동 관찰 기록
 // -----------------------------------------------------------------------
-const ObserveTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth }) => {
+const ObserveTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> = ({ assessmentMonth, workers }) => {
     const [selectedWorkers, setSelectedWorkers] = useState<Set<string>>(new Set());
     const [behaviorPreset, setBehaviorPreset] = useState<string | null>(null);
     const [severity, setSeverity] = useState<string>('보통');
     const [observerName, setObserverName] = useState('');
     const [evidenceNote, setEvidenceNote] = useState('');
+    const [includeCoaching, setIncludeCoaching] = useState(true);
+    const [actionType, setActionType] = useState<string | null>(null);
+    const [followupResult, setFollowupResult] = useState<string>('확인중');
+    const [coachName, setCoachName] = useState('');
+    const [actionDetail, setActionDetail] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
@@ -143,39 +170,51 @@ const ObserveTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth }) 
     };
 
     const toggleAll = () => {
-        if (selectedWorkers.size === DUMMY_WORKERS.length) {
+        if (selectedWorkers.size === workers.length) {
             setSelectedWorkers(new Set());
         } else {
-            setSelectedWorkers(new Set(DUMMY_WORKERS.map((w) => w.id)));
+            setSelectedWorkers(new Set(workers.map((w) => w.id)));
         }
     };
 
     const handleSubmit = async () => {
         if (selectedWorkers.size === 0) return alert('관찰 대상 근로자를 1명 이상 선택하세요.');
         if (!behaviorPreset) return alert('불안전행동 유형을 선택하세요.');
+        if (includeCoaching && !actionType) return alert('코칭 동시 등록 시 조치 유형을 선택하세요.');
 
         setSubmitting(true);
         setResult(null);
         try {
+            const nowIso = new Date().toISOString();
             const records = Array.from(selectedWorkers).map((workerId) => ({
                 worker_id: workerId,
                 assessment_month: assessmentMonth,
-                observed_at: new Date().toISOString(),
+                observed_at: nowIso,
                 observer_name: observerName || undefined,
                 unsafe_behavior_flag: true,
                 unsafe_behavior_type: behaviorPreset,
                 severity_level: severity,
                 evidence_note: evidenceNote || undefined,
+                action_type: includeCoaching ? (actionType || undefined) : undefined,
+                action_detail: includeCoaching ? (actionDetail || undefined) : undefined,
+                action_completed_at: includeCoaching ? nowIso : undefined,
+                coach_name: includeCoaching ? (coachName || undefined) : undefined,
+                followup_result: includeCoaching ? followupResult : undefined,
+                followup_checked_at: includeCoaching ? nowIso : undefined,
             }));
 
             const data = await callApi('/api/admin/safety-management', {
-                action: 'record-unsafe-behavior',
+                action: 'record-safety-closure-loop',
                 payload: { records },
             });
-            setResult({ ok: true, message: `${data.inserted}건 등록 완료` });
+            const observationCount = Number(data?.inserted_observations || 0);
+            const coachingCount = Number(data?.inserted_coaching || 0);
+            setResult({ ok: true, message: `통합 등록 완료 (관찰 ${observationCount}건 / 코칭 ${coachingCount}건)` });
             setSelectedWorkers(new Set());
             setBehaviorPreset(null);
             setEvidenceNote('');
+            setActionType(null);
+            setActionDetail('');
         } catch (e: any) {
             setResult({ ok: false, message: e.message });
         } finally {
@@ -193,11 +232,11 @@ const ObserveTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth }) 
                         onClick={toggleAll}
                         className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
                     >
-                        {selectedWorkers.size === DUMMY_WORKERS.length ? '전체 해제' : '전체 선택'}
+                        {selectedWorkers.size === workers.length ? '전체 해제' : '전체 선택'}
                     </button>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {DUMMY_WORKERS.map((w) => (
+                    {workers.map((w) => (
                         <label
                             key={w.id}
                             className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all select-none
@@ -212,8 +251,7 @@ const ObserveTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth }) 
                                 checked={selectedWorkers.has(w.id)}
                                 onChange={() => toggleWorker(w.id)}
                             />
-                            <span className="text-xs font-semibold">{w.name}</span>
-                            {w.trade && <span className="text-[10px] text-slate-400">{w.trade}</span>}
+                            <span className="text-xs font-semibold">{w.label}</span>
                         </label>
                     ))}
                 </div>
@@ -283,15 +321,95 @@ const ObserveTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth }) 
                 </div>
             </div>
 
+            {/* 코칭 동시 등록 */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-slate-800 text-sm">코칭 조치 동시 등록</h3>
+                    <button
+                        type="button"
+                        onClick={() => setIncludeCoaching((prev) => !prev)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${includeCoaching ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}
+                    >
+                        {includeCoaching ? 'ON' : 'OFF'}
+                    </button>
+                </div>
+
+                {includeCoaching && (
+                    <>
+                        <div>
+                            <h4 className="font-bold text-slate-700 text-xs mb-2">조치 유형</h4>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                {COACHING_ACTION_PRESETS.map((a) => (
+                                    <button
+                                        key={a.value}
+                                        onClick={() => setActionType(a.value === actionType ? null : a.value)}
+                                        className={`flex items-center gap-2 text-xs font-semibold py-2 px-3 rounded-lg border transition-all
+                                            ${actionType === a.value
+                                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                                : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
+                                            }`}
+                                    >
+                                        <span>{a.icon}</span>
+                                        <span>{a.value}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 className="font-bold text-slate-700 text-xs mb-2">사후조치 결과</h4>
+                            <div className="flex gap-2">
+                                {FOLLOWUP_PRESETS.map((f) => (
+                                    <button
+                                        key={f.value}
+                                        onClick={() => setFollowupResult(f.value)}
+                                        className={`flex-1 text-xs font-bold py-2 px-2 rounded-lg border transition-all
+                                            ${followupResult === f.value
+                                                ? f.color + ' ring-2 ring-offset-1 ring-current'
+                                                : 'bg-slate-50 text-slate-500 border-slate-200'
+                                            }`}
+                                    >
+                                        {f.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">코치 이름</label>
+                                <input
+                                    type="text"
+                                    value={coachName}
+                                    onChange={(e) => setCoachName(e.target.value)}
+                                    placeholder="담당 관리감독자 (선택)"
+                                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-600 mb-1">조치 내용 메모</label>
+                                <input
+                                    type="text"
+                                    value={actionDetail}
+                                    onChange={(e) => setActionDetail(e.target.value)}
+                                    placeholder="코칭 내용 간략 기록 (선택)"
+                                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                                />
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
+
             {/* 제출 버튼 */}
             <button
                 onClick={handleSubmit}
-                disabled={submitting || selectedWorkers.size === 0 || !behaviorPreset}
+                disabled={submitting || selectedWorkers.size === 0 || !behaviorPreset || (includeCoaching && !actionType)}
                 className="w-full py-3 rounded-xl font-bold text-sm transition-all
                     bg-rose-600 text-white hover:bg-rose-700 active:scale-95
                     disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
             >
-                {submitting ? '등록 중...' : `불안전행동 일괄 등록 (${selectedWorkers.size}명)`}
+                {submitting ? '통합 등록 중...' : `점검+코칭 통합 등록 (${selectedWorkers.size}명 / 1회 호출)`}
             </button>
 
             {result && (
@@ -473,7 +591,7 @@ const CoachingTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth })
 // -----------------------------------------------------------------------
 // 탭: 무결성 종합 판정 (트래픽라이트 대시보드)
 // -----------------------------------------------------------------------
-const ReviewTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth }) => {
+const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> = ({ assessmentMonth, workers }) => {
     const [loading, setLoading] = useState(false);
     const [reviews, setReviews] = useState<IntegrityReviewRow[]>([]);
     const [error, setError] = useState<string | null>(null);
@@ -483,7 +601,7 @@ const ReviewTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth }) =
         setLoading(true);
         setError(null);
         try {
-            const allWorkerIds = DUMMY_WORKERS.map((w) => w.id);
+            const allWorkerIds = workers.map((w) => w.id);
             const data = await callApi('/api/admin/safety-management', {
                 action: 'evaluate-worker-integrity',
                 payload: {
@@ -492,7 +610,7 @@ const ReviewTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth }) =
                 },
             });
 
-            const nameMap = Object.fromEntries(DUMMY_WORKERS.map((w) => [w.id, w.name]));
+            const nameMap = Object.fromEntries(workers.map((w) => [w.id, w.label]));
 
             const rows: IntegrityReviewRow[] = (data.data?.results || []).map((r: any) => ({
                 worker_id: r.worker_id,
@@ -510,7 +628,7 @@ const ReviewTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth }) =
         } finally {
             setLoading(false);
         }
-    }, [assessmentMonth]);
+    }, [assessmentMonth, workers]);
 
     // 집계
     const summary = {
@@ -641,13 +759,36 @@ const ReviewTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth }) =
 // -----------------------------------------------------------------------
 // 메인 페이지 컴포넌트
 // -----------------------------------------------------------------------
-const SafetyBehaviorManagement: React.FC = () => {
+interface SafetyBehaviorManagementProps {
+    workerRecords: WorkerRecord[];
+}
+
+const SafetyBehaviorManagement: React.FC<SafetyBehaviorManagementProps> = ({ workerRecords }) => {
     const [activeTab, setActiveTab] = useState<Tab>('observe');
     const [assessmentMonth, setAssessmentMonth] = useState<string>(getCurrentMonth());
+    const workerOptions = useMemo(() => {
+        const sorted = [...workerRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const seen = new Set<string>();
+        const options: WorkerOption[] = [];
+
+        for (const worker of sorted) {
+            if (seen.has(worker.id)) continue;
+            seen.add(worker.id);
+            options.push({
+                id: worker.id,
+                name: worker.name,
+                label: buildWorkerOptionLabel(worker),
+                trade: worker.jobField,
+                nationality: worker.nationality,
+                team: worker.teamLeader,
+            });
+        }
+
+        return options.length > 0 ? options : DUMMY_WORKERS;
+    }, [workerRecords]);
 
     const tabs: { id: Tab; label: string; icon: string }[] = [
-        { id: 'observe', label: '불안전행동 기록', icon: '⚠️' },
-        { id: 'coaching', label: '코칭 조치 등록', icon: '🗣️' },
+        { id: 'observe', label: '점검+코칭 통합등록', icon: '⚠️' },
         { id: 'review', label: '무결성 판정', icon: '🏷️' },
     ];
 
@@ -658,7 +799,7 @@ const SafetyBehaviorManagement: React.FC = () => {
                 <div>
                     <h1 className="text-xl font-black text-slate-900">현장 불안전행동 관리</h1>
                     <p className="text-xs text-slate-400 mt-0.5 font-medium">
-                        관찰 기록 → 코칭 조치 → 무결성 자동 판정 (폐루프 검증)
+                        점검+코칭 통합 등록(1회 호출) → 무결성 자동 판정 (폐루프 검증)
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -692,9 +833,8 @@ const SafetyBehaviorManagement: React.FC = () => {
 
             {/* 탭 콘텐츠 */}
             <div>
-                {activeTab === 'observe' && <ObserveTab assessmentMonth={assessmentMonth} />}
-                {activeTab === 'coaching' && <CoachingTab assessmentMonth={assessmentMonth} />}
-                {activeTab === 'review' && <ReviewTab assessmentMonth={assessmentMonth} />}
+                {activeTab === 'observe' && <ObserveTab assessmentMonth={assessmentMonth} workers={workerOptions} />}
+                {activeTab === 'review' && <ReviewTab assessmentMonth={assessmentMonth} workers={workerOptions} />}
             </div>
         </div>
     );

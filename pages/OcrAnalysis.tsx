@@ -139,6 +139,44 @@ const hasRetryableOriginalImage = (image?: string): boolean => {
     return normalizeRetryImageData(image).length >= 100;
 };
 
+const createFileAnalysisErrorRecord = (file: File, message: string, errorType: OcrErrorType = 'UNKNOWN'): WorkerRecord => {
+    const now = Date.now();
+    const filename = String(file.name || 'unknown-file');
+    const baseName = filename.includes('.') ? filename.replace(/\.[^/.]+$/, '') : filename;
+
+    return {
+        id: `upload-fail-${now}-${Math.random().toString(36).slice(2, 8)}`,
+        name: baseName || '분석 실패',
+        jobField: '미분류',
+        teamLeader: '미지정',
+        role: 'worker',
+        isTranslator: false,
+        isSignalman: false,
+        date: new Date().toISOString().split('T')[0],
+        nationality: '미상',
+        language: 'unknown',
+        handwrittenAnswers: [],
+        fullText: '분석 실패',
+        koreanTranslation: '',
+        safetyScore: 0,
+        ocrErrorType: errorType,
+        ocrErrorMessage: message,
+        safetyLevel: '초급',
+        strengths: [],
+        strengths_native: [],
+        weakAreas: [],
+        weakAreas_native: [],
+        improvement: '',
+        improvement_native: '',
+        suggestions: [],
+        suggestions_native: [],
+        aiInsights: message,
+        aiInsights_native: message,
+        selfAssessedRiskLevel: '중',
+        filename,
+    };
+};
+
 const getPreflightFailureReason = (record: WorkerRecord): string | null => {
     const rawImage = String(record.originalImage || '').trim();
     if (!rawImage) return '원본 이미지가 없습니다. 문서 이미지를 다시 등록해야 합니다.';
@@ -1253,6 +1291,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         if (isRateLimitError(eMsg)) {
                             console.warn(`Rate limit hit on file ${files[i].name}`);
                             setQuotaExhausted(60);
+                            const failMessage = '⛔ API 할당량 초과로 분석 실패 (재시도 필요)';
+                            results.push(createFileAnalysisErrorRecord(files[i], failMessage, 'UNKNOWN'));
+                            const next = incrementApiCallCount('fail');
+                            setDailyCounter(next);
+                            analyzed = true;
                             break; // 이 파일 건너뛰기
                         }
                         
@@ -1261,6 +1304,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             await waitWithCountdown(30, `재시도 중 (${retryCount}/${MAX_FILE_RETRIES})`);
                         } else {
                             console.error(`Failed after ${MAX_FILE_RETRIES} retries:`, e);
+                            const failMessage = `⛔ 파일 분석 실패: ${extractMessage(e) || '알 수 없는 오류'}`;
+                            results.push(createFileAnalysisErrorRecord(files[i], failMessage, 'UNKNOWN'));
+                            const next = incrementApiCallCount('fail');
+                            setDailyCounter(next);
+                            analyzed = true;
                             alert(`파일 분석 실패: ${files[i].name}`);
                         }
                     }

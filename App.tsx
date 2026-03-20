@@ -708,7 +708,7 @@ const App: React.FC = () => {
                         {currentPage === 'reports' && <Reports workerRecords={workerRecords} briefingData={briefingData} setBriefingData={setBriefingData} forecastData={forecastData} setForecastData={setForecastData} />}
                         {currentPage === 'admin-training' && <AdminTraining />}
                         {currentPage === 'worker-training' && <WorkerTraining sessionId={trainingSessionId} />}
-                        {currentPage === 'safety-behavior-management' && <SafetyBehaviorManagement />}
+                        {currentPage === 'safety-behavior-management' && <SafetyBehaviorManagement workerRecords={workerRecords} />}
                         {currentPage === 'feedback' && <Feedback />}
                         {currentPage === 'introduction' && <Introduction />}
                         {currentPage === 'settings' && <Settings />}

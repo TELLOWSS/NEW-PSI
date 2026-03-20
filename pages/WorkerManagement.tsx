@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import type { WorkerRecord } from '../types';
 import { generateReportUrl } from '../utils/qrUtils';
 import { extractMessage } from '../utils/errorUtils';
@@ -1538,27 +1539,23 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             window.removeEventListener('afterprint', restore);
         };
 
-        setWorkersToPrint([currentWorker]);
-        setRenderLimit(1);
-        setViewType('grid');
-        setCurrentFlipIndex(0);
+        flushSync(() => {
+            setWorkersToPrint([currentWorker]);
+            setRenderLimit(1);
+            setViewType('grid');
+            setCurrentFlipIndex(0);
+        });
 
         window.addEventListener('afterprint', restore);
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                try {
-                    performPrint(`PSI-${printType}-current`);
-                } finally {
-                    setTimeout(restore, 2000);
-                }
-            });
-        });
+        try {
+            performPrint(`PSI-${printType}-current`);
+        } finally {
+            setTimeout(restore, 2000);
+        }
     };
 
     const handlePrintAll = () => {
-        requestAnimationFrame(() => {
-            performPrint(`PSI-${printType}-all`);
-        });
+        performPrint(`PSI-${printType}-all`);
     };
 
     const isRenderingComplete = renderLimit >= workersToPrint.length;

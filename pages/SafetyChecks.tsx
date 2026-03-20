@@ -1,7 +1,9 @@
 
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import type { WorkerRecord, SafetyCheckRecord } from '../types';
 import { compressImage } from '../utils/imageCompression';
+import { postAdminJson } from '../utils/adminApiClient';
+import { extractMessage } from '../utils/errorUtils';
 
 interface SafetyChecksProps {
     workerRecords: WorkerRecord[];
@@ -10,7 +12,7 @@ interface SafetyChecksProps {
 }
 
 const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords, onAddCheck }) => {
-    const [workerName, setWorkerName] = useState<string>('');
+    const [selectedWorkerId, setSelectedWorkerId] = useState<string>('');
     // [SIMULATION] Default date set to 2026-01-01
     const [date, setDate] = useState<string>('2026-01-01');
     const [type, setType] = useState<'unsafe_action' | 'unsafe_condition'>('unsafe_action');
@@ -18,9 +20,45 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
     const [details, setDetails] = useState<string>('');
     const [attachedImage, setAttachedImage] = useState<string>('');
     const [isCompressingImage, setIsCompressingImage] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [submitStatus, setSubmitStatus] = useState<{ ok: boolean; message: string } | null>(null);
     const imageInputRef = useRef<HTMLInputElement>(null);
     
-    const uniqueWorkerNames = [...new Set(workerRecords.map(r => r.name))];
+    const workerOptions = useMemo(() => {
+        const sorted = [...workerRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const seen = new Set<string>();
+        const options: Array<{ id: string; name: string; label: string }> = [];
+
+        for (const record of sorted) {
+            if (seen.has(record.id)) continue;
+            seen.add(record.id);
+
+            const team = String(record.teamLeader || '').trim();
+            const field = String(record.jobField || '').trim();
+            const nationality = String(record.nationality || '').trim();
+            const employeeId = String(record.employeeId || '').trim();
+            const qrId = String(record.qrId || '').trim();
+            const identityTag = employeeId
+                ? `사번:${employeeId}`
+                : (qrId ? `QR:${qrId.slice(-6)}` : '식별자없음');
+            const profileTag = field || team
+                ? `${field || '미분류'}${team ? `/${team}` : ''}`
+                : (nationality || '미상');
+
+            options.push({
+                id: record.id,
+                name: record.name,
+                label: `${record.name} (${profileTag} · ${identityTag})`,
+            });
+        }
+
+        return options;
+    }, [workerRecords]);
+
+    const selectedWorker = useMemo(
+        () => workerOptions.find((option) => option.id === selectedWorkerId) || null,
+        [workerOptions, selectedWorkerId]
+    );
 
     const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -38,20 +76,56 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
         }
     };
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if(!workerName || !riskType) {
+        if(!selectedWorkerId || !riskType) {
             alert('근로자와 점검 유형을 입력해주세요.');
             return;
         }
-        onAddCheck({ workerName, date, type, reason: riskType, details, image: attachedImage || undefined });
-        // Reset form
-        setWorkerName('');
-        setRiskType('');
-        setDetails('');
-        setAttachedImage('');
-        if (imageInputRef.current) {
-            imageInputRef.current.value = '';
+        if (!selectedWorker) {
+            alert('선택한 근로자의 식별 ID를 찾지 못했습니다. 근로자 관리에서 데이터 상태를 확인해주세요.');
+            return;
+        }
+
+        setIsSubmitting(true);
+        setSubmitStatus(null);
+        try {
+            const nowIso = new Date().toISOString();
+            await postAdminJson('/api/admin/safety-management', {
+                action: 'record-safety-closure-loop',
+                payload: {
+                    records: [
+                        {
+                            worker_id: workerId,
+                            assessment_month: String(date || '').slice(0, 7),
+                            observed_at: nowIso,
+                            observer_name: 'SafetyChecks',
+                            unsafe_behavior_flag: true,
+                            unsafe_behavior_type: riskType,
+                            severity_level: type === 'unsafe_action' ? '보통' : '낮음',
+                            evidence_note: details || undefined,
+                            action_type: null,
+                        },
+                    ],
+                },
+            }, { fallbackMessage: '점검 통합 등록 실패' });
+
+            onAddCheck({ workerName: selectedWorker.name, date, type, reason: riskType, details, image: attachedImage || undefined });
+            setSubmitStatus({ ok: true, message: '통합 액션으로 점검 기록이 등록되었습니다.' });
+
+            // Reset form
+            setSelectedWorkerId('');
+            setRiskType('');
+            setDetails('');
+            setAttachedImage('');
+            if (imageInputRef.current) {
+                imageInputRef.current.value = '';
+            }
+        } catch (error) {
+            const message = extractMessage(error);
+            setSubmitStatus({ ok: false, message: message || '점검 등록 실패' });
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -67,10 +141,10 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                 <form onSubmit={handleSubmit} className="space-y-4 mt-4 p-4 border border-slate-200 rounded-lg">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div>
-                            <label htmlFor="workerName" className="block text-sm font-medium text-slate-700">근로자</label>
-                            <select id="workerName" value={workerName} onChange={e => setWorkerName(e.target.value)} className="mt-1 block w-full border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                            <label htmlFor="workerId" className="block text-sm font-medium text-slate-700">근로자</label>
+                            <select id="workerId" value={selectedWorkerId} onChange={e => setSelectedWorkerId(e.target.value)} className="mt-1 block w-full border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                                 <option value="">근로자 선택</option>
-                                {uniqueWorkerNames.map(name => <option key={name} value={name}>{name}</option>)}
+                                {workerOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
                             </select>
                         </div>
                         <div>
@@ -130,10 +204,15 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                         )}
                     </div>
                     <div>
-                        <button type="submit" className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                            기록 추가
+                        <button type="submit" disabled={isSubmitting} className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            {isSubmitting ? '등록 중...' : '기록 추가'}
                         </button>
                     </div>
+                    {submitStatus && (
+                        <div className={`rounded-md px-3 py-2 text-xs font-semibold ${submitStatus.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                            {submitStatus.ok ? '✅ ' : '❌ '}{submitStatus.message}
+                        </div>
+                    )}
                 </form>
             </div>
             <div className="bg-white p-6 rounded-lg shadow-sm">
