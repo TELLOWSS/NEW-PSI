@@ -5,7 +5,7 @@
  *
  * Body 형식:
  *   {
- *     action: 'record-unsafe-behavior' | 'register-coaching-action' | 'evaluate-worker-integrity' | 'bulk-upload-workers' | 'list-workers' | 'flush-audio-storage',
+ *     action: 'record-unsafe-behavior' | 'register-coaching-action' | 'evaluate-worker-integrity' | 'bulk-upload-workers' | 'list-workers' | 'update-worker' | 'delete-worker' | 'restore-worker' | 'flush-audio-storage',
  *     payload: { ... 액션별 필드 }
  *   }
  *
@@ -100,6 +100,12 @@ function normalizeJobField(raw: string): string {
     if (!base) return '';
     const compact = base.replace(/\s+/g, '');
     return JOB_FIELD_ALIASES[compact] || JOB_FIELD_ALIASES[base] || base;
+}
+
+function isDeletedAtColumnMissing(error: any): boolean {
+    const message = String(error?.message || '').toLowerCase();
+    const details = String((error as any)?.details || '').toLowerCase();
+    return message.includes('deleted_at') || details.includes('deleted_at');
 }
 
 function toTrainingAudioRelativePath(raw: unknown): string | null {
@@ -516,18 +522,41 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
 // -----------------------------------------------------------------------
 async function handleListWorkers(payload: any): Promise<any> {
     const requestedLimit = Number(payload?.limit || 3000);
+    const includeDeleted = Boolean(payload?.includeDeleted);
     const limit = Number.isFinite(requestedLimit)
         ? Math.min(Math.max(Math.floor(requestedLimit), 1), 5000)
         : 3000;
 
-    const { data, error } = await supabase
-        .from('workers')
-        .select('id, name, job_field, team_name, birth_date, phone_number')
-        .limit(limit);
+    let data: any[] | null = null;
+    let error: any = null;
 
-    if (error) {
-        throw new Error(error.message || 'workers 목록 조회 실패');
+    if (includeDeleted) {
+        const response = await supabase
+            .from('workers')
+            .select('id, name, job_field, team_name, birth_date, phone_number, deleted_at')
+            .limit(limit);
+        data = response.data;
+        error = response.error;
+    } else {
+        const response = await supabase
+            .from('workers')
+            .select('id, name, job_field, team_name, birth_date, phone_number, deleted_at')
+            .is('deleted_at', null)
+            .limit(limit);
+        data = response.data;
+        error = response.error;
     }
+
+    if (error && isDeletedAtColumnMissing(error)) {
+        const fallback = await supabase
+            .from('workers')
+            .select('id, name, job_field, team_name, birth_date, phone_number')
+            .limit(limit);
+        data = fallback.data;
+        error = fallback.error;
+    }
+
+    if (error) throw new Error(error.message || 'workers 목록 조회 실패');
 
     const rows = (data || []).map((row: any) => ({
         id: String(row?.id || '').trim(),
@@ -536,6 +565,7 @@ async function handleListWorkers(payload: any): Promise<any> {
         team_name: String(row?.team_name || '').trim(),
         birth_date: String(row?.birth_date || '').trim(),
         phone_number: String(row?.phone_number || '').trim(),
+        deleted_at: String(row?.deleted_at || '').trim() || null,
     }));
 
     rows.sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
@@ -547,7 +577,137 @@ async function handleListWorkers(payload: any): Promise<any> {
 }
 
 // -----------------------------------------------------------------------
-// 액션 6: 과거 교육 음성 스토리지 일괄 비우기
+// 액션 6: 등록 근로자 정보 수정
+// -----------------------------------------------------------------------
+async function handleUpdateWorker(payload: any): Promise<any> {
+    const id = String(payload?.id || payload?.workerId || '').trim();
+    const name = String(payload?.name || '').trim();
+    const jobField = normalizeJobField(String(payload?.job_field || payload?.jobField || '').trim());
+    const teamName = String(payload?.team_name || payload?.teamName || '').trim();
+    const phoneNumber = normalizePhone(payload?.phone_number || payload?.phoneNumber || '');
+    const birthDate = normalizeBirthDate(payload?.birth_date || payload?.birthDate || '');
+
+    if (!id) throw new Error('worker id 필수');
+    if (!name) throw new Error('이름 필수');
+    if (!jobField) throw new Error('공종 필수');
+    if (!(ALLOWED_JOB_FIELDS as readonly string[]).includes(jobField)) {
+        throw new Error(`허용되지 않은 공종(${jobField})`);
+    }
+    if (!teamName) throw new Error('팀명 필수');
+    if (birthDate && !(birthDate.length === 6 || birthDate.length === 8)) {
+        throw new Error('생년월일은 6자리 또는 8자리만 허용');
+    }
+
+    const { data, error } = await supabase
+        .from('workers')
+        .update({
+            name,
+            job_field: jobField,
+            team_name: teamName,
+            phone_number: phoneNumber || null,
+            birth_date: birthDate || null,
+            updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select('id, name, job_field, team_name, birth_date, phone_number')
+        .single();
+
+    if (error) {
+        throw new Error(error.message || 'workers 수정 실패');
+    }
+
+    return {
+        worker: {
+            id: String(data?.id || '').trim(),
+            name: String(data?.name || '').trim(),
+            job_field: String(data?.job_field || '').trim(),
+            team_name: String(data?.team_name || '').trim(),
+            birth_date: String(data?.birth_date || '').trim(),
+            phone_number: String(data?.phone_number || '').trim(),
+        },
+    };
+}
+
+// -----------------------------------------------------------------------
+// 액션 7: 등록 근로자 삭제
+// -----------------------------------------------------------------------
+async function handleDeleteWorker(payload: any): Promise<any> {
+    const id = String(payload?.id || payload?.workerId || '').trim();
+    if (!id) throw new Error('worker id 필수');
+
+    const softDelete = await supabase
+        .from('workers')
+        .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .is('deleted_at', null)
+        .select('id')
+        .maybeSingle();
+
+    if (softDelete.error && !isDeletedAtColumnMissing(softDelete.error)) {
+        throw new Error(softDelete.error.message || 'workers 삭제 실패');
+    }
+
+    if (softDelete.data?.id) {
+        return {
+            deletedWorkerId: String(softDelete.data.id || '').trim(),
+            softDeleted: true,
+        };
+    }
+
+    const fallbackHardDelete = await supabase
+        .from('workers')
+        .delete()
+        .eq('id', id)
+        .select('id')
+        .maybeSingle();
+
+    if (fallbackHardDelete.error) {
+        throw new Error(fallbackHardDelete.error.message || 'workers 삭제 실패');
+    }
+
+    if (!fallbackHardDelete.data?.id) {
+        throw new Error('삭제 대상 근로자를 찾지 못했습니다.');
+    }
+
+    return {
+        deletedWorkerId: String(fallbackHardDelete.data.id || '').trim(),
+        softDeleted: false,
+    };
+}
+
+// -----------------------------------------------------------------------
+// 액션 8: 등록 근로자 삭제 복구
+// -----------------------------------------------------------------------
+async function handleRestoreWorker(payload: any): Promise<any> {
+    const id = String(payload?.id || payload?.workerId || '').trim();
+    if (!id) throw new Error('worker id 필수');
+
+    const { data, error } = await supabase
+        .from('workers')
+        .update({ deleted_at: null, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .not('deleted_at', 'is', null)
+        .select('id')
+        .maybeSingle();
+
+    if (error) {
+        if (isDeletedAtColumnMissing(error)) {
+            throw new Error('복구 기능을 사용하려면 workers 테이블에 deleted_at 컬럼이 필요합니다.');
+        }
+        throw new Error(error.message || 'workers 복구 실패');
+    }
+
+    if (!data?.id) {
+        throw new Error('복구 대상 근로자를 찾지 못했습니다.');
+    }
+
+    return {
+        restoredWorkerId: String(data.id || '').trim(),
+    };
+}
+
+// -----------------------------------------------------------------------
+// 액션 9: 과거 교육 음성 스토리지 일괄 비우기
 // -----------------------------------------------------------------------
 async function handleFlushAudioStorage(payload: any): Promise<any> {
     const mode = payload?.mode === 'sessions' ? 'sessions' : 'all';
@@ -779,6 +939,18 @@ export default async function handler(req: any, res: any) {
 
             case 'list-workers':
                 data = await handleListWorkers(payload);
+                break;
+
+            case 'update-worker':
+                data = await handleUpdateWorker(payload);
+                break;
+
+            case 'delete-worker':
+                data = await handleDeleteWorker(payload);
+                break;
+
+            case 'restore-worker':
+                data = await handleRestoreWorker(payload);
                 break;
 
             case 'flush-audio-storage':

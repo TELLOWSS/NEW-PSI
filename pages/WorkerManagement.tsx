@@ -533,6 +533,23 @@ type RegisteredWorkerListRow = {
     phone_number: string;
 };
 
+type RegisteredWorkerEditDraft = {
+    id: string;
+    name: string;
+    job_field: string;
+    team_name: string;
+    birth_date: string;
+    phone_number: string;
+};
+
+type RegisteredWorkerSortKey = 'birth_date' | 'phone_number';
+
+type DeletedWorkerUndoState = {
+    id: string;
+    name: string;
+    softDeleted: boolean;
+};
+
 const ALLOWED_JOB_FIELDS = [
     '형틀',
     '철근',
@@ -602,6 +619,17 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [registeredWorkers, setRegisteredWorkers] = useState<RegisteredWorkerListRow[]>([]);
     const [isRegisteredWorkersLoading, setIsRegisteredWorkersLoading] = useState(false);
     const [registeredWorkersError, setRegisteredWorkersError] = useState('');
+    const [editingWorkerId, setEditingWorkerId] = useState('');
+    const [editingWorkerDraft, setEditingWorkerDraft] = useState<RegisteredWorkerEditDraft | null>(null);
+    const [isSavingWorkerEdit, setIsSavingWorkerEdit] = useState(false);
+    const [deletingWorkerId, setDeletingWorkerId] = useState('');
+    const [registeredWorkerUpdateMessage, setRegisteredWorkerUpdateMessage] = useState<string | null>(null);
+    const [registeredWorkersSort, setRegisteredWorkersSort] = useState<{ key: RegisteredWorkerSortKey; order: 'asc' | 'desc' }>({
+        key: 'birth_date',
+        order: 'asc',
+    });
+    const [deletedWorkerUndo, setDeletedWorkerUndo] = useState<DeletedWorkerUndoState | null>(null);
+    const deleteUndoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [manualWorkerForm, setManualWorkerForm] = useState<ManualWorkerForm>({
         name: '',
         nationality: '',
@@ -628,6 +656,19 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const normalizePhone = (raw: unknown) => String(raw || '').replace(/\D/g, '');
     const normalizeBirthDate = (raw: unknown) => String(raw || '').replace(/\D/g, '');
     const normalizePassport = (raw: unknown) => String(raw || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    const formatPhoneForDisplay = (raw: unknown) => {
+        const digits = normalizePhone(raw);
+        if (digits.length <= 3) return digits;
+        if (digits.length <= 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+        return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7, 11)}`;
+    };
+    const formatBirthDateForDisplay = (raw: unknown) => {
+        const digits = normalizeBirthDate(raw);
+        if (digits.length <= 2) return digits;
+        if (digits.length <= 4) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+        if (digits.length <= 6) return `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
+        return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+    };
     const normalizeJobField = (raw: unknown) => {
         const base = String(raw || '').trim();
         if (!base) return '';
@@ -664,6 +705,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const fetchRegisteredWorkers = useCallback(async () => {
         setIsRegisteredWorkersLoading(true);
         setRegisteredWorkersError('');
+        setRegisteredWorkerUpdateMessage(null);
 
         try {
             const data = await postAdminJson<any>(
@@ -691,6 +733,196 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             setIsRegisteredWorkersLoading(false);
         }
     }, []);
+
+    const sortedRegisteredWorkers = useMemo(() => {
+        const sorted = [...registeredWorkers];
+        const direction = registeredWorkersSort.order === 'asc' ? 1 : -1;
+
+        sorted.sort((a, b) => {
+            const left = registeredWorkersSort.key === 'birth_date'
+                ? normalizeBirthDate(a.birth_date)
+                : normalizePhone(a.phone_number);
+            const right = registeredWorkersSort.key === 'birth_date'
+                ? normalizeBirthDate(b.birth_date)
+                : normalizePhone(b.phone_number);
+            return left.localeCompare(right) * direction;
+        });
+
+        return sorted;
+    }, [registeredWorkers, registeredWorkersSort]);
+
+    const toggleRegisteredWorkersSort = (key: RegisteredWorkerSortKey) => {
+        setRegisteredWorkersSort((prev) => {
+            if (prev.key !== key) {
+                return { key, order: 'asc' };
+            }
+            return { key, order: prev.order === 'asc' ? 'desc' : 'asc' };
+        });
+    };
+
+    const clearDeleteUndoTimer = () => {
+        if (deleteUndoTimerRef.current) {
+            clearTimeout(deleteUndoTimerRef.current);
+            deleteUndoTimerRef.current = null;
+        }
+    };
+
+    const startEditRegisteredWorker = (worker: RegisteredWorkerListRow) => {
+        setRegisteredWorkerUpdateMessage(null);
+        setEditingWorkerId(worker.id);
+        setEditingWorkerDraft({
+            id: worker.id,
+            name: worker.name,
+            job_field: worker.job_field,
+            team_name: worker.team_name,
+            birth_date: worker.birth_date,
+            phone_number: worker.phone_number,
+        });
+    };
+
+    const cancelEditRegisteredWorker = () => {
+        setEditingWorkerId('');
+        setEditingWorkerDraft(null);
+        setIsSavingWorkerEdit(false);
+    };
+
+    const handleDeleteRegisteredWorker = async (worker: RegisteredWorkerListRow) => {
+        const ok = window.confirm(`${worker.name || '근로자'} 데이터를 삭제하시겠습니까?`);
+        if (!ok) return;
+
+        setDeletingWorkerId(worker.id);
+        setRegisteredWorkerUpdateMessage(null);
+        try {
+            const data = await postAdminJson<any>(
+                '/api/admin/safety-management',
+                {
+                    action: 'delete-worker',
+                    payload: { id: worker.id },
+                },
+                { fallbackMessage: '등록 근로자 삭제 실패' },
+            );
+
+            const deletedWorkerId = String(data?.data?.deletedWorkerId || '').trim();
+            const softDeleted = Boolean(data?.data?.softDeleted);
+            if (!deletedWorkerId) {
+                throw new Error('삭제 응답이 올바르지 않습니다.');
+            }
+
+            setRegisteredWorkers((prev) => prev.filter((item) => item.id !== deletedWorkerId));
+            if (editingWorkerId === deletedWorkerId) {
+                cancelEditRegisteredWorker();
+            }
+            clearDeleteUndoTimer();
+            if (softDeleted) {
+                setDeletedWorkerUndo({
+                    id: deletedWorkerId,
+                    name: worker.name,
+                    softDeleted: true,
+                });
+                deleteUndoTimerRef.current = setTimeout(() => {
+                    setDeletedWorkerUndo(null);
+                    deleteUndoTimerRef.current = null;
+                }, 7000);
+                setRegisteredWorkerUpdateMessage('✅ 등록 근로자 정보가 삭제되었습니다. (7초 내 실행 취소 가능)');
+            } else {
+                setDeletedWorkerUndo(null);
+                setRegisteredWorkerUpdateMessage('✅ 등록 근로자 정보가 삭제되었습니다.');
+            }
+        } catch (error) {
+            setRegisteredWorkerUpdateMessage(`❌ ${extractMessage(error)}`);
+        } finally {
+            setDeletingWorkerId('');
+        }
+    };
+
+    const handleUndoDeleteRegisteredWorker = async () => {
+        if (!deletedWorkerUndo?.id || !deletedWorkerUndo.softDeleted) return;
+
+        clearDeleteUndoTimer();
+        setRegisteredWorkerUpdateMessage(null);
+
+        try {
+            await postAdminJson<any>(
+                '/api/admin/safety-management',
+                {
+                    action: 'restore-worker',
+                    payload: { id: deletedWorkerUndo.id },
+                },
+                { fallbackMessage: '등록 근로자 복구 실패' },
+            );
+
+            setDeletedWorkerUndo(null);
+            setRegisteredWorkerUpdateMessage('✅ 삭제된 근로자 정보를 복구했습니다.');
+            await fetchRegisteredWorkers();
+        } catch (error) {
+            setRegisteredWorkerUpdateMessage(`❌ ${extractMessage(error)}`);
+            setDeletedWorkerUndo(null);
+        }
+    };
+
+    const handleSaveRegisteredWorker = async () => {
+        if (!editingWorkerDraft) return;
+
+        const name = editingWorkerDraft.name.trim();
+        const jobField = normalizeJobField(editingWorkerDraft.job_field);
+        const teamName = editingWorkerDraft.team_name.trim();
+        const birthDate = normalizeBirthDate(editingWorkerDraft.birth_date);
+        const phoneNumber = normalizePhone(editingWorkerDraft.phone_number);
+
+        if (!name) {
+            setRegisteredWorkerUpdateMessage('❌ 이름은 필수입니다.');
+            return;
+        }
+        if (!jobField) {
+            setRegisteredWorkerUpdateMessage('❌ 공종은 필수입니다.');
+            return;
+        }
+        if (!(ALLOWED_JOB_FIELDS as readonly string[]).includes(jobField)) {
+            setRegisteredWorkerUpdateMessage('❌ 허용된 공종만 수정할 수 있습니다.');
+            return;
+        }
+        if (!teamName) {
+            setRegisteredWorkerUpdateMessage('❌ 팀명은 필수입니다.');
+            return;
+        }
+        if (birthDate && !(birthDate.length === 6 || birthDate.length === 8)) {
+            setRegisteredWorkerUpdateMessage('❌ 생년월일은 6자리 또는 8자리만 허용됩니다.');
+            return;
+        }
+
+        setIsSavingWorkerEdit(true);
+        setRegisteredWorkerUpdateMessage(null);
+        try {
+            const data = await postAdminJson<any>(
+                '/api/admin/safety-management',
+                {
+                    action: 'update-worker',
+                    payload: {
+                        id: editingWorkerDraft.id,
+                        name,
+                        job_field: jobField,
+                        team_name: teamName,
+                        birth_date: birthDate || '',
+                        phone_number: phoneNumber || '',
+                    },
+                },
+                { fallbackMessage: '등록 근로자 수정 실패' },
+            );
+
+            const updatedWorker = data?.data?.worker as RegisteredWorkerListRow | undefined;
+            if (!updatedWorker?.id) {
+                throw new Error('수정된 근로자 응답이 올바르지 않습니다.');
+            }
+
+            setRegisteredWorkers((prev) => prev.map((item) => item.id === updatedWorker.id ? updatedWorker : item));
+            setRegisteredWorkerUpdateMessage('✅ 등록 근로자 정보가 수정되었습니다.');
+            cancelEditRegisteredWorker();
+        } catch (error) {
+            setRegisteredWorkerUpdateMessage(`❌ ${extractMessage(error)}`);
+        } finally {
+            setIsSavingWorkerEdit(false);
+        }
+    };
 
     const handleDownloadTemplate = () => {
         const headers = ['이름', '국적', '공종', '팀명', '핸드폰번호', '생년월일', '여권번호'];
@@ -1128,6 +1360,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     useEffect(() => {
         void fetchRegisteredWorkers();
     }, [fetchRegisteredWorkers]);
+
+    useEffect(() => {
+        return () => {
+            clearDeleteUndoTimer();
+        };
+    }, []);
 
     useEffect(() => {
         if (!isPrintMode) return;
@@ -1744,15 +1982,19 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
                         <input
                             type="text"
-                            value={manualWorkerForm.phone_number}
-                            onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, phone_number: e.target.value }))}
+                            value={formatPhoneForDisplay(manualWorkerForm.phone_number)}
+                            onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, phone_number: normalizePhone(e.target.value).slice(0, 11) }))}
+                            inputMode="numeric"
+                            maxLength={11}
                             placeholder="핸드폰번호 (선택)"
                             className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
                         />
                         <input
                             type="text"
-                            value={manualWorkerForm.birth_date}
-                            onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, birth_date: e.target.value }))}
+                            value={formatBirthDateForDisplay(manualWorkerForm.birth_date)}
+                            onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, birth_date: normalizeBirthDate(e.target.value).slice(0, 8) }))}
+                            inputMode="numeric"
+                            maxLength={8}
                             placeholder="생년월일 6/8자리 (선택)"
                             className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
                         />
@@ -1976,6 +2218,23 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         {isRegisteredWorkersLoading ? '불러오는 중...' : '새로고침'}
                     </button>
                 </div>
+                {registeredWorkerUpdateMessage && (
+                    <p className={`mt-3 text-xs font-bold ${registeredWorkerUpdateMessage.startsWith('✅') ? 'text-emerald-700' : 'text-rose-600'}`}>
+                        {registeredWorkerUpdateMessage}
+                    </p>
+                )}
+                {deletedWorkerUndo && (
+                    <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                        <p className="text-xs font-bold text-amber-800">{deletedWorkerUndo.name || '근로자'} 삭제됨</p>
+                        <button
+                            type="button"
+                            onClick={() => void handleUndoDeleteRegisteredWorker()}
+                            className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-black text-amber-700 hover:bg-amber-100"
+                        >
+                            실행 취소
+                        </button>
+                    </div>
+                )}
 
                 <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
                     <table className="min-w-full text-sm">
@@ -1984,14 +2243,33 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <th className="px-4 py-3 text-left text-xs font-black text-slate-600">이름</th>
                                 <th className="px-4 py-3 text-left text-xs font-black text-slate-600">공종</th>
                                 <th className="px-4 py-3 text-left text-xs font-black text-slate-600">팀명</th>
-                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">생년월일</th>
-                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">전화번호</th>
+                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleRegisteredWorkersSort('birth_date')}
+                                        className="inline-flex items-center gap-1 hover:text-slate-900"
+                                    >
+                                        생년월일
+                                        {registeredWorkersSort.key === 'birth_date' ? (registeredWorkersSort.order === 'asc' ? '▲' : '▼') : ''}
+                                    </button>
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleRegisteredWorkersSort('phone_number')}
+                                        className="inline-flex items-center gap-1 hover:text-slate-900"
+                                    >
+                                        전화번호
+                                        {registeredWorkersSort.key === 'phone_number' ? (registeredWorkersSort.order === 'asc' ? '▲' : '▼') : ''}
+                                    </button>
+                                </th>
+                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">관리</th>
                             </tr>
                         </thead>
                         <tbody>
                             {isRegisteredWorkersLoading && (
                                 <tr>
-                                    <td colSpan={5} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
+                                    <td colSpan={6} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
                                         등록 근로자 목록을 불러오는 중입니다.
                                     </td>
                                 </tr>
@@ -1999,7 +2277,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
                             {!isRegisteredWorkersLoading && registeredWorkersError && (
                                 <tr>
-                                    <td colSpan={5} className="px-4 py-6 text-center text-xs font-bold text-rose-600">
+                                    <td colSpan={6} className="px-4 py-6 text-center text-xs font-bold text-rose-600">
                                         목록 조회 오류: {registeredWorkersError}
                                     </td>
                                 </tr>
@@ -2007,19 +2285,112 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
                             {!isRegisteredWorkersLoading && !registeredWorkersError && registeredWorkers.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
+                                    <td colSpan={6} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
                                         등록된 근로자 데이터가 없습니다.
                                     </td>
                                 </tr>
                             )}
 
-                            {!isRegisteredWorkersLoading && !registeredWorkersError && registeredWorkers.map((worker) => (
+                            {!isRegisteredWorkersLoading && !registeredWorkersError && sortedRegisteredWorkers.map((worker) => (
                                 <tr key={worker.id} className="border-t border-slate-100 hover:bg-slate-50/70">
-                                    <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">{worker.name || '-'}</td>
-                                    <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{worker.job_field || '-'}</td>
-                                    <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{worker.team_name || '-'}</td>
-                                    <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{worker.birth_date || '-'}</td>
-                                    <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{worker.phone_number || '-'}</td>
+                                    <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">
+                                        {editingWorkerId === worker.id ? (
+                                            <input
+                                                type="text"
+                                                value={editingWorkerDraft?.name || ''}
+                                                onChange={(event) => setEditingWorkerDraft((prev) => prev ? ({ ...prev, name: event.target.value }) : prev)}
+                                                className="w-32 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold"
+                                            />
+                                        ) : (worker.name || '-')}
+                                    </td>
+                                    <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">
+                                        {editingWorkerId === worker.id ? (
+                                            <select
+                                                value={editingWorkerDraft?.job_field || ''}
+                                                onChange={(event) => setEditingWorkerDraft((prev) => prev ? ({ ...prev, job_field: event.target.value }) : prev)}
+                                                className="w-36 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold"
+                                            >
+                                                {ALLOWED_JOB_FIELDS.map((field) => (
+                                                    <option key={field} value={field}>{field}</option>
+                                                ))}
+                                            </select>
+                                        ) : (worker.job_field || '-')}
+                                    </td>
+                                    <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">
+                                        {editingWorkerId === worker.id ? (
+                                            <input
+                                                type="text"
+                                                value={editingWorkerDraft?.team_name || ''}
+                                                onChange={(event) => setEditingWorkerDraft((prev) => prev ? ({ ...prev, team_name: event.target.value }) : prev)}
+                                                className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold"
+                                            />
+                                        ) : (worker.team_name || '-')}
+                                    </td>
+                                    <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">
+                                        {editingWorkerId === worker.id ? (
+                                            <input
+                                                type="text"
+                                                value={formatBirthDateForDisplay(editingWorkerDraft?.birth_date || '')}
+                                                onChange={(event) => setEditingWorkerDraft((prev) => prev ? ({ ...prev, birth_date: normalizeBirthDate(event.target.value).slice(0, 8) }) : prev)}
+                                                inputMode="numeric"
+                                                maxLength={8}
+                                                className="w-24 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold"
+                                            />
+                                        ) : (formatBirthDateForDisplay(worker.birth_date) || '-')}
+                                    </td>
+                                    <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">
+                                        {editingWorkerId === worker.id ? (
+                                            <input
+                                                type="text"
+                                                value={formatPhoneForDisplay(editingWorkerDraft?.phone_number || '')}
+                                                onChange={(event) => setEditingWorkerDraft((prev) => prev ? ({ ...prev, phone_number: normalizePhone(event.target.value).slice(0, 11) }) : prev)}
+                                                inputMode="numeric"
+                                                maxLength={11}
+                                                className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold"
+                                            />
+                                        ) : (formatPhoneForDisplay(worker.phone_number) || '-')}
+                                    </td>
+                                    <td className="px-4 py-3 whitespace-nowrap">
+                                        {editingWorkerId === worker.id ? (
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleSaveRegisteredWorker()}
+                                                    disabled={isSavingWorkerEdit}
+                                                    className="rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-1 text-[11px] font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+                                                >
+                                                    {isSavingWorkerEdit ? '저장중' : '저장'}
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={cancelEditRegisteredWorker}
+                                                    disabled={isSavingWorkerEdit}
+                                                    className="rounded-lg bg-slate-100 border border-slate-200 px-2 py-1 text-[11px] font-black text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                                                >
+                                                    취소
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => startEditRegisteredWorker(worker)}
+                                                    disabled={deletingWorkerId === worker.id}
+                                                    className="rounded-lg bg-indigo-50 border border-indigo-200 px-2 py-1 text-[11px] font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+                                                >
+                                                    수정
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void handleDeleteRegisteredWorker(worker)}
+                                                    disabled={deletingWorkerId === worker.id}
+                                                    className="rounded-lg bg-rose-50 border border-rose-200 px-2 py-1 text-[11px] font-black text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+                                                >
+                                                    {deletingWorkerId === worker.id ? '삭제중' : '삭제'}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
