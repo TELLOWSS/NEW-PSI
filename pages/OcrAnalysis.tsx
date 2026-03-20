@@ -10,6 +10,7 @@ import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { getApiCallState, incrementApiCallCount, resetApiCallCount, type DailyCounterState } from '../utils/apiCounterUtils';
 import { MasterTemplateList, type MasterTemplate } from '../components/shared/MasterTemplateList';
 import { MasterAssignment, type MasterAssignmentItem, type MasterGroup } from '../components/shared/MasterAssignment';
+import { CollapsibleSection } from '../components/shared/CollapsibleSection';
 import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
 
 const buildMasterDataLoadErrorMessage = (rawMessage?: string) => {
@@ -304,6 +305,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [selectedMasterTemplateId, setSelectedMasterTemplateId] = useState('');
     const [masterGroups, setMasterGroups] = useState<MasterGroup[]>([]);
     const [masterAssignments, setMasterAssignments] = useState<MasterAssignmentItem[]>([]);
+    const [openMasterSection, setOpenMasterSection] = useState<'templates' | 'assignments' | null>(null);
     const [retryDiagnostics, setRetryDiagnostics] = useState<RetryDiagnostics | null>(null);
 
     const fetchMasterGroups = useCallback(async () => {
@@ -1578,30 +1580,50 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 )}
             </div>
 
-            <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 sm:p-6 space-y-5">
-                <div className="flex flex-col gap-1">
-                    <h3 className="text-xl font-black text-slate-900">기록 양식·공종/팀 배정 관리</h3>
-                    <p className="text-sm font-bold text-slate-500">기록 양식을 만들고, 공종/팀별로 사용할 양식을 쉽게 지정할 수 있습니다.</p>
-                </div>
+            <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 sm:p-6">
+                <CollapsibleSection
+                    title="기록 양식·공종/팀 배정 관리"
+                    summary={<span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-700">양식 {masterTemplates.length} · 그룹 {masterGroups.length} · 배정 {masterAssignments.length}</span>}
+                >
+                    <div className="space-y-5">
+                        <div className="flex flex-col gap-1">
+                            <p className="text-sm font-bold text-slate-500">기록 양식을 만들고, 공종/팀별로 사용할 양식을 쉽게 지정할 수 있습니다.</p>
+                        </div>
 
-                <MasterTemplateList
-                    templates={masterTemplates}
-                    selectedTemplateId={selectedMasterTemplateId}
-                    onSelectTemplate={setSelectedMasterTemplateId}
-                    onCreateTemplate={handleCreateMasterTemplate}
-                    onDeleteTemplate={handleDeleteMasterTemplate}
-                />
+                        <CollapsibleSection
+                            title="기록 양식 관리"
+                            isOpen={openMasterSection === 'templates'}
+                            onToggle={() => setOpenMasterSection((prev) => prev === 'templates' ? null : 'templates')}
+                            summary={<span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-black text-indigo-700">총 {masterTemplates.length}개</span>}
+                        >
+                            <MasterTemplateList
+                                templates={masterTemplates}
+                                selectedTemplateId={selectedMasterTemplateId}
+                                onSelectTemplate={setSelectedMasterTemplateId}
+                                onCreateTemplate={handleCreateMasterTemplate}
+                                onDeleteTemplate={handleDeleteMasterTemplate}
+                            />
+                        </CollapsibleSection>
 
-                <MasterAssignment
-                    groups={masterGroups}
-                    templates={masterTemplates}
-                    assignments={masterAssignments}
-                    onAddGroup={handleAddMasterGroup}
-                    onDeleteGroup={handleDeleteMasterGroup}
-                    onCreateAssignment={handleCreateMasterAssignment}
-                    onDeleteAssignment={handleDeleteMasterAssignment}
-                    onSetAssignmentStatus={handleSetMasterAssignmentStatus}
-                />
+                        <CollapsibleSection
+                            title="공종·팀별 기록 양식 배정"
+                            isOpen={openMasterSection === 'assignments'}
+                            onToggle={() => setOpenMasterSection((prev) => prev === 'assignments' ? null : 'assignments')}
+                            summary={<span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-black text-emerald-700">그룹 {masterGroups.length} · 배정 {masterAssignments.length}</span>}
+                        >
+                            <MasterAssignment
+                                groups={masterGroups}
+                                templates={masterTemplates}
+                                assignments={masterAssignments}
+                                onAddGroup={handleAddMasterGroup}
+                                onDeleteGroup={handleDeleteMasterGroup}
+                                onCreateAssignment={handleCreateMasterAssignment}
+                                onDeleteAssignment={handleDeleteMasterAssignment}
+                                onSetAssignmentStatus={handleSetMasterAssignmentStatus}
+                            />
+                        </CollapsibleSection>
+                    </div>
+                </CollapsibleSection>
             </div>
 
             {primaryFailedRecord && primaryFailedErrorType && (
