@@ -27,21 +27,35 @@ function buildSignatureStoragePath(sessionId: string, options?: { prefix?: strin
 }
 
 async function insertTrainingLogWithSchemaFallback(supabase: any, row: Record<string, unknown>) {
-    const firstTry = await supabase.from('training_logs').insert(row);
-    if (!firstTry.error) return;
+    // audio_url 컬럼이 DB 스키마에 없는 경우 PGRST204 오류가 발생하므로
+    // INSERT 시에는 선제적으로 audio_url을 제거한다.
+    // 컬럼이 실제로 존재하면 이후 best-effort UPDATE로 저장한다.
+    const { audio_url, ...safeRow } = row;
 
-    const message = String(firstTry.error?.message || '').toLowerCase();
-    const details = String((firstTry.error as any)?.details || '').toLowerCase();
-    const missingAudioUrlColumn = message.includes('audio_url') || details.includes('audio_url');
+    const { data: insertedRows, error: insertError } = await supabase
+        .from('training_logs')
+        .insert(safeRow)
+        .select('id')
+        .limit(1);
 
-    if (!missingAudioUrlColumn) {
-        throw new Error(firstTry.error.message || 'training_logs 저장 실패');
+    if (insertError) {
+        throw new Error(insertError.message || 'training_logs 저장 실패');
     }
 
-    const { audio_url: _ignoredAudioUrl, ...fallbackRow } = row;
-    const secondTry = await supabase.from('training_logs').insert(fallbackRow);
-    if (secondTry.error) {
-        throw new Error(secondTry.error.message || 'training_logs 저장 실패');
+    // audio_url 값이 있으면 best-effort UPDATE 시도 (컬럼 없으면 조용히 무시)
+    if (audio_url && insertedRows && insertedRows.length > 0) {
+        const insertedId = (insertedRows[0] as any)?.id;
+        if (insertedId) {
+            try {
+                await supabase
+                    .from('training_logs')
+                    .update({ audio_url })
+                    .eq('id', insertedId);
+                // 오류가 발생해도 무시 (컬럼 없는 경우 정상)
+            } catch (_) {
+                // audio_url 컬럼 없음 → 무시
+            }
+        }
     }
 }
 
@@ -140,19 +154,20 @@ async function handleSingleSignature(payload: any): Promise<any> {
 
     try {
         await insertTrainingLogWithSchemaFallback(supabase, {
-        session_id: sessionId,
-        worker_id: String(workerId).trim(),
-        worker_name: normalizedWorkerName,
-        nationality,
-        signature_url: signatureUrl,
-        audio_url: selectedAudioUrl || null,
-        selected_language_code: selectedLanguageCode || null,
-        is_manager_proxy: Boolean(isManagerProxy),
-        signature_method: Boolean(isManagerProxy) ? 'manager_proxy' : 'worker_self',
-        submitted_at: new Date().toISOString(),
+            session_id: sessionId,
+            worker_id: String(workerId).trim(),
+            worker_name: normalizedWorkerName,
+            nationality,
+            signature_url: signatureUrl,
+            audio_url: selectedAudioUrl || null,
+            selected_language_code: selectedLanguageCode || null,
+            is_manager_proxy: Boolean(isManagerProxy),
+            signature_method: Boolean(isManagerProxy) ? 'manager_proxy' : 'worker_self',
+            submitted_at: new Date().toISOString(),
         });
     } catch (error: any) {
-        throw new Error(`training_logs 저장 실패: ${error?.message || 'unknown error'}`);
+        // audio_url safe-insert 후에도 실패하면 실제 오류 메시지를 그대로 throw
+        throw error;
     }
 
     const checklistPayload = (checklist && typeof checklist === 'object')
@@ -307,7 +322,8 @@ async function handleGroupSignatures(payload: any): Promise<any> {
                 submitted_at: new Date().toISOString(),
             });
         } catch (error: any) {
-            throw new Error(`training_logs 저장 실패(${worker.id}): ${error?.message || 'unknown error'}`);
+            // 실제 오류 메시지를 worker ID와 함께 throw (masking 없이)
+            throw new Error(`[worker ${worker.id}] ${error?.message || 'training_logs 저장 실패'}`);
         }
 
         const { error: ackErr } = await supabase.from('training_acknowledgements').upsert({
