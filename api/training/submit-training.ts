@@ -14,6 +14,18 @@
 import { randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 
+class DuplicateSubmissionError extends Error {
+    statusCode: number;
+    code: string;
+
+    constructor(message: string) {
+        super(message);
+        this.name = 'DuplicateSubmissionError';
+        this.statusCode = 409;
+        this.code = 'DUPLICATE_SUBMISSION';
+    }
+}
+
 function buildSignatureStoragePath(sessionId: string, options?: { prefix?: string }) {
     const normalizedSessionId = String(sessionId || '').trim();
     const timestamp = Date.now();
@@ -39,6 +51,9 @@ async function insertTrainingLogWithSchemaFallback(supabase: any, row: Record<st
         .limit(1);
 
     if (insertError) {
+        if (String((insertError as any)?.code || '') === '23505') {
+            throw new DuplicateSubmissionError('이미 해당 세션에 서명을 제출했습니다. 관리자에게 확인해 주세요.');
+        }
         throw new Error(insertError.message || 'training_logs 저장 실패');
     }
 
@@ -57,6 +72,33 @@ async function insertTrainingLogWithSchemaFallback(supabase: any, row: Record<st
             }
         }
     }
+}
+
+async function hasExistingTrainingLog(
+    supabase: any,
+    options: { sessionId: string; workerId?: string; workerName?: string }
+): Promise<boolean> {
+    const sessionId = String(options.sessionId || '').trim();
+    const workerId = String(options.workerId || '').trim();
+    const workerName = String(options.workerName || '').trim();
+
+    if (!sessionId) return false;
+
+    const query = supabase
+        .from('training_logs')
+        .select('id')
+        .eq('session_id', sessionId)
+        .limit(1);
+
+    const withWorkerFilter = workerId
+        ? query.eq('worker_id', workerId)
+        : query.eq('worker_name', workerName);
+
+    const { data, error } = await withWorkerFilter;
+    if (error) {
+        throw new Error(`중복 확인 실패: ${error.message}`);
+    }
+    return Array.isArray(data) && data.length > 0;
 }
 
 // -----------------------------------------------------------------------
@@ -138,6 +180,15 @@ async function handleSingleSignature(payload: any): Promise<any> {
     }
 
     const supabase = getSupabaseClient();
+
+    const isDuplicate = await hasExistingTrainingLog(supabase, {
+        sessionId,
+        workerId: String(workerId).trim(),
+        workerName: normalizedWorkerName,
+    });
+    if (isDuplicate) {
+        throw new DuplicateSubmissionError('이미 해당 세션에 서명을 제출했습니다. 관리자에게 확인해 주세요.');
+    }
 
     const fileBuffer = Buffer.from(match[1], 'base64');
     const path = buildSignatureStoragePath(sessionId);
@@ -282,10 +333,21 @@ async function handleGroupSignatures(payload: any): Promise<any> {
         };
 
     const insertedWorkerIds: string[] = [];
+    const skippedDuplicateWorkerIds: string[] = [];
 
     for (const item of normalizedSignatures) {
         const worker = workerMap.get(item.workerId);
         if (!worker) continue;
+
+        const isDuplicate = await hasExistingTrainingLog(supabase, {
+            sessionId,
+            workerId: worker.id,
+            workerName: worker.name,
+        });
+        if (isDuplicate) {
+            skippedDuplicateWorkerIds.push(worker.id);
+            continue;
+        }
 
         const match = item.signatureDataUrl.match(/^data:image\/png;base64,(.+)$/);
         if (!match?.[1]) {
@@ -345,7 +407,14 @@ async function handleGroupSignatures(payload: any): Promise<any> {
         insertedWorkerIds.push(worker.id);
     }
 
-    return { sessionId, insertedCount: insertedWorkerIds.length, workerIds: insertedWorkerIds, signatureMethod: 'manager_group_proxy' };
+    return {
+        sessionId,
+        insertedCount: insertedWorkerIds.length,
+        workerIds: insertedWorkerIds,
+        skippedDuplicateCount: skippedDuplicateWorkerIds.length,
+        skippedDuplicateWorkerIds,
+        signatureMethod: 'manager_group_proxy',
+    };
 }
 
 // -----------------------------------------------------------------------
@@ -393,8 +462,10 @@ export default async function handler(req: any, res: any) {
             hint: err?.hint || null,
             stack: err?.stack ? String(err.stack).substring(0, 500) : null,
         };
-        return res.status(500).json({
+        const statusCode = Number(err?.statusCode || 500);
+        return res.status(statusCode).json({
             ok: false,
+            code: err?.code || null,
             message: err?.message || '서명 제출 실패',
             debug: debugInfo,
         });

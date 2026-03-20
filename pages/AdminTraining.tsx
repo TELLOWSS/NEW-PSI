@@ -547,13 +547,23 @@ const AdminTraining: React.FC = () => {
         try {
             const { data, error } = await supabase
                 .from('training_logs')
-                .select('id, submitted_at, nationality, worker_name, signature_url')
+                .select('id, submitted_at, nationality, worker_name, signature_url, worker_id')
                 .eq('session_id', sessionId)
                 .order('submitted_at', { ascending: false })
                 .limit(200);
             if (error) throw new Error(error.message);
+            const rows = Array.isArray(data) ? data : [];
+            const seen = new Set<string>();
+            const deduped = rows.filter((row: any) => {
+                const key = String(row?.worker_id || '').trim() || String(row?.worker_name || '').trim();
+                if (!key) return true;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            });
+
             setSignatureRoster(
-                (data || []).map((row: any) => ({
+                deduped.map((row: any) => ({
                     id: String(row.id ?? ''),
                     submitted_at: String(row.submitted_at ?? ''),
                     nationality: String(row.nationality ?? ''),

@@ -22,6 +22,12 @@ type SessionRow = {
     translated_texts?: unknown;
 };
 
+type ExistingSubmissionRow = {
+    id: string;
+    submitted_at: string;
+    signature_url: string;
+};
+
 type UiText = {
     title: string;
     subtitle: string;
@@ -267,6 +273,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
     const [workersLoading, setWorkersLoading] = useState(false);
     const [workerOptions, setWorkerOptions] = useState<WorkerListItem[]>([]);
     const [selectedWorkerIds, setSelectedWorkerIds] = useState<string[]>([]);
+    const [checkingExistingSubmission, setCheckingExistingSubmission] = useState(false);
+    const [existingSubmission, setExistingSubmission] = useState<ExistingSubmissionRow | null>(null);
 
     const sigRef = useRef<SignatureCanvas | null>(null);
     const groupSigRefs = useRef<Record<string, SignatureCanvas | null>>({});
@@ -435,6 +443,62 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
     }, [simplifiedMode, submitted]);
 
     useEffect(() => {
+        if (isGroupProxyMode) return;
+        if (!sessionId || !authenticatedWorker?.workerId) return;
+
+        const run = async () => {
+            setCheckingExistingSubmission(true);
+
+            const workerId = String(authenticatedWorker.workerId || '').trim();
+            const workerName = String(authenticatedWorker.name || '').trim();
+
+            let foundRow: any = null;
+
+            const byWorkerId = await supabase
+                .from('training_logs')
+                .select('id, submitted_at, signature_url')
+                .eq('session_id', sessionId)
+                .eq('worker_id', workerId)
+                .order('submitted_at', { ascending: false })
+                .limit(1);
+
+            if (!byWorkerId.error && Array.isArray(byWorkerId.data) && byWorkerId.data.length > 0) {
+                foundRow = byWorkerId.data[0];
+            }
+
+            if (!foundRow && workerName) {
+                const byWorkerName = await supabase
+                    .from('training_logs')
+                    .select('id, submitted_at, signature_url')
+                    .eq('session_id', sessionId)
+                    .eq('worker_name', workerName)
+                    .order('submitted_at', { ascending: false })
+                    .limit(1);
+
+                if (!byWorkerName.error && Array.isArray(byWorkerName.data) && byWorkerName.data.length > 0) {
+                    foundRow = byWorkerName.data[0];
+                }
+            }
+
+            if (foundRow) {
+                setExistingSubmission({
+                    id: String(foundRow.id || ''),
+                    submitted_at: String(foundRow.submitted_at || ''),
+                    signature_url: String(foundRow.signature_url || ''),
+                });
+                setSubmitted(true);
+                setMessage('이미 이 세션 교육 제출이 완료되었습니다. 재제출은 차단됩니다.');
+            } else {
+                setExistingSubmission(null);
+            }
+
+            setCheckingExistingSubmission(false);
+        };
+
+        void run();
+    }, [sessionId, authenticatedWorker?.workerId, authenticatedWorker?.name, isGroupProxyMode]);
+
+    useEffect(() => {
         const run = async () => {
             if (!sessionId) {
                 setMessage(uiText.sessionIdMissing);
@@ -556,10 +620,21 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
 
             const data = await response.json();
             if (!response.ok || !data.ok) {
+                if (data?.code === 'DUPLICATE_SUBMISSION') {
+                    setMessage('이미 해당 세션에 제출된 근로자가 포함되어 중복 인원은 제외했습니다.');
+                    setSubmitted(true);
+                    return;
+                }
                 throw new Error(data.message || uiText.submitFail);
             }
 
-            setMessage(`${groupText.groupSubmitSuccess} (${data.data?.insertedCount || selectedWorkers.length}명)`);
+            const insertedCount = Number(data.data?.insertedCount || 0);
+            const skippedCount = Number(data.data?.skippedDuplicateCount || 0);
+            const detail = skippedCount > 0
+                ? `${insertedCount}명 저장 / 중복 ${skippedCount}명 제외`
+                : `${insertedCount || selectedWorkers.length}명`;
+
+            setMessage(`${groupText.groupSubmitSuccess} (${detail})`);
             setSubmitted(true);
             setSelectedWorkerIds([]);
             groupSigRefs.current = {};
@@ -631,6 +706,11 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
 
             const data = await response.json();
             if (!response.ok || !data.ok) {
+                if (data?.code === 'DUPLICATE_SUBMISSION') {
+                    setMessage('이미 제출이 완료된 교육입니다. 중복 제출은 차단됩니다.');
+                    setSubmitted(true);
+                    return;
+                }
                 throw new Error(data.message || '제출 실패');
             }
 
@@ -662,6 +742,41 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
 
     if (!sessionData) {
         return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{uiText.noSession}</div>;
+    }
+
+    if (!isGroupProxyMode && checkingExistingSubmission) {
+        return (
+            <div className={pageContainerClass}>
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <p className="text-sm font-black text-slate-700">제출 이력 확인 중입니다...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!isGroupProxyMode && existingSubmission) {
+        return (
+            <div className={pageContainerClass}>
+                <div className="bg-white p-6 rounded-2xl border border-emerald-200 bg-emerald-50/40 shadow-sm">
+                    <h2 className="text-xl font-black text-emerald-800">이미 제출 완료된 교육입니다</h2>
+                    <p className="mt-2 text-sm font-bold text-slate-700">해당 QR 세션에서는 재제출이 차단됩니다.</p>
+                    <p className="mt-2 text-xs font-bold text-slate-500">
+                        제출 시간: {existingSubmission.submitted_at ? new Date(existingSubmission.submitted_at).toLocaleString('ko-KR') : '-'}
+                    </p>
+                    {existingSubmission.signature_url && (
+                        <div className="mt-4">
+                            <p className="text-xs font-black text-slate-500 mb-2">기 제출 서명</p>
+                            <img
+                                src={existingSubmission.signature_url}
+                                alt="기 제출 서명"
+                                className="max-w-full rounded-xl border border-slate-200 bg-white"
+                                style={{ maxHeight: 220, objectFit: 'contain' }}
+                            />
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
     }
 
     return (
