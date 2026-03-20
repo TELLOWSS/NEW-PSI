@@ -441,6 +441,54 @@ const buildDefaultTrainingTitle = (): string => {
     return `${now.getMonth() + 1}월 위험성평가 전파교육`;
 };
 
+const getTrainingCategoryLabel = (value?: 'monthly_risk' | 'special_safety'): string => {
+    return value === 'special_safety' ? '특별안전보건교육' : '월별 위험성평가';
+};
+
+const getTargetModeLabel = (value?: 'submitted_only' | 'attendance_only'): string => {
+    return value === 'attendance_only' ? '당일 출근자 기준' : '제출자 기준';
+};
+
+const escapeCsvCell = (value: unknown): string => {
+    const text = String(value ?? '');
+    return `"${text.replace(/"/g, '""')}"`;
+};
+
+const normalizeTargetWorkerNames = (items: string[]): string[] => {
+    const seen = new Set<string>();
+    const result: string[] = [];
+
+    for (const item of items) {
+        const normalized = String(item || '').trim();
+        if (!normalized) continue;
+        const key = normalized.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        result.push(normalized);
+        if (result.length >= 5000) break;
+    }
+
+    return result;
+};
+
+const parseAttendanceRosterText = (raw: string): string[] => {
+    const lines = String(raw || '')
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+    const parsed: string[] = [];
+    for (const line of lines) {
+        const cells = line.split(/,|\t|;/).map((cell) => cell.trim()).filter(Boolean);
+        if (cells.length === 0) continue;
+        const firstCell = cells[0];
+        if (/^(name|이름|성명)$/i.test(firstCell)) continue;
+        parsed.push(firstCell);
+    }
+
+    return normalizeTargetWorkerNames(parsed);
+};
+
 const AdminTraining: React.FC = () => {
     // 관리자 UI는 요구사항에 따라 항상 한국어 고정
     const t = UI_TEXT.ko;
@@ -450,6 +498,9 @@ const AdminTraining: React.FC = () => {
     const [targetMode, setTargetMode] = useState<'submitted_only' | 'attendance_only'>('submitted_only');
     const [targetWorkerNamesText, setTargetWorkerNamesText] = useState('');
     const [savingTargets, setSavingTargets] = useState(false);
+    const [importingTargetRoster, setImportingTargetRoster] = useState(false);
+    const [recentSessionSearch, setRecentSessionSearch] = useState('');
+    const [recentSessionCategoryFilter, setRecentSessionCategoryFilter] = useState<'all' | 'monthly_risk' | 'special_safety'>('all');
     const [loading, setLoading] = useState(false);
     const [mobileUrl, setMobileUrl] = useState('');
     const [currentSessionId, setCurrentSessionId] = useState('');
@@ -481,6 +532,22 @@ const AdminTraining: React.FC = () => {
     const [deletingRosterRowId, setDeletingRosterRowId] = useState('');
     const [deletingAllRoster, setDeletingAllRoster] = useState(false);
     const rosterPollingRef = useRef<number | null>(null);
+    const currentLoadedSession = recentSessions.find((session) => session.id === currentSessionId);
+    const filteredRecentSessions = recentSessions.filter((session) => {
+        const matchesCategory = recentSessionCategoryFilter === 'all'
+            || session.training_category === recentSessionCategoryFilter;
+        const keyword = recentSessionSearch.trim().toLowerCase();
+        const haystack = [
+            session.id,
+            session.training_title,
+            session.source_text_ko,
+            session.original_script,
+            getTrainingCategoryLabel(session.training_category),
+            getTargetModeLabel(session.target_mode),
+        ].join(' ').toLowerCase();
+
+        return matchesCategory && (!keyword || haystack.includes(keyword));
+    });
 
     const appendLinkHistory = (item: LinkHistoryItem) => {
         setLinkHistory((prev) => {
@@ -792,7 +859,7 @@ const AdminTraining: React.FC = () => {
                 .from('training_sessions')
                 .select('id, source_text_ko, original_script, audio_urls, created_at, training_title, training_category, target_mode, target_worker_names')
                 .order(column, { ascending: false })
-                .limit(5);
+                .limit(20);
         };
 
         const createdAtResult = await loadWithColumn('created_at');
@@ -919,14 +986,12 @@ const AdminTraining: React.FC = () => {
         setFlushSummary(null);
 
         try {
-            const normalizedTargetWorkerNames = Array.from(
-                new Set(
-                    targetWorkerNamesText
-                        .split(/\r?\n/)
-                        .map((item) => item.trim())
-                        .filter((item) => item.length > 0)
-                )
-            ).slice(0, 5000);
+            const normalizedTargetWorkerNames = normalizeTargetWorkerNames(
+                targetWorkerNamesText
+                    .split(/\r?\n/)
+                    .map((item) => item.trim())
+                    .filter((item) => item.length > 0)
+            );
 
             const data = await postAdminJson<any>(
                 '/api/admin/create-training',
@@ -1048,14 +1113,12 @@ const AdminTraining: React.FC = () => {
 
         setSavingTargets(true);
         try {
-            const normalizedTargetWorkerNames = Array.from(
-                new Set(
-                    targetWorkerNamesText
-                        .split(/\r?\n/)
-                        .map((item) => item.trim())
-                        .filter((item) => item.length > 0)
-                )
-            ).slice(0, 5000);
+            const normalizedTargetWorkerNames = normalizeTargetWorkerNames(
+                targetWorkerNamesText
+                    .split(/\r?\n/)
+                    .map((item) => item.trim())
+                    .filter((item) => item.length > 0)
+            );
 
             await postAdminJson<any>(
                 '/api/admin/update-training-targets',
@@ -1077,6 +1140,219 @@ const AdminTraining: React.FC = () => {
         } finally {
             setSavingTargets(false);
         }
+    };
+
+    const handleImportTargetRosterFile = async (file: File | null) => {
+        if (!file) return;
+
+        setImportingTargetRoster(true);
+        try {
+            const raw = await file.text();
+            const names = parseAttendanceRosterText(raw);
+            if (names.length === 0) {
+                throw new Error('파일에서 이름을 찾지 못했습니다. 첫 번째 열에 이름이 있는 CSV/TXT 파일을 사용해 주세요.');
+            }
+
+            setTargetWorkerNamesText(names.join('\n'));
+            setTargetMode('attendance_only');
+            setMessage(`출근자 명단 ${names.length}명을 불러왔습니다. 저장 버튼을 눌러 현재 세션에 반영하세요.`);
+        } catch (error: any) {
+            setMessage(`오류: ${error?.message || '출근자 명단 파일 불러오기 실패'}`);
+        } finally {
+            setImportingTargetRoster(false);
+        }
+    };
+
+    const handleDownloadSignatureRosterCsv = () => {
+        if (!currentSessionId || signatureRoster.length === 0) {
+            setMessage('다운로드할 서명 명부가 없습니다.');
+            return;
+        }
+
+        const trainingTitleForFile = (currentLoadedSession?.training_title || buildDefaultTrainingTitle())
+            .replace(/[\\/:*?"<>|]/g, '_');
+        const rows = [
+            [
+                '교육명',
+                '교육유형',
+                '모수기준',
+                '세션ID',
+                '제출시간',
+                '국적',
+                '이름',
+                '서명URL',
+            ],
+            ...signatureRoster.map((row) => ([
+                currentLoadedSession?.training_title || buildDefaultTrainingTitle(),
+                getTrainingCategoryLabel(currentLoadedSession?.training_category),
+                getTargetModeLabel(currentLoadedSession?.target_mode),
+                currentSessionId,
+                row.submitted_at ? new Date(row.submitted_at).toLocaleString('ko-KR') : '',
+                row.nationality || '',
+                row.worker_name || '',
+                row.signature_url || '',
+            ])),
+        ];
+
+        const csv = rows
+            .map((line) => line.map((cell) => escapeCsvCell(cell)).join(','))
+            .join('\r\n');
+
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `${trainingTitleForFile}_서명완료명부.csv`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+        setMessage('서명 완료 명부 CSV를 다운로드했습니다.');
+    };
+
+    const handlePrintSignatureRoster = () => {
+        if (!currentSessionId || signatureRoster.length === 0) {
+            setMessage('출력할 서명 명부가 없습니다.');
+            return;
+        }
+
+        const trainingTitleValue = currentLoadedSession?.training_title || buildDefaultTrainingTitle();
+        const trainingCategoryLabel = getTrainingCategoryLabel(currentLoadedSession?.training_category);
+        const targetModeLabel = getTargetModeLabel(currentLoadedSession?.target_mode);
+        const createdAtLabel = formatSessionCreatedAt(currentLoadedSession?.created_at);
+
+        const tableRows = signatureRoster.map((row, index) => `
+            <tr>
+                <td>${signatureRoster.length - index}</td>
+                <td>${row.submitted_at ? new Date(row.submitted_at).toLocaleString('ko-KR') : '-'}</td>
+                <td>${String(row.nationality || '-').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td>
+                <td>${String(row.worker_name || '-').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</td>
+                <td>${row.signature_url ? `<img src="${row.signature_url}" alt="signature" style="height:48px;max-width:140px;object-fit:contain;" />` : '-'}</td>
+            </tr>
+        `).join('');
+
+        const printWindow = window.open('', '_blank', 'width=1100,height=900');
+        if (!printWindow) {
+            setMessage('인쇄 창을 열 수 없습니다. 브라우저 팝업 차단을 해제해 주세요.');
+            return;
+        }
+
+        printWindow.document.write(`
+            <!doctype html>
+            <html lang="ko">
+            <head>
+                <meta charset="utf-8" />
+                <title>${trainingTitleValue} - 서명 완료 명부</title>
+                <style>
+                    body { font-family: Arial, 'Malgun Gothic', sans-serif; margin: 24px; color: #111827; }
+                    h1 { margin: 0 0 8px; font-size: 24px; }
+                    .meta { margin-bottom: 16px; font-size: 12px; line-height: 1.8; }
+                    .badge { display: inline-block; margin-right: 6px; padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 999px; background: #f8fafc; font-weight: 700; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+                    th, td { border: 1px solid #cbd5e1; padding: 8px; font-size: 12px; vertical-align: middle; }
+                    th { background: #f8fafc; text-align: left; }
+                    .footer { margin-top: 12px; font-size: 11px; color: #475569; }
+                    @media print {
+                        body { margin: 12mm; }
+                        .no-print { display: none; }
+                    }
+                </style>
+            </head>
+            <body>
+                <h1>위험성평가 서명 완료 명부</h1>
+                <div class="meta">
+                    <div><span class="badge">${trainingCategoryLabel}</span><span class="badge">${targetModeLabel}</span></div>
+                    <div><strong>교육명:</strong> ${String(trainingTitleValue).replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                    <div><strong>세션 ID:</strong> ${currentSessionId}</div>
+                    <div><strong>세션 생성:</strong> ${createdAtLabel}</div>
+                    <div><strong>출력 시각:</strong> ${new Date().toLocaleString('ko-KR')}</div>
+                    <div><strong>총 인원:</strong> ${signatureRoster.length}명</div>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>순번</th>
+                            <th>제출시간</th>
+                            <th>국적</th>
+                            <th>이름</th>
+                            <th>서명</th>
+                        </tr>
+                    </thead>
+                    <tbody>${tableRows}</tbody>
+                </table>
+                <div class="footer">본 출력물은 PSI 관리자 화면에서 생성된 QR 전자서명 제출 증적입니다.</div>
+                <script>
+                    window.onload = function () {
+                        window.print();
+                    };
+                </script>
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+        setMessage('인쇄용 명부 창을 열었습니다. PDF 저장 또는 인쇄를 진행해 주세요.');
+    };
+
+    const handleDownloadUnsubmittedRosterCsv = () => {
+        if (!currentSessionId) {
+            setMessage('현재 세션이 없습니다.');
+            return;
+        }
+
+        if (currentLoadedSession?.target_mode !== 'attendance_only') {
+            setMessage('미이수자 명단은 당일 출근자 기준 세션에서만 계산할 수 있습니다.');
+            return;
+        }
+
+        const targetNames = Array.isArray(currentLoadedSession?.target_worker_names)
+            ? normalizeTargetWorkerNames(currentLoadedSession.target_worker_names)
+            : [];
+
+        if (targetNames.length === 0) {
+            setMessage('저장된 당일 출근자 명단이 없습니다.');
+            return;
+        }
+
+        const submittedNameSet = new Set(
+            signatureRoster
+                .map((row) => String(row.worker_name || '').trim().toLowerCase())
+                .filter(Boolean)
+        );
+
+        const unsubmittedNames = targetNames.filter((name) => !submittedNameSet.has(name.toLowerCase()));
+        if (unsubmittedNames.length === 0) {
+            setMessage('미이수자가 없습니다.');
+            return;
+        }
+
+        const trainingTitleForFile = (currentLoadedSession?.training_title || buildDefaultTrainingTitle())
+            .replace(/[\\/:*?"<>|]/g, '_');
+
+        const rows = [
+            ['교육명', '교육유형', '모수기준', '세션ID', '미이수자명'],
+            ...unsubmittedNames.map((name) => ([
+                currentLoadedSession?.training_title || buildDefaultTrainingTitle(),
+                getTrainingCategoryLabel(currentLoadedSession?.training_category),
+                getTargetModeLabel(currentLoadedSession?.target_mode),
+                currentSessionId,
+                name,
+            ])),
+        ];
+
+        const csv = rows
+            .map((line) => line.map((cell) => escapeCsvCell(cell)).join(','))
+            .join('\r\n');
+
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `${trainingTitleForFile}_미이수자명부.csv`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+        setMessage(`미이수자 명단 CSV를 다운로드했습니다. (${unsubmittedNames.length}명)`);
     };
 
     const handleCopyShareText = async () => {
@@ -1360,6 +1636,23 @@ const AdminTraining: React.FC = () => {
                     <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 p-3">
                         <p className="text-xs font-black text-indigo-800">당일 출근자 명단 (줄바꿈으로 입력)</p>
                         <p className="mt-1 text-[11px] font-bold text-indigo-700">예: 홍길동↵김민수↵Sokha Chan</p>
+                        <div className="mt-2 rounded-lg border border-indigo-200 bg-white px-3 py-3">
+                            <p className="text-[11px] font-black text-indigo-800">CSV/TXT 업로드</p>
+                            <p className="mt-1 text-[10px] font-bold text-indigo-600">첫 번째 열을 이름으로 읽습니다. 헤더가 있으면 자동 제외합니다.</p>
+                            <input
+                                type="file"
+                                accept=".csv,.txt,text/csv,text/plain"
+                                disabled={importingTargetRoster}
+                                onChange={(e) => {
+                                    void handleImportTargetRosterFile(e.target.files?.[0] || null);
+                                    e.currentTarget.value = '';
+                                }}
+                                className="mt-2 block w-full text-xs font-bold text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-indigo-600 file:px-3 file:py-2 file:text-xs file:font-black file:text-white hover:file:bg-indigo-700 disabled:opacity-60"
+                            />
+                            {importingTargetRoster && (
+                                <p className="mt-2 text-[11px] font-black text-indigo-700">명단 파일 불러오는 중...</p>
+                            )}
+                        </div>
                         <textarea
                             value={targetWorkerNamesText}
                             onChange={(e) => setTargetWorkerNamesText(e.target.value)}
@@ -1367,6 +1660,9 @@ const AdminTraining: React.FC = () => {
                             placeholder="당일 실제 출근자만 입력"
                             className="mt-2 w-full rounded-lg border border-indigo-200 bg-white p-3 text-sm font-bold text-slate-800"
                         />
+                        <p className="mt-2 text-[11px] font-bold text-indigo-700">
+                            현재 인원: {normalizeTargetWorkerNames(targetWorkerNamesText.split(/\r?\n/)).length}명
+                        </p>
                     </div>
                 )}
                 {uploadWarningMessage && (
@@ -1491,6 +1787,19 @@ const AdminTraining: React.FC = () => {
                                                     </span>
                                                 )}
                                             </span>
+                                            <span className="mt-1 flex flex-wrap items-center gap-1">
+                                                <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-black text-indigo-700">
+                                                    {getTrainingCategoryLabel(session.training_category)}
+                                                </span>
+                                                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-black text-emerald-700">
+                                                    {getTargetModeLabel(session.target_mode)}
+                                                </span>
+                                                {session.training_title && (
+                                                    <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-slate-700 max-w-full truncate">
+                                                        {session.training_title}
+                                                    </span>
+                                                )}
+                                            </span>
                                             <span className="block text-[10px] font-semibold text-slate-500">
                                                 생성: {formatSessionCreatedAt(session.created_at)}
                                                 {isFlushedSession ? ' · 용량 0MB 상태' : ''}
@@ -1587,8 +1896,21 @@ const AdminTraining: React.FC = () => {
             </div>
 
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
-                <h3 className="text-lg font-black text-slate-900">{t.awarenessTitle}</h3>
-                <p className="mt-1 text-xs font-bold text-slate-500">{t.awarenessSubtitle}</p>
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div>
+                        <h3 className="text-lg font-black text-slate-900">{t.awarenessTitle}</h3>
+                        <p className="mt-1 text-xs font-bold text-slate-500">{t.awarenessSubtitle}</p>
+                    </div>
+                    {currentLoadedSession?.target_mode === 'attendance_only' && (
+                        <button
+                            type="button"
+                            onClick={handleDownloadUnsubmittedRosterCsv}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-black text-amber-700 hover:bg-amber-100"
+                        >
+                            미이수자 CSV
+                        </button>
+                    )}
+                </div>
                 {migrationReport ? (
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                         <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">
@@ -1681,6 +2003,91 @@ const AdminTraining: React.FC = () => {
                 )}
             </div>
 
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div>
+                        <h3 className="text-lg font-black text-slate-900">최근 세션 관리</h3>
+                        <p className="mt-1 text-xs font-bold text-slate-500">교육명, 교육유형, 세션ID로 검색하고 바로 불러오기/삭제할 수 있습니다.</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => void fetchRecentSessions()}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-700 hover:bg-slate-50"
+                    >
+                        목록 새로고침
+                    </button>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-[1fr_220px] gap-3">
+                    <input
+                        value={recentSessionSearch}
+                        onChange={(e) => setRecentSessionSearch(e.target.value)}
+                        placeholder="교육명, 세션ID, 유형으로 검색"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800"
+                    />
+                    <select
+                        value={recentSessionCategoryFilter}
+                        onChange={(e) => setRecentSessionCategoryFilter((e.target.value as 'all' | 'monthly_risk' | 'special_safety') || 'all')}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-800"
+                    >
+                        <option value="all">전체 유형</option>
+                        <option value="monthly_risk">월별 위험성평가</option>
+                        <option value="special_safety">특별안전보건교육</option>
+                    </select>
+                </div>
+
+                {filteredRecentSessions.length === 0 ? (
+                    <p className="mt-4 text-sm font-bold text-slate-500">검색 조건에 맞는 최근 세션이 없습니다.</p>
+                ) : (
+                    <div className="mt-4 space-y-3">
+                        {filteredRecentSessions.map((session) => {
+                            const isCurrent = session.id === currentSessionId;
+                            return (
+                                <div key={session.id} className={`rounded-xl border p-4 ${isCurrent ? 'border-indigo-300 bg-indigo-50/50' : 'border-slate-200 bg-slate-50/60'}`}>
+                                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <p className="text-sm font-black text-slate-900 break-all">{session.training_title || buildDefaultTrainingTitle()}</p>
+                                                <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-black text-indigo-700">
+                                                    {getTrainingCategoryLabel(session.training_category)}
+                                                </span>
+                                                <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700">
+                                                    {getTargetModeLabel(session.target_mode)}
+                                                </span>
+                                                {isCurrent && (
+                                                    <span className="inline-flex items-center rounded-full border border-fuchsia-200 bg-fuchsia-50 px-2 py-0.5 text-[10px] font-black text-fuchsia-700">
+                                                        현재 로드됨
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="mt-2 text-[11px] font-bold text-slate-500 break-all">세션ID: {session.id}</p>
+                                            <p className="mt-1 text-[11px] font-bold text-slate-500">생성: {formatSessionCreatedAt(session.created_at)}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => void hydrateSessionState(session, t.recentLoaded)}
+                                                className="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-2 text-xs font-black text-white hover:bg-indigo-700"
+                                            >
+                                                {t.recentLoad}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => void handleDeleteSession(session.id)}
+                                                disabled={deletingSessionId === session.id}
+                                                className="inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                                            >
+                                                {deletingSessionId === session.id ? t.deleting : t.delete}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
             {/* 위험성평가 서명 완료 명부 */}
             {currentSessionId && (
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
@@ -1690,6 +2097,26 @@ const AdminTraining: React.FC = () => {
                             <p className="mt-1 text-xs font-bold text-slate-500">현재 세션에 제출된 서명 목록 · 10초마다 자동 갱신</p>
                         </div>
                         <div className="flex items-center gap-2">
+                            {signatureRoster.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={handlePrintSignatureRoster}
+                                    disabled={rosterLoading || deletingAllRoster}
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+                                >
+                                    인쇄/PDF
+                                </button>
+                            )}
+                            {signatureRoster.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={handleDownloadSignatureRosterCsv}
+                                    disabled={rosterLoading || deletingAllRoster}
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                                >
+                                    CSV 다운로드
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 onClick={() => void fetchSignatureRoster(currentSessionId)}
@@ -1823,6 +2250,19 @@ const AdminTraining: React.FC = () => {
             {mobileUrl && (
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
                     <h3 className="text-xl font-black text-slate-900">근로자 접속 QR</h3>
+                    {currentLoadedSession && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[10px] font-black text-indigo-700">
+                                {getTrainingCategoryLabel(currentLoadedSession.training_category)}
+                            </span>
+                            <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">
+                                {getTargetModeLabel(currentLoadedSession.target_mode)}
+                            </span>
+                            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-700">
+                                {currentLoadedSession.training_title || buildDefaultTrainingTitle()}
+                            </span>
+                        </div>
+                    )}
                     <p className="text-xs font-bold text-slate-500 mt-2 break-all">{mobileUrl}</p>
                     <div className="mt-4">
                         <QRCodeCanvas value={mobileUrl} size={220} />
