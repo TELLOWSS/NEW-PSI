@@ -2345,7 +2345,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 value={formatPhoneForDisplay(editingWorkerDraft?.phone_number || '')}
                                                 onChange={(event) => setEditingWorkerDraft((prev) => prev ? ({ ...prev, phone_number: normalizePhone(event.target.value).slice(0, 11) }) : prev)}
                                                 inputMode="numeric"
-                                                maxLength={11}
+                                                maxLength={13}
                                                 className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold"
                                             />
                                         ) : (formatPhoneForDisplay(worker.phone_number) || '-')}
