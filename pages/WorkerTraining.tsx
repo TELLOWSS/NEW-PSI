@@ -11,6 +11,7 @@ import {
 
 interface WorkerTrainingProps {
     sessionId: string;
+    isKioskMode?: boolean;
 }
 
 type SessionRow = {
@@ -247,7 +248,7 @@ const SignaturePadSection: React.FC<SignaturePadSectionProps> = ({
     </div>
 );
 
-const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
+const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode = false }) => {
     const [loading, setLoading] = useState(true);
     const [sessionData, setSessionData] = useState<SessionRow | null>(null);
     const [authenticatedWorker, setAuthenticatedWorker] = useState<AuthenticatedWorker | null>(null);
@@ -284,6 +285,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
         const queryMode = new URLSearchParams(window.location.search).get('mode');
         return queryMode === 'manager-group-proxy';
     }, []);
+    const pageContainerClass = isKioskMode ? 'space-y-6 w-full' : 'space-y-6 max-w-2xl';
 
     const normalizedAudioMap = useMemo(() => {
         if (!sessionData?.audio_urls || typeof sessionData.audio_urls !== 'object') return {} as Record<string, string>;
@@ -644,7 +646,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
 
     if (!authenticatedWorker) {
         return (
-            <div className="space-y-6 max-w-2xl">
+            <div className={pageContainerClass}>
                 <AuthGateway
                     onAuthenticated={handleGatewayAuthenticated}
                     title={isGroupProxyMode ? '대면 서명 전 근로자 본인 확인' : '교육 시작 전 근로자 본인 확인'}
@@ -663,7 +665,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId }) => {
     }
 
     return (
-        <div className="space-y-6 max-w-2xl">
+        <div className={pageContainerClass}>
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h2 className="text-2xl font-black text-slate-900">{uiText.title}</h2>
                 <p className="text-sm font-bold text-slate-500 mt-2">{uiText.subtitle}</p>

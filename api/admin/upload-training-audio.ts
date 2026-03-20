@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../shared/adminAuthGuard';
 
 // ─── 백엔드 전용 언어 코드 (프론트엔드 utils 의존성 제거) ────────────────────
 
@@ -79,6 +80,10 @@ function normalizeBase64(raw: string) {
 export default async function handler(req: any, res: any) {
     if (req.method !== 'POST') {
         return sendJsonError(res, 405, 'Method Not Allowed');
+    }
+
+    if (!isValidAdminAuthRequest(req)) {
+        return sendUnauthorizedAdminResponse(res);
     }
 
     try {

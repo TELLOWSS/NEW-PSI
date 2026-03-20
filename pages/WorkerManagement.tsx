@@ -1,8 +1,9 @@
 
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import type { WorkerRecord } from '../types';
 import { generateReportUrl } from '../utils/qrUtils';
 import { extractMessage } from '../utils/errorUtils';
+import { postAdminJson } from '../utils/adminApiClient';
 import { getWindowProp } from '../utils/windowUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import * as XLSX from 'xlsx';
@@ -523,6 +524,15 @@ type ManualWorkerForm = {
     passport_number: string;
 };
 
+type RegisteredWorkerListRow = {
+    id: string;
+    name: string;
+    job_field: string;
+    team_name: string;
+    birth_date: string;
+    phone_number: string;
+};
+
 const ALLOWED_JOB_FIELDS = [
     '형틀',
     '철근',
@@ -589,6 +599,9 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [bulkUploadMessage, setBulkUploadMessage] = useState<string | null>(null);
     const [bulkUploadSummary, setBulkUploadSummary] = useState<BulkUploadSummary | null>(null);
     const [isManualRegistering, setIsManualRegistering] = useState(false);
+    const [registeredWorkers, setRegisteredWorkers] = useState<RegisteredWorkerListRow[]>([]);
+    const [isRegisteredWorkersLoading, setIsRegisteredWorkersLoading] = useState(false);
+    const [registeredWorkersError, setRegisteredWorkersError] = useState('');
     const [manualWorkerForm, setManualWorkerForm] = useState<ManualWorkerForm>({
         name: '',
         nationality: '',
@@ -647,6 +660,37 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             blankrows: false,
         });
     };
+
+    const fetchRegisteredWorkers = useCallback(async () => {
+        setIsRegisteredWorkersLoading(true);
+        setRegisteredWorkersError('');
+
+        try {
+            const data = await postAdminJson<any>(
+                '/api/admin/safety-management',
+                {
+                    action: 'list-workers',
+                    payload: { limit: 3000 },
+                },
+                { fallbackMessage: '등록 근로자 목록 조회 실패' },
+            );
+
+            const rows = Array.isArray(data?.data?.rows) ? data.data.rows : [];
+            setRegisteredWorkers(rows.map((row: any) => ({
+                id: String(row?.id || '').trim(),
+                name: String(row?.name || '').trim(),
+                job_field: String(row?.job_field || '').trim(),
+                team_name: String(row?.team_name || '').trim(),
+                birth_date: String(row?.birth_date || '').trim(),
+                phone_number: String(row?.phone_number || '').trim(),
+            })));
+        } catch (error) {
+            setRegisteredWorkersError(extractMessage(error));
+            setRegisteredWorkers([]);
+        } finally {
+            setIsRegisteredWorkersLoading(false);
+        }
+    }, []);
 
     const handleDownloadTemplate = () => {
         const headers = ['이름', '국적', '공종', '팀명', '핸드폰번호', '생년월일', '여권번호'];
@@ -761,21 +805,16 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
             const normalizedRows = validateAndNormalizeRows(parsedRows);
 
-            const response = await fetch('/api/admin/safety-management', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            const data = await postAdminJson<any>(
+                '/api/admin/safety-management',
+                {
                     action: 'bulk-upload-workers',
                     payload: {
                         workers: normalizedRows,
                     },
-                }),
-            });
-
-            const data = await response.json();
-            if (!response.ok || !data?.ok) {
-                throw new Error(data?.message || '근로자 대량 업로드 실패');
-            }
+                },
+                { fallbackMessage: '근로자 대량 업로드 실패' },
+            );
 
             const requested = Number(data?.data?.requested || normalizedRows.length);
             const inserted = Number(data?.data?.inserted || 0);
@@ -789,6 +828,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 fileName: file.name,
                 message: '엑셀 업로드가 정상 처리되었습니다.',
             });
+            void fetchRegisteredWorkers();
         } catch (error: any) {
             setBulkUploadMessage(`❌ ${extractMessage(error)}`);
             setBulkUploadSummary({
@@ -828,10 +868,9 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
         setIsManualRegistering(true);
         try {
-            const response = await fetch('/api/admin/safety-management', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            const data = await postAdminJson<any>(
+                '/api/admin/safety-management',
+                {
                     action: 'bulk-upload-workers',
                     payload: {
                         workers: [
@@ -846,13 +885,9 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             },
                         ],
                     },
-                }),
-            });
-
-            const data = await response.json();
-            if (!response.ok || !data?.ok) {
-                throw new Error(data?.message || '근로자 등록 실패');
-            }
+                },
+                { fallbackMessage: '근로자 등록 실패' },
+            );
 
             const requested = Number(data?.data?.requested || 1);
             const inserted = Number(data?.data?.inserted || 0);
@@ -866,6 +901,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 fileName: '프로그램 내 직접 등록',
                 message: '프로그램에서 근로자 등록이 완료되었습니다.',
             });
+            void fetchRegisteredWorkers();
 
             setManualWorkerForm({
                 name: '',
@@ -1089,6 +1125,10 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
     // [PROGRESSIVE RENDERING ENGINE]
     // 브라우저 멈춤 방지를 위해 프레임당 렌더링 개수를 제한하여 점진적으로 로드함
+    useEffect(() => {
+        void fetchRegisteredWorkers();
+    }, [fetchRegisteredWorkers]);
+
     useEffect(() => {
         if (!isPrintMode) return;
 
@@ -1922,6 +1962,69 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         </div>
                     );
                 })}
+            </div>
+
+            <div className="mt-8 bg-white rounded-[24px] border border-slate-100 shadow-xl p-5 sm:p-6">
+                <div className="flex items-center justify-between gap-3">
+                    <h3 className="text-base sm:text-lg font-black text-slate-900">등록 근로자 리스트 뷰</h3>
+                    <button
+                        type="button"
+                        onClick={() => void fetchRegisteredWorkers()}
+                        disabled={isRegisteredWorkersLoading}
+                        className="px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-black hover:bg-indigo-100 disabled:opacity-60"
+                    >
+                        {isRegisteredWorkersLoading ? '불러오는 중...' : '새로고침'}
+                    </button>
+                </div>
+
+                <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+                    <table className="min-w-full text-sm">
+                        <thead className="bg-slate-50">
+                            <tr>
+                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">이름</th>
+                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">공종</th>
+                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">팀명</th>
+                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">생년월일</th>
+                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">전화번호</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {isRegisteredWorkersLoading && (
+                                <tr>
+                                    <td colSpan={5} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
+                                        등록 근로자 목록을 불러오는 중입니다.
+                                    </td>
+                                </tr>
+                            )}
+
+                            {!isRegisteredWorkersLoading && registeredWorkersError && (
+                                <tr>
+                                    <td colSpan={5} className="px-4 py-6 text-center text-xs font-bold text-rose-600">
+                                        목록 조회 오류: {registeredWorkersError}
+                                    </td>
+                                </tr>
+                            )}
+
+                            {!isRegisteredWorkersLoading && !registeredWorkersError && registeredWorkers.length === 0 && (
+                                <tr>
+                                    <td colSpan={5} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
+                                        등록된 근로자 데이터가 없습니다.
+                                    </td>
+                                </tr>
+                            )}
+
+                            {!isRegisteredWorkersLoading && !registeredWorkersError && registeredWorkers.map((worker) => (
+                                <tr key={worker.id} className="border-t border-slate-100 hover:bg-slate-50/70">
+                                    <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">{worker.name || '-'}</td>
+                                    <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{worker.job_field || '-'}</td>
+                                    <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{worker.team_name || '-'}</td>
+                                    <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{worker.birth_date || '-'}</td>
+                                    <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{worker.phone_number || '-'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );

@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../shared/adminAuthGuard';
 
 function getSupabaseClient() {
     const supabaseUrl =
@@ -44,6 +45,10 @@ function sendJsonError(res: any, statusCode: number, message: string) {
 export default async function handler(req: any, res: any) {
     if (req.method !== 'POST') {
         return sendJsonError(res, 405, 'Method Not Allowed');
+    }
+
+    if (!isValidAdminAuthRequest(req)) {
+        return sendUnauthorizedAdminResponse(res);
     }
 
     try {

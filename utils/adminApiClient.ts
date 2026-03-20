@@ -1,3 +1,5 @@
+import { assertAdminAuthenticated, getAdminAuthToken } from './adminGuard';
+
 export type SafeJsonParseOptions = {
     fallbackMessage: string;
     requireOk?: boolean;
@@ -50,9 +52,18 @@ export async function postAdminJson<T = any>(
     payload: unknown,
     options: SafeJsonParseOptions,
 ): Promise<T> {
+    assertAdminAuthenticated();
+    const adminAuthToken = getAdminAuthToken();
+    if (!adminAuthToken) {
+        throw new Error('관리자 인증 토큰이 없습니다. 다시 로그인해 주세요.');
+    }
+
     const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'x-admin-auth': adminAuthToken,
+        },
         body: JSON.stringify(payload),
     });
 

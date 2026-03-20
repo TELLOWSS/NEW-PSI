@@ -62,7 +62,7 @@ export const verifyTrainingLinkToken = (sessionId: string, expiresAtRaw: unknown
 export const buildSignedTrainingMobileUrl = (baseUrl: string, sessionId: string, ttlMinutes = resolveLinkTtlMinutes()) => {
     const expiresAt = Date.now() + ttlMinutes * 60 * 1000;
     const token = generateTrainingLinkToken(sessionId, expiresAt);
-    const mobileUrl = `${baseUrl}/?mode=worker-training&sessionId=${encodeURIComponent(sessionId)}&exp=${expiresAt}&sig=${encodeURIComponent(token)}`;
+    const mobileUrl = `${baseUrl}/?mode=worker-kiosk&sessionId=${encodeURIComponent(sessionId)}&exp=${expiresAt}&sig=${encodeURIComponent(token)}`;
 
     return {
         mobileUrl,

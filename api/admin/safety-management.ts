@@ -5,7 +5,7 @@
  *
  * Body 형식:
  *   {
- *     action: 'record-unsafe-behavior' | 'register-coaching-action' | 'evaluate-worker-integrity' | 'bulk-upload-workers' | 'flush-audio-storage',
+ *     action: 'record-unsafe-behavior' | 'register-coaching-action' | 'evaluate-worker-integrity' | 'bulk-upload-workers' | 'list-workers' | 'flush-audio-storage',
  *     payload: { ... 액션별 필드 }
  *   }
  *
@@ -14,6 +14,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../shared/adminAuthGuard';
 
 const supabase = createClient(
     process.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -511,7 +512,42 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
 }
 
 // -----------------------------------------------------------------------
-// 액션 5: 과거 교육 음성 스토리지 일괄 비우기
+// 액션 5: 등록 근로자 목록 조회
+// -----------------------------------------------------------------------
+async function handleListWorkers(payload: any): Promise<any> {
+    const requestedLimit = Number(payload?.limit || 3000);
+    const limit = Number.isFinite(requestedLimit)
+        ? Math.min(Math.max(Math.floor(requestedLimit), 1), 5000)
+        : 3000;
+
+    const { data, error } = await supabase
+        .from('workers')
+        .select('id, name, job_field, team_name, birth_date, phone_number')
+        .limit(limit);
+
+    if (error) {
+        throw new Error(error.message || 'workers 목록 조회 실패');
+    }
+
+    const rows = (data || []).map((row: any) => ({
+        id: String(row?.id || '').trim(),
+        name: String(row?.name || '').trim(),
+        job_field: String(row?.job_field || '').trim(),
+        team_name: String(row?.team_name || '').trim(),
+        birth_date: String(row?.birth_date || '').trim(),
+        phone_number: String(row?.phone_number || '').trim(),
+    }));
+
+    rows.sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
+
+    return {
+        rows,
+        total: rows.length,
+    };
+}
+
+// -----------------------------------------------------------------------
+// 액션 6: 과거 교육 음성 스토리지 일괄 비우기
 // -----------------------------------------------------------------------
 async function handleFlushAudioStorage(payload: any): Promise<any> {
     const mode = payload?.mode === 'sessions' ? 'sessions' : 'all';
@@ -711,6 +747,10 @@ export default async function handler(req: any, res: any) {
         return res.status(405).json({ ok: false, message: 'Method Not Allowed' });
     }
 
+    if (!isValidAdminAuthRequest(req)) {
+        return sendUnauthorizedAdminResponse(res);
+    }
+
     try {
         const { action, payload } = req.body || {};
 
@@ -735,6 +775,10 @@ export default async function handler(req: any, res: any) {
 
             case 'bulk-upload-workers':
                 data = await handleBulkUploadWorkers(payload);
+                break;
+
+            case 'list-workers':
+                data = await handleListWorkers(payload);
                 break;
 
             case 'flush-audio-storage':

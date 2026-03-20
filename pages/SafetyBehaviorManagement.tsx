@@ -10,6 +10,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { postAdminJson } from '../utils/adminApiClient';
 
 // -----------------------------------------------------------------------
 // 상수 / 프리셋 목록 (API와 동기화)
@@ -116,14 +117,9 @@ function reasonCodeToKo(code: string): string {
 // 공통 API 호출 헬퍼
 // -----------------------------------------------------------------------
 async function callApi(endpoint: string, body: object): Promise<{ ok: boolean; [key: string]: any }> {
-    const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+    return postAdminJson<{ ok: boolean; [key: string]: any }>(endpoint, body, {
+        fallbackMessage: '관리자 API 호출 실패',
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.message || `서버 오류 (${res.status})`);
-    return data;
 }
 
 // -----------------------------------------------------------------------

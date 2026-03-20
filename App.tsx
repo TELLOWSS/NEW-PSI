@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, Component, Suspense, lazy, type ReactNode, type ErrorInfo } from 'react';
 import { Layout } from './components/Layout';
+import { AdminLockScreen } from './components/AdminLockScreen';
 import Dashboard from './pages/Dashboard';
 import { Spinner } from './components/Spinner';
 import type { WorkerRecord, SafetyCheckRecord, Page, ModalState, BriefingData, RiskForecastData } from './types';
@@ -9,6 +10,7 @@ import { restoreRecordFromUrl } from './utils/qrUtils';
 import { extractMessage } from './utils/errorUtils';
 import { appendAuditTrail, appendCorrectionHistory, attachEvidenceHash, deriveCompetencyProfile, deriveIntegrityScore, enforceSafetyLevel } from './utils/evidenceUtils';
 import { applyIdentityPolicy } from './utils/identityUtils';
+import { isAdminAuthenticated, setAdminAuthenticated, setAdminAuthToken, verifyAdminPassword } from './utils/adminGuard';
 
 const OcrAnalysis = lazy(() => import('./pages/OcrAnalysis'));
 const WorkerManagement = lazy(() => import('./pages/WorkerManagement'));
@@ -324,6 +326,10 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
 
 const App: React.FC = () => {
     const [currentPage, setCurrentPage] = useState<Page>('dashboard');
+    const [isWorkerKioskMode, setIsWorkerKioskMode] = useState(false);
+    const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
+    const [adminUnlockError, setAdminUnlockError] = useState('');
+    const [isUnlockSubmitting, setIsUnlockSubmitting] = useState(false);
     const [isDataLoaded, setIsDataLoaded] = useState(false);
     const [workerRecords, setWorkerRecords] = useState<WorkerRecord[]>([]);
     const [safetyCheckRecords, setSafetyCheckRecords] = useState<SafetyCheckRecord[]>([]);
@@ -346,14 +352,23 @@ const App: React.FC = () => {
     const [showUndoToast, setShowUndoToast] = useState(false);
     const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    const sessionIdFromUrl = new URLSearchParams(window.location.search).get('sessionId') || '';
+    const modeFromUrl = new URLSearchParams(window.location.search).get('mode') || '';
+    const isWorkerKioskRequest = modeFromUrl === 'worker-kiosk' && Boolean(sessionIdFromUrl);
+
+    useEffect(() => {
+        setIsAdminUnlocked(isAdminAuthenticated());
+    }, []);
+
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const qrData = params.get('d');
         const mode = params.get('mode');
         const sessionId = params.get('sessionId');
 
-        if (mode === 'worker-training' && sessionId) {
+        if ((mode === 'worker-training' || mode === 'worker-kiosk') && sessionId) {
             setTrainingSessionId(sessionId);
+            setIsWorkerKioskMode(mode === 'worker-kiosk');
             setCurrentPage('worker-training');
             return;
         }
@@ -366,6 +381,22 @@ const App: React.FC = () => {
                 setCurrentPage('individual-report');
             }
         }
+    }, []);
+
+    const handleAdminUnlock = useCallback((password: string) => {
+        setIsUnlockSubmitting(true);
+        setAdminUnlockError('');
+
+        if (!verifyAdminPassword(password)) {
+            setAdminUnlockError('비밀번호가 올바르지 않습니다.');
+            setIsUnlockSubmitting(false);
+            return;
+        }
+
+        setAdminAuthToken(password);
+        setAdminAuthenticated(true);
+        setIsAdminUnlocked(true);
+        setIsUnlockSubmitting(false);
     }, []);
 
     useEffect(() => {
@@ -616,50 +647,74 @@ const App: React.FC = () => {
         return null;
     }, [handleUpdateRecord]);
     
+    const shouldBypassAdminGuard = isWorkerKioskRequest || (currentPage === 'worker-training' && isWorkerKioskMode);
+
+    if (!shouldBypassAdminGuard && !isAdminUnlocked) {
+        return (
+            <ErrorBoundary>
+                <AdminLockScreen
+                    onUnlock={handleAdminUnlock}
+                    errorMessage={adminUnlockError}
+                    isSubmitting={isUnlockSubmitting}
+                />
+            </ErrorBoundary>
+        );
+    }
+
     return (
         <ErrorBoundary>
-            <Layout currentPage={currentPage} setCurrentPage={setCurrentPage}>
-                <Suspense fallback={<div className="min-h-[240px] flex items-center justify-center"><Spinner /></div>}>
-                    {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={setCurrentPage} />}
-                    {currentPage === 'ocr-analysis' && (
-                        <OcrAnalysis 
-                            onAnalysisComplete={addWorkerRecords} 
-                            existingRecords={workerRecords} 
-                            onDeleteAll={handleDeleteAll} 
-                            onImport={handleImport} 
-                            onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} 
-                            onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); setCurrentPage('individual-report'); }}
-                            onDeleteRecord={handleDeleteRecord} 
-                            onUpdateRecord={handleUpdateRecord} 
-                        />
-                    )}
-                    {currentPage === 'worker-management' && <WorkerManagement workerRecords={workerRecords} onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} onUpdateRecord={handleUpdateRecord} />}
-                    {currentPage === 'individual-report' && recordForReport && (
-                        <IndividualReport 
-                            record={recordForReport} 
-                            isQrScanMode={isQrScanMode}
-                            history={workerRecords.filter(r => r.name === recordForReport.name && r.teamLeader === recordForReport.teamLeader)} 
-                            onBack={() => { setRecordForReport(null); setIsQrScanMode(false); setCurrentPage('ocr-analysis'); }} 
-                            onUpdateRecord={(updated) => {
-                                const normalized = applyIdentityPolicy(updated, workerRecordsRef.current);
-                                handleUpdateRecord(normalized);
-                                setRecordForReport(normalized);
-                            }}
-                        />
-                    )}
-                    {currentPage === 'predictive-analysis' && <PredictiveAnalysis workerRecords={workerRecords} />}
-                    {currentPage === 'performance-analysis' && <PerformanceAnalysis workerRecords={workerRecords} />}
-                    {currentPage === 'safety-checks' && <SafetyChecks workerRecords={workerRecords} checkRecords={safetyCheckRecords} onAddCheck={(r: unknown) => setSafetyCheckRecords(p => [{...(r as SafetyCheckRecord), id:Date.now().toString()}, ...p])} />}
-                    {currentPage === 'site-issue-management' && <SiteIssueManagement />}
-                    {currentPage === 'reports' && <Reports workerRecords={workerRecords} briefingData={briefingData} setBriefingData={setBriefingData} forecastData={forecastData} setForecastData={setForecastData} />}
-                    {currentPage === 'admin-training' && <AdminTraining />}
-                    {currentPage === 'worker-training' && <WorkerTraining sessionId={trainingSessionId} />}
-                    {currentPage === 'safety-behavior-management' && <SafetyBehaviorManagement />}
-                    {currentPage === 'feedback' && <Feedback />}
-                    {currentPage === 'introduction' && <Introduction />}
-                    {currentPage === 'settings' && <Settings />}
-                </Suspense>
-            </Layout>
+            {currentPage === 'worker-training' && isWorkerKioskMode ? (
+                <div className="min-h-screen bg-slate-100 p-4 sm:p-6 lg:p-8">
+                    <div className="mx-auto w-full max-w-5xl">
+                        <Suspense fallback={<div className="min-h-[240px] flex items-center justify-center"><Spinner /></div>}>
+                            <WorkerTraining sessionId={trainingSessionId || sessionIdFromUrl} isKioskMode />
+                        </Suspense>
+                    </div>
+                </div>
+            ) : (
+                <Layout currentPage={currentPage} setCurrentPage={setCurrentPage}>
+                    <Suspense fallback={<div className="min-h-[240px] flex items-center justify-center"><Spinner /></div>}>
+                        {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={setCurrentPage} />}
+                        {currentPage === 'ocr-analysis' && (
+                            <OcrAnalysis 
+                                onAnalysisComplete={addWorkerRecords} 
+                                existingRecords={workerRecords} 
+                                onDeleteAll={handleDeleteAll} 
+                                onImport={handleImport} 
+                                onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} 
+                                onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); setCurrentPage('individual-report'); }}
+                                onDeleteRecord={handleDeleteRecord} 
+                                onUpdateRecord={handleUpdateRecord} 
+                            />
+                        )}
+                        {currentPage === 'worker-management' && <WorkerManagement workerRecords={workerRecords} onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} onUpdateRecord={handleUpdateRecord} />}
+                        {currentPage === 'individual-report' && recordForReport && (
+                            <IndividualReport 
+                                record={recordForReport} 
+                                isQrScanMode={isQrScanMode}
+                                history={workerRecords.filter(r => r.name === recordForReport.name && r.teamLeader === recordForReport.teamLeader)} 
+                                onBack={() => { setRecordForReport(null); setIsQrScanMode(false); setCurrentPage('ocr-analysis'); }} 
+                                onUpdateRecord={(updated) => {
+                                    const normalized = applyIdentityPolicy(updated, workerRecordsRef.current);
+                                    handleUpdateRecord(normalized);
+                                    setRecordForReport(normalized);
+                                }}
+                            />
+                        )}
+                        {currentPage === 'predictive-analysis' && <PredictiveAnalysis workerRecords={workerRecords} />}
+                        {currentPage === 'performance-analysis' && <PerformanceAnalysis workerRecords={workerRecords} />}
+                        {currentPage === 'safety-checks' && <SafetyChecks workerRecords={workerRecords} checkRecords={safetyCheckRecords} onAddCheck={(r: unknown) => setSafetyCheckRecords(p => [{...(r as SafetyCheckRecord), id:Date.now().toString()}, ...p])} />}
+                        {currentPage === 'site-issue-management' && <SiteIssueManagement />}
+                        {currentPage === 'reports' && <Reports workerRecords={workerRecords} briefingData={briefingData} setBriefingData={setBriefingData} forecastData={forecastData} setForecastData={setForecastData} />}
+                        {currentPage === 'admin-training' && <AdminTraining />}
+                        {currentPage === 'worker-training' && <WorkerTraining sessionId={trainingSessionId} />}
+                        {currentPage === 'safety-behavior-management' && <SafetyBehaviorManagement />}
+                        {currentPage === 'feedback' && <Feedback />}
+                        {currentPage === 'introduction' && <Introduction />}
+                        {currentPage === 'settings' && <Settings />}
+                    </Suspense>
+                </Layout>
+            )}
             {modalState.type === 'workerHistory' && modalState.record && <WorkerHistoryModal workerName={modalState.workerName!} allRecords={workerRecords} initialSelectedRecord={modalState.record} onClose={() => setModalState({type:null})} onViewDetails={(r) => setModalState({type:'recordDetail', record:r})} onUpdateRecord={handleUpdateRecord} onDeleteRecord={handleDeleteRecord} />}
             {modalState.type === 'recordDetail' && modalState.record && (() => {
                 const latestRecord = workerRecords.find((item) => item.id === modalState.record!.id) || modalState.record!;

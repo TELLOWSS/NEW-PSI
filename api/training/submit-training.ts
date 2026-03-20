@@ -11,7 +11,20 @@
  *   { ok: true, type: string, data: { ... } }
  */
 
+import { randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
+
+function buildSignatureStoragePath(sessionId: string, options?: { prefix?: string }) {
+    const normalizedSessionId = String(sessionId || '').trim();
+    const timestamp = Date.now();
+    const uniqueId = randomUUID().replace(/-/g, '');
+    const prefix = String(options?.prefix || '').trim().replace(/^\/|\/$/g, '');
+    const fileName = `${timestamp}_${uniqueId}.png`;
+
+    return prefix
+        ? `${normalizedSessionId}/${prefix}/${fileName}`
+        : `${normalizedSessionId}/${fileName}`;
+}
 
 // -----------------------------------------------------------------------
 // Supabase 클라이언트 생성
@@ -97,8 +110,7 @@ async function handleSingleSignature(payload: any): Promise<any> {
     );
 
     const fileBuffer = Buffer.from(match[1], 'base64');
-    const safeName = normalizedWorkerName.replace(/[^\w가-힣-]/g, '_');
-    const path = `${sessionId}/${Date.now()}_${safeName}.png`;
+    const path = buildSignatureStoragePath(sessionId);
 
     const { error: uploadError } = await supabase.storage.from('signatures').upload(path, fileBuffer, {
         contentType: 'image/png',
@@ -248,8 +260,9 @@ async function handleGroupSignatures(payload: any): Promise<any> {
         }
 
         const binary = Buffer.from(match[1], 'base64');
-        const safeName = worker.name.replace(/[^\w가-힣-]/g, '_');
-        const path = `${sessionId}/group_proxy/${Date.now()}_${worker.id}_${safeName}.png`;
+        const path = buildSignatureStoragePath(sessionId, {
+            prefix: `group_proxy/${worker.id}`,
+        });
 
         const { error: uploadErr } = await supabase.storage.from('signatures').upload(path, binary, {
             contentType: 'image/png',
