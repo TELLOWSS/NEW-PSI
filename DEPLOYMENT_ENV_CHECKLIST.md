@@ -22,7 +22,7 @@
 
 - `TRAINING_LINK_SECRET`
   - 용도: 근로자 서명 링크 HMAC 서명/검증(권장: 독립 비밀키)
-  - 참조: `api/shared/trainingLinkToken.ts`
+  - 참조: `lib/server/trainingLinkToken.ts`
 
 ## 2) 권장 (운영 안정화)
 
@@ -34,11 +34,11 @@
 - `TRAINING_LINK_TTL_MINUTES`
   - 용도: 근로자 링크 만료 시간(분)
   - 기본값: `720` (12시간)
-  - 참조: `api/shared/trainingLinkToken.ts`
+  - 참조: `lib/server/trainingLinkToken.ts`
 
 - `PSI_ADMIN_SECRET`
   - 용도: 서버리스 측 대체 관리자 시크릿(백업키)
-  - 참조: `api/admin/*.ts`, `api/shared/trainingLinkToken.ts`
+  - 참조: `api/admin/*.ts`, `lib/server/trainingLinkToken.ts`
 
 ## 3) 호환/대체 키
 

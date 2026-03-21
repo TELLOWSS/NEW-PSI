@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../shared/adminAuthGuard.js';
+import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
 
 type TargetMode = 'submitted_only' | 'attendance_only';
 type TrainingCategory = 'monthly_risk' | 'special_safety';
