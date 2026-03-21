@@ -42,10 +42,22 @@ const getTouchDistance = (touches: React.TouchList) => {
     return Math.sqrt(dx * dx + dy * dy);
 };
 
+const getOntologyGroupLabel = (group: Node['group']) => {
+    if (group === 'worker') return '근로자';
+    if (group === 'job') return '공종';
+    if (group === 'risk') return '위험요인';
+    return '예방대책';
+};
+
 // 간단한 포스 그래프 시각화 컴포넌트 (SVG 기반)
 const OntologyGraph: React.FC<{ nodes: Node[], links: Link[]; spacingStrength: number }> = ({ nodes, links, spacingStrength }) => {
     // 렌더링 최적화를 위해 노드 좌표를 미리 계산 (시뮬레이션 단순화)
     const [positions, setPositions] = useState<Record<string, { x: number, y: number }>>({});
+    const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+    const [hoverTooltip, setHoverTooltip] = useState<{ x: number; y: number; label: string; group: Node['group'] } | null>(null);
+    const [pinnedNodeId, setPinnedNodeId] = useState<string | null>(null);
+    const [pinnedTooltip, setPinnedTooltip] = useState<{ x: number; y: number; label: string; group: Node['group'] } | null>(null);
+    const [isTooltipCopied, setIsTooltipCopied] = useState(false);
 
     useEffect(() => {
         const newPos: Record<string, { x: number, y: number }> = {};
@@ -116,8 +128,78 @@ const OntologyGraph: React.FC<{ nodes: Node[], links: Link[]; spacingStrength: n
         setPositions(newPos);
     }, [nodes, spacingStrength]);
 
+    const activeTooltip = pinnedTooltip || hoverTooltip;
+
+    const tooltipPlacement = useMemo(() => {
+        if (!activeTooltip) return null;
+
+        const leftPercent = (activeTooltip.x / 1000) * 100;
+        const topPercent = (activeTooltip.y / 700) * 100;
+        const safeLeft = Math.min(96, Math.max(4, leftPercent));
+        const safeTop = Math.min(94, Math.max(6, topPercent));
+
+        const placeLeft = activeTooltip.x > 760;
+        const placeTop = activeTooltip.y > 560;
+
+        return {
+            left: `${safeLeft}%`,
+            top: `${safeTop}%`,
+            transform: placeLeft
+                ? (placeTop ? 'translate(calc(-100% - 10px), calc(-100% - 8px))' : 'translate(calc(-100% - 10px), -50%)')
+                : (placeTop ? 'translate(10px, calc(-100% - 8px))' : 'translate(10px, -50%)'),
+        };
+    }, [activeTooltip]);
+
+    useEffect(() => {
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape') return;
+            setPinnedNodeId(null);
+            setPinnedTooltip(null);
+            setIsTooltipCopied(false);
+        };
+
+        window.addEventListener('keydown', handleEscape);
+        return () => window.removeEventListener('keydown', handleEscape);
+    }, []);
+
+    useEffect(() => {
+        if (!isTooltipCopied) return;
+        const timer = window.setTimeout(() => setIsTooltipCopied(false), 1400);
+        return () => window.clearTimeout(timer);
+    }, [isTooltipCopied]);
+
+    const handleCopyTooltip = async () => {
+        if (!activeTooltip?.label) return;
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(activeTooltip.label);
+            } else {
+                const textarea = document.createElement('textarea');
+                textarea.value = activeTooltip.label;
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+            }
+            setIsTooltipCopied(true);
+        } catch {
+            setIsTooltipCopied(false);
+        }
+    };
+
     return (
-        <svg viewBox="0 0 1000 700" className="w-full h-full bg-slate-900 rounded-2xl shadow-inner border border-slate-700">
+        <div className="relative w-full h-full">
+        <svg
+            viewBox="0 0 1000 700"
+            className="w-full h-full bg-slate-900 rounded-2xl shadow-inner border border-slate-700"
+            onClick={() => {
+                setPinnedNodeId(null);
+                setPinnedTooltip(null);
+            }}
+        >
             <defs>
                 <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="28" refY="3.5" orient="auto">
                     <polygon points="0 0, 10 3.5, 0 7" fill="#64748b" />
@@ -152,9 +234,48 @@ const OntologyGraph: React.FC<{ nodes: Node[], links: Link[]; spacingStrength: n
                 const displayLabel = shortenOntologyLabel(node.label, node.group);
 
                 return (
-                    <g key={node.id} transform={`translate(${pos.x},${pos.y})`} className="cursor-pointer hover:scale-110 transition-transform">
+                    <g
+                        key={node.id}
+                        transform={`translate(${pos.x},${pos.y})`}
+                        className="cursor-pointer"
+                        onMouseEnter={() => {
+                            if (pinnedNodeId) return;
+                            setHoveredNodeId(node.id);
+                            setHoverTooltip({ x: pos.x, y: pos.y, label: node.label, group: node.group });
+                        }}
+                        onMouseMove={() => {
+                            if (pinnedNodeId) return;
+                            setHoveredNodeId(node.id);
+                            setHoverTooltip({ x: pos.x, y: pos.y, label: node.label, group: node.group });
+                        }}
+                        onMouseLeave={() => {
+                            if (pinnedNodeId) return;
+                            setHoveredNodeId((prev) => (prev === node.id ? null : prev));
+                            setHoverTooltip((prev) => (prev?.label === node.label ? null : prev));
+                        }}
+                        onTouchStart={() => {
+                            setHoveredNodeId(node.id);
+                            setHoverTooltip({ x: pos.x, y: pos.y, label: node.label, group: node.group });
+                        }}
+                        onClick={(event) => {
+                            event.stopPropagation();
+                            if (pinnedNodeId === node.id) {
+                                setPinnedNodeId(null);
+                                setPinnedTooltip(null);
+                                return;
+                            }
+                            setPinnedNodeId(node.id);
+                            setPinnedTooltip({ x: pos.x, y: pos.y, label: node.label, group: node.group });
+                        }}
+                    >
                         <title>{node.label}</title>
-                        <circle r={Math.max(5, Math.sqrt(node.value) * 3 + 5)} fill={color} stroke="#1e293b" strokeWidth="2" />
+                        <circle
+                            r={Math.max(5, Math.sqrt(node.value) * 3 + 5)}
+                            fill={color}
+                            stroke={pinnedNodeId === node.id || hoveredNodeId === node.id ? '#e2e8f0' : '#1e293b'}
+                            strokeWidth={pinnedNodeId === node.id || hoveredNodeId === node.id ? '3' : '2'}
+                            className="transition-colors duration-150"
+                        />
                         <text y={-10} textAnchor="middle" fill="white" fontSize="9" fontWeight="bold" className="pointer-events-none select-none drop-shadow-md">
                             {displayLabel}
                         </text>
@@ -162,6 +283,27 @@ const OntologyGraph: React.FC<{ nodes: Node[], links: Link[]; spacingStrength: n
                 );
             })}
         </svg>
+        {activeTooltip && tooltipPlacement && (
+            <div
+                className={`absolute z-20 max-w-[280px] rounded-xl border border-indigo-300/40 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-100 shadow-2xl backdrop-blur-sm ${pinnedTooltip ? 'pointer-events-auto' : 'pointer-events-none'}`}
+                style={tooltipPlacement}
+            >
+                <div className="mb-1 flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-black text-indigo-200 tracking-wide">{getOntologyGroupLabel(activeTooltip.group)} {pinnedTooltip ? '· 고정됨' : ''}</p>
+                    {pinnedTooltip && (
+                        <button
+                            type="button"
+                            onClick={handleCopyTooltip}
+                            className="pointer-events-auto rounded-md border border-indigo-300/40 bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-black text-indigo-100 hover:bg-indigo-500/25"
+                        >
+                            {isTooltipCopied ? '복사됨' : '복사'}
+                        </button>
+                    )}
+                </div>
+                <p className="font-extrabold leading-snug break-words text-slate-50">{activeTooltip.label}</p>
+            </div>
+        )}
+        </div>
     );
 };
 
@@ -437,13 +579,19 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Left: Ontology Graph (Visual Evidence) */}
                 <div className="lg:col-span-2 bg-slate-900 p-6 rounded-[30px] shadow-xl border border-slate-800 flex flex-col">
-                    <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                            위험 요인 온톨로지 맵 (Risk Ontology Map)
-                        </h3>
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-2 py-1">
+                    <div className="mb-6 rounded-2xl border border-slate-700 bg-slate-800/40 p-3 sm:p-4">
+                        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                            <div className="min-w-0">
+                                <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2 leading-tight">
+                                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0"></span>
+                                    <span className="break-keep">위험 요인 온톨로지 맵</span>
+                                    <span className="text-slate-400 text-xs sm:text-sm font-bold">(Risk Ontology Map)</span>
+                                </h3>
+                                <p className="mt-1 text-[11px] sm:text-xs font-semibold text-slate-400 break-keep">노드에 마우스를 올리면 전체 라벨과 분류를 확인할 수 있습니다.</p>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                                <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-2 py-1">
                                 <button
                                     type="button"
                                     onClick={() => setOntologyZoom((prev) => clampOntologyZoom(prev - 0.1))}
@@ -475,27 +623,29 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                                 >
                                     초기화
                                 </button>
+                                </div>
+                                <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-2 py-1">
+                                    <span className="text-[11px] font-black text-slate-300 whitespace-nowrap">간격</span>
+                                    <input
+                                        type="range"
+                                        min={0}
+                                        max={1}
+                                        step={0.05}
+                                        value={ontologySpacingStrength}
+                                        onChange={(event) => setOntologySpacingStrength(Number(event.target.value))}
+                                        className="w-20 accent-indigo-500"
+                                        aria-label="온톨리지 노드 간격 조절"
+                                    />
+                                    <span className="text-[11px] font-black text-slate-200 w-8 text-right">{Math.round(ontologySpacingStrength * 100)}</span>
+                                </div>
                             </div>
-                            <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-2 py-1">
-                                <span className="text-[11px] font-black text-slate-300 whitespace-nowrap">간격</span>
-                                <input
-                                    type="range"
-                                    min={0}
-                                    max={1}
-                                    step={0.05}
-                                    value={ontologySpacingStrength}
-                                    onChange={(event) => setOntologySpacingStrength(Number(event.target.value))}
-                                    className="w-20 accent-indigo-500"
-                                    aria-label="온톨리지 노드 간격 조절"
-                                />
-                                <span className="text-[11px] font-black text-slate-200 w-8 text-right">{Math.round(ontologySpacingStrength * 100)}</span>
-                            </div>
-                            <div className="flex gap-4 text-[10px] font-bold text-slate-400">
-                                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div>근로자</span>
-                                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div>공종</span>
-                                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-rose-500"></div>위험요인</span>
-                                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-500"></div>예방대책</span>
-                            </div>
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap gap-2 text-[10px] sm:text-[11px] font-bold text-slate-200">
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-400/30 bg-blue-500/10 px-2.5 py-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div>근로자</span>
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div>공종</span>
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-2.5 py-1"><div className="w-2 h-2 rounded-full bg-rose-500"></div>위험요인</span>
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-500/10 px-2.5 py-1"><div className="w-2 h-2 rounded-full bg-amber-500"></div>예방대책</span>
                         </div>
                     </div>
                     <div

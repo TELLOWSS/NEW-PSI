@@ -1463,6 +1463,22 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             .replace(/'/g, '&#39;');
 
                 const buildDirectPrintHtml = (title: string, targetWorkers: WorkerRecord[], targetType: 'sticker' | 'idcard') => {
+                        const paletteByLevel = (level: string) => {
+                                if (level === '고급') {
+                                        return { primary: '#059669', soft: '#ecfdf5', text: '#065f46', accent: '#10b981' };
+                                }
+                                if (level === '중급') {
+                                        return { primary: '#d97706', soft: '#fffbeb', text: '#92400e', accent: '#f59e0b' };
+                                }
+                                return { primary: '#dc2626', soft: '#fff1f2', text: '#9f1239', accent: '#f43f5e' };
+                        };
+
+                        const scoreToWarning = (score: number) => {
+                                if (score >= 80) return { icon: '✓', text: '안전 기준 달성', tone: '#065f46', bg: '#ecfdf5', border: '#a7f3d0' };
+                                if (score >= 60) return { icon: '⚠', text: '주의 항목 점검 필요', tone: '#92400e', bg: '#fffbeb', border: '#fde68a' };
+                                return { icon: '⚠', text: '즉시 개선 조치 필요', tone: '#9f1239', bg: '#fff1f2', border: '#fecdd3' };
+                        };
+
                         const cardsHtml = targetWorkers.map((worker) => {
                                 const level = escapeHtml(worker.safetyLevel || getSafetyLevelFromScore(Number(worker.safetyScore || 0)));
                                 const score = Number.isFinite(Number(worker.safetyScore)) ? Number(worker.safetyScore) : 0;
@@ -1471,12 +1487,57 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 const team = escapeHtml(worker.teamLeader || '미지정');
                                 const nation = escapeHtml(worker.nationality || '미상');
                                 const idTail = escapeHtml(getSafeIdTail(worker.id, 6));
+                                const palette = paletteByLevel(level);
+                                const warn = scoreToWarning(score);
+                                const photoSrc = typeof worker.profileImage === 'string' && worker.profileImage.trim().length > 0
+                                        ? (worker.profileImage.trim().startsWith('data:')
+                                                ? worker.profileImage.trim()
+                                                : `data:image/jpeg;base64,${worker.profileImage.trim()}`)
+                                        : '';
 
                                 if (targetType === 'sticker') {
-                                        return `<article class="card sticker"><div class="left"><div class="level">${level}</div><div class="score">${score}</div></div><div class="body"><h3>${name}</h3><p>${job} · ${team}</p><p>${nation}</p><p class="meta">ID: ${idTail}</p></div></article>`;
+                                        return `
+<article class="card sticker" style="border-color:${palette.primary};">
+    <div class="left" style="background:${palette.primary};">
+        <div class="level-label">LEVEL</div>
+        <div class="level">${level}</div>
+        <div class="score-label">SCORE</div>
+        <div class="score">${score}</div>
+    </div>
+    <div class="body">
+        <div class="top-row">
+            <span class="chip" style="background:${palette.soft};color:${palette.text};border-color:${palette.accent};">${nation}</span>
+            <span class="chip chip-dark">TEAM ${team}</span>
+        </div>
+        <h3>${name}</h3>
+        <p class="sub">${job}</p>
+        <div class="warn" style="background:${warn.bg};color:${warn.tone};border-color:${warn.border};">
+            <span class="warn-icon">${warn.icon}</span>
+            <span>${escapeHtml(warn.text)}</span>
+        </div>
+        <p class="meta">PSI SAFETY PASS · ID ${idTail}</p>
+    </div>
+</article>`;
                                 }
 
-                                return `<article class="card idcard"><div class="head">PSI SMART ID</div><div class="body"><h3>${name}</h3><p>${job} · ${team}</p><p>${nation}</p><p>안전등급: ${level} / 점수: ${score}</p><p class="meta">ID: ${idTail}</p></div></article>`;
+                                return `
+<article class="card idcard">
+    <div class="head">
+        <span>PSI SMART ID</span>
+        <span class="head-year">2026</span>
+    </div>
+    <div class="id-body">
+        <div class="photo-wrap">
+            ${photoSrc ? `<img class="photo" src="${photoSrc}" alt="Profile" />` : `<div class="photo-empty">👷</div>`}
+            <div class="grade" style="background:${palette.primary};">${level} GRADE</div>
+        </div>
+        <h3>${name}</h3>
+        <p class="sub">${job} · ${team}</p>
+        <p>${nation}</p>
+        <p class="score-text">안전점수 ${score}</p>
+        <div class="id-footer" style="background:${palette.soft};color:${palette.text};border-color:${palette.accent};">ID ${idTail}</div>
+    </div>
+</article>`;
                         }).join('');
 
                         return `<!doctype html>
@@ -1487,19 +1548,40 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     <title>${escapeHtml(title)}</title>
     <style>
         @page { size: A4; margin: 10mm; }
-        body { margin: 0; font-family: Arial, 'Noto Sans KR', sans-serif; background: #fff; color: #0f172a; }
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; box-sizing: border-box; }
+        body { margin: 0; font-family: 'Pretendard', 'Noto Sans KR', Arial, sans-serif; background: #fff; color: #0f172a; }
         .grid { display: grid; gap: 8mm; grid-template-columns: ${targetType === 'sticker' ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)'}; align-items: start; }
-        .card { border: 1px solid #cbd5e1; border-radius: 4mm; overflow: hidden; break-inside: avoid; page-break-inside: avoid; background: #fff; }
+        .card { border: 1.4mm solid #cbd5e1; border-radius: 4mm; overflow: hidden; break-inside: avoid; page-break-inside: avoid; background: #fff; }
         .card .body { padding: 4mm; }
-        .card h3 { margin: 0 0 2mm; font-size: 14px; font-weight: 800; }
-        .card p { margin: 0 0 1mm; font-size: 11px; font-weight: 600; color: #334155; }
+        .card h3 { margin: 0 0 2mm; font-size: 14px; font-weight: 900; letter-spacing: -0.01em; }
+        .card p { margin: 0 0 1mm; font-size: 11px; font-weight: 700; color: #334155; }
         .card .meta { color: #64748b; font-size: 10px; }
         .sticker { display: flex; min-height: 60mm; }
-        .sticker .left { width: 20mm; background: #0f172a; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4mm; }
-        .sticker .left .level { font-size: 14px; font-weight: 900; }
-        .sticker .left .score { font-size: 12px; font-weight: 800; }
-        .idcard { min-height: 86mm; }
-        .idcard .head { background: #0f172a; color: #fff; padding: 3mm 4mm; font-size: 11px; font-weight: 800; }
+        .sticker .left { width: 20mm; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2mm; }
+        .sticker .left .level-label, .sticker .left .score-label { font-size: 7px; opacity: .85; font-weight: 800; }
+        .sticker .left .level { font-size: 13px; font-weight: 900; }
+        .sticker .left .score { font-size: 16px; font-weight: 900; }
+        .sticker .top-row { display:flex; justify-content:space-between; gap:2mm; margin-bottom:2mm; }
+        .chip { display:inline-flex; align-items:center; border:1px solid; border-radius:999px; padding:0.8mm 2mm; font-size:8px; font-weight:900; }
+        .chip-dark { background:#0f172a; color:#fff; border-color:#0f172a; }
+        .sub { color:#475569; font-size:10px; }
+        .warn { margin-top:2mm; border:1px solid; border-radius:2mm; padding:1.5mm 2mm; display:flex; gap:1.5mm; align-items:center; font-size:9px; font-weight:900; }
+        .warn-icon { font-weight:900; }
+
+        .idcard { min-height: 86mm; border-color:#334155; }
+        .idcard .head { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #fff; padding: 3mm 4mm; font-size: 10px; font-weight: 900; display:flex; justify-content:space-between; align-items:center; }
+        .head-year { font-size:9px; opacity:.9; }
+        .id-body { padding:3.5mm; display:flex; flex-direction:column; align-items:center; text-align:center; gap:1.2mm; }
+        .photo-wrap { width: 26mm; height: 34mm; border: 1px solid #cbd5e1; border-radius: 2mm; overflow: hidden; position:relative; background:#f8fafc; }
+        .photo { width:100%; height:100%; object-fit:cover; }
+        .photo-empty { width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:18px; color:#94a3b8; }
+        .grade { position:absolute; left:0; right:0; bottom:0; color:#fff; font-size:7px; font-weight:900; padding:0.6mm 0; }
+        .score-text { font-size:10px; font-weight:900; color:#1e293b; }
+        .id-footer { margin-top:1mm; border:1px solid; border-radius:999px; padding:0.8mm 2mm; font-size:8px; font-weight:900; }
+
+        @media print {
+            html, body { background: #fff !important; }
+        }
     </style>
 </head>
 <body>
