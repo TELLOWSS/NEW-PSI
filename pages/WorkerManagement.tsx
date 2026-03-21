@@ -1457,7 +1457,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 const source = printAreaRef.current;
                 if (!source) {
                         setPrintRuntimeError('인쇄 영역을 찾을 수 없어 새 창 인쇄를 실행할 수 없습니다.');
-                        return;
+                return false;
                 }
 
                 const styleTags = Array.from(document.querySelectorAll('style')).map((node) => node.outerHTML).join('\n');
@@ -1466,7 +1466,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
                 if (!printWindow) {
                         setPrintRuntimeError('브라우저 팝업 차단으로 인쇄 창을 열지 못했습니다. 팝업 허용 후 다시 시도해 주세요.');
-                        return;
+                    return false;
                 }
 
                 const html = `<!doctype html>
@@ -1500,20 +1500,27 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 printWindow.document.open();
                 printWindow.document.write(html);
                 printWindow.document.close();
+                return true;
         };
 
-        const performPrint = (title: string) => {
+        const performPrint = (title: string): 'popup' | 'current' | 'failed' => {
+                const fallbackOpened = printUsingFallbackWindow(title);
+                if (fallbackOpened) {
+                return 'popup';
+                }
+
                 try {
                         if (typeof window.print !== 'function') {
                                 throw new Error('window.print를 사용할 수 없습니다.');
                         }
                         window.focus();
                         window.print();
+                return 'current';
                 } catch (error) {
                         const message = extractMessage(error);
                         console.error('[WorkerManagement][PrintMode] primary print failed, fallback window will be used:', error);
-                        setPrintRuntimeError(`${message || '인쇄 호출 실패'} 새 창 인쇄로 재시도합니다.`);
-                        printUsingFallbackWindow(title);
+                        setPrintRuntimeError(`${message || '인쇄 호출 실패'} 팝업 허용 후 다시 시도해 주세요.`);
+                return 'failed';
                 }
         };
 
@@ -1536,7 +1543,6 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             setViewType(backup.viewType);
             setCurrentFlipIndex(backup.currentFlipIndex);
             singlePrintBackupRef.current = null;
-            window.removeEventListener('afterprint', restore);
         };
 
         flushSync(() => {
@@ -1546,16 +1552,21 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             setCurrentFlipIndex(0);
         });
 
-        window.addEventListener('afterprint', restore);
-        try {
-            performPrint(`PSI-${printType}-current`);
-        } finally {
-            setTimeout(restore, 2000);
+        const printResult = performPrint(`PSI-${printType}-current`);
+        if (printResult === 'popup') {
+            restore();
+            setIsPrintMode(false);
+            return;
         }
+
+        setTimeout(restore, 120);
     };
 
     const handlePrintAll = () => {
-        performPrint(`PSI-${printType}-all`);
+        const printResult = performPrint(`PSI-${printType}-all`);
+        if (printResult === 'popup') {
+            setIsPrintMode(false);
+        }
     };
 
     const isRenderingComplete = renderLimit >= workersToPrint.length;
