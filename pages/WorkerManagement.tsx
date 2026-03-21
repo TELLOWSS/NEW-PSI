@@ -1276,9 +1276,9 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             alert(`신뢰성 검증 결과\n- 발급 포함: ${printableWorkers.length}명\n- 발급 제외: ${excludedCandidates.length}명\n\n제외 사유 예시: ${reasonSummary}\n\n구 백업 데이터는 OCR 재분석 후 발급해 주세요.`);
         }
 
-        const printed = openDirectPopupPrint(`PSI-${type}-${printableWorkers.length}명`, printableWorkers, type);
-        if (printed) {
-            setPrintUserNotice(`${type === 'sticker' ? '안전모 스티커' : '스마트 사원증'} 인쇄 창을 열었습니다. (대상 ${printableWorkers.length}명)`);
+        const printPath = executeDirectPrint(`PSI-${type}-${printableWorkers.length}명`, printableWorkers, type);
+        if (printPath) {
+            setPrintUserNotice(`${type === 'sticker' ? '안전모 스티커' : '스마트 사원증'} 인쇄를 시작했습니다. (대상 ${printableWorkers.length}명 / 경로: ${printPath})`);
         } else {
             setPrintRuntimeError('인쇄 창을 열지 못했습니다. 브라우저 팝업 허용 상태를 다시 확인해 주세요.');
             setPrintUserNotice('인쇄 창 실행에 실패했습니다. 주소창의 팝업 차단 아이콘을 해제한 뒤 다시 시도해 주세요.');
@@ -1462,36 +1462,30 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
 
-        function openDirectPopupPrint(title: string, targetWorkers: WorkerRecord[], targetType: 'sticker' | 'idcard') {
-            const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1280,height=900');
-            if (!printWindow) {
-                setPrintRuntimeError('브라우저 팝업 차단으로 인쇄 창을 열지 못했습니다. 팝업 허용 후 다시 시도해 주세요.');
-                return false;
-            }
+                const buildDirectPrintHtml = (title: string, targetWorkers: WorkerRecord[], targetType: 'sticker' | 'idcard') => {
+                        const cardsHtml = targetWorkers.map((worker) => {
+                                const level = escapeHtml(worker.safetyLevel || getSafetyLevelFromScore(Number(worker.safetyScore || 0)));
+                                const score = Number.isFinite(Number(worker.safetyScore)) ? Number(worker.safetyScore) : 0;
+                                const name = escapeHtml(worker.name || '식별 대기');
+                                const job = escapeHtml(worker.jobField || '미분류');
+                                const team = escapeHtml(worker.teamLeader || '미지정');
+                                const nation = escapeHtml(worker.nationality || '미상');
+                                const idTail = escapeHtml(getSafeIdTail(worker.id, 6));
 
-            const cardsHtml = targetWorkers.map((worker) => {
-                const level = escapeHtml(worker.safetyLevel || getSafetyLevelFromScore(Number(worker.safetyScore || 0)));
-                const score = Number.isFinite(Number(worker.safetyScore)) ? Number(worker.safetyScore) : 0;
-                const name = escapeHtml(worker.name || '식별 대기');
-                const job = escapeHtml(worker.jobField || '미분류');
-                const team = escapeHtml(worker.teamLeader || '미지정');
-                const nation = escapeHtml(worker.nationality || '미상');
-                const idTail = escapeHtml(getSafeIdTail(worker.id, 6));
+                                if (targetType === 'sticker') {
+                                        return `<article class="card sticker"><div class="left"><div class="level">${level}</div><div class="score">${score}</div></div><div class="body"><h3>${name}</h3><p>${job} · ${team}</p><p>${nation}</p><p class="meta">ID: ${idTail}</p></div></article>`;
+                                }
 
-                if (targetType === 'sticker') {
-                    return `<article class="card sticker"><div class="left"><div class="level">${level}</div><div class="score">${score}</div></div><div class="body"><h3>${name}</h3><p>${job} · ${team}</p><p>${nation}</p><p class="meta">ID: ${idTail}</p></div></article>`;
-                }
+                                return `<article class="card idcard"><div class="head">PSI SMART ID</div><div class="body"><h3>${name}</h3><p>${job} · ${team}</p><p>${nation}</p><p>안전등급: ${level} / 점수: ${score}</p><p class="meta">ID: ${idTail}</p></div></article>`;
+                        }).join('');
 
-                return `<article class="card idcard"><div class="head">PSI SMART ID</div><div class="body"><h3>${name}</h3><p>${job} · ${team}</p><p>${nation}</p><p>안전등급: ${level} / 점수: ${score}</p><p class="meta">ID: ${idTail}</p></div></article>`;
-            }).join('');
-
-            const html = `<!doctype html>
-    <html lang="ko">
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>${escapeHtml(title)}</title>
-      <style>
+                        return `<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(title)}</title>
+    <style>
         @page { size: A4; margin: 10mm; }
         body { margin: 0; font-family: Arial, 'Noto Sans KR', sans-serif; background: #fff; color: #0f172a; }
         .grid { display: grid; gap: 8mm; grid-template-columns: ${targetType === 'sticker' ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)'}; align-items: start; }
@@ -1506,19 +1500,75 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         .sticker .left .score { font-size: 12px; font-weight: 800; }
         .idcard { min-height: 86mm; }
         .idcard .head { background: #0f172a; color: #fff; padding: 3mm 4mm; font-size: 11px; font-weight: 800; }
-      </style>
-    </head>
-    <body>
-      <main class="grid">${cardsHtml || '<p>인쇄할 데이터가 없습니다.</p>'}</main>
-      <script>
+    </style>
+</head>
+<body>
+    <main class="grid">${cardsHtml || '<p>인쇄할 데이터가 없습니다.</p>'}</main>
+    <script>
         window.addEventListener('load', function () {
-          setTimeout(function () {
-        try { window.focus(); window.print(); } catch (e) {}
-          }, 200);
+            setTimeout(function () {
+                try { window.focus(); window.print(); } catch (e) {}
+            }, 200);
         });
-      </script>
-    </body>
-    </html>`;
+    </script>
+</body>
+</html>`;
+                };
+
+                const printViaHiddenIframe = (html: string) => {
+                        try {
+                                const frame = document.createElement('iframe');
+                                frame.setAttribute('aria-hidden', 'true');
+                                frame.style.position = 'fixed';
+                                frame.style.right = '0';
+                                frame.style.bottom = '0';
+                                frame.style.width = '0';
+                                frame.style.height = '0';
+                                frame.style.border = '0';
+                                document.body.appendChild(frame);
+
+                                const doc = frame.contentWindow?.document;
+                                if (!doc || !frame.contentWindow) {
+                                        frame.remove();
+                                        return false;
+                                }
+
+                                doc.open();
+                                doc.write(html);
+                                doc.close();
+
+                                const cleanup = () => {
+                                        try { frame.remove(); } catch {}
+                                };
+
+                                frame.contentWindow.focus();
+                                setTimeout(() => {
+                                        try { frame.contentWindow?.print(); } catch {}
+                                        setTimeout(cleanup, 800);
+                                }, 120);
+
+                                return true;
+                        } catch {
+                                return false;
+                        }
+                };
+
+                const executeDirectPrint = (title: string, targetWorkers: WorkerRecord[], targetType: 'sticker' | 'idcard'): 'iframe' | 'popup' | false => {
+                        const html = buildDirectPrintHtml(title, targetWorkers, targetType);
+                        const iframeOk = printViaHiddenIframe(html);
+                        if (iframeOk) return 'iframe';
+                        const popupOk = openDirectPopupPrint(title, targetWorkers, targetType, html);
+                        if (popupOk) return 'popup';
+                        return false;
+                };
+
+                function openDirectPopupPrint(title: string, targetWorkers: WorkerRecord[], targetType: 'sticker' | 'idcard', prebuiltHtml?: string) {
+            const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1280,height=900');
+            if (!printWindow) {
+                setPrintRuntimeError('브라우저 팝업 차단으로 인쇄 창을 열지 못했습니다. 팝업 허용 후 다시 시도해 주세요.');
+                return false;
+            }
+                        const html = prebuiltHtml || buildDirectPrintHtml(title, targetWorkers, targetType);
 
             printWindow.document.open();
             printWindow.document.write(html);
