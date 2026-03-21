@@ -1503,25 +1503,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 return true;
         };
 
-        const performPrint = (title: string): 'popup' | 'current' | 'failed' => {
+        const performPrint = (title: string): 'popup' | 'failed' => {
                 const fallbackOpened = printUsingFallbackWindow(title);
                 if (fallbackOpened) {
                 return 'popup';
                 }
 
-                try {
-                        if (typeof window.print !== 'function') {
-                                throw new Error('window.print를 사용할 수 없습니다.');
-                        }
-                        window.focus();
-                        window.print();
-                return 'current';
-                } catch (error) {
-                        const message = extractMessage(error);
-                        console.error('[WorkerManagement][PrintMode] primary print failed, fallback window will be used:', error);
-                        setPrintRuntimeError(`${message || '인쇄 호출 실패'} 팝업 허용 후 다시 시도해 주세요.`);
-                return 'failed';
-                }
+            setPrintRuntimeError('브라우저 팝업 차단으로 인쇄를 시작하지 못했습니다. 이 사이트의 팝업을 허용한 뒤 다시 시도해 주세요.');
+            return 'failed';
         };
 
     const printCurrentOnly = () => {
