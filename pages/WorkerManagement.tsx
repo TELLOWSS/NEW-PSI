@@ -2118,24 +2118,22 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             <div className="absolute inset-0 bg-slate-900/90 backdrop-blur-sm z-20 flex flex-col items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-6">
                                 <p className="text-white font-black mb-1">{worker.name}</p>
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); if (canIssue) startProcessing('sticker', [worker]); }}
-                                    disabled={!canIssue}
-                                    title={!canIssue ? reliability.reasons.join(', ') : '스티커 인쇄'}
-                                    className={`w-full py-3 font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-xs ${canIssue ? 'bg-white text-slate-900 hover:bg-slate-200' : 'bg-slate-500/60 text-slate-200 cursor-not-allowed'}`}
+                                    onClick={(e) => { e.stopPropagation(); startProcessing('sticker', [worker]); }}
+                                    title={canIssue ? '스티커 인쇄' : `검증필요 항목: ${reliability.reasons.join(', ')}`}
+                                    className={`w-full py-3 font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-xs ${canIssue ? 'bg-white text-slate-900 hover:bg-slate-200' : 'bg-amber-200 text-slate-900 hover:bg-amber-300'}`}
                                 >
                                     <span className="text-base">⛑</span> 스티커 인쇄
                                 </button>
                                 <button
-                                    onClick={(e) => { e.stopPropagation(); if (canIssue) startProcessing('idcard', [worker]); }}
-                                    disabled={!canIssue}
-                                    title={!canIssue ? reliability.reasons.join(', ') : '사원증 인쇄'}
-                                    className={`w-full py-3 font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-xs ${canIssue ? 'bg-indigo-600 text-white hover:bg-indigo-500' : 'bg-slate-500/60 text-slate-200 cursor-not-allowed'}`}
+                                    onClick={(e) => { e.stopPropagation(); startProcessing('idcard', [worker]); }}
+                                    title={canIssue ? '사원증 인쇄' : `검증필요 항목: ${reliability.reasons.join(', ')}`}
+                                    className={`w-full py-3 font-black rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-xs ${canIssue ? 'bg-indigo-600 text-white hover:bg-indigo-500' : 'bg-amber-500 text-white hover:bg-amber-400'}`}
                                 >
                                     <span className="text-base">💳</span> 사원증 인쇄
                                 </button>
                                 {!canIssue && (
                                     <>
-                                        <p className="text-[10px] text-rose-200 font-bold text-center mt-1">검증 필요: OCR 재분석 후 발급</p>
+                                        <p className="text-[10px] text-amber-200 font-bold text-center mt-1">검증 필요 데이터는 예외 출력 모드로 발급됩니다.</p>
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
