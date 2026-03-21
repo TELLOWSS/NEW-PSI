@@ -602,6 +602,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         trustedCount: number;
         fallbackUsed: boolean;
     } | null>(null);
+    const [printUserNotice, setPrintUserNotice] = useState<string | null>(null);
     
     // View Mode Toggle (Grid vs Flip)
     const [viewType, setViewType] = useState<'grid' | 'flip'>('grid');
@@ -1223,6 +1224,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         if (targetWorkers.length === 0) return alert('발급할 근로자 데이터가 없습니다.');
 
         setPrintRuntimeError(null);
+        setPrintUserNotice(null);
 
         const reliabilityEvaluations = targetWorkers.map((worker) => ({
             worker,
@@ -1273,15 +1275,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 .join(', ');
             alert(`신뢰성 검증 결과\n- 발급 포함: ${printableWorkers.length}명\n- 발급 제외: ${excludedCandidates.length}명\n\n제외 사유 예시: ${reasonSummary}\n\n구 백업 데이터는 OCR 재분석 후 발급해 주세요.`);
         }
-        
-        // Reset states
-        setWorkersToPrint(printableWorkers);
-        setPrintType(type);
-        setPrintTrustMode(nextPrintTrustMode);
-        setRenderLimit(Math.min(5, printableWorkers.length)); // 초기 프레임 즉시 표시
-        setViewType('grid'); // Default to grid
-        setCurrentFlipIndex(0);
-        setIsPrintMode(true);
+
+        const printed = openDirectPopupPrint(`PSI-${type}-${printableWorkers.length}명`, printableWorkers, type);
+        if (printed) {
+            setPrintUserNotice(`${type === 'sticker' ? '안전모 스티커' : '스마트 사원증'} 인쇄 창을 열었습니다. (대상 ${printableWorkers.length}명)`);
+        } else {
+            setPrintRuntimeError('인쇄 창을 열지 못했습니다. 브라우저 팝업 허용 상태를 다시 확인해 주세요.');
+            setPrintUserNotice('인쇄 창 실행에 실패했습니다. 주소창의 팝업 차단 아이콘을 해제한 뒤 다시 시도해 주세요.');
+        }
     };
 
     const openOverrideModal = (worker: WorkerRecord) => {
@@ -1453,12 +1454,89 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const handleNext = () => setCurrentFlipIndex(prev => Math.min(workersToPrint.length - 1, prev + 1));
     const handlePrev = () => setCurrentFlipIndex(prev => Math.max(0, prev - 1));
 
+        const escapeHtml = (value: unknown) =>
+            String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+
+        function openDirectPopupPrint(title: string, targetWorkers: WorkerRecord[], targetType: 'sticker' | 'idcard') {
+            const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1280,height=900');
+            if (!printWindow) {
+                setPrintRuntimeError('브라우저 팝업 차단으로 인쇄 창을 열지 못했습니다. 팝업 허용 후 다시 시도해 주세요.');
+                return false;
+            }
+
+            const cardsHtml = targetWorkers.map((worker) => {
+                const level = escapeHtml(worker.safetyLevel || getSafetyLevelFromScore(Number(worker.safetyScore || 0)));
+                const score = Number.isFinite(Number(worker.safetyScore)) ? Number(worker.safetyScore) : 0;
+                const name = escapeHtml(worker.name || '식별 대기');
+                const job = escapeHtml(worker.jobField || '미분류');
+                const team = escapeHtml(worker.teamLeader || '미지정');
+                const nation = escapeHtml(worker.nationality || '미상');
+                const idTail = escapeHtml(getSafeIdTail(worker.id, 6));
+
+                if (targetType === 'sticker') {
+                    return `<article class="card sticker"><div class="left"><div class="level">${level}</div><div class="score">${score}</div></div><div class="body"><h3>${name}</h3><p>${job} · ${team}</p><p>${nation}</p><p class="meta">ID: ${idTail}</p></div></article>`;
+                }
+
+                return `<article class="card idcard"><div class="head">PSI SMART ID</div><div class="body"><h3>${name}</h3><p>${job} · ${team}</p><p>${nation}</p><p>안전등급: ${level} / 점수: ${score}</p><p class="meta">ID: ${idTail}</p></div></article>`;
+            }).join('');
+
+            const html = `<!doctype html>
+    <html lang="ko">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>${escapeHtml(title)}</title>
+      <style>
+        @page { size: A4; margin: 10mm; }
+        body { margin: 0; font-family: Arial, 'Noto Sans KR', sans-serif; background: #fff; color: #0f172a; }
+        .grid { display: grid; gap: 8mm; grid-template-columns: ${targetType === 'sticker' ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)'}; align-items: start; }
+        .card { border: 1px solid #cbd5e1; border-radius: 4mm; overflow: hidden; break-inside: avoid; page-break-inside: avoid; background: #fff; }
+        .card .body { padding: 4mm; }
+        .card h3 { margin: 0 0 2mm; font-size: 14px; font-weight: 800; }
+        .card p { margin: 0 0 1mm; font-size: 11px; font-weight: 600; color: #334155; }
+        .card .meta { color: #64748b; font-size: 10px; }
+        .sticker { display: flex; min-height: 60mm; }
+        .sticker .left { width: 20mm; background: #0f172a; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4mm; }
+        .sticker .left .level { font-size: 14px; font-weight: 900; }
+        .sticker .left .score { font-size: 12px; font-weight: 800; }
+        .idcard { min-height: 86mm; }
+        .idcard .head { background: #0f172a; color: #fff; padding: 3mm 4mm; font-size: 11px; font-weight: 800; }
+      </style>
+    </head>
+    <body>
+      <main class="grid">${cardsHtml || '<p>인쇄할 데이터가 없습니다.</p>'}</main>
+      <script>
+        window.addEventListener('load', function () {
+          setTimeout(function () {
+        try { window.focus(); window.print(); } catch (e) {}
+          }, 200);
+        });
+      </script>
+    </body>
+    </html>`;
+
+            printWindow.document.open();
+            printWindow.document.write(html);
+            printWindow.document.close();
+            return true;
+        };
+
         const printUsingFallbackWindow = (title: string) => {
                 const source = printAreaRef.current;
-                if (!source) {
-                        setPrintRuntimeError('인쇄 영역을 찾을 수 없어 새 창 인쇄를 실행할 수 없습니다.');
-                return false;
+            const fallbackWorkers = workersToPrint.length > 0 ? workersToPrint : filteredRecords;
+            if (!source) {
+                return openDirectPopupPrint(title, fallbackWorkers, printType);
                 }
+
+            const sourceMarkup = source.innerHTML.trim();
+            if (!sourceMarkup) {
+                return openDirectPopupPrint(title, fallbackWorkers, printType);
+            }
 
                 const styleTags = Array.from(document.querySelectorAll('style')).map((node) => node.outerHTML).join('\n');
                 const linkTags = Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map((node) => node.outerHTML).join('\n');
@@ -1486,7 +1564,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     </style>
 </head>
 <body>
-    <div id="print-root">${source.innerHTML}</div>
+    <div id="print-root">${sourceMarkup}</div>
     <script>
         window.addEventListener('load', function () {
             setTimeout(function () {
@@ -1501,7 +1579,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 printWindow.document.write(html);
                 printWindow.document.close();
                 return true;
-        };
+            }
 
         const performPrint = (title: string): 'popup' | 'failed' => {
                 const fallbackOpened = printUsingFallbackWindow(title);
@@ -1751,6 +1829,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     }
                 `}</style>
             </div>
+
+            {printUserNotice && (
+                <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold text-indigo-700 no-print">
+                    {printUserNotice}
+                </div>
+            )}
             </PrintModeErrorBoundary>
         );
     }
