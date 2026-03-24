@@ -240,3 +240,32 @@ Potential improvements for future iterations:
 ## Conclusion
 
 All requirements from the problem statement have been successfully implemented, tested, and verified. The code is production-ready with no security vulnerabilities or code quality issues.
+
+---
+
+## 2026-03-24 Current-State Addendum
+
+### A. Admin Training Experience
+- Added fullscreen QR presentation mode for projector/large-screen training briefing.
+- Added Malay audio attachment support (`ms-MY`) across:
+    - frontend language list
+    - admin training session creation validation
+    - admin audio upload validation
+
+### B. AI Scoring Engine Upgrade (Monthly Training)
+- Migrated to six-metric scoring model with total 100-point policy:
+    - psychological(10), jobUnderstanding(20), riskAssessmentUnderstanding(20), proficiency(30), improvementExecution(20), repeatViolationPenalty(up to -30)
+- Expanded worker record fields:
+    - `scoreBreakdown`
+    - `score_reason` / `score_reason_native`
+    - `actionable_coaching` / `actionable_coaching_native`
+
+### C. Report UI/UX Redesign
+- Reorganized report structure into high-priority decision flow blocks.
+- For non-Korean workers, switched to native-first rendering with Korean manager-verification text as secondary.
+- Added actionable coaching fallback generation (reinforcement + corrective style).
+- Connected audit-trail special signals to improvement recommendations.
+
+### D. Translation Reliability & Layout Policy
+- Strengthened generation rules and schema requirement around native coaching/reason fields.
+- For foreign-worker report view, removed bottom handwritten-original panel to prioritize multilingual guidance readability.
