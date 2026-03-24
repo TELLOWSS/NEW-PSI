@@ -249,190 +249,236 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
             </div>
 
             <div className="absolute inset-0 m-4 border-[2px] border-slate-800 z-10 pointer-events-none"></div>
-            <div className="relative z-10 px-[14mm] py-[12mm] flex flex-col h-full">
-                
-                {/* Header */}
-                <div className="text-center mb-5 shrink-0">
-                    <div className="flex justify-center mb-2">
-                        <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
-                            <BrandPhilosophyLogo className="w-8 h-8" />
+            <div className="relative z-10 px-[12mm] py-[9mm] flex flex-col h-full gap-3">
+
+                {/* ── HEADER ─────────────────────────────────── */}
+                <div className="text-center shrink-0">
+                    <div className="flex justify-center mb-1.5">
+                        <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+                            <BrandPhilosophyLogo className="w-7 h-7" />
                         </div>
                     </div>
-                     <h1 className="text-xl font-serif font-black text-slate-900 uppercase">Certificate of Safety Competence</h1>
-                     <p className="text-xs font-bold text-slate-600 font-sans tracking-widest">{labels.cert}</p>
+                    <h1 className="text-lg font-serif font-black text-slate-900 uppercase">Certificate of Safety Competence</h1>
+                    <p className="text-[10px] font-bold text-slate-500 tracking-widest">{labels.cert}</p>
                 </div>
 
-                {/* Profile Section */}
-                <div className="flex items-start justify-between mb-6 pb-4 border-b border-slate-200 shrink-0">
-                    <div className="flex gap-5">
-                         <div className="w-24 h-32 bg-white border border-slate-200 p-1 shadow-sm shrink-0 group relative overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
+                {/* ── 상단부: 개인정보 + 총점 통합 ─────────── */}
+                <div className="flex items-center justify-between gap-4 pb-3 border-b-2 border-slate-800 shrink-0">
+                    {/* 좌: 사진 + 개인정보 */}
+                    <div className="flex items-center gap-4">
+                        <div className="w-20 h-28 bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
                             {getProfileImage() ? (
                                 <img src={getProfileImage()!} className="w-full h-full object-cover" alt="Profile" />
                             ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-300 text-xs text-center p-1">
-                                    <span className="text-xl mb-1">📷</span>
-                                    <span>Photo</span>
-                                </div>
-                            )}
-                         </div>
-                         <div className="flex flex-col justify-center">
-                             <h2 className="text-3xl font-serif font-bold text-slate-900 leading-none mb-2">{record.name}</h2>
-                             <div className="space-y-1">
-                                 <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded mr-2">{record.nationality}</span>
-                                 <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded">{record.jobField}</span>
-                             </div>
-                             <p className="text-[10px] text-slate-400 mt-2 font-medium">Date: {formatDate(record.date)}</p>
-                         </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                        <div className="flex flex-col items-center">
-                            <div className="relative w-20 h-20 flex items-center justify-center bg-indigo-50 rounded-full border-4 border-indigo-100 shadow-sm">
-                                <span className="text-3xl font-black text-indigo-700 tracking-tighter">{record.safetyScore}</span>
-                            </div>
-                            <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Total Score</span>
-                            {Array.isArray(record.scoreReasoning) && record.scoreReasoning.length > 0 && (
-                                <div className="mt-2 w-52 rounded-lg border border-slate-200 bg-white p-2 shadow-sm">
-                                    <p className="text-[10px] font-black text-slate-700">AI 상세 채점 근거</p>
-                                    <ul className="mt-1 space-y-1">
-                                        {record.scoreReasoning.slice(0, 3).map((reason, index) => (
-                                            <li key={index} className="text-[10px] leading-tight text-slate-600">• {reason}</li>
-                                        ))}
-                                    </ul>
+                                <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-300 text-xs text-center">
+                                    <span className="text-2xl mb-1">📷</span>
+                                    <span className="text-[9px]">Photo</span>
                                 </div>
                             )}
                         </div>
-                        <div className="w-44 h-44 relative -my-4">
+                        <div>
+                            <h2 className="text-3xl font-serif font-bold text-slate-900 leading-none mb-2">{record.name}</h2>
+                            <div className="flex flex-wrap gap-1.5 mb-1.5">
+                                <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded">{record.nationality}</span>
+                                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded">{record.jobField}</span>
+                                {record.role === 'leader' && <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-[10px] font-black rounded">팀장</span>}
+                            </div>
+                            <p className="text-[10px] text-slate-400 font-medium">Date: {formatDate(record.date)}</p>
+                            {record.teamLeader && <p className="text-[10px] text-slate-400 font-medium">팀장: {record.teamLeader}</p>}
+                        </div>
+                    </div>
+
+                    {/* 우: 총점 원형 배지 + 등급 + 레이더 */}
+                    <div className="flex items-center gap-4 shrink-0">
+                        <div className="flex flex-col items-center gap-1">
+                            <div className={`relative w-24 h-24 flex items-center justify-center rounded-full border-4 shadow-md ${record.safetyLevel === '고급' ? 'bg-emerald-50 border-emerald-400' : record.safetyLevel === '중급' ? 'bg-amber-50 border-amber-400' : 'bg-rose-50 border-rose-400'}`}>
+                                <span className={`text-4xl font-black tracking-tighter ${record.safetyLevel === '고급' ? 'text-emerald-700' : record.safetyLevel === '중급' ? 'text-amber-700' : 'text-rose-700'}`}>
+                                    {record.safetyScore}
+                                </span>
+                            </div>
+                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">TOTAL SCORE</span>
+                            <span className={`px-3 py-0.5 rounded-full text-[10px] font-black ${record.safetyLevel === '고급' ? 'bg-emerald-100 text-emerald-800' : record.safetyLevel === '중급' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
+                                {record.safetyLevel}
+                            </span>
+                        </div>
+                        <div className="w-36 h-36">
                             <IndividualRadarChart record={record} />
                         </div>
                     </div>
                 </div>
 
-                {/* Content */}
-                <div className="flex-1 min-h-0 flex gap-6">
-                    <div className="flex-1 flex flex-col gap-4">
-                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-100 shadow-sm">
-                            <h3 className="font-bold text-xs mb-3 text-slate-700 flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                                {labels.strengths}
-                            </h3>
-                            <ul className="space-y-3">
-                                {record.strengths.slice(0, 3).map((s, i) => (
-                                    <li key={i}>
-                                        <div className="text-[11px] leading-tight text-slate-800">✓ <HighlightedText text={s} /></div>
-                                        {!isKorean && record.strengths_native && record.strengths_native[i] && (
-                                            <div className="text-[10px] text-slate-500 mt-0.5 ml-3 font-medium tracking-tight leading-none">
-                                                {record.strengths_native[i]}
-                                            </div>
-                                        )}
-                                    </li>
+                {/* ── 중단부-A & B: AI 평가 핵심 ──────────── */}
+                <div className="flex gap-3 shrink-0">
+                    {/* 섹션 A: 상세 채점 근거 */}
+                    <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg p-3 shadow-sm">
+                        <p className="text-[10px] font-black text-slate-700 mb-1.5 flex items-center gap-1">
+                            <span>🔍</span> 상세 채점 근거 (Score Reasoning)
+                        </p>
+                        {record.score_reason ? (
+                            <p className="text-[10px] leading-relaxed text-slate-800">
+                                <HighlightedText text={record.score_reason} />
+                            </p>
+                        ) : Array.isArray(record.scoreReasoning) && record.scoreReasoning.length > 0 ? (
+                            <ul className="space-y-0.5">
+                                {record.scoreReasoning.slice(0, 3).map((r, i) => (
+                                    <li key={i} className="text-[10px] leading-tight text-slate-700">• {r}</li>
                                 ))}
                             </ul>
-                        </div>
-                        
-                        <div className="h-32 border border-slate-200 rounded-lg p-3 bg-white shadow-sm flex flex-col">
-                            <h4 className="text-[9px] font-bold text-slate-400 uppercase mb-2">{labels.trends} (6 Month)</h4>
+                        ) : (
+                            <p className="text-[10px] text-slate-400 italic">채점 근거 없음</p>
+                        )}
+                        {/* 6대 지표 미니 바 */}
+                        {record.scoreBreakdown && (
+                            <div className="mt-2 pt-2 border-t border-slate-200 grid grid-cols-2 gap-x-3 gap-y-0.5">
+                                {([
+                                    ['①심리', record.scoreBreakdown.psychological, 10],
+                                    ['②업무이해', record.scoreBreakdown.jobUnderstanding, 20],
+                                    ['③위험평가', record.scoreBreakdown.riskAssessmentUnderstanding, 20],
+                                    ['④숙련도', record.scoreBreakdown.proficiency, 30],
+                                    ['⑤개선이행', record.scoreBreakdown.improvementExecution, 20],
+                                    ['⑥패널티', record.scoreBreakdown.repeatViolationPenalty, 30, true],
+                                ] as [string, number, number, boolean?][]).map(([label, val, max, isPenalty]) => (
+                                    <div key={label} className="flex items-center gap-1.5">
+                                        <span className="text-[8px] font-bold text-slate-500 w-14 shrink-0">{label}</span>
+                                        <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full rounded-full ${isPenalty ? 'bg-rose-400' : 'bg-indigo-500'}`}
+                                                style={{ width: `${Math.min(100, (val / max) * 100)}%` }}
+                                            />
+                                        </div>
+                                        <span className={`text-[8px] font-black w-8 text-right ${isPenalty ? 'text-rose-600' : 'text-indigo-700'}`}>{isPenalty ? `-${val}` : `${val}/${max}`}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* 섹션 B: 코칭 */}
+                    <div className="flex-1 bg-amber-50 border-2 border-amber-300 rounded-lg p-3 shadow-sm flex flex-col">
+                        <p className="text-[10px] font-black text-amber-800 mb-1.5">
+                            💡 다음번엔 이렇게 작성해 보세요!
+                        </p>
+                        {record.actionable_coaching ? (
+                            <p className="text-[10px] leading-relaxed text-amber-900 flex-1">
+                                {record.actionable_coaching}
+                            </p>
+                        ) : (
+                            <p className="text-[10px] text-amber-600 italic">코칭 내용 없음</p>
+                        )}
+                    </div>
+                </div>
+
+                {/* ── 하단부: 카드형 Grid ───────────────────── */}
+                <div className="flex-1 min-h-0 grid grid-cols-2 gap-3">
+                    {/* 역량 강점 */}
+                    <div className="bg-slate-50 rounded-lg border border-slate-100 p-3 shadow-sm overflow-hidden">
+                        <h3 className="font-bold text-[10px] mb-2 text-slate-700 flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
+                            {labels.strengths}
+                        </h3>
+                        <ul className="space-y-1.5">
+                            {record.strengths.slice(0, 3).map((s, i) => (
+                                <li key={i}>
+                                    <div className="text-[10px] leading-tight text-slate-800">✓ <HighlightedText text={s} /></div>
+                                    {!isKorean && record.strengths_native?.[i] && (
+                                        <div className="text-[9px] text-slate-500 mt-0.5 ml-3 leading-none">{record.strengths_native[i]}</div>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+
+                    {/* 개선 권고 */}
+                    <div className="bg-rose-50 rounded-lg border border-rose-100 p-3 shadow-sm overflow-hidden">
+                        <h3 className="font-bold text-[10px] mb-2 text-rose-800 flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
+                            {labels.weaknesses}
+                        </h3>
+                        <ul className="space-y-1.5">
+                            {record.weakAreas.slice(0, 3).map((w, i) => (
+                                <li key={i}>
+                                    <div className="text-[10px] leading-tight text-rose-900">⚠ <HighlightedText text={w} /></div>
+                                    {!isKorean && record.weakAreas_native?.[i] && (
+                                        <div className="text-[9px] text-rose-700/70 mt-0.5 ml-4 leading-none">{record.weakAreas_native[i]}</div>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+
+                    {/* 종합 안전 진단 */}
+                    <div className="bg-white rounded-lg border border-slate-200 p-3 shadow-sm overflow-hidden flex flex-col">
+                        <h3 className="font-bold text-[10px] mb-2 text-slate-700 flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-800 shrink-0"></span>
+                            {labels.verdict}
+                        </h3>
+                        <p className="text-[10px] leading-relaxed text-slate-800 flex-1 overflow-hidden">
+                            <HighlightedText text={record.aiInsights} />
+                        </p>
+                        {!isKorean && record.aiInsights_native && (
+                            <p className="text-[9px] leading-relaxed text-slate-500 mt-1 font-medium">
+                                {record.aiInsights_native}
+                            </p>
+                        )}
+                        {reassessmentTrail.length > 0 && (
+                            <div className="mt-1 pt-1 border-t border-slate-100">
+                                {reassessmentTrail.map((entry, i) => (
+                                    <p key={`${entry.timestamp}-${i}`} className="text-[9px] text-violet-700 leading-tight">
+                                        • {reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)} {entry.note || reassessmentFallback}
+                                    </p>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* 성과 추이 + 안전 표지 */}
+                    <div className="flex flex-col gap-2">
+                        <div className="flex-1 border border-slate-200 rounded-lg p-2 bg-white shadow-sm flex flex-col min-h-0">
+                            <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trends} (6M)</h4>
                             <div className="flex-1 w-full relative min-h-0">
                                 <canvas ref={trendChartRef}></canvas>
                             </div>
                         </div>
-                        
-                        <div className="flex-1 border border-slate-200 rounded-lg bg-slate-50 p-2 relative overflow-hidden flex items-center justify-center">
-                            {getOriginalImage() ? (
-                                <img src={getOriginalImage()!} className="max-w-full max-h-full object-contain mix-blend-multiply" />
-                            ) : (
-                                <div className="text-[10px] text-slate-300">No Image</div>
-                            )}
-                        </div>
-                    </div>
-                    
-                    <div className="flex-1 flex flex-col gap-4">
-                        <div className="bg-rose-50 p-4 rounded-lg border border-rose-100 shadow-sm">
-                            <h3 className="font-bold text-xs mb-3 text-rose-800 flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-rose-500"></span>
-                                {labels.weaknesses}
-                            </h3>
-                            <ul className="space-y-3">
-                                {record.weakAreas.slice(0, 3).map((w, i) => (
-                                    <li key={i}>
-                                        <div className="text-[11px] leading-tight text-rose-900">⚠ <HighlightedText text={w} /></div>
-                                        {!isKorean && record.weakAreas_native && record.weakAreas_native[i] && (
-                                            <div className="text-[10px] text-rose-700/70 mt-0.5 ml-4 font-medium tracking-tight leading-none">
-                                                {record.weakAreas_native[i]}
-                                            </div>
-                                        )}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                        
-                        <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-                            <h3 className="font-bold text-xs mb-3 text-slate-700 flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-slate-800"></span>
-                                {labels.verdict}
-                            </h3>
-                            <div className="space-y-4">
-                                <p className="text-[11px] leading-relaxed text-slate-800 text-justify">
-                                    <HighlightedText text={record.aiInsights} />
-                                </p>
-                                {!isKorean && record.aiInsights_native && (
-                                    <>
-                                        <div className="w-full h-px bg-slate-100"></div>
-                                        <p className="text-[10px] leading-relaxed text-slate-500 text-justify font-medium">
-                                            {record.aiInsights_native}
-                                        </p>
-                                    </>
-                                )}
-                                {reassessmentTrail.length > 0 && (
-                                    <>
-                                        <div className="w-full h-px bg-slate-100"></div>
-                                        <div>
-                                            <p className="text-[10px] font-black text-violet-700 mb-1">{reassessmentTitle}</p>
-                                            <ul className="space-y-1">
-                                                {reassessmentTrail.map((entry, i) => (
-                                                    <li key={`${entry.timestamp}-${i}`} className="text-[10px] text-violet-700 leading-tight">
-                                                        • {reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)} {entry.note || reassessmentFallback}
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex-1 bg-white border-2 border-slate-100 rounded-lg p-3 shadow-sm flex flex-col">
-                            <h3 className="font-bold text-xs mb-2 text-slate-800 flex items-center gap-2 uppercase tracking-wide">
-                                <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
+                        <div className="border-2 border-slate-100 rounded-lg p-2 bg-white shadow-sm">
+                            <h3 className="font-bold text-[8px] mb-1.5 text-slate-800 uppercase tracking-wide flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0"></span>
                                 {labels.pictogram}
                             </h3>
-                            <div className="flex-1 grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-2 gap-1.5">
                                 {safetySigns.map((sign, i) => (
-                                    <div key={i} className="border border-slate-200 rounded bg-slate-50 flex flex-col items-center justify-center p-2 text-center relative overflow-hidden">
-                                        <div className="w-16 h-16 mb-2">
+                                    <div key={i} className="border border-slate-200 rounded bg-slate-50 flex flex-col items-center justify-center p-1.5 text-center relative overflow-hidden">
+                                        <div className="w-10 h-10 mb-1">
                                             <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-sm">
                                                 {sign.icon}
                                             </svg>
                                         </div>
-                                        <div className="w-full">
-                                            <p className="text-[10px] font-black text-slate-900 leading-tight">{sign.labels.ko}</p>
-                                            {!isKorean && (
-                                                <p className="text-[9px] font-bold text-slate-500 mt-0.5 leading-none">
-                                                    {getSignLabel(sign, record.nationality)}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <div className={`absolute top-0 right-0 w-3 h-3 ${sign.type === 'warning' ? 'bg-yellow-400' : 'bg-blue-600'} rounded-bl-lg`}></div>
+                                        <p className="text-[8px] font-black text-slate-900 leading-tight">{sign.labels.ko}</p>
+                                        {!isKorean && <p className="text-[7px] font-bold text-slate-500 mt-0.5 leading-none">{getSignLabel(sign, record.nationality)}</p>}
+                                        <div className={`absolute top-0 right-0 w-2 h-2 ${sign.type === 'warning' ? 'bg-yellow-400' : 'bg-blue-600'} rounded-bl`}></div>
                                     </div>
                                 ))}
                             </div>
                         </div>
                     </div>
+
+                    {/* 수기 기록 원본 */}
+                    <div className="col-span-2 border border-slate-200 rounded-lg bg-slate-50 p-2 relative overflow-hidden flex items-center justify-center" style={{ maxHeight: '80px' }}>
+                        <p className="absolute top-1.5 left-2 text-[8px] font-bold text-slate-400 uppercase z-10">{labels.original}</p>
+                        {getOriginalImage() ? (
+                            <img src={getOriginalImage()!} className="max-w-full max-h-full object-contain mix-blend-multiply" />
+                        ) : (
+                            <div className="text-[10px] text-slate-300">No Image</div>
+                        )}
+                    </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t-2 border-slate-900 shrink-0 flex justify-between items-end">
-                    <div className="text-[9px] font-bold text-slate-400">PSI Safety Intelligence System v1.4.0</div>
-                    <div className="flex gap-8 text-center"><div className="text-[10px] font-bold">Safety Manager 박 성 훈</div><div className="text-[10px] font-bold">Site Manager 정 용 현</div></div>
+                {/* ── FOOTER ──────────────────────────────── */}
+                <div className="pt-2 border-t-2 border-slate-900 shrink-0 flex justify-between items-end">
+                    <div className="text-[8px] font-bold text-slate-400">PSI Safety Intelligence System v2.0.0 · 월간 안전보건정기교육</div>
+                    <div className="flex gap-8 text-center">
+                        <div className="text-[9px] font-bold">Safety Manager 박 성 훈</div>
+                        <div className="text-[9px] font-bold">Site Manager 정 용 현</div>
+                    </div>
                 </div>
             </div>
         </div>

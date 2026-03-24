@@ -133,6 +133,25 @@ export interface SafetyCompetencyProfile {
     weightVersion: string;
 }
 
+/**
+ * [6대 핵심 평가 지표 - 월간 안전보건정기교육 전용]
+ * 총 100점 + 감점(repeatViolationPenalty)
+ */
+export interface SixMetricBreakdown {
+    /** ① 심리지표 (10점): 성의·진지한 문장 작성 태도 */
+    psychological: number;
+    /** ② 업무이해도 (20점): 본인 공종·자재·도구 명시 수준 */
+    jobUnderstanding: number;
+    /** ③ 위험성평가 이해도 (20점): 교육 핵심 위험요인을 본인 작업에 연결 */
+    riskAssessmentUnderstanding: number;
+    /** ④ 숙련도 (30점): 현장 경험이 녹아있는 실효성 있는 대책 */
+    proficiency: number;
+    /** ⑤ 개선이행도 (20점): 구체적으로 작성하려는 노력 */
+    improvementExecution: number;
+    /** ⑥ 반복위반 패널티 (감점): 껍데기 단어 반복 시 최대 -30점 */
+    repeatViolationPenalty: number;
+}
+
 export interface ActionEntry {
     timestamp: string;
     actor: string;
@@ -189,6 +208,12 @@ export interface WorkerRecord {
     aiInsights: string;
     aiInsights_native: string;
     scoreReasoning?: string[];
+    /** [6대 지표] 항목별 점수 (월간 안전보건정기교육 전용) */
+    scoreBreakdown?: SixMetricBreakdown;
+    /** 상세 채점 근거: 팩트 기반 감점/가점 사유 서술 */
+    score_reason?: string;
+    /** 안전 코칭: 다음 달 구체적 개선 행동 가이드 */
+    actionable_coaching?: string;
     selfAssessedRiskLevel: '상' | '중' | '하';
     psychologicalAnalysis?: PsychologicalAnalysis;
     originalImage?: string; // Base64 encoded document image from OCR

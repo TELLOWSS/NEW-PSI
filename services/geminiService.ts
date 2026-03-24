@@ -139,6 +139,20 @@ const workerRecordSchema = {
             aiInsights: { type: Type.STRING },
             aiInsights_native: { type: Type.STRING },
             scoreReasoning: { type: Type.ARRAY, items: { type: Type.STRING } },
+            score_reason: { type: Type.STRING, description: "팩트 기반 상세 채점 근거: 어떤 항목에서 왜 감점/가점이 발생했는지 2~4문장으로 서술" },
+            actionable_coaching: { type: Type.STRING, description: "다음 달 정기교육 작성 시 구체적으로 개선할 행동 가이드 (💡 이모지 포함, 한 문단)" },
+            scoreBreakdown: {
+                type: Type.OBJECT,
+                description: "6대 핵심 평가 지표별 개별 점수 (월간 안전보건정기교육 전용)",
+                properties: {
+                    psychological: { type: Type.NUMBER, description: "①심리지표 0~10점: 성의 있는 문장 작성 태도" },
+                    jobUnderstanding: { type: Type.NUMBER, description: "②업무이해도 0~20점: 공종·자재·도구 명시 수준" },
+                    riskAssessmentUnderstanding: { type: Type.NUMBER, description: "③위험성평가 이해도 0~20점: 핵심 위험요인을 본인 작업과 연결" },
+                    proficiency: { type: Type.NUMBER, description: "④숙련도 0~30점: 현장 경험이 담긴 실효성 있는 대책" },
+                    improvementExecution: { type: Type.NUMBER, description: "⑤개선이행도 0~20점: 구체적 작성 노력 가점" },
+                    repeatViolationPenalty: { type: Type.NUMBER, description: "⑥반복위반 패널티 0~30점 (감점): 껍데기 단어 반복 시 강력 감점" },
+                }
+            },
             selfAssessedRiskLevel: { type: Type.STRING, enum: ['상', '중', '하'] },
             psychologicalAnalysis: {
                 type: Type.OBJECT,
@@ -164,6 +178,19 @@ const updateSchema = {
         aiInsights: { type: Type.STRING },
         aiInsights_native: { type: Type.STRING },
         scoreReasoning: { type: Type.ARRAY, items: { type: Type.STRING } },
+        score_reason: { type: Type.STRING },
+        actionable_coaching: { type: Type.STRING },
+        scoreBreakdown: {
+            type: Type.OBJECT,
+            properties: {
+                psychological: { type: Type.NUMBER },
+                jobUnderstanding: { type: Type.NUMBER },
+                riskAssessmentUnderstanding: { type: Type.NUMBER },
+                proficiency: { type: Type.NUMBER },
+                improvementExecution: { type: Type.NUMBER },
+                repeatViolationPenalty: { type: Type.NUMBER },
+            }
+        },
         koreanTranslation: { type: Type.STRING },
     },
     required: ["strengths", "strengths_native", "weakAreas", "weakAreas_native", "safetyScore", "safetyLevel", "aiInsights", "aiInsights_native", "scoreReasoning"]
@@ -384,34 +411,66 @@ const LANGUAGE_POLICY = `
 `;
 
 const STRICT_SCORE_POLICY = `
-**엄격한 정량적 평가 기준 (필수 적용)**:
-1) 채점 축과 가중치:
-    - w1 무결성(Integrity): 25%
-    - w2 업무 이해도(Job Understanding): 25%
-    - w3 위험성평가 이해도(Risk Assessment Understanding): 35%
-    - w4 실행 가능성(Actionability): 15%
-    - 최종점수 = round(w1*0.25 + w2*0.25 + w3*0.35 + w4*0.15)
+**[월간 안전보건정기교육 6대 핵심 지표 채점 시스템 - 전면 적용]**
 
-2) 상투어 필터링 강제 페널티:
-    - 구체적 장비명(예: 그라인더, 안전대, 펌프카 등) 또는 공종 특화 위험요인이 없고,
-      "안전하게 작업", "주변 경계", "정리정돈" 등 범용 문구만 반복되면
-      w1(무결성)과 w2(업무 이해도)를 각각 30점 이하로 강제 제한.
+당신은 건설 현장 20년 차 최고참 안전관리자이자 기술사입니다.
+단순 키워드 채점은 완전히 폐기합니다. 아래 6대 지표로 매우 깐깐하게 채점하십시오.
 
-3) 공종 일치도 검증 강제:
-    - 입력된 근로자 공종(jobField)과 작성 위험요인이 논리적으로 전혀 맞지 않으면
-      "허위/무지성 작성"으로 판정하고 최종점수를 59점 이하로 강제 제한,
-      최종 등급은 반드시 최하(초급/Red)로 산정.
+---
+[6대 핵심 평가 지표 - 총 100점]
 
-4) 등급 매핑(내부 크로스체크 필수):
-    - 80점 이상: 고급(🟢S/안전)
-    - 60~79점: 중급(🟡A/주의)
-    - 60점 미만: 초급(🔴B/위험)
-    점수와 등급이 불일치하면 반드시 점수 기준 등급으로 보정 후 응답.
+① 심리지표 (0~10점)
+  - 성의 없는 단답형/단어 나열이면 0~3점.
+  - 형식적이지만 문장으로 작성하면 4~6점.
+  - 진지하게 본인 작업 상황을 문장으로 작성하려는 태도가 보이면 7~10점.
 
-5) 상세 채점 근거 출력:
-    - scoreReasoning 배열에 가점/감점 근거를 구체 문장으로 반드시 기록.
-    - 예: "구체적 장비명 누락 및 상투적 문구 반복으로 무결성 점수 차감됨"
+② 업무이해도 (0~20점)
+  - "오늘 할 일" 수준의 일반론이면 0~5점.
+  - 공종은 맞으나 자재·도구가 불명확하면 6~12점.
+  - "이번 달 본인 공종(예: 골조 슬래브 폼 조립)의 핵심 자재·도구를 정확히 명시"하면 13~20점.
+
+③ 위험성평가 이해도 (0~20점)
+  - 교육 내용과 무관한 일반 위험 언급이면 0~5점.
+  - 교육에서 전파받은 중대재해 핵심 위험요인을 일부 언급하면 6~12점.
+  - "해당 위험요인을 본인 작업과 정확히 연결(예: 단부 추락, 낙하물 맞음 등)"하면 13~20점.
+
+④ 숙련도 (0~30점) ← 핵심 지표
+  - "조심하겠다", "안전모 쓰겠다" 같은 뻔한 소리: 0~5점.
+  - 장비/도구 수준의 대책이지만 형식적: 6~15점.
+  - "해체 전 1차 생명줄 선 체결", "하부 3m 반경 통제" 등 현장 경험이 녹아있는 실효성 있는 대책: 16~30점.
+
+⑤ 개선이행도 (0~20점)
+  - 대책이 전혀 없거나 한 줄: 0~5점.
+  - 구체적으로 작성하려는 노력이 문맥상 보이고 2개 이상 조치 언급: 6~13점.
+  - 3개 이상 구체적 개선 조치 작성: 14~20점.
+
+⑥ 반복위반 패널티 (0~-30점, 감점)
+  - "안전제일", "안전수칙 준수" 같은 껍데기 단어만 반복되면 즉시 -30점 강력 감점(과락 처리).
+  - 부분적으로 상투어가 포함되었으면 -10~-20점 감점.
+  - 없으면 0점.
+
+---
+** safetyScore = ①+②+③+④+⑤ - ⑥ (clamp 0~100) **
+
+[등급 매핑]
+  - 80점 이상: 고급
+  - 60~79점: 중급
+  - 60점 미만: 초급
+
+[점수 정합성 강제]
+  - scoreBreakdown 6개 항목을 먼저 채점한 뒤 합산하여 safetyScore를 결정.
+  - safetyScore와 safetyLevel이 불일치하면 점수 기준으로 safetyLevel을 보정.
+
+[score_reason 작성 규칙 - 필수]
+  - "업무이해도는 골조 공종 자재를 명시해 15점이지만, 숙련도는 '안전벨트 착용' 수준으로 형식적이어서 8점 책정 및 반복위반 패널티 -30점이 적용됩니다." 형식.
+  - 팩트 기반으로 감점/가점 근거를 2~4문장으로 서술.
+
+[actionable_coaching 작성 규칙 - 필수]
+  - "💡 다음 달 정기교육 후 작성하실 때는 '안전모 착용' 대신 '단부 작업 전 구명줄 선 체결 및 D링 확인'처럼 본인이 직접 할 구체적 행동을 적어주세요." 형식.
+  - 건설 안전 전문가 관점에서 명확한 개선 가이드를 한 문단으로 제시.
+  - 반드시 💡 이모지로 시작.
 `;
+
 
 /**
  * [Nationality Normalization]
@@ -619,22 +678,25 @@ async function callGeminiWithRetry(
         
         try {
             const systemInstruction = `
-            **역할**: 건설현장 안전관리 전문가.
-            **임무**: 수기 위험성 평가표 이미지를 분석하여 데이터 추출 및 엄격 정량 채점 수행.
+            **역할**: 건설 현장 20년 차 최고참 안전관리자이자 기술사.
+            **임무**: 수기 위험성 평가표 이미지를 분석하여 데이터 추출 및 '월간 안전보건정기교육 6대 핵심 지표'로 엄격 채점 수행.
+            이 기록지는 매일 하는 가벼운 TBM이 아닌, 한 달에 한 번 진행하는 법적 이수 및 이해도를 증명하는 매우 중요한 서류임.
             ${LANGUAGE_POLICY}
             ${STRICT_SCORE_POLICY}
-            
+
+            **채점 실행 순서(필수)**:
+            1. handwrittenAnswers, fullText, koreanTranslation에서 6대 지표별 근거를 먼저 식별.
+            2. scoreBreakdown 객체에 ①~⑥ 점수를 각각 산출.
+            3. safetyScore = ①+②+③+④+⑤ - ⑥ (0~100 clamp).
+            4. score_reason: 팩트 기반 채점 근거 2~4문장 서술.
+            5. actionable_coaching: 💡 이모지로 시작하는 구체적 개선 가이드 1문단.
+            6. scoreReasoning 배열에도 핵심 감점/가점 근거를 항목별로 기록.
+            7. safetyScore와 safetyLevel 정합성(80/60 기준)을 최종 검증.
+
             **강조**: 분석 결과에서 핵심 위험 요인은 '작은따옴표'로 강조.
             **직책 식별**: '팀장/소장'은 'leader', '부팀장/반장'은 'sub_leader', 그 외 'worker'.
             **임무 식별**: '통역' -> isTranslator=true, '신호수/유도원' -> isSignalman=true.
 
-            **정량 채점 실행 규칙(필수)**:
-            1. handwrittenAnswers, fullText, koreanTranslation에서 위험요인/대책의 구체성(장비명, 공종특화 표현)을 먼저 평가.
-            2. 상투어 필터 조건 충족 시 w1/w2를 각각 30점 이하로 강제 제한.
-            3. 공종-위험요인 불일치 시 "허위/무지성 작성"으로 판정하여 safetyScore를 59점 이하로 제한하고 safetyLevel=초급.
-            4. aiInsights에는 종합 판정 요약을 작성하고, scoreReasoning 배열에는 감점/가점 근거를 항목별로 기록.
-            5. 최종 반환 전 safetyScore(0~100)와 safetyLevel(고급/중급/초급) 정합성(80/60 기준)을 내부 검증.
-            
             **심리 분석 (psychologicalAnalysis)**:
             1. **필압 (pressureLevel)**: 글씨의 굵기와 진하기를 분석하여 'high'(매우 진하고 굵음), 'medium'(보통), 'low'(흐리고 가늠) 판정.
             2. **레이아웃 위반 (hasLayoutIssue)**: 텍스트가 지정된 영역/여백을 벗어나거나 칸을 넘어가면 true, 정상이면 false.
@@ -723,6 +785,16 @@ async function callGeminiWithRetry(
                             aiInsights: (r['aiInsights'] as string) || '',
                             aiInsights_native: (r['aiInsights_native'] as string) || '',
                             scoreReasoning: normalizedScoreAndLevel.scoreReasoning,
+                            score_reason: (r['score_reason'] as string) || '',
+                            actionable_coaching: (r['actionable_coaching'] as string) || '',
+                            scoreBreakdown: r['scoreBreakdown'] ? {
+                                psychological: Number((r['scoreBreakdown'] as Record<string, unknown>)['psychological'] ?? 0),
+                                jobUnderstanding: Number((r['scoreBreakdown'] as Record<string, unknown>)['jobUnderstanding'] ?? 0),
+                                riskAssessmentUnderstanding: Number((r['scoreBreakdown'] as Record<string, unknown>)['riskAssessmentUnderstanding'] ?? 0),
+                                proficiency: Number((r['scoreBreakdown'] as Record<string, unknown>)['proficiency'] ?? 0),
+                                improvementExecution: Number((r['scoreBreakdown'] as Record<string, unknown>)['improvementExecution'] ?? 0),
+                                repeatViolationPenalty: Number((r['scoreBreakdown'] as Record<string, unknown>)['repeatViolationPenalty'] ?? 0),
+                            } : undefined,
                             selfAssessedRiskLevel: (r['selfAssessedRiskLevel'] as string) || '중',
                             psychologicalAnalysis: r['psychologicalAnalysis'] ? {
                                 pressureLevel: ((r['psychologicalAnalysis'] as Record<string, unknown>)['pressureLevel'] as string) || 'medium',
