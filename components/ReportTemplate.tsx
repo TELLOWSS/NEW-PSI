@@ -417,22 +417,31 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <p className="text-[10px] font-black text-slate-700 mb-1.5 flex items-center gap-1">
                             <span>🔍</span> 상세 채점 근거 (Score Reasoning)
                         </p>
-                        {/* 외국인: 모국어 먼저 */}
-                        {!isKorean && record.score_reason_native && (
-                            <p className="text-[10px] leading-relaxed text-slate-800 font-bold mb-1">
-                                {record.score_reason_native}
-                            </p>
+                        {/* 외국인: 모국어 채점근거 먼저(크게) */}
+                        {!isKorean && (
+                            record.score_reason_native ? (
+                                <p className="text-[10px] leading-relaxed text-slate-800 font-bold mb-1">
+                                    {record.score_reason_native}
+                                </p>
+                            ) : (
+                                <p className="text-[9px] text-amber-600 italic mb-1">⚠ 모국어 번역 미생성 — 아래 [KO] 내용을 관리자가 통역</p>
+                            )
                         )}
-                        {/* 한국어: 관리자 확인용 (항상 표시, 외국인이면 작게) */}
+                        {/* 한국어: 관리자 확인용 (항상 표시, 외국인이면 [KO] 태그 + 작게) */}
+                        {(record.score_reason || (Array.isArray(record.scoreReasoning) && record.scoreReasoning.length > 0)) && !isKorean && (
+                            <div className="text-[8px] font-black text-slate-400 border-t border-slate-200 pt-1 mt-1 mb-0.5">[KO 관리자 확인용]</div>
+                        )}
                         {record.score_reason ? (
-                            <p className={!isKorean ? 'text-[9px] leading-relaxed text-slate-500 border-t border-slate-200 pt-1 mt-1' : 'text-[10px] leading-relaxed text-slate-800'}>
+                            <p className={!isKorean ? 'text-[9px] leading-relaxed text-slate-500' : 'text-[10px] leading-relaxed text-slate-800'}>
                                 {!isKorean && <span className="text-[8px] font-black text-slate-400 mr-1">[KO]</span>}
                                 <HighlightedText text={record.score_reason} />
                             </p>
                         ) : Array.isArray(record.scoreReasoning) && record.scoreReasoning.length > 0 ? (
                             <ul className="space-y-0.5">
                                 {record.scoreReasoning.slice(0, 3).map((r, i) => (
-                                    <li key={i} className="text-[10px] leading-tight text-slate-700">• {r}</li>
+                                    <li key={i} className={`leading-tight ${!isKorean ? 'text-[9px] text-slate-500' : 'text-[10px] text-slate-700'}`}>
+                                        {!isKorean && <span className="text-[7px] font-black text-slate-300 mr-0.5">[KO]</span>}• {r}
+                                    </li>
                                 ))}
                             </ul>
                         ) : (
@@ -466,9 +475,21 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
 
                     {/* 섹션 B: 코칭 */}
                     <div className="flex-1 bg-amber-50 border-2 border-amber-300 rounded-lg p-3 shadow-sm flex flex-col">
-                        <p className="text-[10px] font-black text-amber-800 mb-1.5">
-                            💡 다음번엔 이렇게 작성해 보세요!
-                        </p>
+                        {/* 제목: 외국인은 모국어 제목 병기 */}
+                        {!isKorean ? (
+                            <div className="mb-1.5">
+                                <p className="text-[10px] font-black text-amber-800 leading-tight">
+                                    💡 {record.actionable_coaching_native && !isEmptyNarrative(record.actionable_coaching_native)
+                                        ? '⬇ 모국어 코칭 (아래 참조)'
+                                        : '코칭 — 관리자 통역 필요'}
+                                </p>
+                                <p className="text-[8px] text-amber-600 font-bold">[KO] 다음번엔 이렇게 작성해 보세요!</p>
+                            </div>
+                        ) : (
+                            <p className="text-[10px] font-black text-amber-800 mb-1.5">
+                                💡 다음번엔 이렇게 작성해 보세요!
+                            </p>
+                        )}
                         {/* 외국인: 모국어 코칭 먼저(크게) */}
                         {!isKorean && record.actionable_coaching_native && !isEmptyNarrative(record.actionable_coaching_native) ? (
                             <>
@@ -483,12 +504,19 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     </p>
                                 </div>
                             </>
-                        ) : (
+                        ) : !isKorean ? (
+                            /* 외국인인데 모국어 번역 없음 → 한국어 표시 + 통역 안내 */
                             <>
-                                <p className="text-[10px] leading-relaxed text-amber-900 flex-1">
+                                <p className="text-[9px] text-amber-600 italic mb-1">⚠ 모국어 번역 미생성 — 관리자가 통역하여 전달</p>
+                                <p className="text-[9px] leading-relaxed text-amber-800 flex-1">
+                                    <span className="text-[8px] font-black text-amber-500 mr-1">[KO]</span>
                                     <HighlightedText text={actionableCoachingText} />
                                 </p>
                             </>
+                        ) : (
+                            <p className="text-[10px] leading-relaxed text-amber-900 flex-1">
+                                <HighlightedText text={actionableCoachingText} />
+                            </p>
                         )}
                     </div>
                 </div>
