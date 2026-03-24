@@ -510,6 +510,7 @@ type BulkUploadSummary = {
     status: 'success' | 'error';
     requested: number;
     inserted: number;
+    updated: number;
     skipped: number;
     fileName: string;
     message: string;
@@ -532,6 +533,7 @@ type RegisteredWorkerListRow = {
     team_name: string;
     birth_date: string;
     phone_number: string;
+    passport_number: string;
 };
 
 type RegisteredWorkerEditDraft = {
@@ -635,6 +637,10 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         key: 'birth_date',
         order: 'asc',
     });
+    const [registeredWorkerSearchTerm, setRegisteredWorkerSearchTerm] = useState('');
+    const [registeredWorkerJobFilter, setRegisteredWorkerJobFilter] = useState('전체');
+    const [registeredWorkerTeamFilter, setRegisteredWorkerTeamFilter] = useState('전체');
+    const [registeredWorkerMissingFilter, setRegisteredWorkerMissingFilter] = useState<'all' | 'missing-any' | 'missing-phone' | 'missing-birth' | 'missing-passport'>('all');
     const [deletedWorkerUndo, setDeletedWorkerUndo] = useState<DeletedWorkerUndoState | null>(null);
     const deleteUndoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [manualWorkerForm, setManualWorkerForm] = useState<ManualWorkerForm>({
@@ -732,6 +738,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 team_name: String(row?.team_name || '').trim(),
                 birth_date: String(row?.birth_date || '').trim(),
                 phone_number: String(row?.phone_number || '').trim(),
+                passport_number: String(row?.passport_number || '').trim(),
             })));
         } catch (error) {
             setRegisteredWorkersError(extractMessage(error));
@@ -757,6 +764,56 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
         return sorted;
     }, [registeredWorkers, registeredWorkersSort]);
+
+    const registeredWorkerJobOptions = useMemo(
+        () => ['전체', ...Array.from(new Set(registeredWorkers.map((worker) => worker.job_field || '미분류'))).sort()],
+        [registeredWorkers],
+    );
+
+    const registeredWorkerTeamOptions = useMemo(
+        () => ['전체', ...Array.from(new Set(registeredWorkers.map((worker) => worker.team_name || '미지정'))).sort()],
+        [registeredWorkers],
+    );
+
+    const filteredRegisteredWorkers = useMemo(() => {
+        const search = registeredWorkerSearchTerm.trim().toLowerCase();
+
+        return sortedRegisteredWorkers.filter((worker) => {
+            const name = (worker.name || '').toLowerCase();
+            const job = worker.job_field || '미분류';
+            const team = worker.team_name || '미지정';
+            const phone = normalizePhone(worker.phone_number || '');
+            const birth = normalizeBirthDate(worker.birth_date || '');
+            const passport = normalizePassport(worker.passport_number || '');
+
+            const matchesSearch =
+                !search ||
+                name.includes(search) ||
+                phone.includes(search.replace(/\D/g, '')) ||
+                birth.includes(search.replace(/\D/g, '')) ||
+                passport.toLowerCase().includes(search.replace(/\s+/g, '').toLowerCase());
+            const matchesJob = registeredWorkerJobFilter === '전체' || job === registeredWorkerJobFilter;
+            const matchesTeam = registeredWorkerTeamFilter === '전체' || team === registeredWorkerTeamFilter;
+
+            const hasPhone = Boolean(phone);
+            const hasBirth = Boolean(birth);
+            const hasPassport = Boolean(passport);
+            const matchesMissing =
+                registeredWorkerMissingFilter === 'all' ||
+                (registeredWorkerMissingFilter === 'missing-any' && (!hasPhone || !hasBirth || !hasPassport)) ||
+                (registeredWorkerMissingFilter === 'missing-phone' && !hasPhone) ||
+                (registeredWorkerMissingFilter === 'missing-birth' && !hasBirth) ||
+                (registeredWorkerMissingFilter === 'missing-passport' && !hasPassport);
+
+            return matchesSearch && matchesJob && matchesTeam && matchesMissing;
+        });
+    }, [
+        sortedRegisteredWorkers,
+        registeredWorkerSearchTerm,
+        registeredWorkerJobFilter,
+        registeredWorkerTeamFilter,
+        registeredWorkerMissingFilter,
+    ]);
 
     const toggleRegisteredWorkersSort = (key: RegisteredWorkerSortKey) => {
         setRegisteredWorkersSort((prev) => {
@@ -1057,12 +1114,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
             const requested = Number(data?.data?.requested || normalizedRows.length);
             const inserted = Number(data?.data?.inserted || 0);
+            const updated = Number(data?.data?.updated || 0);
             const skipped = Number(data?.data?.skippedDuplicateCount || 0);
-            setBulkUploadMessage(`✅ 업로드 완료: 요청 ${requested}명 / 신규 ${inserted}명 / 중복 건너뜀 ${skipped}명`);
+            setBulkUploadMessage(`✅ 업로드 완료: 요청 ${requested}명 / 신규 ${inserted}명 / 보완 업데이트 ${updated}명 / 변경없음 ${skipped}명`);
             setBulkUploadSummary({
                 status: 'success',
                 requested,
                 inserted,
+                updated,
                 skipped,
                 fileName: file.name,
                 message: '엑셀 업로드가 정상 처리되었습니다.',
@@ -1074,6 +1133,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 status: 'error',
                 requested: 0,
                 inserted: 0,
+                updated: 0,
                 skipped: 0,
                 fileName: file.name,
                 message: extractMessage(error),
@@ -1130,12 +1190,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
             const requested = Number(data?.data?.requested || 1);
             const inserted = Number(data?.data?.inserted || 0);
+            const updated = Number(data?.data?.updated || 0);
             const skipped = Number(data?.data?.skippedDuplicateCount || 0);
-            setBulkUploadMessage(`✅ 프로그램 등록 완료: 요청 ${requested}명 / 신규 ${inserted}명 / 중복 건너뜀 ${skipped}명`);
+            setBulkUploadMessage(`✅ 프로그램 등록 완료: 요청 ${requested}명 / 신규 ${inserted}명 / 보완 업데이트 ${updated}명 / 변경없음 ${skipped}명`);
             setBulkUploadSummary({
                 status: 'success',
                 requested,
                 inserted,
+                updated,
                 skipped,
                 fileName: '프로그램 내 직접 등록',
                 message: '프로그램에서 근로자 등록이 완료되었습니다.',
@@ -1158,6 +1220,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 status: 'error',
                 requested: 0,
                 inserted: 0,
+                updated: 0,
                 skipped: 0,
                 fileName: '프로그램 내 직접 등록',
                 message,
@@ -2247,7 +2310,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         <p className={`mt-1 text-[11px] font-bold ${bulkUploadSummary.status === 'success' ? 'text-emerald-700' : 'text-rose-700'}`}>
                             소스: {bulkUploadSummary.fileName} · {bulkUploadSummary.message}
                         </p>
-                        <div className="mt-2 grid grid-cols-3 gap-2">
+                        <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
                             <div className="rounded-lg border border-white/70 bg-white px-2 py-2">
                                 <p className="text-[10px] font-black text-slate-500">요청</p>
                                 <p className="text-sm font-black text-slate-900">{bulkUploadSummary.requested}</p>
@@ -2257,7 +2320,11 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <p className="text-sm font-black text-emerald-700">{bulkUploadSummary.inserted}</p>
                             </div>
                             <div className="rounded-lg border border-white/70 bg-white px-2 py-2">
-                                <p className="text-[10px] font-black text-slate-500">중복 건너뜀</p>
+                                <p className="text-[10px] font-black text-slate-500">보완 업데이트</p>
+                                <p className="text-sm font-black text-indigo-700">{bulkUploadSummary.updated}</p>
+                            </div>
+                            <div className="rounded-lg border border-white/70 bg-white px-2 py-2">
+                                <p className="text-[10px] font-black text-slate-500">변경없음</p>
                                 <p className="text-sm font-black text-amber-700">{bulkUploadSummary.skipped}</p>
                             </div>
                         </div>
@@ -2452,6 +2519,48 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     </div>
                 )}
 
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                    <input
+                        type="text"
+                        value={registeredWorkerSearchTerm}
+                        onChange={(event) => setRegisteredWorkerSearchTerm(event.target.value)}
+                        placeholder="이름/전화/생년월일/여권번호 검색"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white"
+                    />
+                    <select
+                        value={registeredWorkerJobFilter}
+                        onChange={(event) => setRegisteredWorkerJobFilter(event.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white"
+                    >
+                        {registeredWorkerJobOptions.map((option) => (
+                            <option key={option} value={option}>{`공종: ${option}`}</option>
+                        ))}
+                    </select>
+                    <select
+                        value={registeredWorkerTeamFilter}
+                        onChange={(event) => setRegisteredWorkerTeamFilter(event.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white"
+                    >
+                        {registeredWorkerTeamOptions.map((option) => (
+                            <option key={option} value={option}>{`팀명: ${option}`}</option>
+                        ))}
+                    </select>
+                    <select
+                        value={registeredWorkerMissingFilter}
+                        onChange={(event) => setRegisteredWorkerMissingFilter(event.target.value as 'all' | 'missing-any' | 'missing-phone' | 'missing-birth' | 'missing-passport')}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white"
+                    >
+                        <option value="all">누락 필터: 전체</option>
+                        <option value="missing-any">누락 필터: 하나라도 누락</option>
+                        <option value="missing-phone">누락 필터: 전화번호 누락</option>
+                        <option value="missing-birth">누락 필터: 생년월일 누락</option>
+                        <option value="missing-passport">누락 필터: 여권번호 누락</option>
+                    </select>
+                </div>
+                <p className="mt-2 text-[11px] font-bold text-slate-500">
+                    등록 {registeredWorkers.length}명 · 필터 결과 {filteredRegisteredWorkers.length}명
+                </p>
+
                 <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
                     <table className="min-w-full text-sm">
                         <thead className="bg-slate-50">
@@ -2507,7 +2616,15 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 </tr>
                             )}
 
-                            {!isRegisteredWorkersLoading && !registeredWorkersError && sortedRegisteredWorkers.map((worker) => (
+                            {!isRegisteredWorkersLoading && !registeredWorkersError && registeredWorkers.length > 0 && filteredRegisteredWorkers.length === 0 && (
+                                <tr>
+                                    <td colSpan={6} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
+                                        검색/필터 조건에 맞는 근로자가 없습니다.
+                                    </td>
+                                </tr>
+                            )}
+
+                            {!isRegisteredWorkersLoading && !registeredWorkersError && filteredRegisteredWorkers.map((worker) => (
                                 <tr key={worker.id} className="border-t border-slate-100 hover:bg-slate-50/70">
                                     <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">
                                         {editingWorkerId === worker.id ? (

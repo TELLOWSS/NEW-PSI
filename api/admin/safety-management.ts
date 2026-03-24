@@ -113,6 +113,12 @@ function isDeletedAtColumnMissing(error: any): boolean {
     return message.includes('deleted_at') || details.includes('deleted_at');
 }
 
+function isPassportColumnMissing(error: any): boolean {
+    const message = String(error?.message || '').toLowerCase();
+    const details = String((error as any)?.details || '').toLowerCase();
+    return message.includes('passport_number') || details.includes('passport_number');
+}
+
 function toTrainingAudioRelativePath(raw: unknown): string | null {
     const value = String(raw || '').trim();
     if (!value) return null;
@@ -649,21 +655,184 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
         };
     });
 
-    const { error: insertError } = await supabase
-        .from('workers')
-        .insert(normalizedRows);
+    type ExistingWorkerRow = {
+        id: string;
+        name: string;
+        nationality: string;
+        job_field: string;
+        team_name: string;
+        phone_number: string;
+        birth_date: string;
+        passport_number: string;
+    };
 
-    if (insertError) {
-        const rawMessage = [insertError.message, (insertError as any).details, (insertError as any).hint]
-            .filter((item) => Boolean(String(item || '').trim()))
-            .join(' | ');
-        throw new Error(rawMessage || 'workers insert failed');
+    const toMatchKey = (name: string, jobField: string, teamName: string) => {
+        return `${String(name || '').trim().toLowerCase()}|${String(jobField || '').trim()}|${String(teamName || '').trim().toLowerCase()}`;
+    };
+
+    const normalizeExistingRows = (rows: any[] | null | undefined): ExistingWorkerRow[] => {
+        return (rows || []).map((row: any) => ({
+            id: String(row?.id || '').trim(),
+            name: String(row?.name || '').trim(),
+            nationality: String(row?.nationality || '').trim(),
+            job_field: String(row?.job_field || '').trim(),
+            team_name: String(row?.team_name || '').trim(),
+            phone_number: normalizePhone(row?.phone_number || ''),
+            birth_date: normalizeBirthDate(row?.birth_date || ''),
+            passport_number: normalizePassport(row?.passport_number || ''),
+        }));
+    };
+
+    let existingRows: ExistingWorkerRow[] = [];
+
+    const activeWithPassport = await supabase
+        .from('workers')
+        .select('id, name, nationality, job_field, team_name, phone_number, birth_date, passport_number, deleted_at')
+        .is('deleted_at', null)
+        .limit(10000);
+
+    if (!activeWithPassport.error) {
+        existingRows = normalizeExistingRows(activeWithPassport.data);
+    } else if (isDeletedAtColumnMissing(activeWithPassport.error)) {
+        const fallbackNoDeleted = await supabase
+            .from('workers')
+            .select('id, name, nationality, job_field, team_name, phone_number, birth_date, passport_number')
+            .limit(10000);
+
+        if (!fallbackNoDeleted.error) {
+            existingRows = normalizeExistingRows(fallbackNoDeleted.data);
+        } else {
+            const fallbackNoDeletedNoPassport = await supabase
+                .from('workers')
+                .select('id, name, nationality, job_field, team_name, phone_number, birth_date')
+                .limit(10000);
+            if (fallbackNoDeletedNoPassport.error) {
+                throw new Error(fallbackNoDeletedNoPassport.error.message || 'workers 기존 데이터 조회 실패');
+            }
+            existingRows = normalizeExistingRows(fallbackNoDeletedNoPassport.data);
+        }
+    } else {
+        const fallbackNoPassport = await supabase
+            .from('workers')
+            .select('id, name, nationality, job_field, team_name, phone_number, birth_date, deleted_at')
+            .is('deleted_at', null)
+            .limit(10000);
+        if (fallbackNoPassport.error) {
+            throw new Error(fallbackNoPassport.error.message || 'workers 기존 데이터 조회 실패');
+        }
+        existingRows = normalizeExistingRows(fallbackNoPassport.data);
+    }
+
+    const existingByKey = new Map<string, ExistingWorkerRow[]>();
+    for (const row of existingRows) {
+        const key = toMatchKey(row.name, row.job_field, row.team_name);
+        if (!existingByKey.has(key)) existingByKey.set(key, []);
+        existingByKey.get(key)!.push(row);
+    }
+
+    let insertedCount = 0;
+    let updatedCount = 0;
+    let skippedCount = 0;
+
+    for (const row of normalizedRows) {
+        const key = toMatchKey(row.name, row.job_field, row.team_name);
+        const candidates = existingByKey.get(key) || [];
+
+        let matched: ExistingWorkerRow | undefined;
+
+        if (row.passport_number) {
+            matched = candidates.find((item) => item.passport_number && item.passport_number === row.passport_number);
+        }
+        if (!matched && row.phone_number) {
+            matched = candidates.find((item) => item.phone_number && item.phone_number === row.phone_number);
+        }
+        if (!matched && row.birth_date) {
+            matched = candidates.find((item) => item.birth_date && item.birth_date === row.birth_date);
+        }
+        if (!matched && candidates.length === 1) {
+            matched = candidates[0];
+        }
+
+        if (!matched) {
+            const insertPayload = {
+                ...row,
+                updated_at: new Date().toISOString(),
+            };
+
+            const { data: insertedData, error: insertError } = await supabase
+                .from('workers')
+                .insert(insertPayload)
+                .select('id, name, nationality, job_field, team_name, phone_number, birth_date, passport_number')
+                .single();
+
+            if (insertError) {
+                const rawMessage = [insertError.message, (insertError as any).details, (insertError as any).hint]
+                    .filter((item) => Boolean(String(item || '').trim()))
+                    .join(' | ');
+                throw new Error(rawMessage || 'workers insert failed');
+            }
+
+            insertedCount += 1;
+
+            const insertedRow: ExistingWorkerRow = {
+                id: String(insertedData?.id || '').trim(),
+                name: String(insertedData?.name || row.name).trim(),
+                nationality: String(insertedData?.nationality || row.nationality).trim(),
+                job_field: String(insertedData?.job_field || row.job_field).trim(),
+                team_name: String(insertedData?.team_name || row.team_name).trim(),
+                phone_number: normalizePhone(insertedData?.phone_number || row.phone_number || ''),
+                birth_date: normalizeBirthDate(insertedData?.birth_date || row.birth_date || ''),
+                passport_number: normalizePassport(insertedData?.passport_number || row.passport_number || ''),
+            };
+
+            const nextKey = toMatchKey(insertedRow.name, insertedRow.job_field, insertedRow.team_name);
+            const nextList = existingByKey.get(nextKey) || [];
+            existingByKey.set(nextKey, [...nextList, insertedRow]);
+            continue;
+        }
+
+        const merged = {
+            nationality: row.nationality || matched.nationality || '',
+            phone_number: row.phone_number || matched.phone_number || null,
+            birth_date: row.birth_date || matched.birth_date || null,
+            passport_number: row.passport_number || matched.passport_number || null,
+            updated_at: new Date().toISOString(),
+        };
+
+        const isSameNationality = String(merged.nationality || '') === String(matched.nationality || '');
+        const isSamePhone = normalizePhone(merged.phone_number || '') === normalizePhone(matched.phone_number || '');
+        const isSameBirth = normalizeBirthDate(merged.birth_date || '') === normalizeBirthDate(matched.birth_date || '');
+        const isSamePassport = normalizePassport(merged.passport_number || '') === normalizePassport(matched.passport_number || '');
+
+        if (isSameNationality && isSamePhone && isSameBirth && isSamePassport) {
+            skippedCount += 1;
+            continue;
+        }
+
+        const { error: updateError } = await supabase
+            .from('workers')
+            .update(merged)
+            .eq('id', matched.id);
+
+        if (updateError) {
+            const rawMessage = [updateError.message, (updateError as any).details, (updateError as any).hint]
+                .filter((item) => Boolean(String(item || '').trim()))
+                .join(' | ');
+            throw new Error(rawMessage || 'workers update failed');
+        }
+
+        updatedCount += 1;
+        matched.nationality = String(merged.nationality || '').trim();
+        matched.phone_number = normalizePhone(merged.phone_number || '');
+        matched.birth_date = normalizeBirthDate(merged.birth_date || '');
+        matched.passport_number = normalizePassport(merged.passport_number || '');
     }
 
     return {
         requested: normalizedRows.length,
-        inserted: normalizedRows.length,
-        skippedDuplicateCount: 0,
+        inserted: insertedCount,
+        updated: updatedCount,
+        skippedDuplicateCount: skippedCount,
     };
 }
 
@@ -683,14 +852,14 @@ async function handleListWorkers(payload: any): Promise<any> {
     if (includeDeleted) {
         const response = await supabase
             .from('workers')
-            .select('id, name, job_field, team_name, birth_date, phone_number, deleted_at')
+            .select('id, name, job_field, team_name, birth_date, phone_number, passport_number, deleted_at')
             .limit(limit);
         data = response.data;
         error = response.error;
     } else {
         const response = await supabase
             .from('workers')
-            .select('id, name, job_field, team_name, birth_date, phone_number, deleted_at')
+            .select('id, name, job_field, team_name, birth_date, phone_number, passport_number, deleted_at')
             .is('deleted_at', null)
             .limit(limit);
         data = response.data;
@@ -700,10 +869,25 @@ async function handleListWorkers(payload: any): Promise<any> {
     if (error && isDeletedAtColumnMissing(error)) {
         const fallback = await supabase
             .from('workers')
-            .select('id, name, job_field, team_name, birth_date, phone_number')
+            .select('id, name, job_field, team_name, birth_date, phone_number, passport_number')
             .limit(limit);
         data = fallback.data;
         error = fallback.error;
+    }
+
+    if (error && isPassportColumnMissing(error)) {
+        const fallbackNoPassport = includeDeleted
+            ? await supabase
+                .from('workers')
+                .select('id, name, job_field, team_name, birth_date, phone_number, deleted_at')
+                .limit(limit)
+            : await supabase
+                .from('workers')
+                .select('id, name, job_field, team_name, birth_date, phone_number, deleted_at')
+                .is('deleted_at', null)
+                .limit(limit);
+        data = fallbackNoPassport.data;
+        error = fallbackNoPassport.error;
     }
 
     if (error) throw new Error(error.message || 'workers 목록 조회 실패');
@@ -715,6 +899,7 @@ async function handleListWorkers(payload: any): Promise<any> {
         team_name: String(row?.team_name || '').trim(),
         birth_date: String(row?.birth_date || '').trim(),
         phone_number: String(row?.phone_number || '').trim(),
+        passport_number: String(row?.passport_number || '').trim(),
         deleted_at: String(row?.deleted_at || '').trim() || null,
     }));
 
