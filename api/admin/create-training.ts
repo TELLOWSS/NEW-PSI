@@ -10,6 +10,7 @@ type TrainingAudioLanguageCode =
     | 'vi-VN'
     | 'km-KH'
     | 'id-ID'
+    | 'ms-MY'
     | 'mn-MN'
     | 'my-MM'
     | 'ru-RU'
@@ -23,6 +24,7 @@ const TRAINING_AUDIO_LANGUAGE_CODES: TrainingAudioLanguageCode[] = [
     'vi-VN',
     'km-KH',
     'id-ID',
+    'ms-MY',
     'mn-MN',
     'my-MM',
     'ru-RU',
@@ -37,6 +39,7 @@ const TRAINING_AUDIO_LANGUAGE_LABELS: Record<TrainingAudioLanguageCode, string> 
     'vi-VN': '베트남어',
     'km-KH': '크메르어',
     'id-ID': '인도네시아어',
+    'ms-MY': '말레이시아어',
     'mn-MN': '몽골어',
     'my-MM': '미얀마어',
     'ru-RU': '러시아어',

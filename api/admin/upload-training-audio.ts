@@ -9,6 +9,7 @@ type TrainingAudioLanguageCode =
     | 'vi-VN'
     | 'km-KH'
     | 'id-ID'
+    | 'ms-MY'
     | 'mn-MN'
     | 'my-MM'
     | 'ru-RU'
@@ -22,6 +23,7 @@ const TRAINING_AUDIO_LANGUAGE_CODES: TrainingAudioLanguageCode[] = [
     'vi-VN',
     'km-KH',
     'id-ID',
+    'ms-MY',
     'mn-MN',
     'my-MM',
     'ru-RU',
