@@ -156,6 +156,41 @@ const isEmptyNarrative = (value?: string): boolean => {
     return !normalized || ['없음', '해당없음', '코칭내용없음', '없다', '해당사항없음', 'n/a', 'na', 'none'].includes(normalized.toLowerCase());
 };
 
+const stageLabelMap: Record<string, string> = {
+    ocr: 'OCR',
+    validation: '검증',
+    correction: '보정',
+    action: '조치',
+    approval: '승인',
+    reassessment: '재평가',
+};
+
+const hasAuditSpecialSignal = (note: string): boolean => {
+    return /(특이|위반|미준수|반려|재작업|재교육|오류|불일치|경고|누락|불량|지연|사고|재해|감점|패널티|시정|조치 필요)/i.test(note);
+};
+
+const getAuditSpecialRecommendations = (record: WorkerRecord): string[] => {
+    const trail = Array.isArray(record.auditTrail) ? record.auditTrail : [];
+    if (trail.length === 0) return [];
+
+    const recentWithNote = trail
+        .filter((entry) => normalizeNarrativeText(entry.note).length > 0)
+        .slice(-6)
+        .reverse();
+
+    const specials = recentWithNote
+        .filter((entry) => entry.stage !== 'ocr' || hasAuditSpecialSignal(normalizeNarrativeText(entry.note)))
+        .slice(0, 2)
+        .map((entry) => {
+            const rawNote = normalizeNarrativeText(entry.note);
+            const stageLabel = stageLabelMap[entry.stage] || entry.stage;
+            const shortNote = rawNote.length > 64 ? `${rawNote.slice(0, 64)}…` : rawNote;
+            return `감사이력(${stageLabel}) 특이사항 '${shortNote}' 관련 재발 방지를 위해 ${record.jobField} 작업 전 사전점검·역할확인·보호조치 이행 여부를 팀 단위로 즉시 확인하기`;
+        });
+
+    return specials;
+};
+
 const buildActionableCoachingText = (record: WorkerRecord): string => {
     if (!isEmptyNarrative(record.actionable_coaching)) {
         return normalizeNarrativeText(record.actionable_coaching);
@@ -186,32 +221,33 @@ const buildActionableCoachingText = (record: WorkerRecord): string => {
 };
 
 const buildImprovementItems = (record: WorkerRecord): string[] => {
+    const auditSpecialRecommendations = getAuditSpecialRecommendations(record);
     const weakAreas = Array.isArray(record.weakAreas) ? record.weakAreas.filter(Boolean) : [];
     if (weakAreas.length > 0) {
-        return weakAreas;
+        return [...auditSpecialRecommendations, ...weakAreas].slice(0, 5);
     }
 
     const improvement = normalizeNarrativeText(record.improvement);
     const firstStrength = normalizeNarrativeText(record.strengths?.[0]);
 
     if (improvement) {
-        return [
+        return [...auditSpecialRecommendations,
             `작성한 개선방안인 '${improvement}'를 작업 시작 전 체크 항목으로 실제 적용하기`,
             `${record.jobField} 작업 중 위험구간 진입 전 본인이 적은 조치를 다시 확인하기`,
-        ];
+        ].slice(0, 5);
     }
 
     if (firstStrength) {
-        return [
+        return [...auditSpecialRecommendations,
             `강점으로 확인된 '${firstStrength}'를 이번 달 작업 내내 동일하게 유지하기`,
             `${record.jobField} 작업 전 위험요인과 보호조치를 팀 단위로 한 번 더 맞춰 보기`,
-        ];
+        ].slice(0, 5);
     }
 
-    return [
+    return [...auditSpecialRecommendations,
         `${record.jobField} 작업 전 위험요인·보호구·작업순서를 직접 말로 확인하기`,
         `작업 중 조건 변경 시 즉시 위험요인을 다시 점검하고 보호조치를 보완하기`,
-    ];
+    ].slice(0, 5);
 };
 
 export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>(({ record, history = [], onPhotoClick }, ref) => {
