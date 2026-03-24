@@ -139,8 +139,10 @@ const workerRecordSchema = {
             aiInsights: { type: Type.STRING },
             aiInsights_native: { type: Type.STRING },
             scoreReasoning: { type: Type.ARRAY, items: { type: Type.STRING } },
-            score_reason: { type: Type.STRING, description: "팩트 기반 상세 채점 근거: 어떤 항목에서 왜 감점/가점이 발생했는지 2~4문장으로 서술" },
-            actionable_coaching: { type: Type.STRING, description: "다음 달 정기교육 작성 시 구체적으로 개선할 행동 가이드 (💡 이모지 포함, 한 문단)" },
+            score_reason: { type: Type.STRING, description: "팩트 기반 상세 채점 근거: 어떤 항목에서 왜 감점/가점이 발생했는지 2~4문장으로 서술 (항상 한국어로 작성)" },
+            score_reason_native: { type: Type.STRING, description: "score_reason을 근로자 모국어로 번역 (한국인이면 빈 문자열 반환, 외국인이면 LANGUAGE_POLICY 기준 모국어로 전문 번역)" },
+            actionable_coaching: { type: Type.STRING, description: "다음 달 정기교육 작성 시 구체적으로 개선할 행동 가이드 (💡 이모지 포함, 한 문단, 항상 한국어로 작성)" },
+            actionable_coaching_native: { type: Type.STRING, description: "actionable_coaching을 근로자 모국어로 번역 (한국인이면 빈 문자열, 외국인이면 LANGUAGE_POLICY 기준 모국어로 번역 — 근로자가 현장에서 직접 읽고 실천할 수 있는 언어로 작성)" },
             scoreBreakdown: {
                 type: Type.OBJECT,
                 description: "6대 핵심 평가 지표별 개별 점수 (월간 안전보건정기교육 전용)",
@@ -179,7 +181,9 @@ const updateSchema = {
         aiInsights_native: { type: Type.STRING },
         scoreReasoning: { type: Type.ARRAY, items: { type: Type.STRING } },
         score_reason: { type: Type.STRING },
+        score_reason_native: { type: Type.STRING },
         actionable_coaching: { type: Type.STRING },
+        actionable_coaching_native: { type: Type.STRING },
         scoreBreakdown: {
             type: Type.OBJECT,
             properties: {
@@ -471,6 +475,14 @@ const STRICT_SCORE_POLICY = `
   - 반드시 💡 이모지로 시작.
     - 답변이 잘 작성된 경우에도 "없음", "해당 없음", "코칭 필요 없음"으로 쓰지 말고, 잘 작성한 내용을 바탕으로 현장에서 계속 실천해야 할 행동을 강화하는 문장으로 작성.
     - 즉, corrective coaching뿐 아니라 reinforcement coaching도 반드시 제공.
+
+[이중언어 출력 규칙 - 필수]
+  - score_reason, actionable_coaching은 항상 한국어로 작성(관리자 확인용).
+  - 외국인 근로자인 경우:
+    * score_reason_native = score_reason의 모국어 완전 번역(LANGUAGE_POLICY 기준).
+    * actionable_coaching_native = actionable_coaching의 모국어 완전 번역(근로자가 현장에서 직접 읽고 행동할 수 있는 수준의 언어).
+    * 단순 직역 금지 — 건설 현장 안전 전문 용어를 해당 언어 기준으로 의역.
+  - 한국인(대한민국)인 경우: score_reason_native = "", actionable_coaching_native = "" (빈 문자열 반환).
 `;
 
 
@@ -788,7 +800,9 @@ async function callGeminiWithRetry(
                             aiInsights_native: (r['aiInsights_native'] as string) || '',
                             scoreReasoning: normalizedScoreAndLevel.scoreReasoning,
                             score_reason: (r['score_reason'] as string) || '',
+                            score_reason_native: (r['score_reason_native'] as string) || '',
                             actionable_coaching: (r['actionable_coaching'] as string) || '',
+                            actionable_coaching_native: (r['actionable_coaching_native'] as string) || '',
                             scoreBreakdown: r['scoreBreakdown'] ? {
                                 psychological: Number((r['scoreBreakdown'] as Record<string, unknown>)['psychological'] ?? 0),
                                 jobUnderstanding: Number((r['scoreBreakdown'] as Record<string, unknown>)['jobUnderstanding'] ?? 0),

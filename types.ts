@@ -210,10 +210,14 @@ export interface WorkerRecord {
     scoreReasoning?: string[];
     /** [6대 지표] 항목별 점수 (월간 안전보건정기교육 전용) */
     scoreBreakdown?: SixMetricBreakdown;
-    /** 상세 채점 근거: 팩트 기반 감점/가점 사유 서술 */
+    /** 상세 채점 근거: 팩트 기반 감점/가점 사유 서술 (한국어) */
     score_reason?: string;
-    /** 안전 코칭: 다음 달 구체적 개선 행동 가이드 */
+    /** 상세 채점 근거: 모국어 번역 (관리자 확인용 한국어와 병기) */
+    score_reason_native?: string;
+    /** 안전 코칭: 다음 달 구체적 개선 행동 가이드 (한국어) */
     actionable_coaching?: string;
+    /** 안전 코칭: 모국어 번역 (외국인 근로자 직접 확인용) */
+    actionable_coaching_native?: string;
     selfAssessedRiskLevel: '상' | '중' | '하';
     psychologicalAnalysis?: PsychologicalAnalysis;
     originalImage?: string; // Base64 encoded document image from OCR

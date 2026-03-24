@@ -302,7 +302,9 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
             improvement_native: toStringSafe(r.improvement_native, ""),
             scoreReasoning: Array.isArray(r.scoreReasoning) ? r.scoreReasoning.map(item => toStringSafe(item)).filter(Boolean) : [],
             score_reason: toStringSafe(r.score_reason, ""),
+            score_reason_native: toStringSafe(r.score_reason_native, ""),
             actionable_coaching: toStringSafe(r.actionable_coaching, ""),
+            actionable_coaching_native: toStringSafe(r.actionable_coaching_native, ""),
             scoreBreakdown: r.scoreBreakdown && typeof r.scoreBreakdown === 'object' ? {
                 psychological: toNumberSafe((r.scoreBreakdown as Record<string, unknown>).psychological, 0),
                 jobUnderstanding: toNumberSafe((r.scoreBreakdown as Record<string, unknown>).jobUnderstanding, 0),

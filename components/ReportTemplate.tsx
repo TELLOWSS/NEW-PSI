@@ -417,8 +417,16 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <p className="text-[10px] font-black text-slate-700 mb-1.5 flex items-center gap-1">
                             <span>🔍</span> 상세 채점 근거 (Score Reasoning)
                         </p>
+                        {/* 외국인: 모국어 먼저 */}
+                        {!isKorean && record.score_reason_native && (
+                            <p className="text-[10px] leading-relaxed text-slate-800 font-bold mb-1">
+                                {record.score_reason_native}
+                            </p>
+                        )}
+                        {/* 한국어: 관리자 확인용 (항상 표시, 외국인이면 작게) */}
                         {record.score_reason ? (
-                            <p className="text-[10px] leading-relaxed text-slate-800">
+                            <p className={!isKorean ? 'text-[9px] leading-relaxed text-slate-500 border-t border-slate-200 pt-1 mt-1' : 'text-[10px] leading-relaxed text-slate-800'}>
+                                {!isKorean && <span className="text-[8px] font-black text-slate-400 mr-1">[KO]</span>}
                                 <HighlightedText text={record.score_reason} />
                             </p>
                         ) : Array.isArray(record.scoreReasoning) && record.scoreReasoning.length > 0 ? (
@@ -461,9 +469,27 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <p className="text-[10px] font-black text-amber-800 mb-1.5">
                             💡 다음번엔 이렇게 작성해 보세요!
                         </p>
-                        <p className="text-[10px] leading-relaxed text-amber-900 flex-1">
-                            <HighlightedText text={actionableCoachingText} />
-                        </p>
+                        {/* 외국인: 모국어 코칭 먼저(크게) */}
+                        {!isKorean && record.actionable_coaching_native && !isEmptyNarrative(record.actionable_coaching_native) ? (
+                            <>
+                                <p className="text-[10px] leading-relaxed text-amber-900 font-bold flex-1">
+                                    {record.actionable_coaching_native}
+                                </p>
+                                {/* 한국어 코칭: 관리자 확인용 */}
+                                <div className="mt-1.5 pt-1.5 border-t border-amber-300">
+                                    <span className="text-[8px] font-black text-amber-600">[KO 관리자 확인용]</span>
+                                    <p className="text-[9px] leading-relaxed text-amber-800 mt-0.5">
+                                        <HighlightedText text={actionableCoachingText} />
+                                    </p>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-[10px] leading-relaxed text-amber-900 flex-1">
+                                    <HighlightedText text={actionableCoachingText} />
+                                </p>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -478,9 +504,16 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <ul className="space-y-1.5">
                             {record.strengths.slice(0, 3).map((s, i) => (
                                 <li key={i}>
-                                    <div className="text-[10px] leading-tight text-slate-800">✓ <HighlightedText text={s} /></div>
-                                    {!isKorean && record.strengths_native?.[i] && (
-                                        <div className="text-[9px] text-slate-500 mt-0.5 ml-3 leading-none">{record.strengths_native[i]}</div>
+                                    {/* 외국인: 모국어 먼저(크게) */}
+                                    {!isKorean && record.strengths_native?.[i] ? (
+                                        <>
+                                            <div className="text-[10px] leading-tight text-slate-800 font-bold">✓ {record.strengths_native[i]}</div>
+                                            <div className="text-[9px] text-slate-400 mt-0.5 ml-3 leading-none">
+                                                <span className="text-[7px] font-black text-slate-300 mr-0.5">[KO]</span>{s}
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <div className="text-[10px] leading-tight text-slate-800">✓ <HighlightedText text={s} /></div>
                                     )}
                                 </li>
                             ))}
@@ -494,14 +527,26 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             {labels.weaknesses}
                         </h3>
                         <ul className="space-y-1.5">
-                            {improvementItems.slice(0, 3).map((w, i) => (
-                                <li key={i}>
-                                    <div className="text-[10px] leading-tight text-rose-900">⚠ <HighlightedText text={w} /></div>
-                                    {!isKorean && record.weakAreas_native?.[i] && Array.isArray(record.weakAreas) && record.weakAreas.length > 0 && (
-                                        <div className="text-[9px] text-rose-700/70 mt-0.5 ml-4 leading-none">{record.weakAreas_native[i]}</div>
-                                    )}
-                                </li>
-                            ))}
+                            {improvementItems.slice(0, 3).map((w, i) => {
+                                const nativeWeak = Array.isArray(record.weakAreas) && record.weakAreas.length > 0 && record.weakAreas_native?.[i];
+                                return (
+                                    <li key={i}>
+                                        {!isKorean && nativeWeak ? (
+                                            <>
+                                                {/* 모국어 먼저(크게) — 근로자 직접 확인 */}
+                                                <div className="text-[10px] leading-tight text-rose-900 font-bold">⚠ {nativeWeak}</div>
+                                                {/* 한국어(작게) — 관리자 확인용 */}
+                                                <div className="text-[9px] text-rose-700/60 mt-0.5 ml-4 leading-none">
+                                                    <span className="text-[7px] font-black text-rose-400 mr-0.5">[KO]</span>
+                                                    <HighlightedText text={w} />
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="text-[10px] leading-tight text-rose-900">⚠ <HighlightedText text={w} /></div>
+                                        )}
+                                    </li>
+                                );
+                            })}
                         </ul>
                     </div>
 
@@ -511,14 +556,17 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             <span className="w-1.5 h-1.5 rounded-full bg-slate-800 shrink-0"></span>
                             {labels.verdict}
                         </h3>
-                        <p className="text-[10px] leading-relaxed text-slate-800 flex-1 overflow-hidden">
-                            <HighlightedText text={record.aiInsights} />
-                        </p>
+                        {/* 외국인: 모국어 종합진단 먼저(크게) */}
                         {!isKorean && record.aiInsights_native && (
-                            <p className="text-[9px] leading-relaxed text-slate-500 mt-1 font-medium">
+                            <p className="text-[10px] leading-relaxed text-slate-800 font-bold flex-1 overflow-hidden">
                                 {record.aiInsights_native}
                             </p>
                         )}
+                        {/* 한국어 종합진단: 항상 표시, 외국인이면 관리자 확인용으로 작게 */}
+                        <p className={`leading-relaxed overflow-hidden ${!isKorean && record.aiInsights_native ? 'text-[9px] text-slate-400 mt-1 pt-1 border-t border-slate-100' : 'text-[10px] text-slate-800 flex-1'}`}>
+                            {!isKorean && record.aiInsights_native && <span className="text-[8px] font-black text-slate-300 mr-1">[KO]</span>}
+                            <HighlightedText text={record.aiInsights} />
+                        </p>
                         {reassessmentTrail.length > 0 && (
                             <div className="mt-1 pt-1 border-t border-slate-100">
                                 {reassessmentTrail.map((entry, i) => (
