@@ -424,7 +424,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     {record.score_reason_native}
                                 </p>
                             ) : (
-                                <p className="text-[9px] text-amber-600 italic mb-1">⚠ 모국어 번역 미생성 — 아래 [KO] 내용을 관리자가 통역</p>
+                                <p className="text-[9px] text-amber-600 italic mb-1">ℹ 모국어 번역 준비중 — 재분석 시 자동 생성됩니다.</p>
                             )
                         )}
                         {/* 한국어: 관리자 확인용 (항상 표시, 외국인이면 [KO] 태그 + 작게) */}
@@ -481,7 +481,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 <p className="text-[10px] font-black text-amber-800 leading-tight">
                                     💡 {record.actionable_coaching_native && !isEmptyNarrative(record.actionable_coaching_native)
                                         ? '⬇ 모국어 코칭 (아래 참조)'
-                                        : '코칭 — 관리자 통역 필요'}
+                                        : '코칭 — 모국어 생성 대기'}
                                 </p>
                                 <p className="text-[8px] text-amber-600 font-bold">[KO] 다음번엔 이렇게 작성해 보세요!</p>
                             </div>
@@ -505,9 +505,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 </div>
                             </>
                         ) : !isKorean ? (
-                            /* 외국인인데 모국어 번역 없음 → 한국어 표시 + 통역 안내 */
+                            /* 외국인인데 모국어 번역 없음 → 한국어 표시 + 재생성 안내 */
                             <>
-                                <p className="text-[9px] text-amber-600 italic mb-1">⚠ 모국어 번역 미생성 — 관리자가 통역하여 전달</p>
+                                <p className="text-[9px] text-amber-600 italic mb-1">ℹ 모국어 번역 준비중 — 재분석 시 자동 생성됩니다.</p>
                                 <p className="text-[9px] leading-relaxed text-amber-800 flex-1">
                                     <span className="text-[8px] font-black text-amber-500 mr-1">[KO]</span>
                                     <HighlightedText text={actionableCoachingText} />
@@ -636,15 +636,17 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </div>
                     </div>
 
-                    {/* 수기 기록 원본 */}
-                    <div className="col-span-2 border border-slate-200 rounded-lg bg-slate-50 p-2 relative overflow-hidden flex items-center justify-center" style={{ maxHeight: '80px' }}>
-                        <p className="absolute top-1.5 left-2 text-[8px] font-bold text-slate-400 uppercase z-10">{labels.original}</p>
-                        {getOriginalImage() ? (
-                            <img src={getOriginalImage()!} className="max-w-full max-h-full object-contain mix-blend-multiply" />
-                        ) : (
-                            <div className="text-[10px] text-slate-300">No Image</div>
-                        )}
-                    </div>
+                    {/* 수기 기록 원본: 외국인 리포트는 공간을 모국어 본문에 우선 배정 */}
+                    {isKorean && (
+                        <div className="col-span-2 border border-slate-200 rounded-lg bg-slate-50 p-2 relative overflow-hidden flex items-center justify-center" style={{ maxHeight: '80px' }}>
+                            <p className="absolute top-1.5 left-2 text-[8px] font-bold text-slate-400 uppercase z-10">{labels.original}</p>
+                            {getOriginalImage() ? (
+                                <img src={getOriginalImage()!} className="max-w-full max-h-full object-contain mix-blend-multiply" />
+                            ) : (
+                                <div className="text-[10px] text-slate-300">No Image</div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* ── FOOTER ──────────────────────────────── */}

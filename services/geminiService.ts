@@ -164,7 +164,18 @@ const workerRecordSchema = {
                 }
             },
         },
-        required: ["name", "jobField", "date", "nationality", "safetyScore", "safetyLevel"]
+        required: [
+            "name",
+            "jobField",
+            "date",
+            "nationality",
+            "safetyScore",
+            "safetyLevel",
+            "score_reason",
+            "score_reason_native",
+            "actionable_coaching",
+            "actionable_coaching_native"
+        ]
     }
 };
 
@@ -197,7 +208,21 @@ const updateSchema = {
         },
         koreanTranslation: { type: Type.STRING },
     },
-    required: ["strengths", "strengths_native", "weakAreas", "weakAreas_native", "safetyScore", "safetyLevel", "aiInsights", "aiInsights_native", "scoreReasoning"]
+    required: [
+        "strengths",
+        "strengths_native",
+        "weakAreas",
+        "weakAreas_native",
+        "safetyScore",
+        "safetyLevel",
+        "aiInsights",
+        "aiInsights_native",
+        "scoreReasoning",
+        "score_reason",
+        "score_reason_native",
+        "actionable_coaching",
+        "actionable_coaching_native"
+    ]
 };
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
