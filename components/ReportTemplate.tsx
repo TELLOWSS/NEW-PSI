@@ -149,6 +149,71 @@ const formatDate = (dateString: string) => {
     return `${date.getFullYear()}. ${String(date.getMonth() + 1).padStart(2, '0')}. ${String(date.getDate()).padStart(2, '0')}`;
 };
 
+const normalizeNarrativeText = (value?: string): string => String(value || '').trim();
+
+const isEmptyNarrative = (value?: string): boolean => {
+    const normalized = normalizeNarrativeText(value).replace(/[.\s]/g, '');
+    return !normalized || ['없음', '해당없음', '코칭내용없음', '없다', '해당사항없음', 'n/a', 'na', 'none'].includes(normalized.toLowerCase());
+};
+
+const buildActionableCoachingText = (record: WorkerRecord): string => {
+    if (!isEmptyNarrative(record.actionable_coaching)) {
+        return normalizeNarrativeText(record.actionable_coaching);
+    }
+
+    const firstStrength = normalizeNarrativeText(record.strengths?.[0]);
+    const firstWeakArea = normalizeNarrativeText(record.weakAreas?.[0]);
+    const improvement = normalizeNarrativeText(record.improvement);
+    const insight = normalizeNarrativeText(record.aiInsights);
+
+    if (improvement) {
+        return `💡 작성하신 내용을 바탕으로, ${record.jobField} 작업 전에는 ${improvement} 내용을 작업 시작 전에 한 번 더 구두로 확인하고, 실제 작업 중에는 팀장·동료와 함께 같은 순서로 이행해 주세요. 특히 위험구간에 들어가기 직전 본인이 적은 조치를 직접 점검 항목처럼 다시 확인하면 현장 실천력이 더 높아집니다.`;
+    }
+
+    if (firstWeakArea) {
+        return `💡 이번 기록에서 드러난 '${firstWeakArea}' 부분은 현장에서 가장 먼저 행동으로 옮겨야 합니다. ${record.jobField} 작업 전 준비 단계에서 관련 장비·보호구·통제범위를 먼저 확인하고, 작업 중에도 같은 위험이 반복되지 않도록 본인이 적은 내용과 연결된 조치를 한 번 더 말로 확인해 주세요.`;
+    }
+
+    if (firstStrength) {
+        return `💡 이번 작성에서 '${firstStrength}' 내용이 잘 드러났습니다. 다음 작업에서도 ${record.jobField} 시작 전에 해당 조치를 먼저 실행하고, 작업 도중 조건이 바뀌면 같은 기준으로 위험요인과 보호조치를 다시 맞춰 보면서 현장에서 꾸준히 실천해 주세요.`;
+    }
+
+    if (insight) {
+        return `💡 이번 기록의 핵심 판단은 "${insight}"입니다. 현장에서는 이 판단을 문장으로만 두지 말고, ${record.jobField} 작업 전 점검·작업 중 확인·작업 후 정리 단계까지 실제 행동으로 연결해 반복 실천해 주세요.`;
+    }
+
+    return `💡 이번 작성 내용은 기본적인 안전 인식이 확인되었습니다. 현장에서는 ${record.jobField} 작업 시작 전 위험요인 확인, 보호구 점검, 작업순서 재확인을 습관화해 실제 행동으로 이어가 주세요.`;
+};
+
+const buildImprovementItems = (record: WorkerRecord): string[] => {
+    const weakAreas = Array.isArray(record.weakAreas) ? record.weakAreas.filter(Boolean) : [];
+    if (weakAreas.length > 0) {
+        return weakAreas;
+    }
+
+    const improvement = normalizeNarrativeText(record.improvement);
+    const firstStrength = normalizeNarrativeText(record.strengths?.[0]);
+
+    if (improvement) {
+        return [
+            `작성한 개선방안인 '${improvement}'를 작업 시작 전 체크 항목으로 실제 적용하기`,
+            `${record.jobField} 작업 중 위험구간 진입 전 본인이 적은 조치를 다시 확인하기`,
+        ];
+    }
+
+    if (firstStrength) {
+        return [
+            `강점으로 확인된 '${firstStrength}'를 이번 달 작업 내내 동일하게 유지하기`,
+            `${record.jobField} 작업 전 위험요인과 보호조치를 팀 단위로 한 번 더 맞춰 보기`,
+        ];
+    }
+
+    return [
+        `${record.jobField} 작업 전 위험요인·보호구·작업순서를 직접 말로 확인하기`,
+        `작업 중 조건 변경 시 즉시 위험요인을 다시 점검하고 보호조치를 보완하기`,
+    ];
+};
+
 export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>(({ record, history = [], onPhotoClick }, ref) => {
     const trendChartRef = useRef<HTMLCanvasElement>(null);
     const trendChartInstance = useRef<Chart | null>(null);
@@ -170,6 +235,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         () => (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-2).reverse(),
         [record.auditTrail]
     );
+    const actionableCoachingText = useMemo(() => buildActionableCoachingText(record), [record]);
+    const improvementItems = useMemo(() => buildImprovementItems(record), [record]);
 
     // Trend Chart Rendering
     useEffect(() => {
@@ -358,13 +425,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <p className="text-[10px] font-black text-amber-800 mb-1.5">
                             💡 다음번엔 이렇게 작성해 보세요!
                         </p>
-                        {record.actionable_coaching ? (
-                            <p className="text-[10px] leading-relaxed text-amber-900 flex-1">
-                                {record.actionable_coaching}
-                            </p>
-                        ) : (
-                            <p className="text-[10px] text-amber-600 italic">코칭 내용 없음</p>
-                        )}
+                        <p className="text-[10px] leading-relaxed text-amber-900 flex-1">
+                            <HighlightedText text={actionableCoachingText} />
+                        </p>
                     </div>
                 </div>
 
@@ -395,10 +458,10 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             {labels.weaknesses}
                         </h3>
                         <ul className="space-y-1.5">
-                            {record.weakAreas.slice(0, 3).map((w, i) => (
+                            {improvementItems.slice(0, 3).map((w, i) => (
                                 <li key={i}>
                                     <div className="text-[10px] leading-tight text-rose-900">⚠ <HighlightedText text={w} /></div>
-                                    {!isKorean && record.weakAreas_native?.[i] && (
+                                    {!isKorean && record.weakAreas_native?.[i] && Array.isArray(record.weakAreas) && record.weakAreas.length > 0 && (
                                         <div className="text-[9px] text-rose-700/70 mt-0.5 ml-4 leading-none">{record.weakAreas_native[i]}</div>
                                     )}
                                 </li>
