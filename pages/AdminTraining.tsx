@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
+import { QRCodeSVG } from 'qrcode.react';
 import { supabase } from '../lib/supabaseClient';
 import { postAdminJson } from '../utils/adminApiClient';
 import {
@@ -529,6 +530,7 @@ const AdminTraining: React.FC = () => {
     const [rosterLoading, setRosterLoading] = useState(false);
     const [rosterError, setRosterError] = useState('');
     const [signatureModalUrl, setSignatureModalUrl] = useState('');
+    const [isQrFullscreenOpen, setIsQrFullscreenOpen] = useState(false);
     const [deletingRosterRowId, setDeletingRosterRowId] = useState('');
     const [deletingAllRoster, setDeletingAllRoster] = useState(false);
     const rosterPollingRef = useRef<number | null>(null);
@@ -565,6 +567,25 @@ const AdminTraining: React.FC = () => {
             return next;
         });
     };
+
+    useEffect(() => {
+        if (!isQrFullscreenOpen) return;
+
+        const onKeydown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setIsQrFullscreenOpen(false);
+            }
+        };
+
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        window.addEventListener('keydown', onKeydown);
+
+        return () => {
+            window.removeEventListener('keydown', onKeydown);
+            document.body.style.overflow = originalOverflow;
+        };
+    }, [isQrFullscreenOpen]);
 
     const clearFlushSummaryHistory = () => {
         const ok = window.confirm('최근 비우기 이력을 초기화하시겠습니까?');
@@ -2247,6 +2268,52 @@ const AdminTraining: React.FC = () => {
                 </div>
             )}
 
+            {isQrFullscreenOpen && mobileUrl && (
+                <div
+                    className="fixed inset-0 z-[60] bg-black"
+                    onClick={() => setIsQrFullscreenOpen(false)}
+                >
+                    <div
+                        className="h-full w-full flex flex-col items-center justify-center px-6 py-8"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="w-full max-w-6xl flex items-start justify-between gap-4 mb-6">
+                            <div className="min-w-0">
+                                <p className="text-white text-2xl sm:text-3xl font-black leading-tight">
+                                    근로자 접속 QR
+                                </p>
+                                {currentLoadedSession && (
+                                    <p className="text-slate-200 text-sm sm:text-base font-bold mt-2 truncate">
+                                        {currentLoadedSession.training_title || buildDefaultTrainingTitle()}
+                                    </p>
+                                )}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsQrFullscreenOpen(false)}
+                                className="rounded-lg border border-white/40 px-4 py-2 text-sm font-black text-white hover:bg-white/10"
+                                title="풀스크린 닫기 (ESC)"
+                            >
+                                닫기 (ESC)
+                            </button>
+                        </div>
+
+                        <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-2xl">
+                            <QRCodeSVG
+                                value={mobileUrl}
+                                size={1024}
+                                includeMargin
+                                style={{ width: 'min(72vmin, 900px)', height: 'min(72vmin, 900px)', display: 'block' }}
+                            />
+                        </div>
+
+                        <p className="mt-6 text-slate-300 text-xs sm:text-sm font-bold break-all text-center max-w-6xl">
+                            {mobileUrl}
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {mobileUrl && (
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
                     <h3 className="text-xl font-black text-slate-900">근로자 접속 QR</h3>
@@ -2266,6 +2333,15 @@ const AdminTraining: React.FC = () => {
                     <p className="text-xs font-bold text-slate-500 mt-2 break-all">{mobileUrl}</p>
                     <div className="mt-4">
                         <QRCodeCanvas value={mobileUrl} size={220} />
+                    </div>
+                    <div className="mt-4">
+                        <button
+                            type="button"
+                            onClick={() => setIsQrFullscreenOpen(true)}
+                            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-50"
+                        >
+                            풀스크린 표시 (PPT/대형 화면)
+                        </button>
                     </div>
                 </div>
             )}
