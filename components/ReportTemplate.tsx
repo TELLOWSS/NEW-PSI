@@ -1,9 +1,10 @@
 
 import React, { useEffect, useRef, useMemo } from 'react';
 import type { Chart } from 'chart.js/auto';
-import type { WorkerRecord } from '../types';
+import type { SixMetricBreakdown, WorkerRecord } from '../types';
 import { IndividualRadarChart } from './charts/IndividualRadarChart';
 import { getWindowProp } from '../utils/windowUtils';
+import { deriveCompetencyProfile } from '../utils/evidenceUtils';
 import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
 
 interface ReportTemplateProps {
@@ -286,6 +287,37 @@ const buildImprovementItems = (record: WorkerRecord): string[] => {
     ].slice(0, 5);
 };
 
+const clampMetric = (value: number, max: number) => {
+    if (!Number.isFinite(value)) return 0;
+    return Math.max(0, Math.min(max, Math.round(value)));
+};
+
+const hasValidScoreBreakdown = (scoreBreakdown?: SixMetricBreakdown): scoreBreakdown is SixMetricBreakdown => {
+    if (!scoreBreakdown) return false;
+
+    return [
+        scoreBreakdown.psychological,
+        scoreBreakdown.jobUnderstanding,
+        scoreBreakdown.riskAssessmentUnderstanding,
+        scoreBreakdown.proficiency,
+        scoreBreakdown.improvementExecution,
+        scoreBreakdown.repeatViolationPenalty,
+    ].some((value) => Number.isFinite(value));
+};
+
+const buildFallbackScoreBreakdown = (record: WorkerRecord): SixMetricBreakdown => {
+    const profile = record.competencyProfile || deriveCompetencyProfile(record);
+
+    return {
+        psychological: clampMetric((profile.psychologicalScore / 100) * 10, 10),
+        jobUnderstanding: clampMetric((profile.jobUnderstandingScore / 100) * 20, 20),
+        riskAssessmentUnderstanding: clampMetric((profile.riskAssessmentUnderstandingScore / 100) * 20, 20),
+        proficiency: clampMetric((profile.proficiencyScore / 100) * 30, 30),
+        improvementExecution: clampMetric((profile.improvementExecutionScore / 100) * 20, 20),
+        repeatViolationPenalty: clampMetric((profile.repeatViolationPenalty / 20) * 30, 30),
+    };
+};
+
 export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>(({ record, history = [], onPhotoClick }, ref) => {
     const trendChartRef = useRef<HTMLCanvasElement>(null);
     const trendChartInstance = useRef<Chart | null>(null);
@@ -309,6 +341,10 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     );
     const actionableCoachingText = useMemo(() => buildActionableCoachingText(record), [record]);
     const improvementItems = useMemo(() => buildImprovementItems(record), [record]);
+    const scoreBreakdown = useMemo(
+        () => (hasValidScoreBreakdown(record.scoreBreakdown) ? record.scoreBreakdown : buildFallbackScoreBreakdown(record)),
+        [record]
+    );
 
     // Trend Chart Rendering
     useEffect(() => {
@@ -484,16 +520,17 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             <p className="text-[10px] text-slate-400 italic">채점 근거 없음</p>
                         )}
                         {/* 6대 지표 미니 바 */}
-                        {record.scoreBreakdown && (
-                            <div className="mt-2 pt-2 border-t border-slate-200 grid grid-cols-2 gap-x-3 gap-y-0.5">
-                                {([
-                                    ['①심리', record.scoreBreakdown.psychological, 10],
-                                    ['②업무이해', record.scoreBreakdown.jobUnderstanding, 20],
-                                    ['③위험평가', record.scoreBreakdown.riskAssessmentUnderstanding, 20],
-                                    ['④숙련도', record.scoreBreakdown.proficiency, 30],
-                                    ['⑤개선이행', record.scoreBreakdown.improvementExecution, 20],
-                                    ['⑥패널티', record.scoreBreakdown.repeatViolationPenalty, 30, true],
-                                ] as [string, number, number, boolean?][]).map(([label, val, max, isPenalty]) => (
+                        <div className="mt-2 pt-2 border-t border-slate-200 grid grid-cols-2 gap-x-3 gap-y-0.5">
+                            {([
+                                ['①심리', scoreBreakdown.psychological, 10],
+                                ['②업무이해', scoreBreakdown.jobUnderstanding, 20],
+                                ['③위험평가', scoreBreakdown.riskAssessmentUnderstanding, 20],
+                                ['④숙련도', scoreBreakdown.proficiency, 30],
+                                ['⑤개선이행', scoreBreakdown.improvementExecution, 20],
+                                ['⑥패널티', scoreBreakdown.repeatViolationPenalty, 30, true],
+                            ] as [string, number, number, boolean?][]).map(([label, rawVal, max, isPenalty]) => {
+                                const val = clampMetric(rawVal, max);
+                                return (
                                     <div key={label} className="flex items-center gap-1.5">
                                         <span className="text-[8px] font-bold text-slate-500 w-14 shrink-0">{label}</span>
                                         <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
@@ -504,9 +541,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         </div>
                                         <span className={`text-[8px] font-black w-8 text-right ${isPenalty ? 'text-rose-600' : 'text-indigo-700'}`}>{isPenalty ? `-${val}` : `${val}/${max}`}</span>
                                     </div>
-                                ))}
-                            </div>
-                        )}
+                                );
+                            })}
+                        </div>
                     </div>
 
                     {/* 섹션 B: 코칭 */}
