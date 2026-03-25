@@ -427,6 +427,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
 
         return nativeLength + koLength > 420;
     }, [isKorean, record.weakAreas_native, improvementItems]);
+    const weaknessDisplayItems = useMemo(() => {
+        return improvementItems.slice(0, isWeaknessContentUltraDense ? 2 : 3);
+    }, [improvementItems, isWeaknessContentUltraDense]);
     const narrativeWrapWidth = useMemo(() => ({
         weakNative: getNarrativeWrapWidth(record.nationality, isWeaknessContentDense, 'weakNative'),
         weakKo: getNarrativeWrapWidth(record.nationality, isWeaknessContentDense, 'weakKo'),
@@ -685,13 +688,13 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                 {/* ── 하단부: 카드형 Grid ───────────────────── */}
                 <div className="flex-1 min-h-0 grid grid-cols-4 gap-3">
                     {/* 역량 강점 */}
-                    <div className="col-span-1 bg-slate-50 rounded-lg border border-slate-100 p-3 shadow-sm overflow-hidden">
+                    <div className={`${isWeaknessContentUltraDense ? 'col-span-2 order-2' : 'col-span-1'} bg-slate-50 rounded-lg border border-slate-100 p-3 shadow-sm overflow-hidden`}>
                         <h3 className="font-bold text-[10px] mb-2 text-slate-700 flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
                             {labels.strengths}
                         </h3>
                         <ul className="space-y-1.5">
-                            {record.strengths.slice(0, 3).map((s, i) => (
+                            {record.strengths.slice(0, isWeaknessContentUltraDense ? 2 : 3).map((s, i) => (
                                 <li key={i}>
                                     {/* 외국인: 모국어 먼저(크게) */}
                                     {!isKorean && record.strengths_native?.[i] ? (
@@ -716,13 +719,13 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     </div>
 
                     {/* 개선 권고 */}
-                    <div className={`col-span-3 bg-rose-50 rounded-lg border border-rose-100 shadow-sm ${isWeaknessContentUltraDense ? 'p-2' : isWeaknessContentDense ? 'p-2.5' : 'p-3'}`}>
+                    <div className={`${isWeaknessContentUltraDense ? 'col-span-4 order-1' : 'col-span-3'} bg-rose-50 rounded-lg border border-rose-100 shadow-sm ${isWeaknessContentUltraDense ? 'p-2' : isWeaknessContentDense ? 'p-2.5' : 'p-3'}`}>
                         <h3 className={`font-bold text-[10px] text-rose-800 flex items-center gap-1.5 ${isWeaknessContentDense ? 'mb-1.5' : 'mb-2'}`}>
                             <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
                             {labels.weaknesses}
                         </h3>
                         <ul className={isWeaknessContentUltraDense ? 'space-y-0.5' : isWeaknessContentDense ? 'space-y-1' : 'space-y-1.5'}>
-                            {improvementItems.slice(0, 3).map((w, i) => {
+                            {weaknessDisplayItems.map((w, i) => {
                                 const nativeWeak = Array.isArray(record.weakAreas) && record.weakAreas.length > 0 && record.weakAreas_native?.[i];
                                 const wrappedWeakKo = wrapNarrativeText(w, narrativeWrapWidth.weakKo);
                                 const wrappedWeakNative = wrapNarrativeText(nativeWeak, narrativeWrapWidth.weakNative);
@@ -754,7 +757,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     </div>
 
                     {/* 종합 안전 진단 */}
-                    <div className={`col-span-2 bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex flex-col ${isWeaknessContentUltraDense ? 'p-2' : isWeaknessContentDense ? 'p-2.5' : 'p-3'}`}>
+                    <div className={`col-span-2 ${isWeaknessContentUltraDense ? 'order-3' : ''} bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex flex-col ${isWeaknessContentUltraDense ? 'p-2' : isWeaknessContentDense ? 'p-2.5' : 'p-3'}`}>
                         <h3 className={`font-bold text-[10px] text-slate-700 flex items-center gap-1.5 ${isWeaknessContentDense ? 'mb-1.5' : 'mb-2'}`}>
                             <span className="w-1.5 h-1.5 rounded-full bg-slate-800 shrink-0"></span>
                             {labels.verdict}
@@ -782,7 +785,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     </div>
 
                     {/* 성과 추이 + 안전 표지 */}
-                    <div className={`col-span-2 flex flex-col ${isWeaknessContentUltraDense ? 'gap-1' : isWeaknessContentDense ? 'gap-1.5' : 'gap-2'}`}>
+                    <div className={`col-span-2 ${isWeaknessContentUltraDense ? 'order-4' : ''} flex flex-col ${isWeaknessContentUltraDense ? 'gap-1' : isWeaknessContentDense ? 'gap-1.5' : 'gap-2'}`}>
                         <div className={`flex-1 border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col min-h-0 ${isWeaknessContentUltraDense ? 'p-1' : isWeaknessContentDense ? 'p-1.5' : 'p-2'}`}>
                             <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trends} (6M)</h4>
                             <div className="flex-1 w-full relative min-h-0">
