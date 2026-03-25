@@ -4,6 +4,7 @@ import type { WorkerRecord } from '../types';
 import { generateReportUrl } from '../utils/qrUtils';
 import { ReportTemplate } from '../components/ReportTemplate';
 import { ReportGenerationProgress } from '../components/shared/ReportGenerationProgress';
+import { captureReportCanvas, saveCanvasAsA4Pdf } from '../utils/pdfCapture';
 import { getWindowProp } from '../utils/windowUtils';
 
 interface IndividualReportProps {
@@ -181,17 +182,17 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         setIsGeneratingPdf(true);
         try {
             updateGenerationProgress(15, '데이터 수집 중');
-            const canvas = await html2canvas(reportRef.current, { scale: 3, useCORS: true, backgroundColor: '#ffffff', logging: false });
+            const canvas = await captureReportCanvas(reportRef.current, html2canvas, { scale: 3 });
             updateGenerationProgress(65, '렌더링 결과 변환 중');
-            const imgData = canvas.toDataURL('image/png', 1.0);
             const jsPDFCtor = (jspdf && (jspdf as unknown as { jsPDF?: unknown }).jsPDF) ? (jspdf as unknown as { jsPDF?: unknown }).jsPDF : jspdf;
             const PDFCtor = typeof jsPDFCtor === 'function' ? jsPDFCtor : null;
             if (!PDFCtor) throw new Error('jsPDF constructor not available');
             updateGenerationProgress(82, 'PDF 문서 구성 중');
-            const pdf = new (PDFCtor as new (...args: any[]) => any)('p', 'mm', 'a4');
-            pdf.addImage(imgData, 'PNG', 0, 0, 210, 297);
+            saveCanvasAsA4Pdf(canvas, PDFCtor as new (orientation: string, unit: string, format: string) => {
+                addImage: (...args: unknown[]) => void;
+                save: (filename: string) => void;
+            }, `PSI_Report_${record.name}.pdf`, 'PNG', 1);
             updateGenerationProgress(95, '파일 저장 중');
-            pdf.save(`PSI_Report_${record.name}.pdf`);
             completeGenerationProgress();
         } catch (err: unknown) {
             console.error('PDF generation failed:', err);
@@ -212,7 +213,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         setIsGeneratingImage(true);
         try {
             updateGenerationProgress(20, '데이터 수집 중');
-            const canvas = await html2canvas(reportRef.current, { scale: 3, useCORS: true, backgroundColor: '#ffffff', logging: false });
+            const canvas = await captureReportCanvas(reportRef.current, html2canvas, { scale: 3 });
             updateGenerationProgress(72, '이미지 변환 중');
             const link = document.createElement('a');
             link.download = `PSI_Report_${record.name}.png`;

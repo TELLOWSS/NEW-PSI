@@ -12,6 +12,42 @@ interface ReportTemplateProps {
     onPhotoClick?: () => void;
 }
 
+const SectionSearchIcon: React.FC = () => (
+    <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-slate-600 shrink-0" fill="none" stroke="currentColor" aria-hidden="true">
+        <circle cx="7" cy="7" r="4.5" strokeWidth="1.8" />
+        <path d="M10.5 10.5L14 14" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+);
+
+const SectionCoachingIcon: React.FC = () => (
+    <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-amber-700 shrink-0" fill="none" stroke="currentColor" aria-hidden="true">
+        <path d="M8 1.5a4.5 4.5 0 0 0-2.64 8.14c.4.28.64.73.64 1.21V11.5h4v-.65c0-.48.23-.93.63-1.21A4.5 4.5 0 0 0 8 1.5Z" strokeWidth="1.6" strokeLinejoin="round" />
+        <path d="M6.2 13h3.6M6.6 14.5h2.8" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+);
+
+const CheckBulletIcon: React.FC<{ className?: string }> = ({ className = 'text-emerald-600' }) => (
+    <svg viewBox="0 0 16 16" className={`w-3.5 h-3.5 shrink-0 ${className}`} fill="none" stroke="currentColor" aria-hidden="true">
+        <path d="M3.5 8.5 6.5 11.5 12.5 4.5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
+
+const WarningBulletIcon: React.FC = () => (
+    <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-rose-600 shrink-0" fill="none" stroke="currentColor" aria-hidden="true">
+        <path d="M8 2.2 14 13H2L8 2.2Z" strokeWidth="1.6" strokeLinejoin="round" />
+        <path d="M8 6v3.2" strokeWidth="1.8" strokeLinecap="round" />
+        <circle cx="8" cy="11.5" r="0.8" fill="currentColor" stroke="none" />
+    </svg>
+);
+
+const PhotoPlaceholderIcon: React.FC = () => (
+    <svg viewBox="0 0 24 24" className="w-7 h-7 text-slate-300" fill="none" stroke="currentColor" aria-hidden="true">
+        <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v9A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-9Z" strokeWidth="1.6" />
+        <circle cx="9" cy="10" r="1.5" strokeWidth="1.6" />
+        <path d="m7 16 4-4 2.5 2.5L16 12l2 4" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+);
+
 // 텍스트 하이라이트 컴포넌트
 const HighlightedText: React.FC<{ text: string }> = ({ text }) => {
     if (!text) return null;
@@ -341,7 +377,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     const getOriginalImage = () => (record.originalImage && record.originalImage.length > 50) ? (record.originalImage.startsWith('data:') ? record.originalImage : `data:image/jpeg;base64,${record.originalImage}`) : null;
 
     return (
-        <div ref={ref} className="bg-white w-[210mm] h-[297mm] relative shadow-2xl overflow-hidden text-slate-900 flex flex-col print:shadow-none print:m-0 print:w-full break-after-page">
+        <div ref={ref} data-report-template-root="true" className="bg-white w-[210mm] h-[297mm] relative shadow-2xl overflow-hidden text-slate-900 flex flex-col print:shadow-none print:m-0 print:w-full break-after-page">
             {/* Watermark */}
             <div className="absolute inset-0 z-0 pointer-events-none flex items-center justify-center opacity-[0.03] overflow-hidden">
                 <div className="w-[150%] h-[150%] -rotate-12 flex flex-wrap content-center justify-center gap-24 select-none">
@@ -374,7 +410,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 <img src={getProfileImage()!} className="w-full h-full object-cover" alt="Profile" />
                             ) : (
                                 <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-300 text-xs text-center">
-                                    <span className="text-2xl mb-1">📷</span>
+                                    <PhotoPlaceholderIcon />
                                     <span className="text-[9px]">Photo</span>
                                 </div>
                             )}
@@ -415,7 +451,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     {/* 섹션 A: 상세 채점 근거 */}
                     <div className="flex-1 bg-slate-50 border border-slate-200 rounded-lg p-3 shadow-sm">
                         <p className="text-[10px] font-black text-slate-700 mb-1.5 flex items-center gap-1">
-                            <span>🔍</span> 상세 채점 근거 (Score Reasoning)
+                            <SectionSearchIcon /> 상세 채점 근거 (Score Reasoning)
                         </p>
                         {/* 외국인: 모국어 채점근거 먼저(크게) */}
                         {!isKorean && (
@@ -478,16 +514,16 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         {/* 제목: 외국인은 모국어 제목 병기 */}
                         {!isKorean ? (
                             <div className="mb-1.5">
-                                <p className="text-[10px] font-black text-amber-800 leading-tight">
-                                    💡 {record.actionable_coaching_native && !isEmptyNarrative(record.actionable_coaching_native)
+                                <p className="text-[10px] font-black text-amber-800 leading-tight flex items-center gap-1">
+                                    <SectionCoachingIcon /> {record.actionable_coaching_native && !isEmptyNarrative(record.actionable_coaching_native)
                                         ? '⬇ 모국어 코칭 (아래 참조)'
                                         : '코칭 — 모국어 생성 대기'}
                                 </p>
                                 <p className="text-[8px] text-amber-600 font-bold">[KO] 다음번엔 이렇게 작성해 보세요!</p>
                             </div>
                         ) : (
-                            <p className="text-[10px] font-black text-amber-800 mb-1.5">
-                                💡 다음번엔 이렇게 작성해 보세요!
+                            <p className="text-[10px] font-black text-amber-800 mb-1.5 flex items-center gap-1">
+                                <SectionCoachingIcon /> 다음번엔 이렇게 작성해 보세요!
                             </p>
                         )}
                         {/* 외국인: 모국어 코칭 먼저(크게) */}
@@ -535,13 +571,19 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     {/* 외국인: 모국어 먼저(크게) */}
                                     {!isKorean && record.strengths_native?.[i] ? (
                                         <>
-                                            <div className="text-[10px] leading-tight text-slate-800 font-bold">✓ {record.strengths_native[i]}</div>
+                                            <div className="text-[10px] leading-tight text-slate-800 font-bold flex items-start gap-1">
+                                                <CheckBulletIcon />
+                                                <span>{record.strengths_native[i]}</span>
+                                            </div>
                                             <div className="text-[9px] text-slate-400 mt-0.5 ml-3 leading-none">
                                                 <span className="text-[7px] font-black text-slate-300 mr-0.5">[KO]</span>{s}
                                             </div>
                                         </>
                                     ) : (
-                                        <div className="text-[10px] leading-tight text-slate-800">✓ <HighlightedText text={s} /></div>
+                                        <div className="text-[10px] leading-tight text-slate-800 flex items-start gap-1">
+                                            <CheckBulletIcon />
+                                            <span><HighlightedText text={s} /></span>
+                                        </div>
                                     )}
                                 </li>
                             ))}
@@ -562,7 +604,10 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         {!isKorean && nativeWeak ? (
                                             <>
                                                 {/* 모국어 먼저(크게) — 근로자 직접 확인 */}
-                                                <div className="text-[10px] leading-tight text-rose-900 font-bold">⚠ {nativeWeak}</div>
+                                                <div className="text-[10px] leading-tight text-rose-900 font-bold flex items-start gap-1">
+                                                    <WarningBulletIcon />
+                                                    <span>{nativeWeak}</span>
+                                                </div>
                                                 {/* 한국어(작게) — 관리자 확인용 */}
                                                 <div className="text-[9px] text-rose-700/60 mt-0.5 ml-4 leading-none">
                                                     <span className="text-[7px] font-black text-rose-400 mr-0.5">[KO]</span>
@@ -570,7 +615,10 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                                 </div>
                                             </>
                                         ) : (
-                                            <div className="text-[10px] leading-tight text-rose-900">⚠ <HighlightedText text={w} /></div>
+                                            <div className="text-[10px] leading-tight text-rose-900 flex items-start gap-1">
+                                                <WarningBulletIcon />
+                                                <span><HighlightedText text={w} /></span>
+                                            </div>
                                         )}
                                     </li>
                                 );

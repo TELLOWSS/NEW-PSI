@@ -9,6 +9,7 @@ import { createEvidencePackagePdfBlob } from '../utils/evidenceReportUtils';
 import { verifyEvidenceManifest, formatEvidenceVerificationSummary } from '../utils/evidenceVerificationUtils';
 import type { EvidenceManifest, EvidenceManifestVerificationResult } from '../utils/evidenceVerificationUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
+import { captureReportCanvas, getCanvasImageData, getCanvasPlacementOnA4, saveCanvasAsA4Pdf } from '../utils/pdfCapture';
 
 type ReportType = 'worker-report' | 'team-report';
 type GenMode = 'combined-pdf' | 'individual-pdf' | 'individual-img';
@@ -265,18 +266,17 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         if (!confirm(`'${currentPreviewRecord.name}' 근로자의 보고서를 PDF로 내보내시겠습니까?`)) return;
 
         try {
-            const canvas = await w.html2canvas(previewRef.current, { 
-                scale: 2, 
-                useCORS: true, 
-                logging: false, 
-                backgroundColor: '#ffffff',
-                windowWidth: 794, 
-                windowHeight: 1123
-            });
-            const imgData = canvas.toDataURL('image/jpeg', 0.9);
-            const pdf = new JsPDF('p', 'mm', 'a4');
-            pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
-            pdf.save(`PSI_Report_${currentPreviewRecord.name}_${currentPreviewRecord.jobField}.pdf`);
+            const canvas = await captureReportCanvas(previewRef.current, html2canvas, { scale: 3 });
+            saveCanvasAsA4Pdf(
+                canvas,
+                JsPDF as new (orientation: string, unit: string, format: string) => {
+                    addImage: (...args: unknown[]) => void;
+                    save: (filename: string) => void;
+                },
+                `PSI_Report_${currentPreviewRecord.name}_${currentPreviewRecord.jobField}.pdf`,
+                'PNG',
+                1
+            );
         } catch (e) {
             console.error(e);
             alert('PDF 생성 중 오류가 발생했습니다.');
@@ -369,17 +369,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
                 if (bulkReportRef.current && !abortRef.current) {
                     try {
-                        const canvas = await html2canvas(bulkReportRef.current, { 
-                            scale: 2, 
-                            useCORS: true, 
-                            logging: false, 
-                            backgroundColor: '#ffffff',
-                            allowTaint: true,
-                            windowWidth: 794,
-                            windowHeight: 1123
-                        });
+                        const canvas = await captureReportCanvas(bulkReportRef.current, html2canvas, { scale: 3 });
 
                         const fileNameBase = `${record.name}_${record.jobField}`;
+                        const placement = getCanvasPlacementOnA4(canvas);
 
                         // --- 모드별 분기 처리 ---
                         if (genMode === 'combined-pdf') {
@@ -387,14 +380,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             if (!masterPdf || !masterPdf.addPage || !masterPdf.addImage) {
                                 throw new Error('PDF 생성기 초기화 실패');
                             }
-                            const imgData = canvas.toDataURL('image/jpeg', 0.85);
+                            const imgData = getCanvasImageData(canvas, 'JPEG', 0.92);
                             if (i > 0) masterPdf.addPage();
-                            masterPdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+                            masterPdf.addImage(imgData, 'JPEG', placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
                         } 
                         else if (genMode === 'individual-pdf') {
-                            const imgData = canvas.toDataURL('image/jpeg', 0.85);
+                            const imgData = getCanvasImageData(canvas, 'JPEG', 0.92);
                             const tempPdf = new JsPDF('p', 'mm', 'a4');
-                            tempPdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+                            tempPdf.addImage(imgData, 'JPEG', placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
                             // PDF Blob 생성
                             const pdfBlob = tempPdf.output('blob');
                             folder.file(`${fileNameBase}.pdf`, pdfBlob);
