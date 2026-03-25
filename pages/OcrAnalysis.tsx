@@ -1913,6 +1913,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </select>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                        <label className="text-xs font-bold text-slate-500">등급:</label>
+                        <select value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[110px]">
+                            <option value="all">전체</option>
+                            <option value="고급">고급</option>
+                            <option value="중급">중급</option>
+                            <option value="초급">초급</option>
+                        </select>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
                         <label className="text-xs font-bold text-slate-500">OCR 결과:</label>
                         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as 'all' | 'success' | 'failed')} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
                             <option value="all">전체</option>
