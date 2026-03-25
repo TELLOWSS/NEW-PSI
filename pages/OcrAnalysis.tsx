@@ -1347,6 +1347,70 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         }
     };
 
+    const buildAdminNormalizedRecord = (record: WorkerRecord): WorkerRecord => {
+        const normalizedScore = Number.isFinite(record.safetyScore) && record.safetyScore > 0
+            ? Math.max(1, Math.min(100, Math.round(record.safetyScore)))
+            : 60;
+
+        const fallbackInsights = '관리자 수동 검토 완료: 현장 확인 후 정상 기록으로 분류되었습니다.';
+        const insightsRaw = String(record.aiInsights || '').trim();
+        const shouldReplaceInsights =
+            !insightsRaw ||
+            /오류|실패|429|RESOURCE_EXHAUSTED|할당량|재시도 필요|이미지 데이터|소실/i.test(insightsRaw);
+
+        return {
+            ...record,
+            safetyScore: normalizedScore,
+            safetyLevel: getSafetyLevelFromScore(normalizedScore),
+            aiInsights: shouldReplaceInsights ? fallbackInsights : insightsRaw,
+            ocrErrorType: undefined,
+            ocrErrorMessage: undefined,
+            auditTrail: [
+                ...(record.auditTrail || []),
+                {
+                    stage: 'validation',
+                    timestamp: new Date().toISOString(),
+                    actor: 'manager',
+                    note: '관리자 수동 정상분류 처리 (재시도 불가 건)',
+                },
+            ],
+        };
+    };
+
+    const handleAdminNormalizeFailedBatch = () => {
+        if (failedRecords.length === 0) {
+            alert('정상분류할 실패/대기 건이 없습니다.');
+            return;
+        }
+
+        const proceed = confirm(
+            `실패/대기 ${failedRecords.length}건을 관리자 권한으로 일괄 정상분류하시겠습니까?\n\n` +
+            `- OCR 실패 플래그 제거\n` +
+            `- 점수/등급 최소 보정\n` +
+            `- 감사이력 기록`
+        );
+        if (!proceed) return;
+
+        failedRecords.forEach((record) => {
+            onUpdateRecord(buildAdminNormalizedRecord(record));
+        });
+
+        alert(`관리자 일괄 정상분류 완료: ${failedRecords.length}건`);
+    };
+
+    const handleAdminNormalizeFailedRecord = (record: WorkerRecord) => {
+        const proceed = confirm(
+            `관리자 수동 정상분류를 진행하시겠습니까?\n\n` +
+            `- OCR 실패 플래그를 제거하고\n` +
+            `- 최소 안전점수/등급을 보정하여\n` +
+            `- 정상 기록으로 분류합니다.`
+        );
+        if (!proceed) return;
+
+        onUpdateRecord(buildAdminNormalizedRecord(record));
+        alert('관리자 수동 정상분류가 적용되었습니다.');
+    };
+
     // File Upload Handler (Simple Version)
     const handleAnalyze = async () => {
         // Redirect to file processing which uses same logic if needed, 
@@ -1633,6 +1697,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                                 강제 재분석 (검증 스킵)
+                            </button>
+                        )}
+
+                        {failedRecords.length > 0 && !isAnalyzing && (
+                            <button
+                                onClick={handleAdminNormalizeFailedBatch}
+                                className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-amber-600 hover:bg-amber-700 rounded-2xl font-black text-sm shadow-xl transition-all border border-amber-500 flex items-center justify-center gap-2 group"
+                                title="재시도 불가 실패/대기 건을 관리자 검토 기준으로 일괄 정상분류합니다"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                관리자 일괄 정상분류 ({failedRecords.length})
                             </button>
                         )}
                         
@@ -1964,6 +2039,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 {failed && !isAnalyzing && hasImage && (
                                                     <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className="px-3 py-2 bg-rose-100 text-rose-600 font-bold text-xs rounded-xl hover:bg-rose-200 transition-all">
                                                         재시도
+                                                    </button>
+                                                )}
+                                                {failed && !isAnalyzing && (
+                                                    <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl hover:bg-amber-200 transition-all" title="재시도 불가 건을 관리자 확인 후 정상 분류">
+                                                        관리자 정상분류
                                                     </button>
                                                 )}
                                                 <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-4 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">상세검증 바로가기</button>

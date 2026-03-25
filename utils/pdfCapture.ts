@@ -66,7 +66,7 @@ const ensureCloneStyle = (doc: Document) => {
             box-shadow: none !important;
             margin: 0 !important;
             transform: none !important;
-            overflow: hidden !important;
+            overflow: visible !important;
         }
         [data-report-template-root="true"],
         [data-report-template-root="true"] * {
@@ -157,11 +157,34 @@ export const saveCanvasAsA4Pdf = (
     quality: number = 1
 ) => {
     const pdf = new JsPDF('p', 'mm', 'a4');
-    const placement = getCanvasPlacementOnA4(canvas);
     const mimeType = imageType === 'PNG' ? 'image/png' : 'image/jpeg';
     const imageData = canvas.toDataURL(mimeType, quality);
 
-    pdf.addImage(imageData, imageType, placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
+    const pageWidth = A4_WIDTH_MM;
+    const pageHeight = A4_HEIGHT_MM;
+    const imageWidth = pageWidth;
+    const imageHeight = (canvas.height * imageWidth) / Math.max(1, canvas.width);
+
+    if (imageHeight <= pageHeight || typeof pdf.addPage !== 'function') {
+        const placement = getCanvasPlacementOnA4(canvas);
+        pdf.addImage(imageData, imageType, placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
+        pdf.save(filename);
+        return;
+    }
+
+    let remainingHeight = imageHeight;
+    let currentY = 0;
+
+    pdf.addImage(imageData, imageType, 0, currentY, imageWidth, imageHeight, undefined, 'FAST');
+    remainingHeight -= pageHeight;
+
+    while (remainingHeight > 0) {
+        pdf.addPage();
+        currentY = remainingHeight - imageHeight;
+        pdf.addImage(imageData, imageType, 0, currentY, imageWidth, imageHeight, undefined, 'FAST');
+        remainingHeight -= pageHeight;
+    }
+
     pdf.save(filename);
 };
 

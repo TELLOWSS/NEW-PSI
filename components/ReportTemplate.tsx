@@ -493,7 +493,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     const getOriginalImage = () => (record.originalImage && record.originalImage.length > 50) ? (record.originalImage.startsWith('data:') ? record.originalImage : `data:image/jpeg;base64,${record.originalImage}`) : null;
 
     return (
-        <div ref={ref} data-report-template-root="true" className="bg-white w-[210mm] h-[297mm] relative shadow-2xl overflow-hidden text-slate-900 flex flex-col print:shadow-none print:m-0 print:w-full break-after-page">
+        <div ref={ref} data-report-template-root="true" className="bg-white w-[210mm] min-h-[297mm] h-auto relative shadow-2xl overflow-visible text-slate-900 flex flex-col print:shadow-none print:m-0 print:w-full break-after-page">
             {/* Watermark */}
             <div className="absolute inset-0 z-0 pointer-events-none flex items-center justify-center opacity-[0.03] overflow-hidden">
                 <div className="w-[150%] h-[150%] -rotate-12 flex flex-wrap content-center justify-center gap-24 select-none">
@@ -504,7 +504,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
             </div>
 
             <div className="absolute inset-0 m-4 border-[2px] border-slate-800 z-10 pointer-events-none"></div>
-            <div className="relative z-10 px-[12mm] py-[9mm] flex flex-col h-full gap-3">
+            <div className="relative z-10 px-[12mm] py-[9mm] flex flex-col min-h-full gap-3">
 
                 {/* ── HEADER ─────────────────────────────────── */}
                 <div className="text-center shrink-0">
