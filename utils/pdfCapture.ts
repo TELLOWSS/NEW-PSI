@@ -1,3 +1,5 @@
+import { toCanvas } from 'html-to-image';
+
 const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
 
@@ -105,11 +107,32 @@ export const captureReportCanvas = async (
     const height = Math.max(1, Math.ceil(bounds.height));
     const scale = options.scale ?? Math.max(2, Math.min(3, window.devicePixelRatio || 1));
 
+    try {
+        return await toCanvas(element, {
+            cacheBust: true,
+            pixelRatio: scale,
+            backgroundColor: '#ffffff',
+            width,
+            height,
+            canvasWidth: Math.round(width * scale),
+            canvasHeight: Math.round(height * scale),
+            style: {
+                margin: '0',
+                transform: 'none',
+                boxShadow: 'none',
+            },
+        });
+    } catch {
+        // html-to-image 실패 시 html2canvas로 폴백
+    }
+
     return html2canvas(element, {
         scale,
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
+        foreignObjectRendering: true,
+        removeContainer: true,
         width,
         height,
         windowWidth: width,

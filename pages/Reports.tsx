@@ -380,14 +380,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             if (!masterPdf || !masterPdf.addPage || !masterPdf.addImage) {
                                 throw new Error('PDF 생성기 초기화 실패');
                             }
-                            const imgData = getCanvasImageData(canvas, 'JPEG', 0.92);
+                            const imgData = getCanvasImageData(canvas, 'PNG', 1);
                             if (i > 0) masterPdf.addPage();
-                            masterPdf.addImage(imgData, 'JPEG', placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
+                            masterPdf.addImage(imgData, 'PNG', placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
                         } 
                         else if (genMode === 'individual-pdf') {
-                            const imgData = getCanvasImageData(canvas, 'JPEG', 0.92);
+                            const imgData = getCanvasImageData(canvas, 'PNG', 1);
                             const tempPdf = new JsPDF('p', 'mm', 'a4');
-                            tempPdf.addImage(imgData, 'JPEG', placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
+                            tempPdf.addImage(imgData, 'PNG', placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
                             // PDF Blob 생성
                             const pdfBlob = tempPdf.output('blob');
                             folder.file(`${fileNameBase}.pdf`, pdfBlob);

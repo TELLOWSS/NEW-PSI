@@ -16,9 +16,10 @@ const getSafetyLevelClass = (level: '초급' | '중급' | '고급') => {
 
 export const CircularProgress: React.FC<CircularProgressProps> = ({ score, level }) => {
     const levelClass = getSafetyLevelClass(level);
+    const safeScore = Number.isFinite(score) ? Math.max(0, Math.min(100, Math.round(score))) : 0;
     const radius = 36;
     const circumference = 2 * Math.PI * radius;
-    const offset = circumference - (score / 100) * circumference;
+    const offset = circumference - (safeScore / 100) * circumference;
 
     return (
         <div className="relative w-28 h-28 shrink-0">
@@ -32,7 +33,7 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({ score, level
                     cy="40"
                 />
                 <circle
-                    className={`transform -rotate-90 origin-center ${levelClass.progress}`}
+                    className={`transform -rotate-90 origin-center stroke-current ${levelClass.progress}`}
                     strokeWidth="8"
                     strokeDasharray={circumference}
                     strokeDashoffset={offset}
@@ -44,7 +45,7 @@ export const CircularProgress: React.FC<CircularProgressProps> = ({ score, level
                 />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold text-slate-800">{score}</span>
+                <span className="text-3xl font-bold text-slate-800">{safeScore}</span>
                 <span className={`text-sm font-bold ${levelClass.text}`}>{level}</span>
             </div>
         </div>

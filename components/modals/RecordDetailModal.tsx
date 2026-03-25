@@ -6,6 +6,64 @@ import { updateAnalysisBasedOnEdits } from '../../services/geminiService';
 import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
 import { deriveCompetencyProfile, enforceSafetyLevel, getApprovalBlockers } from '../../utils/evidenceUtils';
 
+type MetricTone = 'slate' | 'indigo' | 'emerald' | 'amber' | 'rose';
+
+interface CompetencyMetricCardProps {
+    label: string;
+    score: number;
+    maxScore?: number;
+    subtitle: string;
+    tone?: MetricTone;
+    penalty?: boolean;
+}
+
+const normalizeScore = (value: number, maxScore: number) => {
+    if (!Number.isFinite(value)) return 0;
+    return Math.max(0, Math.min(maxScore, Math.round(value)));
+};
+
+const metricToneClass: Record<MetricTone, { badge: string; bar: string; panel: string; text: string; track: string }> = {
+    slate: { badge: 'bg-slate-100 text-slate-700', bar: 'bg-slate-700', panel: 'bg-slate-50 border-slate-200', text: 'text-slate-700', track: 'bg-slate-200' },
+    indigo: { badge: 'bg-indigo-100 text-indigo-700', bar: 'bg-indigo-600', panel: 'bg-indigo-50 border-indigo-200', text: 'text-indigo-700', track: 'bg-indigo-100' },
+    emerald: { badge: 'bg-emerald-100 text-emerald-700', bar: 'bg-emerald-600', panel: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', track: 'bg-emerald-100' },
+    amber: { badge: 'bg-amber-100 text-amber-700', bar: 'bg-amber-500', panel: 'bg-amber-50 border-amber-200', text: 'text-amber-700', track: 'bg-amber-100' },
+    rose: { badge: 'bg-rose-100 text-rose-700', bar: 'bg-rose-500', panel: 'bg-rose-50 border-rose-200', text: 'text-rose-700', track: 'bg-rose-100' },
+};
+
+const CompetencyMetricCard: React.FC<CompetencyMetricCardProps> = ({
+    label,
+    score,
+    maxScore = 100,
+    subtitle,
+    tone = 'slate',
+    penalty = false,
+}) => {
+    const safeScore = normalizeScore(score, maxScore);
+    const progress = maxScore > 0 ? Math.max(0, Math.min(100, (safeScore / maxScore) * 100)) : 0;
+    const toneClass = metricToneClass[tone];
+
+    return (
+        <div className={`rounded-2xl border p-4 ${toneClass.panel}`}>
+            <div className="flex items-start justify-between gap-3">
+                <div>
+                    <p className="text-[11px] font-black text-slate-800">{label}</p>
+                    <p className="mt-1 text-[11px] font-medium text-slate-500 leading-relaxed">{subtitle}</p>
+                </div>
+                <div className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${toneClass.badge}`}>
+                    {penalty ? `-${safeScore}` : `${safeScore}점`}
+                </div>
+            </div>
+            <div className={`mt-3 h-2.5 overflow-hidden rounded-full ${toneClass.track}`}>
+                <div className={`h-full rounded-full ${toneClass.bar}`} style={{ width: `${progress}%` }} />
+            </div>
+            <div className="mt-2 flex items-center justify-between text-[10px] font-bold text-slate-400">
+                <span>{penalty ? '감점 규모' : '달성 수준'}</span>
+                <span className={toneClass.text}>{safeScore}/{maxScore}</span>
+            </div>
+        </div>
+    );
+};
+
 const buildReassessmentAuditNote = (before: WorkerRecord, updated: Partial<WorkerRecord>): string => {
     const beforeScore = typeof before.safetyScore === 'number' ? before.safetyScore : 0;
     const afterScore = typeof updated.safetyScore === 'number' ? updated.safetyScore : beforeScore;
@@ -100,6 +158,51 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         const after = typeof record.safetyScore === 'number' ? record.safetyScore : 0;
         return Math.max(0, before - after);
     }, [initialRecord.safetyScore, record.safetyScore]);
+
+    const competencyMetrics = useMemo(() => {
+        const profile = deriveCompetencyProfile(record);
+
+        return [
+        {
+            label: '심리 지표',
+            score: profile.psychologicalScore,
+            subtitle: '작성 태도와 집중도 기반 안정성',
+            tone: 'indigo' as const,
+        },
+        {
+            label: '업무 이해도',
+            score: profile.jobUnderstandingScore,
+            subtitle: '공종·절차·역할 이해 수준',
+            tone: 'emerald' as const,
+        },
+        {
+            label: '위험성평가 이해도',
+            score: profile.riskAssessmentUnderstandingScore,
+            subtitle: '위험요인과 보호조치 연결 수준',
+            tone: 'amber' as const,
+        },
+        {
+            label: '숙련도',
+            score: profile.proficiencyScore,
+            subtitle: '실행 경험과 현장 대응 완성도',
+            tone: 'slate' as const,
+        },
+        {
+            label: '개선이행도',
+            score: profile.improvementExecutionScore,
+            subtitle: '개선안 실행 가능성과 지속성',
+            tone: 'indigo' as const,
+        },
+        {
+            label: '반복위반 페널티',
+            score: profile.repeatViolationPenalty,
+            maxScore: 20,
+            subtitle: '반복 위반 신호에 따른 감점',
+            tone: 'rose' as const,
+            penalty: true,
+        },
+    ];
+    }, [record]);
 
     const scoreDropNeedsIntegrityReason = scoreDropAmount > 0;
 
@@ -821,13 +924,18 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
                                         <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm">
                                             <h4 className="text-sm font-black text-slate-800 mb-4">개인 안전역량 세부지표</h4>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs font-bold">
-                                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">심리 지표: {competencyProfile.psychologicalScore}</div>
-                                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">업무 이해도: {competencyProfile.jobUnderstandingScore}</div>
-                                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">위험성평가 이해도: {competencyProfile.riskAssessmentUnderstandingScore}</div>
-                                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">숙련도: {competencyProfile.proficiencyScore}</div>
-                                                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">개선이행도: {competencyProfile.improvementExecutionScore}</div>
-                                                <div className="bg-rose-50 rounded-xl p-3 border border-rose-200 text-rose-700">반복위반 페널티: -{competencyProfile.repeatViolationPenalty}</div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                                {competencyMetrics.map((metric) => (
+                                                    <CompetencyMetricCard
+                                                        key={metric.label}
+                                                        label={metric.label}
+                                                        score={metric.score}
+                                                        maxScore={metric.maxScore}
+                                                        subtitle={metric.subtitle}
+                                                        tone={metric.tone}
+                                                        penalty={metric.penalty}
+                                                    />
+                                                ))}
                                             </div>
                                         </div>
 
