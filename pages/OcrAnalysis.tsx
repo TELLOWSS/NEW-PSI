@@ -759,7 +759,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         return 50;
     };
 
-    const runBatchAnalysis = async (targetRecords: WorkerRecord[], title: string) => {
+    const runBatchAnalysis = async (targetRecords: WorkerRecord[], title: string, forceReanalyze: boolean = false) => {
         const total = targetRecords.length;
         if (total === 0) return alert('재분석할 대상이 없습니다.');
         
@@ -775,6 +775,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 }
                 clearQuotaState();
             }
+        }
+        
+        if (forceReanalyze) {
+            console.log(`[강제 재분석] Preflight 검증 스킵, 직접 API 호출 모드`);
         }
         
         setIsAnalyzing(true);
@@ -820,7 +824,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 
                 try {
                     // 1. Data Integrity Check
-                    if (!hasRetryableOriginalImage(record.originalImage)) {
+                    if (!forceReanalyze && !hasRetryableOriginalImage(record.originalImage)) {
                         console.warn(`Skipping ${record.id}: Image loss.`);
                         const errorRecord: WorkerRecord = {
                             ...record,
@@ -845,12 +849,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         });
                         continue; 
                     }
+                    
+                    // [강제 재분석 모드] 이미지 없어도 계속 진행 (API 호출 통해 재분석)
+                    if (forceReanalyze && !hasRetryableOriginalImage(record.originalImage)) {
+                        console.log(`[강제 재분석] ${record.id}: 이미지 데이터 없음 감지. API 호출로 재분석 시도...`);
+                    }
 
                     // [Step 3] Image Format Validation
                     const cleanImage = normalizeRetryImageData(record.originalImage);
                     const formatValidation = validateImageFormat(cleanImage);
                     
-                    if (!formatValidation.isValid) {
+                    if (!forceReanalyze && !formatValidation.isValid) {
                         console.warn(`Image format error for ${record.id}: ${formatValidation.error}`);
                         const errorRecord: WorkerRecord = {
                             ...record,
@@ -876,7 +885,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         continue;
                     }
                     
-                    if (!formatValidation.supportedFormat) {
+                    if (!forceReanalyze && !formatValidation.supportedFormat) {
                         console.warn(`Unsupported format for ${record.id}: ${formatValidation.detectedFormat}`);
                         const errorRecord: WorkerRecord = {
                             ...record,
@@ -902,7 +911,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         continue;
                     }
                     
-                    if (!isFormatCompatibleWithAI(formatValidation.detectedFormat)) {
+                    if (!forceReanalyze && !isFormatCompatibleWithAI(formatValidation.detectedFormat)) {
                         console.warn(`Format not AI-compatible for ${record.id}: ${formatValidation.detectedFormat}`);
                         const errorRecord: WorkerRecord = {
                             ...record,
@@ -936,7 +945,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                     while (retryCount < MAX_RETRIES) {
                         try {
-                            setProgress(`[${title}] ${record.name || '미상'} 서버 OCR 재분석 요청 중...`);
+                            const modeLabel = forceReanalyze ? '[강제 모드]' : '';
+                            setProgress(`${modeLabel} [${title}] ${record.name || '미상'} 서버 OCR 재분석 요청 중...`);
 
                             try {
                                 apiResult = await requestServerRetryAnalysis(record);
@@ -953,7 +963,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     throw serverError;
                                 }
 
-                                setProgress(`[${title}] ${record.name || '미상'} 브라우저 OCR 폴백 실행 중...`);
+                                const modeLabel = forceReanalyze ? '[강제 모드]' : '';
+                                setProgress(`${modeLabel} [${title}] ${record.name || '미상'} 브라우저 OCR 폴백 실행 중...`);
                                 const results = await analyzeWorkerRiskAssessment(record.originalImage || cleanImage, '', record.filename || record.name);
                                 if (results && results.length > 0) {
                                     apiResult = results[0];
@@ -1103,10 +1114,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             setCooldownTime(0);
             setBatchProgress({ current: 0, total: 0 });
             
+            const modeLabel = forceReanalyze ? '[강제 재분석]' : '';
+            const reasonsReport = `\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 폴백 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}`;
+            
             if (stopped) {
-                alert(`분석이 중단되었습니다.\n(성공: ${successCount}, 실패: ${failCount})\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 폴백 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}`);
+                alert(`${modeLabel} 분석이 중단되었습니다.\n(성공: ${successCount}, 실패: ${failCount})${reasonsReport}`);
             } else {
-                alert(`${title} 완료.\n성공: ${successCount}\n실패: ${failCount}\n\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 폴백 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}\n\n* 실패 건은 '실패/대기 건 재분석' 버튼으로 다시 시도할 수 있습니다.`);
+                if (forceReanalyze) {
+                    alert(`${modeLabel} ${title} 완료.\n\n✅ 성공: ${successCount}\n❌ 실패: ${failCount}${reasonsReport}\n\n※ Preflight 검증 스킵 모드로 실행되었습니다.\n※ 실패 건은 '강제 재분석' 또는 '스마트 재분석' 버튼으로 다시 시도할 수 있습니다.`);
+                } else {
+                    alert(`${title} 완료.\n성공: ${successCount}\n실패: ${failCount}${reasonsReport}\n\n* 실패 건은 '실패/대기 건 재분석' 버튼으로 다시 시도할 수 있습니다.`);
+                }
             }
         }
     };
@@ -1242,6 +1260,23 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
         if (confirm(`하드 실패 ${hardTargets.length}건만 우선 재시도 하시겠습니까?\n(할당량 절약을 위해 저신뢰 경고 건은 제외)`)) {
             runBatchAnalysis(hardTargets, "하드 실패 재분석");
+        }
+    };
+
+    const handleForceReanalyze = () => {
+        if (failedRecords.length === 0) {
+            alert('재분석할 실패/대기 건이 없습니다.');
+            return;
+        }
+
+        const confirm_msg = confirm(
+            `⚠️ 강제 재분석 모드\n\n실패/대기 건 ${failedRecords.length}건을 Preflight 검증을 우회하여\n` +
+            `직접 Gemini API로 재분석하시겠습니까?\n\n` +
+            `※ 유료 API를 사용하므로 재분석 결과가 나올 때까지 비용이 발생합니다.`
+        );
+        
+        if (confirm_msg) {
+            runBatchAnalysis(failedRecords, "강제 재분석 (Preflight 스킵)", true);
         }
     };
 
@@ -1519,6 +1554,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                                 실패/대기 건 스마트 재분석 ({failedRecords.length})
+                            </button>
+                        )}
+                        
+                        {/* Force Reanalyze Button */}
+                        {failedRecords.length > 0 && !isAnalyzing && (
+                            <button 
+                                onClick={handleForceReanalyze}
+                                className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-red-700 hover:bg-red-800 rounded-2xl font-black text-sm shadow-xl transition-all border border-red-600 flex items-center justify-center gap-2 group"
+                                title="Preflight 검증을 우회하고 모든 실패/대기 건을 직접 API로 재분석합니다"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                강제 재분석 (검증 스킵)
                             </button>
                         )}
                         
