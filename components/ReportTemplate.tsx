@@ -417,19 +417,6 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
 
         return nativeLength + koLength > 260 || longestNative > 90 || longestKo > 90;
     }, [isKorean, record.weakAreas_native, improvementItems]);
-    const isWeaknessContentUltraDense = useMemo(() => {
-        if (isKorean) return false;
-
-        const nativeWeak = Array.isArray(record.weakAreas_native) ? record.weakAreas_native.filter(Boolean) : [];
-        const koWeak = improvementItems.filter(Boolean);
-        const nativeLength = nativeWeak.join(' ').length;
-        const koLength = koWeak.join(' ').length;
-
-        return nativeLength + koLength > 420;
-    }, [isKorean, record.weakAreas_native, improvementItems]);
-    const weaknessDisplayItems = useMemo(() => {
-        return improvementItems.slice(0, isWeaknessContentUltraDense ? 2 : 3);
-    }, [improvementItems, isWeaknessContentUltraDense]);
     const narrativeWrapWidth = useMemo(() => ({
         weakNative: getNarrativeWrapWidth(record.nationality, isWeaknessContentDense, 'weakNative'),
         weakKo: getNarrativeWrapWidth(record.nationality, isWeaknessContentDense, 'weakKo'),
@@ -688,29 +675,25 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                 {/* ── 하단부: 카드형 Grid ───────────────────── */}
                 <div className="flex-1 min-h-0 grid grid-cols-4 gap-3">
                     {/* 역량 강점 */}
-                    <div className={`${isWeaknessContentUltraDense ? 'col-span-2 order-2' : 'col-span-1'} bg-slate-50 rounded-lg border border-slate-100 p-3 shadow-sm overflow-hidden`}>
+                    <div className="col-span-2 bg-slate-50 rounded-lg border border-slate-100 p-3 shadow-sm overflow-hidden">
                         <h3 className="font-bold text-[10px] mb-2 text-slate-700 flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
                             {labels.strengths}
                         </h3>
-                        <ul className="space-y-1.5">
-                            {record.strengths.slice(0, isWeaknessContentUltraDense ? 2 : 3).map((s, i) => (
+                        <ul className="space-y-1">
+                            {record.strengths.slice(0, 3).map((s, i) => (
                                 <li key={i}>
-                                    {/* 외국인: 모국어 먼저(크게) */}
                                     {!isKorean && record.strengths_native?.[i] ? (
-                                        <>
-                                            <div className="text-[10px] leading-tight text-slate-800 font-bold flex items-start gap-1">
-                                                <CheckBulletIcon />
-                                                <span>{record.strengths_native[i]}</span>
-                                            </div>
-                                            <div className="text-[9px] text-slate-400 mt-0.5 ml-3 leading-none">
-                                                <span className="text-[7px] font-black text-slate-300 mr-0.5">[KO]</span>{s}
-                                            </div>
-                                        </>
+                                        <div className="text-[9px] leading-snug text-slate-800 flex items-center gap-1 overflow-hidden">
+                                            <CheckBulletIcon className="text-emerald-600" />
+                                            <span className="font-bold truncate">{record.strengths_native[i]}</span>
+                                            <span className="text-[7px] font-black text-slate-300">| KO</span>
+                                            <span className="text-slate-500 truncate">{s}</span>
+                                        </div>
                                     ) : (
-                                        <div className="text-[10px] leading-tight text-slate-800 flex items-start gap-1">
+                                        <div className="text-[9px] leading-snug text-slate-800 flex items-center gap-1 overflow-hidden">
                                             <CheckBulletIcon />
-                                            <span><HighlightedText text={s} /></span>
+                                            <span className="truncate"><HighlightedText text={s} /></span>
                                         </div>
                                     )}
                                 </li>
@@ -719,35 +702,27 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     </div>
 
                     {/* 개선 권고 */}
-                    <div className={`${isWeaknessContentUltraDense ? 'col-span-4 order-1' : 'col-span-3'} bg-rose-50 rounded-lg border border-rose-100 shadow-sm ${isWeaknessContentUltraDense ? 'p-2' : isWeaknessContentDense ? 'p-2.5' : 'p-3'}`}>
+                    <div className={`col-span-2 bg-rose-50 rounded-lg border border-rose-100 shadow-sm ${isWeaknessContentDense ? 'p-2.5' : 'p-3'}`}>
                         <h3 className={`font-bold text-[10px] text-rose-800 flex items-center gap-1.5 ${isWeaknessContentDense ? 'mb-1.5' : 'mb-2'}`}>
                             <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
                             {labels.weaknesses}
                         </h3>
-                        <ul className={isWeaknessContentUltraDense ? 'space-y-0.5' : isWeaknessContentDense ? 'space-y-1' : 'space-y-1.5'}>
-                            {weaknessDisplayItems.map((w, i) => {
+                        <ul className={isWeaknessContentDense ? 'space-y-1' : 'space-y-1'}>
+                            {improvementItems.slice(0, 3).map((w, i) => {
                                 const nativeWeak = Array.isArray(record.weakAreas) && record.weakAreas.length > 0 && record.weakAreas_native?.[i];
-                                const wrappedWeakKo = wrapNarrativeText(w, narrativeWrapWidth.weakKo);
-                                const wrappedWeakNative = wrapNarrativeText(nativeWeak, narrativeWrapWidth.weakNative);
                                 return (
                                     <li key={i}>
                                         {!isKorean && nativeWeak ? (
-                                            <>
-                                                {/* 모국어 먼저(크게) — 근로자 직접 확인 */}
-                                                <div className={`text-rose-900 font-bold flex items-start gap-1 ${isWeaknessContentUltraDense ? 'text-[8px] leading-snug' : isWeaknessContentDense ? 'text-[9px] leading-snug' : 'text-[10px] leading-snug'}`}>
-                                                    <WarningBulletIcon />
-                                                    <span className="whitespace-pre-line">{wrappedWeakNative || nativeWeak}</span>
-                                                </div>
-                                                {/* 한국어(작게) — 관리자 확인용 */}
-                                                <div className={`text-rose-700/60 mt-0.5 ml-4 ${isWeaknessContentUltraDense ? 'text-[7px] leading-snug' : isWeaknessContentDense ? 'text-[8px] leading-snug' : 'text-[9px] leading-snug'}`}>
-                                                    <span className="text-[7px] font-black text-rose-400 mr-0.5">[KO]</span>
-                                                    <span className="whitespace-pre-line"><HighlightedText text={wrappedWeakKo || w} /></span>
-                                                </div>
-                                            </>
-                                        ) : (
-                                            <div className={`text-rose-900 flex items-start gap-1 ${isWeaknessContentUltraDense ? 'text-[8px] leading-snug' : isWeaknessContentDense ? 'text-[9px] leading-snug' : 'text-[10px] leading-snug'}`}>
+                                            <div className={`text-rose-900 flex items-center gap-1 overflow-hidden ${isWeaknessContentDense ? 'text-[8px] leading-snug' : 'text-[9px] leading-snug'}`}>
                                                 <WarningBulletIcon />
-                                                <span className="whitespace-pre-line"><HighlightedText text={wrappedWeakKo || w} /></span>
+                                                <span className="font-bold truncate">{nativeWeak}</span>
+                                                <span className="text-[7px] font-black text-rose-400">| KO</span>
+                                                <span className="text-rose-700/70 truncate">{w}</span>
+                                            </div>
+                                        ) : (
+                                            <div className={`text-rose-900 flex items-center gap-1 overflow-hidden ${isWeaknessContentDense ? 'text-[8px] leading-snug' : 'text-[9px] leading-snug'}`}>
+                                                <WarningBulletIcon />
+                                                <span className="truncate"><HighlightedText text={w} /></span>
                                             </div>
                                         )}
                                     </li>
@@ -757,19 +732,19 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     </div>
 
                     {/* 종합 안전 진단 */}
-                    <div className={`col-span-2 ${isWeaknessContentUltraDense ? 'order-3' : ''} bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex flex-col ${isWeaknessContentUltraDense ? 'p-2' : isWeaknessContentDense ? 'p-2.5' : 'p-3'}`}>
+                    <div className={`col-span-2 bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden flex flex-col ${isWeaknessContentDense ? 'p-2.5' : 'p-3'}`}>
                         <h3 className={`font-bold text-[10px] text-slate-700 flex items-center gap-1.5 ${isWeaknessContentDense ? 'mb-1.5' : 'mb-2'}`}>
                             <span className="w-1.5 h-1.5 rounded-full bg-slate-800 shrink-0"></span>
                             {labels.verdict}
                         </h3>
                         {/* 외국인: 모국어 종합진단 먼저(크게) */}
                         {!isKorean && record.aiInsights_native && (
-                            <p className={`${isWeaknessContentUltraDense ? 'text-[9px]' : 'text-[10px]'} leading-relaxed text-slate-800 font-bold flex-1 overflow-hidden whitespace-pre-line`}>
+                            <p className="text-[10px] leading-relaxed text-slate-800 font-bold flex-1 overflow-hidden whitespace-pre-line">
                                 {wrapNarrativeText(record.aiInsights_native, narrativeWrapWidth.verdictNative)}
                             </p>
                         )}
                         {/* 한국어 종합진단: 항상 표시, 외국인이면 관리자 확인용으로 작게 */}
-                        <p className={`leading-relaxed overflow-hidden whitespace-pre-line ${!isKorean && record.aiInsights_native ? (isWeaknessContentUltraDense ? 'text-[8px] text-slate-400 mt-1 pt-1 border-t border-slate-100' : 'text-[9px] text-slate-400 mt-1 pt-1 border-t border-slate-100') : (isWeaknessContentUltraDense ? 'text-[9px] text-slate-800 flex-1' : 'text-[10px] text-slate-800 flex-1')}`}>
+                        <p className={`leading-relaxed overflow-hidden whitespace-pre-line ${!isKorean && record.aiInsights_native ? 'text-[9px] text-slate-400 mt-1 pt-1 border-t border-slate-100' : 'text-[10px] text-slate-800 flex-1'}`}>
                             {!isKorean && record.aiInsights_native && <span className="text-[8px] font-black text-slate-300 mr-1">[KO]</span>}
                             <HighlightedText text={wrapNarrativeText(record.aiInsights, narrativeWrapWidth.verdictKo)} />
                         </p>
@@ -785,14 +760,14 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     </div>
 
                     {/* 성과 추이 + 안전 표지 */}
-                    <div className={`col-span-2 ${isWeaknessContentUltraDense ? 'order-4' : ''} flex flex-col ${isWeaknessContentUltraDense ? 'gap-1' : isWeaknessContentDense ? 'gap-1.5' : 'gap-2'}`}>
-                        <div className={`flex-1 border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col min-h-0 ${isWeaknessContentUltraDense ? 'p-1' : isWeaknessContentDense ? 'p-1.5' : 'p-2'}`}>
+                    <div className={`col-span-2 flex flex-col ${isWeaknessContentDense ? 'gap-1.5' : 'gap-2'}`}>
+                        <div className={`flex-1 border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col min-h-0 ${isWeaknessContentDense ? 'p-1.5' : 'p-2'}`}>
                             <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trends} (6M)</h4>
                             <div className="flex-1 w-full relative min-h-0">
                                 <canvas ref={trendChartRef}></canvas>
                             </div>
                         </div>
-                        <div className={`border-2 border-slate-100 rounded-lg bg-white shadow-sm ${isWeaknessContentUltraDense ? 'p-1' : isWeaknessContentDense ? 'p-1.5' : 'p-2'}`}>
+                        <div className={`border-2 border-slate-100 rounded-lg bg-white shadow-sm ${isWeaknessContentDense ? 'p-1.5' : 'p-2'}`}>
                             <h3 className="font-bold text-[8px] mb-1.5 text-slate-800 uppercase tracking-wide flex items-center gap-1">
                                 <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0"></span>
                                 {labels.pictogram}
@@ -800,13 +775,13 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             <div className="grid grid-cols-2 gap-1.5">
                                 {safetySigns.map((sign, i) => (
                                     <div key={i} className="border border-slate-200 rounded bg-slate-50 flex flex-col items-center justify-center p-1.5 text-center relative overflow-hidden">
-                                        <div className={`${isWeaknessContentUltraDense ? 'w-8 h-8 mb-0.5' : 'w-10 h-10 mb-1'}`}>
+                                        <div className="w-10 h-10 mb-1">
                                             <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-sm">
                                                 {sign.icon}
                                             </svg>
                                         </div>
-                                        <p className={`${isWeaknessContentUltraDense ? 'text-[7px]' : 'text-[8px]'} font-black text-slate-900 leading-tight`}>{sign.labels.ko}</p>
-                                        {!isKorean && !isWeaknessContentUltraDense && <p className="text-[7px] font-bold text-slate-500 mt-0.5 leading-none">{getSignLabel(sign, record.nationality)}</p>}
+                                        <p className="text-[8px] font-black text-slate-900 leading-tight">{sign.labels.ko}</p>
+                                        {!isKorean && <p className="text-[7px] font-bold text-slate-500 mt-0.5 leading-none">{getSignLabel(sign, record.nationality)}</p>}
                                         <div className={`absolute top-0 right-0 w-2 h-2 ${sign.type === 'warning' ? 'bg-yellow-400' : 'bg-blue-600'} rounded-bl`}></div>
                                     </div>
                                 ))}
