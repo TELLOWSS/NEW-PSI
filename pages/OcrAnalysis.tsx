@@ -336,6 +336,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [filterField, setFilterField] = useState<string>('all');
     const [filterLeader, setFilterLeader] = useState<string>('all');
     const [filterTrust, setFilterTrust] = useState<'all' | 'pending' | 'finalized'>('all');
+        const [filterStatus, setFilterStatus] = useState<'all' | 'success' | 'failed'>('all');
     const [dailyCounter, setDailyCounter] = useState<DailyCounterState>(() => getApiCallState());
     const [importValidationSummary, setImportValidationSummary] = useState<string>('');
     const [importValidationDetails, setImportValidationDetails] = useState<string>('');
@@ -660,9 +661,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 (filterTrust === 'pending' && trustState === 'PENDING') ||
                 (filterTrust === 'finalized' && trustState === 'FINALIZED');
 
-            return matchesSearch && matchesLevel && matchesField && matchesLeader && matchesTrust;
+            const recordFailed = isFailedRecord(r);
+            const matchesStatus = 
+                filterStatus === 'all' ||
+                (filterStatus === 'success' && !recordFailed) ||
+                (filterStatus === 'failed' && recordFailed);
+            return matchesSearch && matchesLevel && matchesField && matchesLeader && matchesTrust && matchesStatus;
         });
-    }, [existingRecords, searchTerm, filterLevel, filterField, filterLeader, filterTrust, getReviewTrustState]);
+    }, [existingRecords, searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterStatus, getReviewTrustState, isFailedRecord]);
 
     const recordsWithImages = useMemo(() => {
         return existingRecords.filter(r => hasRetryableOriginalImage(r.originalImage));
@@ -1768,6 +1774,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <option value="all">전체</option>
                             <option value="pending">재검토 대기</option>
                             <option value="finalized">최종확정</option>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <label className="text-xs font-bold text-slate-500">OCR 결과:</label>
+                                                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as 'all' | 'success' | 'failed')} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
+                                                    <option value="all">전체</option>
+                                                    <option value="success">✅ 성공</option>
+                                                    <option value="failed">❌ 실패</option>
+                                                </select>
+                                            </div>
                         </select>
                     </div>
                     <button onClick={handleBatchTextAnalysis} 
