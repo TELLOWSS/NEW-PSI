@@ -872,6 +872,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 <option value="우즈베키스탄">우즈베키스탄 (Uzbekistan)</option>
                                                 <option value="몽골">몽골 (Mongolia)</option>
                                                 <option value="카자흐스탄">카자흐스탄 (Kazakhstan)</option>
+                                                <option value="러시아">러시아 (Russia)</option>
                                                 <option value="필리핀">필리핀 (Philippines)</option>
                                                 <option value="네팔">네팔 (Nepal)</option>
                                                 <option value="미얀마">미얀마 (Myanmar)</option>
