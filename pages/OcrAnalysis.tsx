@@ -139,6 +139,18 @@ const hasRetryableOriginalImage = (image?: string): boolean => {
     return normalizeRetryImageData(image).length >= 100;
 };
 
+const OCR_FAILED_ONLY_DEFAULT_KEY = 'psi_ocr_failed_only_default';
+
+const getFailedOnlyDefaultOption = (): boolean => {
+    try {
+        const raw = localStorage.getItem(OCR_FAILED_ONLY_DEFAULT_KEY);
+        if (raw === null) return true;
+        return raw === '1';
+    } catch {
+        return true;
+    }
+};
+
 const createFileAnalysisErrorRecord = (file: File, message: string, errorType: OcrErrorType = 'UNKNOWN'): WorkerRecord => {
     const now = Date.now();
     const filename = String(file.name || 'unknown-file');
@@ -336,7 +348,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [filterField, setFilterField] = useState<string>('all');
     const [filterLeader, setFilterLeader] = useState<string>('all');
     const [filterTrust, setFilterTrust] = useState<'all' | 'pending' | 'finalized'>('all');
-        const [filterStatus, setFilterStatus] = useState<'all' | 'success' | 'failed'>('all');
+    const [failedOnlyDefault, setFailedOnlyDefault] = useState<boolean>(() => getFailedOnlyDefaultOption());
+    const [filterStatus, setFilterStatus] = useState<'all' | 'success' | 'failed'>(() => getFailedOnlyDefaultOption() ? 'failed' : 'all');
     const [dailyCounter, setDailyCounter] = useState<DailyCounterState>(() => getApiCallState());
     const [importValidationSummary, setImportValidationSummary] = useState<string>('');
     const [importValidationDetails, setImportValidationDetails] = useState<string>('');
@@ -439,6 +452,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     useEffect(() => {
         void loadMasterData();
     }, [loadMasterData]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(OCR_FAILED_ONLY_DEFAULT_KEY, failedOnlyDefault ? '1' : '0');
+        } catch {
+            // ignore storage errors
+        }
+    }, [failedOnlyDefault]);
 
     const handleCreateMasterTemplate = async (payload: { name: string; version: string; fieldSchema: string }) => {
         const result = await supabase
@@ -671,14 +692,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, [existingRecords, searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterStatus, getReviewTrustState, isFailedRecord]);
 
     const recordsWithImages = useMemo(() => {
-        return existingRecords.filter(r => hasRetryableOriginalImage(r.originalImage));
+        return existingRecords.filter(r => hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage));
     }, [existingRecords]);
 
     const failedRecords = useMemo(() => {
-        return existingRecords.filter(r => 
-            isFailedRecord(r) && 
-            hasRetryableOriginalImage(r.originalImage)
-        );
+        return existingRecords.filter(r => isFailedRecord(r));
     }, [existingRecords]);
 
     const lowConfidenceCount = useMemo(() => {
@@ -723,13 +741,25 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         setCooldownTime(0);
     };
 
+    const getBestRetryImageSource = useCallback((record: WorkerRecord): string => {
+        const candidates = [record.originalImage, record.profileImage]
+            .map((item) => String(item || '').trim())
+            .filter((item) => item.length > 0);
+
+        if (candidates.length === 0) return '';
+
+        const retryable = candidates.find((item) => hasRetryableOriginalImage(item));
+        return retryable || candidates[0];
+    }, []);
+
     const requestServerRetryAnalysis = useCallback(async (record: WorkerRecord): Promise<WorkerRecord> => {
+        const bestImageSource = getBestRetryImageSource(record);
         const response = await fetch('/api/ocr/retry', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 recordId: record.id,
-                imageSource: record.originalImage,
+                imageSource: bestImageSource,
                 filenameHint: record.filename || record.name,
             }),
         });
@@ -743,7 +773,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             ...record,
             ...data.record,
             id: record.id,
-            originalImage: record.originalImage,
+            originalImage: record.originalImage || bestImageSource,
             profileImage: record.profileImage,
             filename: record.filename,
             role: record.role !== 'worker' ? record.role : data.record.role,
@@ -752,7 +782,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             ocrErrorType: undefined,
             ocrErrorMessage: undefined,
         } as WorkerRecord;
-    }, []);
+    }, [getBestRetryImageSource]);
 
     const getBatchSplitSize = (): number => {
         try {
@@ -829,8 +859,35 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 setProgress(`[${title}] ${record.name || '미상'} 처리 중...`);
                 
                 try {
+                    const retryImageSource = getBestRetryImageSource(record);
+
+                    if (!retryImageSource) {
+                        const errorRecord: WorkerRecord = {
+                            ...record,
+                            aiInsights: '❌ 원본/대체 이미지 데이터가 없어 재분석할 수 없습니다.',
+                            ocrErrorType: 'LAYOUT',
+                            ocrErrorMessage: '원본/대체 이미지 데이터 없음',
+                            safetyScore: 0,
+                        };
+                        onUpdateRecord(errorRecord);
+                        failCount++;
+                        preflightFailCount++;
+                        setRetryDiagnostics({
+                            total,
+                            success: successCount,
+                            fail: failCount,
+                            serverSuccess: serverSuccessCount,
+                            clientFallbackSuccess: clientFallbackSuccessCount,
+                            preflightFail: preflightFailCount,
+                            processingFail: processingFailCount,
+                            serverRouteFail: serverRouteFailCount,
+                            lastUpdatedAt: new Date().toISOString(),
+                        });
+                        continue;
+                    }
+
                     // 1. Data Integrity Check
-                    if (!forceReanalyze && !hasRetryableOriginalImage(record.originalImage)) {
+                    if (!forceReanalyze && !hasRetryableOriginalImage(retryImageSource)) {
                         console.warn(`Skipping ${record.id}: Image loss.`);
                         const errorRecord: WorkerRecord = {
                             ...record,
@@ -857,12 +914,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     }
                     
                     // [강제 재분석 모드] 이미지 없어도 계속 진행 (API 호출 통해 재분석)
-                    if (forceReanalyze && !hasRetryableOriginalImage(record.originalImage)) {
+                    if (forceReanalyze && !hasRetryableOriginalImage(retryImageSource)) {
                         console.log(`[강제 재분석] ${record.id}: 이미지 데이터 없음 감지. API 호출로 재분석 시도...`);
                     }
 
                     // [Step 3] Image Format Validation
-                    const cleanImage = normalizeRetryImageData(record.originalImage);
+                    const cleanImage = normalizeRetryImageData(retryImageSource);
                     const formatValidation = validateImageFormat(cleanImage);
                     
                     if (!forceReanalyze && !formatValidation.isValid) {
@@ -971,7 +1028,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                                 const modeLabel = forceReanalyze ? '[강제 모드]' : '';
                                 setProgress(`${modeLabel} [${title}] ${record.name || '미상'} 브라우저 OCR 폴백 실행 중...`);
-                                const results = await analyzeWorkerRiskAssessment(record.originalImage || cleanImage, '', record.filename || record.name);
+                                const fallbackImageSource = retryImageSource || cleanImage;
+                                if (!fallbackImageSource) {
+                                    throw new Error('재분석 가능한 이미지 데이터가 없습니다.');
+                                }
+                                const results = await analyzeWorkerRiskAssessment(fallbackImageSource, '', record.filename || record.name);
                                 if (results && results.length > 0) {
                                     apiResult = results[0];
                                     usedClientFallback = true;
@@ -1016,7 +1077,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         const updatedRecord: WorkerRecord = {
                             ...apiResult,
                             id: record.id, 
-                            originalImage: record.originalImage, 
+                            originalImage: record.originalImage || retryImageSource,
                             profileImage: record.profileImage, 
                             filename: record.filename,
                             role: record.role !== 'worker' ? record.role : apiResult.role,
@@ -1024,7 +1085,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             isSignalman: record.isSignalman || apiResult.isSignalman
                         };
                         onUpdateRecord(updatedRecord);
-                        
+
                         if (isFailedRecord(updatedRecord)) {
                             failCount++;
                             processingFailCount++;
@@ -1774,16 +1835,29 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <option value="all">전체</option>
                             <option value="pending">재검토 대기</option>
                             <option value="finalized">최종확정</option>
-                                            <div className="flex items-center gap-2 shrink-0">
-                                                <label className="text-xs font-bold text-slate-500">OCR 결과:</label>
-                                                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as 'all' | 'success' | 'failed')} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
-                                                    <option value="all">전체</option>
-                                                    <option value="success">✅ 성공</option>
-                                                    <option value="failed">❌ 실패</option>
-                                                </select>
-                                            </div>
                         </select>
                     </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <label className="text-xs font-bold text-slate-500">OCR 결과:</label>
+                        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as 'all' | 'success' | 'failed')} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
+                            <option value="all">전체</option>
+                            <option value="success">성공</option>
+                            <option value="failed">실패/대기</option>
+                        </select>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs font-bold text-slate-600 shrink-0">
+                        <input
+                            type="checkbox"
+                            checked={failedOnlyDefault}
+                            onChange={(e) => {
+                                const checked = e.target.checked;
+                                setFailedOnlyDefault(checked);
+                                setFilterStatus(checked ? 'failed' : 'all');
+                            }}
+                            className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                        />
+                        실패/대기만 보기 기본값
+                    </label>
                     <button onClick={handleBatchTextAnalysis} 
                         disabled={isAnalyzing}
                         className="w-full md:w-auto px-5 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-black text-sm shadow-md transition-all flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1810,7 +1884,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         <tbody className="divide-y divide-slate-50 font-medium">
                             {filteredRecords.map((r: WorkerRecord) => {
                                 const isManager = isManagementRole(r.jobField);
-                                const hasImage = hasRetryableOriginalImage(r.originalImage);
+                                const hasImage = hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage);
                                 const failed = isFailedRecord(r);
                                 const rowErrorType = failed ? getOcrErrorTypeFromRecord(r) : null;
                                 const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
