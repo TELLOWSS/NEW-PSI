@@ -167,8 +167,8 @@ const Settings: React.FC = () => {
             version: 'v1.0.0',
         },
         safetyLevelThresholds: {
-            advancedMin: 90,
-            intermediateMin: 70,
+            advancedMin: 80,
+            intermediateMin: 60,
         },
         approvalPolicy: {
             strictRoleGate: false,
@@ -194,10 +194,10 @@ const Settings: React.FC = () => {
         weights: AppSettings['competencyWeights'];
     }>>([]);
 
-    const normalizedAdvancedThreshold = Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.advancedMin ?? 90)));
+    const normalizedAdvancedThreshold = Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.advancedMin ?? 80)));
     const normalizedIntermediateThreshold = Math.min(
         normalizedAdvancedThreshold,
-        Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.intermediateMin ?? 70)))
+        Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.intermediateMin ?? 60)))
     );
 
     const getPreviewSafetyLevel = (score: number): '초급' | '중급' | '고급' => {
@@ -251,8 +251,8 @@ const Settings: React.FC = () => {
                         ...(parsed.approvalPolicy || {}),
                     },
                     safetyLevelThresholds: {
-                        advancedMin: toFiniteOr(parsed.safetyLevelThresholds?.advancedMin, prev.safetyLevelThresholds?.advancedMin ?? 90),
-                        intermediateMin: toFiniteOr(parsed.safetyLevelThresholds?.intermediateMin, prev.safetyLevelThresholds?.intermediateMin ?? 70),
+                        advancedMin: toFiniteOr(parsed.safetyLevelThresholds?.advancedMin, prev.safetyLevelThresholds?.advancedMin ?? 80),
+                        intermediateMin: toFiniteOr(parsed.safetyLevelThresholds?.intermediateMin, prev.safetyLevelThresholds?.intermediateMin ?? 60),
                     },
                     batchSplitSize: toFiniteOr(parsed.batchSplitSize, prev.batchSplitSize ?? 50),
                     feedbackChannel: {
@@ -336,10 +336,10 @@ const Settings: React.FC = () => {
             jobFields: fields,
             trainingLanguagePreset: normalizeTrainingLanguagePreset(settings.trainingLanguagePreset),
             safetyLevelThresholds: {
-                advancedMin: Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.advancedMin ?? 90))),
+                advancedMin: Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.advancedMin ?? 80))),
                 intermediateMin: Math.min(
-                    Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.advancedMin ?? 90))),
-                    Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.intermediateMin ?? 70)))
+                    Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.advancedMin ?? 80))),
+                    Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.intermediateMin ?? 60)))
                 ),
             },
             batchSplitSize: Math.min(500, Math.max(10, Math.round(settings.batchSplitSize ?? 50))),
@@ -557,13 +557,13 @@ const Settings: React.FC = () => {
                             onClick={() => setSettings((prev) => ({
                                 ...prev,
                                 safetyLevelThresholds: {
-                                    advancedMin: 90,
-                                    intermediateMin: 70,
+                                    advancedMin: 80,
+                                    intermediateMin: 60,
                                 },
                             }))}
                             className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[11px] font-black border border-emerald-200 hover:bg-emerald-100"
                         >
-                            기준 복원 (90/70)
+                            기준 복원 (80/60)
                         </button>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -573,12 +573,12 @@ const Settings: React.FC = () => {
                                 type="number"
                                 min={0}
                                 max={100}
-                                value={settings.safetyLevelThresholds?.advancedMin ?? 90}
+                                value={settings.safetyLevelThresholds?.advancedMin ?? 80}
                                 onChange={(e) => setSettings({
                                     ...settings,
                                     safetyLevelThresholds: {
                                         advancedMin: Number(e.target.value) || 0,
-                                        intermediateMin: settings.safetyLevelThresholds?.intermediateMin ?? 70,
+                                        intermediateMin: settings.safetyLevelThresholds?.intermediateMin ?? 60,
                                     },
                                 })}
                                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold"
@@ -590,11 +590,11 @@ const Settings: React.FC = () => {
                                 type="number"
                                 min={0}
                                 max={100}
-                                value={settings.safetyLevelThresholds?.intermediateMin ?? 70}
+                                value={settings.safetyLevelThresholds?.intermediateMin ?? 60}
                                 onChange={(e) => setSettings({
                                     ...settings,
                                     safetyLevelThresholds: {
-                                        advancedMin: settings.safetyLevelThresholds?.advancedMin ?? 90,
+                                        advancedMin: settings.safetyLevelThresholds?.advancedMin ?? 80,
                                         intermediateMin: Number(e.target.value) || 0,
                                     },
                                 })}
@@ -609,7 +609,7 @@ const Settings: React.FC = () => {
                         <p className="text-[11px] font-black text-slate-600 mb-2">실시간 등급 예시</p>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs font-bold">
                             <div className="bg-white border border-slate-200 rounded-lg px-3 py-2">68점 → {getPreviewSafetyLevel(68)}</div>
-                            <div className="bg-white border border-slate-200 rounded-lg px-3 py-2">75점 → {getPreviewSafetyLevel(75)}</div>
+                            <div className="bg-white border border-slate-200 rounded-lg px-3 py-2">69점 → {getPreviewSafetyLevel(69)}</div>
                             <div className="bg-white border border-slate-200 rounded-lg px-3 py-2">92점 → {getPreviewSafetyLevel(92)}</div>
                         </div>
                         <p className="mt-2 text-[11px] text-slate-500">현재 기준: 고급 ≥ {normalizedAdvancedThreshold}, 중급 ≥ {normalizedIntermediateThreshold}, 그 미만 초급</p>

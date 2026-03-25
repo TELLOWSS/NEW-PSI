@@ -11,6 +11,7 @@ import { extractMessage } from './utils/errorUtils';
 import { appendAuditTrail, appendCorrectionHistory, attachEvidenceHash, deriveCompetencyProfile, deriveIntegrityScore, enforceSafetyLevel } from './utils/evidenceUtils';
 import { applyIdentityPolicy } from './utils/identityUtils';
 import { isAdminAuthenticated, setAdminAuthenticated, setAdminAuthToken, verifyAdminPassword } from './utils/adminGuard';
+import { getSafetyLevelThresholds } from './utils/safetyLevelUtils';
 
 const OcrAnalysis = lazy(() => import('./pages/OcrAnalysis'));
 const WorkerManagement = lazy(() => import('./pages/WorkerManagement'));
@@ -30,8 +31,8 @@ const SafetyBehaviorManagement = lazy(() => import('./pages/SafetyBehaviorManage
 const IDB_NAME = 'PSI_Enterprise_V4';
 const IDB_VERSION = 1;
 const WORKER_STORE = 'worker_records';
-const SAFETY_LEVEL_MIGRATION_KEY = 'psi_migrated_safety_level_v20260316';
-const SAFETY_LEVEL_MIGRATION_REPORT_KEY = 'psi_migrated_safety_level_report_v20260316';
+const SAFETY_LEVEL_MIGRATION_KEY = 'psi_migrated_safety_level_v20260325';
+const SAFETY_LEVEL_MIGRATION_REPORT_KEY = 'psi_migrated_safety_level_report_v20260325';
 
 interface ErrorBoundaryProps {
     children?: ReactNode;
@@ -418,7 +419,9 @@ const App: React.FC = () => {
             setWorkerRecords(sortedData);
             setIsDataLoaded(true);
 
-            const migrated = localStorage.getItem(SAFETY_LEVEL_MIGRATION_KEY) === 'done';
+            const thresholds = getSafetyLevelThresholds();
+            const expectedMigrationSignature = `criteria-${thresholds.advancedMin}-${thresholds.intermediateMin}`;
+            const migrated = localStorage.getItem(SAFETY_LEVEL_MIGRATION_KEY) === expectedMigrationSignature;
             if (!migrated && sortedData.length > 0) {
                 void (async () => {
                     try {
@@ -428,13 +431,14 @@ const App: React.FC = () => {
                             if (original?.safetyLevel !== record.safetyLevel) changedCount += 1;
                             await saveRecordToDB(record);
                         }
-                        localStorage.setItem(SAFETY_LEVEL_MIGRATION_KEY, 'done');
+                        localStorage.setItem(SAFETY_LEVEL_MIGRATION_KEY, expectedMigrationSignature);
 
                         const report = {
                             runAt: new Date().toISOString(),
                             totalRecords: sortedData.length,
                             changedCount,
-                            criteria: '90/70',
+                            criteria: `${thresholds.advancedMin}/${thresholds.intermediateMin}`,
+                            signature: expectedMigrationSignature,
                         };
                         localStorage.setItem(SAFETY_LEVEL_MIGRATION_REPORT_KEY, JSON.stringify(report));
                         console.info('[PSI][SafetyLevelMigration]', report);

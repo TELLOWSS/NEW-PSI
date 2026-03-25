@@ -5,6 +5,7 @@ import type { SixMetricBreakdown, WorkerRecord } from '../types';
 import { IndividualRadarChart } from './charts/IndividualRadarChart';
 import { getWindowProp } from '../utils/windowUtils';
 import { deriveCompetencyProfile } from '../utils/evidenceUtils';
+import { getSafetyLevelThresholds } from '../utils/safetyLevelUtils';
 import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
 
 interface ReportTemplateProps {
@@ -405,6 +406,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     const actionableCoachingText = useMemo(() => buildActionableCoachingText(record), [record]);
     const improvementItems = useMemo(() => buildImprovementItems(record), [record]);
     const competencyProfile = useMemo(() => record.competencyProfile || deriveCompetencyProfile(record), [record]);
+    const safetyLevelThresholds = useMemo(() => getSafetyLevelThresholds(), []);
     const isWeaknessContentDense = useMemo(() => {
         if (isKorean) return false;
 
@@ -553,6 +555,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             <span className={`px-3 py-0.5 rounded-full text-[10px] font-black ${record.safetyLevel === '고급' ? 'bg-emerald-100 text-emerald-800' : record.safetyLevel === '중급' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
                                 {record.safetyLevel}
                             </span>
+                            <span className="text-[8px] font-bold text-slate-400 text-center leading-tight">
+                                기준: 고급≥{safetyLevelThresholds.advancedMin} / 중급≥{safetyLevelThresholds.intermediateMin} / 초급&lt;{safetyLevelThresholds.intermediateMin}
+                            </span>
                         </div>
                         <div className="w-36 h-36">
                             <IndividualRadarChart record={record} />
@@ -622,6 +627,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 );
                             })}
                         </div>
+                        <p className="mt-1.5 text-[8px] text-slate-400 leading-tight">
+                            기준 요약: ④숙련도는 검증 가능한 실무 행동 구체성(수치·거리·통제범위 포함), ⑤개선이행도는 실행 계획 명확성(담당·시점·확인방법) 중심 평가
+                        </p>
                     </div>
 
                     {/* 섹션 B: 코칭 */}

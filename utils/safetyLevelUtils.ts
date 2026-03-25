@@ -6,8 +6,8 @@ type SafetyLevelThresholds = {
 };
 
 const DEFAULT_THRESHOLDS: SafetyLevelThresholds = {
-    advancedMin: 90,
-    intermediateMin: 70,
+    advancedMin: 80,
+    intermediateMin: 60,
 };
 
 const clampToRange = (value: number, min: number, max: number): number => {
@@ -19,6 +19,14 @@ const normalizeThresholds = (input?: Partial<SafetyLevelThresholds>): SafetyLeve
     const advancedMin = clampToRange(Number(input?.advancedMin ?? DEFAULT_THRESHOLDS.advancedMin), 0, 100);
     const intermediateMinRaw = clampToRange(Number(input?.intermediateMin ?? DEFAULT_THRESHOLDS.intermediateMin), 0, 100);
     const intermediateMin = Math.min(intermediateMinRaw, advancedMin);
+
+    // Legacy fallback: 과거 기본값(90/70)을 최신 표준(80/60)으로 자동 전환
+    if (advancedMin === 90 && intermediateMin === 70) {
+        return {
+            advancedMin: DEFAULT_THRESHOLDS.advancedMin,
+            intermediateMin: DEFAULT_THRESHOLDS.intermediateMin,
+        };
+    }
 
     return {
         advancedMin,

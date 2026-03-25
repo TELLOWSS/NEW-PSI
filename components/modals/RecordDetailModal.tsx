@@ -5,6 +5,7 @@ import { CircularProgress } from '../shared/CircularProgress';
 import { updateAnalysisBasedOnEdits } from '../../services/geminiService';
 import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
 import { deriveCompetencyProfile, enforceSafetyLevel, getApprovalBlockers } from '../../utils/evidenceUtils';
+import { getSafetyLevelThresholds, getSafetyLevelFromScore } from '../../utils/safetyLevelUtils';
 
 type MetricTone = 'slate' | 'indigo' | 'emerald' | 'amber' | 'rose';
 
@@ -159,6 +160,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         return Math.max(0, before - after);
     }, [initialRecord.safetyScore, record.safetyScore]);
 
+    const safetyLevelThresholds = useMemo(() => getSafetyLevelThresholds(), []);
+    const gradeExampleFor69 = useMemo(() => getSafetyLevelFromScore(69), []);
+
     const competencyMetrics = useMemo(() => {
         const profile = deriveCompetencyProfile(record);
 
@@ -184,13 +188,13 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         {
             label: '숙련도',
             score: profile.proficiencyScore,
-            subtitle: '실행 경험과 현장 대응 완성도',
+            subtitle: '0~5 일반론, 6~15 단일조치, 16~23 단계별 실무조치, 24~30 수치·통제 범위 명시',
             tone: 'slate' as const,
         },
         {
             label: '개선이행도',
             score: profile.improvementExecutionScore,
-            subtitle: '개선안 실행 가능성과 지속성',
+            subtitle: '0~5 실행계획 모호, 6~13 조치 2개+, 14~17 3개+ 흐름 명확, 18~20 담당·시점·확인방법 명시',
             tone: 'indigo' as const,
         },
         {
@@ -918,12 +922,18 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 <p className="text-xs text-indigo-600 font-bold mt-2">
                                                     종합역량 점수(P): {competencyProfile.weightedScore}점 ({competencyProfile.weightVersion})
                                                 </p>
+                                                <p className="text-xs text-emerald-700 font-bold mt-2">
+                                                    등급 기준: 고급 ≥ {safetyLevelThresholds.advancedMin}, 중급 ≥ {safetyLevelThresholds.intermediateMin}, 초급 &lt; {safetyLevelThresholds.intermediateMin} (예: 69점 = {gradeExampleFor69})
+                                                </p>
                                             </div>
                                             <CircularProgress score={record.safetyScore} level={record.safetyLevel} />
                                         </div>
 
                                         <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm">
                                             <h4 className="text-sm font-black text-slate-800 mb-4">개인 안전역량 세부지표</h4>
+                                            <p className="text-[11px] font-bold text-slate-500 mb-4">
+                                                채점 루브릭 안내: 숙련도(④)는 검증 가능한 실무 행동의 구체성, 개선이행도(⑤)는 실행 계획의 명확성(담당·시점·확인방법) 중심으로 평가됩니다.
+                                            </p>
                                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                                                 {competencyMetrics.map((metric) => (
                                                     <CompetencyMetricCard

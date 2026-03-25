@@ -150,8 +150,8 @@ const workerRecordSchema = {
                     psychological: { type: Type.NUMBER, description: "①심리지표 0~10점: 성의 있는 문장 작성 태도" },
                     jobUnderstanding: { type: Type.NUMBER, description: "②업무이해도 0~20점: 공종·자재·도구 명시 수준" },
                     riskAssessmentUnderstanding: { type: Type.NUMBER, description: "③위험성평가 이해도 0~20점: 핵심 위험요인을 본인 작업과 연결" },
-                    proficiency: { type: Type.NUMBER, description: "④숙련도 0~30점: 현장 경험이 담긴 실효성 있는 대책" },
-                    improvementExecution: { type: Type.NUMBER, description: "⑤개선이행도 0~20점: 구체적 작성 노력 가점" },
+                    proficiency: { type: Type.NUMBER, description: "④숙련도 0~30점: 0~5 일반론/형식문구, 6~15 단일조치·검증부재, 16~23 순서·조건 포함 2개 이상 실무조치, 24~30 수치·거리·체결·통제범위 등 검증가능 행동 포함" },
+                    improvementExecution: { type: Type.NUMBER, description: "⑤개선이행도 0~20점: 0~5 실행계획 없음, 6~13 조치 2개 이상이나 담당/시점 불명확, 14~17 조치 3개 이상 + 작업전·중·후 실행흐름 명확, 18~20 담당·시점·확인방법까지 명시" },
                     repeatViolationPenalty: { type: Type.NUMBER, description: "⑥반복위반 패널티 0~30점 (감점): 껍데기 단어 반복 시 강력 감점" },
                 }
             },
@@ -396,9 +396,10 @@ const enforceScoreGradeConsistency = (
     const derivedLevel = scoreToSafetyLevel(safetyScore);
     const requestedLevel = (typeof levelInput === 'string' ? levelInput : '').trim();
     const scoreReasoning = normalizeScoreReasoning(reasoningInput);
+    const thresholds = getSafetyLevelThresholds();
 
     if (requestedLevel && requestedLevel !== derivedLevel) {
-        scoreReasoning.push(`점수-등급 정합성 검증에 따라 등급을 ${derivedLevel}으로 보정함 (기준: 90/70점)`);
+        scoreReasoning.push(`점수-등급 정합성 검증에 따라 등급을 ${derivedLevel}으로 보정함 (기준: ${thresholds.advancedMin}/${thresholds.intermediateMin}점)`);
     }
 
     return {
@@ -464,14 +465,16 @@ const STRICT_SCORE_POLICY = `
   - "해당 위험요인을 본인 작업과 정확히 연결(예: 단부 추락, 낙하물 맞음 등)"하면 13~20점.
 
 ④ 숙련도 (0~30점) ← 핵심 지표
-  - "조심하겠다", "안전모 쓰겠다" 같은 뻔한 소리: 0~5점.
-  - 장비/도구 수준의 대책이지만 형식적: 6~15점.
-  - "해체 전 1차 생명줄 선 체결", "하부 3m 반경 통제" 등 현장 경험이 녹아있는 실효성 있는 대책: 16~30점.
+    - "조심하겠다", "안전모 쓰겠다" 같은 일반론/형식문구만 있으면: 0~5점.
+    - 단일 조치 위주이며 실행 순서·검증 기준이 없으면: 6~15점.
+    - 작업 단계(작업전/중/후)와 조건이 드러난 실무 조치 2개 이상이면: 16~23점.
+    - "해체 전 1차 생명줄 선 체결", "하부 3m 반경 통제"처럼 수치·거리·체결·통제 범위 등 검증 가능한 행동 기준까지 명시되면: 24~30점.
 
 ⑤ 개선이행도 (0~20점)
-  - 대책이 전혀 없거나 한 줄: 0~5점.
-  - 구체적으로 작성하려는 노력이 문맥상 보이고 2개 이상 조치 언급: 6~13점.
-  - 3개 이상 구체적 개선 조치 작성: 14~20점.
+    - 대책이 전혀 없거나 실행계획이 불명확하면: 0~5점.
+    - 조치 2개 이상 언급했지만 담당자·시점·확인방법이 모호하면: 6~13점.
+    - 조치 3개 이상 + 작업전·중·후 실행 흐름이 명확하면: 14~17점.
+    - 담당자·시점·확인방법(체크포인트)까지 명시되면: 18~20점.
 
 ⑥ 반복위반 패널티 (0~-30점, 감점)
   - "안전제일", "안전수칙 준수" 같은 껍데기 단어만 반복되면 즉시 -30점 강력 감점(과락 처리).
