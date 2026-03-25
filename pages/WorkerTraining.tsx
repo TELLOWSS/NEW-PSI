@@ -184,6 +184,32 @@ const resolveLanguageCandidates = (languageCode: string): string[] => {
     return Array.from(new Set(candidates));
 };
 
+const getKoreanFallbackHint = (languageCode: TrainingAudioLanguageCode, isGroupMode = false): string => {
+    if (languageCode === 'ko-KR') {
+        return isGroupMode
+            ? '선택 언어 MP3가 없어 한국어 MP3로 대체 재생 중입니다.'
+            : '선택 언어 MP3가 없어 한국어 MP3로 대체 재생됩니다.';
+    }
+    if (languageCode === 'cmn-CN') {
+        return isGroupMode
+            ? '所选语言 MP3 缺失，正在使用韩语 MP3 作为替代播放。'
+            : '所选语言 MP3 缺失，已自动使用韩语 MP3 替代播放。';
+    }
+    if (languageCode === 'vi-VN') {
+        return isGroupMode
+            ? 'Thiếu MP3 ngôn ngữ đã chọn, đang phát thay thế bằng MP3 tiếng Hàn.'
+            : 'Thiếu MP3 ngôn ngữ đã chọn, hệ thống tự động phát thay thế bằng MP3 tiếng Hàn.';
+    }
+    if (languageCode === 'ru-RU') {
+        return isGroupMode
+            ? 'MP3 выбранного языка отсутствует, выполняется воспроизведение корейского MP3 как замены.'
+            : 'MP3 выбранного языка отсутствует, автоматически используется корейский MP3 как замена.';
+    }
+    return isGroupMode
+        ? 'Selected language MP3 is missing, Korean MP3 fallback is playing.'
+        : 'Selected language MP3 is missing, Korean MP3 fallback is used automatically.';
+};
+
 type SignaturePadSectionProps = {
     selectedLanguageCode: TrainingAudioLanguageCode;
     uiText: UiText;
@@ -320,13 +346,28 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
         return map;
     }, [sessionData]);
 
-    const selectedAudioUrl = useMemo(() => {
+    const selectedAudioResolution = useMemo(() => {
         const candidates = resolveLanguageCandidates(effectiveLangKey);
         for (const key of candidates) {
-            if (normalizedAudioMap[key]) return normalizedAudioMap[key];
+            if (normalizedAudioMap[key]) {
+                return { url: normalizedAudioMap[key], isKoreanFallback: false };
+            }
         }
-        return '';
+
+        if (effectiveLangKey !== 'ko-KR') {
+            const koreanCandidates = resolveLanguageCandidates('ko-KR');
+            for (const key of koreanCandidates) {
+                if (normalizedAudioMap[key]) {
+                    return { url: normalizedAudioMap[key], isKoreanFallback: true };
+                }
+            }
+        }
+
+        return { url: '', isKoreanFallback: false };
     }, [normalizedAudioMap, effectiveLangKey]);
+
+    const selectedAudioUrl = selectedAudioResolution.url;
+    const isKoreanAudioFallback = selectedAudioResolution.isKoreanFallback;
 
     const selectedTranslatedText = useMemo(() => {
         if (!sessionData) return '';
@@ -846,7 +887,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
                             <p className="text-sm font-black text-slate-900">{TRAINING_AUDIO_LANGUAGES.find((item) => item.code === effectiveLangKey)?.flag} {effectiveLangKey}</p>
                         </div>
                         <span className={`text-[11px] font-black ${selectedAudioUrl ? 'text-emerald-700' : 'text-amber-700'}`}>
-                            {selectedAudioUrl ? uiText.mp3Connected : uiText.mp3Missing}
+                            {selectedAudioUrl ? (isKoreanAudioFallback ? `${uiText.mp3Connected} · 한국어 대체` : uiText.mp3Connected) : uiText.mp3Missing}
                         </span>
                     </div>
 
@@ -871,7 +912,11 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
 
                     <p className={`mt-3 text-xs font-bold ${selectedAudioUrl ? 'text-slate-600' : 'text-amber-700'}`}>
                         {selectedAudioUrl
-                            ? (isPlaying ? uiText.audioRecorded : uiText.audioActivateHint)
+                            ? (isPlaying
+                                ? uiText.audioRecorded
+                                : (isKoreanAudioFallback
+                                    ? getKoreanFallbackHint(effectiveLangKey, false)
+                                    : uiText.audioActivateHint))
                             : uiText.audioHiddenHint}
                     </p>
                 </div>
@@ -914,6 +959,9 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
                                 {groupAudioCompleted ? groupText.audioCompletedLabel : groupText.playAudioOnceHint}
                             </span>
                         </div>
+                        {isKoreanAudioFallback && (
+                            <p className="text-xs font-black text-indigo-700">{getKoreanFallbackHint(effectiveLangKey, true)}</p>
+                        )}
                         <p className="text-[11px] font-bold text-slate-600">{groupText.signaturePadHint}</p>
 
                         {canUseGroupSignature && selectedWorkers.map((worker) => (
