@@ -341,10 +341,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     );
     const actionableCoachingText = useMemo(() => buildActionableCoachingText(record), [record]);
     const improvementItems = useMemo(() => buildImprovementItems(record), [record]);
-    const scoreBreakdown = useMemo(
-        () => (hasValidScoreBreakdown(record.scoreBreakdown) ? record.scoreBreakdown : buildFallbackScoreBreakdown(record)),
-        [record]
-    );
+    const competencyProfile = useMemo(() => record.competencyProfile || deriveCompetencyProfile(record), [record]);
 
     // Trend Chart Rendering
     useEffect(() => {
@@ -519,15 +516,15 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         ) : (
                             <p className="text-[10px] text-slate-400 italic">채점 근거 없음</p>
                         )}
-                        {/* 6대 지표 미니 바 */}
+                        {/* 기록상세검증과 동일한 개인 안전역량 세부지표 */}
                         <div className="mt-2 pt-2 border-t border-slate-200 grid grid-cols-2 gap-x-3 gap-y-0.5">
                             {([
-                                ['①심리', scoreBreakdown.psychological, 10],
-                                ['②업무이해', scoreBreakdown.jobUnderstanding, 20],
-                                ['③위험평가', scoreBreakdown.riskAssessmentUnderstanding, 20],
-                                ['④숙련도', scoreBreakdown.proficiency, 30],
-                                ['⑤개선이행', scoreBreakdown.improvementExecution, 20],
-                                ['⑥패널티', scoreBreakdown.repeatViolationPenalty, 30, true],
+                                ['①심리', competencyProfile.psychologicalScore, 100],
+                                ['②업무이해', competencyProfile.jobUnderstandingScore, 100],
+                                ['③위험평가', competencyProfile.riskAssessmentUnderstandingScore, 100],
+                                ['④숙련도', competencyProfile.proficiencyScore, 100],
+                                ['⑤개선이행', competencyProfile.improvementExecutionScore, 100],
+                                ['⑥패널티', competencyProfile.repeatViolationPenalty, 20, true],
                             ] as [string, number, number, boolean?][]).map(([label, rawVal, max, isPenalty]) => {
                                 const val = clampMetric(rawVal, max);
                                 return (
@@ -539,7 +536,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                                 style={{ width: `${Math.min(100, (val / max) * 100)}%` }}
                                             />
                                         </div>
-                                        <span className={`text-[8px] font-black w-8 text-right ${isPenalty ? 'text-rose-600' : 'text-indigo-700'}`}>{isPenalty ? `-${val}` : `${val}/${max}`}</span>
+                                        <span className={`text-[8px] font-black w-10 text-right ${isPenalty ? 'text-rose-600' : 'text-indigo-700'}`}>{isPenalty ? `-${val}` : `${val}점`}</span>
                                     </div>
                                 );
                             })}
