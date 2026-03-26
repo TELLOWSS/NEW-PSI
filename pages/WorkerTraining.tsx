@@ -14,6 +14,35 @@ interface WorkerTrainingProps {
     isKioskMode?: boolean;
 }
 
+const TRAINING_ACCESS_BLOCK_THRESHOLD = 2;
+
+const buildTrainingAccessCountStorageKey = (sessionId: string, workerId: string): string => {
+    return `psi_training_access_count:${String(sessionId || '').trim()}:${String(workerId || '').trim()}`;
+};
+
+const applyLocalAccessFallback = (sessionId: string, workerId: string, trackedRef: React.MutableRefObject<string>): number | null => {
+    const storageKey = buildTrainingAccessCountStorageKey(sessionId, workerId);
+    if (trackedRef.current === storageKey) {
+        try {
+            const cachedCount = Number(localStorage.getItem(storageKey) || '0');
+            return Number.isFinite(cachedCount) ? cachedCount : null;
+        } catch {
+            return null;
+        }
+    }
+
+    trackedRef.current = storageKey;
+
+    try {
+        const previousCount = Number(localStorage.getItem(storageKey) || '0');
+        const nextCount = Number.isFinite(previousCount) ? previousCount + 1 : 1;
+        localStorage.setItem(storageKey, String(nextCount));
+        return nextCount;
+    } catch {
+        return null;
+    }
+};
+
 type SessionRow = {
     id: string;
     source_text_ko: string;
@@ -301,11 +330,13 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
     const [selectedWorkerIds, setSelectedWorkerIds] = useState<string[]>([]);
     const [checkingExistingSubmission, setCheckingExistingSubmission] = useState(false);
     const [existingSubmission, setExistingSubmission] = useState<ExistingSubmissionRow | null>(null);
+    const [isAccessBlockedByAttempt, setIsAccessBlockedByAttempt] = useState(false);
 
     const sigRef = useRef<SignatureCanvas | null>(null);
     const groupSigRefs = useRef<Record<string, SignatureCanvas | null>>({});
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const guidanceRef = useRef<HTMLDivElement | null>(null);
+    const accessCountTrackedKeyRef = useRef<string>('');
 
     const effectiveLangKey = selectedLanguageCode || resolveTrainingLanguageByNationality(nationality);
     const uiText = uiTranslations[effectiveLangKey] || uiTranslations['ko-KR'];
@@ -418,7 +449,6 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
 
     useEffect(() => {
         if (!isGroupProxyMode) return;
-
         const run = async () => {
             setWorkersLoading(true);
             const result = await supabase
@@ -492,6 +522,57 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
 
             const workerId = String(authenticatedWorker.workerId || '').trim();
             const workerName = String(authenticatedWorker.name || '').trim();
+
+            const applyAttemptBlockUi = (timestamp?: string, source: 'server' | 'local' = 'server') => {
+                setIsAccessBlockedByAttempt(true);
+                setExistingSubmission({
+                    id: `access-limit-${workerId}`,
+                    submitted_at: timestamp || new Date().toISOString(),
+                    signature_url: '',
+                });
+                setSubmitted(true);
+                setMessage(
+                    source === 'server'
+                        ? `동일 교육 재접속이 ${TRAINING_ACCESS_BLOCK_THRESHOLD}회 이상 확인되어 제출 완료 상태로 전환되었습니다.`
+                        : `접속 정책 확인이 지연되어 로컬 기준으로 재접속 ${TRAINING_ACCESS_BLOCK_THRESHOLD}회 이상을 차단했습니다.`
+                );
+            };
+
+            try {
+                const response = await fetch('/api/training/check-access', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sessionId,
+                        workerId,
+                        workerName,
+                    }),
+                });
+
+                const accessResult = await response.json();
+
+                if (response.ok && accessResult?.ok) {
+                    if (accessResult?.data?.blocked) {
+                        applyAttemptBlockUi(String(accessResult?.data?.accessedAt || ''), 'server');
+                        setCheckingExistingSubmission(false);
+                        return;
+                    }
+                } else {
+                    const fallbackCount = applyLocalAccessFallback(sessionId, workerId, accessCountTrackedKeyRef);
+                    if (fallbackCount !== null && fallbackCount >= TRAINING_ACCESS_BLOCK_THRESHOLD) {
+                        applyAttemptBlockUi(undefined, 'local');
+                        setCheckingExistingSubmission(false);
+                        return;
+                    }
+                }
+            } catch {
+                const fallbackCount = applyLocalAccessFallback(sessionId, workerId, accessCountTrackedKeyRef);
+                if (fallbackCount !== null && fallbackCount >= TRAINING_ACCESS_BLOCK_THRESHOLD) {
+                    applyAttemptBlockUi(undefined, 'local');
+                    setCheckingExistingSubmission(false);
+                    return;
+                }
+            }
 
             let foundRow: any = null;
 
@@ -800,7 +881,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
             <div className={pageContainerClass}>
                 <div className="bg-white p-6 rounded-2xl border border-emerald-200 bg-emerald-50/40 shadow-sm">
                     <h2 className="text-xl font-black text-emerald-800">이미 제출 완료된 교육입니다</h2>
-                    <p className="mt-2 text-sm font-bold text-slate-700">해당 QR 세션에서는 재제출이 차단됩니다.</p>
+                    <p className="mt-2 text-sm font-bold text-slate-700">{isAccessBlockedByAttempt ? `재접속 ${TRAINING_ACCESS_BLOCK_THRESHOLD}회 이상으로 해당 QR 세션은 자동 완료 처리되어 재진행이 차단됩니다.` : '해당 QR 세션에서는 재제출이 차단됩니다.'}</p>
                     <p className="mt-2 text-xs font-bold text-slate-500">
                         제출 시간: {existingSubmission.submitted_at ? new Date(existingSubmission.submitted_at).toLocaleString('ko-KR') : '-'}
                     </p>
