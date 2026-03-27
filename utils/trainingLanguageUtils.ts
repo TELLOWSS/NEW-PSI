@@ -59,11 +59,15 @@ export const resolveTrainingLanguageByNationality = (nationalityRaw: string): Tr
     if (nationality.includes('캄보디아') || nationality.includes('cambodia') || nationality.includes('khmer')) return 'km-KH';
     if (nationality.includes('인도네시아') || nationality.includes('indonesia')) return 'id-ID';
     if (nationality.includes('말레이시아') || nationality.includes('malaysia') || nationality.includes('malay')) return 'ms-MY';
-    if (nationality.includes('몽골') || nationality.includes('mongolia')) return 'mn-MN';
     if (nationality.includes('미얀마') || nationality.includes('myanmar')) return 'my-MM';
-    if (nationality.includes('러시아') || nationality.includes('russia')) return 'ru-RU';
-    if (nationality.includes('우즈벡') || nationality.includes('uzbek')) return 'uz-UZ';
+    // 러시아 — 키릴 문자(Россия, РФ) 및 영문 포함
+    if (nationality.includes('러시아') || nationality.includes('russia') || nationality.includes('россия') || nationality.includes('рф') || nationality.includes('российск')) return 'ru-RU';
+    // 우즈벡 — 키릴 문자(Ўзбекистон) 포함
+    if (nationality.includes('우즈벡') || nationality.includes('uzbek') || nationality.includes('ўзбек') || nationality.includes('узбек')) return 'uz-UZ';
     if (nationality.includes('태국') || nationality.includes('thailand')) return 'th-TH';
-    if (nationality.includes('카자흐') || nationality.includes('kazakh')) return 'kk-KZ';
+    // 카자흐 — 키릴 문자(Қазақстан) 포함
+    if (nationality.includes('카자흐') || nationality.includes('kazakh') || nationality.includes('қазақ') || nationality.includes('казахст')) return 'kk-KZ';
+    // 몽골 — 키릴 문자(Монгол) 포함
+    if (nationality.includes('몽골') || nationality.includes('mongol') || nationality.includes('монгол')) return 'mn-MN';
     return 'ko-KR';
 };

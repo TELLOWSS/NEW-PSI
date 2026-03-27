@@ -1126,6 +1126,103 @@ const AdminTraining: React.FC = () => {
         }
     };
 
+    // ─── 기존 세션에 음성 추가/교체 (QR코드 변경 없음) ─────────────────────────
+    const handleUpdateCurrentSessionAudio = async () => {
+        if (!currentSessionId) {
+            setMessage('현재 로드된 세션이 없습니다. 먼저 세션을 생성하거나 최근 세션을 불러와 주세요.');
+            return;
+        }
+
+        const filesToUpload = TRAINING_AUDIO_LANGUAGES.filter((lang) => audioFiles[lang.code]);
+        if (filesToUpload.length === 0) {
+            setMessage('교체/추가할 오디오 파일을 하나 이상 선택해 주세요.');
+            return;
+        }
+
+        const ok = window.confirm(
+            `현재 세션(${currentSessionId.slice(0, 8)}…)의 오디오를 업데이트합니다.\n` +
+            `선택된 파일: ${filesToUpload.map((l) => l.label).join(', ')}\n` +
+            `기존에 업로드된 나머지 언어 오디오는 유지됩니다.\n계속하시겠습니까?`
+        );
+        if (!ok) return;
+
+        setLoading(true);
+        setIsAudioUploadProcessing(true);
+        setMessage('선택된 언어 오디오 업로드 중...');
+
+        try {
+            // 기존 audio_urls를 기반으로 시작 (기존 URL 보존)
+            const mergedAudioUrls: Record<string, string | null> = { ...uploadedAudioUrls };
+
+            for (const language of filesToUpload) {
+                const file = audioFiles[language.code];
+                if (!file) continue;
+
+                const lowerName = file.name.toLowerCase();
+                const isSupportedAudio =
+                    file.type === 'audio/mpeg' ||
+                    file.type === 'audio/mp4' ||
+                    file.type === 'audio/x-m4a' ||
+                    lowerName.endsWith('.mp3') ||
+                    lowerName.endsWith('.m4a');
+                if (!isSupportedAudio) {
+                    throw new Error(`${language.label} 파일은 MP3 또는 M4A 형식만 업로드할 수 있습니다.`);
+                }
+
+                if (file.size > MAX_AUDIO_UPLOAD_BYTES) {
+                    setIsAudioUploadProcessing(false);
+                    setLoading(false);
+                    alert(HARD_BLOCK_UPLOAD_MESSAGE);
+                    throw new Error(HARD_BLOCK_UPLOAD_MESSAGE);
+                }
+
+                const safeFileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+                const filePath = `${currentSessionId}/${language.code}-${safeFileName}`;
+
+                const uploadRes = await supabase.storage
+                    .from('training_audio')
+                    .upload(filePath, file, {
+                        contentType: file.type || 'audio/mpeg',
+                        upsert: true,
+                    });
+
+                if (uploadRes.error) {
+                    throw new Error(`${language.label} 업로드 실패: ${uploadRes.error.message}`);
+                }
+
+                const publicUrl = supabase.storage.from('training_audio').getPublicUrl(filePath).data.publicUrl;
+                mergedAudioUrls[language.code] = `${publicUrl}?v=${Date.now()}`;
+            }
+
+            const syncData = await postAdminJson<{ audioUrls?: Record<string, string | null> }>(
+                '/api/admin/update-training-audio',
+                {
+                    sessionId: currentSessionId,
+                    audioUrls: mergedAudioUrls,
+                    originalScript: sourceTextKo,
+                },
+                { fallbackMessage: '오디오 URL 저장 실패' }
+            );
+
+            const resolvedAudioUrls = (syncData.audioUrls && typeof syncData.audioUrls === 'object')
+                ? syncData.audioUrls as Record<string, string | null>
+                : mergedAudioUrls;
+
+            setUploadedAudioUrls(resolvedAudioUrls);
+            setFailedLanguages(TRAINING_AUDIO_LANGUAGES.filter((lang) => !resolvedAudioUrls[lang.code]).map((lang) => lang.label));
+            setAudioFiles({});
+
+            const uploadedLangs = TRAINING_AUDIO_LANGUAGES.filter((lang) => mergedAudioUrls[lang.code]).map((l) => l.label);
+            setMessage(`기존 세션 오디오 업데이트 완료. 업로드된 언어: ${uploadedLangs.join(', ')}. QR코드는 그대로 유지됩니다.`);
+            await fetchRecentSessions();
+        } catch (error: any) {
+            setMessage(`오류: ${error?.message || '알 수 없는 오류'}`);
+        } finally {
+            setIsAudioUploadProcessing(false);
+            setLoading(false);
+        }
+    };
+
     const handleSaveSessionTargets = async () => {
         if (!currentSessionId) {
             setMessage('현재 세션이 없습니다. 먼저 세션을 생성하거나 불러와 주세요.');
@@ -1739,6 +1836,23 @@ const AdminTraining: React.FC = () => {
                         ? (isAudioUploadProcessing ? '오디오 업로드 중...' : '생성 중...')
                         : '생성'}
                 </button>
+
+                {currentSessionId && (
+                    <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+                        <p className="text-xs font-black text-emerald-800 mb-1">현재 로드 세션에 오디오 추가/교체</p>
+                        <p className="text-[11px] font-bold text-emerald-700 mb-2">
+                            위에서 파일을 선택한 언어만 업로드하며, <strong>기존 언어 오디오는 유지</strong>됩니다. QR코드 변경 없음.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={handleUpdateCurrentSessionAudio}
+                            disabled={loading || Object.values(audioFiles).every((f) => !f)}
+                            className="px-5 py-2 rounded-lg bg-emerald-600 text-white font-black text-sm hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            {loading && isAudioUploadProcessing ? '오디오 업로드 중...' : '현재 세션 오디오 추가/교체 (QR 유지)'}
+                        </button>
+                    </div>
+                )}
 
                 <button
                     type="button"

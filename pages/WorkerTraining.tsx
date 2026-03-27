@@ -205,10 +205,11 @@ const uiTranslations: Record<TrainingAudioLanguageCode, UiText> = {
 
 const resolveLanguageCandidates = (languageCode: string): string[] => {
     const normalized = String(languageCode || '').trim();
-    if (!normalized) return ['en-US'];
+    if (!normalized) return ['ko-KR'];
 
     const base = normalized.split('-')[0];
-    const candidates = [normalized, `${base.toLowerCase()}-${normalized.split('-')[1] || ''}`, base, 'en-US']
+    // 'en-US' 제거: 지원 언어에 영어가 없으므로 불필요한 매칭 방지
+    const candidates = [normalized, `${base.toLowerCase()}-${(normalized.split('-')[1] || '').toUpperCase()}`, base]
         .filter(Boolean);
     return Array.from(new Set(candidates));
 };

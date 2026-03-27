@@ -21,12 +21,12 @@ const normalizeNationality = (rawNationality: string): string => {
     if (nation.includes('베트남') || nation.includes('vietnam')) return '베트남';
     if (nation.includes('중국') || nation.includes('china')) return '중국';
     if (nation.includes('태국') || nation.includes('thailand')) return '태국';
-    if (nation.includes('우즈벡') || nation.includes('uzbekistan')) return '우즈베키스탄';
+    if (nation.includes('우즈벡') || nation.includes('uzbekistan') || nation.includes('ўзбек') || nation.includes('узбек')) return '우즈베키스탄';
     if (nation.includes('인도네시아') || nation.includes('indonesia')) return '인도네시아';
     if (nation.includes('캄보디아') || nation.includes('cambodia')) return '캄보디아';
-    if (nation.includes('몽골') || nation.includes('mongolia')) return '몽골';
-    if (nation.includes('카자흐') || nation.includes('kazakhstan')) return '카자흐스탄';
-    if (nation.includes('러시아') || nation.includes('russia')) return '러시아';
+    if (nation.includes('몽골') || nation.includes('mongolia') || nation.includes('монгол')) return '몽골';
+    if (nation.includes('카자흐') || nation.includes('kazakhstan') || nation.includes('қазақ') || nation.includes('казахст')) return '카자흐스탄';
+    if (nation.includes('러시아') || nation.includes('russia') || nation.includes('россия') || nation.includes('рф') || nation.includes('российск')) return '러시아';
     if (nation.includes('네팔') || nation.includes('nepal')) return '네팔';
     if (nation.includes('미얀마') || nation.includes('myanmar') || nation.includes('burma')) return '미얀마';
 
