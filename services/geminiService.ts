@@ -6,6 +6,7 @@ import { extractMessage } from '../utils/errorUtils';
 import { deriveIntegrityScore, enforceSafetyLevel } from '../utils/evidenceUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { getIsPaidApiMode } from '../utils/apiModeUtils';
+import { supabase } from '../lib/supabaseClient';
 
 /**
  * [API Rate Limiting State Management]
@@ -23,6 +24,35 @@ const OCR_MODEL_PRIMARY = 'gemini-3.0-flash';
 const OCR_MODEL_FALLBACK = 'gemini-3-flash-preview';
 const REASONING_MODEL_PRIMARY = 'gemini-3.1-pro-preview';
 const REASONING_MODEL_FALLBACK = 'gemini-3-flash-preview';
+const VECTOR_EMBED_MODEL = 'text-embedding-004';
+
+type BestPracticeCase = {
+    referenceId: string;
+    score: number;
+    similarity: number;
+    text: string;
+};
+
+const getActiveApiKey = (): string => {
+    const isPaidApiMode = getIsPaidApiMode();
+    return isPaidApiMode
+        ? (localStorage.getItem('paidApiKey') || '')
+        : (localStorage.getItem('freeApiKey') || '');
+};
+
+    const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        try {
+            return await Promise.race([
+                promise,
+                new Promise<T>((resolve) => {
+                    timer = setTimeout(() => resolve(fallback), timeoutMs);
+                }),
+            ]);
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
+    };
 
 const getQuotaState = (): ApiQuotaState => {
     try {
@@ -78,16 +108,158 @@ const isModelAvailabilityError = (errorMsg: string): boolean => {
 };
 
 const getAiInstance = () => {
-    const isPaidApiMode = getIsPaidApiMode();
-    const apiKey = isPaidApiMode
-        ? (localStorage.getItem('paidApiKey') || '')
-        : (localStorage.getItem('freeApiKey') || '');
+    const apiKey = getActiveApiKey();
 
     if (!apiKey) {
         throw new Error('설정 화면에서 API 키를 먼저 입력해주세요.');
     }
 
     return new GoogleGenAI({ apiKey });
+};
+
+const toVectorLiteral = (vector: number[]): string => {
+    return `[${vector.map((value) => Number(value).toFixed(8)).join(',')}]`;
+};
+
+const extractSearchSeedFromImage = async (
+    ai: GoogleGenAI,
+    imageData: string,
+    mimeType: string,
+    filenameHint?: string,
+): Promise<string> => {
+    try {
+        const response = await ai.models.generateContent({
+            model: OCR_MODEL_PRIMARY,
+            contents: {
+                parts: [
+                    {
+                        text: `아래 이미지는 건설 현장 위험성평가 수기 기록지입니다.\n작업 공종/핵심 위험/대책을 한국어 키워드 1문장(최대 120자)으로 요약하세요.\nJSON으로만 반환: {"searchSeed":"..."}\n파일명: ${filenameHint || 'unknown'}`,
+                    },
+                    { inlineData: { data: imageData, mimeType } },
+                ],
+            },
+            config: {
+                responseMimeType: 'application/json',
+                temperature: 0.1,
+            },
+        });
+
+        const raw = String(response.text || '').trim();
+        if (!raw) return String(filenameHint || '').trim();
+
+        try {
+            const parsed = JSON.parse(raw) as Record<string, unknown>;
+            const seed = String(parsed.searchSeed || '').trim();
+            return seed || String(filenameHint || '').trim();
+        } catch {
+            return String(filenameHint || '').trim();
+        }
+    } catch {
+        return String(filenameHint || '').trim();
+    }
+};
+
+const requestEmbeddingForQuery = async (queryText: string): Promise<number[]> => {
+    const apiKey = getActiveApiKey();
+    if (!apiKey || !queryText.trim()) return [];
+
+    try {
+        const response = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/${VECTOR_EMBED_MODEL}:embedContent?key=${apiKey}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    content: { parts: [{ text: queryText }] },
+                    taskType: 'SEMANTIC_SIMILARITY',
+                }),
+            }
+        );
+
+        if (!response.ok) return [];
+        const payload = await response.json();
+        const values = payload?.embedding?.values;
+        return Array.isArray(values)
+            ? values.map((item: unknown) => Number(item)).filter((item: number) => Number.isFinite(item))
+            : [];
+    } catch {
+        return [];
+    }
+};
+
+const buildBestPracticeSection = (cases: BestPracticeCase[]): string => {
+    if (cases.length === 0) {
+        return `[과거 현장 실증 우수 대책]\n- 조회 결과 없음 (80점 이상 벡터 사례 미축적)`;
+    }
+
+    const lines = ['[과거 현장 실증 우수 대책]'];
+    cases.forEach((item, index) => {
+        lines.push(
+            `${index + 1}) ref=${item.referenceId}, score=${item.score}, sim=${item.similarity.toFixed(3)}\n` +
+            `   대책요약: ${item.text}`
+        );
+    });
+    return lines.join('\n');
+};
+
+const fetchTopBestPracticeCasesByText = async (queryText: string): Promise<BestPracticeCase[]> => {
+    const queryVector = await requestEmbeddingForQuery(queryText);
+    if (queryVector.length === 0) return [];
+
+    const vectorLiteral = toVectorLiteral(queryVector);
+
+    const ragRes = await supabase.rpc('match_risk_best_practice_vectors', {
+        query_embedding_text: vectorLiteral,
+        match_count: 3,
+        min_score: 80,
+    });
+
+    if (ragRes.error || !Array.isArray(ragRes.data)) {
+        return [];
+    }
+
+    return (ragRes.data as Array<Record<string, unknown>>)
+        .map((row) => {
+            const referenceId = String(row.source_record_id || row.id || '').trim();
+            const score = Number(row.safety_score || 0);
+            const similarity = Number(row.similarity || 0);
+            const baseText = String(row.actionable_coaching || row.ko_text || '').trim();
+            const text = baseText.replace(/\s+/g, ' ').slice(0, 220);
+            return {
+                referenceId,
+                score,
+                similarity,
+                text,
+            };
+        })
+        .filter((item) => item.referenceId && item.text && Number.isFinite(item.score) && Number.isFinite(item.similarity));
+};
+
+const fetchTopBestPracticeSectionByText = async (queryText: string): Promise<string> => {
+    try {
+        const cases = await fetchTopBestPracticeCasesByText(queryText);
+        return buildBestPracticeSection(cases);
+    } catch {
+        return buildBestPracticeSection([]);
+    }
+};
+
+const fetchTopBestPracticeSection = async (
+    ai: GoogleGenAI,
+    imageData: string,
+    mimeType: string,
+    filenameHint?: string,
+): Promise<string> => {
+    try {
+        const searchSeed = await extractSearchSeedFromImage(ai, imageData, mimeType, filenameHint);
+            return await withTimeout(
+                fetchTopBestPracticeSectionByText(searchSeed || String(filenameHint || '위험성평가 작업 대책')),
+                3500,
+                buildBestPracticeSection([]),
+            );
+    } catch {
+        return buildBestPracticeSection([]);
+    }
 };
 
 // --- Schemas (Defined exactly as before) ---
@@ -703,6 +875,9 @@ async function callGeminiWithRetry(
         return [createOcrErrorRecord(imageSource, filenameHint, '이미지 데이터 유실', `오류: ${errMsg}`, errorType)];
     }
 
+    // OCR 프롬프트 직전: 현재 문서 기반 검색 시드를 만들고 벡터 DB에서 80점 이상 우수사례 3건 조회
+    const bestPracticeSection = await fetchTopBestPracticeSection(ai, imageData, mimeType, filenameHint);
+
     // 2. Retry Loop with Aggressive Backoff
     // [IMPROVED] Add total wait time protection
     const startTime = Date.now();
@@ -751,7 +926,12 @@ async function callGeminiWithRetry(
 
             const prompt = `위험성 평가 문서를 분석하십시오. 파일명: ${filenameHint || 'unknown'}.
             한국인은 한국어로, 외국인은 한국어와 모국어를 병기하여 JSON으로 출력하십시오.
-            반드시 scoreReasoning 배열을 포함하고, 점수-등급 일치(80/60 기준)를 확인한 후 반환하십시오.`;
+            반드시 scoreReasoning 배열을 포함하고, 점수-등급 일치(80/60 기준)를 확인한 후 반환하십시오.
+
+            ${bestPracticeSection}
+
+            위 우수사례의 실행 가능한 대책 표현(작업전/중/후, 수치, 범위, 검증포인트)을 참고하여
+            actionable_coaching 및 actionable_coaching_native를 현장 실무형으로 작성하십시오.`;
             
             const imagePart = { inlineData: { data: imageData, mimeType: mimeType } };
 
@@ -993,6 +1173,18 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
         safetyLevel: record.safetyLevel,
     };
 
+    const reanalysisQuerySeed = [
+        record.jobField,
+        record.koreanTranslation,
+        record.fullText,
+        record.actionable_coaching,
+    ].filter(Boolean).join(' ').slice(0, 800);
+    const bestPracticeSection = await withTimeout(
+        fetchTopBestPracticeSectionByText(reanalysisQuerySeed || '위험성평가 작업 대책'),
+        3000,
+        buildBestPracticeSection([]),
+    );
+
     const systemInstruction = `
     **역할**: 당신은 신규 평가자가 아니라, 원본 대비 수정 편차(Delta)를 계산하는 깐깐한 안전 감사관이다.
     **임무**: [근로자 원본 데이터]와 [관리자 수정 최종 데이터]를 비교해 기존 분석을 감사 방식으로 갱신.
@@ -1019,6 +1211,12 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
 
     [관리자가 수정한 최종 데이터]
     ${JSON.stringify(finalSnapshot)}
+
+    ${bestPracticeSection}
+
+    [우수사례 반영 규칙]
+    - 위 사례의 작업 단계(작업전/중/후), 수치/범위, 검증 포인트를 코칭 문장에 반영한다.
+    - 외국인 근로자는 actionable_coaching_native에 현장 실무형 번역으로 반드시 제공한다.
 
     [응답 규칙]
     - scoreReasoning은 최소 1개 이상 작성.

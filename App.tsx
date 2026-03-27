@@ -10,8 +10,9 @@ import { restoreRecordFromUrl } from './utils/qrUtils';
 import { extractMessage } from './utils/errorUtils';
 import { appendAuditTrail, appendCorrectionHistory, attachEvidenceHash, deriveCompetencyProfile, deriveIntegrityScore, enforceSafetyLevel } from './utils/evidenceUtils';
 import { applyIdentityPolicy } from './utils/identityUtils';
-import { isAdminAuthenticated, setAdminAuthenticated, setAdminAuthToken, verifyAdminPassword } from './utils/adminGuard';
+import { getAdminAuthToken, isAdminAuthenticated, setAdminAuthenticated, setAdminAuthToken, verifyAdminPassword } from './utils/adminGuard';
 import { getSafetyLevelThresholds } from './utils/safetyLevelUtils';
+import { appendBestPracticeSyncFailureLog, setBestPracticeSyncState } from './utils/bestPracticeSyncStatus';
 
 const OcrAnalysis = lazy(() => import('./pages/OcrAnalysis'));
 const WorkerManagement = lazy(() => import('./pages/WorkerManagement'));
@@ -365,6 +366,87 @@ const App: React.FC = () => {
     const [deletedRecord, setDeletedRecord] = useState<WorkerRecord | null>(null);
     const [showUndoToast, setShowUndoToast] = useState(false);
     const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const queuedEmbeddingKeysRef = useRef<Set<string>>(new Set());
+
+    const queueBestPracticeEmbedding = useCallback((record: WorkerRecord) => {
+        const isFinalized =
+            record.reviewStatus === 'APPROVED' ||
+            record.approvalStatus === 'APPROVED' ||
+            record.approvalStatus === 'OVERRIDDEN';
+        if (!isFinalized) return;
+        if ((record.ocrErrorType || '').trim()) return;
+        const score = typeof record.safetyScore === 'number' ? record.safetyScore : 0;
+        if (score < 80) return;
+
+        const koreanText = String(record.koreanTranslation || record.fullText || '').trim();
+        if (koreanText.length < 20) return;
+
+        const dedupeKey = `${record.id}:${record.evidenceHash || ''}:${Math.round(score)}`;
+        if (queuedEmbeddingKeysRef.current.has(dedupeKey)) return;
+        queuedEmbeddingKeysRef.current.add(dedupeKey);
+
+        const adminAuthToken = getAdminAuthToken();
+        if (!adminAuthToken) return;
+
+        const body = {
+            sourceRecordId: record.id,
+            safetyScore: score,
+            koreanText,
+            originalLanguage: String(record.language || '').trim() || 'ko',
+            actionableCoaching: String(record.actionable_coaching || '').trim(),
+            jobField: String(record.jobField || '').trim(),
+            nationality: String(record.nationality || '').trim(),
+            approvedAt: record.approvedAt || new Date().toISOString(),
+        };
+
+        const nowIso = new Date().toISOString();
+        setBestPracticeSyncState({
+            status: 'pending',
+            lastAttemptAt: nowIso,
+            message: `우수사례 임베딩 저장 시도 중 (${record.name})`,
+        });
+
+        void fetch('/api/ocr/upsert-best-practice', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-admin-auth': adminAuthToken,
+            },
+            body: JSON.stringify(body),
+            keepalive: true,
+        })
+            .then(async (response) => {
+                if (!response.ok) {
+                    const detail = await response.text().catch(() => '');
+                    const failMessage = `동기화 실패(${response.status}): ${detail.slice(0, 120) || '응답 오류'}`;
+                    setBestPracticeSyncState({
+                        status: 'failed',
+                        lastAttemptAt: nowIso,
+                        message: failMessage,
+                    });
+                    appendBestPracticeSyncFailureLog(failMessage);
+                    return;
+                }
+
+                setBestPracticeSyncState({
+                    status: 'success',
+                    lastAttemptAt: nowIso,
+                    lastSuccessAt: new Date().toISOString(),
+                    message: `우수사례 동기화 완료 (${record.name}, ${Math.round(score)}점)`,
+                });
+            })
+            .catch((error) => {
+                const msg = extractMessage(error);
+                const failMessage = `동기화 실패: ${msg}`;
+                setBestPracticeSyncState({
+                    status: 'failed',
+                    lastAttemptAt: nowIso,
+                    message: failMessage,
+                });
+                appendBestPracticeSyncFailureLog(failMessage);
+                console.warn('[best-practice] background upsert failed:', msg);
+            });
+    }, []);
 
     const sessionIdFromUrl = new URLSearchParams(window.location.search).get('sessionId') || '';
     const modeFromUrl = new URLSearchParams(window.location.search).get('mode') || '';
@@ -509,7 +591,8 @@ const App: React.FC = () => {
 
         setWorkerRecords(prev => prev.map(r => r.id === hashed.id ? hashed : r));
         await saveRecordToDB(hashed);
-    }, []);
+        queueBestPracticeEmbedding(hashed);
+    }, [queueBestPracticeEmbedding]);
 
     // [Updated] Stable Handler with functional updates and Ref access
     const handleDeleteRecord = useCallback(async (id: string) => {

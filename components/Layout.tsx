@@ -4,6 +4,14 @@ import { Sidebar } from './Sidebar';
 import { Footer } from './Footer';
 import type { Page } from '../types';
 import { API_MODE_CHANGED_EVENT, getIsPaidApiMode } from '../utils/apiModeUtils';
+import { BestPracticeSyncBadge } from './shared/BestPracticeSyncBadge';
+import {
+    BEST_PRACTICE_SYNC_STATUS_EVENT,
+    getBestPracticeSyncFailureLogs,
+    getBestPracticeSyncState,
+    type BestPracticeSyncFailureLog,
+    type BestPracticeSyncState,
+} from '../utils/bestPracticeSyncStatus';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -14,6 +22,8 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isPaidApiMode, setIsPaidApiMode] = useState(false);
+    const [bestPracticeSyncState, setBestPracticeSyncState] = useState<BestPracticeSyncState>(() => getBestPracticeSyncState());
+    const [bestPracticeFailureLogs, setBestPracticeFailureLogs] = useState<BestPracticeSyncFailureLog[]>(() => getBestPracticeSyncFailureLogs());
 
     const pageTitles: { [key in Page]: string } = {
         'dashboard': '대시보드',
@@ -70,6 +80,26 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         return () => {
             window.removeEventListener('storage', syncApiMode);
             window.removeEventListener(API_MODE_CHANGED_EVENT, syncApiMode);
+        };
+    }, []);
+
+    useEffect(() => {
+        const syncState = () => {
+            setBestPracticeSyncState(getBestPracticeSyncState());
+            setBestPracticeFailureLogs(getBestPracticeSyncFailureLogs());
+        };
+
+        const handleCustom = () => {
+            syncState();
+        };
+
+        syncState();
+        window.addEventListener('storage', syncState);
+        window.addEventListener(BEST_PRACTICE_SYNC_STATUS_EVENT, handleCustom as EventListener);
+
+        return () => {
+            window.removeEventListener('storage', syncState);
+            window.removeEventListener(BEST_PRACTICE_SYNC_STATUS_EVENT, handleCustom as EventListener);
         };
     }, []);
 
@@ -144,6 +174,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                <span className="sm:hidden">{isPaidApiMode ? '유료' : '무료'}</span>
                                <span className="hidden sm:inline">{isPaidApiMode ? '유료 API' : '무료 API'}</span>
                            </span>
+                           <BestPracticeSyncBadge state={bestPracticeSyncState} failureLogs={bestPracticeFailureLogs} />
                        </div>
                     </div>
                 </header>
