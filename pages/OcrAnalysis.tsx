@@ -754,7 +754,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
     const requestServerRetryAnalysis = useCallback(async (record: WorkerRecord): Promise<WorkerRecord> => {
         const bestImageSource = getBestRetryImageSource(record);
-        const response = await fetch('/api/ocr/retry', {
+        const response = await fetch('/api/gateway?action=ocr.retry', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

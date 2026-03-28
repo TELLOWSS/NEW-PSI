@@ -13,6 +13,7 @@ import { applyIdentityPolicy } from './utils/identityUtils';
 import { getAdminAuthToken, isAdminAuthenticated, setAdminAuthenticated, setAdminAuthToken, verifyAdminPassword } from './utils/adminGuard';
 import { getSafetyLevelThresholds } from './utils/safetyLevelUtils';
 import { appendBestPracticeSyncFailureLog, setBestPracticeSyncState } from './utils/bestPracticeSyncStatus';
+import { analyzeWorkerRiskAssessment } from './services/geminiService';
 
 const OcrAnalysis = lazy(() => import('./pages/OcrAnalysis'));
 const WorkerManagement = lazy(() => import('./pages/WorkerManagement'));
@@ -406,7 +407,7 @@ const App: React.FC = () => {
             message: `우수사례 임베딩 저장 시도 중 (${record.name})`,
         });
 
-        void fetch('/api/ocr/upsert-best-practice', {
+        void fetch('/api/gateway?action=ocr.upsert-best-practice', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -720,7 +721,6 @@ const App: React.FC = () => {
                 ? record.originalImage.split('base64,')[1] 
                 : record.originalImage;
 
-            const { analyzeWorkerRiskAssessment } = await import('./services/geminiService');
             const results = await analyzeWorkerRiskAssessment(cleanBase64, 'image/jpeg', record.filename || record.name);
             
             if (results && results.length > 0) {

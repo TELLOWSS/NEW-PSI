@@ -67,6 +67,8 @@ returns table (
 )
 language sql
 stable
+security definer
+set search_path = public
 as $$
     select
         rbpv.id,
@@ -82,5 +84,9 @@ as $$
     order by rbpv.embedding <=> (query_embedding_text::vector)
     limit greatest(match_count, 1);
 $$;
+
+revoke all on function public.match_risk_best_practice_vectors(text, int, int) from public;
+grant execute on function public.match_risk_best_practice_vectors(text, int, int) to anon;
+grant execute on function public.match_risk_best_practice_vectors(text, int, int) to authenticated;
 
 commit;

@@ -77,7 +77,7 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
         setErrorMessage('');
 
         try {
-            const response = await fetch('/api/worker/authenticate', {
+            const response = await fetch('/api/gateway?action=worker.authenticate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
