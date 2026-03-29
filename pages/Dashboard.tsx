@@ -1,5 +1,5 @@
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { WorkerRecord, SafetyCheckRecord, Page } from '../types';
 import { StatCard } from '../components/StatCard';
 import { NationalityChart } from '../components/charts/NationalityChart';
@@ -8,6 +8,10 @@ import { SafetyCheckDonutChart } from '../components/charts/SafetyCheckDonutChar
 import { SafetyActionCenter } from '../components/SafetyActionCenter';
 import { Tooltip } from '../components/shared/Tooltip';
 import { BrandPhilosophyLogo } from '../components/shared/BrandPhilosophyLogo';
+import { TradeNationalityCrossChart, type SelectedTarget } from '../components/charts/TradeNationalityCrossChart';
+import { TradeSixMetricRadar } from '../components/charts/TradeSixMetricRadar';
+import { WorkerTrendPanel } from '../components/charts/WorkerTrendPanel';
+import { getTargetGroupKey, transformDashboardData } from '../utils/dashboardDataTransformer';
 
 interface DashboardProps {
     workerRecords: WorkerRecord[];
@@ -21,6 +25,8 @@ const isManagementRole = (field: string) =>
 
 const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords, setCurrentPage }) => {
     // 순수 근로자 데이터만 필터링 (관리 직군 제외)
+    const [selectedTarget, setSelectedTarget] = useState<SelectedTarget | null>(null);
+
     const workerOnlyRecords = useMemo(() => 
         workerRecords.filter(r => !isManagementRole(r.jobField))
     , [workerRecords]);
@@ -44,6 +50,28 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         
         return { totalWorkers, averageScore, highRiskWorkers, totalChecks };
     }, [workerOnlyRecords, safetyCheckRecords]);
+
+    const dashboardData = useMemo(() => {
+        return transformDashboardData(workerOnlyRecords);
+    }, [workerOnlyRecords]);
+
+    const selectedGroup = useMemo(() => {
+        if (!selectedTarget) return null;
+        const key = getTargetGroupKey(selectedTarget.trade, selectedTarget.nationality);
+        return dashboardData.groups[key] ?? null;
+    }, [selectedTarget, dashboardData]);
+
+    const unassignedCount = dashboardData.unassignedRecordCount;
+    const isUnassignedWarning = unassignedCount > 0;
+
+    const handleNavigateToUnassignedRecords = () => {
+        const params = new URLSearchParams(window.location.search);
+        params.set('filter', 'unassigned');
+        const query = params.toString();
+        const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
+        window.history.replaceState({}, '', nextUrl);
+        setCurrentPage('worker-management');
+    };
     
     // [SIMULATION DATE] 2026-02-17
     const today = "2026년 2월 17일 화요일";
@@ -198,6 +226,40 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     onClick={() => setCurrentPage('safety-checks')}
                 />
             </div>
+
+            <button
+                type="button"
+                onClick={handleNavigateToUnassignedRecords}
+                className={`w-full rounded-xl sm:rounded-2xl border px-4 sm:px-5 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-left transition-colors ${
+                isUnassignedWarning
+                    ? 'bg-amber-50 border-amber-300 hover:bg-amber-100 cursor-pointer'
+                    : 'bg-slate-50 border-slate-200 hover:bg-slate-100 cursor-pointer'
+            }`}
+            >
+                <div className="flex items-start sm:items-center gap-2.5">
+                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                        isUnassignedWarning ? 'bg-amber-100 text-amber-600' : 'bg-slate-200 text-slate-500'
+                    }`}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p className={`text-sm font-black ${isUnassignedWarning ? 'text-amber-800' : 'text-slate-700'}`}>
+                            식별 불가 데이터 (Unassigned Records)
+                        </p>
+                        <p className={`text-xs font-medium ${isUnassignedWarning ? 'text-amber-700' : 'text-slate-500'}`}>
+                            고유 식별자(worker_uuid/employeeId/qrId) 미매핑 레코드는 개인 이력 분석에서 제외됩니다.
+                        </p>
+                    </div>
+                </div>
+                <div className="flex items-end gap-1 sm:gap-1.5">
+                    <span className={`text-2xl sm:text-3xl font-black ${isUnassignedWarning ? 'text-amber-700' : 'text-slate-500'}`}>
+                        {unassignedCount}
+                    </span>
+                    <span className={`text-sm font-bold pb-0.5 ${isUnassignedWarning ? 'text-amber-600' : 'text-slate-500'}`}>건</span>
+                </div>
+            </button>
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
                 <div className="lg:col-span-2">
@@ -234,6 +296,58 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         <SafetyCheckDonutChart records={safetyCheckRecords} />
                     </div>
                 </div>
+            </div>
+
+            {/* ═══════════════════════════════════════════════════════
+                    공종 × 국적 교차 안전 숙련도 분석 섹션 (아래)
+            ═══════════════════════════════════════════════════════ */}
+            <div className="space-y-4 sm:space-y-6">
+                {/* 섹션 헤더 */}
+                <div className="flex items-center gap-3 px-1">
+                    <div className="w-1 h-6 bg-indigo-500 rounded-full" />
+                    <div>
+                        <h2 className="text-base sm:text-lg font-black text-slate-800">
+                            공종 × 국적 교차 안전 숙련도 분석
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                            공종별 국적 그룹을 클릭해 취약 타겟을 식별하고, TBM 교육 대상을 즉시 확정하세요.
+                        </p>
+                    </div>
+                </div>
+
+                {/* ① Grouped Bar Chart */}
+                <TradeNationalityCrossChart
+                    onSelect={setSelectedTarget}
+                    selected={selectedTarget}
+                    data={dashboardData}
+                />
+
+                {/* ② Radar Chart — 선택된 타겟 그룹의 6대 지표 */}
+                {selectedTarget ? (
+                    <TradeSixMetricRadar
+                        targetGroup={selectedGroup}
+                        siteAverageMetrics={dashboardData.siteAverageMetrics}
+                    />
+                ) : (
+                    <div className="bg-white rounded-2xl shadow-lg border border-dashed border-indigo-200 p-8 flex flex-col items-center justify-center gap-2 text-center min-h-[200px]">
+                        <svg className="w-8 h-8 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" />
+                        </svg>
+                        <p className="text-sm font-bold text-indigo-400">위 그래프에서 분석할 작업조를 클릭하세요</p>
+                        <p className="text-xs text-slate-400">선택된 공종·국적 그룹의 6대 지표 방사형 차트가 표시됩니다.</p>
+                    </div>
+                )}
+
+                {/* ③ 개인별 트렌드 패널 */}
+                {selectedTarget ? (
+                    <WorkerTrendPanel
+                        targetGroup={selectedGroup}
+                    />
+                ) : (
+                    <div className="bg-white rounded-2xl shadow-lg border border-dashed border-slate-200 p-6 flex items-center justify-center min-h-[100px]">
+                        <p className="text-xs text-slate-400 font-medium">작업조를 선택하면 개인별 트렌드 목록이 활성화됩니다.</p>
+                    </div>
+                )}
             </div>
         </div>
     );

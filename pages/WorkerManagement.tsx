@@ -496,6 +496,13 @@ interface WorkerManagementProps {
     onUpdateRecord?: (worker: WorkerRecord) => Promise<void> | void;
 }
 
+const isUnassignedWorkerRecord = (record: WorkerRecord): boolean => {
+    const hasWorkerUuid = String((record as WorkerRecord & { worker_uuid?: string; workerUuid?: string }).worker_uuid || (record as WorkerRecord & { worker_uuid?: string; workerUuid?: string }).workerUuid || '').trim().length > 0;
+    const hasEmployeeId = String(record.employeeId || '').trim().length > 0;
+    const hasQrId = String(record.qrId || '').trim().length > 0;
+    return !hasWorkerUuid && !hasEmployeeId && !hasQrId;
+};
+
 interface BulkWorkerUploadRow {
     name: string;
     nationality: string;
@@ -594,6 +601,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [selectedCrew, setSelectedCrew] = useState('전체');
     const [filterLevel, setFilterLevel] = useState('전체');
     const [reliabilityFilter, setReliabilityFilter] = useState<'all' | 'trusted' | 'needs-review'>('all');
+    const [isUnassignedFilterActive, setIsUnassignedFilterActive] = useState(() => new URLSearchParams(window.location.search).get('filter') === 'unassigned');
 
     // --- Print Modal States ---
     const [isPrintMode, setIsPrintMode] = useState(false);
@@ -1257,14 +1265,26 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             const matchesJobField = selectedJobField === '전체' || safeJobField === selectedJobField;
             const matchesCrew = selectedCrew === '전체' || safeCrew === selectedCrew;
             const matchesLevel = filterLevel === '전체' || r.safetyLevel === filterLevel;
+            const matchesUnassigned = !isUnassignedFilterActive || isUnassignedWorkerRecord(r);
             const reliability = verifyIssuanceReliability(r);
             const matchesReliability =
                 reliabilityFilter === 'all' ||
                 (reliabilityFilter === 'trusted' && reliability.trusted) ||
                 (reliabilityFilter === 'needs-review' && !reliability.trusted);
-            return matchesSearch && matchesJobField && matchesCrew && matchesLevel && matchesReliability;
+            return matchesSearch && matchesJobField && matchesCrew && matchesLevel && matchesUnassigned && matchesReliability;
         });
-    }, [latestRecords, searchTerm, selectedJobField, selectedCrew, filterLevel, reliabilityFilter]);
+    }, [latestRecords, searchTerm, selectedJobField, selectedCrew, filterLevel, reliabilityFilter, isUnassignedFilterActive]);
+
+    const clearUnassignedFilter = () => {
+        setIsUnassignedFilterActive(false);
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('filter') === 'unassigned') {
+            params.delete('filter');
+            const query = params.toString();
+            const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
+            window.history.replaceState({}, '', nextUrl);
+        }
+    };
 
     const filteredReliabilitySummary = useMemo(() => {
         const evaluations = filteredRecords.map((worker) => verifyIssuanceReliability(worker));
@@ -2196,6 +2216,18 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
             {/* Controls */}
             <div className="bg-white p-6 rounded-[30px] shadow-xl border border-slate-100 flex flex-col gap-4 items-stretch no-print">
+                {isUnassignedFilterActive && (
+                    <div className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <p className="text-sm font-black text-amber-800">⚠️ 식별 불가 데이터 필터링 중</p>
+                        <button
+                            type="button"
+                            onClick={clearUnassignedFilter}
+                            className="inline-flex items-center justify-center rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-black text-amber-800 hover:bg-amber-100"
+                        >
+                            Clear Filter
+                        </button>
+                    </div>
+                )}
                 <input
                     ref={bulkFileInputRef}
                     type="file"
