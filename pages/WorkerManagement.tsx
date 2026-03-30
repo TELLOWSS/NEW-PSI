@@ -503,6 +503,10 @@ const isUnassignedWorkerRecord = (record: WorkerRecord): boolean => {
     return !hasWorkerUuid && !hasEmployeeId && !hasQrId;
 };
 
+const isUnassignedFilterFromUrl = (): boolean => {
+    return new URLSearchParams(window.location.search).get('filter') === 'unassigned';
+};
+
 interface BulkWorkerUploadRow {
     name: string;
     nationality: string;
@@ -601,7 +605,20 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [selectedCrew, setSelectedCrew] = useState('전체');
     const [filterLevel, setFilterLevel] = useState('전체');
     const [reliabilityFilter, setReliabilityFilter] = useState<'all' | 'trusted' | 'needs-review'>('all');
-    const [isUnassignedFilterActive, setIsUnassignedFilterActive] = useState(() => new URLSearchParams(window.location.search).get('filter') === 'unassigned');
+    const [isUnassignedFilterActive, setIsUnassignedFilterActive] = useState(() => isUnassignedFilterFromUrl());
+
+    useEffect(() => {
+        const syncUnassignedFilterFromUrl = () => {
+            setIsUnassignedFilterActive(isUnassignedFilterFromUrl());
+        };
+
+        syncUnassignedFilterFromUrl();
+        window.addEventListener('popstate', syncUnassignedFilterFromUrl);
+
+        return () => {
+            window.removeEventListener('popstate', syncUnassignedFilterFromUrl);
+        };
+    }, []);
 
     // --- Print Modal States ---
     const [isPrintMode, setIsPrintMode] = useState(false);
