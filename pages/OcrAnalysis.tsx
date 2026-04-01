@@ -1953,6 +1953,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             </div>
 
             {/* 공종/팀장 일괄 수정 UI */}
+            // 일괄 수정 상태
+            const [batchJobField, setBatchJobField] = useState('');
+            const [batchTeamLeader, setBatchTeamLeader] = useState('');
             <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden mb-4">
                 <div className="flex flex-wrap gap-2 items-center p-4 border-b border-slate-100">
                     <span className="font-bold text-slate-700 text-xs mr-2">근로자 일괄 선택</span>
