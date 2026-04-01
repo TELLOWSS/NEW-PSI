@@ -149,6 +149,24 @@ async function callApi(endpoint: string, body: object): Promise<{ ok: boolean; [
 // -----------------------------------------------------------------------
 const ObserveTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> = ({ assessmentMonth, workers }) => {
     const [selectedWorkers, setSelectedWorkers] = useState<Set<string>>(new Set());
+    const [search, setSearch] = useState('');
+    const [filterTrade, setFilterTrade] = useState('전체');
+    const [filterTeam, setFilterTeam] = useState('전체');
+
+    // 필터/검색 적용된 근로자 목록
+    const filteredWorkers = useMemo(() => {
+        return workers.filter(w => {
+            const matchesSearch =
+                !search ||
+                w.name.includes(search) ||
+                (w.team && w.team.includes(search)) ||
+                (w.trade && w.trade.includes(search)) ||
+                (w.id && w.id.includes(search));
+            const matchesTrade = filterTrade === '전체' || w.trade === filterTrade;
+            const matchesTeam = filterTeam === '전체' || w.team === filterTeam;
+            return matchesSearch && matchesTrade && matchesTeam;
+        });
+    }, [workers, search, filterTrade, filterTeam]);
     const [behaviorPreset, setBehaviorPreset] = useState<string | null>(null);
     const [severity, setSeverity] = useState<string>('보통');
     const [observerName, setObserverName] = useState('');
@@ -224,19 +242,53 @@ const ObserveTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }>
 
     return (
         <div className="space-y-5">
-            {/* 근로자 선택 */}
+            {/* 근로자 선택 + 필터/검색 */}
             <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <div className="flex items-center justify-between mb-3">
-                    <h3 className="font-bold text-slate-800 text-sm">근로자 선택</h3>
+                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-3">
+                    <div className="flex flex-col gap-1">
+                        <h3 className="font-bold text-slate-800 text-sm">근로자 선택</h3>
+                        <div className="flex gap-2 mt-1">
+                            <input
+                                type="text"
+                                value={search}
+                                onChange={e => setSearch(e.target.value)}
+                                placeholder="이름, 팀, 공종, 사번 검색"
+                                className="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                style={{ minWidth: 120 }}
+                            />
+                            <select
+                                value={filterTrade}
+                                onChange={e => setFilterTrade(e.target.value)}
+                                className="text-xs border border-slate-200 rounded-lg px-2 py-1"
+                            >
+                                <option value="전체">공종 전체</option>
+                                {[...new Set(workers.map(w => w.trade).filter(Boolean))].map(trade => (
+                                    <option key={trade} value={trade as string}>{trade}</option>
+                                ))}
+                            </select>
+                            <select
+                                value={filterTeam}
+                                onChange={e => setFilterTeam(e.target.value)}
+                                className="text-xs border border-slate-200 rounded-lg px-2 py-1"
+                            >
+                                <option value="전체">팀 전체</option>
+                                {[...new Set(workers.map(w => w.team).filter(Boolean))].map(team => (
+                                    <option key={team} value={team as string}>{team}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
                     <button
                         onClick={toggleAll}
                         className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
                     >
-                        {selectedWorkers.size === workers.length ? '전체 해제' : '전체 선택'}
+                        {selectedWorkers.size === filteredWorkers.length ? '전체 해제' : '전체 선택'}
                     </button>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {workers.map((w) => (
+                    {filteredWorkers.length === 0 ? (
+                        <div className="col-span-2 sm:col-span-3 text-xs text-slate-400 py-4 text-center">검색/필터 결과가 없습니다.</div>
+                    ) : filteredWorkers.map((w) => (
                         <label
                             key={w.id}
                             className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all select-none

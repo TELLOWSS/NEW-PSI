@@ -1952,7 +1952,56 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 </div>
             </div>
 
-            <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+            {/* 공종/팀장 일괄 수정 UI */}
+            <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden mb-4">
+                <div className="flex flex-wrap gap-2 items-center p-4 border-b border-slate-100">
+                    <span className="font-bold text-slate-700 text-xs mr-2">근로자 일괄 선택</span>
+                    <button
+                        className="px-3 py-1 text-xs rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold hover:bg-indigo-100"
+                        onClick={() => setSelectedIds(filteredRecords.map(r => r.id))}
+                    >전체 선택</button>
+                    <button
+                        className="px-3 py-1 text-xs rounded bg-slate-50 text-slate-500 border border-slate-200 font-bold hover:bg-slate-100"
+                        onClick={() => setSelectedIds([])}
+                    >전체 해제</button>
+                    <span className="mx-3 text-slate-400 text-xs">|</span>
+                    <label className="text-xs font-bold text-slate-600 mr-1">공종 일괄 변경</label>
+                    <select
+                        className="text-xs border border-slate-200 rounded px-2 py-1 mr-2"
+                        value={batchJobField}
+                        onChange={e => setBatchJobField(e.target.value)}
+                    >
+                        <option value="">선택</option>
+                        {[...new Set(filteredRecords.map(r => r.jobField).filter(Boolean))].map(f => (
+                            <option key={f} value={f}>{f}</option>
+                        ))}
+                    </select>
+                    <label className="text-xs font-bold text-slate-600 mr-1">팀장 일괄 지정</label>
+                    <input
+                        className="text-xs border border-slate-200 rounded px-2 py-1 mr-2"
+                        value={batchTeamLeader}
+                        onChange={e => setBatchTeamLeader(e.target.value)}
+                        placeholder="팀장명 입력"
+                        style={{ width: 100 }}
+                    />
+                    <button
+                        className="px-4 py-1 text-xs rounded bg-emerald-600 text-white font-bold hover:bg-emerald-700"
+                        onClick={() => {
+                            if (selectedIds.length === 0) return alert('수정할 근로자를 선택하세요.');
+                            if (!batchJobField && !batchTeamLeader) return alert('공종 또는 팀장 중 하나 이상 입력하세요.');
+                            filteredRecords.forEach(r => {
+                                if (selectedIds.includes(r.id)) {
+                                    onUpdateRecord({
+                                        ...r,
+                                        ...(batchJobField ? { jobField: batchJobField } : {}),
+                                        ...(batchTeamLeader ? { teamLeader: batchTeamLeader } : {}),
+                                    });
+                                }
+                            });
+                            alert('일괄 수정이 적용되었습니다.');
+                        }}
+                    >선택 근로자 일괄 적용</button>
+                </div>
                 <div className="overflow-x-auto custom-scrollbar">
                     <table className="w-full text-left">
                         <thead>
@@ -1966,7 +2015,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50 font-medium">
+                            {/* 선택 체크박스 컬럼 추가 */}
                             {filteredRecords.map((r: WorkerRecord) => {
+                                const checked = selectedIds.includes(r.id);
                                 const isManager = isManagementRole(r.jobField);
                                 const hasImage = hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage);
                                 const failed = isFailedRecord(r);
@@ -1977,8 +2028,19 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const preflightReason = failed ? getPreflightFailureReason(r) : null;
                                 
                                 return (
-                                    <tr key={r.id} className={`hover:bg-indigo-50/30 transition-colors group ${isManager ? 'bg-slate-50/50 opacity-80' : ''} ${failed ? 'bg-rose-50/50' : ''}`} onClick={() => onViewDetails(r)}>
-                                        <td className="px-4 sm:px-8 py-5 font-black text-slate-800">
+                                    <tr key={r.id} className={`hover:bg-indigo-50/30 transition-colors group ${isManager ? 'bg-slate-50/50 opacity-80' : ''} ${failed ? 'bg-rose-50/50' : ''}`}>
+                                        <td className="px-2 text-center align-middle">
+                                            <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                onChange={e => {
+                                                    if (e.target.checked) setSelectedIds(ids => [...ids, r.id]);
+                                                    else setSelectedIds(ids => ids.filter(id => id !== r.id));
+                                                }}
+                                                className="w-4 h-4 accent-indigo-600"
+                                            />
+                                        </td>
+                                        <td className="px-4 sm:px-8 py-5 font-black text-slate-800 cursor-pointer" onClick={() => onViewDetails(r)}>
                                             <div className="flex flex-col">
                                                 <span className={`flex items-center gap-1 ${failed ? 'text-rose-600' : ''}`}>
                                                     {r.name}
