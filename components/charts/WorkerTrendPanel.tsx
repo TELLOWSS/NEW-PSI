@@ -270,7 +270,7 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
                         개인별 트렌드 추적
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
-                        검색과 페이지 단위 요약으로 스크롤 부담을 줄였습니다.
+                        공종 통합/국적 세부 그룹 모두 지원하며, 검색과 페이지 단위 요약으로 스크롤 부담을 줄였습니다.
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">

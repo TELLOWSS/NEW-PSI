@@ -6,7 +6,12 @@ import { SafetyActionCenter } from '../components/SafetyActionCenter';
 import { Tooltip } from '../components/shared/Tooltip';
 import { BrandPhilosophyLogo } from '../components/shared/BrandPhilosophyLogo';
 import type { SelectedTarget } from '../components/charts/TradeNationalityCrossChart';
-import { getTargetGroupKey, transformDashboardData } from '../utils/dashboardDataTransformer';
+import {
+    ALL_NATIONALITY_LABEL,
+    getTargetGroupKey,
+    normalizeDashboardTrade,
+    transformDashboardData,
+} from '../utils/dashboardDataTransformer';
 
 const NationalityChart = lazy(() => import('../components/charts/NationalityChart').then(module => ({ default: module.NationalityChart })));
 const TopWeaknessesChart = lazy(() => import('../components/charts/TopWeaknessesChart').then(module => ({ default: module.TopWeaknessesChart })));
@@ -118,6 +123,19 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const [mobileInsightTab, setMobileInsightTab] = useState<'chart' | 'team' | 'worker'>('chart');
     const [teamComparisonSort, setTeamComparisonSort] = useState<'score-asc' | 'score-desc' | 'risk-desc' | 'workers-desc'>('score-asc');
 
+    const resetComparisonState = () => {
+        setSelectedTeam('ALL');
+        setSelectedTarget(null);
+        setSelectedTradeForComparison(null);
+        setMobileInsightTab('chart');
+    };
+
+    const openTradeIntegratedAnalysis = (trade: string, nextTab: 'chart' | 'team' | 'worker' = 'team') => {
+        setSelectedTarget({ trade, nationality: ALL_NATIONALITY_LABEL });
+        setSelectedTradeForComparison(trade);
+        setMobileInsightTab(nextTab);
+    };
+
     useEffect(() => {
         setSelectedTarget(null);
     }, [selectedTeam]);
@@ -165,7 +183,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const selectedTradeTeamComparison = useMemo(() => {
         if (!selectedTradeForComparison) return [];
 
-        const tradeRecords = workerOnlyRecords.filter(record => record.jobField === selectedTradeForComparison);
+        const tradeRecords = workerOnlyRecords.filter(record => normalizeDashboardTrade(record.jobField) === selectedTradeForComparison);
         const teams = new Map<string, WorkerRecord[]>();
 
         tradeRecords.forEach(record => {
@@ -222,7 +240,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const tradeQuickAccess = useMemo(() => {
         return dashboardData.trades
             .map(trade => {
-                const records = workerOnlyRecords.filter(record => record.jobField === trade);
+                const records = workerOnlyRecords.filter(record => normalizeDashboardTrade(record.jobField) === trade);
                 const uniqueWorkers = new Set(records.map(record => record.name));
                 const latestRecords = Array.from(uniqueWorkers).map(name => {
                     return records
@@ -295,6 +313,33 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             <span className="text-[10px] sm:text-xs font-bold text-emerald-300">AI 분석 엔진 정상</span>
                         </div>
                     </div>
+
+                    {(selectedTarget || selectedTradeForComparison || selectedTeam !== 'ALL') && (
+                        <div className="mb-4 flex flex-wrap items-center gap-2">
+                            {selectedTradeForComparison && (
+                                <span className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/10 text-[11px] sm:text-xs font-bold text-indigo-100">
+                                    비교 공종: {selectedTradeForComparison}
+                                </span>
+                            )}
+                            {selectedTarget && (
+                                <span className="px-3 py-1.5 rounded-xl bg-indigo-500/20 border border-indigo-300/20 text-[11px] sm:text-xs font-bold text-indigo-100">
+                                    분석 대상: {selectedTarget.trade} · {selectedTarget.nationality}
+                                </span>
+                            )}
+                            {selectedTeam !== 'ALL' && (
+                                <span className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/10 text-[11px] sm:text-xs font-bold text-slate-100">
+                                    팀 필터: {selectedTeam}
+                                </span>
+                            )}
+                            <button
+                                type="button"
+                                onClick={resetComparisonState}
+                                className="px-3 py-1.5 rounded-xl bg-white text-slate-900 text-[11px] sm:text-xs font-black hover:bg-slate-100 transition-colors"
+                            >
+                                처음으로 돌아가기
+                            </button>
+                        </div>
+                    )}
 
                     {/* Main Content Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
@@ -567,10 +612,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 <button
                                     key={item.trade}
                                     type="button"
-                                    onClick={() => {
-                                        setSelectedTradeForComparison(item.trade);
-                                        setMobileInsightTab('team');
-                                    }}
+                                    onClick={() => openTradeIntegratedAnalysis(item.trade)}
                                     className={`shrink-0 rounded-xl border px-3 py-2 text-left min-w-[132px] transition-colors ${
                                         selectedTradeForComparison === item.trade
                                             ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
@@ -658,9 +700,25 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     선택 공종의 팀별 평균점수와 위험 인원을 비교합니다. 형틀처럼 팀 편차가 큰 공종 확인에 적합합니다.
                                 </p>
                             </div>
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">
-                                {selectedTradeTeamComparison.length}개 팀 비교
-                            </span>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">
+                                    {selectedTradeTeamComparison.length}개 팀 비교
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => openTradeIntegratedAnalysis(selectedTradeForComparison, 'chart')}
+                                    className="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold hover:bg-indigo-100 transition-colors"
+                                >
+                                    {selectedTradeForComparison} 통합 분석 보기
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={resetComparisonState}
+                                    className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 text-xs font-bold hover:bg-slate-200 transition-colors"
+                                >
+                                    되돌리기
+                                </button>
+                            </div>
                         </div>
 
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -744,7 +802,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         </p>
                                         <button
                                             type="button"
-                                            onClick={() => setSelectedTeam(team.team)}
+                                            onClick={() => {
+                                                setSelectedTeam(team.team);
+                                                openTradeIntegratedAnalysis(selectedTradeForComparison, 'chart');
+                                            }}
                                             className="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors"
                                         >
                                             이 팀만 보기
@@ -773,7 +834,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" />
                             </svg>
                             <p className="text-sm font-bold text-indigo-400">위 그래프에서 분석할 작업조를 클릭하세요</p>
-                            <p className="text-xs text-slate-400">선택된 공종·국적 그룹의 6대 지표 방사형 차트가 표시됩니다.</p>
+                            <p className="text-xs text-slate-400">막대는 공종·국적 기준, 상단 공종 칩은 전체 국적 통합 기준으로 분석할 수 있습니다.</p>
                         </div>
                     )}
                 </div>

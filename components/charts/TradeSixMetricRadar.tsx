@@ -104,7 +104,7 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
                     <h3 className="text-base sm:text-lg font-bold text-slate-800">
                         취약 타겟 그룹 · 6대 지표 분석
                     </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">방사형 차트로 현장 평균 대비 취약 지점 파악</p>
+                    <p className="text-xs text-slate-500 mt-0.5">공종 통합 또는 공종·국적 기준으로 현장 평균 대비 취약 지점을 확인합니다.</p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                     <span className="px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold">

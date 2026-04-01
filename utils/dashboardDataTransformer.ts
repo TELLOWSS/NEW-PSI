@@ -44,6 +44,35 @@ export interface DashboardTransformedData {
     unassignedRecordCount: number;
 }
 
+export const ALL_NATIONALITY_LABEL = '전체 국적';
+
+const DASHBOARD_JOB_FIELD_ALIASES: Record<string, string> = {
+    '형틀': '형틀',
+    '형틀목공': '형틀',
+    '목공': '형틀',
+    '거푸집': '형틀',
+    '폼': '형틀',
+    '폼조립': '형틀',
+    '바라시': '형틀',
+    '철근': '철근',
+    '배근': '철근',
+    '철근가공': '철근',
+    '가공철근': '철근',
+    '시스템': '시스템',
+    '시스템비계': '시스템',
+    '시스템동바리': '시스템',
+    '동바리': '시스템',
+    '갱폼': '갱폼',
+    '알폼': '알폼',
+    '할석미장견출': '할석미장견출',
+    '바닥미장': '바닥미장',
+    '해체정리': '해체정리',
+    '직영': '직영',
+    '용역': '용역',
+    '콘크리트비계': '콘크리트비계',
+    '콘크리트 비계': '콘크리트비계',
+};
+
 const EMPTY_METRICS: SixMetricAverages = {
     psychological: 0,
     jobUnderstanding: 0,
@@ -67,6 +96,26 @@ const safeDateValue = (dateString: string) => {
 };
 
 export const getTargetGroupKey = (trade: string, nationality: string) => `${trade}::${nationality}`;
+
+export const normalizeDashboardTrade = (raw: string | undefined | null) => {
+    const base = String(raw || '').trim();
+    if (!base) return '';
+
+    const compact = base.replace(/\s+/g, '');
+    const aliased = DASHBOARD_JOB_FIELD_ALIASES[compact] || DASHBOARD_JOB_FIELD_ALIASES[base];
+    if (aliased) return aliased;
+
+    if (/(시스템비계|시스템동바리|동바리|시스템)/.test(compact)) return '시스템';
+    if (/(철근|배근|가공)/.test(compact)) return '철근';
+    if (/(형틀|목공|거푸집|폼조립|바라시|알폼|갱폼)/.test(compact)) {
+        if (/(알폼)/.test(compact)) return '알폼';
+        if (/(갱폼)/.test(compact)) return '갱폼';
+        return '형틀';
+    }
+    if (/(콘크리트비계|콘크리트|타설|펌프카|비계)/.test(compact)) return '콘크리트비계';
+
+    return base;
+};
 
 const normalizeIdentityValue = (value: string | undefined | null) => {
     const normalized = (value ?? '').trim();
@@ -114,8 +163,24 @@ export function transformDashboardData(workerRecords: WorkerRecord[]): Dashboard
     let unassignedRecordCount = 0;
     const siteMetricSums: SixMetricAverages = { ...EMPTY_METRICS };
 
+    const ensureGroup = (trade: string, nationality: string) => {
+        const key = getTargetGroupKey(trade, nationality);
+        if (!groupAccumulator.has(key)) {
+            groupAccumulator.set(key, {
+                trade,
+                nationality,
+                sumSafetyScore: 0,
+                count: 0,
+                workerSet: new Set<string>(),
+                metricSums: { ...EMPTY_METRICS },
+                metricCount: 0,
+            });
+        }
+        return groupAccumulator.get(key)!;
+    };
+
     for (const record of workerRecords) {
-        const trade = record.jobField?.trim();
+        const trade = normalizeDashboardTrade(record.jobField);
         const nationality = record.nationality?.trim();
 
         if (!trade || !nationality) continue;
@@ -134,38 +199,36 @@ export function transformDashboardData(workerRecords: WorkerRecord[]): Dashboard
             if (!workerRecordsMap.has(workerId)) {
                 workerRecordsMap.set(workerId, []);
             }
-            workerRecordsMap.get(workerId)!.push(record);
-        }
-
-        if (!groupAccumulator.has(groupKey)) {
-            groupAccumulator.set(groupKey, {
-                trade,
-                nationality,
-                sumSafetyScore: 0,
-                count: 0,
-                workerSet: new Set<string>(),
-                metricSums: { ...EMPTY_METRICS },
-                metricCount: 0,
+            workerRecordsMap.get(workerId)!.push({
+                ...record,
+                jobField: trade,
             });
         }
 
-        const group = groupAccumulator.get(groupKey)!;
-        group.sumSafetyScore += record.safetyScore || 0;
-        group.count += 1;
-        if (workerId) {
-            group.workerSet.add(workerId);
+        for (const group of [
+            ensureGroup(trade, nationality),
+            ensureGroup(trade, ALL_NATIONALITY_LABEL),
+        ]) {
+            group.sumSafetyScore += record.safetyScore || 0;
+            group.count += 1;
+            if (workerId) {
+                group.workerSet.add(workerId);
+            }
+
+            const sb = record.scoreBreakdown;
+            if (sb) {
+                group.metricSums.psychological += sb.psychological ?? 0;
+                group.metricSums.jobUnderstanding += sb.jobUnderstanding ?? 0;
+                group.metricSums.riskAssessmentUnderstanding += sb.riskAssessmentUnderstanding ?? 0;
+                group.metricSums.proficiency += sb.proficiency ?? 0;
+                group.metricSums.improvementExecution += sb.improvementExecution ?? 0;
+                group.metricSums.repeatViolationPenalty += Math.abs(sb.repeatViolationPenalty ?? 0);
+                group.metricCount += 1;
+            }
         }
 
         const sb = record.scoreBreakdown;
         if (sb) {
-            group.metricSums.psychological += sb.psychological ?? 0;
-            group.metricSums.jobUnderstanding += sb.jobUnderstanding ?? 0;
-            group.metricSums.riskAssessmentUnderstanding += sb.riskAssessmentUnderstanding ?? 0;
-            group.metricSums.proficiency += sb.proficiency ?? 0;
-            group.metricSums.improvementExecution += sb.improvementExecution ?? 0;
-            group.metricSums.repeatViolationPenalty += Math.abs(sb.repeatViolationPenalty ?? 0);
-            group.metricCount += 1;
-
             siteMetricSums.psychological += sb.psychological ?? 0;
             siteMetricSums.jobUnderstanding += sb.jobUnderstanding ?? 0;
             siteMetricSums.riskAssessmentUnderstanding += sb.riskAssessmentUnderstanding ?? 0;
