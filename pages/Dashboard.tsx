@@ -122,18 +122,31 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const [selectedTradeForComparison, setSelectedTradeForComparison] = useState<string | null>(null);
     const [mobileInsightTab, setMobileInsightTab] = useState<'chart' | 'team' | 'worker'>('chart');
     const [teamComparisonSort, setTeamComparisonSort] = useState<'score-asc' | 'score-desc' | 'risk-desc' | 'workers-desc'>('score-asc');
+    const [detailViewMode, setDetailViewMode] = useState<'integrated' | 'nationality'>('integrated');
+    const [teamViewFilter, setTeamViewFilter] = useState<'all' | 'top3' | 'risk-only'>('all');
 
     const resetComparisonState = () => {
         setSelectedTeam('ALL');
         setSelectedTarget(null);
         setSelectedTradeForComparison(null);
         setMobileInsightTab('chart');
+        setDetailViewMode('integrated');
+        setTeamViewFilter('all');
     };
 
     const openTradeIntegratedAnalysis = (trade: string, nextTab: 'chart' | 'team' | 'worker' = 'team') => {
         setSelectedTarget({ trade, nationality: ALL_NATIONALITY_LABEL });
         setSelectedTradeForComparison(trade);
         setMobileInsightTab(nextTab);
+        setDetailViewMode('integrated');
+        setTeamViewFilter('all');
+    };
+
+    const openNationalityDetailAnalysis = (trade: string, nationality: string) => {
+        setSelectedTarget({ trade, nationality });
+        setSelectedTradeForComparison(trade);
+        setMobileInsightTab('chart');
+        setDetailViewMode(nationality === ALL_NATIONALITY_LABEL ? 'integrated' : 'nationality');
     };
 
     useEffect(() => {
@@ -143,7 +156,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     useEffect(() => {
         if (selectedTarget?.trade) {
             setSelectedTradeForComparison(selectedTarget.trade);
-            setMobileInsightTab('team');
+            setDetailViewMode(selectedTarget.nationality === ALL_NATIONALITY_LABEL ? 'integrated' : 'nationality');
         }
     }, [selectedTarget]);
 
@@ -179,6 +192,26 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         const key = getTargetGroupKey(selectedTarget.trade, selectedTarget.nationality);
         return dashboardData.groups[key] ?? null;
     }, [selectedTarget, dashboardData]);
+
+    const comparisonTargetGroup = useMemo(() => {
+        if (!selectedTradeForComparison) return null;
+        const key = getTargetGroupKey(selectedTradeForComparison, ALL_NATIONALITY_LABEL);
+        return dashboardData.groups[key] ?? null;
+    }, [selectedTradeForComparison, dashboardData]);
+
+    const activeDetailGroup = useMemo(() => {
+        if (detailViewMode === 'nationality' && selectedGroup) {
+            return selectedGroup;
+        }
+        return comparisonTargetGroup ?? selectedGroup;
+    }, [comparisonTargetGroup, detailViewMode, selectedGroup]);
+
+    const hasNationalityDetail = Boolean(
+        selectedTarget
+        && selectedTradeForComparison
+        && selectedTarget.trade === selectedTradeForComparison
+        && selectedTarget.nationality !== ALL_NATIONALITY_LABEL
+    );
 
     const selectedTradeTeamComparison = useMemo(() => {
         if (!selectedTradeForComparison) return [];
@@ -264,6 +297,25 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
     const weakestTeam = selectedTradeTeamComparison[0] ?? null;
     const strongestTeam = selectedTradeTeamComparison[selectedTradeTeamComparison.length - 1] ?? null;
+
+    const visibleTeamComparison = useMemo(() => {
+        switch (teamViewFilter) {
+            case 'top3':
+                return selectedTradeTeamComparison.slice(0, 3);
+            case 'risk-only':
+                return selectedTradeTeamComparison.filter(team => team.riskCount > 0);
+            case 'all':
+            default:
+                return selectedTradeTeamComparison;
+        }
+    }, [selectedTradeTeamComparison, teamViewFilter]);
+
+    const getRankBadge = (index: number) => {
+        if (index === 0) return { label: '🥇', className: 'bg-amber-100 text-amber-700' };
+        if (index === 1) return { label: '🥈', className: 'bg-slate-200 text-slate-700' };
+        if (index === 2) return { label: '🥉', className: 'bg-orange-100 text-orange-700' };
+        return { label: String(index + 1), className: 'bg-slate-100 text-slate-600' };
+    };
 
     const unassignedCount = dashboardData.unassignedRecordCount;
     const isUnassignedWarning = unassignedCount > 0;
@@ -681,7 +733,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     <DeferredSection fallback={<ChartSkeleton minHeight="320px" />} rootMargin="120px">
                         <Suspense fallback={<ChartSkeleton minHeight="320px" />}>
                             <TradeNationalityCrossChart
-                                onSelect={setSelectedTarget}
+                                onSelect={openNationalityDetailAnalysis}
                                 selected={selectedTarget}
                                 data={dashboardData}
                             />
@@ -697,12 +749,15 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     {selectedTradeForComparison} 팀 대 팀 비교
                                 </h3>
                                 <p className="text-xs text-slate-500 mt-0.5">
-                                    선택 공종의 팀별 평균점수와 위험 인원을 비교합니다. 형틀처럼 팀 편차가 큰 공종 확인에 적합합니다.
+                                    팀 비교는 항상 전체 국적 통합 기준으로 계산됩니다. 팀 내부의 다양한 국적은 분리하지 않습니다.
                                 </p>
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
                                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">
                                     {selectedTradeTeamComparison.length}개 팀 비교
+                                </span>
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold">
+                                    비교 기준: 전체 국적 통합
                                 </span>
                                 <button
                                     type="button"
@@ -723,16 +778,86 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                             <p className="text-[11px] text-slate-500">정렬 기준에 따라 취약 팀부터 우수 팀까지 빠르게 비교할 수 있습니다.</p>
-                            <select
-                                value={teamComparisonSort}
-                                onChange={(e) => setTeamComparisonSort(e.target.value as 'score-asc' | 'score-desc' | 'risk-desc' | 'workers-desc')}
-                                className="border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 bg-white"
-                            >
-                                <option value="score-asc">평균점수 낮은 순</option>
-                                <option value="score-desc">평균점수 높은 순</option>
-                                <option value="risk-desc">고위험 인원 많은 순</option>
-                                <option value="workers-desc">인원 많은 순</option>
-                            </select>
+                            <div className="flex flex-wrap gap-2">
+                                {[
+                                    { key: 'score-asc', label: '취약팀순' },
+                                    { key: 'score-desc', label: '우수팀순' },
+                                    { key: 'risk-desc', label: '고위험순' },
+                                    { key: 'workers-desc', label: '인원순' },
+                                ].map(option => (
+                                    <button
+                                        key={option.key}
+                                        type="button"
+                                        onClick={() => setTeamComparisonSort(option.key as 'score-asc' | 'score-desc' | 'risk-desc' | 'workers-desc')}
+                                        className={`px-3 py-2 rounded-xl border text-xs font-bold transition-colors ${
+                                            teamComparisonSort === option.key
+                                                ? 'border-slate-900 bg-slate-900 text-white'
+                                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        {option.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <p className="text-[11px] text-slate-500">복잡하면 핵심 팀만 빠르게 보세요.</p>
+                            <div className="flex flex-wrap gap-2">
+                                {[
+                                    { key: 'all', label: '전체 팀' },
+                                    { key: 'top3', label: '상위 3팀' },
+                                    { key: 'risk-only', label: '위험팀만' },
+                                ].map(option => (
+                                    <button
+                                        key={option.key}
+                                        type="button"
+                                        onClick={() => setTeamViewFilter(option.key as 'all' | 'top3' | 'risk-only')}
+                                        className={`px-3 py-2 rounded-xl border text-xs font-bold transition-colors ${
+                                            teamViewFilter === option.key
+                                                ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        {option.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-xs font-black text-slate-700">상세 분석 기준</p>
+                                    <p className="text-[11px] text-slate-500 mt-1">팀 비교는 통합 기준으로 유지하고, 하단 상세만 필요 시 국적 세부 분석으로 전환합니다.</p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setDetailViewMode('integrated')}
+                                        className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                                            detailViewMode === 'integrated'
+                                                ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        팀 통합 기준
+                                    </button>
+                                    {hasNationalityDetail && selectedTarget && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setDetailViewMode('nationality')}
+                                            className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                                                detailViewMode === 'nationality'
+                                                    ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            {selectedTarget.nationality} 세부 기준
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
                         </div>
 
                         {weakestTeam && strongestTeam && (
@@ -760,59 +885,99 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             </div>
                         )}
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                            {selectedTradeTeamComparison.map(team => (
-                                <div
-                                    key={team.team}
-                                    className={`rounded-2xl border p-4 transition-colors ${
-                                        selectedTeam === team.team
-                                            ? 'border-indigo-300 bg-indigo-50'
-                                            : 'border-slate-200 bg-white'
-                                    }`}
-                                >
-                                    <div className="flex items-start justify-between gap-3 mb-3">
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-black text-slate-800 truncate">{team.team}</p>
-                                            <p className="text-[11px] text-slate-500 mt-1">최근 반영 인원 {team.workerCount}명</p>
-                                        </div>
-                                        <div className="text-right shrink-0">
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">평균 점수</p>
-                                            <p className="text-lg font-black text-slate-800">{team.avgScore.toFixed(1)}</p>
-                                        </div>
-                                    </div>
+                        <div className="rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-2 text-[11px] text-slate-500">
+                            현재 <span className="font-black text-slate-700">{visibleTeamComparison.length}개 팀</span> 표시 중 · 팀 평가는 모두 <span className="font-black text-slate-700">국적 통합 기준</span>입니다.
+                        </div>
 
-                                    <div className="grid grid-cols-3 gap-2 mb-3">
-                                        <div className="rounded-xl bg-red-50 p-2.5 text-center">
-                                            <p className="text-[10px] font-bold text-red-400">고위험</p>
-                                            <p className="text-sm font-black text-red-600 mt-1">{team.riskCount}</p>
-                                        </div>
-                                        <div className="rounded-xl bg-amber-50 p-2.5 text-center">
-                                            <p className="text-[10px] font-bold text-amber-500">주의</p>
-                                            <p className="text-sm font-black text-amber-600 mt-1">{team.cautionCount}</p>
-                                        </div>
-                                        <div className="rounded-xl bg-emerald-50 p-2.5 text-center">
-                                            <p className="text-[10px] font-bold text-emerald-500">양호</p>
-                                            <p className="text-sm font-black text-emerald-600 mt-1">{team.goodCount}</p>
-                                        </div>
-                                    </div>
+                        <div className="space-y-3">
+                            {visibleTeamComparison.map((team) => {
+                                const rankingIndex = selectedTradeTeamComparison.findIndex(item => item.team === team.team);
+                                const rankBadge = getRankBadge(rankingIndex);
 
-                                    <div className="flex items-center justify-between gap-3">
-                                        <p className="text-[11px] text-slate-500">
-                                            최신 반영: {team.latestDate ? new Date(team.latestDate).toLocaleDateString('ko-KR') : '-'}
-                                        </p>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setSelectedTeam(team.team);
-                                                openTradeIntegratedAnalysis(selectedTradeForComparison, 'chart');
-                                            }}
-                                            className="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors"
-                                        >
-                                            이 팀만 보기
-                                        </button>
+                                return (
+                                    <div
+                                        key={team.team}
+                                        className={`rounded-2xl border p-4 transition-colors ${
+                                            selectedTeam === team.team
+                                                ? 'border-indigo-300 bg-indigo-50'
+                                                : 'border-slate-200 bg-white'
+                                        }`}
+                                    >
+                                        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                                            <div className="flex items-center gap-3 min-w-0 lg:w-[240px]">
+                                                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-sm font-black shrink-0 ${rankBadge.className}`}>
+                                                    {rankBadge.label}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <p className="text-sm font-black text-slate-800 truncate">{team.team}</p>
+                                                        {rankingIndex === 0 && (
+                                                            <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-600 text-[10px] font-black">현재 기준 최상단</span>
+                                                        )}
+                                                        {rankingIndex === selectedTradeTeamComparison.length - 1 && teamComparisonSort === 'score-asc' && (
+                                                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600 text-[10px] font-black">최우수팀</span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-[11px] text-slate-500 mt-1">최신 반영 {team.workerCount}명 · {team.latestDate ? new Date(team.latestDate).toLocaleDateString('ko-KR') : '-'}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex-1 space-y-2">
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                                    <div className="rounded-xl bg-slate-50 p-3 text-center">
+                                                        <p className="text-[10px] font-bold text-slate-400">평균점수</p>
+                                                        <p className="text-base font-black text-slate-800 mt-1">{team.avgScore.toFixed(1)}</p>
+                                                    </div>
+                                                    <div className="rounded-xl bg-red-50 p-3 text-center">
+                                                        <p className="text-[10px] font-bold text-red-400">고위험</p>
+                                                        <p className="text-base font-black text-red-600 mt-1">{team.riskCount}</p>
+                                                    </div>
+                                                    <div className="rounded-xl bg-amber-50 p-3 text-center">
+                                                        <p className="text-[10px] font-bold text-amber-500">주의</p>
+                                                        <p className="text-base font-black text-amber-600 mt-1">{team.cautionCount}</p>
+                                                    </div>
+                                                    <div className="rounded-xl bg-emerald-50 p-3 text-center">
+                                                        <p className="text-[10px] font-bold text-emerald-500">양호</p>
+                                                        <p className="text-base font-black text-emerald-600 mt-1">{team.goodCount}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                                                    <div
+                                                        className={`h-full ${team.avgScore >= 75 ? 'bg-emerald-500' : team.avgScore >= 60 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                                        style={{ width: `${Math.max(6, Math.min(team.avgScore, 100))}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col sm:flex-row gap-2 lg:w-auto">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openTradeIntegratedAnalysis(selectedTradeForComparison, 'chart')}
+                                                    className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors"
+                                                >
+                                                    팀 기준 분석
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setSelectedTeam(team.team);
+                                                        openTradeIntegratedAnalysis(selectedTradeForComparison, 'chart');
+                                                    }}
+                                                    className="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors"
+                                                >
+                                                    이 팀만 보기
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
+                                );
+                            })}
+                            {visibleTeamComparison.length === 0 && (
+                                <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center">
+                                    <p className="text-sm font-bold text-slate-500">조건에 맞는 팀이 없습니다.</p>
+                                    <p className="text-xs text-slate-400 mt-1">필터를 전체 팀으로 바꾸면 다시 확인할 수 있습니다.</p>
                                 </div>
-                            ))}
+                            )}
                         </div>
                     </div>
                 )}
@@ -823,7 +988,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         <DeferredSection fallback={<ChartSkeleton minHeight="280px" />} rootMargin="120px">
                             <Suspense fallback={<ChartSkeleton minHeight="280px" />}>
                                 <TradeSixMetricRadar
-                                    targetGroup={selectedGroup}
+                                    targetGroup={activeDetailGroup}
                                     siteAverageMetrics={dashboardData.siteAverageMetrics}
                                 />
                             </Suspense>
@@ -834,7 +999,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" />
                             </svg>
                             <p className="text-sm font-bold text-indigo-400">위 그래프에서 분석할 작업조를 클릭하세요</p>
-                            <p className="text-xs text-slate-400">막대는 공종·국적 기준, 상단 공종 칩은 전체 국적 통합 기준으로 분석할 수 있습니다.</p>
+                            <p className="text-xs text-slate-400">막대는 공종·국적 기준, 팀 비교와 공종 칩은 전체 국적 통합 기준입니다.</p>
                         </div>
                     )}
                 </div>
@@ -845,7 +1010,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         <DeferredSection fallback={<ChartSkeleton minHeight="220px" />} rootMargin="120px">
                             <Suspense fallback={<ChartSkeleton minHeight="220px" />}>
                                 <WorkerTrendPanel
-                                    targetGroup={selectedGroup}
+                                    targetGroup={activeDetailGroup}
                                 />
                             </Suspense>
                         </DeferredSection>
