@@ -2,7 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { Chart } from 'chart.js/auto';
 import type { SafetyCheckRecord } from '../../types';
-import { getWindowProp } from '../../utils/windowUtils';
+import { ensureChartJs } from '../../utils/externalScripts';
 
 interface ChartProps {
     records: SafetyCheckRecord[];
@@ -13,12 +13,15 @@ export const SafetyCheckDonutChart: React.FC<ChartProps> = ({ records }) => {
     const chartInstance = useRef<Chart | null>(null);
 
     useEffect(() => {
-        if (!chartRef.current) return;
-        const ctx = chartRef.current.getContext('2d');
-        if (!ctx) return;
+        let disposed = false;
 
-        const ChartLib = getWindowProp<any>('Chart');
-        if (!ChartLib) return;
+        const renderChart = async () => {
+            if (!chartRef.current) return;
+            const ctx = chartRef.current.getContext('2d');
+            if (!ctx) return;
+
+            const ChartLib = await ensureChartJs().catch(() => null);
+            if (!ChartLib || disposed) return;
 
         const twoWeeksAgo = new Date();
         twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
@@ -51,8 +54,8 @@ export const SafetyCheckDonutChart: React.FC<ChartProps> = ({ records }) => {
             chartInstance.current.destroy();
         }
 
-        try {
-            chartInstance.current = new ChartLib(ctx, {
+            try {
+                chartInstance.current = new ChartLib(ctx, {
                 type: 'doughnut',
                 data: {
                     labels,
@@ -108,12 +111,16 @@ export const SafetyCheckDonutChart: React.FC<ChartProps> = ({ records }) => {
                         }
                     },
                 }
-            });
-        } catch(e) {
-            console.error("Donut chart error:", e);
-        }
+                });
+            } catch(e) {
+                console.error("Donut chart error:", e);
+            }
+        };
+
+        void renderChart();
 
         return () => {
+            disposed = true;
             if (chartInstance.current) {
                 chartInstance.current.destroy();
                 chartInstance.current = null;

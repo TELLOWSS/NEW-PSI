@@ -1,15 +1,29 @@
 
-import React, { useState, useRef, useMemo, useEffect } from 'react';
+import React, { Suspense, lazy, useState, useRef, useMemo, useEffect } from 'react';
 import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord } from '../types';
 import { extractMessage } from '../utils/errorUtils';
-import { ReportTemplate } from '../components/ReportTemplate';
 import { ReportGenerationProgress } from '../components/shared/ReportGenerationProgress';
-import { getWindowProp } from '../utils/windowUtils';
 import { createEvidencePackagePdfBlob } from '../utils/evidenceReportUtils';
+import { ensureFileSaver, ensureHtml2Canvas, ensureJsPdfConstructor, ensureJsZip } from '../utils/externalScripts';
 import { verifyEvidenceManifest, formatEvidenceVerificationSummary } from '../utils/evidenceVerificationUtils';
 import type { EvidenceManifest, EvidenceManifestVerificationResult } from '../utils/evidenceVerificationUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { captureReportCanvas, getCanvasImageData, getCanvasPlacementOnA4, saveCanvasAsA4Pdf } from '../utils/pdfCapture';
+
+const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
+
+const ReportTemplateFallback: React.FC<{ compact?: boolean }> = ({ compact = false }) => (
+    <div className={`bg-white border border-slate-200 rounded-2xl animate-pulse ${compact ? 'w-[210mm] min-h-[297mm]' : 'w-[210mm] min-h-[297mm]'} p-8`}>
+        <div className="h-6 w-48 bg-slate-200 rounded mb-4" />
+        <div className="h-3 w-72 bg-slate-100 rounded mb-8" />
+        <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="h-24 rounded-xl bg-slate-100" />
+            <div className="h-24 rounded-xl bg-slate-100" />
+        </div>
+        <div className="h-48 rounded-xl bg-slate-100 mb-6" />
+        <div className="h-32 rounded-xl bg-slate-100" />
+    </div>
+);
 
 type ReportType = 'worker-report' | 'team-report';
 type GenMode = 'combined-pdf' | 'individual-pdf' | 'individual-img';
@@ -240,16 +254,6 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const handleNext = () => setPreviewIndex(prev => Math.min(filteredRecords.length - 1, prev + 1));
 
     // [Helper] jsPDF Constructor 가져오기
-    const getJsPDF = () => {
-        const jspdf = getWindowProp<any>('jspdf');
-        if (!jspdf) return null;
-        try {
-            return typeof jspdf.jsPDF !== 'undefined' ? jspdf.jsPDF : jspdf;
-        } catch {
-            return jspdf;
-        }
-    };
-
     // [New] 현재 미리보기 보고서 단건 내보내기
     const handleDownloadCurrent = async () => {
         if (isIncompleteCustomDateRange) return alert('사용자 지정 기간은 시작일과 종료일을 모두 입력해야 합니다.');
@@ -257,10 +261,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         if (!currentPreviewRecord) return alert('내보낼 데이터가 없습니다.');
         if (!previewRef.current) return alert('미리보기 화면이 로드되지 않았습니다.');
         
-        const html2canvas = getWindowProp<any>('html2canvas');
+        const html2canvas = await ensureHtml2Canvas().catch(() => null);
         if (!html2canvas) return alert('html2canvas 라이브러리가 로드되지 않았습니다.');
-        
-        const JsPDF = getJsPDF();
+
+        const JsPDF = await ensureJsPdfConstructor().catch(() => null);
         if (!JsPDF) return alert('jsPDF 라이브러리가 로드되지 않았습니다.');
 
         if (!confirm(`'${currentPreviewRecord.name}' 근로자의 보고서를 PDF로 내보내시겠습니까?`)) return;
@@ -289,12 +293,19 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         if (filteredRecords.length === 0) return alert('출력할 대상이 없습니다.');
 
         // 라이브러리 체크
-        const missingLibs: string[] = [];
-        if (!getWindowProp<any>('html2canvas')) missingLibs.push('html2canvas');
-        const JsPDF = getJsPDF();
-        if (!JsPDF) missingLibs.push('jspdf');
-        if (!getWindowProp<any>('JSZip')) missingLibs.push('JSZip');
-        if (!getWindowProp<any>('saveAs')) missingLibs.push('FileSaver');
+        const [html2canvas, JsPDF, JSZip, saveAs] = await Promise.all([
+            ensureHtml2Canvas().catch(() => null),
+            ensureJsPdfConstructor().catch(() => null),
+            ensureJsZip().catch(() => null),
+            ensureFileSaver().catch(() => null),
+        ]);
+
+        const missingLibs = [
+            !html2canvas ? 'html2canvas' : null,
+            !JsPDF ? 'jspdf' : null,
+            !JSZip ? 'JSZip' : null,
+            !saveAs ? 'FileSaver' : null,
+        ].filter(Boolean) as string[];
 
         if (missingLibs.length > 0) {
             return alert(`필수 라이브러리가 로드되지 않았습니다.\n(누락: ${missingLibs.join(', ')})\n\n인터넷 연결을 확인하거나 페이지를 새로고침(F5) 해주세요.`);
@@ -317,10 +328,6 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         });
         abortRef.current = false;
         setBulkProgress({ current: 0, total: filteredRecords.length });
-
-        const JSZip = getWindowProp<any>('JSZip');
-        const saveAs = getWindowProp<any>('saveAs');
-        const html2canvas = getWindowProp<any>('html2canvas');
 
         const zip = new JSZip();
         const timestamp = new Date().toISOString().slice(0,10).replace(/-/g, '');
@@ -520,8 +527,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             return;
         }
 
-        const JSZip = getWindowProp<any>('JSZip');
-        const saveAs = getWindowProp<any>('saveAs');
+        const [JSZip, saveAs] = await Promise.all([
+            ensureJsZip().catch(() => null),
+            ensureFileSaver().catch(() => null),
+        ]);
         if (!JSZip || !saveAs) {
             alert('ZIP 생성 라이브러리(JSZip/FileSaver)가 로드되지 않았습니다. 새로고침 후 다시 시도해주세요.');
             return;
@@ -1128,7 +1137,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             {/* Hidden Rendering Area for Bulk Generation */}
             <div style={{ position: 'fixed', top: 0, left: 0, zIndex: -50, width: '210mm', minHeight: '297mm', pointerEvents: 'none', visibility: isGenerating ? 'visible' : 'hidden' }}>
                 {isGenerating && generatingRecord && (
-                    <ReportTemplate record={generatingRecord} history={generatingHistory} ref={bulkReportRef} />
+                    <Suspense fallback={<ReportTemplateFallback compact />}>
+                        <ReportTemplate record={generatingRecord} history={generatingHistory} ref={bulkReportRef} />
+                    </Suspense>
                 )}
             </div>
 
@@ -1233,11 +1244,13 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         <div className="flex-1 overflow-auto bg-slate-200 p-8 flex justify-center items-start custom-scrollbar">
                             {currentPreviewRecord && (
                                 <div className="shadow-2xl scale-[0.6] origin-top md:scale-[0.8] xl:scale-[0.9] transition-transform duration-300 bg-white">
-                                    <ReportTemplate 
-                                        ref={previewRef}
-                                        record={currentPreviewRecord} 
-                                        history={currentPreviewHistory} 
-                                    />
+                                    <Suspense fallback={<ReportTemplateFallback />}>
+                                        <ReportTemplate 
+                                            ref={previewRef}
+                                            record={currentPreviewRecord} 
+                                            history={currentPreviewHistory} 
+                                        />
+                                    </Suspense>
                                 </div>
                             )}
                         </div>

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, Component, Suspense, lazy, type ReactNode, type ErrorInfo } from 'react';
 import { Layout } from './components/Layout';
 import { AdminLockScreen } from './components/AdminLockScreen';
-import Dashboard from './pages/Dashboard';
 import { Spinner } from './components/Spinner';
 import type { WorkerRecord, SafetyCheckRecord, Page, ModalState, BriefingData, RiskForecastData } from './types';
 import { WorkerHistoryModal } from './components/modals/WorkerHistoryModal';
@@ -15,6 +14,7 @@ import { getSafetyLevelThresholds } from './utils/safetyLevelUtils';
 import { appendBestPracticeSyncFailureLog, setBestPracticeSyncState } from './utils/bestPracticeSyncStatus';
 import { analyzeWorkerRiskAssessment } from './services/geminiService';
 
+const Dashboard = lazy(() => import('./pages/Dashboard'));
 const OcrAnalysis = lazy(() => import('./pages/OcrAnalysis'));
 const WorkerManagement = lazy(() => import('./pages/WorkerManagement'));
 const PredictiveAnalysis = lazy(() => import('./pages/PredictiveAnalysis'));

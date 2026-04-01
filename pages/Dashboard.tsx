@@ -1,17 +1,19 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import type { WorkerRecord, SafetyCheckRecord, Page } from '../types';
 import { StatCard } from '../components/StatCard';
-import { NationalityChart } from '../components/charts/NationalityChart';
-import { TopWeaknessesChart } from '../components/charts/TopWeaknessesChart';
-import { SafetyCheckDonutChart } from '../components/charts/SafetyCheckDonutChart';
 import { SafetyActionCenter } from '../components/SafetyActionCenter';
 import { Tooltip } from '../components/shared/Tooltip';
 import { BrandPhilosophyLogo } from '../components/shared/BrandPhilosophyLogo';
-import { TradeNationalityCrossChart, type SelectedTarget } from '../components/charts/TradeNationalityCrossChart';
-import { TradeSixMetricRadar } from '../components/charts/TradeSixMetricRadar';
-import { WorkerTrendPanel } from '../components/charts/WorkerTrendPanel';
+import type { SelectedTarget } from '../components/charts/TradeNationalityCrossChart';
 import { getTargetGroupKey, transformDashboardData } from '../utils/dashboardDataTransformer';
+
+const NationalityChart = lazy(() => import('../components/charts/NationalityChart').then(module => ({ default: module.NationalityChart })));
+const TopWeaknessesChart = lazy(() => import('../components/charts/TopWeaknessesChart').then(module => ({ default: module.TopWeaknessesChart })));
+const SafetyCheckDonutChart = lazy(() => import('../components/charts/SafetyCheckDonutChart').then(module => ({ default: module.SafetyCheckDonutChart })));
+const TradeNationalityCrossChart = lazy(() => import('../components/charts/TradeNationalityCrossChart').then(module => ({ default: module.TradeNationalityCrossChart })));
+const TradeSixMetricRadar = lazy(() => import('../components/charts/TradeSixMetricRadar').then(module => ({ default: module.TradeSixMetricRadar })));
+const WorkerTrendPanel = lazy(() => import('../components/charts/WorkerTrendPanel').then(module => ({ default: module.WorkerTrendPanel })));
 
 interface DashboardProps {
     workerRecords: WorkerRecord[];
@@ -23,43 +25,227 @@ interface DashboardProps {
 const isManagementRole = (field: string) => 
     /관리|팀장|부장|과장|기사|공무|소장/.test(field);
 
+const ChartSkeleton: React.FC<{ minHeight?: string }> = ({ minHeight = '220px' }) => (
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6 animate-pulse" style={{ minHeight }}>
+        <div className="h-4 w-40 bg-slate-200 rounded mb-3" />
+        <div className="h-3 w-64 bg-slate-100 rounded mb-6" />
+        <div className="h-40 sm:h-52 rounded-xl bg-slate-100" />
+    </div>
+);
+
+const DeferredSection: React.FC<{ children: React.ReactNode; fallback?: React.ReactNode; rootMargin?: string }> = ({
+    children,
+    fallback = <ChartSkeleton />,
+    rootMargin = '240px',
+}) => {
+    const containerRef = useRef<HTMLDivElement | null>(null);
+    const [isVisible, setIsVisible] = useState(false);
+
+    useEffect(() => {
+        if (isVisible) return;
+        const node = containerRef.current;
+        if (!node) return;
+
+        if (!('IntersectionObserver' in window)) {
+            setIsVisible(true);
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries.some(entry => entry.isIntersecting)) {
+                    setIsVisible(true);
+                    observer.disconnect();
+                }
+            },
+            { rootMargin },
+        );
+
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, [isVisible, rootMargin]);
+
+    return <div ref={containerRef}>{isVisible ? children : fallback}</div>;
+};
+
 const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords, setCurrentPage }) => {
     // 순수 근로자 데이터만 필터링 (관리 직군 제외)
-    const [selectedTarget, setSelectedTarget] = useState<SelectedTarget | null>(null);
 
     const workerOnlyRecords = useMemo(() => 
         workerRecords.filter(r => !isManagementRole(r.jobField))
     , [workerRecords]);
 
+    // 팀별 보기: 팀장 기준 유니크 팀 목록 추출
+    const [selectedTeam, setSelectedTeam] = useState<string | 'ALL'>('ALL');
+    const teamList = useMemo(() => {
+        const teams = new Set<string>();
+        workerOnlyRecords.forEach(r => {
+            if (r.teamLeader && r.teamLeader.trim().length > 0) teams.add(r.teamLeader.trim());
+        });
+        return Array.from(teams);
+    }, [workerOnlyRecords]);
+
+    // 팀별 필터링
+    const filteredWorkerRecords = useMemo(() => {
+        if (selectedTeam === 'ALL') return workerOnlyRecords;
+        return workerOnlyRecords.filter(r => r.teamLeader === selectedTeam);
+    }, [workerOnlyRecords, selectedTeam]);
+
+    const teamSummaries = useMemo(() => {
+        return teamList.map(team => {
+            const records = workerOnlyRecords.filter(r => r.teamLeader === team);
+            const uniqueWorkers = new Set(records.map(r => r.name));
+            const latestRecords = Array.from(uniqueWorkers).map(name => {
+                return records
+                    .filter(r => r.name === name)
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+            });
+
+            const avgScore = latestRecords.length > 0
+                ? latestRecords.reduce((acc, r) => acc + r.safetyScore, 0) / latestRecords.length
+                : 0;
+
+            return {
+                team,
+                workerCount: uniqueWorkers.size,
+                avgScore,
+            };
+        }).sort((a, b) => a.avgScore - b.avgScore);
+    }, [teamList, workerOnlyRecords]);
+
+    const [selectedTarget, setSelectedTarget] = useState<SelectedTarget | null>(null);
+    const [selectedTradeForComparison, setSelectedTradeForComparison] = useState<string | null>(null);
+    const [mobileInsightTab, setMobileInsightTab] = useState<'chart' | 'team' | 'worker'>('chart');
+    const [teamComparisonSort, setTeamComparisonSort] = useState<'score-asc' | 'score-desc' | 'risk-desc' | 'workers-desc'>('score-asc');
+
+    useEffect(() => {
+        setSelectedTarget(null);
+    }, [selectedTeam]);
+
+    useEffect(() => {
+        if (selectedTarget?.trade) {
+            setSelectedTradeForComparison(selectedTarget.trade);
+            setMobileInsightTab('team');
+        }
+    }, [selectedTarget]);
+
+    useEffect(() => {
+        if (selectedTeam !== 'ALL' && teamList.length > 0 && !teamList.includes(selectedTeam)) {
+            setSelectedTeam('ALL');
+        }
+    }, [selectedTeam, teamList]);
+
+
     const stats = useMemo(() => {
-        const uniqueWorkers = new Set(workerOnlyRecords.map(r => r.name));
+        const uniqueWorkers = new Set(filteredWorkerRecords.map(r => r.name));
         const totalWorkers = uniqueWorkers.size;
-        
         const latestRecords = Array.from(uniqueWorkers).map(name => {
-            return workerOnlyRecords
+            return filteredWorkerRecords
                 .filter(r => r.name === name)
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
         });
-
         const averageScore = latestRecords.length > 0
             ? latestRecords.reduce((acc, r) => acc + r.safetyScore, 0) / latestRecords.length
             : 0;
-            
         const highRiskWorkers = latestRecords.filter(r => r.safetyLevel === '초급').length;
         const totalChecks = safetyCheckRecords.length;
-        
         return { totalWorkers, averageScore, highRiskWorkers, totalChecks };
-    }, [workerOnlyRecords, safetyCheckRecords]);
+    }, [filteredWorkerRecords, safetyCheckRecords]);
 
     const dashboardData = useMemo(() => {
-        return transformDashboardData(workerOnlyRecords);
-    }, [workerOnlyRecords]);
+        return transformDashboardData(filteredWorkerRecords);
+    }, [filteredWorkerRecords]);
 
     const selectedGroup = useMemo(() => {
         if (!selectedTarget) return null;
         const key = getTargetGroupKey(selectedTarget.trade, selectedTarget.nationality);
         return dashboardData.groups[key] ?? null;
     }, [selectedTarget, dashboardData]);
+
+    const selectedTradeTeamComparison = useMemo(() => {
+        if (!selectedTradeForComparison) return [];
+
+        const tradeRecords = workerOnlyRecords.filter(record => record.jobField === selectedTradeForComparison);
+        const teams = new Map<string, WorkerRecord[]>();
+
+        tradeRecords.forEach(record => {
+            const teamKey = record.teamLeader?.trim() || '미지정 팀';
+            if (!teams.has(teamKey)) {
+                teams.set(teamKey, []);
+            }
+            teams.get(teamKey)!.push(record);
+        });
+
+        return Array.from(teams.entries()).map(([team, records]) => {
+            const uniqueWorkers = new Set(records.map(record => record.name));
+            const latestRecords = Array.from(uniqueWorkers).map(name => {
+                return records
+                    .filter(record => record.name === name)
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+            });
+
+            const avgScore = latestRecords.length > 0
+                ? latestRecords.reduce((sum, record) => sum + record.safetyScore, 0) / latestRecords.length
+                : 0;
+            const riskCount = latestRecords.filter(record => record.safetyScore < 60).length;
+            const cautionCount = latestRecords.filter(record => record.safetyScore >= 60 && record.safetyScore < 75).length;
+            const goodCount = latestRecords.filter(record => record.safetyScore >= 75).length;
+            const latestDate = latestRecords
+                .map(record => new Date(record.date).getTime())
+                .filter(value => !Number.isNaN(value))
+                .sort((a, b) => b - a)[0] ?? 0;
+
+            return {
+                team,
+                workerCount: uniqueWorkers.size,
+                avgScore,
+                riskCount,
+                cautionCount,
+                goodCount,
+                latestDate,
+            };
+        }).sort((a, b) => {
+            switch (teamComparisonSort) {
+                case 'score-desc':
+                    return b.avgScore - a.avgScore;
+                case 'risk-desc':
+                    return b.riskCount - a.riskCount || a.avgScore - b.avgScore;
+                case 'workers-desc':
+                    return b.workerCount - a.workerCount || a.avgScore - b.avgScore;
+                case 'score-asc':
+                default:
+                    return a.avgScore - b.avgScore;
+            }
+        });
+    }, [selectedTradeForComparison, teamComparisonSort, workerOnlyRecords]);
+
+    const tradeQuickAccess = useMemo(() => {
+        return dashboardData.trades
+            .map(trade => {
+                const records = workerOnlyRecords.filter(record => record.jobField === trade);
+                const uniqueWorkers = new Set(records.map(record => record.name));
+                const latestRecords = Array.from(uniqueWorkers).map(name => {
+                    return records
+                        .filter(record => record.name === name)
+                        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+                });
+
+                const avgScore = latestRecords.length > 0
+                    ? latestRecords.reduce((sum, record) => sum + record.safetyScore, 0) / latestRecords.length
+                    : 0;
+
+                return {
+                    trade,
+                    workerCount: uniqueWorkers.size,
+                    avgScore,
+                };
+            })
+            .sort((a, b) => a.avgScore - b.avgScore)
+            .slice(0, 8);
+    }, [dashboardData.trades, workerOnlyRecords]);
+
+    const weakestTeam = selectedTradeTeamComparison[0] ?? null;
+    const strongestTeam = selectedTradeTeamComparison[selectedTradeTeamComparison.length - 1] ?? null;
 
     const unassignedCount = dashboardData.unassignedRecordCount;
     const isUnassignedWarning = unassignedCount > 0;
@@ -270,7 +456,11 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 <div className="bg-white p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 flex flex-col">
                     <h3 className="text-base sm:text-lg font-bold mb-4 sm:mb-6 text-slate-800">국적별 근로자 현황</h3>
                     <div className="flex-1 min-h-[200px]">
-                       <NationalityChart records={workerOnlyRecords} />
+                        <DeferredSection fallback={<ChartSkeleton minHeight="200px" />} rootMargin="160px">
+                            <Suspense fallback={<ChartSkeleton minHeight="200px" />}>
+                                <NationalityChart records={workerOnlyRecords} />
+                            </Suspense>
+                        </DeferredSection>
                     </div>
                 </div>
             </div>
@@ -287,67 +477,323 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         </Tooltip>
                     </div>
                     <div className="h-auto min-h-[15rem]">
-                       <TopWeaknessesChart records={workerOnlyRecords} />
+                        <DeferredSection fallback={<ChartSkeleton minHeight="15rem" />} rootMargin="160px">
+                            <Suspense fallback={<ChartSkeleton minHeight="15rem" />}>
+                                <TopWeaknessesChart records={workerOnlyRecords} />
+                            </Suspense>
+                        </DeferredSection>
                     </div>
                 </div>
                  <div className="bg-white p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100">
                     <h3 className="text-base sm:text-lg font-bold mb-4 sm:mb-6 text-slate-800">최근 2주간 안전 점검 동향</h3>
                     <div className="h-64">
-                        <SafetyCheckDonutChart records={safetyCheckRecords} />
+                        <DeferredSection fallback={<ChartSkeleton minHeight="16rem" />} rootMargin="160px">
+                            <Suspense fallback={<ChartSkeleton minHeight="16rem" />}>
+                                <SafetyCheckDonutChart records={safetyCheckRecords} />
+                            </Suspense>
+                        </DeferredSection>
                     </div>
                 </div>
             </div>
+
 
             {/* ═══════════════════════════════════════════════════════
                     공종 × 국적 교차 안전 숙련도 분석 섹션 (아래)
             ═══════════════════════════════════════════════════════ */}
             <div className="space-y-4 sm:space-y-6">
-                {/* 섹션 헤더 */}
-                <div className="flex items-center gap-3 px-1">
-                    <div className="w-1 h-6 bg-indigo-500 rounded-full" />
-                    <div>
-                        <h2 className="text-base sm:text-lg font-black text-slate-800">
-                            공종 × 국적 교차 안전 숙련도 분석
-                        </h2>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                            공종별 국적 그룹을 클릭해 취약 타겟을 식별하고, TBM 교육 대상을 즉시 확정하세요.
-                        </p>
+                {/* 섹션 헤더 + 팀별 드롭다운 */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-1">
+                    <div className="flex items-center gap-3 flex-1">
+                        <div className="w-1 h-6 bg-indigo-500 rounded-full" />
+                        <div>
+                            <h2 className="text-base sm:text-lg font-black text-slate-800">
+                                공종 × 국적 교차 안전 숙련도 분석
+                            </h2>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                                팀별로 보기: 아래에서 팀을 선택하면 해당 팀의 데이터만 표시됩니다.
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <label htmlFor="team-select" className="text-xs font-bold text-slate-600 mr-1">팀별 보기</label>
+                        <select
+                            id="team-select"
+                            className="border rounded-lg px-2 py-1 text-xs font-bold text-slate-700 bg-white"
+                            value={selectedTeam}
+                            onChange={e => setSelectedTeam(e.target.value)}
+                        >
+                            <option value="ALL">전체</option>
+                            {teamList.map(team => (
+                                <option key={team} value={team}>{team}</option>
+                            ))}
+                        </select>
                     </div>
                 </div>
 
+                <div className="md:hidden flex gap-2 overflow-x-auto pb-1">
+                    {[
+                        { key: 'chart', label: '차트' },
+                        { key: 'team', label: '팀비교' },
+                        { key: 'worker', label: '개인추이' },
+                    ].map(tab => (
+                        <button
+                            key={tab.key}
+                            type="button"
+                            onClick={() => setMobileInsightTab(tab.key as 'chart' | 'team' | 'worker')}
+                            className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold border transition-colors ${
+                                mobileInsightTab === tab.key
+                                    ? 'bg-slate-900 text-white border-slate-900'
+                                    : 'bg-white text-slate-600 border-slate-200'
+                            }`}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+
+                {tradeQuickAccess.length > 0 && (
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 sm:p-4">
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                            <div>
+                                <p className="text-xs font-black text-slate-700">주요 공종 바로가기</p>
+                                <p className="text-[11px] text-slate-500">평균점수가 낮은 공종부터 바로 팀 비교로 진입할 수 있습니다.</p>
+                            </div>
+                            <span className="hidden sm:inline-flex px-2.5 py-1 rounded-lg bg-red-50 text-red-600 text-[11px] font-bold">
+                                취약 공종 우선 노출
+                            </span>
+                        </div>
+                        <div className="flex gap-2 overflow-x-auto pb-1">
+                            {tradeQuickAccess.map(item => (
+                                <button
+                                    key={item.trade}
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedTradeForComparison(item.trade);
+                                        setMobileInsightTab('team');
+                                    }}
+                                    className={`shrink-0 rounded-xl border px-3 py-2 text-left min-w-[132px] transition-colors ${
+                                        selectedTradeForComparison === item.trade
+                                            ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    <p className="text-xs font-black truncate">{item.trade}</p>
+                                    <div className="mt-1 flex items-center justify-between gap-2 text-[11px]">
+                                        <span>{item.workerCount}명</span>
+                                        <span className="font-black">{item.avgScore.toFixed(1)}점</span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {teamSummaries.length > 0 && (
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 sm:p-4">
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                            <div>
+                                <p className="text-xs font-black text-slate-700">팀 비교 바로가기</p>
+                                <p className="text-[11px] text-slate-500">형틀처럼 팀 편차가 큰 공종은 아래 칩으로 빠르게 전환할 수 있습니다.</p>
+                            </div>
+                            <span className="hidden sm:inline-flex px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-600 text-[11px] font-bold">
+                                낮은 평균점수 순 정렬
+                            </span>
+                        </div>
+                        <div className="flex gap-2 overflow-x-auto pb-1">
+                            <button
+                                type="button"
+                                onClick={() => setSelectedTeam('ALL')}
+                                className={`shrink-0 rounded-xl border px-3 py-2 text-left transition-colors min-w-[116px] ${
+                                    selectedTeam === 'ALL'
+                                        ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                        : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                                }`}
+                            >
+                                <p className="text-[10px] font-black uppercase tracking-wide">전체</p>
+                                <p className="text-xs font-bold mt-1">전체 통합 뷰</p>
+                            </button>
+                            {teamSummaries.map(summary => (
+                                <button
+                                    key={summary.team}
+                                    type="button"
+                                    onClick={() => setSelectedTeam(summary.team)}
+                                    className={`shrink-0 rounded-xl border px-3 py-2 text-left transition-colors min-w-[132px] ${
+                                        selectedTeam === summary.team
+                                            ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    <p className="text-xs font-black truncate">{summary.team}</p>
+                                    <div className="mt-1 flex items-center justify-between gap-2 text-[11px]">
+                                        <span>{summary.workerCount}명</span>
+                                        <span className="font-black">{summary.avgScore.toFixed(1)}점</span>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* ① Grouped Bar Chart */}
-                <TradeNationalityCrossChart
-                    onSelect={setSelectedTarget}
-                    selected={selectedTarget}
-                    data={dashboardData}
-                />
+                <div className={mobileInsightTab === 'chart' ? 'block' : 'hidden md:block'}>
+                    <DeferredSection fallback={<ChartSkeleton minHeight="320px" />} rootMargin="120px">
+                        <Suspense fallback={<ChartSkeleton minHeight="320px" />}>
+                            <TradeNationalityCrossChart
+                                onSelect={setSelectedTarget}
+                                selected={selectedTarget}
+                                data={dashboardData}
+                            />
+                        </Suspense>
+                    </DeferredSection>
+                </div>
+
+                {selectedTradeForComparison && selectedTradeTeamComparison.length > 0 && (
+                    <div className={`${mobileInsightTab === 'team' ? 'block' : 'hidden md:block'} bg-white rounded-2xl shadow-lg border border-slate-100 p-4 sm:p-6 space-y-4`}>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div>
+                                <h3 className="text-base sm:text-lg font-bold text-slate-800">
+                                    {selectedTradeForComparison} 팀 대 팀 비교
+                                </h3>
+                                <p className="text-xs text-slate-500 mt-0.5">
+                                    선택 공종의 팀별 평균점수와 위험 인원을 비교합니다. 형틀처럼 팀 편차가 큰 공종 확인에 적합합니다.
+                                </p>
+                            </div>
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">
+                                {selectedTradeTeamComparison.length}개 팀 비교
+                            </span>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <p className="text-[11px] text-slate-500">정렬 기준에 따라 취약 팀부터 우수 팀까지 빠르게 비교할 수 있습니다.</p>
+                            <select
+                                value={teamComparisonSort}
+                                onChange={(e) => setTeamComparisonSort(e.target.value as 'score-asc' | 'score-desc' | 'risk-desc' | 'workers-desc')}
+                                className="border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 bg-white"
+                            >
+                                <option value="score-asc">평균점수 낮은 순</option>
+                                <option value="score-desc">평균점수 높은 순</option>
+                                <option value="risk-desc">고위험 인원 많은 순</option>
+                                <option value="workers-desc">인원 많은 순</option>
+                            </select>
+                        </div>
+
+                        {weakestTeam && strongestTeam && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
+                                    <p className="text-[10px] uppercase tracking-wide font-black text-red-500">최취약 팀</p>
+                                    <div className="mt-2 flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-black text-red-700 truncate">{weakestTeam.team}</p>
+                                            <p className="text-[11px] text-red-600 mt-1">고위험 {weakestTeam.riskCount}명 · 인원 {weakestTeam.workerCount}명</p>
+                                        </div>
+                                        <p className="text-xl font-black text-red-700 shrink-0">{weakestTeam.avgScore.toFixed(1)}</p>
+                                    </div>
+                                </div>
+                                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                                    <p className="text-[10px] uppercase tracking-wide font-black text-emerald-500">최우수 팀</p>
+                                    <div className="mt-2 flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-black text-emerald-700 truncate">{strongestTeam.team}</p>
+                                            <p className="text-[11px] text-emerald-600 mt-1">양호 {strongestTeam.goodCount}명 · 인원 {strongestTeam.workerCount}명</p>
+                                        </div>
+                                        <p className="text-xl font-black text-emerald-700 shrink-0">{strongestTeam.avgScore.toFixed(1)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                            {selectedTradeTeamComparison.map(team => (
+                                <div
+                                    key={team.team}
+                                    className={`rounded-2xl border p-4 transition-colors ${
+                                        selectedTeam === team.team
+                                            ? 'border-indigo-300 bg-indigo-50'
+                                            : 'border-slate-200 bg-white'
+                                    }`}
+                                >
+                                    <div className="flex items-start justify-between gap-3 mb-3">
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-black text-slate-800 truncate">{team.team}</p>
+                                            <p className="text-[11px] text-slate-500 mt-1">최근 반영 인원 {team.workerCount}명</p>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">평균 점수</p>
+                                            <p className="text-lg font-black text-slate-800">{team.avgScore.toFixed(1)}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-2 mb-3">
+                                        <div className="rounded-xl bg-red-50 p-2.5 text-center">
+                                            <p className="text-[10px] font-bold text-red-400">고위험</p>
+                                            <p className="text-sm font-black text-red-600 mt-1">{team.riskCount}</p>
+                                        </div>
+                                        <div className="rounded-xl bg-amber-50 p-2.5 text-center">
+                                            <p className="text-[10px] font-bold text-amber-500">주의</p>
+                                            <p className="text-sm font-black text-amber-600 mt-1">{team.cautionCount}</p>
+                                        </div>
+                                        <div className="rounded-xl bg-emerald-50 p-2.5 text-center">
+                                            <p className="text-[10px] font-bold text-emerald-500">양호</p>
+                                            <p className="text-sm font-black text-emerald-600 mt-1">{team.goodCount}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-3">
+                                        <p className="text-[11px] text-slate-500">
+                                            최신 반영: {team.latestDate ? new Date(team.latestDate).toLocaleDateString('ko-KR') : '-'}
+                                        </p>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedTeam(team.team)}
+                                            className="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors"
+                                        >
+                                            이 팀만 보기
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* ② Radar Chart — 선택된 타겟 그룹의 6대 지표 */}
-                {selectedTarget ? (
-                    <TradeSixMetricRadar
-                        targetGroup={selectedGroup}
-                        siteAverageMetrics={dashboardData.siteAverageMetrics}
-                    />
-                ) : (
-                    <div className="bg-white rounded-2xl shadow-lg border border-dashed border-indigo-200 p-8 flex flex-col items-center justify-center gap-2 text-center min-h-[200px]">
-                        <svg className="w-8 h-8 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" />
-                        </svg>
-                        <p className="text-sm font-bold text-indigo-400">위 그래프에서 분석할 작업조를 클릭하세요</p>
-                        <p className="text-xs text-slate-400">선택된 공종·국적 그룹의 6대 지표 방사형 차트가 표시됩니다.</p>
-                    </div>
-                )}
+                <div className={mobileInsightTab === 'chart' ? 'block' : 'hidden md:block'}>
+                    {selectedTarget ? (
+                        <DeferredSection fallback={<ChartSkeleton minHeight="280px" />} rootMargin="120px">
+                            <Suspense fallback={<ChartSkeleton minHeight="280px" />}>
+                                <TradeSixMetricRadar
+                                    targetGroup={selectedGroup}
+                                    siteAverageMetrics={dashboardData.siteAverageMetrics}
+                                />
+                            </Suspense>
+                        </DeferredSection>
+                    ) : (
+                        <div className="bg-white rounded-2xl shadow-lg border border-dashed border-indigo-200 p-8 flex flex-col items-center justify-center gap-2 text-center min-h-[200px]">
+                            <svg className="w-8 h-8 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" />
+                            </svg>
+                            <p className="text-sm font-bold text-indigo-400">위 그래프에서 분석할 작업조를 클릭하세요</p>
+                            <p className="text-xs text-slate-400">선택된 공종·국적 그룹의 6대 지표 방사형 차트가 표시됩니다.</p>
+                        </div>
+                    )}
+                </div>
 
                 {/* ③ 개인별 트렌드 패널 */}
-                {selectedTarget ? (
-                    <WorkerTrendPanel
-                        targetGroup={selectedGroup}
-                    />
-                ) : (
-                    <div className="bg-white rounded-2xl shadow-lg border border-dashed border-slate-200 p-6 flex items-center justify-center min-h-[100px]">
-                        <p className="text-xs text-slate-400 font-medium">작업조를 선택하면 개인별 트렌드 목록이 활성화됩니다.</p>
-                    </div>
-                )}
+                <div className={mobileInsightTab === 'worker' ? 'block' : 'hidden md:block'}>
+                    {selectedTarget ? (
+                        <DeferredSection fallback={<ChartSkeleton minHeight="220px" />} rootMargin="120px">
+                            <Suspense fallback={<ChartSkeleton minHeight="220px" />}>
+                                <WorkerTrendPanel
+                                    targetGroup={selectedGroup}
+                                />
+                            </Suspense>
+                        </DeferredSection>
+                    ) : (
+                        <div className="bg-white rounded-2xl shadow-lg border border-dashed border-slate-200 p-6 flex items-center justify-center min-h-[100px]">
+                            <p className="text-xs text-slate-400 font-medium">작업조를 선택하면 개인별 트렌드 목록이 활성화됩니다.</p>
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

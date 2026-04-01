@@ -2,7 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { Chart } from 'chart.js/auto';
 import type { WorkerRecord } from '../../types';
-import { getWindowProp } from '../../utils/windowUtils';
+import { ensureChartJs } from '../../utils/externalScripts';
 
 interface ChartProps {
     records: WorkerRecord[];
@@ -22,10 +22,13 @@ export const WeaknessPieChart: React.FC<ChartProps> = ({ records }) => {
     const chartInstance = useRef<Chart | null>(null);
 
     useEffect(() => {
-        if (!chartRef.current) return;
+        let disposed = false;
 
-        const ChartLib = getWindowProp<any>('Chart');
-        if (!ChartLib) return;
+        const renderChart = async () => {
+            if (!chartRef.current) return;
+
+            const ChartLib = await ensureChartJs().catch(() => null);
+            if (!ChartLib || disposed || !chartRef.current) return;
 
         const weaknessCounts = records.flatMap(r => r.weakAreas).reduce((acc, area) => {
             acc[area] = (acc[area] || 0) + 1;
@@ -52,8 +55,8 @@ export const WeaknessPieChart: React.FC<ChartProps> = ({ records }) => {
         const ctx = chartRef.current.getContext('2d');
         if (!ctx) return;
 
-        try {
-            chartInstance.current = new ChartLib(ctx, {
+            try {
+                chartInstance.current = new ChartLib(ctx, {
                 type: 'pie',
                 data: {
                     labels,
@@ -74,10 +77,21 @@ export const WeaknessPieChart: React.FC<ChartProps> = ({ records }) => {
                         },
                     },
                 }
-            });
-        } catch(e) {
-            console.error("Pie Chart error:", e);
-        }
+                });
+            } catch(e) {
+                console.error("Pie Chart error:", e);
+            }
+        };
+
+        void renderChart();
+
+        return () => {
+            disposed = true;
+            if (chartInstance.current) {
+                chartInstance.current.destroy();
+                chartInstance.current = null;
+            }
+        };
     }, [records]);
 
     return <canvas ref={chartRef} />;

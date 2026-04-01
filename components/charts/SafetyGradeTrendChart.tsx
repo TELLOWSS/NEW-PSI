@@ -2,7 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { Chart } from 'chart.js/auto';
 import type { WorkerRecord } from '../../types';
-import { getWindowProp } from '../../utils/windowUtils';
+import { ensureChartJs } from '../../utils/externalScripts';
 
 interface ChartProps {
     records: WorkerRecord[];
@@ -13,9 +13,12 @@ export const SafetyGradeTrendChart: React.FC<ChartProps> = ({ records }) => {
     const chartInstance = useRef<Chart | null>(null);
 
     useEffect(() => {
-        if (!chartRef.current) return;
-        const ChartLib = getWindowProp<any>('Chart');
-        if (!ChartLib) return;
+        let disposed = false;
+
+        const renderChart = async () => {
+            if (!chartRef.current) return;
+            const ChartLib = await ensureChartJs().catch(() => null);
+            if (!ChartLib || disposed || !chartRef.current) return;
 
         // 최근 6개월 데이터만 필터링 및 정렬
         const sortedRecords = [...records].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -46,8 +49,8 @@ export const SafetyGradeTrendChart: React.FC<ChartProps> = ({ records }) => {
         const ctx = chartRef.current.getContext('2d');
         if (!ctx) return;
 
-        try {
-            chartInstance.current = new ChartLib(ctx, {
+            try {
+                chartInstance.current = new ChartLib(ctx, {
                 type: 'bar',
                 data: {
                     labels,
@@ -106,12 +109,16 @@ export const SafetyGradeTrendChart: React.FC<ChartProps> = ({ records }) => {
                         }
                     }
                 }
-            });
-        } catch (e) {
-            console.error("Grade Trend Chart Error:", e);
-        }
+                });
+            } catch (e) {
+                console.error("Grade Trend Chart Error:", e);
+            }
+        };
+
+        void renderChart();
 
         return () => {
+            disposed = true;
             if (chartInstance.current) {
                 chartInstance.current.destroy();
                 chartInstance.current = null;

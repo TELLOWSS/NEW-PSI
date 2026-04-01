@@ -2,7 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { Chart, ChartConfiguration } from 'chart.js/auto';
 import type { WorkerRecord } from '../../types';
-import { getWindowProp } from '../../utils/windowUtils';
+import { ensureChartJs } from '../../utils/externalScripts';
 
 interface ChartProps {
     records: WorkerRecord[];
@@ -42,13 +42,16 @@ export const NationalityChart: React.FC<ChartProps> = ({ records }) => {
     const chartInstance = useRef<Chart | null>(null);
 
     useEffect(() => {
-        if (!chartRef.current) return;
+        let disposed = false;
 
-            const ChartLib = getWindowProp<any>('Chart');
-        if (!ChartLib) return;
+        const renderChart = async () => {
+            if (!chartRef.current) return;
 
-        const uniqueWorkers = new Map<string, string>();
-        records.forEach(r => uniqueWorkers.set(r.name, r.nationality));
+            const ChartLib = await ensureChartJs().catch(() => null);
+            if (!ChartLib || disposed || !chartRef.current) return;
+
+            const uniqueWorkers = new Map<string, string>();
+            records.forEach(r => uniqueWorkers.set(r.name, r.nationality));
         
         const nationalityCounts = Array.from(uniqueWorkers.values()).reduce((acc, nationality) => {
             acc[nationality] = (acc[nationality] || 0) + 1;
@@ -144,13 +147,17 @@ export const NationalityChart: React.FC<ChartProps> = ({ records }) => {
             }
         };
 
-        try {
-            chartInstance.current = new ChartLib(ctx, config);
-        } catch (e) {
-            console.error("Chart error:", e);
-        }
+            try {
+                chartInstance.current = new ChartLib(ctx, config);
+            } catch (e) {
+                console.error("Chart error:", e);
+            }
+        };
+
+        void renderChart();
 
         return () => {
+            disposed = true;
             if (chartInstance.current) {
                 chartInstance.current.destroy();
                 chartInstance.current = null;

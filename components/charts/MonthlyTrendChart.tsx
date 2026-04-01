@@ -2,7 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { Chart } from 'chart.js/auto';
 import type { WorkerRecord } from '../../types';
-import { getWindowProp } from '../../utils/windowUtils';
+import { ensureChartJs } from '../../utils/externalScripts';
 
 interface ChartProps {
     records: WorkerRecord[];
@@ -13,11 +13,13 @@ export const MonthlyTrendChart: React.FC<ChartProps> = ({ records }) => {
     const chartInstance = useRef<Chart | null>(null);
 
     useEffect(() => {
-        if (!chartRef.current) return;
+        let disposed = false;
 
-        // Defensive check: Ensure Chart.js is loaded
-        const ChartLib = getWindowProp<any>('Chart');
-        if (!ChartLib) return;
+        const renderChart = async () => {
+            if (!chartRef.current) return;
+
+            const ChartLib = await ensureChartJs().catch(() => null);
+            if (!ChartLib || disposed || !chartRef.current) return;
 
         // Data Aggregation
         const monthlyData = records.reduce((acc, record) => {
@@ -54,8 +56,8 @@ export const MonthlyTrendChart: React.FC<ChartProps> = ({ records }) => {
         gradient.addColorStop(0, 'rgba(79, 70, 229, 0.4)'); // Indigo-600 start
         gradient.addColorStop(1, 'rgba(79, 70, 229, 0.0)'); // Indigo-600 end
 
-        try {
-            chartInstance.current = new ChartLib(ctx, {
+            try {
+                chartInstance.current = new ChartLib(ctx, {
                 type: 'line',
                 data: {
                     labels: sortedMonths,
@@ -130,13 +132,17 @@ export const MonthlyTrendChart: React.FC<ChartProps> = ({ records }) => {
                         intersect: false,
                     },
                 }
-            });
-        } catch (e) {
-            console.error("Chart creation error:", e);
-        }
+                });
+            } catch (e) {
+                console.error("Chart creation error:", e);
+            }
+        };
+
+        void renderChart();
 
         // Important Cleanup
         return () => {
+            disposed = true;
             if (chartInstance.current) {
                 chartInstance.current.destroy();
                 chartInstance.current = null;

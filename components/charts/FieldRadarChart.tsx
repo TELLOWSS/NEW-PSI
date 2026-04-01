@@ -2,7 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { Chart } from 'chart.js/auto';
 import type { WorkerRecord } from '../../types';
-import { getWindowProp } from '../../utils/windowUtils';
+import { ensureChartJs } from '../../utils/externalScripts';
 
 interface ChartProps {
     records: WorkerRecord[];
@@ -14,10 +14,13 @@ export const FieldRadarChart: React.FC<ChartProps> = ({ records, mode = 'field' 
     const chartInstance = useRef<Chart | null>(null);
 
     useEffect(() => {
-        if (!chartRef.current) return;
+        let disposed = false;
 
-        const ChartLib = getWindowProp<any>('Chart');
-        if (!ChartLib) return;
+        const renderChart = async () => {
+            if (!chartRef.current) return;
+
+            const ChartLib = await ensureChartJs().catch(() => null);
+            if (!ChartLib || disposed || !chartRef.current) return;
 
         // 1. Calculate Metrics (Dynamic Grouping)
         const metrics: Record<string, { scores: number[], counts: number }> = {};
@@ -66,8 +69,8 @@ export const FieldRadarChart: React.FC<ChartProps> = ({ records, mode = 'field' 
         const ctx = chartRef.current.getContext('2d');
         if (!ctx) return;
 
-        try {
-            chartInstance.current = new ChartLib(ctx, {
+            try {
+                chartInstance.current = new ChartLib(ctx, {
                 type: 'radar',
                 data: {
                     labels: labels.length > 0 ? labels : ['데이터 없음'],
@@ -146,12 +149,16 @@ export const FieldRadarChart: React.FC<ChartProps> = ({ records, mode = 'field' 
                         }
                     }
                 }
-            });
-        } catch(e) {
-            console.error("Radar chart error:", e);
-        }
+                });
+            } catch(e) {
+                console.error("Radar chart error:", e);
+            }
+        };
+
+        void renderChart();
 
         return () => {
+            disposed = true;
             if (chartInstance.current) {
                 chartInstance.current.destroy();
                 chartInstance.current = null;

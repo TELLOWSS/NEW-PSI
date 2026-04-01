@@ -44,6 +44,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export const TradeNationalityCrossChart: React.FC<Props> = ({ onSelect, selected, data }) => {
     const hasData = data.barData.length > 0 && data.nationalities.length > 0;
+    const chartMinWidth = Math.max(420, data.barData.length * 88);
 
     const handleClick = (trade: string, nationality: string) => {
         onSelect({ trade, nationality });
@@ -57,7 +58,7 @@ export const TradeNationalityCrossChart: React.FC<Props> = ({ onSelect, selected
                         공종 × 국적 교차 안전 숙련도
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
-                        막대를 클릭하면 해당 작업조의 6대 지표 분석이 표시됩니다.
+                        막대를 클릭하면 해당 작업조의 6대 지표 분석이 표시됩니다. 모바일에서는 좌우 스와이프로 확인할 수 있습니다.
                     </p>
                 </div>
                 {selected && (
@@ -74,17 +75,25 @@ export const TradeNationalityCrossChart: React.FC<Props> = ({ onSelect, selected
                 </div>
             ) : (
                 <>
-                    <div className="flex flex-wrap gap-3 mb-4">
+                    <div className="flex flex-wrap items-center gap-2 mb-3">
+                        <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 text-[11px] font-bold">
+                            공종 {data.barData.length}개
+                        </span>
+                        <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-600 text-[11px] font-bold">
+                            국적 {data.nationalities.length}개
+                        </span>
+                    </div>
+                    <div className="flex gap-3 mb-4 overflow-x-auto pb-1">
                         {data.nationalities.map((nat, index) => (
-                            <div key={nat} className="flex items-center gap-1.5 text-xs text-slate-600 font-medium">
+                            <div key={nat} className="flex items-center gap-1.5 text-xs text-slate-600 font-medium whitespace-nowrap shrink-0">
                                 <span className="w-3 h-3 rounded-sm" style={{ background: NAT_COLORS[index % NAT_COLORS.length] }} />
                                 {nat}
                             </div>
                         ))}
                     </div>
-                    <div className="w-full overflow-x-auto">
-                        <div style={{ minWidth: 420 }}>
-                            <ResponsiveContainer width="100%" height={320}>
+                    <div className="w-full overflow-x-auto pb-1">
+                        <div style={{ minWidth: chartMinWidth }}>
+                            <ResponsiveContainer width="100%" height={300}>
                                 <BarChart
                                     data={data.barData}
                                     margin={{ top: 5, right: 16, left: 0, bottom: 5 }}

@@ -1,11 +1,25 @@
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { Suspense, lazy, useRef, useState, useEffect } from 'react';
 import type { WorkerRecord } from '../types';
 import { generateReportUrl } from '../utils/qrUtils';
-import { ReportTemplate } from '../components/ReportTemplate';
 import { ReportGenerationProgress } from '../components/shared/ReportGenerationProgress';
+import { ensureHtml2Canvas, ensureJsPdfConstructor } from '../utils/externalScripts';
 import { captureReportCanvas, saveCanvasAsA4Pdf } from '../utils/pdfCapture';
-import { getWindowProp } from '../utils/windowUtils';
+
+const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
+
+const ReportTemplateFallback: React.FC = () => (
+    <div className="bg-white border border-slate-200 rounded-2xl animate-pulse w-[210mm] min-h-[297mm] p-8">
+        <div className="h-6 w-48 bg-slate-200 rounded mb-4" />
+        <div className="h-3 w-72 bg-slate-100 rounded mb-8" />
+        <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="h-24 rounded-xl bg-slate-100" />
+            <div className="h-24 rounded-xl bg-slate-100" />
+        </div>
+        <div className="h-48 rounded-xl bg-slate-100 mb-6" />
+        <div className="h-32 rounded-xl bg-slate-100" />
+    </div>
+);
 
 interface IndividualReportProps {
     record: WorkerRecord;
@@ -171,9 +185,11 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
 
     const handleDownloadPDF = async () => {
         if (!reportRef.current || isGenerating) return;
-        const html2canvas = getWindowProp<any>('html2canvas');
-        const jspdf = getWindowProp<any>('jspdf');
-        if (!html2canvas || !jspdf) {
+        const [html2canvas, PDFCtor] = await Promise.all([
+            ensureHtml2Canvas().catch(() => null),
+            ensureJsPdfConstructor().catch(() => null),
+        ]);
+        if (!html2canvas || !PDFCtor) {
             failGenerationProgress('PDF 라이브러리가 로드되지 않았습니다. 다시 시도해 주세요.');
             return;
         }
@@ -184,9 +200,6 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             updateGenerationProgress(15, '데이터 수집 중');
             const canvas = await captureReportCanvas(reportRef.current, html2canvas, { scale: 3 });
             updateGenerationProgress(65, '렌더링 결과 변환 중');
-            const jsPDFCtor = (jspdf && (jspdf as unknown as { jsPDF?: unknown }).jsPDF) ? (jspdf as unknown as { jsPDF?: unknown }).jsPDF : jspdf;
-            const PDFCtor = typeof jsPDFCtor === 'function' ? jsPDFCtor : null;
-            if (!PDFCtor) throw new Error('jsPDF constructor not available');
             updateGenerationProgress(82, 'PDF 문서 구성 중');
             saveCanvasAsA4Pdf(canvas, PDFCtor as new (orientation: string, unit: string, format: string) => {
                 addImage: (...args: unknown[]) => void;
@@ -203,7 +216,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
 
     const handleDownloadImage = async () => {
         if (!reportRef.current || isGenerating) return;
-        const html2canvas = getWindowProp<any>('html2canvas');
+        const html2canvas = await ensureHtml2Canvas().catch(() => null);
         if (!html2canvas) {
             failGenerationProgress('이미지 라이브러리가 로드되지 않았습니다. 다시 시도해 주세요.');
             return;
@@ -311,7 +324,9 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
 
             {/* A4 REPORT CONTAINER - Using Shared Template */}
             <div className="shadow-2xl">
-                <ReportTemplate record={record} history={history} onPhotoClick={startCamera} ref={reportRef} />
+                <Suspense fallback={<ReportTemplateFallback />}>
+                    <ReportTemplate record={record} history={history} onPhotoClick={startCamera} ref={reportRef} />
+                </Suspense>
             </div>
             
             {isCameraOpen && (

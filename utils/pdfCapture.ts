@@ -1,5 +1,3 @@
-import { toCanvas } from 'html-to-image';
-
 const A4_WIDTH_MM = 210;
 const A4_HEIGHT_MM = 297;
 
@@ -95,6 +93,14 @@ interface CaptureReportCanvasOptions {
     scale?: number;
 }
 
+let htmlToImagePromise: Promise<typeof import('html-to-image')> | null = null;
+const loadHtmlToImage = () => {
+    if (!htmlToImagePromise) {
+        htmlToImagePromise = import('html-to-image');
+    }
+    return htmlToImagePromise;
+};
+
 export const captureReportCanvas = async (
     element: HTMLElement,
     html2canvas: Html2Canvas,
@@ -108,6 +114,7 @@ export const captureReportCanvas = async (
     const scale = options.scale ?? Math.max(2, Math.min(3, window.devicePixelRatio || 1));
 
     try {
+        const { toCanvas } = await loadHtmlToImage();
         return await toCanvas(element, {
             cacheBust: true,
             pixelRatio: scale,

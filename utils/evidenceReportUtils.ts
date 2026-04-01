@@ -1,4 +1,5 @@
 import type { WorkerRecord } from '../types';
+import { ensureJsPdfConstructor } from './externalScripts';
 import { getWindowProp } from './windowUtils';
 
 const A4_CANVAS_WIDTH = 1240;
@@ -235,8 +236,7 @@ const renderEvidenceToCanvases = (record: WorkerRecord): HTMLCanvasElement[] => 
 }
 
 export async function createEvidencePackagePdfBlob(record: WorkerRecord): Promise<Blob | null> {
-    const jspdf = getWindowProp<any>('jspdf');
-    const JsPDF = jspdf?.jsPDF || jspdf;
+    const JsPDF = await ensureJsPdfConstructor().catch(() => null);
 
     if (!JsPDF) {
         return null;

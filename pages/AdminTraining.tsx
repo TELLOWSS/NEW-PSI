@@ -1,6 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { QRCodeCanvas } from 'qrcode.react';
-import { QRCodeSVG } from 'qrcode.react';
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { postAdminJson } from '../utils/adminApiClient';
 import {
@@ -8,6 +6,24 @@ import {
     TRAINING_AUDIO_LANGUAGES,
     type TrainingAudioLanguageCode,
 } from '../utils/trainingLanguageUtils';
+
+let qrCodeModulePromise: Promise<typeof import('qrcode.react')> | null = null;
+const loadQrCodeModule = () => {
+    if (!qrCodeModulePromise) {
+        qrCodeModulePromise = import('qrcode.react');
+    }
+    return qrCodeModulePromise;
+};
+
+const LazyQRCodeCanvas = lazy(async () => {
+    const module = await loadQrCodeModule();
+    return { default: module.QRCodeCanvas };
+});
+
+const LazyQRCodeSVG = lazy(async () => {
+    const module = await loadQrCodeModule();
+    return { default: module.QRCodeSVG };
+});
 
 type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
 const LINK_HISTORY_STORAGE_KEY = 'psi_training_link_history';
@@ -2413,12 +2429,14 @@ const AdminTraining: React.FC = () => {
                         </div>
 
                         <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-2xl">
-                            <QRCodeSVG
-                                value={mobileUrl}
-                                size={1024}
-                                includeMargin
-                                style={{ width: 'min(72vmin, 900px)', height: 'min(72vmin, 900px)', display: 'block' }}
-                            />
+                            <Suspense fallback={<div className="w-[72vmin] h-[72vmin] max-w-[900px] max-h-[900px] min-w-[240px] min-h-[240px] flex items-center justify-center text-slate-400 font-bold">QR 로딩 중...</div>}>
+                                <LazyQRCodeSVG
+                                    value={mobileUrl}
+                                    size={1024}
+                                    includeMargin
+                                    style={{ width: 'min(72vmin, 900px)', height: 'min(72vmin, 900px)', display: 'block' }}
+                                />
+                            </Suspense>
                         </div>
 
                         <p className="mt-6 text-slate-300 text-xs sm:text-sm font-bold break-all text-center max-w-6xl">
@@ -2445,8 +2463,10 @@ const AdminTraining: React.FC = () => {
                         </div>
                     )}
                     <p className="text-xs font-bold text-slate-500 mt-2 break-all">{mobileUrl}</p>
-                    <div className="mt-4">
-                        <QRCodeCanvas value={mobileUrl} size={220} />
+                    <div className="mt-4 min-h-[220px] flex items-center">
+                        <Suspense fallback={<div className="w-[220px] h-[220px] flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 font-bold">QR 로딩 중...</div>}>
+                            <LazyQRCodeCanvas value={mobileUrl} size={220} />
+                        </Suspense>
                     </div>
                     <div className="mt-4">
                         <button

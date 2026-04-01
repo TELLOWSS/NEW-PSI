@@ -117,10 +117,10 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-center">
                 {/* Radar Chart */}
                 <div className="w-full">
-                    <ResponsiveContainer width="100%" height={280}>
+                    <ResponsiveContainer width="100%" height={250}>
                         <RadarChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
                             <PolarGrid stroke="#e2e8f0" />
                             <PolarAngleAxis
@@ -192,7 +192,7 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
                     {/* 6대 지표 전체 점수표 */}
                     <div className="mt-4 rounded-xl bg-slate-50 p-3">
                         <p className="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wide">전체 지표 점수</p>
-                        <div className="grid grid-cols-2 gap-1 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
                             {SIX_METRIC_KEYS.map(k => (
                                 <div key={k} className="flex justify-between text-slate-600">
                                     <span className="truncate mr-1">{SIX_METRIC_LABELS[k]}</span>

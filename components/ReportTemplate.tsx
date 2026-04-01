@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useMemo } from 'react';
 import type { Chart } from 'chart.js/auto';
 import type { SixMetricBreakdown, WorkerRecord } from '../types';
 import { IndividualRadarChart } from './charts/IndividualRadarChart';
+import { ensureChartJs } from '../utils/externalScripts';
 import { getWindowProp } from '../utils/windowUtils';
 import { deriveCompetencyProfile } from '../utils/evidenceUtils';
 import { getSafetyLevelThresholds } from '../utils/safetyLevelUtils';
@@ -428,19 +429,22 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
 
     // Trend Chart Rendering
     useEffect(() => {
-        if (!trendChartRef.current) return;
-        if (trendChartInstance.current) trendChartInstance.current.destroy();
-        const ctx = trendChartRef.current.getContext('2d');
-        if (!ctx) return;
+        let disposed = false;
 
-        const ChartLib = getWindowProp<any>('Chart');
-        if (!ChartLib) return;
+        const renderChart = async () => {
+            if (!trendChartRef.current) return;
+            if (trendChartInstance.current) trendChartInstance.current.destroy();
+            const ctx = trendChartRef.current.getContext('2d');
+            if (!ctx) return;
+
+            const ChartLib = await ensureChartJs().catch(() => null);
+            if (!ChartLib || disposed || !trendChartRef.current) return;
 
         const sortedHistory = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(-6);
         const displayData = sortedHistory.length > 0 ? sortedHistory : [record];
         
-        try {
-            trendChartInstance.current = new ChartLib(ctx, {
+            try {
+                trendChartInstance.current = new ChartLib(ctx, {
                 type: 'line',
                 data: { 
                     labels: displayData.map(h => h.date.substring(5)), 
@@ -477,10 +481,17 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         } 
                     } 
                 } 
-            });
-        } catch(e) { console.error(e); }
+                });
+            } catch(e) { console.error(e); }
 
-        return () => { if (trendChartInstance.current) trendChartInstance.current.destroy(); };
+        };
+
+        void renderChart();
+
+        return () => {
+            disposed = true;
+            if (trendChartInstance.current) trendChartInstance.current.destroy();
+        };
     }, [history, record]);
 
     const getProfileImage = () => {

@@ -2,6 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { Chart } from 'chart.js/auto';
 import type { WorkerRecord } from '../../types';
+import { ensureChartJs } from '../../utils/externalScripts';
 import { getWindowProp } from '../../utils/windowUtils';
 
 interface ChartProps {
@@ -13,9 +14,12 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
     const chartInstance = useRef<Chart | null>(null);
 
     useEffect(() => {
-        if (!chartRef.current) return;
-        const ChartLib = getWindowProp<any>('Chart');
-        if (!ChartLib) return;
+        let disposed = false;
+
+        const renderChart = async () => {
+            if (!chartRef.current) return;
+            const ChartLib = await ensureChartJs().catch(() => null);
+            if (!ChartLib || disposed || !chartRef.current) return;
 
         // [알고리즘] 텍스트 분석 기반 역량 점수 산출
         const baseScore = record.safetyScore;
@@ -64,8 +68,8 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
         const ctx = chartRef.current.getContext('2d');
         if (!ctx) return;
 
-        try {
-            chartInstance.current = new ChartLib(ctx, {
+            try {
+                chartInstance.current = new ChartLib(ctx, {
                 type: 'radar',
                 data: {
                     labels: ['위험 인지', '보호구 관리', '절차 준수', '예방 활동', '안전 태도'],
@@ -114,12 +118,16 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
                         legend: { display: false }
                     }
                 }
-            });
-        } catch (e) {
-            console.error("Radar Chart Error:", e);
-        }
+                });
+            } catch (e) {
+                console.error("Radar Chart Error:", e);
+            }
+        };
+
+        void renderChart();
 
         return () => {
+            disposed = true;
             if (chartInstance.current) {
                 chartInstance.current.destroy();
                 chartInstance.current = null;

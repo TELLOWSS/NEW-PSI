@@ -5,9 +5,9 @@ import type { WorkerRecord } from '../types';
 import { generateReportUrl } from '../utils/qrUtils';
 import { extractMessage } from '../utils/errorUtils';
 import { postAdminJson } from '../utils/adminApiClient';
+import { ensureQRCodeJs } from '../utils/externalScripts';
 import { getWindowProp } from '../utils/windowUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
-import * as XLSX from 'xlsx';
 
 // [시스템] QR 코드 생성 상태 관리 및 동기화 컴포넌트
 interface QRCodeProps {
@@ -83,6 +83,7 @@ const QRCodeComponent: React.FC<QRCodeProps> = React.memo(({ record, onLoad }) =
     useEffect(() => {
         // [Optimization] Use requestAnimationFrame to avoid blocking main thread during bulk render
         const timer = requestAnimationFrame(() => {
+            void (async () => {
             const element = containerRef.current;
             if (!element) return;
 
@@ -90,7 +91,7 @@ const QRCodeComponent: React.FC<QRCodeProps> = React.memo(({ record, onLoad }) =
             if (element.children.length > 0) return;
 
             // 1. 라이브러리 존재 여부 확인 (안전하게 전역 객체 접근)
-            const QRCodeLib = getWindowProp<any>('QRCode');
+            const QRCodeLib = await ensureQRCodeJs().catch(() => null);
             if (!QRCodeLib) {
                 const msg = "QR Lib Missing";
                 console.error(msg);
@@ -128,6 +129,7 @@ const QRCodeComponent: React.FC<QRCodeProps> = React.memo(({ record, onLoad }) =
                 setErrorMsg(visibleError);
                 if (onLoad) onLoad(false); 
             }
+            })();
         });
 
         return () => cancelAnimationFrame(timer);
@@ -218,6 +220,14 @@ const toDisplayString = (value: unknown, fallback = ''): string => {
 const toDisplayStringArray = (value: unknown): string[] => {
     if (!Array.isArray(value)) return [];
     return value.map(item => toDisplayString(item)).filter(Boolean);
+};
+
+let xlsxModulePromise: Promise<typeof import('xlsx')> | null = null;
+const loadXlsx = () => {
+    if (!xlsxModulePromise) {
+        xlsxModulePromise = import('xlsx');
+    }
+    return xlsxModulePromise;
 };
 
 const toRoleSafe = (value: unknown): WorkerRecord['role'] => {
@@ -728,6 +738,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     };
 
     const parseSpreadsheetFile = async (file: File): Promise<Record<string, unknown>[]> => {
+        const XLSX = await loadXlsx();
         const buffer = await file.arrayBuffer();
         const workbook = XLSX.read(buffer, { type: 'array' });
         const firstSheetName = workbook.SheetNames[0];
@@ -1013,7 +1024,8 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         }
     };
 
-    const handleDownloadTemplate = () => {
+    const handleDownloadTemplate = async () => {
+        const XLSX = await loadXlsx();
         const headers = ['이름', '국적', '공종', '팀명', '핸드폰번호', '생년월일', '여권번호'];
         const sampleRows = [
             ['홍길동', '대한민국', '형틀', '김철수팀', '01012345678', '900101', 'M12345678'],
