@@ -67,6 +67,7 @@ export default async function handler(req: any, res: any) {
 
         let targetMode: 'submitted_only' | 'attendance_only' = 'submitted_only';
         let targetWorkerNames: string[] = [];
+        const targetWorkerDisplayMap = new Map<string, string>();
 
         const sessionMetaResult = await supabase
             .from('training_sessions')
@@ -80,9 +81,17 @@ export default async function handler(req: any, res: any) {
                 ? 'attendance_only'
                 : 'submitted_only';
             if (Array.isArray(sessionRow?.target_worker_names)) {
-                targetWorkerNames = sessionRow.target_worker_names
-                    .map((item: unknown) => String(item || '').trim().toLowerCase())
-                    .filter((item: string) => Boolean(item));
+                const normalizedTargetNames: string[] = [];
+                for (const item of sessionRow.target_worker_names) {
+                    const rawName = String(item || '').trim();
+                    const normalized = rawName.toLowerCase();
+                    if (!normalized) continue;
+                    normalizedTargetNames.push(normalized);
+                    if (!targetWorkerDisplayMap.has(normalized)) {
+                        targetWorkerDisplayMap.set(normalized, rawName);
+                    }
+                }
+                targetWorkerNames = normalizedTargetNames;
             }
         }
 
@@ -97,12 +106,19 @@ export default async function handler(req: any, res: any) {
         }
 
         const workerSet = new Set<string>();
+        const workerDisplayMap = new Map<string, string>();
         const nationalitySet = new Set<string>();
 
         for (const row of logsResult.data || []) {
-            const workerName = String((row as any)?.worker_name || '').trim().toLowerCase();
+            const rawWorkerName = String((row as any)?.worker_name || '').trim();
+            const workerName = rawWorkerName.toLowerCase();
             const nationality = String((row as any)?.nationality || '').trim();
-            if (workerName) workerSet.add(workerName);
+            if (workerName) {
+                workerSet.add(workerName);
+                if (!workerDisplayMap.has(workerName)) {
+                    workerDisplayMap.set(workerName, rawWorkerName);
+                }
+            }
             if (nationality) nationalitySet.add(nationality);
         }
 
@@ -151,6 +167,24 @@ export default async function handler(req: any, res: any) {
             ? Math.round((confirmedWorkers / targetedWorkers) * 100)
             : 0;
 
+        const submittedWorkerNames = Array.from(workerSet)
+            .map((worker) => workerDisplayMap.get(worker) || worker)
+            .sort((a, b) => a.localeCompare(b, 'ko'));
+
+        const scopedConfirmedSet = useAttendanceTarget
+            ? new Set(Array.from(confirmedSet).filter((worker) => targetSet.has(worker)))
+            : new Set(confirmedSet);
+
+        const confirmedWorkerNames = Array.from(scopedConfirmedSet)
+            .map((worker) => workerDisplayMap.get(worker) || targetWorkerDisplayMap.get(worker) || worker)
+            .sort((a, b) => a.localeCompare(b, 'ko'));
+
+        const unconfirmedBaseSet = useAttendanceTarget ? targetSet : workerSet;
+        const unconfirmedWorkerNames = Array.from(unconfirmedBaseSet)
+            .filter((worker) => !scopedConfirmedSet.has(worker))
+            .map((worker) => targetWorkerDisplayMap.get(worker) || workerDisplayMap.get(worker) || worker)
+            .sort((a, b) => a.localeCompare(b, 'ko'));
+
         return res.status(200).json({
             ok: true,
             sessionId,
@@ -163,6 +197,9 @@ export default async function handler(req: any, res: any) {
             confirmationRate,
             nationalityCount: nationalitySet.size,
             ackDataSource,
+            submittedWorkerNames,
+            confirmedWorkerNames,
+            unconfirmedWorkerNames,
         });
     } catch (error: any) {
         return sendJsonError(res, 500, error?.message || '통계 조회 실패');

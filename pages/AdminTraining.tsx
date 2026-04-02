@@ -401,6 +401,9 @@ type AwarenessStats = {
     confirmationRate: number;
     nationalityCount: number;
     ackDataSource: 'training_acknowledgements' | 'submission_gate';
+    submittedWorkerNames: string[];
+    confirmedWorkerNames: string[];
+    unconfirmedWorkerNames: string[];
 };
 
 type ActiveQrState = {
@@ -549,7 +552,9 @@ const AdminTraining: React.FC = () => {
     const [isQrFullscreenOpen, setIsQrFullscreenOpen] = useState(false);
     const [deletingRosterRowId, setDeletingRosterRowId] = useState('');
     const [deletingAllRoster, setDeletingAllRoster] = useState(false);
+    const [rosterFilter, setRosterFilter] = useState<'submitted' | 'confirmed' | 'unconfirmed'>('submitted');
     const rosterPollingRef = useRef<number | null>(null);
+    const rosterSectionRef = useRef<HTMLDivElement | null>(null);
     const currentLoadedSession = recentSessions.find((session) => session.id === currentSessionId);
     const filteredRecentSessions = recentSessions.filter((session) => {
         const matchesCategory = recentSessionCategoryFilter === 'all'
@@ -610,6 +615,10 @@ const AdminTraining: React.FC = () => {
         setFlushSummaryHistory([]);
         localStorage.removeItem(FLUSH_SUMMARY_HISTORY_STORAGE_KEY);
         setMessage('최근 비우기 이력을 초기화했습니다.');
+    };
+
+    const handleScrollToRoster = () => {
+        rosterSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
     const requestSignedMobileUrl = async (sessionId: string) => {
@@ -759,6 +768,15 @@ const AdminTraining: React.FC = () => {
                 ackDataSource: data.ackDataSource === 'training_acknowledgements'
                     ? 'training_acknowledgements'
                     : 'submission_gate',
+                submittedWorkerNames: Array.isArray(data.submittedWorkerNames)
+                    ? data.submittedWorkerNames.map((item: unknown) => String(item || '').trim()).filter(Boolean)
+                    : [],
+                confirmedWorkerNames: Array.isArray(data.confirmedWorkerNames)
+                    ? data.confirmedWorkerNames.map((item: unknown) => String(item || '').trim()).filter(Boolean)
+                    : [],
+                unconfirmedWorkerNames: Array.isArray(data.unconfirmedWorkerNames)
+                    ? data.unconfirmedWorkerNames.map((item: unknown) => String(item || '').trim()).filter(Boolean)
+                    : [],
             });
         } catch (error: any) {
             setAwarenessStats(null);
@@ -978,8 +996,11 @@ const AdminTraining: React.FC = () => {
         if (!currentSessionId) {
             setAwarenessStats(null);
             setAwarenessError('');
+            setRosterFilter('submitted');
             return;
         }
+
+        setRosterFilter('submitted');
 
         void fetchAwarenessStats(currentSessionId);
         void fetchSignatureRoster(currentSessionId);
@@ -2103,9 +2124,19 @@ const AdminTraining: React.FC = () => {
                 ) : awarenessError ? (
                     <p className="mt-3 text-sm font-bold text-rose-700">{t.statErrorPrefix}: {awarenessError}</p>
                 ) : awarenessStats ? (
+                    <>
                     <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
-                            <p className="text-[11px] font-black text-slate-500">{t.statSubmitted}</p>
+                            <div className="flex items-center justify-between gap-2">
+                                <p className="text-[11px] font-black text-slate-500">{t.statSubmitted}</p>
+                                <button
+                                    type="button"
+                                    onClick={handleScrollToRoster}
+                                    className="inline-flex items-center rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-black text-slate-700 hover:bg-slate-50"
+                                >
+                                    명부
+                                </button>
+                            </div>
                             <p className="mt-1 text-xl font-black text-slate-900">{awarenessStats.submittedWorkers}</p>
                         </div>
                         <div className="p-3 rounded-xl border border-indigo-200 bg-indigo-50">
@@ -2149,6 +2180,35 @@ const AdminTraining: React.FC = () => {
                             </p>
                         </div>
                     </div>
+                    <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <p className="text-[11px] font-black text-slate-700">
+                                제출자 확인: 아래 <span className="text-indigo-700">위험성평가 서명 완료 명부</span>에서 이름/국적/제출시간을 확인할 수 있습니다.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={handleScrollToRoster}
+                                className="w-full sm:w-auto inline-flex items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-black text-indigo-700 hover:bg-indigo-100"
+                            >
+                                제출자 명부 바로가기
+                            </button>
+                        </div>
+                        {signatureRoster.length > 0 && (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                {signatureRoster.slice(0, 8).map((row) => (
+                                    <span key={row.id} className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black text-slate-700">
+                                        {row.worker_name || '이름 없음'}
+                                    </span>
+                                ))}
+                                {signatureRoster.length > 8 && (
+                                    <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-black text-slate-500">
+                                        +{signatureRoster.length - 8}명
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    </>
                 ) : (
                     <p className="mt-3 text-sm font-bold text-slate-500">{t.recentEmpty}</p>
                 )}
@@ -2241,14 +2301,14 @@ const AdminTraining: React.FC = () => {
 
             {/* 위험성평가 서명 완료 명부 */}
             {currentSessionId && (
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
+                <div ref={rosterSectionRef} id="training-submitter-roster" className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div>
                             <h3 className="text-lg font-black text-slate-900">위험성평가 서명 완료 명부</h3>
                             <p className="mt-1 text-xs font-bold text-slate-500">현재 세션에 제출된 서명 목록 · 10초마다 자동 갱신</p>
                         </div>
                         <div className="flex items-center gap-2">
-                            {signatureRoster.length > 0 && (
+                            {rosterFilter === 'submitted' && signatureRoster.length > 0 && (
                                 <button
                                     type="button"
                                     onClick={handlePrintSignatureRoster}
@@ -2258,7 +2318,7 @@ const AdminTraining: React.FC = () => {
                                     인쇄/PDF
                                 </button>
                             )}
-                            {signatureRoster.length > 0 && (
+                            {rosterFilter === 'submitted' && signatureRoster.length > 0 && (
                                 <button
                                     type="button"
                                     onClick={handleDownloadSignatureRosterCsv}
@@ -2276,7 +2336,7 @@ const AdminTraining: React.FC = () => {
                             >
                                 {rosterLoading ? '불러오는 중...' : '새로고침'}
                             </button>
-                            {signatureRoster.length > 0 && (
+                            {rosterFilter === 'submitted' && signatureRoster.length > 0 && (
                                 <button
                                     type="button"
                                     onClick={() => void deleteAllRosterRows(currentSessionId, signatureRoster.length)}
@@ -2289,15 +2349,39 @@ const AdminTraining: React.FC = () => {
                         </div>
                     </div>
 
+                    <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setRosterFilter('submitted')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-black border transition-colors ${rosterFilter === 'submitted' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
+                        >
+                            제출 인원 ({signatureRoster.length})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setRosterFilter('confirmed')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-black border transition-colors ${rosterFilter === 'confirmed' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'}`}
+                        >
+                            확약 인원 ({awarenessStats?.confirmedWorkerNames.length || 0})
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setRosterFilter('unconfirmed')}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-black border transition-colors ${rosterFilter === 'unconfirmed' ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-amber-700 border-amber-200 hover:bg-amber-50'}`}
+                        >
+                            미확약 대상자 ({awarenessStats?.unconfirmedWorkerNames.length || 0})
+                        </button>
+                    </div>
+
                     {rosterError && (
                         <p className="mt-3 text-sm font-bold text-rose-700">오류: {rosterError}</p>
                     )}
 
-                    {!rosterError && signatureRoster.length === 0 && !rosterLoading && (
+                    {!rosterError && rosterFilter === 'submitted' && signatureRoster.length === 0 && !rosterLoading && (
                         <p className="mt-3 text-sm font-bold text-slate-400">아직 제출된 서명이 없습니다.</p>
                     )}
 
-                    {signatureRoster.length > 0 && (
+                    {rosterFilter === 'submitted' && signatureRoster.length > 0 && (
                         <div className="mt-4 overflow-x-auto">
                             <table className="min-w-full text-sm">
                                 <thead>
@@ -2363,7 +2447,48 @@ const AdminTraining: React.FC = () => {
                         </div>
                     )}
 
-                    <p className="mt-2 text-[11px] font-bold text-slate-400 text-right">총 {signatureRoster.length}명</p>
+                    {rosterFilter !== 'submitted' && (
+                        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                            {(() => {
+                                const list = rosterFilter === 'confirmed'
+                                    ? (awarenessStats?.confirmedWorkerNames || [])
+                                    : (awarenessStats?.unconfirmedWorkerNames || []);
+                                const emptyMessage = rosterFilter === 'confirmed'
+                                    ? '확약 완료 인원이 없습니다.'
+                                    : '미확약 대상자가 없습니다.';
+
+                                if (list.length === 0) {
+                                    return <p className="text-sm font-bold text-slate-400">{emptyMessage}</p>;
+                                }
+
+                                return (
+                                    <div className="space-y-2">
+                                        <p className="text-xs font-black text-slate-600">
+                                            {rosterFilter === 'confirmed' ? '확약 완료 목록' : '미확약 대상 목록'} · 총 {list.length}명
+                                        </p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {list.map((name, index) => (
+                                                <span
+                                                    key={`${name}-${index}`}
+                                                    className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-black text-slate-700"
+                                                >
+                                                    {name}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    )}
+
+                    <p className="mt-2 text-[11px] font-bold text-slate-400 text-right">
+                        총 {rosterFilter === 'submitted'
+                            ? signatureRoster.length
+                            : rosterFilter === 'confirmed'
+                                ? (awarenessStats?.confirmedWorkerNames.length || 0)
+                                : (awarenessStats?.unconfirmedWorkerNames.length || 0)}명
+                    </p>
                 </div>
             )}
 

@@ -1,6 +1,9 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import type { WorkerRecord } from '../types';
+import { isAdminAuthenticated } from '../utils/adminGuard';
+import { postAdminJson } from '../utils/adminApiClient';
+import { extractMessage } from '../utils/errorUtils';
 
 // 관리 직군 필터링 함수
 const isManagementRole = (field: string) => 
@@ -19,6 +22,155 @@ interface Link {
     target: string;
     value: number; // 굵기 결정
 }
+
+interface WorkerRiskInsight {
+    key: string;
+    name: string;
+    jobField: string;
+    nationality: string;
+    latestScore: number;
+    previousScore: number | null;
+    scoreDelta: number | null;
+    riskScore: number;
+    topRisk: string;
+    teamLeader?: string;
+    reasonLabels: string[];
+    latestRecord: WorkerRecord;
+}
+
+interface ActionExecutionPlan {
+    key: string;
+    priority: '즉시' | '고' | '중';
+    owner: string;
+    workerName: string;
+    jobField: string;
+    teamLeader?: string;
+    riskLabel: string;
+    actionTitle: string;
+    dueLabel: string;
+    checkItems: string[];
+}
+
+type PlanStatus = 'not-started' | 'in-progress' | 'completed';
+
+type PlanStatusApiItem = {
+    planKey: string;
+    status: PlanStatus;
+    updatedAt?: string | null;
+    updatedBy?: string | null;
+};
+
+type PlanStatusHistoryItem = {
+    status: PlanStatus;
+    previousStatus?: PlanStatus | null;
+    updatedAt: string | null;
+    updatedBy: string | null;
+};
+
+type PlanAuditMeta = {
+    updatedAt: string | null;
+    updatedBy: string | null;
+};
+
+const PLAN_STATUS_META: Record<PlanStatus, { label: string; chipClass: string; buttonClass: string }> = {
+    'not-started': {
+        label: '미착수',
+        chipClass: 'bg-slate-100 text-slate-700',
+        buttonClass: 'border-slate-200 text-slate-600 hover:bg-slate-100',
+    },
+    'in-progress': {
+        label: '진행중',
+        chipClass: 'bg-amber-100 text-amber-700',
+        buttonClass: 'border-amber-200 text-amber-700 hover:bg-amber-50',
+    },
+    completed: {
+        label: '완료',
+        chipClass: 'bg-emerald-100 text-emerald-700',
+        buttonClass: 'border-emerald-200 text-emerald-700 hover:bg-emerald-50',
+    },
+};
+
+const PLAN_STATUS_STORAGE_KEY = 'psi_predictive_execution_plan_status_v1';
+
+const readSavedPlanStatusMap = (): Record<string, PlanStatus> => {
+    try {
+        if (typeof window === 'undefined') return {};
+        const raw = window.localStorage.getItem(PLAN_STATUS_STORAGE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        const allowed = new Set<PlanStatus>(['not-started', 'in-progress', 'completed']);
+        const next: Record<string, PlanStatus> = {};
+        for (const [key, value] of Object.entries(parsed || {})) {
+            if (typeof value === 'string' && allowed.has(value as PlanStatus)) {
+                next[key] = value as PlanStatus;
+            }
+        }
+        return next;
+    } catch {
+        return {};
+    }
+};
+
+const getRegisteredJobFields = (): string[] => {
+    try {
+        if (typeof window === 'undefined') return [];
+        const raw = window.localStorage.getItem('psi_app_settings');
+        if (!raw) return [];
+        const parsed = JSON.parse(raw) as { jobFields?: unknown };
+        if (!Array.isArray(parsed?.jobFields)) return [];
+        return parsed.jobFields
+            .map((item) => String(item || '').trim())
+            .filter((item) => item.length > 0);
+    } catch {
+        return [];
+    }
+};
+
+const isFormworkJob = (jobField: string) => jobField.includes('형틀');
+
+const normalizeTeamLabel = (teamLeader?: string) => {
+    const trimmed = String(teamLeader || '').trim();
+    return trimmed.length > 0 ? trimmed : '팀미지정';
+};
+
+const getCurrentBoardScope = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+};
+
+const getCurrentAdminActorName = () => {
+    try {
+        if (typeof window === 'undefined') return '관리자';
+        const raw = window.localStorage.getItem('psi_app_settings');
+        if (!raw) return '관리자';
+        const parsed = JSON.parse(raw) as { siteManager?: unknown };
+        const siteManager = String(parsed?.siteManager || '').trim();
+        return siteManager || '관리자';
+    } catch {
+        return '관리자';
+    }
+};
+
+const formatAuditTime = (value?: string | null) => {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '-';
+    return parsed.toLocaleString('ko-KR', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+};
+
+const getPlanGroupLabel = (plan: Pick<ActionExecutionPlan, 'jobField' | 'teamLeader'>) => {
+    if (isFormworkJob(plan.jobField)) {
+        return `${plan.jobField} · ${normalizeTeamLabel(plan.teamLeader)}`;
+    }
+    return plan.jobField;
+};
 
 const clampOntologyZoom = (value: number) => Math.min(1.8, Math.max(0.7, Number(value.toFixed(2))));
 
@@ -47,6 +199,38 @@ const getOntologyGroupLabel = (group: Node['group']) => {
     if (group === 'job') return '공종';
     if (group === 'risk') return '위험요인';
     return '예방대책';
+};
+
+const clampRiskScore = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
+
+const inferRiskKeyword = (text: string) => {
+    if (text.includes('추락') || text.includes('고소')) return '추락 위험';
+    if (text.includes('전기') || text.includes('감전')) return '감전 위험';
+    if (text.includes('화재') || text.includes('용접')) return '화재 위험';
+    if (text.includes('보호구') || text.includes('미착용')) return '보호구 미흡';
+    if (text.includes('협착') || text.includes('끼임')) return '협착 위험';
+    return '작업 절차 미준수';
+};
+
+const getActionByRisk = (riskLabel: string) => {
+    if (riskLabel === '추락 위험') return '안전대 체결 확인 및 고소작업 전 점검';
+    if (riskLabel === '화재 위험') return '화기작업 허가서 재점검 및 소화기 배치';
+    if (riskLabel === '감전 위험') return '전선 피복·누전차단기 점검';
+    if (riskLabel === '보호구 미흡') return 'TBM 보호구 상호점검 및 착용 인증';
+    if (riskLabel === '협착 위험') return '신호수 배치 및 협착구간 접근 통제';
+    return '표준 작업절차 재교육 및 현장 확인';
+};
+
+const getOwnerByRisk = (riskLabel: string, jobField: string) => {
+    if (riskLabel === '감전 위험') return `전기안전 담당 · ${jobField} 반장`;
+    if (riskLabel === '화재 위험') return `화기관리 책임자 · ${jobField} 반장`;
+    if (riskLabel === '추락 위험') return `안전관리자 · ${jobField} 팀장`;
+    return `${jobField} 팀장 · 안전담당`;
+};
+
+const parseRecordDate = (value: string) => {
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
 };
 
 // 간단한 포스 그래프 시각화 컴포넌트 (SVG 기반)
@@ -315,8 +499,16 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
 
     const [todayDate, setTodayDate] = useState('');
     const [nextMonth, setNextMonth] = useState('');
+    const boardScope = useMemo(() => getCurrentBoardScope(), []);
+    const currentAdminActor = useMemo(() => getCurrentAdminActorName(), []);
+    const [showOntologyMobile, setShowOntologyMobile] = useState(false);
     const [ontologyZoom, setOntologyZoom] = useState(1);
     const [ontologySpacingStrength, setOntologySpacingStrength] = useState(0.5);
+    const [planStatusMap, setPlanStatusMap] = useState<Record<string, PlanStatus>>(() => readSavedPlanStatusMap());
+    const [planAuditMap, setPlanAuditMap] = useState<Record<string, PlanAuditMeta>>({});
+    const [expandedHistoryPlanKey, setExpandedHistoryPlanKey] = useState<string | null>(null);
+    const [planHistoryMap, setPlanHistoryMap] = useState<Record<string, PlanStatusHistoryItem[]>>({});
+    const [planHistoryLoadingMap, setPlanHistoryLoadingMap] = useState<Record<string, boolean>>({});
     const ontologyViewportRef = useRef<HTMLDivElement | null>(null);
     const [isPanningOntology, setIsPanningOntology] = useState(false);
     const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
@@ -346,33 +538,130 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
         setNextMonth(`${d.getMonth() + 1}월`);
     }, []);
 
+    const riskInsights = useMemo<WorkerRiskInsight[]>(() => {
+        const workerMap = new Map<string, WorkerRecord[]>();
+
+        for (const record of sourceRecords) {
+            const workerKey = `${record.name}|${record.jobField}`;
+            if (!workerMap.has(workerKey)) {
+                workerMap.set(workerKey, []);
+            }
+            workerMap.get(workerKey)!.push(record);
+        }
+
+        const insights: WorkerRiskInsight[] = [];
+
+        for (const [workerKey, records] of workerMap.entries()) {
+            const sortedRecords = [...records].sort((a, b) => parseRecordDate(a.date) - parseRecordDate(b.date));
+            if (sortedRecords.length === 0) continue;
+
+            const latestRecord = sortedRecords[sortedRecords.length - 1];
+            const previousRecord = sortedRecords.length > 1 ? sortedRecords[sortedRecords.length - 2] : null;
+            const latestScore = latestRecord.safetyScore || 0;
+            const previousScore = previousRecord ? (previousRecord.safetyScore || 0) : null;
+            const scoreDelta = previousScore === null ? null : Number((latestScore - previousScore).toFixed(1));
+
+            const recentRecords = sortedRecords.slice(-3);
+            const weaknessMap = new Map<string, number>();
+            for (const rec of recentRecords) {
+                for (const area of rec.weakAreas || []) {
+                    const risk = inferRiskKeyword(area);
+                    weaknessMap.set(risk, (weaknessMap.get(risk) || 0) + 1);
+                }
+            }
+
+            const topWeakness = Array.from(weaknessMap.entries()).sort((a, b) => b[1] - a[1])[0];
+            const topRisk = topWeakness?.[0] || '작업 절차 미준수';
+            const repeatWeaknessScore = clampRiskScore(((topWeakness?.[1] || 0) / Math.max(1, recentRecords.length)) * 100);
+
+            const dropAmount = scoreDelta !== null ? Math.max(0, -scoreDelta) : 0;
+            const trendDropScore = clampRiskScore((dropAmount / 20) * 100);
+            const lowScorePenalty = clampRiskScore(((70 - latestScore) / 30) * 100);
+
+            const incidentSignal = latestRecord.selfAssessedRiskLevel === '상'
+                ? 100
+                : latestRecord.selfAssessedRiskLevel === '중'
+                    ? 60
+                    : 25;
+
+            const riskScore = clampRiskScore(
+                trendDropScore * 0.4
+                + repeatWeaknessScore * 0.3
+                + lowScorePenalty * 0.2
+                + incidentSignal * 0.1
+            );
+
+            const reasons: Array<{ label: string; score: number }> = [
+                { label: `점수 추세 ${scoreDelta === null ? '기준없음' : `${scoreDelta >= 0 ? '+' : ''}${scoreDelta}점`}`, score: trendDropScore },
+                { label: `반복 취약 '${topRisk}'`, score: repeatWeaknessScore },
+                { label: `현재 점수 ${latestScore}점`, score: lowScorePenalty },
+                { label: `자가 위험수준 ${latestRecord.selfAssessedRiskLevel}`, score: incidentSignal },
+            ];
+
+            const reasonLabels = reasons.sort((a, b) => b.score - a.score).slice(0, 3).map((item) => item.label);
+
+            insights.push({
+                key: workerKey,
+                name: latestRecord.name,
+                jobField: latestRecord.jobField,
+                nationality: latestRecord.nationality,
+                latestScore,
+                previousScore,
+                scoreDelta,
+                riskScore,
+                topRisk,
+                teamLeader: latestRecord.teamLeader,
+                reasonLabels,
+                latestRecord,
+            });
+        }
+
+        return insights.sort((a, b) => b.riskScore - a.riskScore);
+    }, [sourceRecords]);
+
+    const summary = useMemo(() => {
+        if (riskInsights.length === 0) {
+            return {
+                highRiskCount: 0,
+                rapidDropCount: 0,
+                topRiskLabel: '-',
+            };
+        }
+
+        const highRiskCount = riskInsights.filter((item) => item.riskScore >= 70).length;
+        const rapidDropCount = riskInsights.filter((item) => (item.scoreDelta ?? 0) <= -10).length;
+        const topRiskMap = new Map<string, number>();
+
+        for (const item of riskInsights) {
+            topRiskMap.set(item.topRisk, (topRiskMap.get(item.topRisk) || 0) + 1);
+        }
+
+        const topRiskLabel = Array.from(topRiskMap.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || '-';
+
+        return {
+            highRiskCount,
+            rapidDropCount,
+            topRiskLabel,
+        };
+    }, [riskInsights]);
+
     // 2. 온톨로지 데이터 구성 (Nodes & Links)
     const graphData = useMemo(() => {
         const nodes: Node[] = [];
         const links: Link[] = [];
         const nodeMap = new Set<string>();
 
-        // 위험 키워드 추출 로직
-        const getRiskKeyword = (text: string) => {
-            if (text.includes('추락') || text.includes('고소')) return '추락 위험';
-            if (text.includes('전기') || text.includes('감전')) return '감전 위험';
-            if (text.includes('화재') || text.includes('용접')) return '화재 위험';
-            if (text.includes('보호구') || text.includes('미착용')) return '보호구 미흡';
-            if (text.includes('협착') || text.includes('끼임')) return '협착 위험';
-            return '작업 절차 미준수';
-        };
-
         if (sourceRecords.length === 0) return { nodes: [], links: [] };
 
         // 상위 위험 근로자 및 빈도 높은 위험 요소 추출
-        const targetWorkers = sourceRecords
-            .sort((a, b) => a.safetyScore - b.safetyScore)
+        const targetWorkers = riskInsights
             .slice(0, 10);
 
-        targetWorkers.forEach(w => {
+        targetWorkers.forEach((insight) => {
+            const w = insight.latestRecord;
             // Worker Node
             if (!nodeMap.has(w.id)) {
-                nodes.push({ id: w.id, group: 'worker', value: 10, label: w.name });
+                nodes.push({ id: w.id, group: 'worker', value: Math.max(10, Math.round(insight.riskScore / 6)), label: w.name });
                 nodeMap.add(w.id);
             }
 
@@ -386,7 +675,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
 
             // Risk Nodes & Links
             w.weakAreas.forEach(weak => {
-                const riskLabel = getRiskKeyword(weak);
+                const riskLabel = inferRiskKeyword(weak);
                 const riskId = `risk-${riskLabel}`;
                 
                 if (!nodeMap.has(riskId)) {
@@ -394,7 +683,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                     nodeMap.add(riskId);
                 }
                 // Link: Worker -> Risk (점수가 낮을수록 강한 연결)
-                links.push({ source: w.id, target: riskId, value: w.safetyScore < 60 ? 5 : 2 });
+                links.push({ source: w.id, target: riskId, value: insight.riskScore >= 70 ? 5 : 2 });
                 
                 // Ontology Inference: Risk -> Action (Next Month Plan)
                 let actionLabel = '';
@@ -416,16 +705,14 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
         });
 
         return { nodes, links };
-    }, [sourceRecords]);
+    }, [riskInsights, sourceRecords.length]);
 
     // 회의 안건 (Agenda) 생성 로직
     const meetingAgenda = useMemo(() => {
         const riskCounts: Record<string, number> = {};
-        sourceRecords.forEach(r => {
-            r.weakAreas.forEach(area => {
-                const key = area.includes('추락') ? '추락' : area.includes('전기') ? '전기' : area.includes('화재') ? '화재' : '기타';
-                riskCounts[key] = (riskCounts[key] || 0) + 1;
-            });
+        riskInsights.forEach((insight) => {
+            const key = insight.topRisk;
+            riskCounts[key] = (riskCounts[key] || 0) + 1;
         });
         
         const topRisks = Object.entries(riskCounts).sort((a,b) => b[1] - a[1]).slice(0, 3);
@@ -433,9 +720,318 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
         return topRisks.map(([risk], idx) => ({
             rank: idx + 1,
             title: `${nextMonth} ${risk} 집중 관리 기간`,
-            desc: `지난 달 ${risk} 관련 지적 사항이 ${(riskCounts[risk]/sourceRecords.length * 100).toFixed(0)}%로 가장 높았습니다. TBM 시 강조 바랍니다.`
+            desc: `고위험군에서 ${risk} 비중이 ${(riskCounts[risk]/Math.max(1, riskInsights.length) * 100).toFixed(0)}%입니다. TBM 전파 항목으로 우선 지정하십시오.`
         }));
-    }, [sourceRecords, nextMonth]);
+    }, [riskInsights, nextMonth]);
+
+    const executionPlans = useMemo<ActionExecutionPlan[]>(() => {
+        return riskInsights.slice(0, 5).map((insight, index) => {
+            const riskLabel = insight.topRisk;
+            const actionTitle = getActionByRisk(riskLabel);
+            const owner = getOwnerByRisk(riskLabel, insight.jobField);
+            const priority: ActionExecutionPlan['priority'] = insight.riskScore >= 85
+                ? '즉시'
+                : insight.riskScore >= 70
+                    ? '고'
+                    : '중';
+
+            const dueLabel = index < 2
+                ? `${nextMonth} 1주차`
+                : index < 4
+                    ? `${nextMonth} 2주차`
+                    : `${nextMonth} 3주차`;
+
+            const checkItems = [
+                'TBM 시작 전 5분 브리핑 시행',
+                `${actionTitle} 현장 사진 1건 이상 업로드`,
+                '조치 완료 후 팀장 확인 서명',
+            ];
+
+            return {
+                key: insight.key,
+                priority,
+                owner,
+                workerName: insight.name,
+                jobField: insight.jobField,
+                teamLeader: insight.teamLeader,
+                riskLabel,
+                actionTitle,
+                dueLabel,
+                checkItems,
+            };
+        });
+    }, [nextMonth, riskInsights]);
+
+    const executionPlanMap = useMemo(() => {
+        const map = new Map<string, ActionExecutionPlan>();
+        for (const plan of executionPlans) {
+            map.set(plan.key, plan);
+        }
+        return map;
+    }, [executionPlans]);
+
+    useEffect(() => {
+        try {
+            if (typeof window === 'undefined') return;
+            window.localStorage.setItem(PLAN_STATUS_STORAGE_KEY, JSON.stringify(planStatusMap));
+        } catch {
+            // ignore storage failures
+        }
+    }, [planStatusMap]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadPlanStatusesFromServer = async () => {
+            if (!isAdminAuthenticated()) return;
+            if (executionPlans.length === 0) return;
+
+            try {
+                const response = await postAdminJson<{ ok: boolean; items?: PlanStatusApiItem[] }>(
+                    '/api/admin/predictive-plan-status',
+                    {
+                        action: 'list',
+                        payload: {
+                            boardScope,
+                            planKeys: executionPlans.map((plan) => plan.key),
+                        },
+                    },
+                    { fallbackMessage: '실행 계획 상태 조회 실패' }
+                );
+
+                if (cancelled) return;
+
+                const serverMap: Record<string, PlanStatus> = {};
+                const serverAuditMap: Record<string, PlanAuditMeta> = {};
+                for (const item of response.items || []) {
+                    if (!item?.planKey || !item?.status) continue;
+                    serverMap[item.planKey] = item.status;
+                    serverAuditMap[item.planKey] = {
+                        updatedAt: item.updatedAt || null,
+                        updatedBy: item.updatedBy || null,
+                    };
+                }
+
+                setPlanStatusMap((previous) => {
+                    const next: Record<string, PlanStatus> = { ...previous };
+                    for (const plan of executionPlans) {
+                        next[plan.key] = serverMap[plan.key] || previous[plan.key] || 'not-started';
+                    }
+                    return next;
+                });
+
+                setPlanAuditMap((previous) => {
+                    const next: Record<string, PlanAuditMeta> = { ...previous };
+                    for (const plan of executionPlans) {
+                        next[plan.key] = serverAuditMap[plan.key] || previous[plan.key] || { updatedAt: null, updatedBy: null };
+                    }
+                    return next;
+                });
+            } catch (error) {
+                console.warn('[PredictiveAnalysis] 실행 계획 상태 서버 조회 실패:', extractMessage(error));
+            }
+        };
+
+        void loadPlanStatusesFromServer();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [boardScope, executionPlans]);
+
+    useEffect(() => {
+        setPlanStatusMap((previous) => {
+            const next: Record<string, PlanStatus> = {};
+            for (const plan of executionPlans) {
+                next[plan.key] = previous[plan.key] || 'not-started';
+            }
+            return next;
+        });
+
+        setPlanAuditMap((previous) => {
+            const next: Record<string, PlanAuditMeta> = {};
+            for (const plan of executionPlans) {
+                next[plan.key] = previous[plan.key] || { updatedAt: null, updatedBy: null };
+            }
+            return next;
+        });
+
+        setPlanHistoryMap((previous) => {
+            const next: Record<string, PlanStatusHistoryItem[]> = {};
+            for (const plan of executionPlans) {
+                next[plan.key] = previous[plan.key] || [];
+            }
+            return next;
+        });
+
+        setPlanHistoryLoadingMap((previous) => {
+            const next: Record<string, boolean> = {};
+            for (const plan of executionPlans) {
+                next[plan.key] = previous[plan.key] || false;
+            }
+            return next;
+        });
+    }, [executionPlans]);
+
+    const statusSummary = useMemo(() => {
+        const summary: Record<PlanStatus, number> = {
+            'not-started': 0,
+            'in-progress': 0,
+            completed: 0,
+        };
+
+        for (const plan of executionPlans) {
+            const status = planStatusMap[plan.key] || 'not-started';
+            summary[status] += 1;
+        }
+
+        return summary;
+    }, [executionPlans, planStatusMap]);
+
+    const registeredJobFieldLabels = useMemo(() => {
+        const configured = getRegisteredJobFields();
+        const observed = Array.from(new Set(sourceRecords.map((record) => String(record.jobField || '').trim()).filter((value) => value.length > 0)));
+        return Array.from(new Set([...configured, ...observed]));
+    }, [sourceRecords]);
+
+    const groupedJobStatLabels = useMemo(() => {
+        const grouped = new Set<string>();
+
+        for (const baseJob of registeredJobFieldLabels) {
+            if (isFormworkJob(baseJob)) {
+                const formworkPlans = executionPlans.filter((plan) => plan.jobField === baseJob || plan.jobField.includes(baseJob));
+                if (formworkPlans.length === 0) {
+                    grouped.add(`${baseJob} · 팀미지정`);
+                } else {
+                    for (const plan of formworkPlans) {
+                        grouped.add(`${baseJob} · ${normalizeTeamLabel(plan.teamLeader)}`);
+                    }
+                }
+            } else {
+                grouped.add(baseJob);
+            }
+        }
+
+        return Array.from(grouped);
+    }, [executionPlans, registeredJobFieldLabels]);
+
+    const customJobActionRates = useMemo(() => {
+        return groupedJobStatLabels.map((jobLabel) => {
+            const targetPlans = executionPlans.filter((plan) => getPlanGroupLabel(plan) === jobLabel);
+            const total = targetPlans.length;
+            const completed = targetPlans.filter((plan) => (planStatusMap[plan.key] || 'not-started') === 'completed').length;
+            const inProgress = targetPlans.filter((plan) => (planStatusMap[plan.key] || 'not-started') === 'in-progress').length;
+            const notStarted = Math.max(0, total - completed - inProgress);
+            const actionRate = total === 0 ? 0 : Math.round((completed / total) * 100);
+
+            return {
+                jobLabel,
+                total,
+                completed,
+                inProgress,
+                notStarted,
+                actionRate,
+            };
+        });
+    }, [executionPlans, groupedJobStatLabels, planStatusMap]);
+
+    const setPlanStatus = (planKey: string, status: PlanStatus) => {
+        const nowIso = new Date().toISOString();
+
+        setPlanStatusMap((previous) => ({
+            ...previous,
+            [planKey]: status,
+        }));
+
+        setPlanAuditMap((previous) => ({
+            ...previous,
+            [planKey]: {
+                updatedAt: nowIso,
+                updatedBy: currentAdminActor,
+            },
+        }));
+
+        const plan = executionPlanMap.get(planKey);
+        if (!plan || !isAdminAuthenticated()) return;
+
+        void postAdminJson<{ ok: boolean; item?: PlanStatusApiItem }>(
+            '/api/admin/predictive-plan-status',
+            {
+                action: 'upsert',
+                payload: {
+                    boardScope,
+                    planKey,
+                    status,
+                    updatedBy: currentAdminActor,
+                    workerName: plan.workerName,
+                    jobField: plan.jobField,
+                    teamLeader: plan.teamLeader || null,
+                    riskLabel: plan.riskLabel,
+                    actionTitle: plan.actionTitle,
+                    dueLabel: plan.dueLabel,
+                },
+            },
+            { fallbackMessage: '실행 계획 상태 저장 실패' }
+        )
+            .then((response) => {
+                const item = response?.item;
+                if (!item?.planKey) return;
+                setPlanAuditMap((previous) => ({
+                    ...previous,
+                    [item.planKey]: {
+                        updatedAt: item.updatedAt || previous[item.planKey]?.updatedAt || nowIso,
+                        updatedBy: item.updatedBy || previous[item.planKey]?.updatedBy || currentAdminActor,
+                    },
+                }));
+            })
+            .catch((error) => {
+                console.warn('[PredictiveAnalysis] 실행 계획 상태 서버 저장 실패:', extractMessage(error));
+            });
+    };
+
+    const togglePlanHistory = async (planKey: string) => {
+        if (expandedHistoryPlanKey === planKey) {
+            setExpandedHistoryPlanKey(null);
+            return;
+        }
+
+        setExpandedHistoryPlanKey(planKey);
+
+        if (!isAdminAuthenticated()) return;
+        if ((planHistoryMap[planKey] || []).length > 0) return;
+
+        setPlanHistoryLoadingMap((previous) => ({
+            ...previous,
+            [planKey]: true,
+        }));
+
+        try {
+            const response = await postAdminJson<{ ok: boolean; items?: PlanStatusHistoryItem[] }>(
+                '/api/admin/predictive-plan-status',
+                {
+                    action: 'history',
+                    payload: {
+                        boardScope,
+                        planKey,
+                        limit: 5,
+                    },
+                },
+                { fallbackMessage: '실행 계획 상태 이력 조회 실패' }
+            );
+
+            setPlanHistoryMap((previous) => ({
+                ...previous,
+                [planKey]: Array.isArray(response.items) ? response.items : [],
+            }));
+        } catch (error) {
+            console.warn('[PredictiveAnalysis] 실행 계획 상태 이력 조회 실패:', extractMessage(error));
+        } finally {
+            setPlanHistoryLoadingMap((previous) => ({
+                ...previous,
+                [planKey]: false,
+            }));
+        }
+    };
 
     const handleOntologyMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
         if (event.button !== 0) return;
@@ -553,32 +1149,77 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
     };
 
     return (
-        <div className="space-y-8 animate-fade-in-up">
+        <div className="space-y-6 sm:space-y-8 animate-fade-in-up">
             {/* Header: Meeting Context */}
-            <div className="bg-gradient-to-r from-slate-900 to-indigo-900 rounded-[30px] p-8 text-white shadow-2xl border border-slate-700 relative overflow-hidden">
+            <div className="bg-gradient-to-r from-slate-900 to-indigo-900 rounded-2xl sm:rounded-[30px] p-4 sm:p-8 text-white shadow-2xl border border-slate-700 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32"></div>
-                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 sm:gap-6">
                     <div>
-                        <div className="flex items-center gap-3 mb-2">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                             <span className="bg-indigo-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg">Monthly Meeting</span>
                             <span className="text-indigo-300 text-xs font-bold">{todayDate} 기준 분석</span>
                         </div>
-                        <h2 className="text-3xl font-black mb-2">월간 위험성평가 회의 및 전략 수립</h2>
-                        <p className="text-slate-400 max-w-2xl text-sm font-medium leading-relaxed">
-                            수집된 수기 기록 데이터를 온톨로지로 가공하여 <span className="text-white font-bold underline decoration-indigo-500">인과관계</span>를 분석했습니다. 
-                            이 자료를 바탕으로 다음 달({nextMonth})의 중점 관리 사항을 결정하고 전파 교육 자료를 작성하십시오.
+                        <h2 className="text-2xl sm:text-3xl font-black mb-2">예측적 안전관리 · 우선 개입 대시보드</h2>
+                        <p className="text-slate-300 max-w-2xl text-xs sm:text-sm font-medium leading-relaxed">
+                            1) 현재 위험군 식별 → 2) 다음 달 악화 가능성 예측 → 3) 개입 우선순위 제시 순서로 구성했습니다.
                         </p>
                     </div>
-                    <button className="px-6 py-3 bg-white text-indigo-900 rounded-xl font-black text-sm shadow-lg hover:bg-indigo-50 transition-all flex items-center gap-2">
+                    <button className="hidden sm:inline-flex px-6 py-3 bg-white text-indigo-900 rounded-xl font-black text-sm shadow-lg hover:bg-indigo-50 transition-all items-center gap-2">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                         회의 자료 인쇄
                     </button>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+                <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-sm">
+                    <p className="text-[11px] font-black text-rose-600">고위험군 (RiskScore ≥ 70)</p>
+                    <p className="mt-1 text-2xl font-black text-slate-900">{summary.highRiskCount}명</p>
+                </div>
+                <div className="bg-white p-4 rounded-2xl border border-amber-100 shadow-sm">
+                    <p className="text-[11px] font-black text-amber-700">급락군 (최근 -10점 이하)</p>
+                    <p className="mt-1 text-2xl font-black text-slate-900">{summary.rapidDropCount}명</p>
+                </div>
+                <div className="bg-white p-4 rounded-2xl border border-indigo-100 shadow-sm">
+                    <p className="text-[11px] font-black text-indigo-700">핵심 위험테마</p>
+                    <p className="mt-1 text-xl font-black text-slate-900">{summary.topRiskLabel}</p>
+                </div>
+            </div>
+
+            <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-lg border border-slate-100">
+                <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-base sm:text-lg font-black text-slate-900">우선 개입 대상 TOP 5</h3>
+                    <span className="text-[11px] font-black text-slate-500">RiskScore 기준</span>
+                </div>
+                {riskInsights.length === 0 ? (
+                    <p className="text-sm font-bold text-slate-400">예측 분석을 위한 데이터가 부족합니다.</p>
+                ) : (
+                    <div className="space-y-3">
+                        {riskInsights.slice(0, 5).map((item, index) => (
+                            <div key={item.key} className="rounded-xl border border-slate-200 p-3 bg-slate-50">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                        <p className="text-sm font-black text-slate-900">{index + 1}. {item.name} · {item.jobField}</p>
+                                        <p className="text-[11px] font-bold text-slate-500">{item.nationality} · 최신점수 {item.latestScore}점 {item.scoreDelta !== null ? `(${item.scoreDelta >= 0 ? '+' : ''}${item.scoreDelta})` : ''}</p>
+                                    </div>
+                                    <span className="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-black">{item.riskScore}</span>
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {item.reasonLabels.map((reason) => (
+                                        <span key={reason} className="px-2 py-1 rounded-full bg-white border border-slate-200 text-[10px] font-black text-slate-600">
+                                            {reason}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
                 {/* Left: Ontology Graph (Visual Evidence) */}
-                <div className="lg:col-span-2 bg-slate-900 p-6 rounded-[30px] shadow-xl border border-slate-800 flex flex-col">
+                <div className="lg:col-span-2 bg-slate-900 p-4 sm:p-6 rounded-2xl sm:rounded-[30px] shadow-xl border border-slate-800 flex flex-col">
                     <div className="mb-6 rounded-2xl border border-slate-700 bg-slate-800/40 p-3 sm:p-4">
                         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                             <div className="min-w-0">
@@ -648,9 +1289,16 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                             <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-500/10 px-2.5 py-1"><div className="w-2 h-2 rounded-full bg-amber-500"></div>예방대책</span>
                         </div>
                     </div>
+                    <button
+                        type="button"
+                        onClick={() => setShowOntologyMobile((prev) => !prev)}
+                        className="sm:hidden mb-3 w-full rounded-xl border border-slate-700 bg-slate-800/60 px-3 py-2 text-xs font-black text-slate-100"
+                    >
+                        {showOntologyMobile ? '온톨로지 맵 숨기기' : '온톨로지 맵 보기'}
+                    </button>
                     <div
                         ref={ontologyViewportRef}
-                        className={`flex-1 min-h-[400px] relative border border-slate-800 rounded-2xl bg-slate-950/50 overflow-auto ${isPanningOntology ? 'cursor-grabbing' : 'cursor-grab'}`}
+                        className={`flex-1 min-h-[320px] sm:min-h-[400px] relative border border-slate-800 rounded-2xl bg-slate-950/50 overflow-auto ${isPanningOntology ? 'cursor-grabbing' : 'cursor-grab'} ${showOntologyMobile ? 'block' : 'hidden sm:block'}`}
                         onMouseDown={handleOntologyMouseDown}
                         onMouseMove={handleOntologyMouseMove}
                         onMouseUp={stopOntologyPanning}
@@ -662,7 +1310,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                         style={{ touchAction: 'none' }}
                     >
                         {graphData.nodes.length > 0 ? (
-                            <div className="min-w-[900px] min-h-[620px] w-full h-full flex items-center justify-center p-4">
+                            <div className="min-w-[760px] sm:min-w-[900px] min-h-[560px] sm:min-h-[620px] w-full h-full flex items-center justify-center p-3 sm:p-4">
                                 <div
                                     className="w-full h-full transition-transform duration-200"
                                     style={{ transform: `scale(${ontologyZoom})`, transformOrigin: 'center center' }}
@@ -684,7 +1332,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                 {/* Right: Next Month Agenda & Action Items */}
                 <div className="space-y-6">
                     {/* Agenda Card */}
-                    <div className="bg-white p-6 rounded-[30px] shadow-lg border border-slate-100">
+                    <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[30px] shadow-lg border border-slate-100">
                         <h3 className="text-lg font-black text-slate-900 mb-4 flex items-center gap-2">
                             <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
                             {nextMonth} 중점 관리 안건
@@ -717,8 +1365,147 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                         </div>
                     </div>
 
+                    <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[30px] shadow-lg border border-slate-100">
+                        <h3 className="text-lg font-black text-slate-900 mb-4">실행 계획 (누가 · 무엇을 · 언제)</h3>
+                        <div className="mb-3 grid grid-cols-3 gap-2">
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-center">
+                                <p className="text-[10px] font-black text-slate-500">미착수</p>
+                                <p className="text-base font-black text-slate-900">{statusSummary['not-started']}</p>
+                            </div>
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 p-2 text-center">
+                                <p className="text-[10px] font-black text-amber-700">진행중</p>
+                                <p className="text-base font-black text-amber-800">{statusSummary['in-progress']}</p>
+                            </div>
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-2 text-center">
+                                <p className="text-[10px] font-black text-emerald-700">완료</p>
+                                <p className="text-base font-black text-emerald-800">{statusSummary.completed}</p>
+                            </div>
+                        </div>
+                        {executionPlans.length === 0 ? (
+                            <div className="text-center py-8 text-slate-400 text-sm">실행 계획을 생성할 데이터가 부족합니다.</div>
+                        ) : (
+                            <div className="space-y-3">
+                                {executionPlans.map((plan) => (
+                                    <div key={plan.key} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div>
+                                                <p className="text-sm font-black text-slate-900">{plan.workerName} · {plan.jobField}</p>
+                                                <p className="text-[11px] font-bold text-slate-500">{plan.teamLeader ? `팀: ${plan.teamLeader} · ` : ''}위험: {plan.riskLabel}</p>
+                                            </div>
+                                            <div className="flex flex-col items-end gap-1">
+                                                <span className={`px-2 py-1 rounded-lg text-[10px] font-black ${plan.priority === '즉시' ? 'bg-rose-100 text-rose-700' : plan.priority === '고' ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                                                    우선순위 {plan.priority}
+                                                </span>
+                                                <span className={`px-2 py-1 rounded-lg text-[10px] font-black ${PLAN_STATUS_META[planStatusMap[plan.key] || 'not-started'].chipClass}`}>
+                                                    {PLAN_STATUS_META[planStatusMap[plan.key] || 'not-started'].label}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="mt-2 rounded-xl bg-white border border-slate-200 p-2.5">
+                                            <p className="text-[11px] font-black text-slate-700">무엇을: {plan.actionTitle}</p>
+                                            <p className="mt-1 text-[11px] font-bold text-slate-500">누가: {plan.owner}</p>
+                                            <p className="mt-1 text-[11px] font-bold text-slate-500">언제: {plan.dueLabel}까지</p>
+                                            <button
+                                                type="button"
+                                                onClick={() => { void togglePlanHistory(plan.key); }}
+                                                className="mt-1 text-[11px] font-bold text-indigo-600 underline underline-offset-2"
+                                            >
+                                                최근 변경: {planAuditMap[plan.key]?.updatedBy || '-'} · {formatAuditTime(planAuditMap[plan.key]?.updatedAt)}
+                                            </button>
+                                            {expandedHistoryPlanKey === plan.key && (
+                                                <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                                                    <p className="text-[10px] font-black text-slate-500 mb-1">최근 변경 이력 (최대 5건)</p>
+                                                    {planHistoryLoadingMap[plan.key] ? (
+                                                        <p className="text-[10px] font-bold text-slate-400">불러오는 중...</p>
+                                                    ) : (planHistoryMap[plan.key] || []).length === 0 ? (
+                                                        <p className="text-[10px] font-bold text-slate-400">조회된 이력이 없습니다.</p>
+                                                    ) : (
+                                                        <div className="space-y-1.5">
+                                                            {(planHistoryMap[plan.key] || []).map((history, idx) => (
+                                                                <div key={`${plan.key}-history-${idx}`} className="text-[10px] font-bold text-slate-600">
+                                                                    <div className="flex items-center gap-1">
+                                                                        {history.previousStatus != null ? (
+                                                                            <>
+                                                                                <span className={`rounded px-1.5 py-0.5 text-[9px] font-black ${PLAN_STATUS_META[history.previousStatus].chipClass}`}>{PLAN_STATUS_META[history.previousStatus].label}</span>
+                                                                                <span className="text-slate-400">→</span>
+                                                                            </>
+                                                                        ) : null}
+                                                                        <span className={`rounded px-1.5 py-0.5 text-[9px] font-black ${PLAN_STATUS_META[history.status].chipClass}`}>{PLAN_STATUS_META[history.status].label}</span>
+                                                                    </div>
+                                                                    <div className="mt-0.5 text-slate-400">{history.updatedBy || '-'} · {formatAuditTime(history.updatedAt)}</div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="mt-2 grid grid-cols-3 gap-1.5">
+                                            {(['not-started', 'in-progress', 'completed'] as PlanStatus[]).map((statusKey) => {
+                                                const isActive = (planStatusMap[plan.key] || 'not-started') === statusKey;
+                                                return (
+                                                    <button
+                                                        key={statusKey}
+                                                        type="button"
+                                                        onClick={() => setPlanStatus(plan.key, statusKey)}
+                                                        className={`rounded-lg border px-2 py-1 text-[10px] font-black transition-colors ${isActive ? PLAN_STATUS_META[statusKey].chipClass : PLAN_STATUS_META[statusKey].buttonClass}`}
+                                                    >
+                                                        {PLAN_STATUS_META[statusKey].label}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        <div className="mt-2 flex flex-wrap gap-1.5">
+                                            {plan.checkItems.map((item) => (
+                                                <span key={item} className="px-2 py-1 rounded-full border border-slate-200 bg-white text-[10px] font-black text-slate-600">
+                                                    {item}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[30px] shadow-lg border border-slate-100">
+                        <h3 className="text-lg font-black text-slate-900 mb-4">등록 공종별 조치율</h3>
+                        <div className="space-y-3">
+                            {customJobActionRates.map((item) => (
+                                <div key={item.jobLabel} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <p className="text-sm font-black text-slate-900">{item.jobLabel}</p>
+                                        <p className="text-xs font-black text-slate-700">조치율 {item.actionRate}%</p>
+                                    </div>
+                                    <div className="mt-2 h-2 rounded-full bg-slate-200 overflow-hidden">
+                                        <div className="h-full bg-emerald-500" style={{ width: `${item.actionRate}%` }}></div>
+                                    </div>
+                                    <div className="mt-2 grid grid-cols-4 gap-1 text-center">
+                                        <div className="rounded-lg bg-white border border-slate-200 py-1">
+                                            <p className="text-[10px] font-black text-slate-500">전체</p>
+                                            <p className="text-xs font-black text-slate-900">{item.total}</p>
+                                        </div>
+                                        <div className="rounded-lg bg-white border border-emerald-200 py-1">
+                                            <p className="text-[10px] font-black text-emerald-700">완료</p>
+                                            <p className="text-xs font-black text-emerald-800">{item.completed}</p>
+                                        </div>
+                                        <div className="rounded-lg bg-white border border-amber-200 py-1">
+                                            <p className="text-[10px] font-black text-amber-700">진행중</p>
+                                            <p className="text-xs font-black text-amber-800">{item.inProgress}</p>
+                                        </div>
+                                        <div className="rounded-lg bg-white border border-slate-200 py-1">
+                                            <p className="text-[10px] font-black text-slate-500">미착수</p>
+                                            <p className="text-xs font-black text-slate-800">{item.notStarted}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <p className="mt-3 text-[10px] font-bold text-slate-500">* 형틀 공종은 팀장 기준으로 팀 단위 세분화되며, 조치율 = 완료 건수 / 해당 공종(또는 팀) 실행계획 건수</p>
+                    </div>
+
                     {/* AI Insight Card */}
-                    <div className="bg-gradient-to-br from-amber-400 to-orange-500 p-6 rounded-[30px] shadow-lg shadow-orange-200 text-white relative overflow-hidden">
+                    <div className="bg-gradient-to-br from-amber-400 to-orange-500 p-4 sm:p-6 rounded-2xl sm:rounded-[30px] shadow-lg shadow-orange-200 text-white relative overflow-hidden">
                         <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white opacity-20 rounded-full blur-xl"></div>
                         <h3 className="text-lg font-black mb-2 flex items-center gap-2">
                             <span className="text-2xl">📢</span> TBM 전파 교육 제안

@@ -29,6 +29,7 @@ const Settings = lazy(() => import('./pages/Settings'));
 const AdminTraining = lazy(() => import('./pages/AdminTraining'));
 const WorkerTraining = lazy(() => import('./pages/WorkerTraining'));
 const SafetyBehaviorManagement = lazy(() => import('./pages/SafetyBehaviorManagement'));
+const FieldSafetyComplianceHub = lazy(() => import('./pages/FieldSafetyComplianceHub'));
 
 const IDB_NAME = 'PSI_Enterprise_V4';
 const IDB_VERSION = 1;
@@ -809,6 +810,7 @@ const App: React.FC = () => {
                         {currentPage === 'admin-training' && <AdminTraining />}
                         {currentPage === 'worker-training' && <WorkerTraining sessionId={trainingSessionId} />}
                         {currentPage === 'safety-behavior-management' && <SafetyBehaviorManagement workerRecords={workerRecords} />}
+                        {currentPage === 'safety-compliance-hub' && <FieldSafetyComplianceHub workerRecords={workerRecords} />}
                         {currentPage === 'feedback' && <Feedback />}
                         {currentPage === 'introduction' && <Introduction />}
                         {currentPage === 'settings' && <Settings />}

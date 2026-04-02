@@ -1893,40 +1893,40 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     <span className="text-[11px] font-bold text-slate-500">데이터 목록 전용</span>
                 </div>
 
-                <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
+                <div className="flex flex-col md:flex-row gap-3 sm:gap-4 items-stretch md:items-center">
                     <div className="relative flex-1 w-full">
                         <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={2}/></svg>
                         <input type="text" placeholder="근로자 명, 공종 등으로 검색..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold" />
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 shrink-0">
                         <label className="text-xs font-bold text-slate-500">팀장 필터:</label>
-                        <select value={filterLeader} onChange={(e) => setFilterLeader(e.target.value)} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
+                        <select value={filterLeader} onChange={(e) => setFilterLeader(e.target.value)} className="w-full sm:w-auto bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
                             <option value="all">전체</option>
                             {teamLeaders.map(leader => (
                                 <option key={leader} value={leader}>{leader}</option>
                             ))}
                         </select>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 shrink-0">
                         <label className="text-xs font-bold text-slate-500">신뢰 상태:</label>
-                        <select value={filterTrust} onChange={(e) => setFilterTrust(e.target.value as 'all' | 'pending' | 'finalized')} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
+                        <select value={filterTrust} onChange={(e) => setFilterTrust(e.target.value as 'all' | 'pending' | 'finalized')} className="w-full sm:w-auto bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
                             <option value="all">전체</option>
                             <option value="pending">재검토 대기</option>
                             <option value="finalized">최종확정</option>
                         </select>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 shrink-0">
                         <label className="text-xs font-bold text-slate-500">등급:</label>
-                        <select value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[110px]">
+                        <select value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)} className="w-full sm:w-auto bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[110px]">
                             <option value="all">전체</option>
                             <option value="고급">고급</option>
                             <option value="중급">중급</option>
                             <option value="초급">초급</option>
                         </select>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 shrink-0">
                         <label className="text-xs font-bold text-slate-500">OCR 결과:</label>
-                        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as 'all' | 'success' | 'failed')} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
+                        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as 'all' | 'success' | 'failed')} className="w-full sm:w-auto bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
                             <option value="all">전체</option>
                             <option value="success">성공</option>
                             <option value="failed">실패/대기</option>
@@ -1957,7 +1957,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
             {/* 공종/팀장 일괄 수정 UI */}
             <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden mb-4">
-                <div className="flex flex-wrap gap-2 items-center p-4 border-b border-slate-100">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 items-stretch sm:items-center p-4 border-b border-slate-100">
                     <span className="font-bold text-slate-700 text-xs mr-2">근로자 일괄 선택</span>
                     <button
                         className="px-3 py-1 text-xs rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold hover:bg-indigo-100"
@@ -1970,7 +1970,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     <span className="mx-3 text-slate-400 text-xs">|</span>
                     <label className="text-xs font-bold text-slate-600 mr-1">공종 일괄 변경</label>
                     <select
-                        className="text-xs border border-slate-200 rounded px-2 py-1 mr-2"
+                        className="w-full sm:w-auto text-xs border border-slate-200 rounded px-2 py-1 mr-0 sm:mr-2"
                         value={batchJobField}
                         onChange={e => setBatchJobField(e.target.value)}
                     >
@@ -1981,14 +1981,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </select>
                     <label className="text-xs font-bold text-slate-600 mr-1">팀장 일괄 지정</label>
                     <input
-                        className="text-xs border border-slate-200 rounded px-2 py-1 mr-2"
+                        className="w-full sm:w-auto text-xs border border-slate-200 rounded px-2 py-1 mr-0 sm:mr-2"
                         value={batchTeamLeader}
                         onChange={e => setBatchTeamLeader(e.target.value)}
                         placeholder="팀장명 입력"
-                        style={{ width: 100 }}
                     />
                     <button
-                        className="px-4 py-1 text-xs rounded bg-emerald-600 text-white font-bold hover:bg-emerald-700"
+                        className="w-full sm:w-auto px-4 py-2 text-xs rounded bg-emerald-600 text-white font-bold hover:bg-emerald-700"
                         onClick={() => {
                             if (selectedIds.length === 0) return alert('수정할 근로자를 선택하세요.');
                             if (!batchJobField && !batchTeamLeader) return alert('공종 또는 팀장 중 하나 이상 입력하세요.');
@@ -2005,7 +2004,73 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         }}
                     >선택 근로자 일괄 적용</button>
                 </div>
-                <div className="overflow-x-auto custom-scrollbar">
+                <div className="sm:hidden p-3 space-y-3">
+                    {filteredRecords.map((r: WorkerRecord) => {
+                        const checked = selectedIds.includes(r.id);
+                        const failed = isFailedRecord(r);
+                        const hasImage = hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage);
+                        const rowErrorType = failed ? getOcrErrorTypeFromRecord(r) : null;
+                        const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
+                        const rowGuideMobile = rowErrorType ? getOcrErrorMobileLabel(rowErrorType) : '';
+                        const preflightReason = failed ? getPreflightFailureReason(r) : null;
+
+                        return (
+                            <div key={r.id} className={`rounded-2xl border p-3 bg-white ${failed ? 'border-rose-200 bg-rose-50/40' : 'border-slate-200'}`}>
+                                <div className="flex items-start justify-between gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => onViewDetails(r)}
+                                        className="text-left flex-1"
+                                    >
+                                        <p className={`text-sm font-black ${failed ? 'text-rose-700' : 'text-slate-800'} flex items-center gap-1`}>
+                                            {r.name}
+                                            {getLeaderIcon(r)}
+                                        </p>
+                                        <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.nationality} · {r.date}</p>
+                                        <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.jobField} · 팀장 {r.teamLeader || '미지정'}</p>
+                                    </button>
+                                    <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={e => {
+                                            if (e.target.checked) setSelectedIds(ids => [...ids, r.id]);
+                                            else setSelectedIds(ids => ids.filter(id => id !== r.id));
+                                        }}
+                                        className="w-4 h-4 mt-1 accent-indigo-600"
+                                    />
+                                </div>
+
+                                <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                                    <span className={`px-2.5 py-1 rounded-full font-black ${getSafetyLevelClass(r.safetyLevel)}`}>{r.safetyScore}점 {r.safetyLevel}</span>
+                                    <span className={`px-2 py-1 rounded font-black ${hasImage ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{hasImage ? '이미지 OK' : '이미지 누락'}</span>
+                                    {getReviewTrustState(r) === 'PENDING' && <span className="px-2 py-1 rounded bg-amber-100 text-amber-700 font-black">재검토 대기</span>}
+                                    {getReviewTrustState(r) === 'FINALIZED' && <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-700 font-black">최종확정</span>}
+                                </div>
+
+                                {failed && rowErrorType && (
+                                    <div className="mt-2 space-y-1">
+                                        <p className="text-[11px] font-black text-rose-700">⚠️ {getOcrErrorTypeKoreanLabel(rowErrorType)}</p>
+                                        {rowGuideMessage && <p className="text-[11px] font-bold text-rose-600">{rowGuideMobile}</p>}
+                                        {preflightReason && <p className="text-[11px] font-bold text-amber-700">사전검증: {preflightReason}</p>}
+                                    </div>
+                                )}
+
+                                <div className="mt-3 grid grid-cols-2 gap-2">
+                                    <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-3 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl">상세검증</button>
+                                    <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-3 py-2 bg-slate-900 text-white font-black text-xs rounded-xl">리포트</button>
+                                    {failed && !isAnalyzing && hasImage && (
+                                        <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className="col-span-2 px-3 py-2 bg-rose-100 text-rose-600 font-bold text-xs rounded-xl">재시도</button>
+                                    )}
+                                    {failed && !isAnalyzing && (
+                                        <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="col-span-2 px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl" title="재시도 불가 건을 관리자 확인 후 정상 분류">관리자 정상분류</button>
+                                    )}
+                                    <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="col-span-2 px-3 py-2 bg-slate-100 text-slate-500 font-bold text-xs rounded-xl">삭제</button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+                <div className="hidden sm:block overflow-x-auto custom-scrollbar">
                     <table className="w-full text-left">
                         <thead>
                             <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">

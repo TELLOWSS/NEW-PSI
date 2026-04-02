@@ -255,21 +255,21 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
     };
 
     return (
-        <div className="bg-slate-100 min-h-screen p-6 flex flex-col items-center gap-6 pb-20 no-print font-sans">
-            <div className="bg-white px-6 py-3 rounded-full shadow-lg flex justify-between items-center w-full max-w-[210mm] border border-slate-200 sticky top-4 z-50">
+        <div className="bg-slate-100 min-h-screen p-3 sm:p-6 flex flex-col items-center gap-4 sm:gap-6 pb-20 no-print font-sans">
+            <div className="bg-white px-3 sm:px-6 py-3 rounded-2xl sm:rounded-full shadow-lg flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-3 w-full max-w-[210mm] border border-slate-200 sticky top-2 sm:top-4 z-50">
                 <button onClick={onBack} className="text-sm font-bold flex items-center gap-2 text-slate-500 hover:text-slate-900">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 19l-7-7 7-7m-7 7h18" strokeWidth={2}/></svg> 대시보드
                 </button>
-                <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span><p className="text-xs font-bold text-slate-800">PSI A4 Professional Report</p></div>
-                <div className="flex gap-2">
-                    <button onClick={handleShare} disabled={isGenerating} className="bg-yellow-400 text-slate-900 px-5 py-2 rounded-full text-xs font-black hover:bg-yellow-500 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm">
+                <div className="hidden sm:flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span><p className="text-xs font-bold text-slate-800">PSI A4 Professional Report</p></div>
+                <div className="grid grid-cols-3 sm:flex gap-2 w-full sm:w-auto">
+                    <button onClick={handleShare} disabled={isGenerating} className="bg-yellow-400 text-slate-900 px-2 sm:px-5 py-2 rounded-xl sm:rounded-full text-[11px] sm:text-xs font-black hover:bg-yellow-500 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1 sm:gap-2 shadow-sm">
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12c0 6.63 5.4 12 12 12 6.63 0 12-5.37 12-12 0-5.52-4.48-10-10-10zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" /></svg>
                         공유
                     </button>
-                    <button onClick={handleDownloadImage} disabled={isGenerating} className="bg-emerald-600 px-5 py-2 rounded-full text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm flex items-center gap-1 transition-all">
+                    <button onClick={handleDownloadImage} disabled={isGenerating} className="bg-emerald-600 px-2 sm:px-5 py-2 rounded-xl sm:rounded-full text-[11px] sm:text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-1 transition-all">
                         {isGeneratingImage ? '변환 중...' : '이미지 저장'}
                     </button>
-                    <button onClick={handleDownloadPDF} disabled={isGenerating} className="bg-slate-900 px-5 py-2 rounded-full text-xs font-bold text-white hover:bg-black disabled:opacity-60 disabled:cursor-not-allowed transition-all">
+                    <button onClick={handleDownloadPDF} disabled={isGenerating} className="bg-slate-900 px-2 sm:px-5 py-2 rounded-xl sm:rounded-full text-[11px] sm:text-xs font-bold text-white hover:bg-black disabled:opacity-60 disabled:cursor-not-allowed transition-all">
                         {isGeneratingPdf ? '생성 중...' : 'PDF 발급'}
                     </button>
                 </div>
@@ -323,10 +323,12 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             )}
 
             {/* A4 REPORT CONTAINER - Using Shared Template */}
-            <div className="shadow-2xl">
-                <Suspense fallback={<ReportTemplateFallback />}>
-                    <ReportTemplate record={record} history={history} onPhotoClick={startCamera} ref={reportRef} />
-                </Suspense>
+            <div className="w-full max-w-[210mm] overflow-x-auto pb-2">
+                <div className="shadow-2xl min-w-[210mm]">
+                    <Suspense fallback={<ReportTemplateFallback />}>
+                        <ReportTemplate record={record} history={history} onPhotoClick={startCamera} ref={reportRef} />
+                    </Suspense>
+                </div>
             </div>
             
             {isCameraOpen && (

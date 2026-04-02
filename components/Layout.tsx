@@ -34,6 +34,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         'safety-checks': '안전 이행 점검',
         'site-issue-management': '현장 지적사항',
         'safety-behavior-management': '행동관찰·코칭',
+        'safety-compliance-hub': '현장 안전이행 종합관리',
         'reports': '보고서 생성',
         'feedback': '피드백 및 업데이트',
         'introduction': '소개',
