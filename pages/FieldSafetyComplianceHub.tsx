@@ -290,11 +290,12 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
     const partialCount = items.filter(it => it.status === 'partial').length;
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-5 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-6 lg:items-start">
+            <div className="space-y-5">
             {/* 공종 선택 */}
             <div className="bg-white rounded-xl border border-slate-200 p-4">
                 <h3 className="text-sm font-black text-slate-800 mb-3">⑴ 점검 기본 정보</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1.3fr_0.9fr] gap-3">
                     <div>
                         <label className="text-xs font-semibold text-slate-500 mb-1 block">공종 선택</label>
                         <div className="flex flex-wrap gap-1.5">
@@ -344,7 +345,7 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
                     <div className="space-y-3">
                         {items.map(item => (
                             <div key={item.id} className={`rounded-lg border p-3 transition-all ${item.status === 'non-compliant' ? 'border-rose-200 bg-rose-50/40' : item.status === 'partial' ? 'border-amber-200 bg-amber-50/30' : 'border-slate-100 bg-slate-50/50'}`}>
-                                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                <div className="flex flex-col md:flex-row md:items-center gap-2">
                                     <p className="text-xs font-semibold text-slate-700 flex-1">{item.label}</p>
                                     <div className="flex gap-1 shrink-0">
                                         {(['compliant', 'partial', 'non-compliant'] as ComplianceStatus[]).map(s => (
@@ -393,6 +394,10 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
                 </div>
             )}
 
+            </div>{/* ── end 좌: 폼 영역 ── */}
+
+            {/* ── 우: 이전기록 패널 ── */}
+            <div className="mt-4 lg:mt-0 lg:sticky lg:top-4">
             {/* 이전 기록 */}
             {sessions.length > 0 && (
                 <div className="bg-white rounded-xl border border-slate-200 p-4">
@@ -436,6 +441,7 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
                     </div>
                 </div>
             )}
+            </div>{/* ── end 우: 이전기록 패널 ── */}
         </div>
     );
 };
@@ -536,7 +542,9 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
     }
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-5 lg:space-y-0 lg:grid lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)] lg:gap-6 lg:items-start">
+            {/* ── 좌: 근로자 선택 ── */}
+            <div>
             {/* 근로자 선택 */}
             <div className="bg-white rounded-xl border border-slate-200 p-4">
                 <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-3">
@@ -561,7 +569,7 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
                         {selected.size === filtered.length && filtered.length > 0 ? '전체 해제' : '전체 선택'}
                     </button>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                     {filtered.length === 0
                         ? <div className="col-span-3 text-xs text-slate-400 py-4 text-center">조회 결과가 없습니다.</div>
                         : filtered.map(w => (
@@ -574,10 +582,14 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
                 </div>
             </div>
 
+            </div>{/* ── end 좌: 근로자 선택 ── */}
+
+            {/* ── 우: 관찰·코칭 폼 ── */}
+            <div className="space-y-5 mt-4 lg:mt-0">
             {/* 불안전행동 유형 */}
             <div className="bg-white rounded-xl border border-slate-200 p-4">
                 <h3 className="text-sm font-black text-slate-800 mb-3">불안전행동 유형</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-2">
                     {BEHAVIOR_PRESETS.map(p => (
                         <button key={p} onClick={() => setBehavior(p === behavior ? null : p)}
                             className={`text-xs font-semibold py-2 px-3 rounded-lg border text-left transition-all
@@ -603,7 +615,7 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
 
             {/* 부가 정보 + 사진 */}
             <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                     <div>
                         <label className="text-xs font-semibold text-slate-500 block mb-1">관찰자 이름</label>
                         <input type="text" value={observerName} onChange={e => setObserverName(e.target.value)} placeholder="관리감독자 (선택)"
@@ -645,7 +657,7 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
                     <>
                         <div>
                             <h4 className="text-xs font-bold text-slate-600 mb-2">조치 유형</h4>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-5 gap-2">
                                 {COACHING_PRESETS.map(a => (
                                     <button key={a.value} onClick={() => setActionType(a.value === actionType ? null : a.value)}
                                         className={`flex items-center gap-1.5 text-xs font-semibold py-2 px-2 rounded-lg border transition-all
@@ -667,7 +679,7 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
                                 ))}
                             </div>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                             <div>
                                 <label className="text-xs font-semibold text-slate-500 block mb-1">코치 이름</label>
                                 <input type="text" value={coachName} onChange={e => setCoachName(e.target.value)} placeholder="담당 관리감독자 (선택)"
@@ -692,6 +704,7 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
                     {result.ok ? '✅ ' : '❌ '}{result.message}
                 </div>
             )}
+            </div>{/* ── end 우: 관찰·코칭 폼 ── */}
         </div>
     );
 };
@@ -764,7 +777,8 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
     const inProgressCount = violations.filter(v => v.status === 'in-progress').length;
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-5 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] lg:gap-6 lg:items-start">
+            <div className="space-y-5">
             {/* 요약 바 */}
             {violations.length > 0 && (
                 <div className="grid grid-cols-3 gap-2">
@@ -788,6 +802,8 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                 className={`w-full py-2.5 rounded-xl font-bold text-sm border transition-all ${showForm ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 active:scale-95'}`}>
                 {showForm ? '등록 폼 닫기' : '+ 현장 지적사항 등록'}
             </button>
+
+            <div className="lg:hidden">
 
             {/* 등록 폼 */}
             {showForm && (
@@ -819,7 +835,7 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                     </div>
 
                     {/* 지적 분야 + 심각도 */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3">
                         <div>
                             <label className="text-xs font-semibold text-slate-500 block mb-1">지적 분야</label>
                             <div className="flex flex-wrap gap-1.5">
@@ -862,7 +878,7 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                     </div>
 
                     {/* 지적 내용 + 책임팀 */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3">
                         <div>
                             <label className="text-xs font-semibold text-slate-500 block mb-1">지적 내용</label>
                             <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="구체적 지적 사항 기입" rows={3}
@@ -901,6 +917,7 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                     </button>
                 </div>
             )}
+            </div>
 
             {/* 지적사항 목록 */}
             {violations.length > 0 ? (
@@ -950,6 +967,118 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                     <p className="text-xs text-slate-300 mt-1">자체·원도급사·외부감찰 지적사항을 등록하세요.</p>
                 </div>
             )}
+
+            </div>
+
+            <div className="hidden lg:block lg:sticky lg:top-4">
+                <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-black text-slate-800">지적사항 등록</h3>
+                        <span className="text-[11px] font-semibold text-slate-400">PC 빠른입력</span>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-black text-slate-700 block mb-2">지적 출처</label>
+                        <div className="flex gap-2">
+                            {VIOLATION_SOURCES.map(s => (
+                                <button key={s.value} onClick={() => setSource(s.value)}
+                                    className={`flex-1 py-2 rounded-lg border text-xs font-bold transition-all ${source === s.value ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-300'}`}>
+                                    {s.label}
+                                </button>
+                            ))}
+                        </div>
+                        {source === 'external' && (
+                            <div className="mt-2">
+                                <label className="text-xs font-semibold text-slate-500 block mb-1">감찰 기관</label>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {EXTERNAL_AUTHORITIES.map(a => (
+                                        <button key={a} onClick={() => setExtAuth(a)}
+                                            className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all ${extAuth === a ? 'bg-red-500 text-white border-red-500' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-red-300'}`}>
+                                            {a}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-semibold text-slate-500 block mb-1">지적 분야</label>
+                        <div className="flex flex-wrap gap-1.5">
+                            {VIOLATION_CATEGORIES.map(c => (
+                                <button key={c} onClick={() => setCategory(c)}
+                                    className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all ${category === c ? 'bg-slate-700 text-white border-slate-700' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400'}`}>
+                                    {c}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-semibold text-slate-500 block mb-1">심각도</label>
+                        <div className="flex gap-2">
+                            {(['경미', '보통', '중대'] as const).map(s => (
+                                <button key={s} onClick={() => setSeverity(s)}
+                                    className={`flex-1 py-1.5 rounded-lg border text-xs font-bold transition-all
+                                        ${severity === s
+                                            ? s === '중대' ? 'bg-rose-600 text-white border-rose-600' : s === '보통' ? 'bg-amber-500 text-white border-amber-500' : 'bg-blue-500 text-white border-blue-500'
+                                            : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
+                                    {s}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                        <div>
+                            <label className="text-xs font-semibold text-slate-500 block mb-1">발생일</label>
+                            <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)}
+                                className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                        </div>
+                        <div>
+                            <label className="text-xs font-semibold text-slate-500 block mb-1">조치 기한</label>
+                            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                                className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-semibold text-slate-500 block mb-1">지적 내용</label>
+                        <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="구체적 지적 사항 기입" rows={4}
+                            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none" />
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-semibold text-slate-500 block mb-1">조치 책임 팀</label>
+                        <select value={responsibleTeam} onChange={e => setResponsibleTeam(e.target.value)}
+                            className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                            <option value="">팀 선택 (선택)</option>
+                            {allTeams.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="text-xs font-semibold text-slate-500 block mb-1">현장 사진</label>
+                        <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" />
+                        <button onClick={() => photoRef.current?.click()}
+                            className="px-3 py-2 text-xs font-semibold bg-slate-100 border border-slate-300 rounded-lg hover:bg-slate-200">
+                            📷 사진 첨부
+                        </button>
+                        {isCompressing && <span className="ml-2 text-xs text-slate-400">최적화 중...</span>}
+                        {photo && (
+                            <div className="mt-2 flex items-center gap-2">
+                                <img src={`data:image/jpeg;base64,${photo}`} alt="지적" className="w-12 h-12 object-cover rounded-lg border border-slate-200" />
+                                <button onClick={() => { setPhoto(''); if (photoRef.current) photoRef.current.value = ''; }} className="text-xs text-rose-500 font-semibold">삭제</button>
+                            </div>
+                        )}
+                    </div>
+
+                    <button onClick={handleAdd}
+                        className="w-full py-2.5 rounded-xl bg-rose-600 text-white font-bold text-sm hover:bg-rose-700 active:scale-95 transition-all">
+                        지적사항 등록
+                    </button>
+                </div>
+            </div>
         </div>
     );
 };
@@ -1005,9 +1134,9 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
     const summary = { green: reviews.filter(r => r.traffic_light === 'green').length, yellow: reviews.filter(r => r.traffic_light === 'yellow').length, red: reviews.filter(r => r.traffic_light === 'red').length };
 
     return (
-        <div className="space-y-5">
+        <div className="space-y-5 lg:space-y-0 lg:grid lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)] lg:gap-6 lg:items-start">
             {/* 로컬 이행 현황 */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-4 lg:sticky lg:top-4">
                 <h3 className="text-sm font-black text-slate-800 mb-3">이행 현황 요약</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <div className="rounded-xl bg-indigo-50 border border-indigo-100 p-3 text-center">
@@ -1032,7 +1161,7 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
             </div>
 
             {/* 행동관찰 무결성 판정 */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="bg-white rounded-xl border border-slate-200 p-4 min-w-0">
                 <div className="flex items-center justify-between mb-3">
                     <div>
                         <h3 className="text-sm font-black text-slate-800">{assessmentMonth} 행동 무결성 자동 판정</h3>
@@ -1060,8 +1189,8 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
                                 </div>
                             ))}
                         </div>
-                        <div className="rounded-xl border border-slate-200 overflow-hidden">
-                            <table className="w-full text-sm">
+                        <div className="rounded-xl border border-slate-200 overflow-x-auto">
+                            <table className="w-full min-w-[720px] text-sm">
                                 <thead className="bg-slate-50 border-b border-slate-200">
                                     <tr>
                                         <th className="text-left text-xs font-bold text-slate-500 py-2 px-3">근로자</th>
@@ -1148,16 +1277,16 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
     }, []);
 
     return (
-        <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+        <div className="p-4 sm:p-6 lg:px-8 max-w-7xl mx-auto">
             {/* 헤더 */}
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
+            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 mb-6">
                 <div>
                     <h1 className="text-xl font-black text-slate-900">현장 안전이행 종합관리</h1>
                     <p className="text-xs text-slate-400 mt-0.5 font-medium">
                         위험성평가 이행점검 · 행동관찰코칭 · 현장지적관리 · 종합판정
                     </p>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0 self-start">
                     <span className="text-xs font-semibold text-slate-500">평가 월</span>
                     <input type="month" value={assessmentMonth} onChange={e => setAssessmentMonth(e.target.value)}
                         className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
@@ -1165,7 +1294,7 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
             </div>
 
             {/* 탭 네비게이션 */}
-            <div className="flex gap-1 bg-slate-100 rounded-xl p-1 mb-5">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-1 bg-slate-100 rounded-xl p-1 mb-5">
                 {tabs.map(tab => (
                     <button key={tab.id} onClick={() => setActiveTab(tab.id)}
                         className={`relative flex-1 flex items-center justify-center gap-1 py-2 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition-all
