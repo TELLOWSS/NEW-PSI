@@ -217,6 +217,15 @@ function tlConfig(light: TrafficLight) {
     return                         { bg: 'bg-red-100',     text: 'text-red-700',     border: 'border-red-200',     dot: 'bg-red-500',     label: '위험/보류' };
 }
 
+const PANEL_CLASS = 'rounded-2xl border border-slate-200 bg-white shadow-[0_10px_30px_-18px_rgba(15,23,42,0.35)]';
+const SECTION_TITLE_CLASS = 'text-[15px] sm:text-base font-black tracking-tight text-slate-900';
+const SECTION_SUBTEXT_CLASS = 'text-sm font-medium leading-6 text-slate-600';
+const FIELD_LABEL_CLASS = 'mb-1.5 block text-[13px] font-semibold text-slate-600';
+const INPUT_CLASS = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm shadow-slate-100 transition focus:outline-none focus:ring-2 focus:ring-indigo-200 focus-visible:ring-2 focus-visible:ring-indigo-300';
+const INPUT_COMPACT_CLASS = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm shadow-slate-100 transition focus:outline-none focus:ring-2 focus:ring-indigo-200 focus-visible:ring-2 focus-visible:ring-indigo-300';
+const SOFT_BUTTON_CLASS = 'rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300';
+const EMPTY_STATE_CLASS = 'rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 탭 1: 위험성평가 이행점검
 // ─────────────────────────────────────────────────────────────────────────────
@@ -290,18 +299,21 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
     const partialCount = items.filter(it => it.status === 'partial').length;
 
     return (
-        <div className="space-y-5 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-6 lg:items-start">
+        <div className="space-y-5 xl:space-y-0 xl:grid xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] 2xl:grid-cols-[minmax(0,1.2fr)_420px] xl:gap-6 xl:items-start">
             <div className="space-y-5">
             {/* 공종 선택 */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <h3 className="text-sm font-black text-slate-800 mb-3">⑴ 점검 기본 정보</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[1.3fr_0.9fr] gap-3">
+            <div className={`${PANEL_CLASS} p-4 sm:p-5`}>
+                <div className="mb-4 flex flex-col gap-1">
+                    <h3 className={SECTION_TITLE_CLASS}>⑴ 점검 기본 정보</h3>
+                    <p className={SECTION_SUBTEXT_CLASS}>공종, 팀, 점검 정보를 먼저 정리한 뒤 체크리스트를 시작합니다.</p>
+                </div>
+                <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,0.75fr)] gap-4 items-start">
                     <div>
-                        <label className="text-xs font-semibold text-slate-500 mb-1 block">공종 선택</label>
-                        <div className="flex flex-wrap gap-1.5">
+                        <label className={FIELD_LABEL_CLASS}>공종 선택</label>
+                        <div className="flex flex-wrap gap-2">
                             {registeredFields.map(f => (
                                 <button key={f} onClick={() => handleFieldSelect(f)}
-                                    className={`px-2.5 py-1 rounded-lg border text-xs font-bold transition-all ${selectedField === f ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-300'}`}>
+                                    className={`rounded-xl border px-3 py-2 text-[13px] font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${selectedField === f ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'}`}>
                                     {f}
                                 </button>
                             ))}
@@ -309,23 +321,23 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
                     </div>
                     <div className="space-y-2">
                         <div>
-                            <label className="text-xs font-semibold text-slate-500 block mb-1">팀 / 반</label>
+                            <label className={FIELD_LABEL_CLASS}>팀 / 반</label>
                             <select value={team} onChange={e => setTeam(e.target.value)}
-                                className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                                className={INPUT_COMPACT_CLASS}>
                                 <option value="">팀 선택 (선택)</option>
                                 {allTeams.map(t => <option key={t} value={t}>{t}</option>)}
                             </select>
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <div>
-                                <label className="text-xs font-semibold text-slate-500 block mb-1">점검일</label>
+                                <label className={FIELD_LABEL_CLASS}>점검일</label>
                                 <input type="date" value={date} onChange={e => setDate(e.target.value)}
-                                    className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                                    className={INPUT_COMPACT_CLASS} />
                             </div>
                             <div>
-                                <label className="text-xs font-semibold text-slate-500 block mb-1">점검자</label>
+                                <label className={FIELD_LABEL_CLASS}>점검자</label>
                                 <input type="text" value={checkerName} onChange={e => setCheckerName(e.target.value)} placeholder="이름(선택)"
-                                    className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                                    className={INPUT_COMPACT_CLASS} />
                             </div>
                         </div>
                     </div>
@@ -334,23 +346,26 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
 
             {/* 체크리스트 */}
             {items.length > 0 && (
-                <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-sm font-black text-slate-800">⑵ 안전조치 이행 점검 ({selectedField})</h3>
-                        <div className="flex gap-1">
-                            {nonCompliantCount > 0 && <span className="text-[11px] font-bold bg-rose-100 text-rose-600 rounded-full px-2 py-0.5">미이행 {nonCompliantCount}</span>}
-                            {partialCount > 0 && <span className="text-[11px] font-bold bg-amber-100 text-amber-600 rounded-full px-2 py-0.5">부분 {partialCount}</span>}
+                <div className={`${PANEL_CLASS} p-4 sm:p-5`}>
+                    <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                            <h3 className={SECTION_TITLE_CLASS}>⑵ 안전조치 이행 점검 ({selectedField})</h3>
+                            <p className={`${SECTION_SUBTEXT_CLASS} mt-1`}>항목별 상태를 같은 높이의 버튼으로 정리해 빠르게 체크할 수 있도록 조정했습니다.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                            {nonCompliantCount > 0 && <span className="text-[11px] font-bold bg-rose-100 text-rose-700 rounded-full px-2.5 py-1">미이행 {nonCompliantCount}</span>}
+                            {partialCount > 0 && <span className="text-[11px] font-bold bg-amber-100 text-amber-700 rounded-full px-2.5 py-1">부분 {partialCount}</span>}
                         </div>
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-3.5">
                         {items.map(item => (
-                            <div key={item.id} className={`rounded-lg border p-3 transition-all ${item.status === 'non-compliant' ? 'border-rose-200 bg-rose-50/40' : item.status === 'partial' ? 'border-amber-200 bg-amber-50/30' : 'border-slate-100 bg-slate-50/50'}`}>
-                                <div className="flex flex-col md:flex-row md:items-center gap-2">
-                                    <p className="text-xs font-semibold text-slate-700 flex-1">{item.label}</p>
-                                    <div className="flex gap-1 shrink-0">
+                            <div key={item.id} className={`rounded-2xl border p-4 transition-all ${item.status === 'non-compliant' ? 'border-rose-200 bg-rose-50/50' : item.status === 'partial' ? 'border-amber-200 bg-amber-50/40' : 'border-slate-200 bg-slate-50/70'}`}>
+                                <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                                    <p className="min-w-0 text-sm font-semibold leading-relaxed text-slate-700">{item.label}</p>
+                                    <div className="flex flex-wrap gap-1.5 shrink-0">
                                         {(['compliant', 'partial', 'non-compliant'] as ComplianceStatus[]).map(s => (
                                             <button key={s} onClick={() => setItemStatus(item.id, s)}
-                                                className={`px-2.5 py-1 rounded-lg border text-[11px] font-black transition-all ${item.status === s ? COMPLIANCE_META[s].activeClass : 'bg-white text-slate-400 border-slate-200 hover:border-slate-300'}`}>
+                                                className={`min-w-[74px] rounded-xl border px-3 py-2 text-xs font-black transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${item.status === s ? COMPLIANCE_META[s].activeClass : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>
                                                 {COMPLIANCE_META[s].label}
                                             </button>
                                         ))}
@@ -359,7 +374,7 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
                                 {item.status !== 'compliant' && (
                                     <input type="text" value={item.note} onChange={e => setItemNote(item.id, e.target.value)}
                                         placeholder="미이행 사유 또는 부분 이행 내용 기록"
-                                        className="mt-2 w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-200 bg-white" />
+                                        className={`mt-3 ${INPUT_COMPACT_CLASS}`} />
                                 )}
                             </div>
                         ))}
@@ -369,12 +384,15 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
 
             {/* 사진 + 저장 */}
             {items.length > 0 && (
-                <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-                    <h3 className="text-sm font-black text-slate-800">⑶ 현장 사진 및 저장</h3>
+                <div className={`${PANEL_CLASS} p-4 sm:p-5 space-y-4`}>
+                    <div>
+                        <h3 className={SECTION_TITLE_CLASS}>⑶ 현장 사진 및 저장</h3>
+                        <p className={`${SECTION_SUBTEXT_CLASS} mt-1`}>증빙 사진과 저장 버튼을 같은 리듬으로 배치해 마감 동선을 단순화했습니다.</p>
+                    </div>
                     <div>
                         <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" />
                         <button onClick={() => photoRef.current?.click()}
-                            className="px-3 py-2 bg-slate-100 border border-slate-300 text-slate-700 text-xs font-semibold rounded-lg hover:bg-slate-200">
+                            className={SOFT_BUTTON_CLASS}>
                             📷 현장 사진 첨부 (선택)
                         </button>
                         {isCompressing && <span className="ml-2 text-xs text-slate-400">최적화 중...</span>}
@@ -382,12 +400,12 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
                             <div className="mt-2 flex items-center gap-3">
                                 <img src={`data:image/jpeg;base64,${photo}`} alt="현장" className="w-16 h-16 object-cover rounded-lg border border-slate-200" />
                                 <button onClick={() => { setPhoto(''); if (photoRef.current) photoRef.current.value = ''; }}
-                                    className="text-xs text-rose-500 font-semibold">삭제</button>
+                                    className="text-xs font-semibold text-rose-600 transition hover:text-rose-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200 rounded-md">삭제</button>
                             </div>
                         )}
                     </div>
                     <button onClick={handleSave}
-                        className="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 active:scale-95 transition-all">
+                        className="w-full rounded-2xl bg-indigo-600 px-4 py-3 text-base font-bold text-white transition-all hover:bg-indigo-700 active:scale-95">
                         이행점검 기록 저장
                     </button>
                     {saved && <p className="text-xs font-bold text-emerald-600 text-center">✅ 저장되었습니다.</p>}
@@ -397,42 +415,47 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
             </div>{/* ── end 좌: 폼 영역 ── */}
 
             {/* ── 우: 이전기록 패널 ── */}
-            <div className="mt-4 lg:mt-0 lg:sticky lg:top-4">
+            <div className="mt-4 xl:mt-0 xl:sticky xl:top-4">
             {/* 이전 기록 */}
             {sessions.length > 0 && (
-                <div className="bg-white rounded-xl border border-slate-200 p-4">
-                    <h3 className="text-sm font-black text-slate-800 mb-3">이행점검 기록 ({sessions.length}건)</h3>
-                    <div className="space-y-3">
+                <div className={`${PANEL_CLASS} p-4 sm:p-5 xl:max-h-[calc(100vh-6rem)] xl:overflow-y-auto`}>
+                    <div className="mb-4 flex items-end justify-between gap-2">
+                        <div>
+                            <h3 className={SECTION_TITLE_CLASS}>이행점검 기록 ({sessions.length}건)</h3>
+                            <p className={`${SECTION_SUBTEXT_CLASS} mt-1`}>최근 등록 내역을 우측에 고정해 현재 입력과 이력을 동시에 확인할 수 있습니다.</p>
+                        </div>
+                    </div>
+                    <div className="space-y-3.5">
                         {sessions.slice(0, 10).map(s => {
                             const nc = s.items.filter(it => it.status === 'non-compliant').length;
                             const pt = s.items.filter(it => it.status === 'partial').length;
                             const ok = s.items.filter(it => it.status === 'compliant').length;
                             return (
-                                <div key={s.id} className="rounded-lg border border-slate-200 p-3">
+                                <div key={s.id} className="rounded-2xl border border-slate-200 p-4">
                                     <div className="flex items-start justify-between gap-2">
                                         <div>
                                             <div className="flex items-center gap-1.5 flex-wrap">
-                                                <span className="text-xs font-black text-slate-800">{s.jobField}</span>
-                                                {s.teamLeader && <span className="text-[11px] text-slate-500">· {s.teamLeader}</span>}
-                                                <span className="text-[11px] text-slate-400">{s.date}</span>
-                                                {s.checkerName && <span className="text-[11px] text-slate-400">· {s.checkerName}</span>}
+                                                <span className="text-sm font-black text-slate-800">{s.jobField}</span>
+                                                {s.teamLeader && <span className="text-xs text-slate-500">· {s.teamLeader}</span>}
+                                                <span className="text-xs text-slate-400">{s.date}</span>
+                                                {s.checkerName && <span className="text-xs text-slate-400">· {s.checkerName}</span>}
                                             </div>
-                                            <div className="flex gap-1 mt-1">
-                                                <span className="text-[11px] font-bold bg-emerald-100 text-emerald-700 rounded-full px-1.5 py-0.5">이행 {ok}</span>
-                                                {pt > 0 && <span className="text-[11px] font-bold bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5">부분 {pt}</span>}
-                                                {nc > 0 && <span className="text-[11px] font-bold bg-rose-100 text-rose-700 rounded-full px-1.5 py-0.5">미이행 {nc}</span>}
+                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                <span className="text-[11px] font-bold bg-emerald-100 text-emerald-800 rounded-full px-2 py-1">이행 {ok}</span>
+                                                {pt > 0 && <span className="text-[11px] font-bold bg-amber-100 text-amber-800 rounded-full px-2 py-1">부분 {pt}</span>}
+                                                {nc > 0 && <span className="text-[11px] font-bold bg-rose-100 text-rose-800 rounded-full px-2 py-1">미이행 {nc}</span>}
                                             </div>
                                             {nc > 0 && (
-                                                <ul className="mt-1.5 space-y-0.5">
+                                                <ul className="mt-2 space-y-1">
                                                     {s.items.filter(it => it.status === 'non-compliant').map(it => (
-                                                        <li key={it.id} className="text-[11px] text-rose-600 font-semibold">▸ {it.label}{it.note ? ` : ${it.note}` : ''}</li>
+                                                        <li key={it.id} className="text-xs text-rose-600 font-semibold leading-relaxed">▸ {it.label}{it.note ? ` : ${it.note}` : ''}</li>
                                                     ))}
                                                 </ul>
                                             )}
                                         </div>
                                         <div className="flex items-center gap-2 shrink-0">
                                             {s.photo && <img src={`data:image/jpeg;base64,${s.photo}`} alt="현장" className="w-10 h-10 object-cover rounded-lg border border-slate-200" />}
-                                            <button onClick={() => removeSession(s.id)} className="text-[11px] text-slate-400 hover:text-rose-500 font-semibold">삭제</button>
+                                            <button onClick={() => removeSession(s.id)} className="rounded-md text-[11px] font-semibold text-slate-500 transition hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200">삭제</button>
                                         </div>
                                     </div>
                                 </div>
@@ -542,41 +565,46 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
     }
 
     return (
-        <div className="space-y-5 lg:space-y-0 lg:grid lg:grid-cols-[340px_minmax(0,1fr)] xl:grid-cols-[380px_minmax(0,1fr)] lg:gap-6 lg:items-start">
+        <div className="space-y-5 xl:space-y-0 xl:grid xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[400px_minmax(0,1fr)] xl:gap-6 xl:items-start">
             {/* ── 좌: 근로자 선택 ── */}
-            <div>
+            <div className="xl:sticky xl:top-4">
             {/* 근로자 선택 */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-3">
+            <div className={`${PANEL_CLASS} p-4 sm:p-5`}>
+                <div className="mb-4 flex flex-col gap-3">
                     <div>
-                        <h3 className="text-sm font-black text-slate-800">관찰 대상 근로자</h3>
-                        <div className="flex flex-wrap gap-2 mt-1.5">
+                        <h3 className={SECTION_TITLE_CLASS}>관찰 대상 근로자</h3>
+                        <p className={`${SECTION_SUBTEXT_CLASS} mt-1`}>검색, 공종, 팀 기준을 한 줄 흐름으로 정리해 목록 가독성을 높였습니다.</p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="이름·팀·공종 검색"
-                                className="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-200 min-w-[110px]" />
+                                className={INPUT_COMPACT_CLASS} />
                             <select value={filterTrade} onChange={e => setFilterTrade(e.target.value)}
-                                className="text-xs border border-slate-200 rounded-lg px-2 py-1">
+                                className={INPUT_COMPACT_CLASS}>
                                 <option value="전체">공종 전체</option>
                                 {trades.map(t => <option key={t} value={t}>{t}</option>)}
                             </select>
                             <select value={filterTeam} onChange={e => setFilterTeam(e.target.value)}
-                                className="text-xs border border-slate-200 rounded-lg px-2 py-1">
+                                className={INPUT_COMPACT_CLASS}>
                                 <option value="전체">팀 전체</option>
                                 {teams.map(t => <option key={t} value={t}>{t}</option>)}
                             </select>
-                        </div>
                     </div>
-                    <button onClick={toggleAll} className="text-xs text-indigo-600 hover:text-indigo-800 font-bold shrink-0">
+                    <button onClick={toggleAll} className="self-start rounded-xl px-3 py-2 text-sm font-bold text-indigo-700 transition hover:bg-indigo-50 hover:text-indigo-900 shrink-0">
                         {selected.size === filtered.length && filtered.length > 0 ? '전체 해제' : '전체 선택'}
                     </button>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2 gap-3">
                     {filtered.length === 0
-                        ? <div className="col-span-3 text-xs text-slate-400 py-4 text-center">조회 결과가 없습니다.</div>
+                                                ? <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-7 text-center">
+                                                        <div className="text-2xl">🔎</div>
+                                                        <p className="mt-2 text-sm font-semibold text-slate-700">조회 결과가 없습니다.</p>
+                                                        <p className="mt-1 text-xs text-slate-500">검색어 또는 공종/팀 필터를 완화해 다시 확인하세요.</p>
+                                                    </div>
                         : filtered.map(w => (
-                            <label key={w.id} className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer text-xs font-semibold transition-all select-none
-                                ${selected.has(w.id) ? 'border-indigo-400 bg-indigo-50 text-indigo-800' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-indigo-300'}`}>
+                            <label key={w.id} className={`flex items-start gap-3 rounded-2xl border p-3.5 cursor-pointer text-sm font-semibold transition-all select-none
+                                ${selected.has(w.id) ? 'border-indigo-400 bg-indigo-50 text-indigo-800 shadow-sm' : 'border-slate-200 bg-slate-50/70 text-slate-700 hover:border-indigo-300 hover:bg-indigo-50/50'}`}>
                                 <input type="checkbox" className="w-4 h-4 accent-indigo-600" checked={selected.has(w.id)} onChange={() => toggle(w.id)} />
-                                <span>{w.label}</span>
+                                <span className="leading-snug">{w.label}</span>
                             </label>
                         ))}
                 </div>
@@ -585,14 +613,17 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
             </div>{/* ── end 좌: 근로자 선택 ── */}
 
             {/* ── 우: 관찰·코칭 폼 ── */}
-            <div className="space-y-5 mt-4 lg:mt-0">
+            <div className="space-y-5 mt-4 xl:mt-0">
             {/* 불안전행동 유형 */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <h3 className="text-sm font-black text-slate-800 mb-3">불안전행동 유형</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-2">
+            <div className={`${PANEL_CLASS} p-4 sm:p-5`}>
+                <div className="mb-4">
+                    <h3 className={SECTION_TITLE_CLASS}>불안전행동 유형</h3>
+                    <p className={`${SECTION_SUBTEXT_CLASS} mt-1`}>버튼 높이와 열 개수를 재정렬해 긴 항목도 안정적으로 보이도록 조정했습니다.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2.5">
                     {BEHAVIOR_PRESETS.map(p => (
                         <button key={p} onClick={() => setBehavior(p === behavior ? null : p)}
-                            className={`text-xs font-semibold py-2 px-3 rounded-lg border text-left transition-all
+                            className={`min-h-[56px] rounded-2xl border px-3.5 py-3 text-left text-sm font-semibold leading-snug transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300
                                 ${behavior === p ? 'bg-rose-500 text-white border-rose-500 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-rose-300 hover:bg-rose-50'}`}>
                             {p}
                         </button>
@@ -601,12 +632,12 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
             </div>
 
             {/* 심각도 */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4">
-                <h3 className="text-sm font-black text-slate-800 mb-3">심각도</h3>
+            <div className={`${PANEL_CLASS} p-4 sm:p-5`}>
+                <h3 className={`${SECTION_TITLE_CLASS} mb-3`}>심각도</h3>
                 <div className="flex flex-wrap gap-2">
                     {SEVERITY_PRESETS.map(s => (
                         <button key={s.value} onClick={() => setSeverity(s.value)}
-                            className={`text-xs font-bold py-1.5 px-3 rounded-full border transition-all ${severity === s.value ? s.color + ' ring-2 ring-offset-1 ring-current' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                            className={`rounded-full border px-4 py-2 text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${severity === s.value ? s.color + ' ring-2 ring-offset-1 ring-current' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
                             {s.value}
                         </button>
                     ))}
@@ -614,18 +645,18 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
             </div>
 
             {/* 부가 정보 + 사진 */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+            <div className={`${PANEL_CLASS} p-4 sm:p-5 space-y-4`}>
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                     <div>
-                        <label className="text-xs font-semibold text-slate-500 block mb-1">관찰자 이름</label>
+                        <label className={FIELD_LABEL_CLASS}>관찰자 이름</label>
                         <input type="text" value={observerName} onChange={e => setObserverName(e.target.value)} placeholder="관리감독자 (선택)"
-                            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                            className={INPUT_CLASS} />
                     </div>
                     <div>
-                        <label className="text-xs font-semibold text-slate-500 block mb-1">현장 사진</label>
+                        <label className={FIELD_LABEL_CLASS}>현장 사진</label>
                         <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" />
                         <button onClick={() => photoRef.current?.click()}
-                            className="px-3 py-2 text-xs font-semibold bg-slate-100 border border-slate-300 rounded-lg hover:bg-slate-200">
+                            className={SOFT_BUTTON_CLASS}>
                             📷 사진 첨부
                         </button>
                         {isCompressing && <span className="ml-2 text-xs text-slate-400">최적화 중...</span>}
@@ -638,29 +669,29 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
                     </div>
                 </div>
                 <div>
-                    <label className="text-xs font-semibold text-slate-500 block mb-1">증빙 메모</label>
+                    <label className={FIELD_LABEL_CLASS}>증빙 메모</label>
                     <textarea value={evidenceNote} onChange={e => setEvidenceNote(e.target.value)} placeholder="현장 상황 간략 기록 (선택)" rows={2}
-                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none" />
+                        className={`${INPUT_CLASS} resize-none`} />
                 </div>
             </div>
 
             {/* 코칭 동시 등록 */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
+            <div className={`${PANEL_CLASS} p-4 sm:p-5 space-y-4`}>
                 <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-black text-slate-800">코칭 조치 동시 등록</h3>
+                    <h3 className={SECTION_TITLE_CLASS}>코칭 조치 동시 등록</h3>
                     <button onClick={() => setCoaching(p => !p)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${coaching ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${coaching ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
                         {coaching ? 'ON' : 'OFF'}
                     </button>
                 </div>
                 {coaching && (
                     <>
                         <div>
-                            <h4 className="text-xs font-bold text-slate-600 mb-2">조치 유형</h4>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-5 gap-2">
+                            <h4 className="mb-2 text-sm font-bold text-slate-700">조치 유형</h4>
+                            <div className="grid grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-2.5">
                                 {COACHING_PRESETS.map(a => (
                                     <button key={a.value} onClick={() => setActionType(a.value === actionType ? null : a.value)}
-                                        className={`flex items-center gap-1.5 text-xs font-semibold py-2 px-2 rounded-lg border transition-all
+                                        className={`flex min-h-[52px] items-center gap-1.5 rounded-2xl border px-3 py-3 text-left text-sm font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300
                                             ${actionType === a.value ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'}`}>
                                         <span>{a.icon}</span><span>{a.value}</span>
                                     </button>
@@ -668,11 +699,11 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
                             </div>
                         </div>
                         <div>
-                            <h4 className="text-xs font-bold text-slate-600 mb-2">사후조치 결과</h4>
-                            <div className="flex gap-2">
+                            <h4 className="mb-2 text-sm font-bold text-slate-700">사후조치 결과</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                 {FOLLOWUP_PRESETS.map(f => (
                                     <button key={f.value} onClick={() => setFollowup(f.value)}
-                                        className={`flex-1 text-xs font-bold py-2 rounded-lg border transition-all
+                                        className={`text-sm font-bold py-2.5 rounded-xl border transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300
                                             ${followup === f.value ? f.color + ' ring-2 ring-offset-1 ring-current' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
                                         {f.label}
                                     </button>
@@ -681,14 +712,14 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
                         </div>
                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                             <div>
-                                <label className="text-xs font-semibold text-slate-500 block mb-1">코치 이름</label>
+                                <label className={FIELD_LABEL_CLASS}>코치 이름</label>
                                 <input type="text" value={coachName} onChange={e => setCoachName(e.target.value)} placeholder="담당 관리감독자 (선택)"
-                                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                                    className={INPUT_CLASS} />
                             </div>
                             <div>
-                                <label className="text-xs font-semibold text-slate-500 block mb-1">조치 내용 메모</label>
+                                <label className={FIELD_LABEL_CLASS}>조치 내용 메모</label>
                                 <input type="text" value={actionDetail} onChange={e => setActionDetail(e.target.value)} placeholder="코칭 내용 간략 기록 (선택)"
-                                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                                    className={INPUT_CLASS} />
                             </div>
                         </div>
                     </>
@@ -696,11 +727,11 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
             </div>
 
             <button onClick={handleSubmit} disabled={submitting || selected.size === 0 || !behavior || (coaching && !actionType)}
-                className="w-full py-3 rounded-xl font-bold text-sm bg-rose-600 text-white hover:bg-rose-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                className="w-full rounded-2xl bg-rose-600 px-4 py-3.5 text-base font-bold text-white transition-all hover:bg-rose-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed">
                 {submitting ? '등록 중...' : `관찰+코칭 통합 등록 (${selected.size}명)`}
             </button>
             {result && (
-                <div className={`rounded-xl p-3 text-sm font-semibold text-center ${result.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                <div className={`rounded-2xl p-3.5 text-sm font-semibold text-center ${result.ok ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
                     {result.ok ? '✅ ' : '❌ '}{result.message}
                 </div>
             )}
@@ -777,55 +808,55 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
     const inProgressCount = violations.filter(v => v.status === 'in-progress').length;
 
     return (
-        <div className="space-y-5 lg:space-y-0 lg:grid lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_420px] lg:gap-6 lg:items-start">
+        <div className="space-y-5 xl:space-y-0 xl:grid xl:grid-cols-[minmax(0,1fr)_420px] 2xl:grid-cols-[minmax(0,1.08fr)_460px] xl:gap-6 xl:items-start">
             <div className="space-y-5">
             {/* 요약 바 */}
             {violations.length > 0 && (
-                <div className="grid grid-cols-3 gap-2">
-                    <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 text-center">
-                        <div className="text-2xl font-black text-rose-600">{openCount}</div>
-                        <div className="text-[11px] font-bold text-rose-500">미조치</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-center">
+                        <div className="text-3xl font-black text-rose-600">{openCount}</div>
+                        <div className="mt-1 text-xs font-bold text-rose-700">미조치</div>
                     </div>
-                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
-                        <div className="text-2xl font-black text-amber-600">{inProgressCount}</div>
-                        <div className="text-[11px] font-bold text-amber-500">조치중</div>
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center">
+                        <div className="text-3xl font-black text-amber-600">{inProgressCount}</div>
+                        <div className="mt-1 text-xs font-bold text-amber-700">조치중</div>
                     </div>
-                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
-                        <div className="text-2xl font-black text-emerald-600">{violations.filter(v => v.status === 'resolved').length}</div>
-                        <div className="text-[11px] font-bold text-emerald-500">조치완료</div>
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
+                        <div className="text-3xl font-black text-emerald-600">{violations.filter(v => v.status === 'resolved').length}</div>
+                        <div className="mt-1 text-xs font-bold text-emerald-700">조치완료</div>
                     </div>
                 </div>
             )}
 
             {/* 신규 등록 버튼 */}
             <button onClick={() => setShowForm(p => !p)}
-                className={`w-full py-2.5 rounded-xl font-bold text-sm border transition-all ${showForm ? 'bg-slate-100 text-slate-600 border-slate-300' : 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 active:scale-95'}`}>
+                className={`w-full rounded-2xl px-4 py-3 font-bold text-base border transition-all ${showForm ? 'bg-slate-100 text-slate-700 border-slate-300' : 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700 active:scale-95'}`}>
                 {showForm ? '등록 폼 닫기' : '+ 현장 지적사항 등록'}
             </button>
 
-            <div className="lg:hidden">
+            <div className="xl:hidden">
 
             {/* 등록 폼 */}
             {showForm && (
-                <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
+                <div className={`${PANEL_CLASS} p-4 sm:p-5 space-y-4`}>
                     {/* 출처 */}
                     <div>
-                        <label className="text-xs font-black text-slate-700 block mb-2">지적 출처</label>
+                        <label className={`${FIELD_LABEL_CLASS} font-black text-slate-700`}>지적 출처</label>
                         <div className="flex gap-2">
                             {VIOLATION_SOURCES.map(s => (
                                 <button key={s.value} onClick={() => setSource(s.value)}
-                                    className={`flex-1 py-2 rounded-lg border text-xs font-bold transition-all ${source === s.value ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-300'}`}>
+                                    className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${source === s.value ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-indigo-300'}`}>
                                     {s.label}
                                 </button>
                             ))}
                         </div>
                         {source === 'external' && (
                             <div className="mt-2">
-                                <label className="text-xs font-semibold text-slate-500 block mb-1">감찰 기관</label>
+                                <label className={FIELD_LABEL_CLASS}>감찰 기관</label>
                                 <div className="flex flex-wrap gap-1.5">
                                     {EXTERNAL_AUTHORITIES.map(a => (
                                         <button key={a} onClick={() => setExtAuth(a)}
-                                            className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all ${extAuth === a ? 'bg-red-500 text-white border-red-500' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-red-300'}`}>
+                                            className={`rounded-xl border px-3 py-2 text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300 ${extAuth === a ? 'bg-red-500 text-white border-red-500' : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-red-300'}`}>
                                             {a}
                                         </button>
                                     ))}
@@ -837,11 +868,11 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                     {/* 지적 분야 + 심각도 */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3">
                         <div>
-                            <label className="text-xs font-semibold text-slate-500 block mb-1">지적 분야</label>
+                            <label className={FIELD_LABEL_CLASS}>지적 분야</label>
                             <div className="flex flex-wrap gap-1.5">
                                 {VIOLATION_CATEGORIES.map(c => (
                                     <button key={c} onClick={() => setCategory(c)}
-                                        className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all ${category === c ? 'bg-slate-700 text-white border-slate-700' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400'}`}>
+                                        className={`rounded-xl border px-3 py-2 text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 ${category === c ? 'bg-slate-700 text-white border-slate-700' : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-400'}`}>
                                         {c}
                                     </button>
                                 ))}
@@ -849,11 +880,11 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                         </div>
                         <div className="space-y-2">
                             <div>
-                                <label className="text-xs font-semibold text-slate-500 block mb-1">심각도</label>
+                                <label className={FIELD_LABEL_CLASS}>심각도</label>
                                 <div className="flex gap-2">
                                     {(['경미', '보통', '중대'] as const).map(s => (
                                         <button key={s} onClick={() => setSeverity(s)}
-                                            className={`flex-1 py-1.5 rounded-lg border text-xs font-bold transition-all
+                                            className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300
                                                 ${severity === s
                                                     ? s === '중대' ? 'bg-rose-600 text-white border-rose-600' : s === '보통' ? 'bg-amber-500 text-white border-amber-500' : 'bg-blue-500 text-white border-blue-500'
                                                     : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
@@ -864,14 +895,14 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label className="text-xs font-semibold text-slate-500 block mb-1">발생일</label>
+                                    <label className={FIELD_LABEL_CLASS}>발생일</label>
                                     <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)}
-                                        className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                                        className={INPUT_COMPACT_CLASS} />
                                 </div>
                                 <div>
-                                    <label className="text-xs font-semibold text-slate-500 block mb-1">조치 기한</label>
+                                    <label className={FIELD_LABEL_CLASS}>조치 기한</label>
                                     <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
-                                        className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                                        className={INPUT_COMPACT_CLASS} />
                                 </div>
                             </div>
                         </div>
@@ -880,24 +911,24 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                     {/* 지적 내용 + 책임팀 */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-1 gap-3">
                         <div>
-                            <label className="text-xs font-semibold text-slate-500 block mb-1">지적 내용</label>
+                            <label className={FIELD_LABEL_CLASS}>지적 내용</label>
                             <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="구체적 지적 사항 기입" rows={3}
-                                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none" />
+                                className={`${INPUT_CLASS} resize-none`} />
                         </div>
                         <div className="space-y-2">
                             <div>
-                                <label className="text-xs font-semibold text-slate-500 block mb-1">조치 책임 팀</label>
+                                <label className={FIELD_LABEL_CLASS}>조치 책임 팀</label>
                                 <select value={responsibleTeam} onChange={e => setResponsibleTeam(e.target.value)}
-                                    className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                                    className={INPUT_COMPACT_CLASS}>
                                     <option value="">팀 선택 (선택)</option>
                                     {allTeams.map(t => <option key={t} value={t}>{t}</option>)}
                                 </select>
                             </div>
                             <div>
-                                <label className="text-xs font-semibold text-slate-500 block mb-1">현장 사진</label>
+                                <label className={FIELD_LABEL_CLASS}>현장 사진</label>
                                 <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" />
                                 <button onClick={() => photoRef.current?.click()}
-                                    className="px-3 py-2 text-xs font-semibold bg-slate-100 border border-slate-300 rounded-lg hover:bg-slate-200">
+                                    className={SOFT_BUTTON_CLASS}>
                                     📷 사진 첨부
                                 </button>
                                 {isCompressing && <span className="ml-2 text-xs text-slate-400">최적화 중...</span>}
@@ -912,7 +943,7 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                     </div>
 
                     <button onClick={handleAdd}
-                        className="w-full py-2.5 rounded-xl bg-rose-600 text-white font-bold text-sm hover:bg-rose-700 active:scale-95 transition-all">
+                        className="w-full rounded-2xl bg-rose-600 px-4 py-3 text-base font-bold text-white transition-all hover:bg-rose-700 active:scale-95">
                         지적사항 등록
                     </button>
                 </div>
@@ -921,40 +952,40 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
 
             {/* 지적사항 목록 */}
             {violations.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-4">
                     {violations.map(v => {
                         const srcMeta = VIOLATION_SOURCES.find(s => s.value === v.source);
                         const stMeta  = VIOLATION_STATUS_META[v.status];
                         const isOverdue = v.dueDate && v.status !== 'resolved' && v.dueDate < todayStr();
                         return (
-                            <div key={v.id} className={`bg-white rounded-xl border p-4 space-y-2 ${isOverdue ? 'border-rose-300' : 'border-slate-200'}`}>
+                            <div key={v.id} className={`bg-white rounded-2xl border p-5 space-y-3 shadow-[0_8px_22px_-18px_rgba(15,23,42,0.45)] ${isOverdue ? 'border-rose-300' : 'border-slate-200'}`}>
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="flex flex-wrap items-center gap-1.5">
-                                        <span className={`text-[11px] font-bold rounded-full px-2 py-0.5 ${srcMeta?.badgeClass || ''}`}>
+                                        <span className={`text-[11px] font-bold rounded-full px-2.5 py-1 ${srcMeta?.badgeClass || ''}`}>
                                             {srcMeta?.label}{v.source === 'external' && v.externalAuthority ? ` · ${v.externalAuthority}` : ''}
                                         </span>
-                                        <span className="text-[11px] font-bold bg-slate-100 text-slate-600 rounded-full px-2 py-0.5">{v.category}</span>
-                                        <span className={`text-[11px] font-black rounded-full px-2 py-0.5 ${v.severity === '중대' ? 'bg-rose-100 text-rose-700' : v.severity === '보통' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{v.severity}</span>
-                                        <span className={`text-[11px] font-bold rounded-full px-2 py-0.5 ${stMeta.badgeClass}`}>{stMeta.label}</span>
-                                        {isOverdue && <span className="text-[11px] font-black bg-rose-600 text-white rounded-full px-2 py-0.5">기한초과</span>}
+                                        <span className="text-[11px] font-bold bg-slate-100 text-slate-700 rounded-full px-2.5 py-1">{v.category}</span>
+                                        <span className={`text-[11px] font-black rounded-full px-2.5 py-1 ${v.severity === '중대' ? 'bg-rose-100 text-rose-800' : v.severity === '보통' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>{v.severity}</span>
+                                        <span className={`text-[11px] font-bold rounded-full px-2.5 py-1 ${stMeta.badgeClass}`}>{v.status === 'open' ? `● ${stMeta.label}` : v.status === 'in-progress' ? `▲ ${stMeta.label}` : `✓ ${stMeta.label}`}</span>
+                                        {isOverdue && <span className="text-[11px] font-black bg-rose-700 text-white rounded-full px-2.5 py-1">기한초과</span>}
                                     </div>
-                                    <button onClick={() => remove(v.id)} className="text-[11px] text-slate-300 hover:text-rose-500 font-semibold shrink-0">삭제</button>
+                                    <button onClick={() => remove(v.id)} className="shrink-0 rounded-md text-xs font-semibold text-slate-500 transition hover:text-rose-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-200">삭제</button>
                                 </div>
-                                <p className="text-xs text-slate-400">{v.issueDate}{v.dueDate ? ` → 기한: ${v.dueDate}` : ''}{v.responsibleTeam ? ` · ${v.responsibleTeam}` : ''}</p>
-                                <p className="text-sm font-semibold text-slate-700">{v.description}</p>
+                                <p className="text-sm text-slate-600">{v.issueDate}{v.dueDate ? ` → 기한: ${v.dueDate}` : ''}{v.responsibleTeam ? ` · ${v.responsibleTeam}` : ''}</p>
+                                <p className="text-base font-semibold leading-relaxed text-slate-700">{v.description}</p>
                                 {v.photo && <img src={`data:image/jpeg;base64,${v.photo}`} alt="지적" className="w-20 h-20 object-cover rounded-lg border border-slate-200" />}
                                 {/* 조치 상태 변경 */}
-                                <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-100">
+                                <div className="flex flex-wrap gap-1.5 pt-3 border-t border-slate-100">
                                     {(['open', 'in-progress', 'resolved'] as ViolationStatus[]).map(s => (
                                         <button key={s} onClick={() => setStatus(v.id, s)}
-                                            className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all ${v.status === s ? VIOLATION_STATUS_META[s].badgeClass + ' border-current' : 'bg-slate-50 text-slate-400 border-slate-200 hover:border-slate-300'}`}>
+                                            className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 ${v.status === s ? VIOLATION_STATUS_META[s].badgeClass + ' border-current' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-300'}`}>
                                             {VIOLATION_STATUS_META[s].label}
                                         </button>
                                     ))}
                                     {v.status === 'resolved' && (
                                         <input type="text" value={v.resolutionNote} onChange={e => setResolution(v.id, e.target.value)}
                                             placeholder="조치 내용 기록 (선택)"
-                                            className="flex-1 text-[11px] border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-200 min-w-[140px]" />
+                                            className={`min-w-[180px] flex-1 ${INPUT_COMPACT_CLASS}`} />
                                     )}
                                 </div>
                             </div>
@@ -962,38 +993,41 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                     })}
                 </div>
             ) : (
-                <div className="bg-slate-50 rounded-xl border border-dashed border-slate-300 p-10 text-center">
-                    <p className="text-sm text-slate-400 font-medium">등록된 현장 지적사항이 없습니다.</p>
-                    <p className="text-xs text-slate-300 mt-1">자체·원도급사·외부감찰 지적사항을 등록하세요.</p>
+                <div className={EMPTY_STATE_CLASS}>
+                    <div className="text-3xl">🗂️</div>
+                    <p className="mt-3 text-base font-semibold text-slate-700">등록된 현장 지적사항이 없습니다.</p>
+                    <p className="mt-1 text-sm text-slate-500">자체·원도급사·외부감찰 지적사항을 등록해 조치 흐름을 시작하세요.</p>
                 </div>
             )}
 
             </div>
 
-            <div className="hidden lg:block lg:sticky lg:top-4">
-                <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-4">
+            <div className="hidden xl:block xl:sticky xl:top-4">
+                <div className={`${PANEL_CLASS} p-4 sm:p-5 space-y-4`}>
                     <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-black text-slate-800">지적사항 등록</h3>
+                        <h3 className={SECTION_TITLE_CLASS}>지적사항 등록</h3>
                         <span className="text-[11px] font-semibold text-slate-400">PC 빠른입력</span>
                     </div>
 
+                    <p className={SECTION_SUBTEXT_CLASS}>출처, 심각도, 조치 기한을 같은 간격 규칙으로 정리해 빠른 입력 시 시선 이동을 줄였습니다.</p>
+
                     <div>
-                        <label className="text-xs font-black text-slate-700 block mb-2">지적 출처</label>
+                        <label className={`${FIELD_LABEL_CLASS} font-black text-slate-700`}>지적 출처</label>
                         <div className="flex gap-2">
                             {VIOLATION_SOURCES.map(s => (
                                 <button key={s.value} onClick={() => setSource(s.value)}
-                                    className={`flex-1 py-2 rounded-lg border text-xs font-bold transition-all ${source === s.value ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-300'}`}>
+                                    className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-bold transition-all ${source === s.value ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-indigo-300'}`}>
                                     {s.label}
                                 </button>
                             ))}
                         </div>
                         {source === 'external' && (
                             <div className="mt-2">
-                                <label className="text-xs font-semibold text-slate-500 block mb-1">감찰 기관</label>
+                                <label className={FIELD_LABEL_CLASS}>감찰 기관</label>
                                 <div className="flex flex-wrap gap-1.5">
                                     {EXTERNAL_AUTHORITIES.map(a => (
                                         <button key={a} onClick={() => setExtAuth(a)}
-                                            className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all ${extAuth === a ? 'bg-red-500 text-white border-red-500' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-red-300'}`}>
+                                            className={`rounded-xl border px-3 py-2 text-xs font-bold transition-all ${extAuth === a ? 'bg-red-500 text-white border-red-500' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-red-300'}`}>
                                             {a}
                                         </button>
                                     ))}
@@ -1003,11 +1037,11 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                     </div>
 
                     <div>
-                        <label className="text-xs font-semibold text-slate-500 block mb-1">지적 분야</label>
+                        <label className={FIELD_LABEL_CLASS}>지적 분야</label>
                         <div className="flex flex-wrap gap-1.5">
                             {VIOLATION_CATEGORIES.map(c => (
                                 <button key={c} onClick={() => setCategory(c)}
-                                    className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition-all ${category === c ? 'bg-slate-700 text-white border-slate-700' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400'}`}>
+                                    className={`rounded-xl border px-3 py-2 text-xs font-bold transition-all ${category === c ? 'bg-slate-700 text-white border-slate-700' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-slate-400'}`}>
                                     {c}
                                 </button>
                             ))}
@@ -1015,11 +1049,11 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                     </div>
 
                     <div>
-                        <label className="text-xs font-semibold text-slate-500 block mb-1">심각도</label>
+                        <label className={FIELD_LABEL_CLASS}>심각도</label>
                         <div className="flex gap-2">
                             {(['경미', '보통', '중대'] as const).map(s => (
                                 <button key={s} onClick={() => setSeverity(s)}
-                                    className={`flex-1 py-1.5 rounded-lg border text-xs font-bold transition-all
+                                    className={`flex-1 rounded-xl border px-3 py-2.5 text-sm font-bold transition-all
                                         ${severity === s
                                             ? s === '중대' ? 'bg-rose-600 text-white border-rose-600' : s === '보통' ? 'bg-amber-500 text-white border-amber-500' : 'bg-blue-500 text-white border-blue-500'
                                             : 'bg-slate-50 text-slate-600 border-slate-200'}`}>
@@ -1031,37 +1065,37 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
 
                     <div className="grid grid-cols-2 gap-2">
                         <div>
-                            <label className="text-xs font-semibold text-slate-500 block mb-1">발생일</label>
+                            <label className={FIELD_LABEL_CLASS}>발생일</label>
                             <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)}
-                                className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                                className={INPUT_COMPACT_CLASS} />
                         </div>
                         <div>
-                            <label className="text-xs font-semibold text-slate-500 block mb-1">조치 기한</label>
+                            <label className={FIELD_LABEL_CLASS}>조치 기한</label>
                             <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
-                                className="w-full text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                                className={INPUT_COMPACT_CLASS} />
                         </div>
                     </div>
 
                     <div>
-                        <label className="text-xs font-semibold text-slate-500 block mb-1">지적 내용</label>
+                        <label className={FIELD_LABEL_CLASS}>지적 내용</label>
                         <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="구체적 지적 사항 기입" rows={4}
-                            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200 resize-none" />
+                            className={`${INPUT_CLASS} resize-none`} />
                     </div>
 
                     <div>
-                        <label className="text-xs font-semibold text-slate-500 block mb-1">조치 책임 팀</label>
+                        <label className={FIELD_LABEL_CLASS}>조치 책임 팀</label>
                         <select value={responsibleTeam} onChange={e => setResponsibleTeam(e.target.value)}
-                            className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-200">
+                            className={INPUT_COMPACT_CLASS}>
                             <option value="">팀 선택 (선택)</option>
                             {allTeams.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                     </div>
 
                     <div>
-                        <label className="text-xs font-semibold text-slate-500 block mb-1">현장 사진</label>
+                        <label className={FIELD_LABEL_CLASS}>현장 사진</label>
                         <input ref={photoRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} className="hidden" />
                         <button onClick={() => photoRef.current?.click()}
-                            className="px-3 py-2 text-xs font-semibold bg-slate-100 border border-slate-300 rounded-lg hover:bg-slate-200">
+                            className={SOFT_BUTTON_CLASS}>
                             📷 사진 첨부
                         </button>
                         {isCompressing && <span className="ml-2 text-xs text-slate-400">최적화 중...</span>}
@@ -1074,7 +1108,7 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                     </div>
 
                     <button onClick={handleAdd}
-                        className="w-full py-2.5 rounded-xl bg-rose-600 text-white font-bold text-sm hover:bg-rose-700 active:scale-95 transition-all">
+                        className="w-full rounded-2xl bg-rose-600 px-4 py-3 text-base font-bold text-white transition-all hover:bg-rose-700 active:scale-95">
                         지적사항 등록
                     </button>
                 </div>
@@ -1134,90 +1168,103 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
     const summary = { green: reviews.filter(r => r.traffic_light === 'green').length, yellow: reviews.filter(r => r.traffic_light === 'yellow').length, red: reviews.filter(r => r.traffic_light === 'red').length };
 
     return (
-        <div className="space-y-5 lg:space-y-0 lg:grid lg:grid-cols-[380px_minmax(0,1fr)] xl:grid-cols-[420px_minmax(0,1fr)] lg:gap-6 lg:items-start">
+        <div className="space-y-5 xl:space-y-0 xl:grid xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[420px_minmax(0,1fr)] xl:gap-6 xl:items-start">
             {/* 로컬 이행 현황 */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 lg:sticky lg:top-4">
-                <h3 className="text-sm font-black text-slate-800 mb-3">이행 현황 요약</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <div className="rounded-xl bg-indigo-50 border border-indigo-100 p-3 text-center">
+            <div className={`${PANEL_CLASS} p-4 sm:p-5 xl:sticky xl:top-4`}>
+                <div className="mb-4">
+                    <h3 className={SECTION_TITLE_CLASS}>이행 현황 요약</h3>
+                    <p className={`${SECTION_SUBTEXT_CLASS} mt-1`}>좌측 요약 카드의 크기와 글자 단계를 통일해 주요 지표를 한눈에 비교할 수 있게 했습니다.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="rounded-2xl bg-indigo-50 border border-indigo-100 p-4 text-center">
+                        <div className="text-lg">📋</div>
                         <div className="text-2xl font-black text-indigo-700">{localStats.totalSessions}</div>
-                        <div className="text-[11px] font-bold text-indigo-500">위험성평가 점검 횟수</div>
+                        <div className="mt-1 text-xs font-bold text-indigo-700">위험성평가 점검 횟수</div>
                     </div>
-                    <div className={`rounded-xl border p-3 text-center ${localStats.riskComplianceRate !== null && localStats.riskComplianceRate < 70 ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                    <div className={`rounded-2xl border p-4 text-center ${localStats.riskComplianceRate !== null && localStats.riskComplianceRate < 70 ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                        <div className="text-lg">📈</div>
                         <div className={`text-2xl font-black ${localStats.riskComplianceRate !== null && localStats.riskComplianceRate < 70 ? 'text-rose-600' : 'text-emerald-600'}`}>
                             {localStats.riskComplianceRate !== null ? `${localStats.riskComplianceRate}%` : '-'}
                         </div>
-                        <div className={`text-[11px] font-bold ${localStats.riskComplianceRate !== null && localStats.riskComplianceRate < 70 ? 'text-rose-500' : 'text-emerald-500'}`}>이행률</div>
+                        <div className={`mt-1 text-xs font-bold ${localStats.riskComplianceRate !== null && localStats.riskComplianceRate < 70 ? 'text-rose-700' : 'text-emerald-700'}`}>이행률</div>
                     </div>
-                    <div className={`rounded-xl border p-3 text-center ${localStats.openViolations > 0 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
-                        <div className={`text-2xl font-black ${localStats.openViolations > 0 ? 'text-rose-600' : 'text-slate-400'}`}>{localStats.openViolations}</div>
-                        <div className={`text-[11px] font-bold ${localStats.openViolations > 0 ? 'text-rose-500' : 'text-slate-400'}`}>미조치 지적</div>
+                    <div className={`rounded-2xl border p-4 text-center ${localStats.openViolations > 0 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
+                        <div className="text-lg">●</div>
+                        <div className={`text-2xl font-black ${localStats.openViolations > 0 ? 'text-rose-600' : 'text-slate-500'}`}>{localStats.openViolations}</div>
+                        <div className={`mt-1 text-xs font-bold ${localStats.openViolations > 0 ? 'text-rose-700' : 'text-slate-600'}`}>미조치 지적</div>
                     </div>
-                    <div className={`rounded-xl border p-3 text-center ${localStats.criticalViolations > 0 ? 'bg-red-50 border-red-300' : 'bg-slate-50 border-slate-200'}`}>
-                        <div className={`text-2xl font-black ${localStats.criticalViolations > 0 ? 'text-red-700' : 'text-slate-400'}`}>{localStats.criticalViolations}</div>
-                        <div className={`text-[11px] font-bold ${localStats.criticalViolations > 0 ? 'text-red-600' : 'text-slate-400'}`}>중대 미조치</div>
+                    <div className={`rounded-2xl border p-4 text-center ${localStats.criticalViolations > 0 ? 'bg-red-50 border-red-300' : 'bg-slate-50 border-slate-200'}`}>
+                        <div className="text-lg">⚠️</div>
+                        <div className={`text-2xl font-black ${localStats.criticalViolations > 0 ? 'text-red-700' : 'text-slate-500'}`}>{localStats.criticalViolations}</div>
+                        <div className={`mt-1 text-xs font-bold ${localStats.criticalViolations > 0 ? 'text-red-700' : 'text-slate-600'}`}>중대 미조치</div>
                     </div>
                 </div>
             </div>
 
             {/* 행동관찰 무결성 판정 */}
-            <div className="bg-white rounded-xl border border-slate-200 p-4 min-w-0">
-                <div className="flex items-center justify-between mb-3">
+            <div className={`${PANEL_CLASS} p-4 sm:p-5 min-w-0`}>
+                <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
-                        <h3 className="text-sm font-black text-slate-800">{assessmentMonth} 행동 무결성 자동 판정</h3>
-                        {lastEvaluated && <p className="text-xs text-slate-400 mt-0.5">최종 실행: {lastEvaluated}</p>}
+                        <h3 className={SECTION_TITLE_CLASS}>{assessmentMonth} 행동 무결성 자동 판정</h3>
+                        {lastEvaluated && <p className="mt-1 text-sm text-slate-600">최종 실행: {lastEvaluated}</p>}
                     </div>
                     <button onClick={run} disabled={loading}
-                        className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700 active:scale-95 disabled:opacity-50 transition-all">
+                        className="rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-bold text-white transition-all hover:bg-indigo-700 active:scale-95 disabled:opacity-50">
                         {loading ? '판정 중...' : '자동 판정 실행'}
                     </button>
                 </div>
 
-                {error && <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-700 font-semibold mb-3">❌ {error}</div>}
+                {error && <div className="mb-3 rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-800">❌ {error}</div>}
 
                 {reviews.length > 0 && (
                     <>
-                        <div className="grid grid-cols-3 gap-2 mb-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                             {[{ key: 'green', icon: '🟢', label: '확정', count: summary.green, bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
                               { key: 'yellow', icon: '🟡', label: '검토중', count: summary.yellow, bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
                               { key: 'red', icon: '🔴', label: '위험/보류', count: summary.red, bg: 'bg-red-50 border-red-200', text: 'text-red-700' }
                             ].map(s => (
-                                <div key={s.key} className={`${s.bg} border rounded-xl p-3 text-center`}>
+                                <div key={s.key} className={`${s.bg} border rounded-2xl p-4 text-center`}>
                                     <div className="text-xl mb-1">{s.icon}</div>
                                     <div className={`text-2xl font-black ${s.text}`}>{s.count}</div>
-                                    <div className={`text-[11px] font-bold ${s.text}`}>{s.label}</div>
+                                    <div className={`mt-1 text-xs font-bold ${s.text}`}>{s.label}</div>
                                 </div>
                             ))}
                         </div>
-                        <div className="rounded-xl border border-slate-200 overflow-x-auto">
-                            <table className="w-full min-w-[720px] text-sm">
+                        <div className="mb-4 flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-medium text-slate-700">
+                            <span className="rounded-full bg-white px-2.5 py-1">🟢 확정 = 우선 확인 완료</span>
+                            <span className="rounded-full bg-white px-2.5 py-1">🟡 검토중 = 보완 검토 필요</span>
+                            <span className="rounded-full bg-white px-2.5 py-1">🔴 위험/보류 = 즉시 조치 필요</span>
+                        </div>
+                        <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                            <table className="w-full min-w-[760px] table-fixed text-sm">
                                 <thead className="bg-slate-50 border-b border-slate-200">
                                     <tr>
-                                        <th className="text-left text-xs font-bold text-slate-500 py-2 px-3">근로자</th>
-                                        <th className="text-center text-xs font-bold text-slate-500 py-2 px-2">점수</th>
-                                        <th className="text-center text-xs font-bold text-slate-500 py-2 px-2">상태</th>
-                                        <th className="text-left text-xs font-bold text-slate-500 py-2 px-3">사유</th>
+                                        <th className="w-[30%] px-5 py-4 text-left text-xs font-bold text-slate-700">근로자</th>
+                                        <th className="w-[11%] px-3 py-4 text-center text-xs font-bold text-slate-700">점수</th>
+                                        <th className="w-[19%] px-3 py-4 text-center text-xs font-bold text-slate-700">상태</th>
+                                        <th className="w-[40%] px-5 py-4 text-left text-xs font-bold text-slate-700">사유</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {reviews.map((row, idx) => {
                                         const cfg = tlConfig(row.traffic_light);
+                                        const statusLabel = row.traffic_light === 'green' ? '우선 확인 완료' : row.traffic_light === 'yellow' ? '보완 검토 필요' : '즉시 조치 필요';
                                         return (
-                                            <tr key={row.worker_id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
-                                                <td className="py-2.5 px-3 font-semibold text-slate-800 text-xs">{row.worker_name}</td>
-                                                <td className="py-2.5 px-2 text-center">
-                                                    <span className={`text-xs font-black ${row.computed_score >= 80 ? 'text-emerald-600' : row.computed_score >= 60 ? 'text-amber-600' : 'text-red-600'}`}>{row.computed_score}</span>
+                                            <tr key={row.worker_id} className={`align-top border-b border-slate-100 last:border-b-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
+                                                <td className="px-5 py-4 text-sm font-semibold leading-7 text-slate-900">{row.worker_name}</td>
+                                                <td className="px-3 py-4 text-center">
+                                                    <span className={`text-sm font-black ${row.computed_score >= 80 ? 'text-emerald-700' : row.computed_score >= 60 ? 'text-amber-700' : 'text-red-700'}`}>{row.computed_score}</span>
                                                 </td>
-                                                <td className="py-2.5 px-2 text-center">
-                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${cfg.bg} ${cfg.text} ${cfg.border}`}>
+                                                <td className="px-3 py-4 text-center">
+                                                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold ${cfg.bg} ${cfg.text} ${cfg.border}`}>
                                                         <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-                                                        {row.integrity_status}
+                                                        {statusLabel}
                                                     </span>
                                                 </td>
-                                                <td className="py-2.5 px-3">
+                                                <td className="px-5 py-4">
                                                     {row.integrity_reason_codes.length > 0
-                                                        ? <div className="flex flex-wrap gap-1">{row.integrity_reason_codes.map(c => <span key={c} className="text-[10px] bg-slate-100 text-slate-500 rounded px-1.5 py-0.5">{reasonCodeToKo(c)}</span>)}</div>
-                                                        : <span className="text-[10px] text-emerald-500 font-semibold">이상없음</span>}
+                                                        ? <div className="flex flex-wrap gap-2">{row.integrity_reason_codes.map(c => <span key={c} className="rounded-xl bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-700">{reasonCodeToKo(c)}</span>)}</div>
+                                                        : <span className="text-sm font-semibold text-emerald-700">이상없음</span>}
                                                 </td>
                                             </tr>
                                         );
@@ -1229,14 +1276,16 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
                 )}
 
                 {reviews.length === 0 && !loading && (
-                    <div className="bg-slate-50 rounded-xl border border-dashed border-slate-300 p-6 text-center">
-                        <p className="text-xs text-slate-400 font-medium">「자동 판정 실행」을 눌러 근로자별 행동 무결성을 평가하세요.</p>
+                    <div className={EMPTY_STATE_CLASS}>
+                        <div className="text-3xl">🤖</div>
+                        <p className="mt-3 text-base font-semibold text-slate-700">자동 판정 대기 상태입니다.</p>
+                        <p className="mt-1 text-sm font-medium text-slate-500">상단의 「자동 판정 실행」 버튼을 눌러 근로자별 행동 무결성을 평가하세요.</p>
                     </div>
                 )}
                 {loading && (
-                    <div className="bg-slate-50 rounded-xl p-6 text-center">
+                    <div className="rounded-2xl bg-slate-50 p-6 text-center">
                         <div className="animate-spin w-7 h-7 border-4 border-indigo-200 border-t-indigo-600 rounded-full mx-auto mb-2" />
-                        <p className="text-xs text-slate-400 font-medium">판정 중...</p>
+                        <p className="text-sm font-medium text-slate-600">판정 중...</p>
                     </div>
                 )}
             </div>
@@ -1277,33 +1326,42 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
     }, []);
 
     return (
-        <div className="p-4 sm:p-6 lg:px-8 max-w-7xl mx-auto">
+        <div className="mx-auto max-w-[1600px] space-y-5 p-4 sm:space-y-6 sm:p-6 xl:px-8 2xl:px-10">
             {/* 헤더 */}
-            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 mb-6">
-                <div>
-                    <h1 className="text-xl font-black text-slate-900">현장 안전이행 종합관리</h1>
-                    <p className="text-xs text-slate-400 mt-0.5 font-medium">
-                        위험성평가 이행점검 · 행동관찰코칭 · 현장지적관리 · 종합판정
-                    </p>
-                </div>
-                <div className="flex items-center gap-2 shrink-0 self-start">
-                    <span className="text-xs font-semibold text-slate-500">평가 월</span>
-                    <input type="month" value={assessmentMonth} onChange={e => setAssessmentMonth(e.target.value)}
-                        className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+            <div className="rounded-[28px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-indigo-50/70 p-4 sm:p-6 shadow-[0_18px_45px_-28px_rgba(15,23,42,0.35)]">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                    <div className="space-y-3">
+                        <div>
+                            <h1 className="text-2xl sm:text-[28px] font-black tracking-tight text-slate-900">현장 안전이행 종합관리</h1>
+                            <p className="mt-1 text-sm font-medium text-slate-700 sm:text-base">
+                                위험성평가 이행점검 · 행동관찰코칭 · 현장지적관리 · 종합판정
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <span className="rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm">정돈된 타이포그래피</span>
+                            <span className="rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm">균형 잡힌 카드 그리드</span>
+                            <span className="rounded-full bg-white/90 px-3 py-1.5 text-xs font-bold text-slate-600 shadow-sm">PC/모바일 가독성 강화</span>
+                        </div>
+                    </div>
+                    <div className="w-full max-w-xs rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm">
+                        <span className="text-sm font-semibold text-slate-700">평가 월</span>
+                        <input type="month" value={assessmentMonth} onChange={e => setAssessmentMonth(e.target.value)}
+                            className={`${INPUT_CLASS} mt-2`} />
+                    </div>
                 </div>
             </div>
 
             {/* 탭 네비게이션 */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-1 bg-slate-100 rounded-xl p-1 mb-5">
+            <div className="flex gap-2 overflow-x-auto rounded-2xl bg-slate-100/90 p-2 xl:grid xl:grid-cols-4 xl:overflow-visible">
                 {tabs.map(tab => (
                     <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                        className={`relative flex-1 flex items-center justify-center gap-1 py-2 px-1 rounded-lg text-[11px] sm:text-xs font-bold transition-all
-                            ${activeTab === tab.id ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                        className={`relative flex min-h-[64px] min-w-[148px] shrink-0 items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-bold transition-all xl:min-w-0
+                            ${activeTab === tab.id ? 'bg-white text-indigo-800 shadow-sm shadow-slate-300/50' : 'text-slate-700 hover:bg-white/70 hover:text-slate-900'}`}>
                         <span>{tab.icon}</span>
                         <span className="hidden sm:inline">{tab.label}</span>
                         <span className="sm:hidden">{tab.shortLabel}</span>
                         {tab.badge !== undefined && (
-                            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center">{tab.badge}</span>
+                            <span className="absolute -top-1 -right-1 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-black text-white">{tab.badge}</span>
                         )}
                     </button>
                 ))}

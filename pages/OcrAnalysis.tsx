@@ -1204,7 +1204,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         const targets = filteredRecords;
         const total = targets.length;
         if (total === 0) return alert('대상 없음');
-        if (!confirm(`${total}명에 대해 AI 분석을 갱신합니다.`)) return;
+        if (!confirm(`${total}명에 대해 관리자 수정사항을 반영한 2차 AI 재분석을 실행합니다.\n\n- 현재 필터로 조회된 대상 전체 적용\n- 1차 OCR 원문 재추출이 아닌 수정 반영 재평가\n- 점수, 등급, 강점/약점, AI 인사이트 갱신`)) return;
 
         setIsAnalyzing(true);
         setBatchProgress({ current: 0, total });
@@ -1220,7 +1220,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 if (stopRef.current) { stopped = true; break; }
                 const record = targets[i];
                 setBatchProgress(p => ({ ...p, current: i + 1 }));
-                setProgress(`갱신 중: ${record.name}`);
+                setProgress(`2차 AI 재분석 중: ${record.name}`);
 
                 // [FIXED] Add retry counter to prevent infinite loops (Bug #2)
                 let retryCount = 0;
@@ -1291,7 +1291,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 
                 // 동적 지연 (429 회피)
                 if (i < total - 1 && !stopRef.current) {
-                    await waitWithCountdown(dynamicDelayBuffer, "다음 갱신 대기");
+                    await waitWithCountdown(dynamicDelayBuffer, "다음 2차 재분석 대기");
                 }
             }
         } finally {
@@ -1950,8 +1950,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         className="w-full md:w-auto px-5 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-black text-sm shadow-md transition-all flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                        수정사항 AI 반영 갱신
+                        관리자 수정 반영 2차 AI 재분석
                     </button>
+                    <p className="w-full text-[11px] font-semibold text-violet-700 md:ml-auto md:w-auto">
+                        현재 필터 대상 전체에 대해 관리자 수정본 기준으로 재평가합니다.
+                    </p>
                 </div>
             </div>
 
