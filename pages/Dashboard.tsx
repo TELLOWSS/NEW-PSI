@@ -142,7 +142,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         setTeamViewFilter('all');
     };
 
-    const openNationalityDetailAnalysis = (trade: string, nationality: string) => {
+    const openNationalityDetailAnalysis = ({ trade, nationality }: SelectedTarget) => {
         setSelectedTarget({ trade, nationality });
         setSelectedTradeForComparison(trade);
         setMobileInsightTab('chart');
