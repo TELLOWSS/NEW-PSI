@@ -80,6 +80,35 @@ const JOB_FIELD_ALIASES: Record<string, string> = {
     '콘크리트비계': '콘크리트비계',
 };
 
+const SAFETY_INTEGRITY_REQUIRED_TABLES = new Set([
+    'safety_behavior_observations',
+    'safety_coaching_actions',
+    'worker_integrity_reviews',
+]);
+
+function extractMissingPublicTableName(errorMessage: string): string | null {
+    if (!errorMessage) return null;
+
+    const couldNotFindMatch = errorMessage.match(/table\s+'public\.([a-zA-Z0-9_]+)'/i);
+    if (couldNotFindMatch?.[1]) return couldNotFindMatch[1];
+
+    const relationMatch = errorMessage.match(/relation\s+['"]?public\.([a-zA-Z0-9_]+)['"]?\s+does\s+not\s+exist/i);
+    if (relationMatch?.[1]) return relationMatch[1];
+
+    return null;
+}
+
+function buildSafetySchemaMissingMessage(errorMessage: string): string | null {
+    const tableName = extractMissingPublicTableName(errorMessage);
+    if (!tableName) return null;
+    if (!SAFETY_INTEGRITY_REQUIRED_TABLES.has(tableName)) return null;
+
+    return [
+        `필수 테이블(public.${tableName})이 없어 안전행동 등록을 처리할 수 없습니다.`,
+        'Supabase SQL Editor에서 supabase_safety_integrity_migration.sql 파일을 실행해 스키마를 먼저 생성해주세요.',
+    ].join(' ');
+}
+
 // -----------------------------------------------------------------------
 // 유틸
 // -----------------------------------------------------------------------
@@ -1307,6 +1336,18 @@ export default async function handler(req: any, res: any) {
         });
     } catch (err: any) {
         console.error('[safety-management] error:', err);
-        return res.status(500).json({ ok: false, message: err?.message || '서버 오류' });
+        const rawMessage = err?.message || '서버 오류';
+        const schemaHintMessage = buildSafetySchemaMissingMessage(String(rawMessage));
+
+        if (schemaHintMessage) {
+            return res.status(500).json({
+                ok: false,
+                code: 'SAFETY_INTEGRITY_SCHEMA_MISSING',
+                message: schemaHintMessage,
+                details: rawMessage,
+            });
+        }
+
+        return res.status(500).json({ ok: false, message: rawMessage });
     }
 }
