@@ -1,15 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
-import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
 
 function getSupabaseClient() {
     const supabaseUrl =
         process.env.VITE_SUPABASE_URL ||
         process.env.NEXT_PUBLIC_SUPABASE_URL ||
-        '';
-    const supabaseServiceRoleKey =
-        process.env.SUPABASE_SERVICE_ROLE_KEY ||
-        process.env.SUPABASE_SERVICE_KEY ||
-        process.env.SERVICE_ROLE_KEY ||
         '';
     const supabaseAnonKey =
         process.env.VITE_SUPABASE_ANON_KEY ||
@@ -19,13 +13,12 @@ function getSupabaseClient() {
         process.env.VITE_PSI_ADMIN_SECRET ||
         process.env.PSI_ADMIN_SECRET ||
         '';
-    const keyToUse = supabaseServiceRoleKey || supabaseAnonKey;
 
-    if (!supabaseUrl || !keyToUse) {
-        throw new Error('Supabase 환경변수가 누락되었습니다. SUPABASE_SERVICE_ROLE_KEY 또는 VITE_SUPABASE_ANON_KEY를 확인해 주세요.');
+    if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error('Supabase 환경변수가 누락되었습니다.');
     }
 
-    return createClient(supabaseUrl, keyToUse, {
+    return createClient(supabaseUrl, supabaseAnonKey, {
         global: {
             headers: psiAdminSecret
                 ? { 'x-psi-admin-secret': psiAdminSecret }
@@ -53,10 +46,6 @@ export default async function handler(req: any, res: any) {
         return sendJsonError(res, 405, 'Method Not Allowed');
     }
 
-    if (!isValidAdminAuthRequest(req)) {
-        return sendUnauthorizedAdminResponse(res);
-    }
-
     try {
         const { sessionId } = req.body || {};
         if (!sessionId || typeof sessionId !== 'string') {
@@ -64,36 +53,6 @@ export default async function handler(req: any, res: any) {
         }
 
         const supabase = getSupabaseClient();
-
-        let targetMode: 'submitted_only' | 'attendance_only' = 'submitted_only';
-        let targetWorkerNames: string[] = [];
-        const targetWorkerDisplayMap = new Map<string, string>();
-
-        const sessionMetaResult = await supabase
-            .from('training_sessions')
-            .select('target_mode, target_worker_names')
-            .eq('id', sessionId)
-            .single();
-
-        if (!sessionMetaResult.error && sessionMetaResult.data) {
-            const sessionRow = sessionMetaResult.data as any;
-            targetMode = sessionRow?.target_mode === 'attendance_only'
-                ? 'attendance_only'
-                : 'submitted_only';
-            if (Array.isArray(sessionRow?.target_worker_names)) {
-                const normalizedTargetNames: string[] = [];
-                for (const item of sessionRow.target_worker_names) {
-                    const rawName = String(item || '').trim();
-                    const normalized = rawName.toLowerCase();
-                    if (!normalized) continue;
-                    normalizedTargetNames.push(normalized);
-                    if (!targetWorkerDisplayMap.has(normalized)) {
-                        targetWorkerDisplayMap.set(normalized, rawName);
-                    }
-                }
-                targetWorkerNames = normalizedTargetNames;
-            }
-        }
 
         const logsResult = await supabase
             .from('training_logs')
@@ -106,23 +65,16 @@ export default async function handler(req: any, res: any) {
         }
 
         const workerSet = new Set<string>();
-        const workerDisplayMap = new Map<string, string>();
         const nationalitySet = new Set<string>();
 
         for (const row of logsResult.data || []) {
-            const rawWorkerName = String((row as any)?.worker_name || '').trim();
-            const workerName = rawWorkerName.toLowerCase();
+            const workerName = String((row as any)?.worker_name || '').trim().toLowerCase();
             const nationality = String((row as any)?.nationality || '').trim();
-            if (workerName) {
-                workerSet.add(workerName);
-                if (!workerDisplayMap.has(workerName)) {
-                    workerDisplayMap.set(workerName, rawWorkerName);
-                }
-            }
+            if (workerName) workerSet.add(workerName);
             if (nationality) nationalitySet.add(nationality);
         }
 
-        let confirmedSet = new Set<string>(workerSet);
+        let confirmedWorkers = workerSet.size;
         let ackDataSource: 'training_acknowledgements' | 'submission_gate' = 'submission_gate';
 
         const ackResult = await supabase
@@ -132,7 +84,7 @@ export default async function handler(req: any, res: any) {
             .limit(5000);
 
         if (!ackResult.error && Array.isArray(ackResult.data)) {
-            confirmedSet = new Set<string>();
+            const confirmedSet = new Set<string>();
 
             for (const row of ackResult.data) {
                 const workerName = String((row as any)?.worker_name || '').trim().toLowerCase();
@@ -146,60 +98,25 @@ export default async function handler(req: any, res: any) {
                     confirmedSet.add(workerName);
                 }
             }
+
+            confirmedWorkers = confirmedSet.size;
             ackDataSource = 'training_acknowledgements';
         }
 
         const submittedWorkers = workerSet.size;
-        const targetSet = new Set<string>(targetWorkerNames);
-        const useAttendanceTarget = targetMode === 'attendance_only' && targetSet.size > 0;
-
-        let targetedWorkers = submittedWorkers;
-        let confirmedWorkers = confirmedSet.size;
-        let excludedWorkers = 0;
-
-        if (useAttendanceTarget) {
-            targetedWorkers = targetSet.size;
-            confirmedWorkers = Array.from(confirmedSet).filter((worker) => targetSet.has(worker)).length;
-            excludedWorkers = Array.from(workerSet).filter((worker) => !targetSet.has(worker)).length;
-        }
-
-        const confirmationRate = targetedWorkers > 0
-            ? Math.round((confirmedWorkers / targetedWorkers) * 100)
+        const confirmationRate = submittedWorkers > 0
+            ? Math.round((confirmedWorkers / submittedWorkers) * 100)
             : 0;
-
-        const submittedWorkerNames = Array.from(workerSet)
-            .map((worker) => workerDisplayMap.get(worker) || worker)
-            .sort((a, b) => a.localeCompare(b, 'ko'));
-
-        const scopedConfirmedSet = useAttendanceTarget
-            ? new Set(Array.from(confirmedSet).filter((worker) => targetSet.has(worker)))
-            : new Set(confirmedSet);
-
-        const confirmedWorkerNames = Array.from(scopedConfirmedSet)
-            .map((worker) => workerDisplayMap.get(worker) || targetWorkerDisplayMap.get(worker) || worker)
-            .sort((a, b) => a.localeCompare(b, 'ko'));
-
-        const unconfirmedBaseSet = useAttendanceTarget ? targetSet : workerSet;
-        const unconfirmedWorkerNames = Array.from(unconfirmedBaseSet)
-            .filter((worker) => !scopedConfirmedSet.has(worker))
-            .map((worker) => targetWorkerDisplayMap.get(worker) || workerDisplayMap.get(worker) || worker)
-            .sort((a, b) => a.localeCompare(b, 'ko'));
 
         return res.status(200).json({
             ok: true,
             sessionId,
-            targetMode,
             submittedWorkers,
-            targetedWorkers,
             confirmedWorkers,
-            unconfirmedWorkers: Math.max(0, targetedWorkers - confirmedWorkers),
-            excludedWorkers,
+            unconfirmedWorkers: Math.max(0, submittedWorkers - confirmedWorkers),
             confirmationRate,
             nationalityCount: nationalitySet.size,
             ackDataSource,
-            submittedWorkerNames,
-            confirmedWorkerNames,
-            unconfirmedWorkerNames,
         });
     } catch (error: any) {
         return sendJsonError(res, 500, error?.message || '통계 조회 실패');

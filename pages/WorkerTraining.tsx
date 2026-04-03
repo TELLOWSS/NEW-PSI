@@ -1,435 +1,516 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
-import { AuthGateway, type AuthenticatedWorker } from '../components/AuthGateway';
-import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
-import {
-    TRAINING_AUDIO_LANGUAGES,
-    TRAINING_AUDIO_LANGUAGE_NATIONALITY,
-    resolveTrainingLanguageByNationality,
-    type TrainingAudioLanguageCode,
-} from '../utils/trainingLanguageUtils';
+import { isSupabasePermissionError, supabase } from '../lib/supabaseClient';
 
 interface WorkerTrainingProps {
     sessionId: string;
-    isKioskMode?: boolean;
+    simplifiedMode?: boolean;
 }
-
-const TRAINING_ACCESS_BLOCK_THRESHOLD = 2;
-
-const buildTrainingAccessCountStorageKey = (sessionId: string, workerId: string): string => {
-    return `psi_training_access_count:${String(sessionId || '').trim()}:${String(workerId || '').trim()}`;
-};
-
-const applyLocalAccessFallback = (sessionId: string, workerId: string, trackedRef: React.MutableRefObject<string>): number | null => {
-    const storageKey = buildTrainingAccessCountStorageKey(sessionId, workerId);
-    if (trackedRef.current === storageKey) {
-        try {
-            const cachedCount = Number(localStorage.getItem(storageKey) || '0');
-            return Number.isFinite(cachedCount) ? cachedCount : null;
-        } catch {
-            return null;
-        }
-    }
-
-    trackedRef.current = storageKey;
-
-    try {
-        const previousCount = Number(localStorage.getItem(storageKey) || '0');
-        const nextCount = Number.isFinite(previousCount) ? previousCount + 1 : 1;
-        localStorage.setItem(storageKey, String(nextCount));
-        return nextCount;
-    } catch {
-        return null;
-    }
-};
 
 type SessionRow = {
     id: string;
     source_text_ko: string;
-    original_script?: string;
     audio_urls: unknown;
     translated_texts?: unknown;
 };
 
-type ExistingSubmissionRow = {
-    id: string;
-    submitted_at: string;
-    signature_url: string;
-};
+type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
 
-type UiText = {
+const UI_TEXT: Record<UiLocale, {
     title: string;
     subtitle: string;
     nameLabel: string;
     namePlaceholder: string;
-    loading: string;
-    noSession: string;
-    errorPrefix: string;
+    nationalityLabel: string;
+    nationalityHint: string;
+    autoLangLabel: string;
+    audioGuideLabel: string;
+    audioPlay: string;
+    audioPause: string;
+    audioPlaying: string;
+    audioReady: string;
+    audioMissing: string;
+    guidanceLabel: string;
+    comprehensionTitle: string;
+    comprehensionDescription: string;
+    progressLabel: string;
+    progressPending: string;
+    progressReady: string;
+    checkRiskReview: string;
+    checkPpeConfirm: string;
+    checkEmergencyConfirm: string;
+    submitBlockedAlert: string;
+    understandingPledgeHint: string;
+    signatureLabel: string;
+    signatureClear: string;
+    submit: string;
+    submitting: string;
     missingNameAlert: string;
     missingSignatureAlert: string;
     submitSuccess: string;
     submitFail: string;
-    submit: string;
-    submitting: string;
-    signatureLabel: string;
-    signatureClear: string;
-    languageSelectLabel: string;
-    selectedNationalityLabel: string;
-    selectedAudioLabel: string;
-    mp3Connected: string;
-    mp3Missing: string;
-    audioRecorded: string;
-    audioActivateHint: string;
-    audioHiddenHint: string;
-    translatedScriptLabel: string;
-    scrollLabel: string;
-    scriptReadSaved: string;
-    scriptScrollHint: string;
-    signatureDefenseTitle: string;
-    signatureDefenseDescription: string;
-    acknowledgedLabel: string;
-    canvasActivationHint: string;
-    engagementRequiredAlert: string;
-    acknowledgeRequiredAlert: string;
-    sessionIdMissing: string;
-    sessionFetchErrorLabel: string;
+    mobileOnlyTitle: string;
+    mobileOnlyDescription: string;
+    loading: string;
+    noSession: string;
+    errorPrefix: string;
     permissionDenied: string;
+    sessionFetchErrorLabel: string;
+    linkInvalid: string;
+    linkExpired: string;
+    stayOnPageHint: string;
+    alreadySubmitted: string;
+}> = {
+    ko: {
+        title: '외국인 근로자 안전교육 확인',
+        subtitle: '음성 안내를 듣고 전자서명을 제출해 주세요.',
+        nameLabel: '이름',
+        namePlaceholder: '이름 입력',
+        nationalityLabel: '국적',
+        nationalityHint: '국적을 선택하면 화면 언어가 자동으로 변경됩니다.',
+        autoLangLabel: '자동 언어 선택',
+        audioGuideLabel: '음성 안내',
+        audioPlay: '재생',
+        audioPause: '일시정지',
+        audioPlaying: '재생 중',
+        audioReady: '버튼을 눌러 음성을 재생하세요',
+        audioMissing: '선택한 언어 음성 파일이 없어 텍스트 안내로 대체됩니다.',
+        guidanceLabel: '안내 문구',
+        comprehensionTitle: '위험성평가 이해 확인',
+        comprehensionDescription: '안내 문구를 끝까지 읽고 아래 항목에 체크해야 제출할 수 있습니다.',
+        progressLabel: '안내 문구 확인 진행도',
+        progressPending: '아직 끝까지 확인하지 않았습니다.',
+        progressReady: '안내 문구를 끝까지 확인했습니다.',
+        checkRiskReview: '내 작업 공정의 주요 위험요인과 통제조치를 확인했습니다.',
+        checkPpeConfirm: '작업 시작 전 보호구(PPE) 착용 기준을 이해했습니다.',
+        checkEmergencyConfirm: '비상상황 발생 시 보고/대피 절차를 이해했습니다.',
+        submitBlockedAlert: '위험성평가 이해 확인(끝까지 읽기 + 체크 항목)을 완료해 주세요.',
+        understandingPledgeHint: '서명은 “위험성평가를 이해하고 준수하겠다”는 확약입니다.',
+        signatureLabel: '전자서명',
+        signatureClear: '서명 지우기',
+        submit: '제출하기',
+        submitting: '제출 중...',
+        missingNameAlert: '이름을 입력해 주세요.',
+        missingSignatureAlert: '전자서명을 먼저 입력해 주세요.',
+        submitSuccess: '제출 완료! 교육 이수 서명이 저장되었습니다.',
+        submitFail: '제출 실패',
+        mobileOnlyTitle: '근로자 전용 모바일 페이지 안내',
+        mobileOnlyDescription: '이 화면은 근로자 전용 모바일 서명 페이지입니다. 현장에 부착된 QR코드를 스마트폰으로 스캔하여 접속해 주세요.',
+        loading: '불러오는 중...',
+        noSession: '세션이 없습니다. 관리자에게 문의해 주세요.',
+        errorPrefix: '오류',
+        permissionDenied: '권한이 없거나 관리자 승인이 필요합니다',
+        sessionFetchErrorLabel: '세션 조회 오류',
+        linkInvalid: '유효하지 않은 접속 링크입니다. 관리자에게 올바른 링크를 요청해 주세요.',
+        linkExpired: '링크 유효기간이 만료되었습니다. 관리자에게 재발급을 요청해 주세요.',
+        stayOnPageHint: '제출 완료 전에는 뒤로가기/새로고침을 하지 마세요.',
+        alreadySubmitted: '이미 제출이 완료되었습니다. 중복 제출은 차단됩니다.',
+    },
+    en: {
+        title: 'Safety Training Confirmation',
+        subtitle: 'Listen to the audio guidance and submit your signature.',
+        nameLabel: 'Name',
+        namePlaceholder: 'Enter your name',
+        nationalityLabel: 'Nationality',
+        nationalityHint: 'Choose nationality to switch UI language automatically.',
+        autoLangLabel: 'Auto language',
+        audioGuideLabel: 'Audio Guidance',
+        audioPlay: 'Play',
+        audioPause: 'Pause',
+        audioPlaying: 'Playing',
+        audioReady: 'Tap the button to play audio',
+        audioMissing: 'No audio file for this language. Showing text guidance instead.',
+        guidanceLabel: 'Guidance Text',
+        comprehensionTitle: 'Comprehension Check',
+        comprehensionDescription: 'You can submit only after reading the guidance to the end and checking all items.',
+        progressLabel: 'Guidance review progress',
+        progressPending: 'Please scroll to the end of the guidance text.',
+        progressReady: 'Guidance text reviewed to the end.',
+        checkRiskReview: 'I reviewed major hazards and control measures for my assigned process.',
+        checkPpeConfirm: 'I understand required PPE before starting work.',
+        checkEmergencyConfirm: 'I understand emergency reporting and evacuation procedures.',
+        submitBlockedAlert: 'Please complete the comprehension checks (read to end + all check items).',
+        understandingPledgeHint: 'This signature is a pledge that you understand and will follow the risk assessment.',
+        signatureLabel: 'Signature',
+        signatureClear: 'Clear Signature',
+        submit: 'Submit',
+        submitting: 'Submitting...',
+        missingNameAlert: 'Please enter your name.',
+        missingSignatureAlert: 'Please provide your signature first.',
+        submitSuccess: 'Submitted! Your training signature is saved.',
+        submitFail: 'Submit failed',
+        mobileOnlyTitle: 'Worker Mobile-Only Page',
+        mobileOnlyDescription: 'This page is for workers only. Please scan the on-site QR code with your smartphone to access it.',
+        loading: 'Loading...',
+        noSession: 'Session not found. Please contact your administrator.',
+        errorPrefix: 'Error',
+        permissionDenied: 'Access denied or administrator approval is required.',
+        sessionFetchErrorLabel: 'Session fetch error',
+        linkInvalid: 'Invalid access link. Please request the correct link from your administrator.',
+        linkExpired: 'This link has expired. Please ask your administrator for a new link.',
+        stayOnPageHint: 'Do not go back or refresh before submission is complete.',
+        alreadySubmitted: 'Submission is already completed. Duplicate submission is blocked.',
+    },
+    vi: {
+        title: 'Xác nhận đào tạo an toàn',
+        subtitle: 'Vui lòng nghe hướng dẫn âm thanh và ký tên điện tử.',
+        nameLabel: 'Họ tên',
+        namePlaceholder: 'Nhập họ tên',
+        nationalityLabel: 'Quốc tịch',
+        nationalityHint: 'Chọn quốc tịch để tự động đổi ngôn ngữ giao diện.',
+        autoLangLabel: 'Ngôn ngữ tự động',
+        audioGuideLabel: 'Hướng dẫn âm thanh',
+        audioPlay: 'Phát',
+        audioPause: 'Tạm dừng',
+        audioPlaying: 'Đang phát',
+        audioReady: 'Nhấn nút để phát âm thanh',
+        audioMissing: 'Không có tệp âm thanh cho ngôn ngữ này. Sẽ hiển thị hướng dẫn dạng văn bản.',
+        guidanceLabel: 'Nội dung hướng dẫn',
+        comprehensionTitle: 'Xác nhận đã hiểu',
+        comprehensionDescription: 'Chỉ có thể gửi sau khi đọc hết nội dung hướng dẫn và chọn tất cả mục bên dưới.',
+        progressLabel: 'Tiến độ đọc hướng dẫn',
+        progressPending: 'Vui lòng cuộn xuống cuối nội dung hướng dẫn.',
+        progressReady: 'Đã đọc đến cuối nội dung hướng dẫn.',
+        checkRiskReview: 'Tôi đã xem các rủi ro chính và biện pháp kiểm soát cho công đoạn làm việc của mình.',
+        checkPpeConfirm: 'Tôi hiểu yêu cầu trang bị bảo hộ (PPE) trước khi làm việc.',
+        checkEmergencyConfirm: 'Tôi hiểu quy trình báo cáo và sơ tán khi khẩn cấp.',
+        submitBlockedAlert: 'Vui lòng hoàn tất bước xác nhận hiểu nội dung (đọc đến cuối + đánh dấu các mục).',
+        understandingPledgeHint: 'Chữ ký này là cam kết rằng bạn đã hiểu và sẽ tuân thủ đánh giá rủi ro.',
+        signatureLabel: 'Chữ ký điện tử',
+        signatureClear: 'Xóa chữ ký',
+        submit: 'Gửi',
+        submitting: 'Đang gửi...',
+        missingNameAlert: 'Vui lòng nhập họ tên.',
+        missingSignatureAlert: 'Vui lòng ký tên trước.',
+        submitSuccess: 'Đã gửi! Chữ ký đào tạo đã được lưu.',
+        submitFail: 'Gửi thất bại',
+        mobileOnlyTitle: 'Trang di động dành cho công nhân',
+        mobileOnlyDescription: 'Trang này chỉ dành cho công nhân. Vui lòng quét mã QR tại hiện trường bằng điện thoại để truy cập.',
+        loading: 'Đang tải...',
+        noSession: 'Không tìm thấy phiên. Vui lòng liên hệ quản trị viên.',
+        errorPrefix: 'Lỗi',
+        permissionDenied: 'Bạn không có quyền hoặc cần quản trị viên phê duyệt.',
+        sessionFetchErrorLabel: 'Lỗi tải phiên',
+        linkInvalid: 'Liên kết truy cập không hợp lệ. Vui lòng yêu cầu quản trị viên gửi đúng liên kết.',
+        linkExpired: 'Liên kết đã hết hạn. Vui lòng yêu cầu quản trị viên cấp lại liên kết.',
+        stayOnPageHint: 'Trước khi gửi xong, vui lòng không quay lại hoặc làm mới trang.',
+        alreadySubmitted: 'Bạn đã gửi thành công trước đó. Hệ thống chặn gửi trùng lặp.',
+    },
+    zh: {
+        title: '安全培训确认',
+        subtitle: '请先收听语音指引后提交电子签名。',
+        nameLabel: '姓名',
+        namePlaceholder: '请输入姓名',
+        nationalityLabel: '国籍',
+        nationalityHint: '选择国籍后，界面语言会自动切换。',
+        autoLangLabel: '自动语言',
+        audioGuideLabel: '语音指引',
+        audioPlay: '播放',
+        audioPause: '暂停',
+        audioPlaying: '播放中',
+        audioReady: '点击按钮播放语音',
+        audioMissing: '该语言没有音频文件，将显示文本指引。',
+        guidanceLabel: '指引文本',
+        comprehensionTitle: '理解确认',
+        comprehensionDescription: '必须先将指引阅读到末尾并勾选全部项目后，才能提交。',
+        progressLabel: '指引阅读进度',
+        progressPending: '请滚动到指引文本底部。',
+        progressReady: '已阅读到指引文本末尾。',
+        checkRiskReview: '我已确认本工序的主要风险因素与控制措施。',
+        checkPpeConfirm: '我已理解开工前个人防护装备(PPE)佩戴要求。',
+        checkEmergencyConfirm: '我已理解紧急情况报告与疏散流程。',
+        submitBlockedAlert: '请先完成理解确认（阅读至末尾 + 勾选项目）。',
+        understandingPledgeHint: '该签名表示“我已理解并承诺遵守风险评估要求”。',
+        signatureLabel: '电子签名',
+        signatureClear: '清除签名',
+        submit: '提交',
+        submitting: '提交中...',
+        missingNameAlert: '请输入姓名。',
+        missingSignatureAlert: '请先完成签名。',
+        submitSuccess: '提交完成！培训签名已保存。',
+        submitFail: '提交失败',
+        mobileOnlyTitle: '工人专用手机页面',
+        mobileOnlyDescription: '此页面仅供工人使用。请使用手机扫描现场张贴的二维码进入。',
+        loading: '加载中...',
+        noSession: '未找到会话，请联系管理员。',
+        errorPrefix: '错误',
+        permissionDenied: '没有访问权限或需要管理员批准。',
+        sessionFetchErrorLabel: '会话加载错误',
+        linkInvalid: '访问链接无效，请向管理员索取正确链接。',
+        linkExpired: '链接已过期，请联系管理员重新签发。',
+        stayOnPageHint: '提交完成前请勿返回或刷新页面。',
+        alreadySubmitted: '已提交完成，系统已阻止重复提交。',
+    },
 };
 
-type WorkerListItem = {
-    id: string;
-    name: string;
-    nationality: string;
+const LANGUAGE_LABELS: Record<string, string> = {
+    'ko-KR': '한국어',
+    'en-US': '영어',
+    'vi-VN': '베트남어',
+    'cmn-CN': '중국어',
+    'th-TH': '태국어',
+    'id-ID': '인도네시아어',
+    'uz-UZ': '우즈베크어',
+    'mn-MN': '몽골어',
+    'km-KH': '크메르어',
+    'ru-RU': '러시아어',
+    'ne-NP': '네팔어',
+    'my-MM': '미얀마어',
+    'fil-PH': '필리핀어',
+    'hi-IN': '힌디어',
+    'bn-BD': '벵골어',
+    'ur-PK': '우르두어',
+    'si-LK': '싱할라어',
+    'kk-KZ': '카자흐어',
 };
 
-type GroupUiText = {
-    proxyModeTitle: string;
-    workerSelectLabel: string;
-    workerSelectHint: string;
-    selectedCountLabel: string;
-    playAudioOnceHint: string;
-    audioCompletedLabel: string;
-    signatureQueueTitle: string;
-    signaturePadHint: string;
-    submitGroup: string;
-    missingWorkerAlert: string;
-    audioRequiredAlert: string;
-    missingGroupSignatureAlert: string;
-    groupSubmitSuccess: string;
+const LANGUAGE_CODE_ALIASES: Record<string, string> = {
+    'zh-CN': 'cmn-CN',
+    'cmn-CN': 'zh-CN',
 };
 
-const groupUiTranslations: Record<TrainingAudioLanguageCode, GroupUiText> = {
-    'ko-KR': {
-        proxyModeTitle: '예외자 그룹 대면 서명 모드', workerSelectLabel: '명단에서 근로자 다중 선택', workerSelectHint: '수기 입력은 금지되며 등록된 workers 명단만 선택됩니다.',
-        selectedCountLabel: '선택 인원', playAudioOnceHint: '선택 언어 음성을 1회 끝까지 재생하면 아래 연속 서명란이 열립니다.', audioCompletedLabel: '음성 1회 청취 완료',
-        signatureQueueTitle: '연속 서명란', signaturePadHint: '폰을 순서대로 전달해 각 근로자가 본인 서명란에 서명하세요.', submitGroup: '그룹 대면 서명 저장',
-        missingWorkerAlert: '서명할 근로자를 1명 이상 선택해 주세요.', audioRequiredAlert: '그룹 대면 서명은 선택 언어 음성을 1회 끝까지 재생해야 진행할 수 있습니다.',
-        missingGroupSignatureAlert: '서명 누락 근로자가 있습니다. 모든 선택 인원의 서명을 완료해 주세요.', groupSubmitSuccess: '그룹 대면 서명이 저장되었습니다.',
-    },
-    'cmn-CN': {
-        proxyModeTitle: '例外人员现场集体签名模式', workerSelectLabel: '从名单中多选工人', workerSelectHint: '禁止手工输入，只能从已登记 workers 名单选择。',
-        selectedCountLabel: '已选人数', playAudioOnceHint: '所选语言音频完整播放 1 次后，下方连续签名区将开启。', audioCompletedLabel: '已完成一次音频收听',
-        signatureQueueTitle: '连续签名区', signaturePadHint: '请依次传递手机，让每位工人在自己的签名框签字。', submitGroup: '保存集体现场签名',
-        missingWorkerAlert: '请至少选择 1 名工人。', audioRequiredAlert: '集体现场签名前必须完整播放所选语言音频 1 次。',
-        missingGroupSignatureAlert: '存在未签名工人。请完成所有已选人员签名。', groupSubmitSuccess: '集体现场签名已保存。',
-    },
-    'vi-VN': {
-        proxyModeTitle: 'Chế độ ký trực tiếp theo nhóm cho ngoại lệ', workerSelectLabel: 'Chọn nhiều công nhân từ danh sách', workerSelectHint: 'Cấm nhập tay, chỉ được chọn từ danh sách workers đã đăng ký.',
-        selectedCountLabel: 'Số người đã chọn', playAudioOnceHint: 'Phát hết audio ngôn ngữ đã chọn 1 lần để mở danh sách ký liên tiếp bên dưới.', audioCompletedLabel: 'Đã nghe audio 1 lần',
-        signatureQueueTitle: 'Danh sách ký liên tiếp', signaturePadHint: 'Chuyển điện thoại lần lượt để từng công nhân ký vào đúng ô của mình.', submitGroup: 'Lưu ký trực tiếp theo nhóm',
-        missingWorkerAlert: 'Vui lòng chọn ít nhất 1 công nhân.', audioRequiredAlert: 'Chế độ ký nhóm yêu cầu phát hết audio ngôn ngữ đã chọn 1 lần.',
-        missingGroupSignatureAlert: 'Vẫn còn công nhân chưa ký. Vui lòng hoàn tất chữ ký của tất cả người đã chọn.', groupSubmitSuccess: 'Đã lưu ký trực tiếp theo nhóm.',
-    },
-    'km-KH': { proxyModeTitle: 'Group Face-to-Face Signature', workerSelectLabel: 'Select Multiple Workers', workerSelectHint: 'Only registered workers list can be used.', selectedCountLabel: 'Selected', playAudioOnceHint: 'Play selected language audio once to unlock signatures.', audioCompletedLabel: 'Audio Completed', signatureQueueTitle: 'Signature Queue', signaturePadHint: 'Pass phone and collect signatures in order.', submitGroup: 'Save Group Signature', missingWorkerAlert: 'Select at least one worker.', audioRequiredAlert: 'Play audio once before group signing.', missingGroupSignatureAlert: 'Some signatures are missing.', groupSubmitSuccess: 'Group signature saved.' },
-    'id-ID': { proxyModeTitle: 'Mode Tanda Tangan Tatap Muka Grup', workerSelectLabel: 'Pilih Banyak Pekerja dari Daftar', workerSelectHint: 'Input manual dilarang. Pilih hanya dari daftar workers terdaftar.', selectedCountLabel: 'Jumlah dipilih', playAudioOnceHint: 'Putar audio bahasa terpilih 1 kali penuh untuk membuka area tanda tangan berurutan.', audioCompletedLabel: 'Audio 1 kali selesai', signatureQueueTitle: 'Antrian Tanda Tangan', signaturePadHint: 'Oper ponsel bergiliran agar tiap pekerja menandatangani kolomnya.', submitGroup: 'Simpan Tanda Tangan Grup', missingWorkerAlert: 'Pilih minimal 1 pekerja.', audioRequiredAlert: 'Mode grup mewajibkan audio bahasa terpilih diputar penuh 1 kali.', missingGroupSignatureAlert: 'Masih ada pekerja belum tanda tangan.', groupSubmitSuccess: 'Tanda tangan grup berhasil disimpan.' },
-    'ms-MY': { proxyModeTitle: 'Mod Tandatangan Bersemuka Berkumpulan', workerSelectLabel: 'Pilih ramai pekerja daripada senarai', workerSelectHint: 'Input manual tidak dibenarkan. Pilih hanya daripada senarai workers berdaftar.', selectedCountLabel: 'Bilangan dipilih', playAudioOnceHint: 'Mainkan audio bahasa dipilih hingga habis 1 kali untuk membuka ruang tandatangan berturutan.', audioCompletedLabel: 'Audio 1 kali selesai', signatureQueueTitle: 'Giliran Tandatangan', signaturePadHint: 'Serahkan telefon mengikut giliran supaya setiap pekerja menandatangani ruang masing-masing.', submitGroup: 'Simpan Tandatangan Berkumpulan', missingWorkerAlert: 'Sila pilih sekurang-kurangnya 1 pekerja.', audioRequiredAlert: 'Mod berkumpulan memerlukan audio bahasa dipilih dimainkan penuh 1 kali.', missingGroupSignatureAlert: 'Masih ada pekerja yang belum menandatangani.', groupSubmitSuccess: 'Tandatangan berkumpulan berjaya disimpan.' },
-    'mn-MN': { proxyModeTitle: 'Group Face-to-Face Signature', workerSelectLabel: 'Select Multiple Workers', workerSelectHint: 'Only registered workers list can be used.', selectedCountLabel: 'Selected', playAudioOnceHint: 'Play selected language audio once to unlock signatures.', audioCompletedLabel: 'Audio Completed', signatureQueueTitle: 'Signature Queue', signaturePadHint: 'Pass phone and collect signatures in order.', submitGroup: 'Save Group Signature', missingWorkerAlert: 'Select at least one worker.', audioRequiredAlert: 'Play audio once before group signing.', missingGroupSignatureAlert: 'Some signatures are missing.', groupSubmitSuccess: 'Group signature saved.' },
-    'my-MM': { proxyModeTitle: 'Group Face-to-Face Signature', workerSelectLabel: 'Select Multiple Workers', workerSelectHint: 'Only registered workers list can be used.', selectedCountLabel: 'Selected', playAudioOnceHint: 'Play selected language audio once to unlock signatures.', audioCompletedLabel: 'Audio Completed', signatureQueueTitle: 'Signature Queue', signaturePadHint: 'Pass phone and collect signatures in order.', submitGroup: 'Save Group Signature', missingWorkerAlert: 'Select at least one worker.', audioRequiredAlert: 'Play audio once before group signing.', missingGroupSignatureAlert: 'Some signatures are missing.', groupSubmitSuccess: 'Group signature saved.' },
-    'ru-RU': { proxyModeTitle: 'Режим групповой очной подписи', workerSelectLabel: 'Выберите нескольких работников из списка', workerSelectHint: 'Ручной ввод запрещен. Выбор только из таблицы workers.', selectedCountLabel: 'Выбрано', playAudioOnceHint: 'После полного воспроизведения аудио 1 раз откроются последовательные поля подписи.', audioCompletedLabel: 'Аудио 1 раз прослушано', signatureQueueTitle: 'Очередь подписей', signaturePadHint: 'Передавайте телефон по очереди, каждый подписывает свой блок.', submitGroup: 'Сохранить групповую подпись', missingWorkerAlert: 'Выберите минимум одного работника.', audioRequiredAlert: 'Для групповой подписи нужно полностью прослушать аудио 1 раз.', missingGroupSignatureAlert: 'Есть работники без подписи.', groupSubmitSuccess: 'Групповая подпись сохранена.' },
-    'uz-UZ': { proxyModeTitle: 'Group Face-to-Face Signature', workerSelectLabel: 'Select Multiple Workers', workerSelectHint: 'Only registered workers list can be used.', selectedCountLabel: 'Selected', playAudioOnceHint: 'Play selected language audio once to unlock signatures.', audioCompletedLabel: 'Audio Completed', signatureQueueTitle: 'Signature Queue', signaturePadHint: 'Pass phone and collect signatures in order.', submitGroup: 'Save Group Signature', missingWorkerAlert: 'Select at least one worker.', audioRequiredAlert: 'Play audio once before group signing.', missingGroupSignatureAlert: 'Some signatures are missing.', groupSubmitSuccess: 'Group signature saved.' },
-    'th-TH': { proxyModeTitle: 'โหมดลงนามแบบกลุ่มต่อหน้า', workerSelectLabel: 'เลือกพนักงานหลายคนจากรายชื่อ', workerSelectHint: 'ห้ามกรอกชื่อเอง ต้องเลือกจากรายชื่อ workers ที่ลงทะเบียนเท่านั้น', selectedCountLabel: 'จำนวนที่เลือก', playAudioOnceHint: 'เปิดเสียงภาษาที่เลือกให้จบ 1 รอบ แล้วช่องลงนามต่อเนื่องจะเปิดใช้งาน', audioCompletedLabel: 'ฟังเสียงครบ 1 รอบแล้ว', signatureQueueTitle: 'คิวลงนามต่อเนื่อง', signaturePadHint: 'ส่งต่อโทรศัพท์ตามลำดับ ให้แต่ละคนลงนามในช่องของตนเอง', submitGroup: 'บันทึกการลงนามแบบกลุ่ม', missingWorkerAlert: 'กรุณาเลือกพนักงานอย่างน้อย 1 คน', audioRequiredAlert: 'โหมดกลุ่มต้องเปิดเสียงภาษาที่เลือกให้จบ 1 รอบก่อน', missingGroupSignatureAlert: 'ยังมีผู้ที่ไม่ได้ลงนามครบ', groupSubmitSuccess: 'บันทึกการลงนามแบบกลุ่มเรียบร้อย' },
-    'kk-KZ': { proxyModeTitle: 'Group Face-to-Face Signature', workerSelectLabel: 'Select Multiple Workers', workerSelectHint: 'Only registered workers list can be used.', selectedCountLabel: 'Selected', playAudioOnceHint: 'Play selected language audio once to unlock signatures.', audioCompletedLabel: 'Audio Completed', signatureQueueTitle: 'Signature Queue', signaturePadHint: 'Pass phone and collect signatures in order.', submitGroup: 'Save Group Signature', missingWorkerAlert: 'Select at least one worker.', audioRequiredAlert: 'Play audio once before group signing.', missingGroupSignatureAlert: 'Some signatures are missing.', groupSubmitSuccess: 'Group signature saved.' },
+type NationalityOption = {
+    value: string;
+    langCode: string;
+    labels: Record<UiLocale, string>;
 };
 
-const uiTranslations: Record<TrainingAudioLanguageCode, UiText> = {
-    'ko-KR': {
-        title: '외국인 근로자 안전교육 확인', subtitle: '음성 안내를 듣고 전자서명을 제출해 주세요.', nameLabel: '이름', namePlaceholder: '이름 입력',
-        loading: '불러오는 중...', noSession: '세션이 없습니다. 관리자에게 문의해 주세요.', errorPrefix: '오류', missingNameAlert: '이름을 입력해 주세요.',
-        missingSignatureAlert: '전자서명을 먼저 입력해 주세요.', submitSuccess: '제출 완료! 교육 이수 서명이 저장되었습니다.', submitFail: '제출 실패',
-        submit: '제출하기', submitting: '제출 중...', signatureLabel: '전자서명', signatureClear: '초기화', languageSelectLabel: '11개국 언어 선택',
-        selectedNationalityLabel: '선택 국적', selectedAudioLabel: '선택 언어 오디오', mp3Connected: 'MP3 연결됨', mp3Missing: 'MP3 미업로드',
-        audioRecorded: '오디오 재생 기록이 확인되었습니다.', audioActivateHint: '재생 버튼을 누르면 체크박스/서명이 활성화됩니다.',
-        audioHiddenHint: '관리자가 해당 언어 MP3를 올리지 않아 오디오 플레이어를 숨겼습니다. 아래 대본을 끝까지 읽으면 서명이 활성화됩니다.',
-        translatedScriptLabel: '번역 대본', scrollLabel: '스크롤', scriptReadSaved: '대본 끝까지 읽기 기록이 저장되었습니다.',
-        scriptScrollHint: '대본을 끝까지 스크롤하면 체크박스/서명이 활성화됩니다.', signatureDefenseTitle: '전자 서명 방어 로직',
-        signatureDefenseDescription: '오디오 1회 재생 또는 번역 대본 끝까지 읽기 중 하나가 확인되어야 체크박스와 전자서명이 활성화됩니다.',
-        acknowledgedLabel: '위험성평가 내용을 숙지했습니다', canvasActivationHint: '오디오 재생 또는 끝까지 읽기 완료 후 체크박스를 선택하면 전자서명 캔버스가 활성화됩니다.',
-        engagementRequiredAlert: '오디오를 1회 재생하거나 대본을 끝까지 스크롤한 후에만 서명할 수 있습니다.',
-        acknowledgeRequiredAlert: '위험성평가 내용을 숙지했습니다 체크를 먼저 진행해 주세요.', sessionIdMissing: 'sessionId가 없습니다. QR URL을 다시 확인해 주세요.',
-        sessionFetchErrorLabel: '세션 조회 오류', permissionDenied: '권한이 없거나 관리자 승인이 필요합니다',
+const NATIONALITY_OPTIONS = [
+    {
+        value: '베트남',
+        langCode: 'vi-VN',
+        labels: { ko: '베트남', en: 'Vietnam', vi: 'Việt Nam', zh: '越南' },
     },
-    'cmn-CN': {
-        title: '外籍工人安全培训确认', subtitle: '请收听语音指引并提交电子签名。', nameLabel: '姓名', namePlaceholder: '请输入姓名',
-        loading: '加载中...', noSession: '未找到会话，请联系管理员。', errorPrefix: '错误', missingNameAlert: '请输入姓名。',
-        missingSignatureAlert: '请先完成签名。', submitSuccess: '提交完成！培训签名已保存。', submitFail: '提交失败', submit: '提交', submitting: '提交中...',
-        signatureLabel: '电子签名', signatureClear: '重置', languageSelectLabel: '选择语言（11种）', selectedNationalityLabel: '所选国籍', selectedAudioLabel: '所选语言音频',
-        mp3Connected: 'MP3 已连接', mp3Missing: 'MP3 未上传', audioRecorded: '已记录音频播放。', audioActivateHint: '点击播放后将激活复选框和签名。',
-        audioHiddenHint: '管理员未上传该语言MP3。请完整阅读下方文本后激活签名。', translatedScriptLabel: '翻译文本', scrollLabel: '滚动',
-        scriptReadSaved: '已记录阅读到文本末尾。', scriptScrollHint: '滚动到文本末尾后将激活复选框和签名。', signatureDefenseTitle: '电子签名防护逻辑',
-        signatureDefenseDescription: '必须满足“播放音频一次”或“将译文阅读到末尾”之一，才能激活复选框和电子签名。', acknowledgedLabel: '我已理解风险评估内容',
-        canvasActivationHint: '完成播放或阅读到末尾并勾选后，电子签名画布才会启用。', engagementRequiredAlert: '请先播放音频一次或将文本滚动到末尾后再签名。',
-        acknowledgeRequiredAlert: '请先勾选“我已理解风险评估内容”。', sessionIdMissing: '缺少 sessionId。请重新检查二维码链接。',
-        sessionFetchErrorLabel: '会话加载错误', permissionDenied: '没有权限或需要管理员批准。',
+    {
+        value: '중국',
+        langCode: 'cmn-CN',
+        labels: { ko: '중국', en: 'China', vi: 'Trung Quốc', zh: '中国' },
     },
-    'vi-VN': {
-        title: 'Xác nhận đào tạo an toàn cho công nhân', subtitle: 'Vui lòng nghe hướng dẫn âm thanh và gửi chữ ký điện tử.', nameLabel: 'Họ tên', namePlaceholder: 'Nhập họ tên',
-        loading: 'Đang tải...', noSession: 'Không tìm thấy phiên. Vui lòng liên hệ quản trị viên.', errorPrefix: 'Lỗi', missingNameAlert: 'Vui lòng nhập họ tên.',
-        missingSignatureAlert: 'Vui lòng ký tên trước.', submitSuccess: 'Gửi thành công! Chữ ký đào tạo đã được lưu.', submitFail: 'Gửi thất bại', submit: 'Gửi', submitting: 'Đang gửi...',
-        signatureLabel: 'Chữ ký điện tử', signatureClear: 'Xóa', languageSelectLabel: 'Chọn ngôn ngữ (11)', selectedNationalityLabel: 'Quốc tịch đã chọn', selectedAudioLabel: 'Âm thanh ngôn ngữ đã chọn',
-        mp3Connected: 'Đã kết nối MP3', mp3Missing: 'Chưa có MP3', audioRecorded: 'Đã ghi nhận phát âm thanh.', audioActivateHint: 'Nhấn phát để kích hoạt checkbox/chữ ký.',
-        audioHiddenHint: 'Quản trị viên chưa tải MP3 ngôn ngữ này. Hãy đọc hết văn bản bên dưới để kích hoạt chữ ký.', translatedScriptLabel: 'Kịch bản dịch', scrollLabel: 'Cuộn',
-        scriptReadSaved: 'Đã ghi nhận đọc đến cuối kịch bản.', scriptScrollHint: 'Cuộn đến cuối kịch bản để kích hoạt checkbox/chữ ký.', signatureDefenseTitle: 'Cơ chế bảo vệ chữ ký điện tử',
-        signatureDefenseDescription: 'Phải xác nhận ít nhất một điều kiện: phát âm thanh 1 lần hoặc đọc hết kịch bản dịch, thì checkbox và chữ ký mới được kích hoạt.',
-        acknowledgedLabel: 'Tôi đã hiểu nội dung đánh giá rủi ro', canvasActivationHint: 'Hoàn tất phát âm thanh/đọc hết và chọn checkbox để bật khung chữ ký.',
-        engagementRequiredAlert: 'Bạn chỉ có thể ký sau khi phát âm thanh 1 lần hoặc cuộn đến cuối kịch bản.', acknowledgeRequiredAlert: 'Vui lòng tích trước mục đã hiểu nội dung đánh giá rủi ro.',
-        sessionIdMissing: 'Không có sessionId. Vui lòng kiểm tra lại URL QR.', sessionFetchErrorLabel: 'Lỗi tải phiên', permissionDenied: 'Bạn không có quyền hoặc cần quản trị viên phê duyệt.',
+    {
+        value: '인도네시아',
+        langCode: 'id-ID',
+        labels: { ko: '인도네시아', en: 'Indonesia', vi: 'Indonesia', zh: '印度尼西亚' },
     },
-    'km-KH': { title: 'ការបញ្ជាក់ការបណ្តុះបណ្តាលសុវត្ថិភាព', subtitle: 'សូមស្តាប់ការណែនាំសំឡេង ហើយដាក់ស្នាមហត្ថលេខាអេឡិចត្រូនិក។', nameLabel: 'ឈ្មោះ', namePlaceholder: 'បញ្ចូលឈ្មោះ', loading: 'កំពុងផ្ទុក...', noSession: 'រកមិនឃើញសម័យ។', errorPrefix: 'កំហុស', missingNameAlert: 'សូមបញ្ចូលឈ្មោះ។', missingSignatureAlert: 'សូមចុះហត្ថលេខាមុន។', submitSuccess: 'បានដាក់ស្នើដោយជោគជ័យ។', submitFail: 'ដាក់ស្នើបរាជ័យ', submit: 'ដាក់ស្នើ', submitting: 'កំពុងដាក់ស្នើ...', signatureLabel: 'ហត្ថលេខាអេឡិចត្រូនិក', signatureClear: 'សម្អាត', languageSelectLabel: 'ជ្រើសរើសភាសា (១១)', selectedNationalityLabel: 'សញ្ជាតិដែលបានជ្រើស', selectedAudioLabel: 'សំឡេងភាសាដែលបានជ្រើស', mp3Connected: 'បានភ្ជាប់ MP3', mp3Missing: 'មិនទាន់មាន MP3', audioRecorded: 'បានកត់ត្រាការចាក់សំឡេង។', audioActivateHint: 'ចុចចាក់សំឡេង ដើម្បីបើកប្រអប់ធីក/ហត្ថលេខា។', audioHiddenHint: 'អ្នកគ្រប់គ្រងមិនទាន់អាប់ឡូដ MP3 សម្រាប់ភាសានេះទេ។ សូមអានអត្ថបទឲ្យចប់ ដើម្បីបើកហត្ថលេខា។', translatedScriptLabel: 'អត្ថបទបកប្រែ', scrollLabel: 'រមូរ', scriptReadSaved: 'បានកត់ត្រាការអានដល់ចុងអត្ថបទ។', scriptScrollHint: 'សូមរមូរដល់ចុងអត្ថបទ ដើម្បីបើកប្រអប់ធីក/ហត្ថលេខា។', signatureDefenseTitle: 'លោជិកការពារហត្ថលេខាអេឡិចត្រូនិក', signatureDefenseDescription: 'ត្រូវបំពេញយ៉ាងហោចណាស់មួយលក្ខខណ្ឌ៖ ចាក់សំឡេង១ដង ឬ អានអត្ថបទដល់ចុង។', acknowledgedLabel: 'ខ្ញុំបានយល់ពីមាតិកាការវាយតម្លៃហានិភ័យ', canvasActivationHint: 'បន្ទាប់ពីបំពេញលក្ខខណ្ឌ និងធីកប្រអប់ នឹងបើកផ្ទាំងហត្ថលេខា។', engagementRequiredAlert: 'សូមចាក់សំឡេង១ដង ឬ រមូរអត្ថបទដល់ចុង មុនចុះហត្ថលេខា។', acknowledgeRequiredAlert: 'សូមធីកថាអ្នកបានយល់ពីមាតិកាការវាយតម្លៃហានិភ័យជាមុន។', sessionIdMissing: 'មិនមាន sessionId ទេ។ សូមពិនិត្យ URL QR ម្ដងទៀត។', sessionFetchErrorLabel: 'កំហុសក្នុងការទាញសម័យ', permissionDenied: 'គ្មានសិទ្ធិចូលប្រើ ឬ ត្រូវការការអនុម័តពីអ្នកគ្រប់គ្រង។' },
-    'id-ID': { title: 'Konfirmasi Pelatihan Keselamatan', subtitle: 'Dengarkan panduan audio dan kirim tanda tangan elektronik.', nameLabel: 'Nama', namePlaceholder: 'Masukkan nama', loading: 'Memuat...', noSession: 'Sesi tidak ditemukan.', errorPrefix: 'Error', missingNameAlert: 'Silakan masukkan nama.', missingSignatureAlert: 'Silakan tanda tangan dulu.', submitSuccess: 'Berhasil dikirim.', submitFail: 'Gagal kirim', submit: 'Kirim', submitting: 'Mengirim...', signatureLabel: 'Tanda Tangan Elektronik', signatureClear: 'Reset', languageSelectLabel: 'Pilih Bahasa (11)', selectedNationalityLabel: 'Kewarganegaraan Terpilih', selectedAudioLabel: 'Audio Bahasa Terpilih', mp3Connected: 'MP3 Terhubung', mp3Missing: 'MP3 Belum Ada', audioRecorded: 'Pemutaran audio tercatat.', audioActivateHint: 'Putar audio untuk mengaktifkan centang/tanda tangan.', audioHiddenHint: 'Admin belum unggah MP3 bahasa ini. Baca naskah sampai akhir untuk mengaktifkan tanda tangan.', translatedScriptLabel: 'Naskah Terjemahan', scrollLabel: 'Gulir', scriptReadSaved: 'Membaca sampai akhir tercatat.', scriptScrollHint: 'Gulir sampai akhir untuk mengaktifkan centang/tanda tangan.', signatureDefenseTitle: 'Logika Perlindungan Tanda Tangan', signatureDefenseDescription: 'Putar audio sekali ATAU baca naskah sampai akhir agar centang/tanda tangan aktif.', acknowledgedLabel: 'Saya memahami isi penilaian risiko', canvasActivationHint: 'Setelah syarat terpenuhi + centang, kanvas tanda tangan aktif.', engagementRequiredAlert: 'Putar audio sekali atau gulir sampai akhir sebelum menandatangani.', acknowledgeRequiredAlert: 'Centang dulu bahwa Anda memahami isi penilaian risiko.', sessionIdMissing: 'sessionId tidak ada. Periksa URL QR.', sessionFetchErrorLabel: 'Kesalahan memuat sesi', permissionDenied: 'Akses ditolak atau perlu persetujuan admin.' },
-    'ms-MY': { title: 'Pengesahan Latihan Keselamatan', subtitle: 'Sila dengar panduan audio dan hantar tandatangan elektronik.', nameLabel: 'Nama', namePlaceholder: 'Masukkan nama', loading: 'Sedang memuat...', noSession: 'Sesi tidak dijumpai.', errorPrefix: 'Ralat', missingNameAlert: 'Sila masukkan nama.', missingSignatureAlert: 'Sila tandatangan terlebih dahulu.', submitSuccess: 'Berjaya dihantar.', submitFail: 'Gagal menghantar', submit: 'Hantar', submitting: 'Sedang menghantar...', signatureLabel: 'Tandatangan Elektronik', signatureClear: 'Set Semula', languageSelectLabel: 'Pilih Bahasa (11)', selectedNationalityLabel: 'Kewarganegaraan Dipilih', selectedAudioLabel: 'Audio Bahasa Dipilih', mp3Connected: 'MP3 Disambungkan', mp3Missing: 'MP3 Belum Dimuat Naik', audioRecorded: 'Main balik audio telah direkodkan.', audioActivateHint: 'Mainkan audio untuk mengaktifkan kotak semak/tandatangan.', audioHiddenHint: 'Admin belum memuat naik MP3 untuk bahasa ini. Baca skrip hingga akhir untuk mengaktifkan tandatangan.', translatedScriptLabel: 'Skrip Terjemahan', scrollLabel: 'Tatal', scriptReadSaved: 'Rekod bacaan hingga akhir telah disimpan.', scriptScrollHint: 'Tatal hingga akhir untuk mengaktifkan kotak semak/tandatangan.', signatureDefenseTitle: 'Logik Perlindungan Tandatangan Elektronik', signatureDefenseDescription: 'Mainkan audio sekali ATAU baca skrip hingga akhir untuk mengaktifkan kotak semak/tandatangan.', acknowledgedLabel: 'Saya telah memahami kandungan penilaian risiko', canvasActivationHint: 'Selepas syarat dipenuhi dan kotak semak ditanda, kanvas tandatangan akan diaktifkan.', engagementRequiredAlert: 'Mainkan audio sekali atau tatal hingga akhir sebelum menandatangani.', acknowledgeRequiredAlert: 'Sila tandakan dahulu bahawa anda memahami kandungan penilaian risiko.', sessionIdMissing: 'sessionId tiada. Sila semak semula URL QR.', sessionFetchErrorLabel: 'Ralat memuat sesi', permissionDenied: 'Akses ditolak atau perlu kelulusan admin.' },
-    'mn-MN': { title: 'Аюулгүй ажиллагааны сургалтын баталгаажуулалт', subtitle: 'Аудио зааврыг сонсоод цахим гарын үсгээ илгээнэ үү.', nameLabel: 'Нэр', namePlaceholder: 'Нэрээ оруулна уу', loading: 'Ачаалж байна...', noSession: 'Сесс олдсонгүй.', errorPrefix: 'Алдаа', missingNameAlert: 'Нэрээ оруулна уу.', missingSignatureAlert: 'Эхлээд гарын үсгээ зурна уу.', submitSuccess: 'Амжилттай илгээлээ.', submitFail: 'Илгээхэд алдаа гарлаа', submit: 'Илгээх', submitting: 'Илгээж байна...', signatureLabel: 'Цахим гарын үсэг', signatureClear: 'Цэвэрлэх', languageSelectLabel: 'Хэл сонгох (11)', selectedNationalityLabel: 'Сонгосон иргэншил', selectedAudioLabel: 'Сонгосон хэлний аудио', mp3Connected: 'MP3 холбогдсон', mp3Missing: 'MP3 байхгүй', audioRecorded: 'Аудио тоглуулсан нь бүртгэгдлээ.', audioActivateHint: 'Аудио тоглуулж checkbox/гарын үсгийг идэвхжүүлнэ үү.', audioHiddenHint: 'Энэ хэлний MP3-ийг админ оруулаагүй байна. Доорх текстийг дуустал уншиж гарын үсгийг идэвхжүүлнэ үү.', translatedScriptLabel: 'Орчуулсан текст', scrollLabel: 'Гүйлгэх', scriptReadSaved: 'Текстийг дуустал уншсан нь бүртгэгдлээ.', scriptScrollHint: 'Текстийг дуустал гүйлгэж checkbox/гарын үсгийг идэвхжүүлнэ үү.', signatureDefenseTitle: 'Цахим гарын үсгийн хамгаалалтын логик', signatureDefenseDescription: 'Нэг нөхцөлийг заавал хангана: 1 удаа аудио тоглуулах ЭСВЭЛ текстийг дуустал унших.', acknowledgedLabel: 'Би эрсдэлийн үнэлгээний агуулгыг ойлгосон', canvasActivationHint: 'Нөхцөл биелж, checkbox сонгогдсоны дараа гарын үсгийн талбар идэвхжинэ.', engagementRequiredAlert: 'Гарын үсэг зурахаас өмнө 1 удаа аудио тоглуулах эсвэл текстийг дуустал гүйлгэнэ үү.', acknowledgeRequiredAlert: 'Эхлээд эрсдэлийн үнэлгээг ойлгосноо сонгоно уу.', sessionIdMissing: 'sessionId алга байна. QR URL-ээ шалгана уу.', sessionFetchErrorLabel: 'Сесс ачаалах алдаа', permissionDenied: 'Нэвтрэх эрхгүй эсвэл админы зөвшөөрөл шаардлагатай.' },
-    'my-MM': { title: 'လုံခြုံရေးသင်တန်း အတည်ပြုခြင်း', subtitle: 'အသံညွှန်ကြားချက်ကိုနားထောင်ပြီး အီလက်ထရွန်နစ်လက်မှတ်တင်ပြပါ။', nameLabel: 'အမည်', namePlaceholder: 'အမည်ဖြည့်ပါ', loading: 'ဖတ်သိမ်းနေသည်...', noSession: 'Session မတွေ့ပါ။', errorPrefix: 'အမှား', missingNameAlert: 'အမည်ဖြည့်ပါ။', missingSignatureAlert: 'လက်မှတ်ကိုအရင်ရေးပါ။', submitSuccess: 'အောင်မြင်စွာတင်ပြပြီးပါပြီ။', submitFail: 'တင်ပြမှုမအောင်မြင်ပါ', submit: 'တင်ပြမည်', submitting: 'တင်ပြနေသည်...', signatureLabel: 'အီလက်ထရွန်နစ် လက်မှတ်', signatureClear: 'ဖျက်မည်', languageSelectLabel: 'ဘာသာစကားရွေးချယ်ရန် (11)', selectedNationalityLabel: 'ရွေးချယ်ထားသော နိုင်ငံသား', selectedAudioLabel: 'ရွေးချယ်ထားသော ဘာသာစကားအသံ', mp3Connected: 'MP3 ချိတ်ဆက်ပြီး', mp3Missing: 'MP3 မရှိသေးပါ', audioRecorded: 'အသံဖွင့်ထားမှုကိုမှတ်တမ်းတင်ပြီးပါပြီ။', audioActivateHint: 'checkbox/လက်မှတ်ကိုဖွင့်ရန် အသံဖွင့်ပါ။', audioHiddenHint: 'ဤဘာသာစကားအတွက် MP3 ကို admin မတင်ရသေးပါ။ အောက်ပါစာကိုအဆုံးအထိဖတ်ပြီး လက်မှတ်ကိုဖွင့်ပါ။', translatedScriptLabel: 'ဘာသာပြန်စာသား', scrollLabel: 'ရွှေ့', scriptReadSaved: 'စာသားအဆုံးအထိဖတ်ထားမှုကို မှတ်တမ်းတင်ပြီးပါပြီ။', scriptScrollHint: 'စာသားအဆုံးအထိရွှေ့ပြီး checkbox/လက်မှတ်ကိုဖွင့်ပါ။', signatureDefenseTitle: 'အီလက်ထရွန်နစ် လက်မှတ်ကာကွယ်ရေး လိုဂစ်', signatureDefenseDescription: 'အနည်းဆုံး တစ်ခုခုကို ပြီးမြောက်ရမည် - အသံကို ၁ ကြိမ်ဖွင့်ခြင်း သို့မဟုတ် စာသားအဆုံးအထိဖတ်ခြင်း။', acknowledgedLabel: 'အန္တရာယ်အကဲဖြတ်ချက် အကြောင်းအရာကို နားလည်ပြီးပါပြီ', canvasActivationHint: 'လိုအပ်ချက်ပြီးပြီး checkbox ရွေးပြီးမှ လက်မှတ် canvas ဖွင့်မည်။', engagementRequiredAlert: 'လက်မှတ်ရေးမီ အသံကို ၁ ကြိမ်ဖွင့်ပါ သို့မဟုတ် စာသားအဆုံးအထိရွှေ့ဖတ်ပါ။', acknowledgeRequiredAlert: 'အန္တရာယ်အကဲဖြတ်ချက်ကို နားလည်ကြောင်းကို အရင်ရွေးပါ။', sessionIdMissing: 'sessionId မရှိပါ။ QR URL ကို ပြန်စစ်ပါ။', sessionFetchErrorLabel: 'Session ဖတ်ယူမှု အမှား', permissionDenied: 'ဝင်ရောက်ခွင့်မရှိပါ သို့မဟုတ် admin အတည်ပြုချက်လိုအပ်သည်။' },
-    'ru-RU': { title: 'Подтверждение обучения по безопасности', subtitle: 'Прослушайте аудиоинструкцию и отправьте электронную подпись.', nameLabel: 'Имя', namePlaceholder: 'Введите имя', loading: 'Загрузка...', noSession: 'Сессия не найдена.', errorPrefix: 'Ошибка', missingNameAlert: 'Введите имя.', missingSignatureAlert: 'Сначала поставьте подпись.', submitSuccess: 'Успешно отправлено.', submitFail: 'Ошибка отправки', submit: 'Отправить', submitting: 'Отправка...', signatureLabel: 'Электронная подпись', signatureClear: 'Сброс', languageSelectLabel: 'Выбор языка (11)', selectedNationalityLabel: 'Выбранная национальность', selectedAudioLabel: 'Аудио выбранного языка', mp3Connected: 'MP3 подключен', mp3Missing: 'MP3 не загружен', audioRecorded: 'Воспроизведение аудио зафиксировано.', audioActivateHint: 'Нажмите воспроизведение, чтобы активировать чекбокс/подпись.', audioHiddenHint: 'Для этого языка MP3 не загружен. Прочитайте текст до конца для активации подписи.', translatedScriptLabel: 'Переведенный текст', scrollLabel: 'Прокрутка', scriptReadSaved: 'Прочтение до конца зафиксировано.', scriptScrollHint: 'Прокрутите до конца, чтобы активировать чекбокс/подпись.', signatureDefenseTitle: 'Логика защиты электронной подписи', signatureDefenseDescription: 'Нужно выполнить одно из условий: 1 раз воспроизвести аудио ИЛИ прочитать текст до конца.', acknowledgedLabel: 'Я ознакомился с оценкой рисков', canvasActivationHint: 'После выполнения условия и отметки чекбокса поле подписи активируется.', engagementRequiredAlert: 'Перед подписью воспроизведите аудио 1 раз или прокрутите текст до конца.', acknowledgeRequiredAlert: 'Сначала отметьте, что вы ознакомились с оценкой рисков.', sessionIdMissing: 'Отсутствует sessionId. Проверьте QR-ссылку.', sessionFetchErrorLabel: 'Ошибка загрузки сессии', permissionDenied: 'Доступ запрещен или требуется одобрение администратора.' },
-    'uz-UZ': { title: 'Xavfsizlik bo‘yicha o‘qitishni tasdiqlash', subtitle: 'Audio yo‘riqnomani tinglab, elektron imzoni yuboring.', nameLabel: 'Ism', namePlaceholder: 'Ismingizni kiriting', loading: 'Yuklanmoqda...', noSession: 'Sessiya topilmadi.', errorPrefix: 'Xato', missingNameAlert: 'Iltimos, ismingizni kiriting.', missingSignatureAlert: 'Avval imzo qo‘ying.', submitSuccess: 'Muvaffaqiyatli yuborildi.', submitFail: 'Yuborishda xatolik', submit: 'Yuborish', submitting: 'Yuborilmoqda...', signatureLabel: 'Elektron imzo', signatureClear: 'Tozalash', languageSelectLabel: 'Tilni tanlang (11)', selectedNationalityLabel: 'Tanlangan millat', selectedAudioLabel: 'Tanlangan til audiosi', mp3Connected: 'MP3 ulangan', mp3Missing: 'MP3 yuklanmagan', audioRecorded: 'Audio ijrosi qayd etildi.', audioActivateHint: 'Checkbox/imzoni faollashtirish uchun audioni bosing.', audioHiddenHint: 'Bu til uchun MP3 yuklanmagan. Imzoni faollashtirish uchun matnni oxirigacha o‘qing.', translatedScriptLabel: 'Tarjima matni', scrollLabel: 'Skroll', scriptReadSaved: 'Matnni oxirigacha o‘qish qayd etildi.', scriptScrollHint: 'Checkbox/imzoni faollashtirish uchun matnni oxirigacha aylantiring.', signatureDefenseTitle: 'Elektron imzo himoya mantiqi', signatureDefenseDescription: 'Quyidagidan kamida bittasi bajarilishi shart: audioni 1 marta eshitish yoki matnni oxirigacha o‘qish.', acknowledgedLabel: 'Men xavfni baholash mazmunini tushundim', canvasActivationHint: 'Shart bajarilib, checkbox belgilangandan keyin imzo oynasi faollashadi.', engagementRequiredAlert: 'Imzo qo‘yishdan oldin audioni 1 marta eshiting yoki matnni oxirigacha aylantiring.', acknowledgeRequiredAlert: 'Avval xavfni baholashni tushunganingizni belgilang.', sessionIdMissing: 'sessionId yo‘q. QR URL manzilini tekshiring.', sessionFetchErrorLabel: 'Sessiyani olishda xato', permissionDenied: 'Kirish taqiqlangan yoki administrator tasdig‘i kerak.' },
-    'th-TH': { title: 'ยืนยันการอบรมความปลอดภัย', subtitle: 'โปรดฟังคำแนะนำเสียงและส่งลายเซ็นอิเล็กทรอนิกส์', nameLabel: 'ชื่อ', namePlaceholder: 'กรอกชื่อ', loading: 'กำลังโหลด...', noSession: 'ไม่พบเซสชัน', errorPrefix: 'ข้อผิดพลาด', missingNameAlert: 'โปรดกรอกชื่อ', missingSignatureAlert: 'โปรดลงลายเซ็นก่อน', submitSuccess: 'ส่งสำเร็จ', submitFail: 'ส่งไม่สำเร็จ', submit: 'ส่ง', submitting: 'กำลังส่ง...', signatureLabel: 'ลายเซ็นอิเล็กทรอนิกส์', signatureClear: 'รีเซ็ต', languageSelectLabel: 'เลือกภาษา (11 ภาษา)', selectedNationalityLabel: 'สัญชาติที่เลือก', selectedAudioLabel: 'เสียงตามภาษาที่เลือก', mp3Connected: 'เชื่อมต่อ MP3 แล้ว', mp3Missing: 'ยังไม่มี MP3', audioRecorded: 'บันทึกการเล่นเสียงแล้ว', audioActivateHint: 'กดเล่นเสียงเพื่อเปิดใช้งานเช็กบ็อกซ์/ลายเซ็น', audioHiddenHint: 'ผู้ดูแลยังไม่ได้อัปโหลด MP3 ภาษานี้ กรุณาอ่านสคริปต์จนจบเพื่อเปิดใช้งานลายเซ็น', translatedScriptLabel: 'สคริปต์แปล', scrollLabel: 'เลื่อน', scriptReadSaved: 'บันทึกการอ่านจนจบแล้ว', scriptScrollHint: 'เลื่อนจนสุดเพื่อเปิดใช้งานเช็กบ็อกซ์/ลายเซ็น', signatureDefenseTitle: 'ตรรกะป้องกันลายเซ็นอิเล็กทรอนิกส์', signatureDefenseDescription: 'ต้องเล่นเสียง 1 ครั้ง หรืออ่านสคริปต์จนสุด อย่างใดอย่างหนึ่งก่อน จึงจะเปิดใช้งานเช็กบ็อกซ์/ลายเซ็น', acknowledgedLabel: 'ฉันเข้าใจเนื้อหาการประเมินความเสี่ยงแล้ว', canvasActivationHint: 'เมื่อทำครบเงื่อนไขและติ๊กเช็กบ็อกซ์แล้ว พื้นที่ลายเซ็นจะใช้งานได้', engagementRequiredAlert: 'ต้องเล่นเสียง 1 ครั้งหรือเลื่อนอ่านจนจบก่อนลงลายเซ็น', acknowledgeRequiredAlert: 'โปรดติ๊กว่าเข้าใจเนื้อหาการประเมินความเสี่ยงก่อน', sessionIdMissing: 'ไม่พบ sessionId กรุณาตรวจสอบ URL QR', sessionFetchErrorLabel: 'ข้อผิดพลาดในการโหลดเซสชัน', permissionDenied: 'ไม่มีสิทธิ์เข้าถึงหรือรอผู้ดูแลอนุมัติ' },
-    'kk-KZ': { title: 'Қауіпсіздік оқытуын растау', subtitle: 'Аудио нұсқаулықты тыңдап, электрондық қолтаңбаңызды жіберіңіз.', nameLabel: 'Аты-жөні', namePlaceholder: 'Аты-жөніңізді енгізіңіз', loading: 'Жүктелуде...', noSession: 'Сессия табылмады.', errorPrefix: 'Қате', missingNameAlert: 'Аты-жөніңізді енгізіңіз.', missingSignatureAlert: 'Алдымен қолтаңба қойыңыз.', submitSuccess: 'Сәтті жіберілді.', submitFail: 'Жіберу сәтсіз аяқталды', submit: 'Жіберу', submitting: 'Жіберілуде...', signatureLabel: 'Электрондық қолтаңба', signatureClear: 'Тазарту', languageSelectLabel: 'Тілді таңдаңыз (11)', selectedNationalityLabel: 'Таңдалған ұлт', selectedAudioLabel: 'Таңдалған тілдегі аудио', mp3Connected: 'MP3 қосылған', mp3Missing: 'MP3 жүктелмеген', audioRecorded: 'Аудио ойнату тіркелді.', audioActivateHint: 'Чекбокс/қолтаңбаны белсендіру үшін аудионы ойнатыңыз.', audioHiddenHint: 'Бұл тілге MP3 жүктелмеген. Қолтаңбаны белсендіру үшін мәтінді соңына дейін оқыңыз.', translatedScriptLabel: 'Аударма мәтіні', scrollLabel: 'Жылжыту', scriptReadSaved: 'Мәтінді соңына дейін оқу тіркелді.', scriptScrollHint: 'Чекбокс/қолтаңбаны белсендіру үшін мәтінді соңына дейін жылжытыңыз.', signatureDefenseTitle: 'Электрондық қолтаңбаны қорғау логикасы', signatureDefenseDescription: 'Кемінде бір шарт орындалуы керек: аудионы 1 рет тыңдау НЕМЕСЕ мәтінді соңына дейін оқу.', acknowledgedLabel: 'Мен тәуекелді бағалау мазмұнын түсіндім', canvasActivationHint: 'Шарт орындалып, чекбокс белгіленгеннен кейін қолтаңба алаңы белсенді болады.', engagementRequiredAlert: 'Қол қою алдында аудионы 1 рет тыңдаңыз немесе мәтінді соңына дейін жылжытыңыз.', acknowledgeRequiredAlert: 'Алдымен тәуекелді бағалауды түсінгеніңізді белгілеңіз.', sessionIdMissing: 'sessionId жоқ. QR URL мекенжайын тексеріңіз.', sessionFetchErrorLabel: 'Сессияны жүктеу қатесі', permissionDenied: 'Қолжетімсіз немесе әкімші мақұлдауы қажет.' },
-};
+    {
+        value: '캄보디아',
+        langCode: 'km-KH',
+        labels: { ko: '캄보디아', en: 'Cambodia', vi: 'Campuchia', zh: '柬埔寨' },
+    },
+    {
+        value: '몽골',
+        langCode: 'mn-MN',
+        labels: { ko: '몽골', en: 'Mongolia', vi: 'Mông Cổ', zh: '蒙古' },
+    },
+    {
+        value: '러시아',
+        langCode: 'ru-RU',
+        labels: { ko: '러시아', en: 'Russia', vi: 'Nga', zh: '俄罗斯' },
+    },
+    {
+        value: '우즈베키스탄',
+        langCode: 'uz-UZ',
+        labels: { ko: '우즈베키스탄', en: 'Uzbekistan', vi: 'Uzbekistan', zh: '乌兹别克斯坦' },
+    },
+    {
+        value: '네팔',
+        langCode: 'ne-NP',
+        labels: { ko: '네팔', en: 'Nepal', vi: 'Nepal', zh: '尼泊尔' },
+    },
+    {
+        value: '미얀마',
+        langCode: 'my-MM',
+        labels: { ko: '미얀마', en: 'Myanmar', vi: 'Myanmar', zh: '缅甸' },
+    },
+    {
+        value: '필리핀',
+        langCode: 'fil-PH',
+        labels: { ko: '필리핀', en: 'Philippines', vi: 'Philippines', zh: '菲律宾' },
+    },
+    {
+        value: '인도',
+        langCode: 'hi-IN',
+        labels: { ko: '인도', en: 'India', vi: 'Ấn Độ', zh: '印度' },
+    },
+    {
+        value: '카자흐스탄',
+        langCode: 'kk-KZ',
+        labels: { ko: '카자흐스탄', en: 'Kazakhstan', vi: 'Kazakhstan', zh: '哈萨克斯坦' },
+    },
+    {
+        value: '대한민국',
+        langCode: 'ko-KR',
+        labels: { ko: '대한민국', en: 'Korea', vi: 'Hàn Quốc', zh: '韩国' },
+    },
+] satisfies NationalityOption[];
 
-const resolveLanguageCandidates = (languageCode: string): string[] => {
-    const normalized = String(languageCode || '').trim();
-    if (!normalized) return ['ko-KR'];
-
-    const base = normalized.split('-')[0];
-    // 'en-US' 제거: 지원 언어에 영어가 없으므로 불필요한 매칭 방지
-    const candidates = [normalized, `${base.toLowerCase()}-${(normalized.split('-')[1] || '').toUpperCase()}`, base]
-        .filter(Boolean);
-    return Array.from(new Set(candidates));
-};
-
-const getKoreanFallbackHint = (languageCode: TrainingAudioLanguageCode, isGroupMode = false): string => {
-    if (languageCode === 'ko-KR') {
-        return isGroupMode
-            ? '선택 언어 MP3가 없어 한국어 MP3로 대체 재생 중입니다.'
-            : '선택 언어 MP3가 없어 한국어 MP3로 대체 재생됩니다.';
+const normalizeMapObject = (input: unknown): Record<string, string | null> => {
+    if (!input) return {};
+    if (typeof input === 'object' && !Array.isArray(input)) {
+        const raw = input as Record<string, unknown>;
+        return Object.entries(raw).reduce<Record<string, string | null>>((acc, [key, value]) => {
+            if (typeof value === 'string') {
+                const trimmed = value.trim();
+                acc[key] = trimmed || null;
+                return acc;
+            }
+            acc[key] = null;
+            return acc;
+        }, {});
     }
-    if (languageCode === 'cmn-CN') {
-        return isGroupMode
-            ? '所选语言 MP3 缺失，正在使用韩语 MP3 作为替代播放。'
-            : '所选语言 MP3 缺失，已自动使用韩语 MP3 替代播放。';
+
+    if (typeof input === 'string') {
+        try {
+            const parsed = JSON.parse(input);
+            return normalizeMapObject(parsed);
+        } catch {
+            return {};
+        }
     }
-    if (languageCode === 'vi-VN') {
-        return isGroupMode
-            ? 'Thiếu MP3 ngôn ngữ đã chọn, đang phát thay thế bằng MP3 tiếng Hàn.'
-            : 'Thiếu MP3 ngôn ngữ đã chọn, hệ thống tự động phát thay thế bằng MP3 tiếng Hàn.';
-    }
-    if (languageCode === 'ru-RU') {
-        return isGroupMode
-            ? 'MP3 выбранного языка отсутствует, выполняется воспроизведение корейского MP3 как замены.'
-            : 'MP3 выбранного языка отсутствует, автоматически используется корейский MP3 как замена.';
-    }
-    return isGroupMode
-        ? 'Selected language MP3 is missing, Korean MP3 fallback is playing.'
-        : 'Selected language MP3 is missing, Korean MP3 fallback is used automatically.';
+
+    return {};
 };
 
-type SignaturePadSectionProps = {
-    selectedLanguageCode: TrainingAudioLanguageCode;
-    uiText: UiText;
-    hasEngagementProof: boolean;
-    hasAcknowledged: boolean;
-    setHasAcknowledged: (value: boolean) => void;
-    canUseSignature: boolean;
-    sigRef: React.MutableRefObject<SignatureCanvas | null>;
-    handleClear: () => void;
+const resolveUiLocaleByLangCode = (code: string): UiLocale => {
+    if (code === 'vi-VN') return 'vi';
+    if (code === 'cmn-CN' || code === 'zh-CN') return 'zh';
+    if (code === 'en-US') return 'en';
+    return 'ko';
 };
 
-const SignaturePadSection: React.FC<SignaturePadSectionProps> = ({
-    selectedLanguageCode,
-    uiText,
-    hasEngagementProof,
-    hasAcknowledged,
-    setHasAcknowledged,
-    canUseSignature,
-    sigRef,
-    handleClear,
-}) => (
-    <div
-        data-language={selectedLanguageCode}
-        className={`mt-4 rounded-2xl border p-4 ${hasEngagementProof ? 'border-emerald-200 bg-emerald-50/60' : 'border-amber-200 bg-amber-50/60'}`}
-    >
-        <p className="text-sm font-black text-slate-900">{uiText.signatureDefenseTitle}</p>
-        <p className="mt-1 text-[11px] font-bold text-slate-600">{uiText.signatureDefenseDescription}</p>
+const resolveLanguageCandidates = (code: string): string[] => {
+    const alias = LANGUAGE_CODE_ALIASES[code];
+    return Array.from(new Set([
+        code,
+        alias,
+        'vi-VN',
+        'en-US',
+        'ko-KR',
+    ].filter((item): item is string => Boolean(item))));
+};
 
-        <label className={`mt-4 flex items-start gap-3 rounded-xl border px-3 py-3 ${hasEngagementProof ? 'border-emerald-200 bg-white' : 'border-slate-200 bg-slate-100 opacity-60'}`}>
-            <input
-                type="checkbox"
-                disabled={!hasEngagementProof}
-                checked={hasAcknowledged}
-                onChange={(e) => setHasAcknowledged(e.target.checked)}
-                className="mt-1"
-            />
-            <span className="text-sm font-black text-slate-800">{uiText.acknowledgedLabel}</span>
-        </label>
+const resolveLanguageCodeByNationality = (nationalityRaw: string): string => {
+    const nationality = (nationalityRaw || '').toLowerCase().trim();
 
-        <div className="mt-4">
-            <label className="block text-xs font-black text-slate-500 mb-2">{uiText.signatureLabel}</label>
-            <div className="relative border border-slate-200 rounded-xl overflow-hidden bg-white">
-                <SignatureCanvas
-                    ref={(ref) => {
-                        sigRef.current = ref;
-                    }}
-                    penColor="black"
-                    canvasProps={{
-                        width: 700,
-                        height: 220,
-                        className: `w-full h-[220px] ${canUseSignature ? '' : 'pointer-events-none opacity-40'}`,
-                    }}
-                />
-                {!canUseSignature && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-white/70 px-6 text-center text-sm font-black text-slate-600">
-                        {uiText.canvasActivationHint}
-                    </div>
-                )}
-            </div>
-            <button
-                onClick={handleClear}
-                disabled={!canUseSignature}
-                className="mt-2 px-4 py-2 text-xs font-black rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-                {uiText.signatureClear}
-            </button>
-        </div>
-    </div>
-);
+    if (!nationality) return 'en-US';
+    if (nationality.includes('한국') || nationality.includes('대한민국') || nationality.includes('korea')) return 'ko-KR';
+    if (nationality.includes('베트남') || nationality.includes('vietnam')) return 'vi-VN';
+    if (nationality.includes('중국') || nationality.includes('china')) return 'cmn-CN';
+    if (nationality.includes('태국') || nationality.includes('thailand')) return 'th-TH';
+    if (nationality.includes('인도네시아') || nationality.includes('indonesia')) return 'id-ID';
+    if (nationality.includes('우즈베키스탄') || nationality.includes('uzbek')) return 'uz-UZ';
+    if (nationality.includes('몽골') || nationality.includes('mongolia')) return 'mn-MN';
+    if (nationality.includes('캄보디아') || nationality.includes('cambodia') || nationality.includes('khmer')) return 'km-KH';
+    if (nationality.includes('러시아') || nationality.includes('russia')) return 'ru-RU';
+    if (nationality.includes('네팔') || nationality.includes('nepal')) return 'ne-NP';
+    if (nationality.includes('미얀마') || nationality.includes('myanmar')) return 'my-MM';
+    if (nationality.includes('필리핀') || nationality.includes('philippines') || nationality.includes('filipino')) return 'fil-PH';
+    if (nationality.includes('인도') || nationality.includes('india') || nationality.includes('hindi')) return 'hi-IN';
+    if (nationality.includes('방글라데시') || nationality.includes('bangladesh') || nationality.includes('bengali')) return 'bn-BD';
+    if (nationality.includes('파키스탄') || nationality.includes('pakistan') || nationality.includes('urdu')) return 'ur-PK';
+    if (nationality.includes('스리랑카') || nationality.includes('sri lanka') || nationality.includes('sinhala')) return 'si-LK';
+    if (nationality.includes('카자흐스탄') || nationality.includes('kazakhstan') || nationality.includes('kazakh')) return 'kk-KZ';
 
-const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode = false }) => {
+    return 'en-US';
+};
+
+const resolveNationalityByLanguageCode = (langCode: string): string => {
+    if (langCode === 'ko-KR') return '대한민국';
+    if (langCode === 'vi-VN') return '베트남';
+    if (langCode === 'cmn-CN' || langCode === 'zh-CN') return '중국';
+    if (langCode === 'th-TH') return '태국';
+    if (langCode === 'id-ID') return '인도네시아';
+    if (langCode === 'uz-UZ') return '우즈베키스탄';
+    if (langCode === 'mn-MN') return '몽골';
+    if (langCode === 'km-KH') return '캄보디아';
+    if (langCode === 'ru-RU') return '러시아';
+    if (langCode === 'ne-NP') return '네팔';
+    if (langCode === 'my-MM') return '미얀마';
+    if (langCode === 'fil-PH') return '필리핀';
+    if (langCode === 'hi-IN') return '인도';
+    if (langCode === 'kk-KZ') return '카자흐스탄';
+    return '기타';
+};
+
+const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMode = false }) => {
     const [loading, setLoading] = useState(true);
     const [sessionData, setSessionData] = useState<SessionRow | null>(null);
-    const [authenticatedWorker, setAuthenticatedWorker] = useState<AuthenticatedWorker | null>(null);
+
     const [workerName, setWorkerName] = useState('');
-    const [selectedLanguageCode, setSelectedLanguageCode] = useState<TrainingAudioLanguageCode>('ko-KR');
-    const [nationality, setNationality] = useState('대한민국');
+    const [nationality, setNationality] = useState('베트남');
+    const [selectedLanguageCode, setSelectedLanguageCode] = useState('vi-VN');
     const [message, setMessage] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
     const [submitted, setSubmitted] = useState(false);
-    const [hasAudioStarted, setHasAudioStarted] = useState(false);
-    const [groupAudioCompleted, setGroupAudioCompleted] = useState(false);
-    const [hasScrolledToEnd, setHasScrolledToEnd] = useState(false);
+    const [hasReviewedGuidance, setHasReviewedGuidance] = useState(false);
     const [guidanceProgress, setGuidanceProgress] = useState(0);
-    const [hasAcknowledged, setHasAcknowledged] = useState(false);
-    const [workersLoading, setWorkersLoading] = useState(false);
-    const [workerOptions, setWorkerOptions] = useState<WorkerListItem[]>([]);
-    const [selectedWorkerIds, setSelectedWorkerIds] = useState<string[]>([]);
-    const [checkingExistingSubmission, setCheckingExistingSubmission] = useState(false);
-    const [existingSubmission, setExistingSubmission] = useState<ExistingSubmissionRow | null>(null);
-    const [isAccessBlockedByAttempt, setIsAccessBlockedByAttempt] = useState(false);
+    const [checklist, setChecklist] = useState({
+        riskReview: false,
+        ppeConfirm: false,
+        emergencyConfirm: false,
+    });
 
     const sigRef = useRef<SignatureCanvas | null>(null);
-    const groupSigRefs = useRef<Record<string, SignatureCanvas | null>>({});
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const guidanceRef = useRef<HTMLDivElement | null>(null);
-    const accessCountTrackedKeyRef = useRef<string>('');
 
-    const effectiveLangKey = selectedLanguageCode || resolveTrainingLanguageByNationality(nationality);
-    const uiText = uiTranslations[effectiveLangKey] || uiTranslations['ko-KR'];
-    const groupText = groupUiTranslations[effectiveLangKey] || groupUiTranslations['ko-KR'];
-    const simplifiedMode = useMemo(() => {
-        const queryMode = new URLSearchParams(window.location.search).get('mode');
-        const isMobileUa = /android|iphone|ipad|ipod|mobile/i.test(navigator.userAgent || '');
-        return queryMode === 'worker-training' || isMobileUa;
-    }, []);
-    const isGroupProxyMode = useMemo(() => {
-        const queryMode = new URLSearchParams(window.location.search).get('mode');
-        return queryMode === 'manager-group-proxy';
-    }, []);
-    const pageContainerClass = isKioskMode ? 'space-y-6 w-full' : 'space-y-6 max-w-2xl';
+    const langKey = useMemo(() => resolveLanguageCodeByNationality(nationality), [nationality]);
+    const uiLocale = useMemo(() => resolveUiLocaleByLangCode(langKey), [langKey]);
+    const t = UI_TEXT[uiLocale];
+    const selectedNationalityLangCode = useMemo(() => {
+        return NATIONALITY_OPTIONS.find((item) => item.value === nationality)?.langCode;
+    }, [nationality]);
 
-    const normalizedAudioMap = useMemo(() => {
-        if (!sessionData?.audio_urls || typeof sessionData.audio_urls !== 'object') return {} as Record<string, string>;
-        const source = sessionData.audio_urls as Record<string, unknown>;
-        const map: Record<string, string> = {};
-        Object.entries(source).forEach(([key, value]) => {
-            if (typeof value === 'string' && value.trim()) {
-                map[key] = value.trim();
-            }
+    const effectiveLangKey = selectedLanguageCode || selectedNationalityLangCode || langKey;
+    const searchParams = useMemo(() => new URLSearchParams(window.location.search), []);
+    const linkExpiresAtRaw = searchParams.get('exp');
+    const linkToken = searchParams.get('sig') || '';
+    const linkExpiresAt = Number(linkExpiresAtRaw || 0);
+    const isLinkExpired = Number.isFinite(linkExpiresAt) ? Date.now() > linkExpiresAt : false;
+    const isLinkMetaMissing = !linkToken || !Number.isFinite(linkExpiresAt) || linkExpiresAt <= 0;
+
+    const normalizedAudioMap = useMemo(() => normalizeMapObject(sessionData?.audio_urls), [sessionData]);
+    const normalizedTextMap = useMemo(() => normalizeMapObject(sessionData?.translated_texts), [sessionData]);
+
+    const availableLanguageCodes = useMemo(() => {
+        const fromAudio = Object.keys(normalizedAudioMap).filter((code) => {
+            const value = normalizedAudioMap[code];
+            return typeof value === 'string' && value.trim() && Boolean(LANGUAGE_LABELS[code]);
         });
-        return map;
-    }, [sessionData]);
 
-    const normalizedTextMap = useMemo(() => {
-        const source = (sessionData?.translated_texts && typeof sessionData.translated_texts === 'object')
-            ? sessionData.translated_texts as Record<string, unknown>
-            : {};
-        const map: Record<string, string> = {};
-        Object.entries(source).forEach(([key, value]) => {
-            if (typeof value === 'string' && value.trim()) {
-                map[key] = value.trim();
-            }
+        const fromText = Object.keys(normalizedTextMap).filter((code) => {
+            const value = normalizedTextMap[code];
+            return typeof value === 'string' && value.trim() && Boolean(LANGUAGE_LABELS[code]);
         });
-        return map;
-    }, [sessionData]);
 
-    const selectedAudioResolution = useMemo(() => {
+        const merged = Array.from(new Set([...fromAudio, ...fromText]));
+        if (merged.length > 0) return merged;
+        return ['ko-KR', 'vi-VN', 'en-US', 'cmn-CN'];
+    }, [normalizedAudioMap, normalizedTextMap]);
+
+    const selectedAudioUrl = useMemo(() => {
         const candidates = resolveLanguageCandidates(effectiveLangKey);
-        for (const key of candidates) {
-            if (normalizedAudioMap[key]) {
-                return { url: normalizedAudioMap[key], isKoreanFallback: false };
-            }
+        for (const code of candidates) {
+            const value = normalizedAudioMap[code];
+            if (typeof value === 'string' && value.trim()) return value;
         }
 
-        if (effectiveLangKey !== 'ko-KR') {
-            const koreanCandidates = resolveLanguageCandidates('ko-KR');
-            for (const key of koreanCandidates) {
-                if (normalizedAudioMap[key]) {
-                    return { url: normalizedAudioMap[key], isKoreanFallback: true };
-                }
-            }
-        }
-
-        return { url: '', isKoreanFallback: false };
+        const firstAvailable = Object.values(normalizedAudioMap).find((value) => typeof value === 'string' && value.trim());
+        return (firstAvailable as string) || '';
     }, [normalizedAudioMap, effectiveLangKey]);
-
-    const selectedAudioUrl = selectedAudioResolution.url;
-    const isKoreanAudioFallback = selectedAudioResolution.isKoreanFallback;
 
     const selectedTranslatedText = useMemo(() => {
         if (!sessionData) return '';
         const candidates = resolveLanguageCandidates(effectiveLangKey);
-        for (const key of candidates) {
-            if (normalizedTextMap[key]) return normalizedTextMap[key];
+        for (const code of candidates) {
+            const value = normalizedTextMap[code];
+            if (typeof value === 'string' && value.trim()) return value;
         }
-        return normalizedTextMap[effectiveLangKey]
-            || sessionData.original_script
-            || sessionData.source_text_ko
-            || '';
+        return sessionData.source_text_ko || '';
     }, [sessionData, normalizedTextMap, effectiveLangKey]);
 
-    const languageMatchedWorkers = useMemo(() => {
-        return workerOptions.filter((worker) => resolveTrainingLanguageByNationality(worker.nationality) === effectiveLangKey);
-    }, [workerOptions, effectiveLangKey]);
-
-    const selectedWorkers = useMemo(() => {
-        const selectedSet = new Set(selectedWorkerIds);
-        return languageMatchedWorkers.filter((worker) => selectedSet.has(worker.id));
-    }, [languageMatchedWorkers, selectedWorkerIds]);
-
-    const canUseGroupSignature = isGroupProxyMode
-        ? groupAudioCompleted && selectedWorkers.length > 0
-        : false;
-
-    const hasEngagementProof = hasAudioStarted || hasScrolledToEnd;
-    const canUseSignature = hasEngagementProof && hasAcknowledged;
+    const isChecklistComplete = checklist.riskReview && checklist.ppeConfirm && checklist.emergencyConfirm;
+    const isComprehensionReady = hasReviewedGuidance && isChecklistComplete;
 
     useEffect(() => {
         const audio = audioRef.current;
@@ -440,47 +521,14 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
     }, [selectedAudioUrl]);
 
     useEffect(() => {
-        setHasAudioStarted(false);
-        setGroupAudioCompleted(false);
-        setHasScrolledToEnd(false);
+        setHasReviewedGuidance(false);
         setGuidanceProgress(0);
-        setHasAcknowledged(false);
-        setSelectedWorkerIds([]);
-        groupSigRefs.current = {};
-        sigRef.current?.clear();
+        setChecklist({
+            riskReview: false,
+            ppeConfirm: false,
+            emergencyConfirm: false,
+        });
     }, [effectiveLangKey, sessionId]);
-
-    useEffect(() => {
-        if (!isGroupProxyMode) return;
-        const run = async () => {
-            setWorkersLoading(true);
-            const result = await supabase
-                .from('workers')
-                .select('id, name, nationality')
-                .limit(5000);
-
-            if (result.error) {
-                setMessage(`${uiText.errorPrefix}: workers 조회 실패 - ${result.error.message}`);
-                setWorkerOptions([]);
-                setWorkersLoading(false);
-                return;
-            }
-
-            const rows = Array.isArray(result.data) ? result.data : [];
-            const normalized = rows
-                .map((row: any) => ({
-                    id: String(row?.id || '').trim(),
-                    name: String(row?.name || '').trim(),
-                    nationality: String(row?.nationality || '').trim(),
-                }))
-                .filter((row) => row.id && row.name);
-
-            setWorkerOptions(normalized);
-            setWorkersLoading(false);
-        };
-
-        void run();
-    }, [isGroupProxyMode, uiText.errorPrefix]);
 
     useEffect(() => {
         const node = guidanceRef.current;
@@ -490,14 +538,13 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
             const maxScrollable = node.scrollHeight - node.clientHeight;
             if (maxScrollable <= 0) {
                 setGuidanceProgress(100);
-                setHasScrolledToEnd(true);
+                setHasReviewedGuidance(true);
                 return;
             }
 
             const progress = Math.min(100, Math.round((node.scrollTop / maxScrollable) * 100));
-            const reachedEnd = node.scrollTop + node.clientHeight >= node.scrollHeight - 4;
             setGuidanceProgress(progress);
-            setHasScrolledToEnd(reachedEnd);
+            setHasReviewedGuidance(node.scrollTop + node.clientHeight >= node.scrollHeight - 4);
         };
 
         const rafId = window.requestAnimationFrame(syncProgress);
@@ -505,7 +552,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
     }, [selectedTranslatedText]);
 
     useEffect(() => {
-        if (!simplifiedMode || submitted) return;
+        if (!simplifiedMode) return;
+        if (submitted) return;
 
         const handleBeforeUnload = (event: BeforeUnloadEvent) => {
             event.preventDefault();
@@ -517,132 +565,36 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
     }, [simplifiedMode, submitted]);
 
     useEffect(() => {
-        if (isGroupProxyMode) return;
-        if (!sessionId || !authenticatedWorker?.workerId) return;
+        if (!sessionData) return;
 
-        const run = async () => {
-            setCheckingExistingSubmission(true);
+        const browserLang = (navigator.language || 'en-US').toLowerCase();
+        const matched = availableLanguageCodes.find((code) => browserLang.startsWith(code.split('-')[0].toLowerCase()));
+        const preferred = matched || availableLanguageCodes[0] || 'en-US';
 
-            const workerId = String(authenticatedWorker.workerId || '').trim();
-            const workerName = String(authenticatedWorker.name || '').trim();
-
-            const applyAttemptBlockUi = (timestamp?: string, source: 'server' | 'local' = 'server') => {
-                setIsAccessBlockedByAttempt(true);
-                setExistingSubmission({
-                    id: `access-limit-${workerId}`,
-                    submitted_at: timestamp || new Date().toISOString(),
-                    signature_url: '',
-                });
-                setSubmitted(true);
-                setMessage(
-                    source === 'server'
-                        ? `동일 교육 재접속이 ${TRAINING_ACCESS_BLOCK_THRESHOLD}회 이상 확인되어 제출 완료 상태로 전환되었습니다.`
-                        : `접속 정책 확인이 지연되어 로컬 기준으로 재접속 ${TRAINING_ACCESS_BLOCK_THRESHOLD}회 이상을 차단했습니다.`
-                );
-            };
-
-            try {
-                const response = await fetch('/api/gateway?action=training.check-access', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        sessionId,
-                        workerId,
-                        workerName,
-                    }),
-                });
-
-                const accessResult = await response.json();
-
-                if (response.ok && accessResult?.ok) {
-                    if (accessResult?.data?.blocked) {
-                        applyAttemptBlockUi(String(accessResult?.data?.accessedAt || ''), 'server');
-                        setCheckingExistingSubmission(false);
-                        return;
-                    }
-                } else {
-                    const fallbackCount = applyLocalAccessFallback(sessionId, workerId, accessCountTrackedKeyRef);
-                    if (fallbackCount !== null && fallbackCount >= TRAINING_ACCESS_BLOCK_THRESHOLD) {
-                        applyAttemptBlockUi(undefined, 'local');
-                        setCheckingExistingSubmission(false);
-                        return;
-                    }
-                }
-            } catch {
-                const fallbackCount = applyLocalAccessFallback(sessionId, workerId, accessCountTrackedKeyRef);
-                if (fallbackCount !== null && fallbackCount >= TRAINING_ACCESS_BLOCK_THRESHOLD) {
-                    applyAttemptBlockUi(undefined, 'local');
-                    setCheckingExistingSubmission(false);
-                    return;
-                }
-            }
-
-            let foundRow: any = null;
-
-            const byWorkerId = await supabase
-                .from('training_logs')
-                .select('id, submitted_at, signature_url')
-                .eq('session_id', sessionId)
-                .eq('worker_id', workerId)
-                .order('submitted_at', { ascending: false })
-                .limit(1);
-
-            if (!byWorkerId.error && Array.isArray(byWorkerId.data) && byWorkerId.data.length > 0) {
-                foundRow = byWorkerId.data[0];
-            }
-
-            if (!foundRow && workerName) {
-                const byWorkerName = await supabase
-                    .from('training_logs')
-                    .select('id, submitted_at, signature_url')
-                    .eq('session_id', sessionId)
-                    .eq('worker_name', workerName)
-                    .order('submitted_at', { ascending: false })
-                    .limit(1);
-
-                if (!byWorkerName.error && Array.isArray(byWorkerName.data) && byWorkerName.data.length > 0) {
-                    foundRow = byWorkerName.data[0];
-                }
-            }
-
-            if (foundRow) {
-                setExistingSubmission({
-                    id: String(foundRow.id || ''),
-                    submitted_at: String(foundRow.submitted_at || ''),
-                    signature_url: String(foundRow.signature_url || ''),
-                });
-                setSubmitted(true);
-                setMessage('이미 이 세션 교육 제출이 완료되었습니다. 재제출은 차단됩니다.');
-            } else {
-                setExistingSubmission(null);
-            }
-
-            setCheckingExistingSubmission(false);
-        };
-
-        void run();
-    }, [sessionId, authenticatedWorker?.workerId, authenticatedWorker?.name, isGroupProxyMode]);
+        setSelectedLanguageCode(preferred);
+        setNationality(resolveNationalityByLanguageCode(preferred));
+    }, [sessionData, availableLanguageCodes]);
 
     useEffect(() => {
         const run = async () => {
             if (!sessionId) {
-                setMessage(uiText.sessionIdMissing);
                 setLoading(false);
+                setSessionData(null);
                 return;
             }
 
             setLoading(true);
             const { data, error } = await supabase
                 .from('training_sessions')
-                .select('id, source_text_ko, original_script, audio_urls, translated_texts')
+                .select('id, source_text_ko, audio_urls, translated_texts')
                 .eq('id', sessionId)
                 .single();
 
             if (error) {
-                if (!handleSupabasePermissionError(error)) {
-                    setMessage(`${uiText.sessionFetchErrorLabel}: ${error.message}`);
+                if (isSupabasePermissionError(error)) {
+                    setMessage(t.permissionDenied);
                 } else {
-                    setMessage(uiText.permissionDenied);
+                    setMessage(`${t.sessionFetchErrorLabel}: ${error.message}`);
                 }
                 setSessionData(null);
             } else {
@@ -652,147 +604,77 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
         };
 
         void run();
-    }, [sessionId, uiText.permissionDenied, uiText.sessionFetchErrorLabel, uiText.sessionIdMissing]);
+    }, [sessionId]);
 
-    useEffect(() => {
-        const browserLang = (navigator.language || 'ko-KR').toLowerCase();
-        const matched = TRAINING_AUDIO_LANGUAGES.find((item) => browserLang.startsWith(item.code.split('-')[0].toLowerCase()));
-        const nextCode = matched?.code || 'ko-KR';
-        setSelectedLanguageCode(nextCode);
-        setNationality(TRAINING_AUDIO_LANGUAGE_NATIONALITY[nextCode]);
-    }, []);
-
-    const handleGatewayAuthenticated = (worker: AuthenticatedWorker) => {
-        setAuthenticatedWorker(worker);
-        setWorkerName(worker.name);
-        setNationality(worker.nationality || '대한민국');
-
-        const resolvedLanguage = resolveTrainingLanguageByNationality(worker.nationality || '대한민국');
-        setSelectedLanguageCode(resolvedLanguage);
-        setMessage('');
-    };
-
-    const handleLanguageSelect = (code: TrainingAudioLanguageCode) => {
-        setSelectedLanguageCode(code);
-        setNationality(TRAINING_AUDIO_LANGUAGE_NATIONALITY[code]);
-    };
+    if (!sessionId) {
+        return (
+            <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm max-w-2xl">
+                <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 mb-4">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m0 14v1m8-8h-1M5 12H4m12.364 5.364l-.707-.707M8.343 8.343l-.707-.707m0 8.728l.707-.707m8.021-8.021l.707-.707" />
+                    </svg>
+                </div>
+                <h2 className="text-xl font-black text-slate-900">{t.mobileOnlyTitle}</h2>
+                <p className="mt-2 text-sm font-bold text-slate-600">
+                    {t.mobileOnlyDescription}
+                </p>
+            </div>
+        );
+    }
 
     const handleClear = () => {
         sigRef.current?.clear();
     };
 
-    const toggleWorkerSelection = (workerId: string) => {
-        setSelectedWorkerIds((previous) => {
-            if (previous.includes(workerId)) return previous.filter((id) => id !== workerId);
-            return [...previous, workerId];
-        });
-    };
-
-    const handleGroupPadClear = (workerId: string) => {
-        groupSigRefs.current[workerId]?.clear();
-    };
-
-    const handleGroupProxySubmit = async () => {
-        if (selectedWorkers.length === 0) {
-            alert(groupText.missingWorkerAlert);
+    const handleToggleAudio = async () => {
+        const audio = audioRef.current;
+        if (!audio || !selectedAudioUrl) {
+            setMessage(t.audioMissing);
             return;
         }
-
-        if (!groupAudioCompleted) {
-            alert(groupText.audioRequiredAlert);
-            return;
-        }
-
-        const signatures = selectedWorkers.map((worker) => {
-            const pad = groupSigRefs.current[worker.id];
-            if (!pad || pad.isEmpty()) return null;
-            return {
-                workerId: worker.id,
-                signatureDataUrl: pad.toDataURL('image/png'),
-            };
-        });
-
-        if (signatures.some((item) => item === null)) {
-            alert(groupText.missingGroupSignatureAlert);
-            return;
-        }
-
-        setSubmitting(true);
-        setMessage('');
 
         try {
-            const response = await fetch('/api/gateway?action=training.submit', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    type: 'group',
-                    payload: {
-                        sessionId,
-                        selectedLanguageCode: effectiveLangKey,
-                        selectedAudioUrl: selectedAudioUrl || null,
-                        audioPlayed: true,
-                        isManagerProxy: true,
-                        gatewayWorkerId: authenticatedWorker?.workerId || null,
-                        checklist: {
-                            riskReview: true,
-                            ppeConfirm: true,
-                            emergencyConfirm: true,
-                        },
-                        signatures: signatures.filter(Boolean),
-                    },
-                }),
-            });
-
-            const data = await response.json();
-            if (!response.ok || !data.ok) {
-                if (data?.code === 'DUPLICATE_SUBMISSION') {
-                    setMessage('이미 해당 세션에 제출된 근로자가 포함되어 중복 인원은 제외했습니다.');
-                    setSubmitted(true);
-                    return;
-                }
-                throw new Error(data.message || uiText.submitFail);
+            if (audio.paused) {
+                await audio.play();
+                setIsPlaying(true);
+            } else {
+                audio.pause();
+                setIsPlaying(false);
             }
-
-            const insertedCount = Number(data.data?.insertedCount || 0);
-            const skippedCount = Number(data.data?.skippedDuplicateCount || 0);
-            const detail = skippedCount > 0
-                ? `${insertedCount}명 저장 / 중복 ${skippedCount}명 제외`
-                : `${insertedCount || selectedWorkers.length}명`;
-
-            setMessage(`${groupText.groupSubmitSuccess} (${detail})`);
-            setSubmitted(true);
-            setSelectedWorkerIds([]);
-            groupSigRefs.current = {};
-        } catch (error: any) {
-            setMessage(`${uiText.errorPrefix}: ${error?.message || uiText.submitFail}`);
-        } finally {
-            setSubmitting(false);
+        } catch {
+            setMessage(t.audioMissing);
+            setIsPlaying(false);
         }
     };
 
     const handleSubmit = async () => {
-        if (!authenticatedWorker?.workerId) {
-            alert('본인 확인이 필요합니다.');
+        if (submitted) {
+            setMessage(t.alreadySubmitted);
+            return;
+        }
+
+        if (isLinkMetaMissing) {
+            setMessage(t.linkInvalid);
+            return;
+        }
+
+        if (isLinkExpired) {
+            setMessage(t.linkExpired);
             return;
         }
 
         if (!workerName.trim()) {
-            alert(uiText.missingNameAlert);
+            alert(t.missingNameAlert);
             return;
         }
 
-        if (!hasEngagementProof) {
-            alert(uiText.engagementRequiredAlert);
-            return;
-        }
-
-        if (!hasAcknowledged) {
-            alert(uiText.acknowledgeRequiredAlert);
+        if (!isComprehensionReady) {
+            alert(t.submitBlockedAlert);
             return;
         }
 
         if (!sigRef.current || sigRef.current.isEmpty()) {
-            alert(uiText.missingSignatureAlert);
+            alert(t.missingSignatureAlert);
             return;
         }
 
@@ -802,300 +684,245 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, isKioskMode 
         setMessage('');
 
         try {
-            const response = await fetch('/api/gateway?action=training.submit', {
+            const response = await fetch('/api/training/submit-signature', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    type: 'single',
-                    payload: {
-                        sessionId,
-                        workerId: authenticatedWorker.workerId,
-                        workerName,
-                        nationality,
-                        selectedLanguageCode: effectiveLangKey,
-                        reviewedGuidance: hasEngagementProof,
-                        audioPlayed: hasAudioStarted,
-                        scrolledToEnd: hasScrolledToEnd,
-                        acknowledgedRiskAssessment: hasAcknowledged,
-                        checklist: {
-                            riskReview: hasAcknowledged,
-                            ppeConfirm: hasAcknowledged,
-                            emergencyConfirm: hasAcknowledged,
-                        },
-                        selectedAudioUrl: selectedAudioUrl || null,
-                        signatureDataUrl,
-                        isManagerProxy: false,
-                    },
+                    sessionId,
+                    workerName,
+                    nationality,
+                    selectedLanguageCode: effectiveLangKey,
+                    reviewedGuidance: hasReviewedGuidance,
+                    checklist,
+                    selectedAudioUrl: selectedAudioUrl || null,
+                    signatureDataUrl,
+                    linkExpiresAt,
+                    linkToken,
                 }),
             });
 
             const data = await response.json();
             if (!response.ok || !data.ok) {
-                if (data?.code === 'DUPLICATE_SUBMISSION') {
-                    setMessage('이미 제출이 완료된 교육입니다. 중복 제출은 차단됩니다.');
-                    setSubmitted(true);
-                    return;
-                }
-                throw new Error(data.message || '제출 실패');
+                throw new Error(data.message || t.submitFail);
             }
 
-            setMessage(uiText.submitSuccess);
-            setSubmitted(true);
+            setMessage(t.submitSuccess);
+            setWorkerName('');
             sigRef.current?.clear();
+            setSubmitted(true);
         } catch (error: any) {
-            setMessage(`${uiText.errorPrefix}: ${error?.message || uiText.submitFail}`);
+            setMessage(`${t.errorPrefix}: ${error?.message || t.submitFail}`);
         } finally {
             setSubmitting(false);
         }
     };
 
-    if (!authenticatedWorker) {
-        return (
-            <div className={pageContainerClass}>
-                <AuthGateway
-                    onAuthenticated={handleGatewayAuthenticated}
-                    title={isGroupProxyMode ? '대면 서명 전 근로자 본인 확인' : '교육 시작 전 근로자 본인 확인'}
-                    subtitle="핸드폰 번호/생년월일/여권번호 중 하나를 선택해 등록 정보와 일치하는지 확인합니다."
-                />
-            </div>
-        );
-    }
-
     if (loading) {
-        return <div className="bg-white p-6 rounded-2xl border border-slate-200 font-bold">{uiText.loading}</div>;
+        return <div className="bg-white p-6 rounded-2xl border border-slate-200 font-bold">{t.loading}</div>;
     }
 
     if (!sessionData) {
-        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{uiText.noSession}</div>;
+        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.noSession}</div>;
     }
 
-    if (!isGroupProxyMode && checkingExistingSubmission) {
-        return (
-            <div className={pageContainerClass}>
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                    <p className="text-sm font-black text-slate-700">제출 이력 확인 중입니다...</p>
-                </div>
-            </div>
-        );
+    if (isLinkMetaMissing) {
+        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.linkInvalid}</div>;
     }
 
-    if (!isGroupProxyMode && existingSubmission) {
-        return (
-            <div className={pageContainerClass}>
-                <div className="bg-white p-6 rounded-2xl border border-emerald-200 bg-emerald-50/40 shadow-sm">
-                    <h2 className="text-xl font-black text-emerald-800">이미 제출 완료된 교육입니다</h2>
-                    <p className="mt-2 text-sm font-bold text-slate-700">{isAccessBlockedByAttempt ? `재접속 ${TRAINING_ACCESS_BLOCK_THRESHOLD}회 이상으로 해당 QR 세션은 자동 완료 처리되어 재진행이 차단됩니다.` : '해당 QR 세션에서는 재제출이 차단됩니다.'}</p>
-                    <p className="mt-2 text-xs font-bold text-slate-500">
-                        제출 시간: {existingSubmission.submitted_at ? new Date(existingSubmission.submitted_at).toLocaleString('ko-KR') : '-'}
-                    </p>
-                    {existingSubmission.signature_url && (
-                        <div className="mt-4">
-                            <p className="text-xs font-black text-slate-500 mb-2">기 제출 서명</p>
-                            <img
-                                src={existingSubmission.signature_url}
-                                alt="기 제출 서명"
-                                className="max-w-full rounded-xl border border-slate-200 bg-white"
-                                style={{ maxHeight: 220, objectFit: 'contain' }}
-                            />
-                        </div>
-                    )}
-                </div>
-            </div>
-        );
+    if (isLinkExpired) {
+        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.linkExpired}</div>;
     }
 
     return (
-        <div className={pageContainerClass}>
+        <div className="space-y-6 max-w-2xl">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <h2 className="text-2xl font-black text-slate-900">{uiText.title}</h2>
-                <p className="text-sm font-bold text-slate-500 mt-2">{uiText.subtitle}</p>
-
-                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
-                    <p className="text-xs font-black text-emerald-700">본인 확인 완료</p>
-                    <p className="mt-1 text-sm font-black text-slate-900">{authenticatedWorker.name}</p>
-                    <p className="text-[11px] font-bold text-slate-600">worker_id: {authenticatedWorker.workerId}</p>
-                    <p className="text-[11px] font-bold text-slate-600">{uiText.selectedNationalityLabel}: {nationality}</p>
-                </div>
-
-                {isGroupProxyMode && (
-                    <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4 space-y-3">
-                        <p className="text-sm font-black text-indigo-900">{groupText.proxyModeTitle}</p>
-                        <div className="flex items-center justify-between gap-3">
-                            <p className="text-xs font-black text-slate-600">{groupText.workerSelectLabel}</p>
-                            <p className="text-xs font-black text-indigo-700">{groupText.selectedCountLabel}: {selectedWorkers.length}</p>
-                        </div>
-                        <p className="text-[11px] font-bold text-slate-600">{groupText.workerSelectHint}</p>
-
-                        <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2">
-                            {workersLoading ? (
-                                <p className="px-2 py-2 text-xs font-bold text-slate-500">{uiText.loading}</p>
-                            ) : languageMatchedWorkers.length === 0 ? (
-                                <p className="px-2 py-2 text-xs font-bold text-slate-500">{uiText.noSession}</p>
-                            ) : (
-                                languageMatchedWorkers.map((worker) => {
-                                    const checked = selectedWorkerIds.includes(worker.id);
-                                    return (
-                                        <label key={worker.id} className="flex items-center gap-2 rounded-lg px-2 py-2 hover:bg-slate-50">
-                                            <input
-                                                type="checkbox"
-                                                checked={checked}
-                                                onChange={() => toggleWorkerSelection(worker.id)}
-                                            />
-                                            <span className="text-sm font-bold text-slate-800">{worker.name}</span>
-                                            <span className="text-[11px] font-bold text-slate-500">({worker.nationality})</span>
-                                        </label>
-                                    );
-                                })
-                            )}
-                        </div>
-                    </div>
+                <h2 className="text-2xl font-black text-slate-900">{t.title}</h2>
+                <p className="text-sm font-bold text-slate-500 mt-2">{t.subtitle}</p>
+                {simplifiedMode && !submitted && (
+                    <p className="mt-2 text-[11px] font-black text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1 inline-block">
+                        {t.stayOnPageHint}
+                    </p>
                 )}
 
-                <div className="mt-5">
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                        <label className="block text-xs font-black text-slate-500">자동 설정 언어</label>
-                        <span className="text-[11px] font-bold text-slate-500">{uiText.selectedNationalityLabel}: {nationality}</span>
-                    </div>
-                    <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-3 py-3">
-                        <p className="text-sm font-black text-indigo-900">
-                            {TRAINING_AUDIO_LANGUAGES.find((item) => item.code === effectiveLangKey)?.flag} {effectiveLangKey}
+                <div className="mt-4">
+                    <label className="block text-xs font-black text-slate-500 mb-2">{t.nameLabel}</label>
+                    <input
+                        value={workerName}
+                        onChange={(e) => setWorkerName(e.target.value)}
+                        className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
+                        placeholder={t.namePlaceholder}
+                    />
+                </div>
+
+                <div className="mt-4">
+                    <label className="block text-xs font-black text-slate-500 mb-2">{t.nationalityLabel}</label>
+                    {simplifiedMode ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {availableLanguageCodes.map((code) => (
+                                <button
+                                    key={code}
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedLanguageCode(code);
+                                        setNationality(resolveNationalityByLanguageCode(code));
+                                    }}
+                                    className={`px-3 py-2 rounded-xl text-xs font-black border transition-colors ${effectiveLangKey === code ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+                                >
+                                    {LANGUAGE_LABELS[code] || code}
+                                </button>
+                            ))}
+                        </div>
+                    ) : (
+                        <select
+                            value={nationality}
+                            onChange={(e) => {
+                                const nextNationality = e.target.value;
+                                setNationality(nextNationality);
+                                setSelectedLanguageCode(resolveLanguageCodeByNationality(nextNationality));
+                            }}
+                            className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
+                        >
+                            {NATIONALITY_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>{option.labels[uiLocale]}</option>
+                            ))}
+                        </select>
+                    )}
+                    <p className="mt-2 text-[11px] font-bold text-slate-500">
+                        {t.autoLangLabel}: <span className="text-slate-700">{LANGUAGE_LABELS[effectiveLangKey] || 'English'} ({effectiveLangKey})</span>
+                    </p>
+                    {!simplifiedMode && <p className="mt-1 text-[11px] font-bold text-slate-500">{t.nationalityHint}</p>}
+                </div>
+
+                <div className="mt-4">
+                    <label className="block text-xs font-black text-slate-500 mb-2">{t.audioGuideLabel}</label>
+                    <div className="mt-2 flex flex-col items-center">
+                        <button
+                            type="button"
+                            onClick={() => void handleToggleAudio()}
+                            disabled={!selectedAudioUrl}
+                            className={`relative w-36 h-36 rounded-full border-4 font-black text-5xl flex items-center justify-center transition-all ${isPlaying ? 'bg-indigo-600 border-indigo-700 text-white animate-pulse scale-105 shadow-2xl' : 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-lg'} ${!selectedAudioUrl ? 'opacity-60 cursor-not-allowed' : 'hover:scale-105'}`}
+                        >
+                            {isPlaying ? '⏸' : '🔊'}
+                            {isPlaying && <span className="absolute inset-0 rounded-full border-4 border-indigo-300 animate-ping" />}
+                        </button>
+                        <p className="mt-3 text-sm font-black text-slate-700">
+                            {selectedAudioUrl ? (isPlaying ? t.audioPlaying : t.audioReady) : t.audioMissing}
                         </p>
-                        <p className="text-[11px] font-bold text-indigo-700 mt-1">국적 기반으로 자동 선택되었습니다.</p>
+                        {!simplifiedMode && (
+                            <button
+                                type="button"
+                                onClick={() => void handleToggleAudio()}
+                                disabled={!selectedAudioUrl}
+                                className="mt-2 px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-black border border-slate-200 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                                {isPlaying ? t.audioPause : t.audioPlay}
+                            </button>
+                        )}
+                    </div>
+                    <audio
+                        ref={audioRef}
+                        src={selectedAudioUrl || undefined}
+                        preload="none"
+                        onPlay={() => setIsPlaying(true)}
+                        onPause={() => setIsPlaying(false)}
+                        onEnded={() => setIsPlaying(false)}
+                    />
+                    <div className="mt-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
+                        <p className="text-[11px] font-black text-slate-500 mb-1">{t.guidanceLabel}</p>
+                        <div
+                            ref={guidanceRef}
+                            onScroll={() => {
+                                const node = guidanceRef.current;
+                                if (!node) return;
+                                const maxScrollable = node.scrollHeight - node.clientHeight;
+                                if (maxScrollable <= 0) {
+                                    setGuidanceProgress(100);
+                                    setHasReviewedGuidance(true);
+                                    return;
+                                }
+
+                                const progress = Math.min(100, Math.round((node.scrollTop / maxScrollable) * 100));
+                                setGuidanceProgress(progress);
+                                setHasReviewedGuidance(node.scrollTop + node.clientHeight >= node.scrollHeight - 4);
+                            }}
+                            className="max-h-52 overflow-y-auto pr-1"
+                        >
+                            <p className="text-sm font-bold text-slate-700 whitespace-pre-wrap">{selectedTranslatedText}</p>
+                        </div>
                     </div>
                 </div>
 
-                <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex items-center justify-between gap-3 mb-3">
-                        <div>
-                            <p className="text-xs font-black text-slate-500">{uiText.selectedAudioLabel}</p>
-                            <p className="text-sm font-black text-slate-900">{TRAINING_AUDIO_LANGUAGES.find((item) => item.code === effectiveLangKey)?.flag} {effectiveLangKey}</p>
-                        </div>
-                        <span className={`text-[11px] font-black ${selectedAudioUrl ? 'text-emerald-700' : 'text-amber-700'}`}>
-                            {selectedAudioUrl ? (isKoreanAudioFallback ? `${uiText.mp3Connected} · 한국어 대체` : uiText.mp3Connected) : uiText.mp3Missing}
-                        </span>
-                    </div>
+                <div className="mt-4 p-4 rounded-xl border border-indigo-200 bg-indigo-50/50">
+                    <p className="text-sm font-black text-indigo-900">{t.comprehensionTitle}</p>
+                    <p className="text-[11px] font-bold text-indigo-700 mt-1">{t.comprehensionDescription}</p>
+                    <p className="mt-3 text-[11px] font-black text-slate-600">
+                        {t.progressLabel}: <span className="text-slate-800">{guidanceProgress}%</span>
+                    </p>
+                    <p className={`mt-1 text-[11px] font-black ${hasReviewedGuidance ? 'text-emerald-700' : 'text-amber-700'}`}>
+                        {hasReviewedGuidance ? t.progressReady : t.progressPending}
+                    </p>
 
-                    {selectedAudioUrl ? (
-                        <audio
-                            ref={audioRef}
-                            src={selectedAudioUrl}
-                            controls
-                            preload="metadata"
-                            className="w-full"
-                            onPlay={() => {
-                                setIsPlaying(true);
-                                setHasAudioStarted(true);
+                    <div className="mt-3 space-y-2">
+                        <label className="flex items-start gap-2 text-xs font-bold text-slate-700">
+                            <input
+                                type="checkbox"
+                                checked={checklist.riskReview}
+                                onChange={(event) => setChecklist((prev) => ({ ...prev, riskReview: event.target.checked }))}
+                                className="mt-0.5"
+                            />
+                            <span>{t.checkRiskReview}</span>
+                        </label>
+                        <label className="flex items-start gap-2 text-xs font-bold text-slate-700">
+                            <input
+                                type="checkbox"
+                                checked={checklist.ppeConfirm}
+                                onChange={(event) => setChecklist((prev) => ({ ...prev, ppeConfirm: event.target.checked }))}
+                                className="mt-0.5"
+                            />
+                            <span>{t.checkPpeConfirm}</span>
+                        </label>
+                        <label className="flex items-start gap-2 text-xs font-bold text-slate-700">
+                            <input
+                                type="checkbox"
+                                checked={checklist.emergencyConfirm}
+                                onChange={(event) => setChecklist((prev) => ({ ...prev, emergencyConfirm: event.target.checked }))}
+                                className="mt-0.5"
+                            />
+                            <span>{t.checkEmergencyConfirm}</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div className="mt-4">
+                    <label className="block text-xs font-black text-slate-500 mb-2">{t.signatureLabel}</label>
+                    <p className="mb-2 text-[11px] font-bold text-slate-600">{t.understandingPledgeHint}</p>
+                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
+                        <SignatureCanvas
+                            ref={(ref) => {
+                                sigRef.current = ref;
                             }}
-                            onPause={() => setIsPlaying(false)}
-                            onEnded={() => {
-                                setIsPlaying(false);
-                                if (isGroupProxyMode) setGroupAudioCompleted(true);
+                            penColor="black"
+                            canvasProps={{
+                                width: 700,
+                                height: 220,
+                                className: 'w-full h-[220px]'
                             }}
                         />
-                    ) : null}
-
-                    <p className={`mt-3 text-xs font-bold ${selectedAudioUrl ? 'text-slate-600' : 'text-amber-700'}`}>
-                        {selectedAudioUrl
-                            ? (isPlaying
-                                ? uiText.audioRecorded
-                                : (isKoreanAudioFallback
-                                    ? getKoreanFallbackHint(effectiveLangKey, false)
-                                    : uiText.audioActivateHint))
-                            : uiText.audioHiddenHint}
-                    </p>
-                </div>
-
-                <div className="mt-4 p-4 rounded-2xl border border-slate-200 bg-white">
-                    <div className="flex items-center justify-between gap-3 mb-2">
-                        <p className="text-xs font-black text-slate-500">{uiText.translatedScriptLabel}</p>
-                        <span className={`text-[11px] font-black ${hasScrolledToEnd ? 'text-emerald-700' : 'text-amber-700'}`}>{uiText.scrollLabel} {guidanceProgress}%</span>
                     </div>
-                    <div
-                        ref={guidanceRef}
-                        onScroll={() => {
-                            const node = guidanceRef.current;
-                            if (!node) return;
-                            const maxScrollable = node.scrollHeight - node.clientHeight;
-                            if (maxScrollable <= 0) {
-                                setGuidanceProgress(100);
-                                setHasScrolledToEnd(true);
-                                return;
-                            }
-                            const progress = Math.min(100, Math.round((node.scrollTop / maxScrollable) * 100));
-                            const reachedEnd = node.scrollTop + node.clientHeight >= node.scrollHeight - 4;
-                            setGuidanceProgress(progress);
-                            setHasScrolledToEnd(reachedEnd);
-                        }}
-                        className="max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-4"
+                    <button
+                        onClick={handleClear}
+                        className="mt-2 px-4 py-2 text-xs font-black rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
                     >
-                        <p className="text-sm font-bold text-slate-700 whitespace-pre-wrap leading-7">{selectedTranslatedText}</p>
-                    </div>
-                    <p className={`mt-2 text-[11px] font-black ${hasScrolledToEnd ? 'text-emerald-700' : 'text-slate-500'}`}>
-                        {hasScrolledToEnd ? uiText.scriptReadSaved : uiText.scriptScrollHint}
-                    </p>
+                        {t.signatureClear}
+                    </button>
                 </div>
-
-                {isGroupProxyMode && (
-                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
-                        <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-black text-slate-900">{groupText.signatureQueueTitle}</p>
-                            <span className={`text-xs font-black ${groupAudioCompleted ? 'text-emerald-700' : 'text-amber-700'}`}>
-                                {groupAudioCompleted ? groupText.audioCompletedLabel : groupText.playAudioOnceHint}
-                            </span>
-                        </div>
-                        {isKoreanAudioFallback && (
-                            <p className="text-xs font-black text-indigo-700">{getKoreanFallbackHint(effectiveLangKey, true)}</p>
-                        )}
-                        <p className="text-[11px] font-bold text-slate-600">{groupText.signaturePadHint}</p>
-
-                        {canUseGroupSignature && selectedWorkers.map((worker) => (
-                            <div key={worker.id} className="rounded-xl border border-slate-200 p-3">
-                                <p className="text-sm font-black text-slate-800">{worker.name}</p>
-                                <p className="text-[11px] font-bold text-slate-500 mb-2">worker_id: {worker.id}</p>
-                                <div className="relative border border-slate-200 rounded-xl overflow-hidden bg-white">
-                                    <SignatureCanvas
-                                        ref={(ref) => {
-                                            groupSigRefs.current[worker.id] = ref;
-                                        }}
-                                        penColor="black"
-                                        canvasProps={{
-                                            width: 700,
-                                            height: 180,
-                                            className: 'w-full h-[180px]',
-                                        }}
-                                    />
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => handleGroupPadClear(worker.id)}
-                                    className="mt-2 px-3 py-1.5 text-xs font-black rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
-                                >
-                                    {uiText.signatureClear}
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {!isGroupProxyMode && (
-                    <SignaturePadSection
-                        selectedLanguageCode={selectedLanguageCode}
-                        uiText={uiText}
-                        hasEngagementProof={hasEngagementProof}
-                        hasAcknowledged={hasAcknowledged}
-                        setHasAcknowledged={setHasAcknowledged}
-                        canUseSignature={canUseSignature}
-                        sigRef={sigRef}
-                        handleClear={handleClear}
-                    />
-                )}
 
                 <button
-                    onClick={isGroupProxyMode ? handleGroupProxySubmit : handleSubmit}
-                    disabled={submitting || submitted || (isGroupProxyMode ? !canUseGroupSignature : !canUseSignature)}
+                    onClick={handleSubmit}
+                    disabled={submitting || submitted || !isComprehensionReady}
                     className="mt-6 w-full py-3 rounded-xl bg-indigo-600 text-white font-black hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                    {submitting ? uiText.submitting : (isGroupProxyMode ? groupText.submitGroup : uiText.submit)}
+                    {submitted ? t.alreadySubmitted : (submitting ? t.submitting : t.submit)}
                 </button>
 
                 {message && <p className="mt-3 text-sm font-bold text-slate-700">{message}</p>}
