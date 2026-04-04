@@ -58,6 +58,9 @@ const UI_TEXT: Record<UiLocale, {
     removeDone: string;
     noSessionToDelete: string;
     qrTitle: string;
+    qrExpand: string;
+    qrExpandHint: string;
+    qrClose: string;
     shareTitle: string;
     directAccessHint: string;
     failedLangTitle: string;
@@ -137,6 +140,9 @@ const UI_TEXT: Record<UiLocale, {
         removeDone: '표시 중인 세션 정보를 화면에서 제거했습니다.',
         noSessionToDelete: '삭제할 세션이 없습니다.',
         qrTitle: '근로자 접속 QR',
+        qrExpand: 'QR 대형 화면으로 보기',
+        qrExpandHint: '교육 시 전면 화면으로 띄워 먼 거리에서도 스캔할 수 있게 보여주세요.',
+        qrClose: '닫기',
         shareTitle: '공유 텍스트',
         directAccessHint: 'QR 접속이 어려운 근로자에게는 아래 링크/공유 텍스트를 메신저로 직접 전송하거나 관리자 휴대폰 브라우저에 링크를 직접 입력해 접속시켜 주세요.',
         failedLangTitle: '음성 미생성 언어 (텍스트 대체)',
@@ -216,6 +222,9 @@ const UI_TEXT: Record<UiLocale, {
         removeDone: 'Cleared currently displayed session.',
         noSessionToDelete: 'No session to delete.',
         qrTitle: 'Worker Access QR',
+        qrExpand: 'Open large QR display',
+        qrExpandHint: 'Show this on a large screen during training so workers can scan from a distance.',
+        qrClose: 'Close',
         shareTitle: 'Share Text',
         directAccessHint: 'If a worker cannot scan the QR, send the link/share text below by messenger or open the link directly on the supervisor phone browser.',
         failedLangTitle: 'Audio failed languages (text fallback)',
@@ -295,6 +304,9 @@ const UI_TEXT: Record<UiLocale, {
         removeDone: 'Đã xóa thông tin phiên khỏi màn hình.',
         noSessionToDelete: 'Không có phiên để xóa.',
         qrTitle: 'QR truy cập cho công nhân',
+        qrExpand: 'Mở QR cỡ lớn',
+        qrExpandHint: 'Hãy hiển thị toàn màn hình khi đào tạo để công nhân có thể quét từ xa.',
+        qrClose: 'Đóng',
         shareTitle: 'Nội dung chia sẻ',
         directAccessHint: 'Nếu công nhân không quét được QR, hãy gửi trực tiếp liên kết/nội dung chia sẻ bên dưới qua ứng dụng nhắn tin hoặc mở liên kết trên điện thoại của quản lý.',
         failedLangTitle: 'Ngôn ngữ lỗi âm thanh (thay bằng văn bản)',
@@ -374,6 +386,9 @@ const UI_TEXT: Record<UiLocale, {
         removeDone: '已从界面移除当前会话信息。',
         noSessionToDelete: '没有可删除的会话。',
         qrTitle: '工人访问二维码',
+        qrExpand: '放大显示二维码',
+        qrExpandHint: '培训时请全屏展示，方便工人远距离扫描。',
+        qrClose: '关闭',
         shareTitle: '分享文本',
         directAccessHint: '如果工人无法扫描二维码，请通过聊天工具直接发送下方链接/分享文本，或由管理员在手机浏览器中直接打开该链接。',
         failedLangTitle: '语音失败语言（文本替代）',
@@ -492,6 +507,7 @@ const AdminTraining: React.FC = () => {
     const [mobileUrl, setMobileUrl] = useState('');
     const [currentSessionId, setCurrentSessionId] = useState('');
     const [linkExpiresAt, setLinkExpiresAt] = useState<number | null>(null);
+    const [isQrExpanded, setIsQrExpanded] = useState(false);
     const [message, setMessage] = useState('');
     const [reissuingLink, setReissuingLink] = useState(false);
     const [uploadingAudio, setUploadingAudio] = useState(false);
@@ -525,6 +541,19 @@ const AdminTraining: React.FC = () => {
             mobileUrl,
         ].join('\n')
         : '';
+
+    useEffect(() => {
+        if (!isQrExpanded) return;
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                setIsQrExpanded(false);
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isQrExpanded]);
 
     const requestSignedMobileUrl = async (sessionId: string) => {
         const response = await fetch('/api/admin/reissue-training-link', {
@@ -972,6 +1001,7 @@ const AdminTraining: React.FC = () => {
         setMobileUrl('');
         setCurrentSessionId('');
         setLinkExpiresAt(null);
+        setIsQrExpanded(false);
         setSessionAudioUrls({});
         setAudioUploadFiles({});
         setFailedLanguages([]);
@@ -1252,7 +1282,20 @@ const AdminTraining: React.FC = () => {
 
             {mobileUrl && (
                 <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
-                    <h3 className="text-xl font-black text-slate-900">{t.qrTitle}</h3>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h3 className="text-xl font-black text-slate-900">{t.qrTitle}</h3>
+                            <p className="mt-1 text-[11px] font-bold text-slate-500">{t.qrExpandHint}</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setIsQrExpanded(true)}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white hover:bg-slate-800"
+                        >
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" /></svg>
+                            {t.qrExpand}
+                        </button>
+                    </div>
                     {currentSessionId && <p className="text-[11px] font-bold text-slate-500 mt-1">세션 ID: {currentSessionId}</p>}
                     {linkExpiresAt && (
                         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -1270,7 +1313,7 @@ const AdminTraining: React.FC = () => {
                     <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
                         <p className="text-[11px] font-black text-amber-800">{t.directAccessHint}</p>
                     </div>
-                    <div className="mt-4">
+                    <div className="mt-4 flex justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4">
                         <QRCodeCanvas value={mobileUrl} size={220} />
                     </div>
                     <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1342,6 +1385,34 @@ const AdminTraining: React.FC = () => {
                         >
                             {deletingSessionId === currentSessionId ? t.deleting : t.deleteCurrent}
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {mobileUrl && isQrExpanded && (
+                <div className="fixed inset-0 z-[70] bg-slate-950/90 backdrop-blur-sm p-4 sm:p-8">
+                    <div className="mx-auto flex h-full max-w-6xl flex-col rounded-[32px] border border-white/10 bg-slate-900 text-white shadow-2xl">
+                        <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4 sm:px-8 sm:py-6">
+                            <div>
+                                <h3 className="text-xl sm:text-3xl font-black">{t.qrTitle}</h3>
+                                <p className="mt-2 text-sm font-bold text-slate-300">{t.qrExpandHint}</p>
+                                {currentSessionId && <p className="mt-2 text-xs font-black text-slate-400">세션 ID: {currentSessionId}</p>}
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setIsQrExpanded(false)}
+                                className="rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-sm font-black text-white hover:bg-white/15"
+                            >
+                                {t.qrClose}
+                            </button>
+                        </div>
+                        <div className="flex flex-1 flex-col items-center justify-center gap-6 px-5 py-6 sm:px-8 sm:py-10">
+                            <div className="rounded-[32px] bg-white p-5 shadow-2xl sm:p-8">
+                                <QRCodeCanvas value={mobileUrl} size={520} />
+                            </div>
+                            <p className="max-w-4xl break-all text-center text-sm font-bold text-slate-300">{mobileUrl}</p>
+                            <p className="text-center text-xs font-black text-slate-400">ESC 키 또는 닫기 버튼으로 대형 QR 화면을 종료할 수 있습니다.</p>
+                        </div>
                     </div>
                 </div>
             )}
