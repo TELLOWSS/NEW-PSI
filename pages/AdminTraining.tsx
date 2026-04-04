@@ -18,6 +18,15 @@ const UI_TEXT: Record<UiLocale, {
     sharedCopy: string;
     directLinkCopy: string;
     shortShareCopy: string;
+    audioUploadTitle: string;
+    audioUploadSubtitle: string;
+    audioUploadSelect: string;
+    audioUploadPending: string;
+    audioUploadDone: string;
+    audioUploadButton: string;
+    audioUploading: string;
+    audioUploadDoneMessage: string;
+    audioUploadMissing: string;
     shareHeader: string;
     shareFailedPrefix: string;
     shareAllAudioLine: string;
@@ -88,6 +97,15 @@ const UI_TEXT: Record<UiLocale, {
         sharedCopy: '공유 텍스트 복사',
         directLinkCopy: '직접 링크 복사',
         shortShareCopy: '짧은 안내문 복사',
+        audioUploadTitle: '국적별 팟캐스트 음성 업로드',
+        audioUploadSubtitle: '외부에서 제작한 MP3/M4A 음성을 언어별로 올리면 근로자 접속 시 해당 국적 언어가 자동 재생 대상이 됩니다.',
+        audioUploadSelect: '파일 선택',
+        audioUploadPending: '업로드 필요',
+        audioUploadDone: '업로드 완료',
+        audioUploadButton: '선택 음성 업로드',
+        audioUploading: '음성 업로드 중...',
+        audioUploadDoneMessage: '국적별 음성 업로드를 저장했습니다.',
+        audioUploadMissing: '업로드할 음성을 하나 이상 선택해 주세요.',
         shareHeader: '[PSI 다국어 안전교육 링크]',
         shareFailedPrefix: '음성 미생성 언어(텍스트 대체)',
         shareAllAudioLine: '모든 선택 언어의 음성 안내가 생성되었습니다.',
@@ -158,6 +176,15 @@ const UI_TEXT: Record<UiLocale, {
         sharedCopy: 'Copy share text',
         directLinkCopy: 'Copy direct link',
         shortShareCopy: 'Copy short message',
+        audioUploadTitle: 'Upload podcast audio by language',
+        audioUploadSubtitle: 'Upload externally prepared MP3/M4A audio by language. Workers will hear the matching nationality language when they access.',
+        audioUploadSelect: 'Select file',
+        audioUploadPending: 'Upload needed',
+        audioUploadDone: 'Uploaded',
+        audioUploadButton: 'Upload selected audio',
+        audioUploading: 'Uploading audio...',
+        audioUploadDoneMessage: 'Saved language audio uploads.',
+        audioUploadMissing: 'Please select at least one audio file to upload.',
         shareHeader: '[PSI Multilingual Safety Training Link]',
         shareFailedPrefix: 'Audio failed languages (text fallback)',
         shareAllAudioLine: 'Audio guidance has been generated for all selected languages.',
@@ -228,6 +255,15 @@ const UI_TEXT: Record<UiLocale, {
         sharedCopy: 'Sao chép nội dung chia sẻ',
         directLinkCopy: 'Sao chép liên kết trực tiếp',
         shortShareCopy: 'Sao chép tin nhắn ngắn',
+        audioUploadTitle: 'Tải âm thanh podcast theo ngôn ngữ',
+        audioUploadSubtitle: 'Tải lên file MP3/M4A đã chuẩn bị sẵn theo từng ngôn ngữ. Khi công nhân truy cập, hệ thống sẽ phát ngôn ngữ phù hợp.',
+        audioUploadSelect: 'Chọn tệp',
+        audioUploadPending: 'Cần tải lên',
+        audioUploadDone: 'Đã tải lên',
+        audioUploadButton: 'Tải lên âm thanh đã chọn',
+        audioUploading: 'Đang tải âm thanh...',
+        audioUploadDoneMessage: 'Đã lưu âm thanh theo ngôn ngữ.',
+        audioUploadMissing: 'Vui lòng chọn ít nhất một file âm thanh để tải lên.',
         shareHeader: '[Liên kết đào tạo an toàn đa ngôn ngữ PSI]',
         shareFailedPrefix: 'Ngôn ngữ lỗi âm thanh (thay bằng văn bản)',
         shareAllAudioLine: 'Đã tạo âm thanh hướng dẫn cho tất cả ngôn ngữ đã chọn.',
@@ -298,6 +334,15 @@ const UI_TEXT: Record<UiLocale, {
         sharedCopy: '复制分享文本',
         directLinkCopy: '复制直接链接',
         shortShareCopy: '复制简短说明',
+        audioUploadTitle: '按语言上传播客音频',
+        audioUploadSubtitle: '上传外部制作好的 MP3/M4A 音频。工人访问时会按国籍语言播放对应音频。',
+        audioUploadSelect: '选择文件',
+        audioUploadPending: '需要上传',
+        audioUploadDone: '已上传',
+        audioUploadButton: '上传所选音频',
+        audioUploading: '音频上传中...',
+        audioUploadDoneMessage: '已保存语言音频文件。',
+        audioUploadMissing: '请至少选择一个音频文件上传。',
         shareHeader: '[PSI 多语言安全培训链接]',
         shareFailedPrefix: '语音失败语言（文本替代）',
         shareAllAudioLine: '已为所有所选语言生成语音指引。',
@@ -449,10 +494,13 @@ const AdminTraining: React.FC = () => {
     const [linkExpiresAt, setLinkExpiresAt] = useState<number | null>(null);
     const [message, setMessage] = useState('');
     const [reissuingLink, setReissuingLink] = useState(false);
+    const [uploadingAudio, setUploadingAudio] = useState(false);
     const [linkHistory, setLinkHistory] = useState<LinkHistoryItem[]>([]);
     const [awarenessStats, setAwarenessStats] = useState<AwarenessStats | null>(null);
     const [awarenessLoading, setAwarenessLoading] = useState(false);
     const [awarenessError, setAwarenessError] = useState('');
+    const [sessionAudioUrls, setSessionAudioUrls] = useState<Record<string, string | null>>({});
+    const [audioUploadFiles, setAudioUploadFiles] = useState<Record<string, File | null>>({});
     const [failedLanguages, setFailedLanguages] = useState<string[]>([]);
     const [failedLanguageAttempts, setFailedLanguageAttempts] = useState<Record<string, string[]>>({});
     const [savedPreset, setSavedPreset] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
@@ -647,6 +695,8 @@ const AdminTraining: React.FC = () => {
         if (session.source_text_ko) setSourceTextKo(session.source_text_ko);
 
         const restoredAudioUrls = session.audio_urls || {};
+        setSessionAudioUrls(restoredAudioUrls);
+        setAudioUploadFiles({});
         const restoredFailed = Object.entries(restoredAudioUrls)
             .filter(([, url]) => !url)
             .map(([lang]) => lang);
@@ -709,6 +759,90 @@ const AdminTraining: React.FC = () => {
         });
     };
 
+    const handleSelectAudioFile = (code: string, file: File | null) => {
+        setAudioUploadFiles((prev) => ({
+            ...prev,
+            [code]: file,
+        }));
+    };
+
+    const readFileAsBase64 = (file: File) => {
+        return new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ''));
+            reader.onerror = () => reject(new Error(`${file.name} 읽기 실패`));
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const handleUploadTrainingAudio = async () => {
+        if (!currentSessionId) {
+            setMessage(t.noSessionToDelete);
+            return;
+        }
+
+        const selectedEntries = Object.entries(audioUploadFiles).filter(([, file]) => file instanceof File) as Array<[string, File]>;
+        if (selectedEntries.length === 0) {
+            alert(t.audioUploadMissing);
+            return;
+        }
+
+        setUploadingAudio(true);
+        setMessage('');
+
+        try {
+            const filesPayload = Object.fromEntries(
+                await Promise.all(
+                    selectedEntries.map(async ([code, file]) => {
+                        const base64 = await readFileAsBase64(file);
+                        return [code, {
+                            fileName: file.name,
+                            contentType: file.type || 'audio/mpeg',
+                            base64,
+                        }];
+                    })
+                )
+            );
+
+            const response = await fetch('/api/admin/upload-training-audio', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sessionId: currentSessionId,
+                    originalScript: sourceTextKo,
+                    files: filesPayload,
+                }),
+            });
+
+            const contentType = response.headers.get('content-type') || '';
+            const raw = await response.text();
+            let data: any = null;
+
+            if (raw && contentType.includes('application/json')) {
+                try {
+                    data = JSON.parse(raw);
+                } catch {
+                    throw new Error(t.parseFail);
+                }
+            }
+
+            if (!response.ok || !data?.ok) {
+                throw new Error(data?.message || `음성 업로드 실패 (HTTP ${response.status})`);
+            }
+
+            const nextAudioUrls = data?.audioUrls && typeof data.audioUrls === 'object' ? data.audioUrls : {};
+            setSessionAudioUrls(nextAudioUrls);
+            setFailedLanguages(Array.isArray(data?.missingLanguages) ? data.missingLanguages : []);
+            setAudioUploadFiles({});
+            void fetchRecentSessions();
+            setMessage(t.audioUploadDoneMessage);
+        } catch (error: any) {
+            setMessage(`${t.errorPrefix}: ${error?.message || t.createFail}`);
+        } finally {
+            setUploadingAudio(false);
+        }
+    };
+
     const handleCreate = async () => {
         if (!sourceTextKo.trim()) {
             alert(t.emptySourceAlert);
@@ -725,6 +859,8 @@ const AdminTraining: React.FC = () => {
         setMobileUrl('');
         setCurrentSessionId('');
         setLinkExpiresAt(null);
+        setSessionAudioUrls({});
+        setAudioUploadFiles({});
         setFailedLanguages([]);
         setFailedLanguageAttempts({});
 
@@ -763,6 +899,8 @@ const AdminTraining: React.FC = () => {
             setMobileUrl(data.mobileUrl || '');
             setCurrentSessionId(String(data.sessionId || ''));
             setLinkExpiresAt(Number(data.linkExpiresAt || 0) || null);
+            setSessionAudioUrls(data?.audioUrls && typeof data.audioUrls === 'object' ? data.audioUrls : {});
+            setAudioUploadFiles({});
             if (data.sessionId && data.mobileUrl && data.linkExpiresAt) {
                 appendLinkHistory({
                     sessionId: String(data.sessionId),
@@ -834,6 +972,8 @@ const AdminTraining: React.FC = () => {
         setMobileUrl('');
         setCurrentSessionId('');
         setLinkExpiresAt(null);
+        setSessionAudioUrls({});
+        setAudioUploadFiles({});
         setFailedLanguages([]);
         setFailedLanguageAttempts({});
         setAwarenessStats(null);
@@ -920,6 +1060,27 @@ const AdminTraining: React.FC = () => {
                 <h2 className="text-2xl font-black text-slate-900">{t.title}</h2>
                 <p className="text-sm font-bold text-slate-500 mt-2">{t.subtitle}</p>
 
+                <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+                    <p className="text-sm font-black text-indigo-900">관리자 사용 순서</p>
+                    <div className="mt-2 space-y-2 text-[12px] font-black text-indigo-800">
+                        <p>1. 한국어 안내문만 입력합니다.</p>
+                        <p>2. 필요한 국적 언어만 체크합니다.</p>
+                        <p>3. 세션 생성 후 외부에서 준비한 팟캐스트 음성을 언어별로 업로드합니다.</p>
+                    </div>
+                    <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3">
+                        <p className="text-[12px] font-black text-emerald-800">외부 제작 팟캐스트 음성 업로드 방식</p>
+                        <p className="mt-1 text-[11px] font-bold text-emerald-700">MP3/M4A 파일을 나라별로 업로드해 두면 근로자 접속 시 해당 언어 음성을 우선 재생합니다.</p>
+                    </div>
+                    <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50 px-3 py-3">
+                        <p className="text-[12px] font-black text-violet-800">운영 목적</p>
+                        <p className="mt-1 text-[11px] font-bold text-violet-700">다국적 근로자에게 국적별 모국어 음성을 제공해 교육 이해도와 사전 집중도를 높이는 용도입니다. 현장에서는 팟캐스트형 음성 안내로 재생하면 됩니다.</p>
+                    </div>
+                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+                        <p className="text-[12px] font-black text-amber-800">안되는 언어 대응</p>
+                        <p className="mt-1 text-[11px] font-bold text-amber-700">몽골어 등 일부 언어는 생성 대상에 포함되어 있어도 외부 음성 생성 상태에 따라 실패할 수 있습니다. 이 경우 해당 언어는 텍스트 안내로 자동 대체하고, 필요 시 가장 가까운 공용 언어(예: 한국어/영어/러시아어) 또는 현장 통역 지원을 함께 운영하세요.</p>
+                    </div>
+                </div>
+
                 <textarea
                     value={sourceTextKo}
                     onChange={(e) => setSourceTextKo(e.target.value)}
@@ -931,6 +1092,9 @@ const AdminTraining: React.FC = () => {
                 <div className="mt-4">
                     <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                         <p className="text-xs font-black text-slate-600">{t.selectLanguages}</p>
+                        <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-black border border-slate-200">
+                            선택 {selectedLanguages.length}개
+                        </span>
                         <button
                             type="button"
                             onClick={() => setSelectedLanguages([...savedPreset])}
@@ -941,18 +1105,23 @@ const AdminTraining: React.FC = () => {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {LANGUAGE_OPTIONS.map((lang) => (
-                            <label key={lang.code} className="flex items-center gap-2 p-2 rounded-lg border border-slate-200 bg-slate-50">
+                            <label key={lang.code} className={`flex items-center justify-between gap-3 p-3 rounded-xl border ${selectedLanguages.includes(lang.code) ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-slate-50'}`}>
+                                <div className="flex items-center gap-2 min-w-0">
                                 <input
                                     type="checkbox"
                                     checked={selectedLanguages.includes(lang.code)}
                                     onChange={() => toggleLanguage(lang.code)}
                                 />
-                                <span className="text-xs font-bold text-slate-700">{lang.label[uiLocale]} ({lang.code})</span>
+                                    <span className="text-xs font-bold text-slate-700">{lang.label[uiLocale]} ({lang.code})</span>
+                                </div>
+                                <span className={`shrink-0 px-2 py-1 rounded-md text-[10px] font-black border ${selectedLanguages.includes(lang.code) ? 'border-indigo-200 bg-white text-indigo-700' : 'border-slate-200 bg-white text-slate-500'}`}>
+                                    업로드대상
+                                </span>
                             </label>
                         ))}
                     </div>
                     <p className="mt-2 text-[11px] font-bold text-slate-500">
-                        기본값은 설정 페이지의 "다국어 교육 기본 언어 세트"를 따르며, 미설정 시 현장 다국적 기본 세트가 적용됩니다.
+                        체크한 언어만 외부 팟캐스트 음성 업로드 대상입니다. 기본값은 설정 페이지의 "다국어 교육 기본 언어 세트"를 따릅니다.
                     </p>
                 </div>
 
@@ -988,6 +1157,7 @@ const AdminTraining: React.FC = () => {
                                 );
                             })}
                         </div>
+                        <p className="mt-2 text-[11px] font-black text-amber-700">해당 언어는 근로자 화면에서 텍스트 안내로 자동 대체됩니다.</p>
                     </div>
                 )}
             </div>
@@ -1103,60 +1273,75 @@ const AdminTraining: React.FC = () => {
                     <div className="mt-4">
                         <QRCodeCanvas value={mobileUrl} size={220} />
                     </div>
-                    <div className="mt-4">
-                        <p className="text-xs font-black text-slate-600 mb-2">{t.shareTitle}</p>
-                        <textarea
-                            value={shareText}
-                            readOnly
-                            rows={4}
-                            className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-xs"
-                        />
+                    <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <h4 className="text-sm font-black text-slate-900">{t.audioUploadTitle}</h4>
+                        <p className="mt-1 text-[11px] font-bold text-slate-600">{t.audioUploadSubtitle}</p>
+
+                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {selectedLanguages.map((code) => {
+                                const languageLabel = LANGUAGE_OPTIONS.find((item) => item.code === code)?.label[uiLocale] || code;
+                                const uploadedUrl = sessionAudioUrls?.[code];
+                                const selectedFile = audioUploadFiles?.[code];
+
+                                return (
+                                    <div key={code} className={`rounded-2xl border px-3 py-3 ${uploadedUrl ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-white'}`}>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div>
+                                                <p className="text-sm font-black text-slate-900">{languageLabel}</p>
+                                                <p className="text-[10px] font-black text-slate-500">{code}</p>
+                                            </div>
+                                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${uploadedUrl ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                {uploadedUrl ? t.audioUploadDone : t.audioUploadPending}
+                                            </span>
+                                        </div>
+
+                                        <label className="mt-3 block w-full cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-3 text-center text-[11px] font-black text-slate-700 hover:bg-slate-100">
+                                            {selectedFile ? selectedFile.name : t.audioUploadSelect}
+                                            <input
+                                                type="file"
+                                                accept=".mp3,.m4a,audio/mpeg,audio/mp4,audio/x-m4a"
+                                                className="hidden"
+                                                onChange={(event) => handleSelectAudioFile(code, event.target.files?.[0] || null)}
+                                            />
+                                        </label>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
                         <button
                             type="button"
-                            onClick={handleCopyShareText}
-                            className="mt-2 px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-black border border-slate-200 hover:bg-slate-200"
+                            onClick={() => void handleUploadTrainingAudio()}
+                            disabled={uploadingAudio || !currentSessionId}
+                            className="mt-4 px-4 py-3 rounded-xl bg-emerald-600 text-white text-sm font-black hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                            {t.sharedCopy}
+                            {uploadingAudio ? t.audioUploading : t.audioUploadButton}
                         </button>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                            <button
-                                type="button"
-                                onClick={handleCopyDirectLink}
-                                className="px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-black border border-emerald-200 hover:bg-emerald-100"
-                            >
-                                {t.directLinkCopy}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleCopyShortShareText}
-                                className="px-4 py-2 rounded-lg bg-amber-50 text-amber-700 text-xs font-black border border-amber-200 hover:bg-amber-100"
-                            >
-                                {t.shortShareCopy}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => void handleReissueCurrentLink()}
-                                disabled={reissuingLink || !currentSessionId}
-                                className="px-4 py-2 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-black border border-indigo-200 hover:bg-indigo-100 disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                                {reissuingLink ? t.reissuing : t.reissueLink}
-                            </button>
-                            <button
-                                type="button"
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            onClick={() => void handleReissueCurrentLink()}
+                            disabled={reissuingLink || !currentSessionId}
+                            className="px-4 py-2 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-black border border-indigo-200 hover:bg-indigo-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            {reissuingLink ? t.reissuing : t.reissueLink}
+                        </button>
+                        <button
+                            type="button"
                                 onClick={clearRenderedSession}
                                 className="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-black border border-slate-200 hover:bg-slate-200"
-                            >
-                                {t.removeFromScreen}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={handleDeleteSession}
-                                disabled={!!deletingSessionId || !currentSessionId}
-                                className="px-4 py-2 rounded-lg bg-rose-50 text-rose-700 text-xs font-black border border-rose-200 hover:bg-rose-100 disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                                {deletingSessionId === currentSessionId ? t.deleting : t.deleteCurrent}
-                            </button>
-                        </div>
+                        >
+                            {t.removeFromScreen}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleDeleteSession}
+                            disabled={!!deletingSessionId || !currentSessionId}
+                            className="px-4 py-2 rounded-lg bg-rose-50 text-rose-700 text-xs font-black border border-rose-200 hover:bg-rose-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            {deletingSessionId === currentSessionId ? t.deleting : t.deleteCurrent}
+                        </button>
                     </div>
                 </div>
             )}
