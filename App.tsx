@@ -788,7 +788,7 @@ const App: React.FC = () => {
                                 onUpdateRecord={handleUpdateRecord} 
                             />
                         )}
-                        {currentPage === 'worker-management' && <WorkerManagement workerRecords={workerRecords} onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} onUpdateRecord={handleUpdateRecord} />}
+                        {currentPage === 'worker-management' && <WorkerManagement workerRecords={workerRecords} onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} onOpenPhotoRegistration={(r, queueRecordIds) => setModalState({type:'recordDetail', record:r, source:'worker-management-photo-queue', queueRecordIds})} onUpdateRecord={handleUpdateRecord} />}
                         {currentPage === 'individual-report' && recordForReport && (
                             <IndividualReport 
                                 record={recordForReport} 
@@ -820,15 +820,35 @@ const App: React.FC = () => {
             {modalState.type === 'workerHistory' && modalState.record && <WorkerHistoryModal workerName={modalState.workerName!} allRecords={workerRecords} initialSelectedRecord={modalState.record} onClose={() => setModalState({type:null})} onViewDetails={(r) => setModalState({type:'recordDetail', record:r})} onUpdateRecord={handleUpdateRecord} onDeleteRecord={handleDeleteRecord} />}
             {modalState.type === 'recordDetail' && modalState.record && (() => {
                 const latestRecord = workerRecords.find((item) => item.id === modalState.record!.id) || modalState.record!;
+                const hasPhoto = (record: WorkerRecord) => Boolean(typeof record.profileImage === 'string' && record.profileImage.length > 50);
+                const queueIds = Array.isArray(modalState.queueRecordIds) ? modalState.queueRecordIds : [];
+                const currentQueueIndex = queueIds.findIndex((id) => id === latestRecord.id);
+                const nextQueueRecord = currentQueueIndex >= 0
+                    ? queueIds
+                        .slice(currentQueueIndex + 1)
+                        .map((id) => workerRecords.find((item) => item.id === id))
+                        .find((item): item is WorkerRecord => Boolean(item) && !hasPhoto(item)) || null
+                    : null;
                 return (
                 <RecordDetailModal 
                     record={latestRecord} 
                     onClose={() => setModalState({type:null})} 
-                    onBack={() => setModalState({type:'workerHistory', record:latestRecord, workerName:latestRecord.name})} 
+                    onBack={() => modalState.source === 'worker-management-photo-queue' ? setModalState({type:null}) : setModalState({type:'workerHistory', record:latestRecord, workerName:latestRecord.name})} 
                     onUpdateRecord={handleUpdateRecord} 
                     onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); setCurrentPage('individual-report'); }} 
                     onReanalyze={handleReanalyzeRecord} 
                     isReanalyzing={isReanalyzing} 
+                    queueContext={modalState.source === 'worker-management-photo-queue' ? {
+                        currentIndex: currentQueueIndex >= 0 ? currentQueueIndex + 1 : 1,
+                        total: queueIds.length,
+                        nextRecordName: nextQueueRecord?.name || null,
+                    } : undefined}
+                    onOpenNextRecord={nextQueueRecord ? (() => setModalState({
+                        type:'recordDetail',
+                        record: nextQueueRecord,
+                        source:'worker-management-photo-queue',
+                        queueRecordIds: queueIds,
+                    })) : undefined}
                 />
                 );
             })()}

@@ -208,6 +208,10 @@ const getSafeImageSrc = (imageValue: unknown): string | null => {
     return trimmed.startsWith('data:') ? trimmed : `data:image/jpeg;base64,${trimmed}`;
 };
 
+const hasProfilePhoto = (worker: Pick<WorkerRecord, 'profileImage'>): boolean => {
+    return Boolean(getSafeImageSrc(worker.profileImage));
+};
+
 const toDisplayString = (value: unknown, fallback = ''): string => {
     if (typeof value === 'string') {
         const trimmed = value.trim();
@@ -326,9 +330,14 @@ const PremiumSticker: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker 
     const s = getGradeStyle(worker.safetyLevel);
     const roles = getRoleBadge(worker);
     const mainRole = roles.length > 0 ? roles[0] : worker.jobField;
+    const profileImageSrc = getSafeImageSrc(worker.profileImage);
     // [IMPROVED] 약점이 있고 점수가 낮을 때만 주의 표시 (고점수는 주의사항 생략)
     const shouldShowWarning = worker.safetyScore < 80 && worker.weakAreas && Array.isArray(worker.weakAreas) && worker.weakAreas.length > 0;
-    const safeWeakArea = shouldShowWarning ? worker.weakAreas[0] : '안전 기준 달성';
+    const safeWeakArea = shouldShowWarning
+        ? worker.weakAreas[0]
+        : profileImageSrc
+            ? '본인 사진 확인 가능'
+            : '증명사진 등록 권장';
 
     return (
         <div className={`w-[90mm] h-[60mm] bg-white rounded-xl border-[3px] flex overflow-hidden relative break-inside-avoid box-border shadow-sm print:shadow-none ${s.border}`}>
@@ -348,6 +357,16 @@ const PremiumSticker: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker 
             {/* 우측: 정보 섹션 */}
             <div className="flex-1 p-3 flex flex-col justify-between">
                 <div className="flex justify-between items-start gap-2">
+                    <div className="w-[14mm] h-[18mm] bg-slate-100 rounded border border-slate-200 overflow-hidden shrink-0 relative shadow-inner">
+                        {profileImageSrc ? (
+                            <img src={profileImageSrc} className="w-full h-full object-cover" alt={`${worker.name} 프로필`} />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-300 text-sm">👷</div>
+                        )}
+                        <div className="absolute bottom-0 left-0 right-0 bg-slate-900/80 text-white text-[6px] font-black text-center py-[1px] tracking-wide">
+                            PHOTO
+                        </div>
+                    </div>
                     <div className="min-w-0">
                         <div className="flex items-center gap-1.5 mb-1">
                             <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">{worker.nationality}</span>
@@ -365,15 +384,17 @@ const PremiumSticker: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker 
                     <div className={`rounded-lg p-2 border flex items-center gap-2 ${
                         shouldShowWarning 
                             ? 'bg-rose-50 border-rose-100' 
-                            : 'bg-emerald-50 border-emerald-100'
+                            : profileImageSrc
+                                ? 'bg-emerald-50 border-emerald-100'
+                                : 'bg-amber-50 border-amber-100'
                     }`}>
                         <div className={`font-bold text-xs shrink-0 ${
-                            shouldShowWarning ? 'text-rose-500' : 'text-emerald-600'
+                            shouldShowWarning ? 'text-rose-500' : profileImageSrc ? 'text-emerald-600' : 'text-amber-600'
                         }`}>
-                            {shouldShowWarning ? '⚠ 주의' : '✓ 양호'}
+                            {shouldShowWarning ? '⚠ 주의' : profileImageSrc ? '✓ 신원' : '📷 권장'}
                         </div>
                         <div className={`text-[10px] font-bold truncate flex-1 ${
-                            shouldShowWarning ? 'text-slate-600' : 'text-emerald-700'
+                            shouldShowWarning ? 'text-slate-600' : profileImageSrc ? 'text-emerald-700' : 'text-amber-700'
                         }`}>
                             {safeWeakArea}
                         </div>
@@ -503,6 +524,7 @@ const sampleWorker: WorkerRecord = {
 interface WorkerManagementProps {
     workerRecords: WorkerRecord[];
     onViewDetails: (worker: WorkerRecord) => void;
+    onOpenPhotoRegistration?: (worker: WorkerRecord, queueRecordIds: string[]) => void;
     onUpdateRecord?: (worker: WorkerRecord) => Promise<void> | void;
 }
 
@@ -608,13 +630,14 @@ const JOB_FIELD_ALIASES: Record<string, string> = {
     '콘크리트비계': '콘크리트비계',
 };
 
-const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onViewDetails, onUpdateRecord }) => {
+const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onViewDetails, onOpenPhotoRegistration, onUpdateRecord }) => {
     // --- Main View States ---
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedJobField, setSelectedJobField] = useState('전체');
     const [selectedCrew, setSelectedCrew] = useState('전체');
     const [filterLevel, setFilterLevel] = useState('전체');
     const [reliabilityFilter, setReliabilityFilter] = useState<'all' | 'trusted' | 'needs-review'>('all');
+    const [photoFilter, setPhotoFilter] = useState<'all' | 'with-photo' | 'missing-photo'>('all');
     const [isUnassignedFilterActive, setIsUnassignedFilterActive] = useState(() => isUnassignedFilterFromUrl());
 
     useEffect(() => {
@@ -1300,9 +1323,13 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 reliabilityFilter === 'all' ||
                 (reliabilityFilter === 'trusted' && reliability.trusted) ||
                 (reliabilityFilter === 'needs-review' && !reliability.trusted);
-            return matchesSearch && matchesJobField && matchesCrew && matchesLevel && matchesUnassigned && matchesReliability;
+            const matchesPhoto =
+                photoFilter === 'all' ||
+                (photoFilter === 'with-photo' && hasProfilePhoto(r)) ||
+                (photoFilter === 'missing-photo' && !hasProfilePhoto(r));
+            return matchesSearch && matchesJobField && matchesCrew && matchesLevel && matchesUnassigned && matchesReliability && matchesPhoto;
         });
-    }, [latestRecords, searchTerm, selectedJobField, selectedCrew, filterLevel, reliabilityFilter, isUnassignedFilterActive]);
+    }, [latestRecords, searchTerm, selectedJobField, selectedCrew, filterLevel, reliabilityFilter, photoFilter, isUnassignedFilterActive]);
 
     const clearUnassignedFilter = () => {
         setIsUnassignedFilterActive(false);
@@ -1325,6 +1352,29 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             untrustedCount,
         };
     }, [filteredRecords]);
+
+    const filteredPhotoSummary = useMemo(() => {
+        const registeredCount = filteredRecords.filter((worker) => hasProfilePhoto(worker)).length;
+        return {
+            total: filteredRecords.length,
+            registeredCount,
+            missingCount: filteredRecords.length - registeredCount,
+        };
+    }, [filteredRecords]);
+
+    const missingPhotoQueue = useMemo(() => {
+        return filteredRecords
+            .filter((worker) => !hasProfilePhoto(worker))
+            .slice(0, 8);
+    }, [filteredRecords]);
+
+    const openPhotoRegistration = useCallback((worker: WorkerRecord) => {
+        if (onOpenPhotoRegistration) {
+            onOpenPhotoRegistration(worker, filteredRecords.filter((item) => !hasProfilePhoto(item)).map((item) => String(item.id)));
+            return;
+        }
+        onViewDetails(worker);
+    }, [filteredRecords, onOpenPhotoRegistration, onViewDetails]);
 
     const itemsPerPage = printType === 'sticker' ? 8 : 6;
 
@@ -1383,14 +1433,18 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             fallbackUsed: nextPrintTrustMode === 'fallback',
         });
 
+        const missingPhotoCount = printableWorkers.filter((worker) => !hasProfilePhoto(worker)).length;
+
         if (trustedPrintableWorkers.length === 0) {
-            alert(`검증 통과 데이터가 없어 필터 대상 ${allPrintableWorkers.length}명을 예외 출력 모드로 진행합니다.\n\n권장: OCR 재분석 후 재발급으로 최신 증빙 정합성을 확보하세요.`);
+            alert(`검증 통과 데이터가 없어 필터 대상 ${allPrintableWorkers.length}명을 예외 출력 모드로 진행합니다.\n\n권장: OCR 재분석 후 재발급으로 최신 증빙 정합성을 확보하세요.${missingPhotoCount > 0 ? `\n추가 권장: ${missingPhotoCount}명은 증명사진 등록 후 발급하면 현장 신뢰도가 더 높아집니다.` : ''}`);
         } else if (excludedCandidates.length > 0) {
             const reasonSummary = excludedCandidates
                 .flatMap((item) => item.reliability.reasons)
                 .slice(0, 3)
                 .join(', ');
-            alert(`신뢰성 검증 결과\n- 발급 포함: ${printableWorkers.length}명\n- 발급 제외: ${excludedCandidates.length}명\n\n제외 사유 예시: ${reasonSummary}\n\n구 백업 데이터는 OCR 재분석 후 발급해 주세요.`);
+            alert(`신뢰성 검증 결과\n- 발급 포함: ${printableWorkers.length}명\n- 발급 제외: ${excludedCandidates.length}명${missingPhotoCount > 0 ? `\n- 사진 미등록: ${missingPhotoCount}명` : ''}\n\n제외 사유 예시: ${reasonSummary}\n\n구 백업 데이터는 OCR 재분석 후 발급해 주세요.`);
+        } else if (missingPhotoCount > 0) {
+            alert(`발급 대상 ${printableWorkers.length}명 중 ${missingPhotoCount}명은 증명사진이 없습니다.\n\n스티커와 사원증 모두 사진이 들어가면 현장 본인확인과 신뢰감이 더 좋아집니다.`);
         }
 
         const printPath = executeDirectPrint(`PSI-${type}-${printableWorkers.length}명`, printableWorkers, type);
@@ -1611,6 +1665,11 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 ? worker.profileImage.trim()
                                                 : `data:image/jpeg;base64,${worker.profileImage.trim()}`)
                                         : '';
+                                const stickerStatus = score >= 80
+                                    ? (photoSrc
+                                        ? { icon: '👤', text: '본인 사진 확인 가능', tone: '#065f46', bg: '#ecfdf5', border: '#a7f3d0' }
+                                        : { icon: '📷', text: '증명사진 등록 권장', tone: '#92400e', bg: '#fffbeb', border: '#fde68a' })
+                                    : warn;
 
                                 if (targetType === 'sticker') {
                                         return `
@@ -1622,15 +1681,24 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         <div class="score">${score}</div>
     </div>
     <div class="body">
-        <div class="top-row">
-            <span class="chip" style="background:${palette.soft};color:${palette.text};border-color:${palette.accent};">${nation}</span>
-            <span class="chip chip-dark">TEAM ${team}</span>
+        <div class="top-row top-row-main">
+            <div class="photo-box">
+                ${photoSrc ? `<img class="photo" src="${photoSrc}" alt="Profile" />` : `<div class="photo-empty">👷</div>`}
+                <div class="photo-label">PHOTO</div>
+            </div>
+            <div class="title-wrap">
+                <div class="top-row chips-only">
+                    <span class="chip" style="background:${palette.soft};color:${palette.text};border-color:${palette.accent};">${nation}</span>
+                    <span class="chip chip-dark">TEAM ${team}</span>
+                </div>
+                <h3>${name}</h3>
+                <p class="sub">${job}</p>
+            </div>
+            <div class="sticker-qr">QR</div>
         </div>
-        <h3>${name}</h3>
-        <p class="sub">${job}</p>
-        <div class="warn" style="background:${warn.bg};color:${warn.tone};border-color:${warn.border};">
-            <span class="warn-icon">${warn.icon}</span>
-            <span>${escapeHtml(warn.text)}</span>
+        <div class="warn" style="background:${stickerStatus.bg};color:${stickerStatus.tone};border-color:${stickerStatus.border};">
+            <span class="warn-icon">${stickerStatus.icon}</span>
+            <span>${escapeHtml(stickerStatus.text)}</span>
         </div>
         <p class="meta">PSI SAFETY PASS · ID ${idTail}</p>
     </div>
@@ -1679,6 +1747,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         .sticker .left .level { font-size: 13px; font-weight: 900; }
         .sticker .left .score { font-size: 16px; font-weight: 900; }
         .sticker .top-row { display:flex; justify-content:space-between; gap:2mm; margin-bottom:2mm; }
+        .sticker .top-row-main { align-items:flex-start; }
+        .sticker .chips-only { margin-bottom:1.2mm; }
+        .sticker .title-wrap { flex:1; min-width:0; }
+        .sticker .photo-box { width:14mm; height:18mm; border:1px solid #cbd5e1; border-radius:2mm; overflow:hidden; position:relative; background:#f8fafc; flex-shrink:0; }
+        .sticker .photo-label { position:absolute; left:0; right:0; bottom:0; background:rgba(15,23,42,.82); color:#fff; text-align:center; font-size:5.5px; font-weight:900; padding:.4mm 0; letter-spacing:.08em; }
+        .sticker .sticker-qr { width:14mm; height:14mm; border:1px dashed #cbd5e1; border-radius:2mm; display:flex; align-items:center; justify-content:center; font-size:7px; font-weight:900; color:#64748b; background:#fff; flex-shrink:0; }
         .chip { display:inline-flex; align-items:center; border:1px solid; border-radius:999px; padding:0.8mm 2mm; font-size:8px; font-weight:900; }
         .chip-dark { background:#0f172a; color:#fff; border-color:#0f172a; }
         .sub { color:#475569; font-size:10px; }
@@ -2100,7 +2174,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         </div>
                         <h3 className="text-4xl lg:text-5xl font-black mb-4 tracking-tight leading-tight">근로자 보안 패스<br/>통합 발급 센터</h3>
                         <p className="text-slate-400 font-medium text-lg leading-relaxed max-w-xl">
-                            현장의 안전 수준을 시각화하는 <span className="text-indigo-300 font-bold">스마트 스티커</span>와 <span className="text-indigo-300 font-bold">ID 카드</span>를 발급합니다.<br/>
+                            현장의 안전 수준과 본인 확인 신뢰를 함께 보여주는 <span className="text-indigo-300 font-bold">사진형 스마트 스티커</span>와 <span className="text-indigo-300 font-bold">사진형 ID 카드</span>를 발급합니다.<br/>
                             <span className="text-indigo-400 font-bold text-sm bg-indigo-900/50 px-2 py-1 rounded">* 대량 출력 시 자동 분할 렌더링이 적용됩니다.</span>
                         </p>
                         
@@ -2164,7 +2238,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <div className="text-center">
                                     <h3 className="text-xl font-bold text-white mb-1">안전모 부착용 스마트 스티커</h3>
                                     <p className="text-slate-500 text-sm font-medium">90mm x 60mm | 방수 라벨 최적화</p>
-                                    <p className="text-indigo-400 text-xs font-bold mt-2">QR 연동 • 등급 시각화</p>
+                                    <p className="text-indigo-400 text-xs font-bold mt-2">사진 확인 • QR 연동 • 등급 시각화</p>
                                 </div>
                             </div>
 
@@ -2181,7 +2255,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <div className="text-center">
                                     <h3 className="text-xl font-bold text-white mb-1">PSI 스마트 사원증</h3>
                                     <p className="text-slate-500 text-sm font-medium">54mm x 86mm | CR80 표준 규격</p>
-                                    <p className="text-indigo-400 text-xs font-bold mt-2">직무 표시 • 보안 패턴 적용</p>
+                                    <p className="text-indigo-400 text-xs font-bold mt-2">증명사진 • 직무 표시 • 보안 패턴 적용</p>
                                 </div>
                             </div>
                         </div>
@@ -2284,6 +2358,48 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     >
                         {isBulkUploading ? '엑셀 대량 업로드 처리 중...' : '엑셀 대량 업로드'}
                     </button>
+                </div>
+
+                <div className="w-full rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                        <div>
+                            <p className="text-sm font-black text-indigo-900">사진 등록 최적 작업 모드</p>
+                            <p className="mt-1 text-[11px] font-bold text-indigo-700">가장 효율적인 방식은 먼저 사진 미등록자만 좁혀서, 상세 보기에서 프로필 사진만 빠르게 연속 등록한 뒤 발급하는 순서다.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setPhotoFilter('missing-photo')}
+                                className={`px-3 py-2 rounded-xl text-xs font-black border transition-colors ${photoFilter === 'missing-photo' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-100'}`}
+                            >
+                                사진 미등록자만 보기
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setPhotoFilter('all')}
+                                className={`px-3 py-2 rounded-xl text-xs font-black border transition-colors ${photoFilter === 'all' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'}`}
+                            >
+                                전체 보기
+                            </button>
+                        </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
+                        <div className="rounded-xl bg-white border border-indigo-100 px-3 py-3">
+                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">STEP 1</p>
+                            <p className="mt-1 text-xs font-black text-slate-900">사진 미등록자만 필터</p>
+                            <p className="mt-1 text-[11px] font-bold text-slate-500">누락자만 남겨서 등록 대상을 한 번에 정리</p>
+                        </div>
+                        <div className="rounded-xl bg-white border border-indigo-100 px-3 py-3">
+                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">STEP 2</p>
+                            <p className="mt-1 text-xs font-black text-slate-900">근로자 카드 클릭 → 상세 보기</p>
+                            <p className="mt-1 text-[11px] font-bold text-slate-500">상단 `증명사진(프로필) 등록` 영역에서 즉시 업로드</p>
+                        </div>
+                        <div className="rounded-xl bg-white border border-indigo-100 px-3 py-3">
+                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">STEP 3</p>
+                            <p className="mt-1 text-xs font-black text-slate-900">저장 후 스티커/사원증 발급</p>
+                            <p className="mt-1 text-[11px] font-bold text-slate-500">얼굴 기반 본인 확인이 가능해져 현장 신뢰감이 크게 올라감</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
@@ -2417,8 +2533,15 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             <option value="needs-review">검증 필요만</option>
                         </select>
                     </div>
+                    <div className="min-w-0">
+                        <select value={photoFilter} onChange={e => setPhotoFilter(e.target.value as 'all' | 'with-photo' | 'missing-photo')} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[150px]">
+                            <option value="all">사진 상태: 전체</option>
+                            <option value="with-photo">사진 등록자만</option>
+                            <option value="missing-photo">사진 미등록자만</option>
+                        </select>
+                    </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 w-full">
                     <div className="bg-indigo-50 px-4 py-3 rounded-2xl text-indigo-700 font-bold text-sm border border-indigo-100 flex items-center gap-2 min-w-0">
                         <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
                         <span className="truncate">발급 대기: {filteredRecords.length}명</span>
@@ -2431,11 +2554,74 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         <span className="w-2 h-2 rounded-full bg-rose-500"></span>
                         <span className="truncate">검증필요: {filteredReliabilitySummary.untrustedCount}명</span>
                     </div>
+                    <div className="bg-amber-50 px-4 py-3 rounded-2xl text-amber-700 font-bold text-sm border border-amber-100 flex items-center gap-2 min-w-0">
+                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                        <span className="truncate">사진등록: {filteredPhotoSummary.registeredCount}명 / 미등록 {filteredPhotoSummary.missingCount}명</span>
+                    </div>
                 </div>
                 {filteredRecords.length > 0 && filteredReliabilitySummary.trustedCount === 0 && (
                     <div className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
                         <p className="text-sm font-black">현재 필터 결과에는 검증 통과 데이터가 없습니다.</p>
                         <p className="text-xs font-bold mt-1">지금 인쇄하면 예외 출력 모드로 진행됩니다. 가능하면 OCR 재분석 후 출력하세요.</p>
+                    </div>
+                )}
+                {filteredPhotoSummary.missingCount > 0 && (
+                    <div className="w-full rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-indigo-800">
+                        <p className="text-sm font-black">가장 좋은 방식은 스티커와 사원증 모두 근로자 사진을 같이 넣는 것입니다.</p>
+                        <p className="text-xs font-bold mt-1">현재 필터 기준으로 {filteredPhotoSummary.missingCount}명은 증명사진이 없어 기본 아이콘으로 출력됩니다. 카드 클릭 → 상세 보기 → 상단 `증명사진(프로필) 등록`에서 업로드 후 저장하면 가장 빠르게 정리됩니다.</p>
+                    </div>
+                )}
+                {missingPhotoQueue.length > 0 && (
+                    <div className="w-full rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
+                        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                            <div>
+                                <p className="text-sm font-black text-slate-900">사진 미등록자 빠른 등록 큐</p>
+                                <p className="mt-1 text-[11px] font-bold text-slate-500">실제 등록자는 아래 순서대로 열어서 사진만 연속 업로드하면 된다. 현재 화면 기준 상위 {missingPhotoQueue.length}명만 우선 노출된다.</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setPhotoFilter('missing-photo')}
+                                    className="px-3 py-2 rounded-xl text-xs font-black bg-slate-900 text-white hover:bg-slate-800 transition-colors"
+                                >
+                                    미등록자 작업 모드 유지
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => missingPhotoQueue[0] && openPhotoRegistration(missingPhotoQueue[0])}
+                                    className="px-3 py-2 rounded-xl text-xs font-black bg-indigo-600 text-white hover:bg-indigo-500 transition-colors"
+                                >
+                                    첫 대상 바로 열기
+                                </button>
+                            </div>
+                        </div>
+                        <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                            {missingPhotoQueue.map((worker, index) => (
+                                <button
+                                    key={worker.id}
+                                    type="button"
+                                    onClick={() => openPhotoRegistration(worker)}
+                                    className="w-full text-left rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-2xl bg-slate-200 text-slate-500 flex items-center justify-center font-black shrink-0">
+                                            {index + 1}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <p className="text-sm font-black text-slate-900 truncate">{worker.name}</p>
+                                                <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[10px] font-black border border-amber-200">📷 사진 필요</span>
+                                            </div>
+                                            <p className="mt-1 text-[11px] font-bold text-slate-500 truncate">{worker.jobField} · {worker.teamLeader || '미지정'} · {worker.nationality || '국적 미상'}</p>
+                                        </div>
+                                        <div className="shrink-0 text-[11px] font-black text-indigo-600">상세 열기</div>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                        {filteredPhotoSummary.missingCount > missingPhotoQueue.length && (
+                            <p className="mt-3 text-[11px] font-bold text-slate-500">나머지 {filteredPhotoSummary.missingCount - missingPhotoQueue.length}명도 아래 목록에서 같은 방식으로 계속 등록하면 된다.</p>
+                        )}
                     </div>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 w-full">
@@ -2519,19 +2705,32 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             </div>
 
                             <div className="relative z-10 min-h-[42px] flex items-center">
-                                {worker.approvalStatus === 'OVERRIDDEN' ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200" title={`${worker.approvedBy || '승인자 미기록'} / ${worker.approvedAt || '-'} / ${worker.approvalReason || '-'}`}>
-                                        🔐 예외 승인 발급
-                                    </span>
-                                ) : reliability.trusted ? (
-                                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200">
-                                        ✅ OCR 검증 통과
-                                    </span>
-                                ) : (
-                                    <div className="flex items-center justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {worker.approvalStatus === 'OVERRIDDEN' ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200" title={`${worker.approvedBy || '승인자 미기록'} / ${worker.approvedAt || '-'} / ${worker.approvalReason || '-'}`}>
+                                            🔐 예외 승인 발급
+                                        </span>
+                                    ) : reliability.trusted ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                            ✅ OCR 검증 통과
+                                        </span>
+                                    ) : (
                                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200" title={reliability.reasons.join(', ')}>
                                             ⚠️ 검증 필요 (구백업 가능)
                                         </span>
+                                    )}
+                                    {hasProfilePhoto(worker) ? (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-indigo-100 text-indigo-700 border border-indigo-200">
+                                            👤 사진 등록 완료
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200">
+                                            📷 사진 등록 권장
+                                        </span>
+                                    )}
+                                </div>
+                                {!canIssue && (
+                                    <div className="flex items-center justify-between gap-2 ml-auto">
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();

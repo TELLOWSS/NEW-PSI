@@ -102,9 +102,15 @@ interface RecordDetailModalProps {
     onOpenReport: (record: WorkerRecord) => void;
     onReanalyze: (record: WorkerRecord) => Promise<WorkerRecord | null>;
     isReanalyzing: boolean;
+    queueContext?: {
+        currentIndex: number;
+        total: number;
+        nextRecordName?: string | null;
+    };
+    onOpenNextRecord?: () => void;
 }
 
-export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: initialRecord, onClose, onBack, onUpdateRecord, onOpenReport, onReanalyze, isReanalyzing }) => {
+export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: initialRecord, onClose, onBack, onUpdateRecord, onOpenReport, onReanalyze, isReanalyzing, queueContext, onOpenNextRecord }) => {
     const [record, setRecord] = useState<WorkerRecord>(initialRecord);
     const [activeTab, setActiveTab] = useState<'info' | 'analysis' | 'qna'>('info');
     const [hasChanges, setHasChanges] = useState(false);
@@ -118,6 +124,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const [scoreReasonCode, setScoreReasonCode] = useState<ScoreAdjustmentReasonCode | ''>('');
     const [scoreReasonDetail, setScoreReasonDetail] = useState('');
     const [scoreEvidenceSummary, setScoreEvidenceSummary] = useState('');
+    const [isPhotoAutoSaving, setIsPhotoAutoSaving] = useState(false);
+    const [photoQueueNotice, setPhotoQueueNotice] = useState<string | null>(null);
+    const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     const docInputRef = useRef<HTMLInputElement>(null); // For Document Image
     const profileInputRef = useRef<HTMLInputElement>(null); // For Profile Photo
@@ -131,12 +140,27 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     };
 
     useEffect(() => { 
+        if (autoAdvanceTimerRef.current) {
+            clearTimeout(autoAdvanceTimerRef.current);
+            autoAdvanceTimerRef.current = null;
+        }
         setRecord(getConsistentRecord(initialRecord)); 
         setHasChanges(false); 
         setScoreReasonCode('');
         setScoreReasonDetail('');
         setScoreEvidenceSummary('');
+        setIsPhotoAutoSaving(false);
+        setPhotoQueueNotice(null);
     }, [initialRecord]);
+
+    useEffect(() => {
+        return () => {
+            if (autoAdvanceTimerRef.current) {
+                clearTimeout(autoAdvanceTimerRef.current);
+                autoAdvanceTimerRef.current = null;
+            }
+        };
+    }, []);
 
     useEffect(() => {
         try {
@@ -262,7 +286,15 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         };
     };
 
-    const handleSave = () => {
+    const persistRecordSilently = async (nextRecord: WorkerRecord) => {
+        const consistentRecord = getConsistentRecord(nextRecord);
+        await onUpdateRecord(consistentRecord);
+        setRecord(consistentRecord);
+        setHasChanges(false);
+        return consistentRecord;
+    };
+
+    const handleSave = async (): Promise<boolean> => {
         const trimmedComment = approvalComment.trim();
         const approvalWasFinalized =
             record.reviewStatus === 'APPROVED' ||
@@ -272,7 +304,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         const shouldResetApproval = approvalWasFinalized && hasCriticalReviewEdits;
 
         const scoreAdjustmentEntry = buildScoreAdjustmentEntry();
-        if (scoreDropNeedsIntegrityReason && !scoreAdjustmentEntry) return;
+        if (scoreDropNeedsIntegrityReason && !scoreAdjustmentEntry) return false;
 
         if (hasCriticalReviewEdits && hasWeakSaveReason) {
             const proceed = confirm(
@@ -281,7 +313,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 '- 그대로 저장하면 OCR 화면에서 "수정사유 보강 필요"로 표시됩니다.\n\n' +
                 '그래도 1차 저장을 진행하시겠습니까?'
             );
-            if (!proceed) return;
+            if (!proceed) return false;
         }
 
         const nextRecordBase: WorkerRecord = shouldResetApproval
@@ -328,14 +360,24 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             }
             : nextRecordBase;
 
-        const consistentRecord = getConsistentRecord(nextRecord);
-        onUpdateRecord(consistentRecord);
-        setRecord(consistentRecord);
+        await persistRecordSilently(nextRecord);
         setScoreReasonCode('');
         setScoreReasonDetail('');
         setScoreEvidenceSummary('');
-        setHasChanges(false);
+        setPhotoQueueNotice(null);
         alert(shouldResetApproval ? '저장되었습니다. 핵심 변경으로 승인 상태가 재검토 대기로 변경되었습니다.' : '저장되었습니다.');
+        return true;
+    };
+
+    const handleSaveAndOpenNext = async () => {
+        if (autoAdvanceTimerRef.current) {
+            clearTimeout(autoAdvanceTimerRef.current);
+            autoAdvanceTimerRef.current = null;
+        }
+        const saved = await handleSave();
+        if (saved && onOpenNextRecord) {
+            onOpenNextRecord();
+        }
     };
 
     const hasCriticalReviewEdits = useMemo(() => {
@@ -634,16 +676,53 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         const file = e.target.files?.[0];
         if (file) {
             const reader = new FileReader();
-            reader.onload = (event) => {
+            reader.onload = async (event) => {
                 const result = event.target?.result as string;
                 if (result) {
                     if (type === 'original') {
                         setRecord(prev => ({ ...prev, originalImage: result, filename: file.name }));
+                        setPhotoQueueNotice(null);
                     } else {
-                        setRecord(prev => ({ ...prev, profileImage: result }));
+                        const nextRecord = { ...record, profileImage: result };
+                        setRecord(nextRecord);
+                        if (isPhotoQueueMode) {
+                            try {
+                                setIsPhotoAutoSaving(true);
+                                setPhotoQueueNotice('사진 업로드 후 자동 저장 중입니다...');
+                                await persistRecordSilently(nextRecord);
+                                if (queueContext?.nextRecordName && onOpenNextRecord) {
+                                    setPhotoQueueNotice(`사진 저장 완료. ${queueContext.nextRecordName}(으)로 자동 이동합니다...`);
+                                    if (autoAdvanceTimerRef.current) {
+                                        clearTimeout(autoAdvanceTimerRef.current);
+                                    }
+                                    autoAdvanceTimerRef.current = setTimeout(() => {
+                                        autoAdvanceTimerRef.current = null;
+                                        onOpenNextRecord();
+                                    }, 900);
+                                } else {
+                                    setPhotoQueueNotice('사진 저장 완료. 마지막 대상입니다. 근로자관리 화면으로 돌아갑니다...');
+                                    if (autoAdvanceTimerRef.current) {
+                                        clearTimeout(autoAdvanceTimerRef.current);
+                                    }
+                                    autoAdvanceTimerRef.current = setTimeout(() => {
+                                        autoAdvanceTimerRef.current = null;
+                                        onClose();
+                                    }, 1100);
+                                }
+                            } catch (error) {
+                                console.error('프로필 사진 자동 저장 실패:', error);
+                                setHasChanges(true);
+                                setPhotoQueueNotice('자동 저장에 실패했습니다. 상단 1차 저장 버튼으로 저장해 주세요.');
+                            } finally {
+                                setIsPhotoAutoSaving(false);
+                            }
+                        }
                     }
-                    setHasChanges(true);
+                    if (type === 'original' || !isPhotoQueueMode) {
+                        setHasChanges(true);
+                    }
                 }
+                e.target.value = '';
             };
             reader.readAsDataURL(file);
         }
@@ -651,6 +730,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
     const hasOriginalImage = !!record.originalImage && record.originalImage.length > 50;
     const hasProfileImage = !!record.profileImage && record.profileImage.length > 50;
+    const isPhotoQueueMode = Boolean(queueContext);
     const competencyProfile = useMemo(() => deriveCompetencyProfile(record), [record]);
     const isKorean = record.nationality === '대한민국' || record.nationality === '한국' || (record.nationality || '').toLowerCase().includes('korea');
     const timelineLocale = isKorean ? 'ko-KR' : 'en-US';
@@ -681,11 +761,19 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                         <div className="min-w-0">
                             <h2 className="text-base sm:text-xl font-black text-slate-800 truncate">기록 상세 검증</h2>
                             <p className="hidden sm:block text-[10px] text-indigo-500 font-bold tracking-widest uppercase">OCR Verification Mode</p>
+                            {queueContext && (
+                                <p className="hidden sm:block text-[11px] font-black text-emerald-600 mt-1">사진 등록 작업 {queueContext.currentIndex} / {queueContext.total}{queueContext.nextRecordName ? ` · 다음 ${queueContext.nextRecordName}` : ' · 마지막 대상'}</p>
+                            )}
                         </div>
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                        {queueContext && onOpenNextRecord && hasProfileImage && (
+                            <button disabled={isPhotoAutoSaving} onClick={hasChanges ? () => { void handleSaveAndOpenNext(); } : onOpenNextRecord} className={`px-3 sm:px-4 py-2 rounded-xl text-[11px] sm:text-sm font-black shadow-lg whitespace-nowrap ${isPhotoAutoSaving ? 'bg-slate-200 text-slate-500 shadow-none cursor-not-allowed' : 'bg-emerald-600 text-white shadow-emerald-200 hover:bg-emerald-500'}`}>
+                                {isPhotoAutoSaving ? '자동 저장 중...' : hasChanges ? '저장 후 다음' : '지금 다음 열기'}
+                            </button>
+                        )}
                         {hasChanges && (
-                            <button onClick={handleSave} className="px-3 sm:px-6 py-2 bg-indigo-600 text-white rounded-xl text-[11px] sm:text-sm font-black shadow-lg shadow-indigo-200 animate-pulse whitespace-nowrap">1차 저장</button>
+                            <button onClick={() => { void handleSave(); }} className="px-3 sm:px-6 py-2 bg-indigo-600 text-white rounded-xl text-[11px] sm:text-sm font-black shadow-lg shadow-indigo-200 animate-pulse whitespace-nowrap">1차 저장</button>
                         )}
                         <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
                     </div>
@@ -803,6 +891,17 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         이곳에 등록된 사진은 <strong>사원증(ID Card)</strong> 및 <strong>개인 리포트</strong>의 프로필 영역에 사용됩니다. 
                                         문서 이미지와 별도로 관리됩니다.
                                     </p>
+                                    {isPhotoQueueMode && (
+                                        <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3">
+                                            <p className="text-[11px] font-black text-emerald-800">가장 빠른 등록 방식</p>
+                                            <p className="mt-1 text-[11px] font-bold text-emerald-700">사진 업로드 시 자동 저장되며, 다음 대상이 있으면 자동으로 이어지고 마지막 대상이면 자동으로 목록으로 돌아갑니다. 필요하면 상단에서 바로 다음 대상을 수동으로 열 수도 있습니다.</p>
+                                        </div>
+                                    )}
+                                    {photoQueueNotice && (
+                                        <div className={`mt-3 rounded-2xl border px-3 py-3 ${photoQueueNotice.includes('실패') ? 'border-rose-200 bg-rose-50' : 'border-indigo-200 bg-indigo-50'}`}>
+                                            <p className={`text-[11px] font-black ${photoQueueNotice.includes('실패') ? 'text-rose-700' : 'text-indigo-700'}`}>{photoQueueNotice}</p>
+                                        </div>
+                                    )}
                                     {!hasProfileImage && (
                                         <button onClick={() => profileInputRef.current?.click()} className="mt-3 text-xs font-bold text-indigo-600 hover:underline">
                                             + 사진 업로드하기

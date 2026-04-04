@@ -21,6 +21,8 @@ export type ModalState = {
     type: 'workerHistory' | 'recordDetail' | null;
     record?: WorkerRecord;
     workerName?: string;
+    source?: 'worker-management-photo-queue';
+    queueRecordIds?: string[];
 };
 
 export interface AppSettings {
