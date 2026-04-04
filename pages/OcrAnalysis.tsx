@@ -1241,6 +1241,47 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
         return existingRecords
             .map((record) => {
+                const latestContentCorrection = [...(record.correctionHistory || [])]
+                    .filter((entry) => Array.isArray(entry.changedFields) && entry.changedFields.some((field) => targetFields.includes(field)))
+                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+
+                if (!latestContentCorrection) return null;
+
+                const changedTargetFields = (latestContentCorrection.changedFields || []).filter((field) => targetFields.includes(field));
+                if (changedTargetFields.length === 0) return null;
+
+                return {
+                    id: record.id,
+                    name: record.name || '이름 없음',
+                    jobField: record.jobField || '공종 미지정',
+                    timestamp: latestContentCorrection.timestamp,
+                    timestampLabel: formatCompactDateTime(latestContentCorrection.timestamp),
+                    reason: String(latestContentCorrection.reason || '').trim(),
+                    changes: changedTargetFields.slice(0, 2).map((field) => ({
+                        field,
+                        label: CORRECTION_FIELD_LABELS[field] || field,
+                        before: formatComparisonValue(latestContentCorrection.previousValues?.[field]),
+                        after: formatComparisonValue(latestContentCorrection.nextValues?.[field]),
+                    })),
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => new Date((b as any).timestamp).getTime() - new Date((a as any).timestamp).getTime())
+            .slice(0, 3) as Array<{
+                id: string;
+                name: string;
+                jobField: string;
+                timestamp: string;
+                timestampLabel: string | null;
+                reason: string;
+                changes: Array<{
+                    field: string;
+                    label: string;
+                    before: string;
+                    after: string;
+                }>;
+            }>;
+    }, [existingRecords]);
 
     const recentTextComparisons = useMemo(() => {
         const targetFields = ['fullText', 'koreanTranslation'];
@@ -1268,47 +1309,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         label: CORRECTION_FIELD_LABELS[field] || field,
                         before: formatLongComparisonText(latestTextCorrection.previousValues?.[field]),
                         after: formatLongComparisonText(latestTextCorrection.nextValues?.[field]),
-                    })),
-                };
-            })
-            .filter(Boolean)
-            .sort((a, b) => new Date((b as any).timestamp).getTime() - new Date((a as any).timestamp).getTime())
-            .slice(0, 3) as Array<{
-                id: string;
-                name: string;
-                jobField: string;
-                timestamp: string;
-                timestampLabel: string | null;
-                reason: string;
-                changes: Array<{
-                    field: string;
-                    label: string;
-                    before: string;
-                    after: string;
-                }>;
-            }>;
-    }, [existingRecords]);
-                const latestContentCorrection = [...(record.correctionHistory || [])]
-                    .filter((entry) => Array.isArray(entry.changedFields) && entry.changedFields.some((field) => targetFields.includes(field)))
-                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
-
-                if (!latestContentCorrection) return null;
-
-                const changedTargetFields = (latestContentCorrection.changedFields || []).filter((field) => targetFields.includes(field));
-                if (changedTargetFields.length === 0) return null;
-
-                return {
-                    id: record.id,
-                    name: record.name || '이름 없음',
-                    jobField: record.jobField || '공종 미지정',
-                    timestamp: latestContentCorrection.timestamp,
-                    timestampLabel: formatCompactDateTime(latestContentCorrection.timestamp),
-                    reason: String(latestContentCorrection.reason || '').trim(),
-                    changes: changedTargetFields.slice(0, 2).map((field) => ({
-                        field,
-                        label: CORRECTION_FIELD_LABELS[field] || field,
-                        before: formatComparisonValue(latestContentCorrection.previousValues?.[field]),
-                        after: formatComparisonValue(latestContentCorrection.nextValues?.[field]),
                     })),
                 };
             })
