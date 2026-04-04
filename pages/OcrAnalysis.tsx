@@ -665,6 +665,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [masterAssignments, setMasterAssignments] = useState<MasterAssignmentItem[]>([]);
     const [openMasterSection, setOpenMasterSection] = useState<'templates' | 'assignments' | null>(null);
     const [retryDiagnostics, setRetryDiagnostics] = useState<RetryDiagnostics | null>(null);
+    const [showAdvancedOcrControls, setShowAdvancedOcrControls] = useState(false);
+    const [showAdminActivityPanel, setShowAdminActivityPanel] = useState(false);
+    const [showReasonQaDetailPanel, setShowReasonQaDetailPanel] = useState(false);
+    const [showRetryDetailPanel, setShowRetryDetailPanel] = useState(false);
+    const [showFailedQuickActions, setShowFailedQuickActions] = useState(false);
 
     const fetchMasterGroups = useCallback(async () => {
         return supabase
@@ -2938,6 +2943,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </div>
                     )}
 
+                    <CollapsibleSection
+                        title="실패 상세 조치"
+                        isOpen={showFailedQuickActions}
+                        onToggle={() => setShowFailedQuickActions((prev) => !prev)}
+                        summary={<span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-black text-rose-700">실패 {failedRecords.length}건 · 유형 {failedTypeGroups.length}개</span>}
+                    >
                     {failureProcessingStats.length > 0 && (
                         <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                             <div className="flex items-center justify-between gap-2">
@@ -3061,6 +3072,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             );
                         })}
                     </div>
+                    </CollapsibleSection>
                 </div>
             )}
                             🔄 다시 촬영하기
@@ -3096,6 +3108,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 </div>
 
                 {recentAdminActivities.length > 0 && (
+                    <CollapsibleSection
+                        title="최근 24시간 운영 조치 요약"
+                        isOpen={showAdminActivityPanel}
+                        onToggle={() => setShowAdminActivityPanel((prev) => !prev)}
+                        summary={<span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-700">수정 {recentAdminActivitySummary.corrections} · 승인 {recentAdminActivitySummary.approvals} · 재분석 {recentAdminActivitySummary.reassessments}</span>}
+                    >
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                             <div>
@@ -3126,6 +3144,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             ))}
                         </div>
                     </div>
+                    </CollapsibleSection>
                 )}
 
                 {reasonQaPreviewRecords.length > 0 && (
@@ -3211,6 +3230,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 )}
 
                 {reasonQaPreviewRecords.length > 0 && (
+                    <CollapsibleSection
+                        title="사유 품질 QA 상세"
+                        isOpen={showReasonQaDetailPanel}
+                        onToggle={() => setShowReasonQaDetailPanel((prev) => !prev)}
+                        summary={<span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-black text-amber-700">사유 없음 {reasonQaSummary.missingDecision} · 보강 필요 {reasonQaSummary.weakDecision + reasonQaSummary.weakCorrection}</span>}
+                    >
                     <div className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-4">
                         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                             <div>
@@ -3279,8 +3304,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             ))}
                         </div>
                     </div>
+                    </CollapsibleSection>
                 )}
 
+                <CollapsibleSection
+                    title="고급 필터 · 정렬 · 2차 재분석 설정"
+                    isOpen={showAdvancedOcrControls}
+                    onToggle={() => setShowAdvancedOcrControls((prev) => !prev)}
+                    summary={<span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-black text-violet-700">필터 {filterField !== 'all' || filterLeader !== 'all' || filterTrust !== 'all' || filterLevel !== 'all' || filterStatus !== 'all' || filterReason !== 'all' ? '적용 중' : '기본값'} · 재분석 {secondPassTargets.length}건</span>}
+                >
                 <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-4 items-start">
                     <div className="space-y-3">
                         <div className="relative w-full">
@@ -3505,6 +3537,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">처리 실패: <span className="text-slate-900">{retryDiagnostics.processingFail}</span></div>
                                     <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">라우트 실패: <span className="text-slate-900">{retryDiagnostics.serverRouteFail}</span></div>
                                 </div>
+                                <CollapsibleSection
+                                    title="재분석 상세 비교"
+                                    isOpen={showRetryDetailPanel}
+                                    onToggle={() => setShowRetryDetailPanel((prev) => !prev)}
+                                    summary={<span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-black text-emerald-700">점수변화 {recentReassessmentImpact.length} · 인사이트 {recentInsightComparisons.length} · 텍스트 {recentTextComparisons.length}</span>}
+                                >
                                 <div className="mt-3 rounded-2xl border border-white/70 bg-white/70 p-3">
                                     <div className="flex items-center justify-between gap-2">
                                         <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">실패 대응 가이드</p>
@@ -3715,6 +3753,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         </div>
                                     </div>
                                 )}
+                                </CollapsibleSection>
                             </div>
                         )}
                         <button onClick={handleBatchTextAnalysis} 
@@ -3726,6 +3765,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </button>
                     </div>
                 </div>
+                </CollapsibleSection>
             </div>
 
             {/* 공종/팀장 일괄 수정 UI */}
