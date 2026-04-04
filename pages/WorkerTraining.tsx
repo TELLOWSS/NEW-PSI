@@ -175,6 +175,113 @@ const UX_TEXT: Record<UiLocale, {
     },
 };
 
+const STATUS_TEXT: Record<UiLocale, {
+    reading: string;
+    checklist: string;
+    signature: string;
+    required: string;
+    done: string;
+}> = {
+    ko: { reading: '읽기', checklist: '체크', signature: '서명', required: '필수', done: '완료' },
+    en: { reading: 'Read', checklist: 'Checks', signature: 'Sign', required: 'Required', done: 'Done' },
+    vi: { reading: 'Đọc', checklist: 'Mục chọn', signature: 'Ký', required: 'Bắt buộc', done: 'Hoàn tất' },
+    zh: { reading: '阅读', checklist: '勾选', signature: '签名', required: '必填', done: '完成' },
+};
+
+const SUMMARY_TEXT: Record<UiLocale, {
+    title: string;
+    worker: string;
+    language: string;
+    missing: string;
+    ready: string;
+    notEntered: string;
+}> = {
+    ko: {
+        title: '최종 확인 요약',
+        worker: '근로자',
+        language: '선택 언어',
+        missing: '남은 단계',
+        ready: '모든 준비가 완료되었습니다. 아래 제출 버튼을 누르세요.',
+        notEntered: '미입력',
+    },
+    en: {
+        title: 'Final Check Summary',
+        worker: 'Worker',
+        language: 'Selected language',
+        missing: 'Remaining steps',
+        ready: 'Everything is ready. Press the submit button below.',
+        notEntered: 'Not entered',
+    },
+    vi: {
+        title: 'Tóm tắt kiểm tra cuối',
+        worker: 'Người lao động',
+        language: 'Ngôn ngữ đã chọn',
+        missing: 'Bước còn thiếu',
+        ready: 'Mọi thứ đã sẵn sàng. Hãy nhấn nút gửi bên dưới.',
+        notEntered: 'Chưa nhập',
+    },
+    zh: {
+        title: '最终确认摘要',
+        worker: '员工',
+        language: '所选语言',
+        missing: '剩余步骤',
+        ready: '已全部准备完成。请点击下方提交按钮。',
+        notEntered: '未填写',
+    },
+};
+
+const SUCCESS_TEXT: Record<UiLocale, {
+    title: string;
+    description: string;
+    savedWorker: string;
+    savedLanguage: string;
+    submittedAt: string;
+    showManager: string;
+    safeClose: string;
+    duplicateBlocked: string;
+}> = {
+    ko: {
+        title: '제출이 완료되었습니다',
+        description: '전자서명이 정상 저장되었습니다. 관리자는 이 제출 기록을 확인할 수 있습니다.',
+        savedWorker: '제출자',
+        savedLanguage: '제출 언어',
+        submittedAt: '제출 시간',
+        showManager: '이 화면을 관리자에게 보여주세요.',
+        safeClose: '확인 후 화면을 닫아도 됩니다.',
+        duplicateBlocked: '중복 제출은 자동으로 차단됩니다.',
+    },
+    en: {
+        title: 'Submission completed',
+        description: 'Your electronic signature has been saved successfully. Administrators can review this submission record.',
+        savedWorker: 'Submitted by',
+        savedLanguage: 'Submitted language',
+        submittedAt: 'Submitted at',
+        showManager: 'Please show this screen to the supervisor.',
+        safeClose: 'You may close this screen after confirmation.',
+        duplicateBlocked: 'Duplicate submissions are blocked automatically.',
+    },
+    vi: {
+        title: 'Đã gửi thành công',
+        description: 'Chữ ký điện tử đã được lưu thành công. Quản trị viên có thể kiểm tra bản ghi gửi này.',
+        savedWorker: 'Người gửi',
+        savedLanguage: 'Ngôn ngữ gửi',
+        submittedAt: 'Thời gian gửi',
+        showManager: 'Vui lòng cho quản lý xem màn hình này.',
+        safeClose: 'Sau khi xác nhận, bạn có thể đóng màn hình này.',
+        duplicateBlocked: 'Hệ thống tự động chặn gửi trùng lặp.',
+    },
+    zh: {
+        title: '提交已完成',
+        description: '电子签名已成功保存。管理员可查看本次提交记录。',
+        savedWorker: '提交人',
+        savedLanguage: '提交语言',
+        submittedAt: '提交时间',
+        showManager: '请向管理员出示此页面。',
+        safeClose: '确认后可关闭此页面。',
+        duplicateBlocked: '系统会自动阻止重复提交。',
+    },
+};
+
 const UI_TEXT: Record<UiLocale, {
     title: string;
     subtitle: string;
@@ -601,8 +708,11 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     const [submitting, setSubmitting] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
     const [submitted, setSubmitted] = useState(false);
+    const [submittedSnapshot, setSubmittedSnapshot] = useState<{ workerName: string; languageCode: string; submittedAt: number } | null>(null);
     const [hasSignature, setHasSignature] = useState(false);
     const [signatureWarning, setSignatureWarning] = useState(false);
+    const [nameWarning, setNameWarning] = useState(false);
+    const [comprehensionWarning, setComprehensionWarning] = useState(false);
     const [hasReviewedGuidance, setHasReviewedGuidance] = useState(false);
     const [guidanceProgress, setGuidanceProgress] = useState(0);
     const [checklist, setChecklist] = useState({
@@ -614,6 +724,10 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     const sigRef = useRef<SignatureCanvas | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const guidanceRef = useRef<HTMLDivElement | null>(null);
+    const nameInputRef = useRef<HTMLInputElement | null>(null);
+    const languageSectionRef = useRef<HTMLDivElement | null>(null);
+    const audioSectionRef = useRef<HTMLDivElement | null>(null);
+    const comprehensionRef = useRef<HTMLDivElement | null>(null);
     const signatureWrapRef = useRef<HTMLDivElement | null>(null);
     const [signatureWidth, setSignatureWidth] = useState(700);
 
@@ -621,6 +735,9 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     const uiLocale = useMemo(() => resolveUiLocaleByLangCode(langKey), [langKey]);
     const t = UI_TEXT[uiLocale];
     const ux = UX_TEXT[uiLocale];
+    const statusText = STATUS_TEXT[uiLocale];
+    const summaryText = SUMMARY_TEXT[uiLocale];
+    const successText = SUCCESS_TEXT[uiLocale];
     const selectedNationalityLangCode = useMemo(() => {
         return NATIONALITY_OPTIONS.find((item) => item.value === nationality)?.langCode;
     }, [nationality]);
@@ -676,6 +793,23 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     const isChecklistComplete = checklist.riskReview && checklist.ppeConfirm && checklist.emergencyConfirm;
     const isComprehensionReady = hasReviewedGuidance && isChecklistComplete;
     const completedChecklistCount = Number(checklist.riskReview) + Number(checklist.ppeConfirm) + Number(checklist.emergencyConfirm);
+    const submitReady = isComprehensionReady && hasSignature;
+    const remainingSteps = [
+        !workerName.trim() ? t.nameLabel : null,
+        !hasReviewedGuidance ? statusText.reading : null,
+        !isChecklistComplete ? `${statusText.checklist} ${completedChecklistCount}/3` : null,
+        !hasSignature ? statusText.signature : null,
+    ].filter((item): item is string => Boolean(item));
+    const submittedAtLabel = useMemo(() => {
+        if (!submittedSnapshot?.submittedAt) return '';
+        return new Intl.DateTimeFormat(uiLocale, {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+        }).format(new Date(submittedSnapshot.submittedAt));
+    }, [submittedSnapshot, uiLocale]);
     const audioMatchesSelectedLanguage = useMemo(() => {
         const current = normalizedAudioMap[effectiveLangKey];
         return typeof current === 'string' && current.trim().length > 0;
@@ -707,6 +841,9 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     useEffect(() => {
         setHasReviewedGuidance(false);
         setGuidanceProgress(0);
+        setNameWarning(false);
+        setComprehensionWarning(false);
+        setSignatureWarning(false);
         setChecklist({
             riskReview: false,
             ppeConfirm: false,
@@ -734,6 +871,18 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
         const rafId = window.requestAnimationFrame(syncProgress);
         return () => window.cancelAnimationFrame(rafId);
     }, [selectedTranslatedText]);
+
+    useEffect(() => {
+        if (workerName.trim()) {
+            setNameWarning(false);
+        }
+    }, [workerName]);
+
+    useEffect(() => {
+        if (isComprehensionReady) {
+            setComprehensionWarning(false);
+        }
+    }, [isComprehensionReady]);
 
     useEffect(() => {
         if (!simplifiedMode) return;
@@ -850,14 +999,22 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
         }
 
         if (!workerName.trim()) {
+            setNameWarning(true);
+            nameInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             alert(t.missingNameAlert);
             return;
         }
 
+        setNameWarning(false);
+
         if (!isComprehensionReady) {
+            setComprehensionWarning(true);
+            comprehensionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             alert(t.submitBlockedAlert);
             return;
         }
+
+        setComprehensionWarning(false);
 
         if (!sigRef.current || sigRef.current.isEmpty()) {
             setSignatureWarning(true);
@@ -898,6 +1055,16 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                 throw new Error(data.message || t.submitFail);
             }
 
+            audioRef.current?.pause();
+            if (audioRef.current) {
+                audioRef.current.currentTime = 0;
+            }
+            setIsPlaying(false);
+            setSubmittedSnapshot({
+                workerName: workerName.trim(),
+                languageCode: effectiveLangKey,
+                submittedAt: Date.now(),
+            });
             setMessage(t.submitSuccess);
             setWorkerName('');
             sigRef.current?.clear();
@@ -927,6 +1094,105 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
         return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.linkExpired}</div>;
     }
 
+    const nextActionLabel = !hasReviewedGuidance
+        ? ux.stepListenDesc
+        : !isChecklistComplete
+            ? t.comprehensionDescription
+            : !hasSignature
+                ? ux.signatureGuide
+                : ux.submitBarReady;
+
+    const nextActionButtonLabel = !hasReviewedGuidance
+        ? ux.listenNow
+        : !isChecklistComplete
+            ? t.comprehensionTitle
+            : !hasSignature
+                ? ux.signNow
+                : t.submit;
+
+    const scrollToSection = (section: 'language' | 'audio' | 'signature') => {
+        if (section === 'language') {
+            languageSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+
+        if (section === 'audio') {
+            audioSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+
+        signatureWrapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+
+    const handleNextAction = () => {
+        if (!hasReviewedGuidance) {
+            void handleToggleAudio();
+            scrollToSection('audio');
+            return;
+        }
+
+        if (!isChecklistComplete) {
+            setComprehensionWarning(true);
+            comprehensionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+
+        if (!hasSignature) {
+            signatureWrapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setSignatureWarning(true);
+            return;
+        }
+
+        void handleSubmit();
+    };
+
+    if (submitted) {
+        return (
+            <div className="space-y-6 max-w-2xl pb-10">
+                <div className="bg-white p-6 rounded-2xl border border-emerald-200 shadow-sm">
+                    <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 shadow-sm">
+                        <svg className="h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+
+                    <div className="mt-4 text-center">
+                        <h2 className="text-2xl font-black text-slate-900">{successText.title}</h2>
+                        <p className="mt-2 text-sm font-bold text-slate-600">{successText.description}</p>
+                    </div>
+
+                    <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                            <p className="text-[11px] font-black text-slate-500">{successText.savedWorker}</p>
+                            <p className="mt-1 text-base font-black text-slate-900">{submittedSnapshot?.workerName || summaryText.notEntered}</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                            <p className="text-[11px] font-black text-slate-500">{successText.savedLanguage}</p>
+                            <p className="mt-1 text-base font-black text-slate-900">{LANGUAGE_FLAG_EMOJI[submittedSnapshot?.languageCode || effectiveLangKey] || '🌐'} {LANGUAGE_LABELS[submittedSnapshot?.languageCode || effectiveLangKey] || submittedSnapshot?.languageCode || effectiveLangKey}</p>
+                        </div>
+                    </div>
+
+                    <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                        <p className="text-[11px] font-black text-slate-500">{successText.submittedAt}</p>
+                        <p className="mt-1 text-base font-black text-slate-900">{submittedAtLabel || '-'}</p>
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4">
+                        <p className="text-sm font-black text-emerald-700">{t.submitSuccess}</p>
+                        <p className="mt-1 text-[12px] font-black text-emerald-600">{successText.duplicateBlocked}</p>
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4 text-center">
+                        <p className="text-sm font-black text-indigo-700">{successText.showManager}</p>
+                        <p className="mt-1 text-[12px] font-black text-indigo-600">{successText.safeClose}</p>
+                    </div>
+
+                    {message && <p className="mt-4 text-center text-sm font-bold text-slate-700">{message}</p>}
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6 max-w-2xl pb-32">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
@@ -939,31 +1205,83 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                 )}
 
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className={`rounded-2xl border px-4 py-3 ${effectiveLangKey ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50'}`}>
-                        <p className="text-xs font-black text-indigo-700">{ux.stepLanguage}</p>
-                        <p className="mt-1 text-[11px] font-bold text-slate-600">{ux.stepLanguageDesc}</p>
+                    <button
+                        type="button"
+                        onClick={() => scrollToSection('language')}
+                        className={`rounded-2xl border px-4 py-3 text-left transition-all ${effectiveLangKey ? 'border-indigo-200 bg-indigo-50 hover:bg-indigo-100' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'}`}
+                    >
+                        <div className="flex items-start justify-between gap-2">
+                            <div>
+                                <p className="text-xs font-black text-indigo-700">{ux.stepLanguage}</p>
+                                <p className="mt-1 text-[11px] font-bold text-slate-600">{ux.stepLanguageDesc}</p>
+                            </div>
+                            <span className="text-[10px] font-black text-indigo-600">{effectiveLangKey ? statusText.done : statusText.required}</span>
+                        </div>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => scrollToSection('audio')}
+                        className={`rounded-2xl border px-4 py-3 text-left transition-all ${selectedAudioUrl ? 'border-emerald-200 bg-emerald-50 hover:bg-emerald-100' : 'border-amber-200 bg-amber-50 hover:bg-amber-100'}`}
+                    >
+                        <div className="flex items-start justify-between gap-2">
+                            <div>
+                                <p className="text-xs font-black text-emerald-700">{ux.stepListen}</p>
+                                <p className="mt-1 text-[11px] font-bold text-slate-600">{ux.stepListenDesc}</p>
+                            </div>
+                            <span className={`text-[10px] font-black ${hasReviewedGuidance ? 'text-emerald-600' : 'text-amber-600'}`}>{hasReviewedGuidance ? statusText.done : statusText.required}</span>
+                        </div>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => scrollToSection('signature')}
+                        className={`rounded-2xl border px-4 py-3 text-left transition-all ${submitReady ? 'border-violet-200 bg-violet-50 hover:bg-violet-100' : 'border-slate-200 bg-slate-50 hover:bg-slate-100'}`}
+                    >
+                        <div className="flex items-start justify-between gap-2">
+                            <div>
+                                <p className="text-xs font-black text-violet-700">{ux.stepSign}</p>
+                                <p className="mt-1 text-[11px] font-bold text-slate-600">{ux.stepSignDesc}</p>
+                            </div>
+                            <span className={`text-[10px] font-black ${submitReady ? 'text-violet-600' : 'text-slate-500'}`}>{submitReady ? statusText.done : statusText.required}</span>
+                        </div>
+                    </button>
+                </div>
+
+                <div className={`mt-4 rounded-2xl border px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 ${submitReady ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                    <div>
+                        <p className={`text-[11px] font-black uppercase tracking-wider ${submitReady ? 'text-emerald-700' : 'text-amber-700'}`}>
+                            {submitReady ? ux.submitReadyCta : ux.submitBlockedCta}
+                        </p>
+                        <p className="mt-1 text-sm font-black text-slate-800">{nextActionLabel}</p>
                     </div>
-                    <div className={`rounded-2xl border px-4 py-3 ${selectedAudioUrl ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
-                        <p className="text-xs font-black text-emerald-700">{ux.stepListen}</p>
-                        <p className="mt-1 text-[11px] font-bold text-slate-600">{ux.stepListenDesc}</p>
-                    </div>
-                    <div className={`rounded-2xl border px-4 py-3 ${isComprehensionReady ? 'border-violet-200 bg-violet-50' : 'border-slate-200 bg-slate-50'}`}>
-                        <p className="text-xs font-black text-violet-700">{ux.stepSign}</p>
-                        <p className="mt-1 text-[11px] font-bold text-slate-600">{ux.stepSignDesc}</p>
-                    </div>
+                    <button
+                        type="button"
+                        onClick={handleNextAction}
+                        className={`w-full sm:w-auto shrink-0 rounded-xl px-4 py-3.5 text-sm font-black shadow-sm transition-colors ${submitReady ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-amber-500 text-white hover:bg-amber-600'}`}
+                    >
+                        {nextActionButtonLabel}
+                    </button>
                 </div>
 
                 <div className="mt-4">
                     <label className="block text-xs font-black text-slate-500 mb-2">{t.nameLabel}</label>
                     <input
+                        ref={nameInputRef}
                         value={workerName}
-                        onChange={(e) => setWorkerName(e.target.value)}
-                        className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
+                        onChange={(e) => {
+                            setWorkerName(e.target.value);
+                            if (e.target.value.trim()) {
+                                setNameWarning(false);
+                            }
+                        }}
+                        className={`w-full p-4 rounded-2xl bg-slate-50 font-bold text-base transition-all ${nameWarning ? 'border-rose-300 ring-4 ring-rose-100' : 'border-slate-200'} border`}
                         placeholder={t.namePlaceholder}
                     />
+                    {nameWarning && (
+                        <p className="mt-2 text-[11px] font-black text-rose-600">{t.missingNameAlert}</p>
+                    )}
                 </div>
 
-                <div className="mt-4">
+                <div ref={languageSectionRef} className="mt-4 scroll-mt-28">
                     <label className="block text-xs font-black text-slate-500 mb-2">{t.nationalityLabel}</label>
                     {simplifiedMode ? (
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -975,8 +1293,13 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                                         setSelectedLanguageCode(code);
                                         setNationality(resolveNationalityByLanguageCode(code));
                                     }}
-                                    className={`px-3 py-3 rounded-2xl text-left border transition-all shadow-sm ${effectiveLangKey === code ? 'bg-indigo-600 text-white border-indigo-600 scale-[1.02]' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+                                    className={`relative min-h-[92px] px-3 py-3 rounded-2xl text-left border transition-all shadow-sm ${effectiveLangKey === code ? 'bg-indigo-600 text-white border-indigo-600 scale-[1.02] ring-4 ring-indigo-100' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
                                 >
+                                    {effectiveLangKey === code && (
+                                        <span className="absolute right-2 top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white/20 px-1 text-[10px] font-black text-white">
+                                            ✓
+                                        </span>
+                                    )}
                                     <span className="block text-lg leading-none">{LANGUAGE_FLAG_EMOJI[code] || '🌐'}</span>
                                     <span className="block text-sm font-black">{LANGUAGE_LABELS[code] || code}</span>
                                     <span className={`mt-1 block text-[10px] font-black ${effectiveLangKey === code ? 'text-indigo-100' : 'text-slate-400'}`}>{code}</span>
@@ -991,7 +1314,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                                 setNationality(nextNationality);
                                 setSelectedLanguageCode(resolveLanguageCodeByNationality(nextNationality));
                             }}
-                            className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
+                            className="w-full p-4 rounded-2xl border border-slate-200 bg-slate-50 font-bold text-base"
                         >
                             {NATIONALITY_OPTIONS.map((option) => (
                                 <option key={option.value} value={option.value}>{option.labels[uiLocale]}</option>
@@ -1016,18 +1339,26 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                                 {textMatchesSelectedLanguage ? ux.textMatched : ux.textFallback}
                             </div>
                         </div>
-                        <p className="mt-2 text-[11px] font-bold text-slate-500">{ux.availableLanguages}: {availableLanguageCodes.map((code) => LANGUAGE_LABELS[code] || code).join(', ')}</p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                            <span className="text-[11px] font-bold text-slate-500">{ux.availableLanguages}:</span>
+                            {availableLanguageCodes.map((code) => (
+                                <span key={code} className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">
+                                    <span>{LANGUAGE_FLAG_EMOJI[code] || '🌐'}</span>
+                                    <span>{LANGUAGE_LABELS[code] || code}</span>
+                                </span>
+                            ))}
+                        </div>
                     </div>
                 </div>
 
-                <div className="mt-4">
+                <div ref={audioSectionRef} className="mt-4 scroll-mt-28">
                     <label className="block text-xs font-black text-slate-500 mb-2">{t.audioGuideLabel}</label>
                     <div className="mt-2 flex flex-col items-center">
                         <button
                             type="button"
                             onClick={() => void handleToggleAudio()}
                             disabled={!selectedAudioUrl}
-                            className={`relative w-36 h-36 rounded-full border-4 font-black text-5xl flex items-center justify-center transition-all ${isPlaying ? 'bg-indigo-600 border-indigo-700 text-white animate-pulse scale-105 shadow-2xl' : 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-lg'} ${!selectedAudioUrl ? 'opacity-60 cursor-not-allowed' : 'hover:scale-105'}`}
+                            className={`relative w-40 h-40 sm:w-36 sm:h-36 rounded-full border-4 font-black text-5xl flex items-center justify-center transition-all ${isPlaying ? 'bg-indigo-600 border-indigo-700 text-white animate-pulse scale-105 shadow-2xl' : 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-lg'} ${!selectedAudioUrl ? 'opacity-60 cursor-not-allowed' : 'hover:scale-105'}`}
                         >
                             {isPlaying ? '⏸' : '🔊'}
                             {isPlaying && <span className="absolute inset-0 rounded-full border-4 border-indigo-300 animate-ping" />}
@@ -1035,19 +1366,19 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                         <p className="mt-3 text-sm font-black text-slate-700">
                             {selectedAudioUrl ? (isPlaying ? t.audioPlaying : t.audioReady) : t.audioMissing}
                         </p>
-                        <div className="mt-3 flex flex-wrap justify-center gap-2">
+                        <div className="mt-3 flex w-full flex-col sm:flex-row justify-center gap-2">
                             <button
                                 type="button"
                                 onClick={() => void handleToggleAudio()}
                                 disabled={!selectedAudioUrl}
-                                className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-black hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="w-full sm:w-auto px-4 py-3 rounded-xl bg-indigo-600 text-white text-sm font-black hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
                             >
                                 {ux.listenNow}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => signatureWrapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-                                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-black hover:bg-slate-50"
+                                className="w-full sm:w-auto px-4 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-black hover:bg-slate-50"
                             >
                                 {ux.signNow}
                             </button>
@@ -1089,48 +1420,75 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                                 setGuidanceProgress(progress);
                                 setHasReviewedGuidance(node.scrollTop + node.clientHeight >= node.scrollHeight - 4);
                             }}
-                            className="max-h-52 overflow-y-auto pr-1"
+                            className="max-h-52 overflow-y-auto pr-1 scroll-smooth"
                         >
-                            <p className="text-sm font-bold text-slate-700 whitespace-pre-wrap">{selectedTranslatedText}</p>
+                            <p className="text-[15px] leading-7 font-bold text-slate-700 whitespace-pre-wrap">{selectedTranslatedText}</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="mt-4 p-4 rounded-xl border border-indigo-200 bg-indigo-50/50">
+                <div ref={comprehensionRef} className={`mt-4 p-4 rounded-xl border scroll-mt-28 transition-all ${comprehensionWarning ? 'border-rose-300 bg-rose-50 ring-4 ring-rose-100' : 'border-indigo-200 bg-indigo-50/50'}`}>
                     <p className="text-sm font-black text-indigo-900">{t.comprehensionTitle}</p>
                     <p className="text-[11px] font-bold text-indigo-700 mt-1">{t.comprehensionDescription}</p>
                     <p className="mt-3 text-[11px] font-black text-slate-600">
                         {t.progressLabel}: <span className="text-slate-800">{guidanceProgress}%</span>
                     </p>
+                    <div className="mt-2 h-2 rounded-full bg-white/80 overflow-hidden border border-white/60">
+                        <div className={`h-full rounded-full transition-all ${hasReviewedGuidance ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${guidanceProgress}%` }} />
+                    </div>
                     <p className={`mt-1 text-[11px] font-black ${hasReviewedGuidance ? 'text-emerald-700' : 'text-amber-700'}`}>
                         {hasReviewedGuidance ? t.progressReady : t.progressPending}
                     </p>
+                    {comprehensionWarning && (
+                        <p className="mt-2 text-[11px] font-black text-rose-600">{t.submitBlockedAlert}</p>
+                    )}
+
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[10px] font-black">
+                        <div className={`rounded-xl px-2 py-2 border ${hasReviewedGuidance ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                            {statusText.reading} {hasReviewedGuidance ? statusText.done : statusText.required}
+                        </div>
+                        <div className={`rounded-xl px-2 py-2 border ${isChecklistComplete ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                            {statusText.checklist} {completedChecklistCount}/3
+                        </div>
+                        <div className={`rounded-xl px-2 py-2 border ${hasSignature ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                            {statusText.signature} {hasSignature ? statusText.done : statusText.required}
+                        </div>
+                    </div>
 
                     <div className="mt-3 space-y-2">
-                        <label className="flex items-start gap-2 text-xs font-bold text-slate-700">
+                        <label className="flex items-start gap-3 rounded-2xl border border-white/70 bg-white/80 px-3 py-3 text-sm font-bold text-slate-700 shadow-sm">
                             <input
                                 type="checkbox"
                                 checked={checklist.riskReview}
-                                onChange={(event) => setChecklist((prev) => ({ ...prev, riskReview: event.target.checked }))}
-                                className="mt-0.5"
+                                onChange={(event) => {
+                                    setChecklist((prev) => ({ ...prev, riskReview: event.target.checked }));
+                                    setComprehensionWarning(false);
+                                }}
+                                className="mt-0.5 h-5 w-5 shrink-0"
                             />
                             <span>{t.checkRiskReview}</span>
                         </label>
-                        <label className="flex items-start gap-2 text-xs font-bold text-slate-700">
+                        <label className="flex items-start gap-3 rounded-2xl border border-white/70 bg-white/80 px-3 py-3 text-sm font-bold text-slate-700 shadow-sm">
                             <input
                                 type="checkbox"
                                 checked={checklist.ppeConfirm}
-                                onChange={(event) => setChecklist((prev) => ({ ...prev, ppeConfirm: event.target.checked }))}
-                                className="mt-0.5"
+                                onChange={(event) => {
+                                    setChecklist((prev) => ({ ...prev, ppeConfirm: event.target.checked }));
+                                    setComprehensionWarning(false);
+                                }}
+                                className="mt-0.5 h-5 w-5 shrink-0"
                             />
                             <span>{t.checkPpeConfirm}</span>
                         </label>
-                        <label className="flex items-start gap-2 text-xs font-bold text-slate-700">
+                        <label className="flex items-start gap-3 rounded-2xl border border-white/70 bg-white/80 px-3 py-3 text-sm font-bold text-slate-700 shadow-sm">
                             <input
                                 type="checkbox"
                                 checked={checklist.emergencyConfirm}
-                                onChange={(event) => setChecklist((prev) => ({ ...prev, emergencyConfirm: event.target.checked }))}
-                                className="mt-0.5"
+                                onChange={(event) => {
+                                    setChecklist((prev) => ({ ...prev, emergencyConfirm: event.target.checked }));
+                                    setComprehensionWarning(false);
+                                }}
+                                className="mt-0.5 h-5 w-5 shrink-0"
                             />
                             <span>{t.checkEmergencyConfirm}</span>
                         </label>
@@ -1148,7 +1506,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                         <p className="text-[12px] font-black text-violet-700">{ux.signatureGuide}</p>
                         <p className="mt-1 text-[11px] font-bold text-violet-600">{ux.signatureGuideSub}</p>
                     </div>
-                    <div ref={signatureWrapRef} className={`border rounded-2xl overflow-hidden bg-gradient-to-b from-white to-slate-50 p-3 transition-all ${signatureWarning ? 'border-rose-300 ring-4 ring-rose-100 animate-pulse' : 'border-slate-200'}`}>
+                    <div ref={signatureWrapRef} className={`border rounded-2xl overflow-hidden bg-gradient-to-b from-white to-slate-50 p-3 transition-all scroll-mt-28 ${signatureWarning ? 'border-rose-300 ring-4 ring-rose-100 animate-pulse' : 'border-slate-200'}`}>
                         <div className="relative rounded-xl border-2 border-dashed border-slate-200 bg-white overflow-hidden flex items-center justify-center">
                             <div className="pointer-events-none absolute inset-x-6 top-1/2 border-t-2 border-dashed border-slate-200" />
                             <div className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 px-2 py-1 rounded-full bg-white/90 text-[10px] font-black text-slate-400 border border-slate-100">
@@ -1171,12 +1529,52 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                             />
                         </div>
                     </div>
+                    {signatureWarning && (
+                        <p className="mt-2 text-[11px] font-black text-rose-600">
+                            {t.missingSignatureAlert}
+                        </p>
+                    )}
                     <button
                         onClick={handleClear}
-                        className="mt-2 px-4 py-2 text-xs font-black rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
+                        className="mt-2 w-full sm:w-auto px-4 py-3 text-sm font-black rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200"
                     >
                         {t.signatureClear}
                     </button>
+                </div>
+
+                <div className={`mt-4 rounded-2xl border px-4 py-4 ${submitReady ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+                    <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-black text-slate-900">{summaryText.title}</p>
+                        <span className={`rounded-full px-3 py-1 text-[11px] font-black ${submitReady ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {submitReady ? ux.submitReadyCta : ux.submitBlockedCta}
+                        </span>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm font-bold text-slate-700">
+                        <div className="rounded-xl bg-white px-3 py-3 border border-slate-200">
+                            <p className="text-[11px] font-black text-slate-500">{summaryText.worker}</p>
+                            <p className="mt-1 text-slate-900">{workerName.trim() || summaryText.notEntered}</p>
+                        </div>
+                        <div className="rounded-xl bg-white px-3 py-3 border border-slate-200">
+                            <p className="text-[11px] font-black text-slate-500">{summaryText.language}</p>
+                            <p className="mt-1 text-slate-900">{LANGUAGE_FLAG_EMOJI[effectiveLangKey] || '🌐'} {LANGUAGE_LABELS[effectiveLangKey] || effectiveLangKey}</p>
+                        </div>
+                    </div>
+
+                    <div className="mt-3 rounded-xl bg-white px-3 py-3 border border-slate-200">
+                        <p className="text-[11px] font-black text-slate-500">{summaryText.missing}</p>
+                        {remainingSteps.length > 0 ? (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                {remainingSteps.map((item) => (
+                                    <span key={item} className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-black text-amber-700">
+                                        {item}
+                                    </span>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="mt-2 text-[12px] font-black text-emerald-700">{summaryText.ready}</p>
+                        )}
+                    </div>
                 </div>
 
                 {message && <p className="mt-3 text-sm font-bold text-slate-700">{message}</p>}
@@ -1187,8 +1585,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                     <div className="flex items-center justify-between gap-3 mb-2">
                         <div>
                             <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider">{ux.submitBarTitle}</p>
-                            <p className={`mt-1 text-[12px] font-black ${isComprehensionReady ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                {isComprehensionReady ? ux.submitBarReady : ux.submitBarBlocked}
+                            <p className={`mt-1 text-[12px] font-black ${submitReady ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                {submitReady ? ux.submitBarReady : ux.submitBarBlocked}
                             </p>
                         </div>
                         <div className="text-right text-[11px] font-black text-slate-500 shrink-0">
@@ -1198,10 +1596,10 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                     </div>
                     <button
                         onClick={handleSubmit}
-                        disabled={submitting || submitted || !isComprehensionReady}
-                        className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-lg shadow-xl hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed animate-pulse"
+                        disabled={submitting || submitted}
+                        className={`w-full py-4 rounded-2xl text-white font-black text-lg shadow-xl disabled:opacity-60 disabled:cursor-not-allowed transition-all ${submitReady ? 'bg-indigo-600 hover:bg-indigo-700 animate-pulse' : 'bg-amber-500 hover:bg-amber-600'}`}
                     >
-                        {submitted ? t.alreadySubmitted : (submitting ? t.submitting : `${t.submit} · ${isComprehensionReady ? ux.submitReadyCta : ux.submitBlockedCta}`)}
+                        {submitted ? t.alreadySubmitted : (submitting ? t.submitting : `${t.submit} · ${submitReady ? ux.submitReadyCta : ux.submitBlockedCta}`)}
                     </button>
                 </div>
             </div>

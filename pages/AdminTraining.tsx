@@ -16,11 +16,15 @@ const UI_TEXT: Record<UiLocale, {
     create: string;
     creating: string;
     sharedCopy: string;
+    directLinkCopy: string;
+    shortShareCopy: string;
     shareHeader: string;
     shareFailedPrefix: string;
     shareAllAudioLine: string;
     copyFailed: string;
     copyDone: string;
+    directLinkCopyDone: string;
+    shortShareCopyDone: string;
     emptySourceAlert: string;
     minLangAlert: string;
     missingShareAlert: string;
@@ -46,6 +50,7 @@ const UI_TEXT: Record<UiLocale, {
     noSessionToDelete: string;
     qrTitle: string;
     shareTitle: string;
+    directAccessHint: string;
     failedLangTitle: string;
     failedBadge: string;
     attemptLabel: string;
@@ -81,11 +86,15 @@ const UI_TEXT: Record<UiLocale, {
         create: '생성',
         creating: '생성 중...',
         sharedCopy: '공유 텍스트 복사',
+        directLinkCopy: '직접 링크 복사',
+        shortShareCopy: '짧은 안내문 복사',
         shareHeader: '[PSI 다국어 안전교육 링크]',
         shareFailedPrefix: '음성 미생성 언어(텍스트 대체)',
         shareAllAudioLine: '모든 선택 언어의 음성 안내가 생성되었습니다.',
         copyFailed: '클립보드 복사에 실패했습니다. 텍스트를 직접 복사해 주세요.',
         copyDone: '공유 텍스트를 복사했습니다. 메신저에 붙여넣어 전달해 주세요.',
+        directLinkCopyDone: '직접 접속 링크를 복사했습니다.',
+        shortShareCopyDone: '짧은 안내문을 복사했습니다. 문자/메신저로 바로 전달해 주세요.',
         emptySourceAlert: '한국어 안내 문구를 입력해 주세요.',
         minLangAlert: '최소 1개 언어를 선택해 주세요.',
         missingShareAlert: '복사할 공유 텍스트가 없습니다. 먼저 생성을 완료해 주세요.',
@@ -111,6 +120,7 @@ const UI_TEXT: Record<UiLocale, {
         noSessionToDelete: '삭제할 세션이 없습니다.',
         qrTitle: '근로자 접속 QR',
         shareTitle: '공유 텍스트',
+        directAccessHint: 'QR 접속이 어려운 근로자에게는 아래 링크/공유 텍스트를 메신저로 직접 전송하거나 관리자 휴대폰 브라우저에 링크를 직접 입력해 접속시켜 주세요.',
         failedLangTitle: '음성 미생성 언어 (텍스트 대체)',
         failedBadge: '일부 음성 실패',
         attemptLabel: '시도 코드',
@@ -146,11 +156,15 @@ const UI_TEXT: Record<UiLocale, {
         create: 'Create',
         creating: 'Creating...',
         sharedCopy: 'Copy share text',
+        directLinkCopy: 'Copy direct link',
+        shortShareCopy: 'Copy short message',
         shareHeader: '[PSI Multilingual Safety Training Link]',
         shareFailedPrefix: 'Audio failed languages (text fallback)',
         shareAllAudioLine: 'Audio guidance has been generated for all selected languages.',
         copyFailed: 'Failed to copy to clipboard. Please copy manually.',
         copyDone: 'Share text copied. Paste it into your messenger.',
+        directLinkCopyDone: 'Direct access link copied.',
+        shortShareCopyDone: 'Short message copied. Send it by SMS or messenger.',
         emptySourceAlert: 'Please enter Korean source text.',
         minLangAlert: 'Please select at least one language.',
         missingShareAlert: 'No share text to copy. Create first.',
@@ -176,6 +190,7 @@ const UI_TEXT: Record<UiLocale, {
         noSessionToDelete: 'No session to delete.',
         qrTitle: 'Worker Access QR',
         shareTitle: 'Share Text',
+        directAccessHint: 'If a worker cannot scan the QR, send the link/share text below by messenger or open the link directly on the supervisor phone browser.',
         failedLangTitle: 'Audio failed languages (text fallback)',
         failedBadge: 'Audio partial failure',
         attemptLabel: 'Attempt codes',
@@ -211,11 +226,15 @@ const UI_TEXT: Record<UiLocale, {
         create: 'Tạo',
         creating: 'Đang tạo...',
         sharedCopy: 'Sao chép nội dung chia sẻ',
+        directLinkCopy: 'Sao chép liên kết trực tiếp',
+        shortShareCopy: 'Sao chép tin nhắn ngắn',
         shareHeader: '[Liên kết đào tạo an toàn đa ngôn ngữ PSI]',
         shareFailedPrefix: 'Ngôn ngữ lỗi âm thanh (thay bằng văn bản)',
         shareAllAudioLine: 'Đã tạo âm thanh hướng dẫn cho tất cả ngôn ngữ đã chọn.',
         copyFailed: 'Sao chép clipboard thất bại. Vui lòng sao chép thủ công.',
         copyDone: 'Đã sao chép nội dung chia sẻ. Hãy dán vào ứng dụng nhắn tin.',
+        directLinkCopyDone: 'Đã sao chép liên kết truy cập trực tiếp.',
+        shortShareCopyDone: 'Đã sao chép tin nhắn ngắn. Hãy gửi qua SMS hoặc ứng dụng nhắn tin.',
         emptySourceAlert: 'Vui lòng nhập nội dung tiếng Hàn.',
         minLangAlert: 'Vui lòng chọn ít nhất một ngôn ngữ.',
         missingShareAlert: 'Không có nội dung để sao chép. Vui lòng tạo trước.',
@@ -241,6 +260,7 @@ const UI_TEXT: Record<UiLocale, {
         noSessionToDelete: 'Không có phiên để xóa.',
         qrTitle: 'QR truy cập cho công nhân',
         shareTitle: 'Nội dung chia sẻ',
+        directAccessHint: 'Nếu công nhân không quét được QR, hãy gửi trực tiếp liên kết/nội dung chia sẻ bên dưới qua ứng dụng nhắn tin hoặc mở liên kết trên điện thoại của quản lý.',
         failedLangTitle: 'Ngôn ngữ lỗi âm thanh (thay bằng văn bản)',
         failedBadge: 'Lỗi âm thanh một phần',
         attemptLabel: 'Mã đã thử',
@@ -276,11 +296,15 @@ const UI_TEXT: Record<UiLocale, {
         create: '生成',
         creating: '生成中...',
         sharedCopy: '复制分享文本',
+        directLinkCopy: '复制直接链接',
+        shortShareCopy: '复制简短说明',
         shareHeader: '[PSI 多语言安全培训链接]',
         shareFailedPrefix: '语音失败语言（文本替代）',
         shareAllAudioLine: '已为所有所选语言生成语音指引。',
         copyFailed: '复制失败，请手动复制文本。',
         copyDone: '已复制分享文本，请粘贴到聊天工具发送。',
+        directLinkCopyDone: '已复制直接访问链接。',
+        shortShareCopyDone: '已复制简短说明，请通过短信或聊天工具发送。',
         emptySourceAlert: '请输入韩文说明文本。',
         minLangAlert: '请至少选择一种语言。',
         missingShareAlert: '没有可复制的分享文本，请先生成。',
@@ -306,6 +330,7 @@ const UI_TEXT: Record<UiLocale, {
         noSessionToDelete: '没有可删除的会话。',
         qrTitle: '工人访问二维码',
         shareTitle: '分享文本',
+        directAccessHint: '如果工人无法扫描二维码，请通过聊天工具直接发送下方链接/分享文本，或由管理员在手机浏览器中直接打开该链接。',
         failedLangTitle: '语音失败语言（文本替代）',
         failedBadge: '部分语音失败',
         attemptLabel: '尝试代码',
@@ -446,6 +471,13 @@ const AdminTraining: React.FC = () => {
             failedLanguages.length > 0
                 ? `${t.shareFailedPrefix}: ${failedLanguages.join(', ')}`
                 : t.shareAllAudioLine,
+        ].join('\n')
+        : '';
+
+    const shortShareText = mobileUrl
+        ? [
+            t.shareHeader,
+            mobileUrl,
         ].join('\n')
         : '';
 
@@ -773,6 +805,34 @@ const AdminTraining: React.FC = () => {
         }
     };
 
+    const handleCopyDirectLink = async () => {
+        if (!mobileUrl) {
+            alert(t.missingShareAlert);
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(mobileUrl);
+            setMessage(t.directLinkCopyDone);
+        } catch {
+            setMessage(t.copyFailed);
+        }
+    };
+
+    const handleCopyShortShareText = async () => {
+        if (!shortShareText) {
+            alert(t.missingShareAlert);
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(shortShareText);
+            setMessage(t.shortShareCopyDone);
+        } catch {
+            setMessage(t.copyFailed);
+        }
+    };
+
     const clearRenderedSession = () => {
         setMobileUrl('');
         setCurrentSessionId('');
@@ -1040,6 +1100,9 @@ const AdminTraining: React.FC = () => {
                         </div>
                     )}
                     <p className="text-xs font-bold text-slate-500 mt-2 break-all">{mobileUrl}</p>
+                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+                        <p className="text-[11px] font-black text-amber-800">{t.directAccessHint}</p>
+                    </div>
                     <div className="mt-4">
                         <QRCodeCanvas value={mobileUrl} size={220} />
                     </div>
@@ -1059,6 +1122,20 @@ const AdminTraining: React.FC = () => {
                             {t.sharedCopy}
                         </button>
                         <div className="mt-2 flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={handleCopyDirectLink}
+                                className="px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-black border border-emerald-200 hover:bg-emerald-100"
+                            >
+                                {t.directLinkCopy}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleCopyShortShareText}
+                                className="px-4 py-2 rounded-lg bg-amber-50 text-amber-700 text-xs font-black border border-amber-200 hover:bg-amber-100"
+                            >
+                                {t.shortShareCopy}
+                            </button>
                             <button
                                 type="button"
                                 onClick={() => void handleReissueCurrentLink()}
