@@ -124,6 +124,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const [teamComparisonSort, setTeamComparisonSort] = useState<'score-asc' | 'score-desc' | 'risk-desc' | 'workers-desc'>('score-asc');
     const [detailViewMode, setDetailViewMode] = useState<'integrated' | 'nationality'>('integrated');
     const [teamViewFilter, setTeamViewFilter] = useState<'all' | 'top3' | 'risk-only'>('all');
+    const [selectedTeamsForComparison, setSelectedTeamsForComparison] = useState<string[]>([]);
 
     const resetComparisonState = () => {
         setSelectedTeam('ALL');
@@ -132,6 +133,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         setMobileInsightTab('chart');
         setDetailViewMode('integrated');
         setTeamViewFilter('all');
+        setSelectedTeamsForComparison([]);
     };
 
     const openTradeIntegratedAnalysis = (trade: string, nextTab: 'chart' | 'team' | 'worker' = 'team') => {
@@ -165,6 +167,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             setSelectedTeam('ALL');
         }
     }, [selectedTeam, teamList]);
+
+    useEffect(() => {
+        setSelectedTeamsForComparison([]);
+    }, [selectedTradeForComparison]);
 
 
     const stats = useMemo(() => {
@@ -309,6 +315,20 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 return selectedTradeTeamComparison;
         }
     }, [selectedTradeTeamComparison, teamViewFilter]);
+
+    const comparedTeamRows = useMemo(() => {
+        if (selectedTeamsForComparison.length === 0) return visibleTeamComparison;
+        return selectedTradeTeamComparison.filter((team) => selectedTeamsForComparison.includes(team.team));
+    }, [selectedTeamsForComparison, selectedTradeTeamComparison, visibleTeamComparison]);
+
+    const toggleTeamComparisonSelection = (teamName: string) => {
+        setSelectedTeamsForComparison((previous) => {
+            if (previous.includes(teamName)) {
+                return previous.filter((item) => item !== teamName);
+            }
+            return [...previous, teamName];
+        });
+    };
 
     const getRankBadge = (index: number) => {
         if (index === 0) return { label: '🥇', className: 'bg-amber-100 text-amber-700' };
@@ -801,6 +821,45 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             </div>
                         </div>
 
+                        <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-3 sm:p-4">
+                            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                                <div>
+                                    <p className="text-xs font-black text-indigo-700">직접 팀 선택 비교</p>
+                                    <p className="text-[11px] text-indigo-600 mt-1">비교할 팀을 2개, 3개 또는 그 이상 직접 선택하세요. 선택한 팀만 아래에 남겨 비교합니다.</p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-indigo-700 rounded-lg text-xs font-black border border-indigo-200">
+                                        선택 팀 {selectedTeamsForComparison.length}개
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedTeamsForComparison([])}
+                                        className="px-3 py-1.5 rounded-lg bg-white text-slate-700 text-xs font-bold border border-slate-200 hover:bg-slate-50 transition-colors"
+                                    >
+                                        팀 선택 초기화
+                                    </button>
+                                </div>
+                            </div>
+                            {selectedTeamsForComparison.length > 0 && (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    {selectedTeamsForComparison.map((teamName) => (
+                                        <button
+                                            key={teamName}
+                                            type="button"
+                                            onClick={() => toggleTeamComparisonSelection(teamName)}
+                                            className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-[11px] font-black text-indigo-700"
+                                        >
+                                            {teamName}
+                                            <span className="text-indigo-400">✕</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            {selectedTeamsForComparison.length === 1 && (
+                                <p className="mt-3 text-[11px] font-bold text-amber-700">비교를 명확히 하려면 팀을 1개 더 선택하세요.</p>
+                            )}
+                        </div>
+
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                             <p className="text-[11px] text-slate-500">복잡하면 핵심 팀만 빠르게 보세요.</p>
                             <div className="flex flex-wrap gap-2">
@@ -886,13 +945,14 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         )}
 
                         <div className="rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-2 text-[11px] text-slate-500">
-                            현재 <span className="font-black text-slate-700">{visibleTeamComparison.length}개 팀</span> 표시 중 · 팀 평가는 모두 <span className="font-black text-slate-700">국적 통합 기준</span>입니다.
+                            현재 <span className="font-black text-slate-700">{comparedTeamRows.length}개 팀</span> 표시 중 · 팀 평가는 모두 <span className="font-black text-slate-700">국적 통합 기준</span>입니다.
                         </div>
 
                         <div className="space-y-3">
-                            {visibleTeamComparison.map((team) => {
+                            {comparedTeamRows.map((team) => {
                                 const rankingIndex = selectedTradeTeamComparison.findIndex(item => item.team === team.team);
                                 const rankBadge = getRankBadge(rankingIndex);
+                                const isSelectedForComparison = selectedTeamsForComparison.includes(team.team);
 
                                 return (
                                     <div
@@ -900,7 +960,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         className={`rounded-2xl border p-4 transition-colors ${
                                             selectedTeam === team.team
                                                 ? 'border-indigo-300 bg-indigo-50'
-                                                : 'border-slate-200 bg-white'
+                                                : isSelectedForComparison
+                                                    ? 'border-indigo-200 bg-indigo-50/60'
+                                                    : 'border-slate-200 bg-white'
                                         }`}
                                     >
                                         <div className="flex flex-col lg:flex-row lg:items-center gap-4">
@@ -952,6 +1014,17 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                             <div className="flex flex-col sm:flex-row gap-2 lg:w-auto">
                                                 <button
                                                     type="button"
+                                                    onClick={() => toggleTeamComparisonSelection(team.team)}
+                                                    className={`px-3 py-2 rounded-xl border text-xs font-bold transition-colors ${
+                                                        isSelectedForComparison
+                                                            ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                                                    }`}
+                                                >
+                                                    {isSelectedForComparison ? '비교 제외' : '비교 추가'}
+                                                </button>
+                                                <button
+                                                    type="button"
                                                     onClick={() => openTradeIntegratedAnalysis(selectedTradeForComparison, 'chart')}
                                                     className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-700 text-xs font-bold hover:bg-slate-50 transition-colors"
                                                 >
@@ -972,7 +1045,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     </div>
                                 );
                             })}
-                            {visibleTeamComparison.length === 0 && (
+                            {comparedTeamRows.length === 0 && (
                                 <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center">
                                     <p className="text-sm font-bold text-slate-500">조건에 맞는 팀이 없습니다.</p>
                                     <p className="text-xs text-slate-400 mt-1">필터를 전체 팀으로 바꾸면 다시 확인할 수 있습니다.</p>

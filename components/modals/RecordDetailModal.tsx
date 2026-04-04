@@ -223,7 +223,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             label: '반복위반 페널티',
             score: profile.repeatViolationPenalty,
             maxScore: 20,
-            subtitle: '반복 위반 신호에 따른 감점',
+            subtitle: '반복 표현 증빙 또는 명시 사유가 있을 때만 감점',
             tone: 'rose' as const,
             penalty: true,
         },

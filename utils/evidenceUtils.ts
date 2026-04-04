@@ -40,6 +40,55 @@ export function deriveIntegrityScore(record: WorkerRecord): number {
 
 const clampScore = (value: number): number => Math.max(0, Math.min(100, Math.round(value)));
 
+const REPEAT_VIOLATION_FILLER_PATTERNS = [
+    /안전제일/g,
+    /안전\s*수칙\s*준수/g,
+    /안전\s*수칙/g,
+    /조심하겠습니다/g,
+    /주의하겠습니다/g,
+    /열심히\s*하겠습니다/g,
+    /잘\s*하겠습니다/g,
+    /준수하겠습니다/g,
+    /확인하겠습니다/g,
+];
+
+const getRepeatViolationEvidenceText = (record: WorkerRecord): string => {
+    const handwrittenText = Array.isArray(record.handwrittenAnswers)
+        ? record.handwrittenAnswers.map((item) => JSON.stringify(item)).join(' ')
+        : '';
+
+    return [
+        record.fullText,
+        record.koreanTranslation,
+        record.score_reason,
+        record.aiInsights,
+        handwrittenText,
+    ]
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+};
+
+const hasRepeatViolationEvidence = (record: WorkerRecord): boolean => {
+    const scoreBreakdownPenalty = Number(record.scoreBreakdown?.repeatViolationPenalty ?? 0);
+    const adjustmentEvidence = (record.scoreAdjustmentHistory || []).some((entry) => {
+        const combinedReason = `${entry.reasonDetail || ''} ${entry.evidenceSummary || ''}`;
+        return /반복\s*위반|반복위반|재발|동일\s*위험행동/.test(combinedReason);
+    });
+
+    const sourceText = getRepeatViolationEvidenceText(record);
+    const hasExplicitKeyword = /반복\s*위반|반복위반|재발|동일\s*표현\s*반복|상투어\s*반복/.test(sourceText);
+    const hasRepeatedFillerPhrase = REPEAT_VIOLATION_FILLER_PATTERNS.some((pattern) => {
+        const matches = sourceText.match(pattern);
+        return Array.isArray(matches) && matches.length >= 2;
+    });
+
+    if (adjustmentEvidence) return true;
+    if (hasRepeatedFillerPhrase) return true;
+    return scoreBreakdownPenalty > 0 && hasExplicitKeyword;
+};
+
 const defaultCompetencyWeights = {
     psychological: 0.20,
     jobUnderstanding: 0.22,
@@ -82,7 +131,7 @@ export function deriveCompetencyProfile(record: WorkerRecord): SafetyCompetencyP
     const strengthCount = Array.isArray(record.strengths) ? record.strengths.length : 0;
     const actionCount = Array.isArray(record.actionHistory) ? record.actionHistory.length : 0;
     const approvedCount = (record.approvalHistory || []).filter((entry) => entry.status === 'approved').length;
-    const repeatedViolationSignal = (record.aiInsights || '').includes('반복') || (record.weakAreas || []).some((item) => item.includes('반복'));
+    const repeatedViolationSignal = hasRepeatViolationEvidence(record);
 
     let psychologicalScore = baseSafety * 0.35 + confidence * 100 * 0.35 + 30;
     if (record.psychologicalAnalysis?.pressureLevel === 'high') psychologicalScore -= 12;
@@ -106,7 +155,14 @@ export function deriveCompetencyProfile(record: WorkerRecord): SafetyCompetencyP
     let improvementExecutionScore = 35 + actionCount * 12 + approvedCount * 8;
     improvementExecutionScore = clampScore(improvementExecutionScore);
 
-    const repeatViolationPenalty = clampScore(repeatedViolationSignal ? Math.min(20, 8 + weakCount * 2) : 0);
+    const explicitRepeatPenalty = Number(record.scoreBreakdown?.repeatViolationPenalty ?? 0);
+    const repeatViolationPenalty = clampScore(
+        repeatedViolationSignal
+            ? explicitRepeatPenalty > 0
+                ? Math.min(20, explicitRepeatPenalty)
+                : Math.min(20, 8 + weakCount * 2)
+            : 0
+    );
 
     const weightedScore = clampScore(
         psychologicalScore * weights.psychological +
