@@ -219,11 +219,25 @@ export function appendCorrectionHistory(record: WorkerRecord, previous: WorkerRe
         return acc;
     }, {});
 
+    const candidateReasons = [
+        record.reviewReason,
+        record.adminComment,
+        record.approvalReason,
+    ].map((item) => String(item || '').trim()).filter((item) => item.length >= 3);
+
+    const previousReasons = new Set([
+        previous.reviewReason,
+        previous.adminComment,
+        previous.approvalReason,
+    ].map((item) => String(item || '').trim()).filter(Boolean));
+
+    const explicitReason = candidateReasons.find((item) => !previousReasons.has(item)) || candidateReasons[0];
+
     const entry: CorrectionEntry = {
         timestamp: new Date().toISOString(),
         actor,
         changedFields,
-        reason: '관리자 정정/재분석 반영',
+        reason: explicitReason || '관리자 정정/재분석 반영',
         previousValues,
         nextValues,
     };

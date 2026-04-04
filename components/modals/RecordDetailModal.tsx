@@ -160,6 +160,14 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         return Math.max(0, before - after);
     }, [initialRecord.safetyScore, record.safetyScore]);
 
+    const hasWeakSaveReason = useMemo(() => {
+        const comment = approvalComment.trim();
+        if (!hasChanges) return false;
+        if (comment.length === 0) return true;
+        if (comment.length < 6) return true;
+        return /수정|보정|변경|확인|검토|업데이트|ok|확인함/i.test(comment) && comment.length < 12;
+    }, [approvalComment, hasChanges]);
+
     const safetyLevelThresholds = useMemo(() => getSafetyLevelThresholds(), []);
     const gradeExampleFor69 = useMemo(() => getSafetyLevelFromScore(69), []);
 
@@ -241,6 +249,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     };
 
     const handleSave = () => {
+        const trimmedComment = approvalComment.trim();
         const approvalWasFinalized =
             record.reviewStatus === 'APPROVED' ||
             record.approvalStatus === 'APPROVED' ||
@@ -251,9 +260,21 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         const scoreAdjustmentEntry = buildScoreAdjustmentEntry();
         if (scoreDropNeedsIntegrityReason && !scoreAdjustmentEntry) return;
 
+        if (hasCriticalReviewEdits && hasWeakSaveReason) {
+            const proceed = confirm(
+                '핵심 수정사항이 있는데 저장 사유 코멘트가 비어 있거나 너무 짧습니다.\n\n' +
+                '- 하단 승인영역 코멘트에 왜 수정했는지 남기면 추적성이 좋아집니다.\n' +
+                '- 그대로 저장하면 OCR 화면에서 "수정사유 보강 필요"로 표시됩니다.\n\n' +
+                '그래도 1차 저장을 진행하시겠습니까?'
+            );
+            if (!proceed) return;
+        }
+
         const nextRecordBase: WorkerRecord = shouldResetApproval
             ? {
                 ...record,
+                adminComment: trimmedComment || record.adminComment,
+                reviewReason: trimmedComment || record.reviewReason,
                 reviewStatus: 'PENDING',
                 approvalStatus: 'PENDING',
                 approvedBy: undefined,
@@ -268,7 +289,11 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     }
                 ],
             }
-            : record;
+            : {
+                ...record,
+                adminComment: trimmedComment || record.adminComment,
+                reviewReason: trimmedComment || record.reviewReason,
+            };
 
         const nextRecord: WorkerRecord = scoreAdjustmentEntry
             ? {
@@ -692,6 +717,16 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                     1) 근로자 정보 수정 → 2) 상단 <span className="underline">1차 저장</span> → 3) 하단 승인영역 코멘트 작성 → 4) <span className="underline">최종 승인</span>(2차 가공 자동 실행) → 5) 안전 리포트 보기
                                 </p>
                             </div>
+
+                            {hasChanges && hasWeakSaveReason && (
+                                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+                                    <h4 className="text-sm font-black text-amber-800 mb-2">수정 사유 보강 권장</h4>
+                                    <p className="text-xs text-amber-700 font-bold leading-relaxed">
+                                        1차 저장 전에 하단 승인영역 코멘트에 수정 이유를 6자 이상 남겨주세요. 저장은 가능하지만,
+                                        사유가 짧으면 OCR 화면에서 <span className="underline">수정사유 보강 필요</span> 배지로 표시됩니다.
+                                    </p>
+                                </div>
+                            )}
 
                             <div className="lg:hidden bg-white border border-slate-200 rounded-2xl p-2 grid grid-cols-3 gap-2 sticky top-0 z-10 shadow-sm">
                                 <button

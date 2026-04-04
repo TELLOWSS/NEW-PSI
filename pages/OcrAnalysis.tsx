@@ -140,6 +140,38 @@ const hasRetryableOriginalImage = (image?: string): boolean => {
 };
 
 const OCR_FAILED_ONLY_DEFAULT_KEY = 'psi_ocr_failed_only_default';
+const OCR_VIEW_STATE_KEY = 'psi_ocr_view_state_v1';
+
+type OcrViewState = {
+    savedAt: number;
+    searchTerm: string;
+    filterLevel: string;
+    filterField: string;
+    filterLeader: string;
+    filterTrust: 'all' | 'pending' | 'finalized';
+    filterStatus: 'all' | 'success' | 'failed';
+    secondPassEditedOnly: boolean;
+    secondPassExcludedOnly: boolean;
+    secondPassReasonFilter: string;
+    recordSortMode: RecordSortMode;
+};
+
+const OCR_VIEW_STATE_TTL_MS = 1000 * 60 * 60 * 24 * 3;
+
+const getStoredOcrViewState = (): Partial<OcrViewState> => {
+    try {
+        const raw = localStorage.getItem(OCR_VIEW_STATE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw) as Partial<OcrViewState>;
+        if (typeof parsed.savedAt === 'number' && Date.now() - parsed.savedAt > OCR_VIEW_STATE_TTL_MS) {
+            localStorage.removeItem(OCR_VIEW_STATE_KEY);
+            return {};
+        }
+        return parsed;
+    } catch {
+        return {};
+    }
+};
 
 const getFailedOnlyDefaultOption = (): boolean => {
     try {
@@ -244,6 +276,119 @@ const isFailedRecord = (r: WorkerRecord): boolean => {
     return false;
 };
 
+const hasManagerCorrections = (record: WorkerRecord): boolean => {
+    return Array.isArray(record.correctionHistory) && record.correctionHistory.length > 0;
+};
+
+const CORRECTION_FIELD_LABELS: Record<string, string> = {
+    name: '이름',
+    nationality: '국적',
+    language: '언어',
+    date: '작성일',
+    jobField: '공종',
+    teamLeader: '팀장',
+    handwrittenAnswers: '수기답변',
+    fullText: 'OCR 원문',
+    koreanTranslation: '한글 번역',
+    strengths: '강점',
+    weakAreas: '약점',
+    aiInsights: 'AI 인사이트',
+    safetyScore: '안전 점수',
+    safetyLevel: '안전 등급',
+    scoreReasoning: '점수 근거',
+    actionable_coaching: '개선 코칭',
+    improvement: '개선사항',
+    suggestions: '권장사항',
+};
+
+const getLatestCorrectionPreview = (record: WorkerRecord): string | null => {
+    const latest = Array.isArray(record.correctionHistory)
+        ? record.correctionHistory[record.correctionHistory.length - 1]
+        : null;
+
+    if (!latest) return null;
+
+    const fields = Array.isArray(latest.changedFields) ? latest.changedFields.filter(Boolean) : [];
+    const localizedFields = fields.map(field => CORRECTION_FIELD_LABELS[field] || field);
+    const fieldSummary = localizedFields.length > 0
+        ? `${localizedFields.slice(0, 3).join(', ')}${localizedFields.length > 3 ? ` 외 ${localizedFields.length - 3}건` : ''}`
+        : '수정 필드 없음';
+    const reasonSummary = String(latest.reason || '').trim();
+
+    return reasonSummary
+        ? `${fieldSummary} · ${reasonSummary}`
+        : fieldSummary;
+};
+
+const hasWeakCorrectionReason = (record: WorkerRecord): boolean => {
+    const latest = Array.isArray(record.correctionHistory)
+        ? record.correctionHistory[record.correctionHistory.length - 1]
+        : null;
+
+    const reason = String(latest?.reason || '').trim();
+    if (!reason) return false;
+
+    if (reason.length < 6) return true;
+    return /수정|보정|변경|확인|검토|업데이트|ok|확인함/i.test(reason) && reason.length < 12;
+};
+
+const getLatestCorrectionTimestamp = (record: WorkerRecord): number => {
+    const latest = Array.isArray(record.correctionHistory)
+        ? record.correctionHistory[record.correctionHistory.length - 1]
+        : null;
+
+    if (!latest?.timestamp) return 0;
+
+    const parsed = new Date(latest.timestamp).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getLatestCorrectionTimestampLabel = (record: WorkerRecord): string | null => {
+    const timestamp = getLatestCorrectionTimestamp(record);
+    if (!timestamp) return null;
+
+    return new Date(timestamp).toLocaleString('ko-KR', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+    });
+};
+
+const isRecentlyCorrected = (record: WorkerRecord): boolean => {
+    const timestamp = getLatestCorrectionTimestamp(record);
+    if (!timestamp) return false;
+    return Date.now() - timestamp <= 24 * 60 * 60 * 1000;
+};
+
+type RecordSortMode = 'recent-correction' | 'score-desc' | 'failed-first';
+
+const getSecondPassEligibility = (record: WorkerRecord, editedOnly = false): { eligible: boolean; reason?: string } => {
+    if (isFailedRecord(record)) {
+        return { eligible: false, reason: 'OCR 실패/대기 기록' };
+    }
+
+    if (editedOnly && !hasManagerCorrections(record)) {
+        return { eligible: false, reason: '관리자 수정이력 없음' };
+    }
+
+    const hasSourceText =
+        String(record.fullText || '').trim().length > 0 ||
+        String(record.koreanTranslation || '').trim().length > 0 ||
+        (record.handwrittenAnswers || []).some(answer => String(answer?.answerText || '').trim().length > 0);
+
+    if (!hasSourceText) {
+        return { eligible: false, reason: '원문 텍스트 없음' };
+    }
+
+    if (!String(record.name || '').trim()) {
+        return { eligible: false, reason: '근로자명 없음' };
+    }
+
+    return { eligible: true };
+};
+
 const isHardRetryTarget = (r: WorkerRecord): boolean => {
     if (r.ocrErrorType) return true;
     if (r.safetyScore === 0) return true;
@@ -338,21 +483,26 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     onDeleteRecord, 
     onUpdateRecord 
 }) => {
+    const storedViewState = getStoredOcrViewState();
     const [files, setFiles] = useState<File[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [progress, setProgress] = useState('');
     const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
     const [cooldownTime, setCooldownTime] = useState(0); // For UI countdown
-    const [searchTerm, setSearchTerm] = useState('');
-    const [filterLevel, setFilterLevel] = useState<string>('all');
-    const [filterField, setFilterField] = useState<string>('all');
-    const [filterLeader, setFilterLeader] = useState<string>('all');
-    const [filterTrust, setFilterTrust] = useState<'all' | 'pending' | 'finalized'>('all');
+    const [searchTerm, setSearchTerm] = useState(() => storedViewState.searchTerm || '');
+    const [filterLevel, setFilterLevel] = useState<string>(() => storedViewState.filterLevel || 'all');
+    const [filterField, setFilterField] = useState<string>(() => storedViewState.filterField || 'all');
+    const [filterLeader, setFilterLeader] = useState<string>(() => storedViewState.filterLeader || 'all');
+    const [filterTrust, setFilterTrust] = useState<'all' | 'pending' | 'finalized'>(() => storedViewState.filterTrust || 'all');
+    const [secondPassEditedOnly, setSecondPassEditedOnly] = useState(() => storedViewState.secondPassEditedOnly ?? true);
+    const [secondPassExcludedOnly, setSecondPassExcludedOnly] = useState(() => storedViewState.secondPassExcludedOnly ?? false);
+    const [secondPassReasonFilter, setSecondPassReasonFilter] = useState<string>(() => storedViewState.secondPassReasonFilter || 'all');
+    const [recordSortMode, setRecordSortMode] = useState<RecordSortMode>(() => storedViewState.recordSortMode || 'recent-correction');
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [batchJobField, setBatchJobField] = useState('');
     const [batchTeamLeader, setBatchTeamLeader] = useState('');
     const [failedOnlyDefault, setFailedOnlyDefault] = useState<boolean>(() => getFailedOnlyDefaultOption());
-    const [filterStatus, setFilterStatus] = useState<'all' | 'success' | 'failed'>(() => getFailedOnlyDefaultOption() ? 'failed' : 'all');
+    const [filterStatus, setFilterStatus] = useState<'all' | 'success' | 'failed'>(() => storedViewState.filterStatus || (getFailedOnlyDefaultOption() ? 'failed' : 'all'));
     const [dailyCounter, setDailyCounter] = useState<DailyCounterState>(() => getApiCallState());
     const [importValidationSummary, setImportValidationSummary] = useState<string>('');
     const [importValidationDetails, setImportValidationDetails] = useState<string>('');
@@ -463,6 +613,27 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             // ignore storage errors
         }
     }, [failedOnlyDefault]);
+
+    useEffect(() => {
+        try {
+            const nextState: OcrViewState = {
+                savedAt: Date.now(),
+                searchTerm,
+                filterLevel,
+                filterField,
+                filterLeader,
+                filterTrust,
+                filterStatus,
+                secondPassEditedOnly,
+                secondPassExcludedOnly,
+                secondPassReasonFilter,
+                recordSortMode,
+            };
+            localStorage.setItem(OCR_VIEW_STATE_KEY, JSON.stringify(nextState));
+        } catch {
+            // ignore storage errors
+        }
+    }, [searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterStatus, secondPassEditedOnly, secondPassExcludedOnly, secondPassReasonFilter, recordSortMode]);
 
     const handleCreateMasterTemplate = async (payload: { name: string; version: string; fieldSchema: string }) => {
         const result = await supabase
@@ -672,9 +843,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         return Array.from(leaders).sort();
     }, [existingRecords]);
 
-    const filteredRecords = useMemo(() => {
+    const jobFields = useMemo(() => {
+        const fields = new Set(existingRecords.map(r => r.jobField).filter(Boolean));
+        return Array.from(fields).sort();
+    }, [existingRecords]);
+
+    const baseFilteredRecords = useMemo(() => {
         return existingRecords.filter(r => {
-            const searchStr = `${r.name || ''} ${r.jobField || ''} ${r.nationality || ''}`.toLowerCase();
+            const searchStr = `${r.name || ''} ${r.jobField || ''} ${r.nationality || ''} ${r.teamLeader || ''}`.toLowerCase();
             const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
             const matchesLevel = filterLevel === 'all' || r.safetyLevel === filterLevel;
             const matchesField = filterField === 'all' || r.jobField === filterField;
@@ -692,7 +868,50 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 (filterStatus === 'failed' && recordFailed);
             return matchesSearch && matchesLevel && matchesField && matchesLeader && matchesTrust && matchesStatus;
         });
-    }, [existingRecords, searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterStatus, getReviewTrustState, isFailedRecord]);
+    }, [existingRecords, searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterStatus, getReviewTrustState]);
+
+    const secondPassSkippedCounts = useMemo(() => {
+        return baseFilteredRecords.reduce<Record<string, number>>((acc, record) => {
+            const eligibility = getSecondPassEligibility(record, secondPassEditedOnly);
+            if (!eligibility.eligible && eligibility.reason) {
+                acc[eligibility.reason] = (acc[eligibility.reason] || 0) + 1;
+            }
+            return acc;
+        }, {});
+    }, [baseFilteredRecords, secondPassEditedOnly]);
+
+    const filteredRecords = useMemo(() => {
+        const filteredBySecondPass = baseFilteredRecords.filter(record => {
+            const secondPassEligibility = getSecondPassEligibility(record, secondPassEditedOnly);
+            const matchesExcludedOnly = !secondPassExcludedOnly || !secondPassEligibility.eligible;
+            const matchesReason =
+                secondPassReasonFilter === 'all' ||
+                (!secondPassEligibility.eligible && secondPassEligibility.reason === secondPassReasonFilter);
+
+            return matchesExcludedOnly && matchesReason;
+        });
+
+        return [...filteredBySecondPass].sort((a, b) => {
+            if (recordSortMode === 'failed-first') {
+                const failedDiff = Number(isFailedRecord(b)) - Number(isFailedRecord(a));
+                if (failedDiff !== 0) return failedDiff;
+            }
+
+            if (recordSortMode === 'score-desc') {
+                const scoreDiff = (b.safetyScore || 0) - (a.safetyScore || 0);
+                if (scoreDiff !== 0) return scoreDiff;
+            }
+
+            const aHasCorrection = hasManagerCorrections(a) ? 1 : 0;
+            const bHasCorrection = hasManagerCorrections(b) ? 1 : 0;
+            if (aHasCorrection !== bHasCorrection) return bHasCorrection - aHasCorrection;
+
+            const correctionTimeDiff = getLatestCorrectionTimestamp(b) - getLatestCorrectionTimestamp(a);
+            if (correctionTimeDiff !== 0) return correctionTimeDiff;
+
+            return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
+        });
+    }, [baseFilteredRecords, secondPassEditedOnly, secondPassExcludedOnly, secondPassReasonFilter, recordSortMode]);
 
     const recordsWithImages = useMemo(() => {
         return existingRecords.filter(r => hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage));
@@ -701,6 +920,26 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const failedRecords = useMemo(() => {
         return existingRecords.filter(r => isFailedRecord(r));
     }, [existingRecords]);
+
+    const secondPassTargets = useMemo(() => {
+        return baseFilteredRecords.filter(record => getSecondPassEligibility(record, secondPassEditedOnly).eligible);
+    }, [baseFilteredRecords, secondPassEditedOnly]);
+
+    const secondPassPreviewRecords = useMemo(() => {
+        return secondPassTargets.slice(0, 5);
+    }, [secondPassTargets]);
+
+    const secondPassSkippedSummary = useMemo(() => {
+        return Object.entries(secondPassSkippedCounts)
+            .sort((a, b) => b[1] - a[1])
+            .map(([reason, count]) => `${reason} ${count}건`)
+            .join(', ');
+            }, [secondPassSkippedCounts]);
+
+    const retrySuccessRate = useMemo(() => {
+        if (!retryDiagnostics || retryDiagnostics.total === 0) return 0;
+        return Math.round((retryDiagnostics.success / retryDiagnostics.total) * 100);
+    }, [retryDiagnostics]);
 
     const lowConfidenceCount = useMemo(() => {
         return existingRecords.filter(r => typeof r.ocrConfidence === 'number' && r.ocrConfidence < 0.7).length;
@@ -1201,10 +1440,33 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
     // [IMPROVED] AI 갱신 함수명 명확화 + 재시도 로직 추가
     const handleBatchTextAnalysis = async () => {
-        const targets = filteredRecords;
+        const targets = secondPassTargets;
         const total = targets.length;
-        if (total === 0) return alert('대상 없음');
-        if (!confirm(`${total}명에 대해 관리자 수정사항을 반영한 2차 AI 재분석을 실행합니다.\n\n- 현재 필터로 조회된 대상 전체 적용\n- 1차 OCR 원문 재추출이 아닌 수정 반영 재평가\n- 점수, 등급, 강점/약점, AI 인사이트 갱신`)) return;
+        const skippedCount = baseFilteredRecords.length - total;
+        const previewSummary = secondPassPreviewRecords.length > 0
+            ? secondPassPreviewRecords
+                .map((record, index) => `${index + 1}) ${record.name || '이름 없음'} · ${record.jobField} · ${record.safetyScore}점`)
+                .join('\n')
+            : '미리보기 대상 없음';
+        if (total === 0) {
+            alert(
+                `2차 AI 재분석 가능 대상이 없습니다.\n\n` +
+                `- 현재 필터 결과: ${baseFilteredRecords.length}건\n` +
+                `- 제외 사유: ${secondPassSkippedSummary || '재분석 가능한 기록 없음'}\n\n` +
+                `※ OCR 실패/대기 건은 '스마트 재분석' 또는 '강제 재분석'을 사용해 주세요.`
+            );
+            return;
+        }
+        if (!confirm(
+            `${total}명에 대해 관리자 수정사항을 반영한 2차 AI 재분석을 실행합니다.\n\n` +
+            `- 현재 필터 결과 ${baseFilteredRecords.length}건 중 ${total}건 적용\n` +
+            `- 제외 ${skippedCount}건${secondPassSkippedSummary ? ` (${secondPassSkippedSummary})` : ''}\n` +
+            `- 관리자 수정 이력 필터 ${secondPassEditedOnly ? '사용' : '미사용'}\n` +
+            `- 정렬 기준 ${recordSortMode === 'recent-correction' ? '최근 수정순' : recordSortMode === 'score-desc' ? '점수 높은순' : '실패 우선'}\n\n` +
+            `[상위 대상 미리보기]\n${previewSummary}\n\n` +
+            `- 1차 OCR 원문 재추출이 아닌 수정 반영 재평가\n` +
+            `- 점수, 등급, 강점/약점, AI 인사이트 갱신`
+        )) return;
 
         setIsAnalyzing(true);
         setBatchProgress({ current: 0, total });
@@ -1306,6 +1568,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             }
         }
     };
+
+    const resetFilters = useCallback(() => {
+        setSearchTerm('');
+        setFilterLeader('all');
+        setFilterTrust('all');
+        setFilterLevel('all');
+        setFilterField('all');
+        setSecondPassExcludedOnly(false);
+        setSecondPassReasonFilter('all');
+        setRecordSortMode('recent-correction');
+        setFilterStatus(failedOnlyDefault ? 'failed' : 'all');
+    }, [failedOnlyDefault]);
 
     const handleBatchReanalyze = () => {
         const splitSize = getBatchSplitSize();
@@ -1887,74 +2161,248 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 </div>
             )}
 
-            <div className="bg-white p-6 rounded-2xl shadow-xl border border-slate-100 flex flex-col gap-4 no-print">
-                <div className="flex items-center justify-between gap-3">
-                    <h4 className="text-base sm:text-lg font-black text-slate-900">검색 및 필터링</h4>
-                    <span className="text-[11px] font-bold text-slate-500">데이터 목록 전용</span>
+            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-100 flex flex-col gap-5 no-print">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                    <div>
+                        <h4 className="text-base sm:text-lg font-black text-slate-900">검색 및 필터링</h4>
+                        <p className="mt-1 text-xs sm:text-sm font-semibold text-slate-500">검색·필터·재분석 대상을 한 번에 정리할 수 있게 재구성했습니다.</p>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 w-full lg:w-auto">
+                        <div className="rounded-2xl bg-slate-50 border border-slate-200 px-3 py-2">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">조회 결과</p>
+                            <p className="mt-1 text-lg font-black text-slate-900">{filteredRecords.length}</p>
+                        </div>
+                        <div className="rounded-2xl bg-emerald-50 border border-emerald-200 px-3 py-2">
+                            <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">재분석 가능</p>
+                            <p className="mt-1 text-lg font-black text-emerald-700">{secondPassTargets.length}</p>
+                        </div>
+                        <div className="rounded-2xl bg-rose-50 border border-rose-200 px-3 py-2">
+                            <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest">실패/대기</p>
+                            <p className="mt-1 text-lg font-black text-rose-700">{filteredRecords.filter(r => isFailedRecord(r)).length}</p>
+                        </div>
+                        <div className="rounded-2xl bg-violet-50 border border-violet-200 px-3 py-2">
+                            <p className="text-[10px] font-black text-violet-400 uppercase tracking-widest">제외 사유</p>
+                            <p className="mt-1 text-[11px] font-black text-violet-700 leading-snug">{secondPassSkippedSummary || '없음'}</p>
+                        </div>
+                    </div>
                 </div>
 
-                <div className="flex flex-col md:flex-row gap-3 sm:gap-4 items-stretch md:items-center">
-                    <div className="relative flex-1 w-full">
-                        <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={2}/></svg>
-                        <input type="text" placeholder="근로자 명, 공종 등으로 검색..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold" />
+                <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-4 items-start">
+                    <div className="space-y-3">
+                        <div className="relative w-full">
+                            <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={2}/></svg>
+                            <input type="text" placeholder="근로자명 · 공종 · 국적 · 팀장으로 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold" />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">공종</label>
+                                <select value={filterField} onChange={(e) => setFilterField(e.target.value)} className="mt-2 w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
+                                    <option value="all">전체</option>
+                                    {jobFields.map(field => (
+                                        <option key={field} value={field}>{field}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">팀장</label>
+                                <select value={filterLeader} onChange={(e) => setFilterLeader(e.target.value)} className="mt-2 w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
+                                    <option value="all">전체</option>
+                                    {teamLeaders.map(leader => (
+                                        <option key={leader} value={leader}>{leader}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">신뢰 상태</label>
+                                <select value={filterTrust} onChange={(e) => setFilterTrust(e.target.value as 'all' | 'pending' | 'finalized')} className="mt-2 w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
+                                    <option value="all">전체</option>
+                                    <option value="pending">재검토 대기</option>
+                                    <option value="finalized">최종확정</option>
+                                </select>
+                            </div>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">등급</label>
+                                <select value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)} className="mt-2 w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
+                                    <option value="all">전체</option>
+                                    <option value="고급">고급</option>
+                                    <option value="중급">중급</option>
+                                    <option value="초급">초급</option>
+                                </select>
+                            </div>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">OCR 결과</label>
+                                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as 'all' | 'success' | 'failed')} className="mt-2 w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
+                                    <option value="all">전체</option>
+                                    <option value="success">성공</option>
+                                    <option value="failed">실패/대기</option>
+                                </select>
+                            </div>
+                            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 flex flex-col justify-between">
+                                <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                                    <input
+                                        type="checkbox"
+                                        checked={failedOnlyDefault}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            setFailedOnlyDefault(checked);
+                                            setFilterStatus(checked ? 'failed' : 'all');
+                                        }}
+                                        className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
+                                    />
+                                    실패/대기만 보기 기본값
+                                </label>
+                                <button onClick={resetFilters} className="mt-3 w-full px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-black text-sm hover:bg-slate-50 transition-all">
+                                    필터 초기화
+                                </button>
+                            </div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">정렬</label>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full sm:w-auto">
+                                    <button type="button" onClick={() => setRecordSortMode('recent-correction')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'recent-correction' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>최근 수정순</button>
+                                    <button type="button" onClick={() => setRecordSortMode('score-desc')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'score-desc' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>점수 높은순</button>
+                                    <button type="button" onClick={() => setRecordSortMode('failed-first')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'failed-first' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>실패 우선</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 shrink-0">
-                        <label className="text-xs font-bold text-slate-500">팀장 필터:</label>
-                        <select value={filterLeader} onChange={(e) => setFilterLeader(e.target.value)} className="w-full sm:w-auto bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
-                            <option value="all">전체</option>
-                            {teamLeaders.map(leader => (
-                                <option key={leader} value={leader}>{leader}</option>
-                            ))}
-                        </select>
+
+                    <div className="rounded-3xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-4 sm:p-5 shadow-sm">
+                        <p className="text-[11px] font-black text-violet-500 uppercase tracking-[0.2em]">2차 AI 재분석</p>
+                        <h5 className="mt-2 text-lg font-black text-slate-900">관리자 수정본 기준 재평가</h5>
+                        <p className="mt-2 text-sm font-semibold text-slate-600 leading-relaxed">
+                            현재 필터 기준으로 OCR 성공 기록만 선별해 점수, 등급, 강점/약점, AI 인사이트를 다시 계산합니다.
+                        </p>
+                        <ul className="mt-4 space-y-2 text-[12px] font-bold text-slate-600">
+                            <li>• 적용 대상: {secondPassTargets.length}건</li>
+                            <li>• 자동 제외: OCR 실패/대기, 원문 텍스트 없음{secondPassEditedOnly ? ', 관리자 수정이력 없음' : ''}</li>
+                            <li>• 실패 건 재처리: 스마트 재분석 / 강제 재분석 사용</li>
+                        </ul>
+                        <label className="mt-4 flex items-center gap-2 text-xs font-black text-violet-700">
+                            <input
+                                type="checkbox"
+                                checked={secondPassEditedOnly}
+                                onChange={(e) => {
+                                    setSecondPassEditedOnly(e.target.checked);
+                                    setSecondPassExcludedOnly(false);
+                                    setSecondPassReasonFilter('all');
+                                }}
+                                className="w-4 h-4 rounded border-violet-300 text-violet-600 focus:ring-violet-500"
+                            />
+                            관리자 수정 이력 있는 건만 재분석
+                        </label>
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSecondPassExcludedOnly(false);
+                                    setSecondPassReasonFilter('all');
+                                }}
+                                className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${!secondPassExcludedOnly ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-violet-700 border-violet-200 hover:bg-violet-50'}`}
+                            >
+                                전체 보기
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSecondPassExcludedOnly(true);
+                                    setSecondPassReasonFilter('all');
+                                }}
+                                className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${secondPassExcludedOnly ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-violet-700 border-violet-200 hover:bg-violet-50'}`}
+                            >
+                                제외 건만 보기
+                            </button>
+                        </div>
+                        {Object.keys(secondPassSkippedCounts).length > 0 && (
+                            <div className="mt-4 flex flex-wrap gap-2">
+                                {Object.entries(secondPassSkippedCounts)
+                                    .sort((a, b) => b[1] - a[1])
+                                    .map(([reason, count]) => (
+                                        <button
+                                            key={reason}
+                                            type="button"
+                                            onClick={() => {
+                                                setSecondPassExcludedOnly(true);
+                                                setSecondPassReasonFilter(current => current === reason ? 'all' : reason);
+                                            }}
+                                            className={`px-2.5 py-1 rounded-full border text-[11px] font-black transition-all ${secondPassReasonFilter === reason ? 'bg-violet-600 border-violet-600 text-white' : 'bg-white border-violet-200 text-violet-700 hover:bg-violet-50'}`}
+                                        >
+                                            {reason} · {count}건
+                                        </button>
+                                    ))}
+                                {secondPassReasonFilter !== 'all' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setSecondPassReasonFilter('all')}
+                                        className="px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-[11px] font-black hover:bg-slate-200 transition-all"
+                                    >
+                                        사유 필터 해제
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                        <div className="mt-4 rounded-2xl border border-violet-200 bg-white/80 p-3">
+                            <div className="flex items-center justify-between gap-2">
+                                <p className="text-[11px] font-black text-violet-600 uppercase tracking-wider">대상 미리보기</p>
+                                <span className="text-[11px] font-bold text-slate-500">상위 {secondPassPreviewRecords.length}건</span>
+                            </div>
+                            <div className="mt-3 space-y-2">
+                                {secondPassPreviewRecords.length > 0 ? secondPassPreviewRecords.map((record) => (
+                                    <div key={record.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <p className="text-sm font-black text-slate-900 truncate">{record.name || '이름 없음'}</p>
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${getSafetyLevelClass(record.safetyLevel)}`}>{record.safetyScore}점</span>
+                                        </div>
+                                        <p className="mt-1 text-[11px] font-bold text-slate-500 truncate">{record.jobField} · 팀장 {record.teamLeader || '미지정'}</p>
+                                        {getLatestCorrectionPreview(record) && (
+                                            <p className="mt-1 text-[10px] font-black text-violet-700 leading-snug truncate">최근 수정: {getLatestCorrectionPreview(record)}</p>
+                                        )}
+                                    </div>
+                                )) : (
+                                    <p className="text-[11px] font-bold text-slate-500">조건에 맞는 2차 재분석 대상이 없습니다.</p>
+                                )}
+                            </div>
+                        </div>
+                        {retryDiagnostics && (
+                            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3">
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="text-[11px] font-black text-emerald-700 uppercase tracking-wider">최근 재분석 결과</p>
+                                    <span className="text-[11px] font-black text-emerald-700">성공률 {retrySuccessRate}%</span>
+                                </div>
+                                <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+                                    <div className="rounded-xl bg-white border border-emerald-100 px-2 py-2">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase">총 대상</p>
+                                        <p className="mt-1 text-lg font-black text-slate-900">{retryDiagnostics.total}</p>
+                                    </div>
+                                    <div className="rounded-xl bg-white border border-emerald-100 px-2 py-2">
+                                        <p className="text-[10px] font-black text-emerald-500 uppercase">성공</p>
+                                        <p className="mt-1 text-lg font-black text-emerald-700">{retryDiagnostics.success}</p>
+                                    </div>
+                                    <div className="rounded-xl bg-white border border-rose-100 px-2 py-2">
+                                        <p className="text-[10px] font-black text-rose-400 uppercase">실패</p>
+                                        <p className="mt-1 text-lg font-black text-rose-700">{retryDiagnostics.fail}</p>
+                                    </div>
+                                    <div className="rounded-xl bg-white border border-amber-100 px-2 py-2">
+                                        <p className="text-[10px] font-black text-amber-500 uppercase">사전 실패</p>
+                                        <p className="mt-1 text-lg font-black text-amber-700">{retryDiagnostics.preflightFail}</p>
+                                    </div>
+                                </div>
+                                <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] font-bold text-slate-600">
+                                    <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">서버 성공: <span className="text-slate-900">{retryDiagnostics.serverSuccess}</span></div>
+                                    <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">브라우저 폴백: <span className="text-slate-900">{retryDiagnostics.clientFallbackSuccess}</span></div>
+                                    <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">처리 실패: <span className="text-slate-900">{retryDiagnostics.processingFail}</span></div>
+                                </div>
+                            </div>
+                        )}
+                        <button onClick={handleBatchTextAnalysis} 
+                            disabled={isAnalyzing || secondPassTargets.length === 0}
+                            className="mt-5 w-full px-5 py-3.5 bg-violet-600 hover:bg-violet-700 text-white rounded-2xl font-black text-sm shadow-md transition-all flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                            관리자 수정 반영 2차 AI 재분석
+                        </button>
                     </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 shrink-0">
-                        <label className="text-xs font-bold text-slate-500">신뢰 상태:</label>
-                        <select value={filterTrust} onChange={(e) => setFilterTrust(e.target.value as 'all' | 'pending' | 'finalized')} className="w-full sm:w-auto bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
-                            <option value="all">전체</option>
-                            <option value="pending">재검토 대기</option>
-                            <option value="finalized">최종확정</option>
-                        </select>
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 shrink-0">
-                        <label className="text-xs font-bold text-slate-500">등급:</label>
-                        <select value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)} className="w-full sm:w-auto bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[110px]">
-                            <option value="all">전체</option>
-                            <option value="고급">고급</option>
-                            <option value="중급">중급</option>
-                            <option value="초급">초급</option>
-                        </select>
-                    </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 shrink-0">
-                        <label className="text-xs font-bold text-slate-500">OCR 결과:</label>
-                        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as 'all' | 'success' | 'failed')} className="w-full sm:w-auto bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
-                            <option value="all">전체</option>
-                            <option value="success">성공</option>
-                            <option value="failed">실패/대기</option>
-                        </select>
-                    </div>
-                    <label className="flex items-center gap-2 text-xs font-bold text-slate-600 shrink-0">
-                        <input
-                            type="checkbox"
-                            checked={failedOnlyDefault}
-                            onChange={(e) => {
-                                const checked = e.target.checked;
-                                setFailedOnlyDefault(checked);
-                                setFilterStatus(checked ? 'failed' : 'all');
-                            }}
-                            className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
-                        />
-                        실패/대기만 보기 기본값
-                    </label>
-                    <button onClick={handleBatchTextAnalysis} 
-                        disabled={isAnalyzing}
-                        className="w-full md:w-auto px-5 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-black text-sm shadow-md transition-all flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                        관리자 수정 반영 2차 AI 재분석
-                    </button>
-                    <p className="w-full text-[11px] font-semibold text-violet-700 md:ml-auto md:w-auto">
-                        현재 필터 대상 전체에 대해 관리자 수정본 기준으로 재평가합니다.
-                    </p>
                 </div>
             </div>
 
@@ -2011,6 +2459,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     {filteredRecords.map((r: WorkerRecord) => {
                         const checked = selectedIds.includes(r.id);
                         const failed = isFailedRecord(r);
+                        const secondPassEligibility = getSecondPassEligibility(r, secondPassEditedOnly);
+                        const latestCorrectionPreview = getLatestCorrectionPreview(r);
+                        const latestCorrectionTimestampLabel = getLatestCorrectionTimestampLabel(r);
+                        const recentlyCorrected = isRecentlyCorrected(r);
+                        const weakCorrectionReason = hasWeakCorrectionReason(r);
+                        const latestCorrectionReason = String((r.correctionHistory || []).slice(-1)[0]?.reason || '').trim();
                         const hasImage = hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage);
                         const rowErrorType = failed ? getOcrErrorTypeFromRecord(r) : null;
                         const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
@@ -2018,7 +2472,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         const preflightReason = failed ? getPreflightFailureReason(r) : null;
 
                         return (
-                            <div key={r.id} className={`rounded-2xl border p-3 bg-white ${failed ? 'border-rose-200 bg-rose-50/40' : 'border-slate-200'}`}>
+                            <div key={r.id} className={`rounded-2xl border p-3 bg-white ${failed ? 'border-rose-200 bg-rose-50/40' : recentlyCorrected ? 'border-violet-200 bg-violet-50/30' : 'border-slate-200'}`}>
                                 <div className="flex items-start justify-between gap-2">
                                     <button
                                         type="button"
@@ -2031,6 +2485,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         </p>
                                         <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.nationality} · {r.date}</p>
                                         <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.jobField} · 팀장 {r.teamLeader || '미지정'}</p>
+                                        {latestCorrectionPreview && (
+                                            <p className="mt-1 text-[10px] text-violet-700 font-black leading-snug" title={latestCorrectionReason || latestCorrectionPreview}>최근 수정: {latestCorrectionPreview}</p>
+                                        )}
+                                        {latestCorrectionTimestampLabel && (
+                                            <p className="mt-0.5 text-[10px] text-violet-500 font-bold">수정 시각: {latestCorrectionTimestampLabel}</p>
+                                        )}
                                     </button>
                                     <input
                                         type="checkbox"
@@ -2046,8 +2506,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
                                     <span className={`px-2.5 py-1 rounded-full font-black ${getSafetyLevelClass(r.safetyLevel)}`}>{r.safetyScore}점 {r.safetyLevel}</span>
                                     <span className={`px-2 py-1 rounded font-black ${hasImage ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{hasImage ? '이미지 OK' : '이미지 누락'}</span>
+                                    {recentlyCorrected && <span className="px-2 py-1 rounded bg-violet-600 text-white font-black">최근 24h 수정</span>}
+                                    {weakCorrectionReason && <span className="px-2 py-1 rounded bg-amber-100 text-amber-800 font-black" title={latestCorrectionReason || '수정 사유가 비어 있거나 너무 짧습니다.'}>수정사유 보강 필요</span>}
                                     {getReviewTrustState(r) === 'PENDING' && <span className="px-2 py-1 rounded bg-amber-100 text-amber-700 font-black">재검토 대기</span>}
                                     {getReviewTrustState(r) === 'FINALIZED' && <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-700 font-black">최종확정</span>}
+                                    {!secondPassEligibility.eligible && !failed && secondPassEligibility.reason && (
+                                        <span className="px-2 py-1 rounded bg-violet-100 text-violet-700 font-black">2차 제외 · {secondPassEligibility.reason}</span>
+                                    )}
                                 </div>
 
                                 {failed && rowErrorType && (
@@ -2077,6 +2542,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     <table className="w-full text-left">
                         <thead>
                             <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                                <th className="px-2 py-4 text-center w-12">선택</th>
                                 <th className="px-4 sm:px-8 py-4">근로자 정보</th>
                                 <th className="px-4 sm:px-8 py-4">공종/직군</th>
                                 <th className="px-4 sm:px-8 py-4">팀장 (Leader)</th>
@@ -2092,6 +2558,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const isManager = isManagementRole(r.jobField);
                                 const hasImage = hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage);
                                 const failed = isFailedRecord(r);
+                                const secondPassEligibility = getSecondPassEligibility(r, secondPassEditedOnly);
+                                const latestCorrectionPreview = getLatestCorrectionPreview(r);
+                                const latestCorrectionTimestampLabel = getLatestCorrectionTimestampLabel(r);
+                                const recentlyCorrected = isRecentlyCorrected(r);
+                                const weakCorrectionReason = hasWeakCorrectionReason(r);
+                                const latestCorrectionReason = String((r.correctionHistory || []).slice(-1)[0]?.reason || '').trim();
                                 const rowErrorType = failed ? getOcrErrorTypeFromRecord(r) : null;
                                 const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
                                 const rowGuideSummary = rowErrorType ? getOcrErrorGuideSummary(rowErrorType) : '';
@@ -2099,7 +2571,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const preflightReason = failed ? getPreflightFailureReason(r) : null;
                                 
                                 return (
-                                    <tr key={r.id} className={`hover:bg-indigo-50/30 transition-colors group ${isManager ? 'bg-slate-50/50 opacity-80' : ''} ${failed ? 'bg-rose-50/50' : ''}`}>
+                                    <tr key={r.id} className={`hover:bg-indigo-50/30 transition-colors group ${isManager ? 'bg-slate-50/50 opacity-80' : ''} ${failed ? 'bg-rose-50/50' : recentlyCorrected ? 'bg-violet-50/40' : ''}`}>
                                         <td className="px-2 text-center align-middle">
                                             <input
                                                 type="checkbox"
@@ -2121,6 +2593,26 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 {typeof r.ocrConfidence === 'number' && (
                                                     <span className="text-[9px] text-slate-500 font-bold">OCR 신뢰도: {(r.ocrConfidence * 100).toFixed(0)}%</span>
                                                 )}
+                                                {latestCorrectionPreview && (
+                                                    <span className="text-[10px] text-violet-700 font-black mt-1 leading-snug" title={latestCorrectionReason || latestCorrectionPreview}>
+                                                        최근 수정: {latestCorrectionPreview}
+                                                    </span>
+                                                )}
+                                                {latestCorrectionTimestampLabel && (
+                                                    <span className="text-[10px] text-violet-500 font-bold mt-0.5 leading-snug">
+                                                        수정 시각: {latestCorrectionTimestampLabel}
+                                                    </span>
+                                                )}
+                                                {recentlyCorrected && (
+                                                    <span className="mt-1 inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-black bg-violet-600 text-white border border-violet-600">
+                                                        최근 24h 수정
+                                                    </span>
+                                                )}
+                                                {weakCorrectionReason && (
+                                                    <span className="mt-1 inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-200" title={latestCorrectionReason || '수정 사유가 비어 있거나 너무 짧습니다.'}>
+                                                        수정사유 보강 필요
+                                                    </span>
+                                                )}
                                                 {failed && <span className="text-[9px] text-rose-500 font-bold">⚠️ 분석 필요/실패</span>}
                                                 {failed && rowErrorType && (
                                                     <span className="mt-1 inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-100 text-rose-700 border border-rose-200">
@@ -2136,6 +2628,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                             {rowGuideSummary}
                                                         </span>
                                                     </>
+                                                )}
+                                                {!secondPassEligibility.eligible && !failed && secondPassEligibility.reason && (
+                                                    <span className="mt-1 inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-black bg-violet-100 text-violet-700 border border-violet-200">
+                                                        2차 제외 · {secondPassEligibility.reason}
+                                                    </span>
                                                 )}
                                                 {failed && preflightReason && (
                                                     <span className="text-[10px] text-amber-700 font-black mt-1 leading-snug">
