@@ -204,19 +204,11 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
         setActiveFilter('all');
     }, [targetGroup?.trade, targetGroup?.nationality]);
 
-    if (!targetGroup) {
-        return (
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 flex items-center justify-center min-h-[100px]">
-                <p className="text-xs text-slate-400 font-medium">작업조를 선택하면 개인별 트렌드 목록이 활성화됩니다.</p>
-            </div>
-        );
-    }
-
-    const workers = [...targetGroup.workers].sort((a, b) => {
+    const workers = [...(targetGroup?.workers || [])].sort((a, b) => {
         if (a.latestScore !== b.latestScore) return a.latestScore - b.latestScore;
         return a.averageScore - b.averageScore;
     });
-    const latestAvg = targetGroup.compositeScore;
+    const latestAvg = targetGroup?.compositeScore ?? 0;
     const normalizedSearch = searchQuery.trim().toLowerCase();
 
     const searchFilteredWorkers = useMemo(() => {
@@ -250,6 +242,14 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
             setCurrentPage(totalPages);
         }
     }, [currentPage, totalPages]);
+
+    if (!targetGroup) {
+        return (
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 flex items-center justify-center min-h-[100px]">
+                <p className="text-xs text-slate-400 font-medium">작업조를 선택하면 개인별 트렌드 목록이 활성화됩니다.</p>
+            </div>
+        );
+    }
 
     const riskCount = filteredWorkers.filter(worker => worker.latestScore < 60).length;
     const cautionCount = filteredWorkers.filter(worker => worker.latestScore >= 60 && worker.latestScore < 75).length;
