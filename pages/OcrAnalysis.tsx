@@ -23,12 +23,17 @@ const buildReassessmentAuditNote = (before: WorkerRecord, updated: Partial<Worke
     const afterScore = typeof updated.safetyScore === 'number' ? updated.safetyScore : beforeScore;
     const beforeLevel = before.safetyLevel;
     const afterLevel = (updated.safetyLevel as WorkerRecord['safetyLevel']) || beforeLevel;
+    const beforeErrorType = isFailedRecord(before) ? getOcrErrorTypeKoreanLabel(getOcrErrorTypeFromRecord(before)) : '';
 
     const beforeReasons = Array.isArray(before.scoreReasoning) ? before.scoreReasoning : [];
     const afterReasons = Array.isArray(updated.scoreReasoning) ? updated.scoreReasoning : beforeReasons;
     const addedReasons = afterReasons.filter(reason => !beforeReasons.includes(reason)).slice(0, 2);
 
     const parts = [`점수 ${beforeScore}→${afterScore}`, `등급 ${beforeLevel}→${afterLevel}`];
+
+    if (beforeErrorType) {
+        parts.push(`이전 오류: ${beforeErrorType}`);
+    }
 
     if (addedReasons.length > 0) {
         parts.push(`근거추가: ${addedReasons.join(' / ')}`);
@@ -126,6 +131,45 @@ const getOcrErrorMobileLabel = (errorType: OcrErrorType): string => {
     }
 };
 
+const getFailureChecklist = (errorType: OcrErrorType): string[] => {
+    switch (errorType) {
+        case 'LAYOUT':
+            return [
+                '문서 모서리 4개가 모두 보이는지 확인',
+                '기록지 전체가 한 화면에 들어오도록 재촬영',
+                '기울어짐/잘림 없는 원본으로 다시 업로드',
+            ];
+        case 'QUALITY':
+            return [
+                '반사광·그림자·흔들림 여부 확인',
+                '초점이 맞는 원본 사진으로 재업로드',
+                '야간/역광 촬영이면 밝기 보정 후 재시도',
+            ];
+        case 'RESOLUTION':
+            return [
+                '문자 식별이 가능한 해상도인지 확인',
+                '문서와 카메라 거리를 좁혀 다시 촬영',
+                '압축본 대신 원본 이미지를 우선 사용',
+            ];
+        case 'HANDWRITING':
+            return [
+                '핵심 문항을 육안으로 직접 대조 확인',
+                '판독 어려운 필기는 관리자 보정 여부 검토',
+                '필요 시 재작성 요청 또는 정상분류 기준 검토',
+            ];
+        default:
+            return [
+                '네트워크/API 상태를 먼저 확인',
+                '같은 오류 반복 여부를 집계에서 확인',
+                '재분석과 정상분류 중 적절한 조치를 선택',
+            ];
+    }
+};
+
+const getFailureChecklistSummary = (errorType: OcrErrorType): string => {
+    return getFailureChecklist(errorType).slice(0, 2).join(' · ');
+};
+
 const normalizeRetryImageData = (image?: string): string => {
     if (!image || typeof image !== 'string') return '';
     const trimmed = image.trim();
@@ -149,6 +193,7 @@ type OcrViewState = {
     filterField: string;
     filterLeader: string;
     filterTrust: 'all' | 'pending' | 'finalized';
+    filterReason: 'all' | 'has-reason' | 'missing-reason' | 'weak-reason';
     filterStatus: 'all' | 'success' | 'failed';
     secondPassEditedOnly: boolean;
     secondPassExcludedOnly: boolean;
@@ -320,6 +365,27 @@ const getLatestCorrectionPreview = (record: WorkerRecord): string | null => {
         : fieldSummary;
 };
 
+const getLatestCorrectionReason = (record: WorkerRecord): string => {
+    const latest = Array.isArray(record.correctionHistory)
+        ? record.correctionHistory[record.correctionHistory.length - 1]
+        : null;
+
+    return String(latest?.reason || '').trim();
+};
+
+const getLatestDecisionReason = (record: WorkerRecord): string => {
+    const approvalComment = String((record.approvalHistory || []).slice(-1)[0]?.comment || '').trim();
+    const directReason = String(record.approvalReason || record.reviewReason || record.adminComment || '').trim();
+    return directReason || approvalComment;
+};
+
+const hasWeakDecisionReason = (record: WorkerRecord): boolean => {
+    const reason = getLatestDecisionReason(record);
+    if (!reason) return false;
+    if (reason.length < 6) return true;
+    return /승인|반영|확인|검토|ok|완료/i.test(reason) && reason.length < 12;
+};
+
 const hasWeakCorrectionReason = (record: WorkerRecord): boolean => {
     const latest = Array.isArray(record.correctionHistory)
         ? record.correctionHistory[record.correctionHistory.length - 1]
@@ -356,13 +422,99 @@ const getLatestCorrectionTimestampLabel = (record: WorkerRecord): string | null 
     });
 };
 
+const formatCompactDateTime = (value?: string | number | null): string | null => {
+    if (!value) return null;
+
+    const parsed = new Date(value).getTime();
+    if (!Number.isFinite(parsed)) return null;
+
+    return new Date(parsed).toLocaleString('ko-KR', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+    });
+};
+
+const formatComparisonValue = (value: unknown): string => {
+    if (Array.isArray(value)) {
+        const items = value.map((item) => String(item || '').trim()).filter(Boolean);
+        return items.length > 0 ? items.slice(0, 3).join(' / ') : '없음';
+    }
+
+    if (value && typeof value === 'object') {
+        try {
+            return JSON.stringify(value);
+        } catch {
+            return '변경 데이터';
+        }
+    }
+
+    const text = String(value || '').trim();
+    return text || '없음';
+};
+
+const formatLongComparisonText = (value: unknown, maxLength = 220): string => {
+    const text = formatComparisonValue(value);
+    if (text.length <= maxLength) return text;
+    return `${text.slice(0, maxLength)}…`;
+};
+
+const parseReassessmentAuditNote = (note?: string) => {
+    const text = String(note || '');
+    const scoreMatch = text.match(/점수\s*(\d+)→(\d+)/);
+    const levelMatch = text.match(/등급\s*([^|]+?)→([^|]+?)(?:\s*\||$)/);
+
+    if (!scoreMatch) return null;
+
+    const previousScore = Number(scoreMatch[1]);
+    const nextScore = Number(scoreMatch[2]);
+
+    return {
+        previousScore,
+        nextScore,
+        delta: nextScore - previousScore,
+        previousLevel: String(levelMatch?.[1] || '').trim(),
+        nextLevel: String(levelMatch?.[2] || '').trim(),
+    };
+};
+
 const isRecentlyCorrected = (record: WorkerRecord): boolean => {
     const timestamp = getLatestCorrectionTimestamp(record);
     if (!timestamp) return false;
     return Date.now() - timestamp <= 24 * 60 * 60 * 1000;
 };
 
-type RecordSortMode = 'recent-correction' | 'score-desc' | 'failed-first';
+type RecordSortMode = 'recent-correction' | 'score-desc' | 'failed-first' | 'error-type';
+
+const getRecordSortModeLabel = (mode: RecordSortMode): string => {
+    switch (mode) {
+        case 'score-desc':
+            return '점수 높은순';
+        case 'failed-first':
+            return '실패 우선';
+        case 'error-type':
+            return '실패 유형순';
+        default:
+            return '최근 수정순';
+    }
+};
+
+const getOcrErrorTypePriority = (errorType: OcrErrorType): number => {
+    switch (errorType) {
+        case 'LAYOUT':
+            return 0;
+        case 'QUALITY':
+            return 1;
+        case 'RESOLUTION':
+            return 2;
+        case 'HANDWRITING':
+            return 3;
+        default:
+            return 4;
+    }
+};
 
 const getSecondPassEligibility = (record: WorkerRecord, editedOnly = false): { eligible: boolean; reason?: string } => {
     if (isFailedRecord(record)) {
@@ -494,6 +646,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [filterField, setFilterField] = useState<string>(() => storedViewState.filterField || 'all');
     const [filterLeader, setFilterLeader] = useState<string>(() => storedViewState.filterLeader || 'all');
     const [filterTrust, setFilterTrust] = useState<'all' | 'pending' | 'finalized'>(() => storedViewState.filterTrust || 'all');
+    const [filterReason, setFilterReason] = useState<'all' | 'has-reason' | 'missing-reason' | 'weak-reason'>(() => storedViewState.filterReason || 'all');
     const [secondPassEditedOnly, setSecondPassEditedOnly] = useState(() => storedViewState.secondPassEditedOnly ?? true);
     const [secondPassExcludedOnly, setSecondPassExcludedOnly] = useState(() => storedViewState.secondPassExcludedOnly ?? false);
     const [secondPassReasonFilter, setSecondPassReasonFilter] = useState<string>(() => storedViewState.secondPassReasonFilter || 'all');
@@ -623,6 +776,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 filterField,
                 filterLeader,
                 filterTrust,
+                filterReason,
                 filterStatus,
                 secondPassEditedOnly,
                 secondPassExcludedOnly,
@@ -633,7 +787,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         } catch {
             // ignore storage errors
         }
-    }, [searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterStatus, secondPassEditedOnly, secondPassExcludedOnly, secondPassReasonFilter, recordSortMode]);
+    }, [searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterReason, filterStatus, secondPassEditedOnly, secondPassExcludedOnly, secondPassReasonFilter, recordSortMode]);
 
     const handleCreateMasterTemplate = async (payload: { name: string; version: string; fieldSchema: string }) => {
         const result = await supabase
@@ -861,14 +1015,21 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 (filterTrust === 'pending' && trustState === 'PENDING') ||
                 (filterTrust === 'finalized' && trustState === 'FINALIZED');
 
+            const decisionReason = getLatestDecisionReason(r);
+            const matchesReason =
+                filterReason === 'all' ||
+                (filterReason === 'has-reason' && decisionReason.length > 0) ||
+                (filterReason === 'missing-reason' && decisionReason.length === 0) ||
+                (filterReason === 'weak-reason' && hasWeakDecisionReason(r));
+
             const recordFailed = isFailedRecord(r);
             const matchesStatus = 
                 filterStatus === 'all' ||
                 (filterStatus === 'success' && !recordFailed) ||
                 (filterStatus === 'failed' && recordFailed);
-            return matchesSearch && matchesLevel && matchesField && matchesLeader && matchesTrust && matchesStatus;
+            return matchesSearch && matchesLevel && matchesField && matchesLeader && matchesTrust && matchesReason && matchesStatus;
         });
-    }, [existingRecords, searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterStatus, getReviewTrustState]);
+    }, [existingRecords, searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterReason, filterStatus, getReviewTrustState]);
 
     const secondPassSkippedCounts = useMemo(() => {
         return baseFilteredRecords.reduce<Record<string, number>>((acc, record) => {
@@ -892,6 +1053,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         });
 
         return [...filteredBySecondPass].sort((a, b) => {
+            if (recordSortMode === 'error-type') {
+                const aFailed = isFailedRecord(a);
+                const bFailed = isFailedRecord(b);
+                const failedDiff = Number(bFailed) - Number(aFailed);
+                if (failedDiff !== 0) return failedDiff;
+
+                if (aFailed && bFailed) {
+                    const typeDiff = getOcrErrorTypePriority(getOcrErrorTypeFromRecord(a)) - getOcrErrorTypePriority(getOcrErrorTypeFromRecord(b));
+                    if (typeDiff !== 0) return typeDiff;
+                }
+            }
+
             if (recordSortMode === 'failed-first') {
                 const failedDiff = Number(isFailedRecord(b)) - Number(isFailedRecord(a));
                 if (failedDiff !== 0) return failedDiff;
@@ -941,11 +1114,518 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         return Math.round((retryDiagnostics.success / retryDiagnostics.total) * 100);
     }, [retryDiagnostics]);
 
+    const retryLastUpdatedLabel = useMemo(() => {
+        return formatCompactDateTime(retryDiagnostics?.lastUpdatedAt);
+    }, [retryDiagnostics]);
+
+    const retryActionGuides = useMemo(() => {
+        if (!retryDiagnostics) return [] as Array<{ key: string; label: string; count: number; tone: string; action: string }>;
+
+        return [
+            {
+                key: 'preflight',
+                label: '사전 검증 실패',
+                count: retryDiagnostics.preflightFail,
+                tone: 'amber',
+                action: '원문 텍스트, 이름, 관리자 수정 이력 존재 여부를 먼저 확인하세요.',
+            },
+            {
+                key: 'processing',
+                label: 'OCR 처리 실패',
+                count: retryDiagnostics.processingFail,
+                tone: 'rose',
+                action: '이미지 품질·해상도·문서 구도를 재점검한 뒤 재시도하세요.',
+            },
+            {
+                key: 'route',
+                label: '서버 라우트 실패',
+                count: retryDiagnostics.serverRouteFail,
+                tone: 'violet',
+                action: 'API 라우트 배포 상태와 네트워크 연결, 권한 설정을 확인하세요.',
+            },
+        ].filter(item => item.count > 0);
+    }, [retryDiagnostics]);
+
+    const recentReassessmentImpact = useMemo(() => {
+        return existingRecords
+            .map((record) => {
+                const latestReassessment = [...(record.auditTrail || [])]
+                    .filter(entry => entry.stage === 'reassessment')
+                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+
+                if (!latestReassessment) return null;
+
+                const parsed = parseReassessmentAuditNote(latestReassessment.note);
+                if (!parsed) return null;
+
+                return {
+                    id: record.id,
+                    name: record.name || '이름 없음',
+                    jobField: record.jobField || '공종 미지정',
+                    timestamp: latestReassessment.timestamp,
+                    timestampLabel: formatCompactDateTime(latestReassessment.timestamp),
+                    note: String(latestReassessment.note || '').trim(),
+                    ...parsed,
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => new Date((b as any).timestamp).getTime() - new Date((a as any).timestamp).getTime())
+            .slice(0, 5) as Array<{
+                id: string;
+                name: string;
+                jobField: string;
+                timestamp: string;
+                timestampLabel: string | null;
+                note: string;
+                previousScore: number;
+                nextScore: number;
+                delta: number;
+                previousLevel: string;
+                nextLevel: string;
+            }>;
+    }, [existingRecords]);
+
+    const recentReassessmentDeltaSummary = useMemo(() => {
+        return recentReassessmentImpact.reduce(
+            (acc, item) => {
+                if (item.delta > 0) acc.up += 1;
+                else if (item.delta < 0) acc.down += 1;
+                else acc.same += 1;
+                return acc;
+            },
+            { up: 0, down: 0, same: 0 }
+        );
+    }, [recentReassessmentImpact]);
+
+    const recentInsightComparisons = useMemo(() => {
+        return existingRecords
+            .map((record) => {
+                const latestCorrection = [...(record.correctionHistory || [])]
+                    .filter((entry) => Array.isArray(entry.changedFields) && entry.changedFields.includes('aiInsights'))
+                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+
+                if (!latestCorrection) return null;
+
+                const beforeInsight = String(latestCorrection.previousValues?.aiInsights || '').trim();
+                const afterInsight = String(latestCorrection.nextValues?.aiInsights || '').trim();
+
+                if (!beforeInsight && !afterInsight) return null;
+
+                return {
+                    id: record.id,
+                    name: record.name || '이름 없음',
+                    jobField: record.jobField || '공종 미지정',
+                    timestamp: latestCorrection.timestamp,
+                    timestampLabel: formatCompactDateTime(latestCorrection.timestamp),
+                    reason: String(latestCorrection.reason || '').trim(),
+                    beforeInsight,
+                    afterInsight,
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => new Date((b as any).timestamp).getTime() - new Date((a as any).timestamp).getTime())
+            .slice(0, 3) as Array<{
+                id: string;
+                name: string;
+                jobField: string;
+                timestamp: string;
+                timestampLabel: string | null;
+                reason: string;
+                beforeInsight: string;
+                afterInsight: string;
+            }>;
+    }, [existingRecords]);
+
+    const recentContentComparisons = useMemo(() => {
+        const targetFields = ['strengths', 'weakAreas', 'scoreReasoning', 'improvement', 'suggestions', 'actionable_coaching'];
+
+        return existingRecords
+            .map((record) => {
+
+    const recentTextComparisons = useMemo(() => {
+        const targetFields = ['fullText', 'koreanTranslation'];
+
+        return existingRecords
+            .map((record) => {
+                const latestTextCorrection = [...(record.correctionHistory || [])]
+                    .filter((entry) => Array.isArray(entry.changedFields) && entry.changedFields.some((field) => targetFields.includes(field)))
+                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+
+                if (!latestTextCorrection) return null;
+
+                const changedTextFields = (latestTextCorrection.changedFields || []).filter((field) => targetFields.includes(field));
+                if (changedTextFields.length === 0) return null;
+
+                return {
+                    id: record.id,
+                    name: record.name || '이름 없음',
+                    jobField: record.jobField || '공종 미지정',
+                    timestamp: latestTextCorrection.timestamp,
+                    timestampLabel: formatCompactDateTime(latestTextCorrection.timestamp),
+                    reason: String(latestTextCorrection.reason || '').trim(),
+                    changes: changedTextFields.map((field) => ({
+                        field,
+                        label: CORRECTION_FIELD_LABELS[field] || field,
+                        before: formatLongComparisonText(latestTextCorrection.previousValues?.[field]),
+                        after: formatLongComparisonText(latestTextCorrection.nextValues?.[field]),
+                    })),
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => new Date((b as any).timestamp).getTime() - new Date((a as any).timestamp).getTime())
+            .slice(0, 3) as Array<{
+                id: string;
+                name: string;
+                jobField: string;
+                timestamp: string;
+                timestampLabel: string | null;
+                reason: string;
+                changes: Array<{
+                    field: string;
+                    label: string;
+                    before: string;
+                    after: string;
+                }>;
+            }>;
+    }, [existingRecords]);
+                const latestContentCorrection = [...(record.correctionHistory || [])]
+                    .filter((entry) => Array.isArray(entry.changedFields) && entry.changedFields.some((field) => targetFields.includes(field)))
+                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+
+                if (!latestContentCorrection) return null;
+
+                const changedTargetFields = (latestContentCorrection.changedFields || []).filter((field) => targetFields.includes(field));
+                if (changedTargetFields.length === 0) return null;
+
+                return {
+                    id: record.id,
+                    name: record.name || '이름 없음',
+                    jobField: record.jobField || '공종 미지정',
+                    timestamp: latestContentCorrection.timestamp,
+                    timestampLabel: formatCompactDateTime(latestContentCorrection.timestamp),
+                    reason: String(latestContentCorrection.reason || '').trim(),
+                    changes: changedTargetFields.slice(0, 2).map((field) => ({
+                        field,
+                        label: CORRECTION_FIELD_LABELS[field] || field,
+                        before: formatComparisonValue(latestContentCorrection.previousValues?.[field]),
+                        after: formatComparisonValue(latestContentCorrection.nextValues?.[field]),
+                    })),
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => new Date((b as any).timestamp).getTime() - new Date((a as any).timestamp).getTime())
+            .slice(0, 3) as Array<{
+                id: string;
+                name: string;
+                jobField: string;
+                timestamp: string;
+                timestampLabel: string | null;
+                reason: string;
+                changes: Array<{
+                    field: string;
+                    label: string;
+                    before: string;
+                    after: string;
+                }>;
+            }>;
+    }, [existingRecords]);
+
+    const recentAdminActivities = useMemo(() => {
+        const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+
+        const items = existingRecords.flatMap((record) => {
+            const corrections = (record.correctionHistory || []).map((entry) => ({
+                key: `correction-${record.id}-${entry.timestamp}`,
+                type: '수정',
+                name: record.name || '이름 없음',
+                jobField: record.jobField || '공종 미지정',
+                timestamp: entry.timestamp,
+                timestampLabel: formatCompactDateTime(entry.timestamp),
+                summary: entry.reason || '수정 사유 없음',
+                isRecent: new Date(entry.timestamp).getTime() >= dayAgo,
+            }));
+
+            const approvals = (record.approvalHistory || []).map((entry) => ({
+                key: `approval-${record.id}-${entry.timestamp}`,
+                type: entry.status === 'approved' ? '승인' : entry.status === 'rejected' ? '반려' : '검토',
+                name: record.name || '이름 없음',
+                jobField: record.jobField || '공종 미지정',
+                timestamp: entry.timestamp,
+                timestampLabel: formatCompactDateTime(entry.timestamp),
+                summary: entry.comment || `상태 변경: ${entry.status}`,
+                isRecent: new Date(entry.timestamp).getTime() >= dayAgo,
+            }));
+
+            const reassessments = (record.auditTrail || [])
+                .filter((entry) => entry.stage === 'reassessment')
+                .map((entry) => ({
+                    key: `reassessment-${record.id}-${entry.timestamp}`,
+                    type: '재분석',
+                    name: record.name || '이름 없음',
+                    jobField: record.jobField || '공종 미지정',
+                    timestamp: entry.timestamp,
+                    timestampLabel: formatCompactDateTime(entry.timestamp),
+                    summary: entry.note || '2차 재분석 실행',
+                    isRecent: new Date(entry.timestamp).getTime() >= dayAgo,
+                }));
+
+            return [...corrections, ...approvals, ...reassessments];
+        });
+
+        return items
+            .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+            .slice(0, 6);
+    }, [existingRecords]);
+
+    const recentAdminActivitySummary = useMemo(() => {
+        return recentAdminActivities.reduce(
+            (acc, item) => {
+                if (!item.isRecent) return acc;
+                if (item.type === '수정') acc.corrections += 1;
+                else if (item.type === '재분석') acc.reassessments += 1;
+                else acc.approvals += 1;
+                return acc;
+            },
+            { corrections: 0, approvals: 0, reassessments: 0 }
+        );
+    }, [recentAdminActivities]);
+
+    const reasonQaPreviewRecords = useMemo(() => {
+        return existingRecords
+            .map((record) => {
+                const decisionReason = getLatestDecisionReason(record);
+                const needsDecisionReason = getReviewTrustState(record) !== 'NONE' || (record.approvalHistory || []).length > 0;
+                const weakDecisionReason = hasWeakDecisionReason(record);
+                const weakCorrection = hasWeakCorrectionReason(record);
+                const missingDecisionReason = needsDecisionReason && decisionReason.length === 0;
+
+                if (!missingDecisionReason && !weakDecisionReason && !weakCorrection) return null;
+
+                return {
+                    id: record.id,
+                    name: record.name || '이름 없음',
+                    jobField: record.jobField || '공종 미지정',
+                    decisionReason,
+                    correctionReason: getLatestCorrectionReason(record),
+                    missingDecisionReason,
+                    weakDecisionReason,
+                    weakCorrection,
+                    latestTimestamp: Math.max(
+                        getLatestCorrectionTimestamp(record),
+                        new Date((record.approvalHistory || []).slice(-1)[0]?.timestamp || 0).getTime() || 0
+                    ),
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => ((b as any).latestTimestamp || 0) - ((a as any).latestTimestamp || 0))
+            .slice(0, 5) as Array<{
+                id: string;
+                name: string;
+                jobField: string;
+                decisionReason: string;
+                correctionReason: string;
+                missingDecisionReason: boolean;
+                weakDecisionReason: boolean;
+                weakCorrection: boolean;
+                latestTimestamp: number;
+            }>;
+    }, [existingRecords, getReviewTrustState]);
+
+    const reasonQaSummary = useMemo(() => {
+        return reasonQaPreviewRecords.reduce(
+            (acc, record) => {
+                if (record.missingDecisionReason) acc.missingDecision += 1;
+                if (record.weakDecisionReason) acc.weakDecision += 1;
+                if (record.weakCorrection) acc.weakCorrection += 1;
+                return acc;
+            },
+            { missingDecision: 0, weakDecision: 0, weakCorrection: 0 }
+        );
+    }, [reasonQaPreviewRecords]);
+
+    const reasonInputPrompt = useMemo(() => {
+        const target = reasonQaPreviewRecords[0];
+        if (!target) return null;
+
+        const focus = target.missingDecisionReason
+            ? '승인/검토 사유를 반드시 입력해야 합니다.'
+            : target.weakDecisionReason
+                ? '승인/검토 사유를 더 구체적으로 보강해야 합니다.'
+                : '수정 사유를 더 구체적으로 남겨야 합니다.';
+
+        const sample = target.missingDecisionReason || target.weakDecisionReason
+            ? `${target.jobField} 기록 검토 결과, OCR 원문 및 번역 내용을 대조 확인 후 승인합니다.`
+            : `${target.jobField} 기록의 강점/약점 및 점수 근거를 현장 검토에 맞게 보정했습니다.`;
+
+        return {
+            id: target.id,
+            name: target.name,
+            focus,
+            sample,
+        };
+    }, [reasonQaPreviewRecords]);
+
     const lowConfidenceCount = useMemo(() => {
         return existingRecords.filter(r => typeof r.ocrConfidence === 'number' && r.ocrConfidence < 0.7).length;
     }, [existingRecords]);
 
     const primaryFailedRecord = useMemo(() => failedRecords[0] || null, [failedRecords]);
+
+    const failedPreviewRecords = useMemo(() => {
+        return failedRecords.slice(0, 5);
+    }, [failedRecords]);
+
+    const failedTypeSummary = useMemo(() => {
+        const counts = failedRecords.reduce<Record<string, number>>((acc, record) => {
+            const errorType = getOcrErrorTypeFromRecord(record);
+            const label = getOcrErrorTypeKoreanLabel(errorType);
+            acc[label] = (acc[label] || 0) + 1;
+            return acc;
+        }, {});
+
+        return Object.entries(counts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 4);
+    }, [failedRecords]);
+
+    const failedTypeGroups = useMemo(() => {
+        const grouped = failedRecords.reduce<Record<OcrErrorType, WorkerRecord[]>>((acc, record) => {
+            const errorType = getOcrErrorTypeFromRecord(record);
+            acc[errorType] = [...(acc[errorType] || []), record];
+            return acc;
+        }, {
+            QUALITY: [],
+            RESOLUTION: [],
+            HANDWRITING: [],
+            LAYOUT: [],
+            UNKNOWN: [],
+        });
+
+        return (Object.entries(grouped) as Array<[OcrErrorType, WorkerRecord[]]>)
+            .filter(([, records]) => records.length > 0)
+            .sort((a, b) => b[1].length - a[1].length)
+            .slice(0, 4)
+            .map(([type, records]) => ({
+                type,
+                label: getOcrErrorTypeKoreanLabel(type),
+                count: records.length,
+                records,
+            }));
+    }, [failedRecords]);
+
+    const failureProcessingStats = useMemo(() => {
+        const resolvedCounts = existingRecords.reduce<Record<string, number>>((acc, record) => {
+            (record.auditTrail || []).forEach((entry) => {
+                const note = String(entry.note || '');
+                const normalizedMatch = note.match(/관리자 수동 정상분류 처리 \((.+?)\)/);
+                const retryMatch = note.match(/OCR 재분석 성공 \((.+?)\)/);
+                const label = normalizedMatch?.[1] || retryMatch?.[1];
+                if (label) {
+                    acc[label] = (acc[label] || 0) + 1;
+                }
+            });
+            return acc;
+        }, {});
+
+        return ['문서 구도', '촬영 품질', '해상도', '악필/필기', '기타 오류']
+            .map((label) => {
+                const openCount = failedTypeGroups.find((group) => group.label === label)?.count || 0;
+                const resolvedCount = resolvedCounts[label] || 0;
+                const total = openCount + resolvedCount;
+                const rate = total > 0 ? Math.round((resolvedCount / total) * 100) : 0;
+                return {
+                    label,
+                    openCount,
+                    resolvedCount,
+                    total,
+                    rate,
+                };
+            })
+            .filter((item) => item.total > 0);
+    }, [existingRecords, failedTypeGroups]);
+
+    const reanalysisSummaryText = useMemo(() => {
+        const lines = [
+            'PSI OCR 운영 요약',
+            `생성시각: ${new Date().toLocaleString('ko-KR')}`,
+            '',
+            '[기본 현황]',
+            `- 전체 기록: ${existingRecords.length}건`,
+            `- 현재 조회 결과: ${filteredRecords.length}건`,
+            `- 2차 재분석 가능: ${secondPassTargets.length}건`,
+            `- 실패/대기: ${failedRecords.length}건`,
+            `- 사유 QA 대상: ${reasonQaPreviewRecords.length}건`,
+            '',
+            '[최근 재분석 집계]',
+            `- 성공률: ${retrySuccessRate}%`,
+            `- 총 대상: ${retryDiagnostics?.total || 0}건`,
+            `- 성공: ${retryDiagnostics?.success || 0}건`,
+            `- 실패: ${retryDiagnostics?.fail || 0}건`,
+            `- 사전 실패: ${retryDiagnostics?.preflightFail || 0}건`,
+            `- 처리 실패: ${retryDiagnostics?.processingFail || 0}건`,
+            `- 라우트 실패: ${retryDiagnostics?.serverRouteFail || 0}건`,
+            '',
+            '[재분석 점수 변화]',
+            `- 상승: ${recentReassessmentDeltaSummary.up}건`,
+            `- 하락: ${recentReassessmentDeltaSummary.down}건`,
+            `- 유지: ${recentReassessmentDeltaSummary.same}건`,
+            ...(recentReassessmentImpact.length > 0
+                ? [
+                    '',
+                    '[최근 점수 변화 상세]',
+                    ...recentReassessmentImpact.map((item) => `- ${item.name} (${item.jobField}) : ${item.previousScore}→${item.nextScore}, ${item.previousLevel || '-'}→${item.nextLevel || '-'}${item.note ? ` | ${item.note}` : ''}`),
+                ]
+                : []),
+            '',
+            '[실패 유형별 처리 완료율]',
+            ...(failureProcessingStats.length > 0
+                ? failureProcessingStats.map((item) => `- ${item.label}: 완료율 ${item.rate}% (잔여 ${item.openCount} / 처리 ${item.resolvedCount} / 총계 ${item.total})`)
+                : ['- 집계 대상 없음']),
+            ...(failedTypeGroups.length > 0
+                ? [
+                    '',
+                    '[실패 유형별 체크리스트]',
+                    ...failedTypeGroups.map((group) => `- ${group.label}: ${getFailureChecklistSummary(group.type)}`),
+                ]
+                : []),
+            ...(recentInsightComparisons.length > 0
+                ? [
+                    '',
+                    '[최근 AI 인사이트 변경]',
+                    ...recentInsightComparisons.map((item) => `- ${item.name}: ${item.reason || '사유 없음'}\n  · 변경 전: ${formatLongComparisonText(item.beforeInsight, 140)}\n  · 변경 후: ${formatLongComparisonText(item.afterInsight, 140)}`),
+                ]
+                : []),
+            '',
+            '[사유 품질 QA]',
+            `- 승인/검토 사유 없음: ${reasonQaSummary.missingDecision}건`,
+            `- 승인/검토 사유 보강 필요: ${reasonQaSummary.weakDecision}건`,
+            `- 수정 사유 보강 필요: ${reasonQaSummary.weakCorrection}건`,
+            ...(reasonQaPreviewRecords.length > 0
+                ? [
+                    '',
+                    '[우선 점검 대상]',
+                    ...reasonQaPreviewRecords.slice(0, 3).map((record) => `- ${record.name} (${record.jobField}) : 승인사유="${formatLongComparisonText(record.decisionReason, 80)}" / 수정사유="${formatLongComparisonText(record.correctionReason, 80)}"`),
+                ]
+                : []),
+        ];
+
+        return lines.join('\n');
+    }, [
+        existingRecords.length,
+        filteredRecords.length,
+        secondPassTargets.length,
+        failedRecords.length,
+        reasonQaPreviewRecords.length,
+        retrySuccessRate,
+        retryDiagnostics,
+        recentReassessmentDeltaSummary,
+        recentReassessmentImpact,
+        failureProcessingStats,
+        failedTypeGroups,
+        recentInsightComparisons,
+        reasonQaSummary,
+        reasonQaPreviewRecords,
+    ]);
 
     const primaryFailedErrorType = useMemo<OcrErrorType | null>(() => {
         if (!primaryFailedRecord) return null;
@@ -1316,6 +1996,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     if (stopRef.current) { stopped = true; break; }
 
                     if (apiResult) {
+                        const previousErrorLabel = isFailedRecord(record) ? getOcrErrorTypeKoreanLabel(getOcrErrorTypeFromRecord(record)) : '기타 오류';
                         const updatedRecord: WorkerRecord = {
                             ...apiResult,
                             id: record.id, 
@@ -1324,7 +2005,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             filename: record.filename,
                             role: record.role !== 'worker' ? record.role : apiResult.role,
                             isTranslator: record.isTranslator || apiResult.isTranslator,
-                            isSignalman: record.isSignalman || apiResult.isSignalman
+                            isSignalman: record.isSignalman || apiResult.isSignalman,
+                            auditTrail: [
+                                ...(record.auditTrail || []),
+                                {
+                                    stage: 'reassessment',
+                                    timestamp: new Date().toISOString(),
+                                    actor: 'manager',
+                                    note: `OCR 재분석 성공 (${previousErrorLabel}) | ${usedClientFallback ? '브라우저 폴백' : '서버 성공'}`,
+                                },
+                            ],
                         };
                         onUpdateRecord(updatedRecord);
 
@@ -1462,7 +2152,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             `- 현재 필터 결과 ${baseFilteredRecords.length}건 중 ${total}건 적용\n` +
             `- 제외 ${skippedCount}건${secondPassSkippedSummary ? ` (${secondPassSkippedSummary})` : ''}\n` +
             `- 관리자 수정 이력 필터 ${secondPassEditedOnly ? '사용' : '미사용'}\n` +
-            `- 정렬 기준 ${recordSortMode === 'recent-correction' ? '최근 수정순' : recordSortMode === 'score-desc' ? '점수 높은순' : '실패 우선'}\n\n` +
+            `- 정렬 기준 ${getRecordSortModeLabel(recordSortMode)}\n\n` +
             `[상위 대상 미리보기]\n${previewSummary}\n\n` +
             `- 1차 OCR 원문 재추출이 아닌 수정 반영 재평가\n` +
             `- 점수, 등급, 강점/약점, AI 인사이트 갱신`
@@ -1573,6 +2263,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         setSearchTerm('');
         setFilterLeader('all');
         setFilterTrust('all');
+        setFilterReason('all');
         setFilterLevel('all');
         setFilterField('all');
         setSecondPassExcludedOnly(false);
@@ -1648,7 +2339,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     stage: 'validation',
                     timestamp: new Date().toISOString(),
                     actor: 'manager',
-                    note: '관리자 수동 정상분류 처리 (재시도 불가 건)',
+                    note: `관리자 수동 정상분류 처리 (${getOcrErrorTypeKoreanLabel(getOcrErrorTypeFromRecord(record))})`,
                 },
             ],
         };
@@ -1675,6 +2366,27 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         alert(`관리자 일괄 정상분류 완료: ${failedRecords.length}건`);
     };
 
+    const handleAdminNormalizeFailedGroup = (records: WorkerRecord[], label: string) => {
+        if (records.length === 0) {
+            alert(`${label} 정상분류 대상이 없습니다.`);
+            return;
+        }
+
+        const proceed = confirm(
+            `${label} ${records.length}건을 관리자 권한으로 정상분류하시겠습니까?\n\n` +
+            `- OCR 실패 플래그 제거\n` +
+            `- 점수/등급 최소 보정\n` +
+            `- 감사이력 기록`
+        );
+        if (!proceed) return;
+
+        records.forEach((record) => {
+            onUpdateRecord(buildAdminNormalizedRecord(record));
+        });
+
+        alert(`${label} 정상분류 완료: ${records.length}건`);
+    };
+
     const handleAdminNormalizeFailedRecord = (record: WorkerRecord) => {
         const proceed = confirm(
             `관리자 수동 정상분류를 진행하시겠습니까?\n\n` +
@@ -1687,6 +2399,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         onUpdateRecord(buildAdminNormalizedRecord(record));
         alert('관리자 수동 정상분류가 적용되었습니다.');
     };
+
+    const handleViewRecordById = useCallback((recordId: string) => {
+        const target = existingRecords.find((item) => item.id === recordId);
+        if (!target) {
+            alert('대상 기록을 찾을 수 없습니다. 목록을 새로 확인해 주세요.');
+            return;
+        }
+        onViewDetails(target);
+    }, [existingRecords, onViewDetails]);
 
     // File Upload Handler (Simple Version)
     const handleAnalyze = async () => {
@@ -1783,6 +2504,25 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         link.href = url;
         link.download = `PSI_Backup_${new Date().toISOString().slice(0,10)}.json`;
         link.click();
+    };
+
+    const handleExportReanalysisSummary = () => {
+        const blob = new Blob([reanalysisSummaryText], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `PSI_OCR_Reanalysis_Summary_${new Date().toISOString().slice(0,10)}.txt`;
+        link.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleCopyReanalysisSummary = async () => {
+        try {
+            await navigator.clipboard.writeText(reanalysisSummaryText);
+            alert('재분석 운영 요약이 클립보드에 복사되었습니다.');
+        } catch {
+            alert('클립보드 복사에 실패했습니다. 요약 내보내기를 사용해 주세요.');
+        }
     };
 
     const extractImportRecords = (payload: unknown): unknown[] => {
@@ -2003,6 +2743,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                              const file = e.target.files?.[0];
                              if (file) handleImportFile(file);
                         }} />
+                        <button onClick={() => { void handleCopyReanalysisSummary(); }} className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-slate-700 hover:bg-slate-800 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 복사</button>
+                        <button onClick={handleExportReanalysisSummary} className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 내보내기</button>
                         <button onClick={handleExport} className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-2xl font-black text-sm shadow-xl transition-all">백업 내보내기</button>
                         <button onClick={onDeleteAll} className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all">전체 삭제</button>
                     </div>
@@ -2155,6 +2897,172 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             onClick={handleRetryCapture}
                             className="w-full sm:w-auto px-6 py-4 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-base shadow-xl transition-all"
                         >
+
+            {failedRecords.length > 0 && (
+                <div className="bg-white border border-rose-100 rounded-3xl p-5 sm:p-6 shadow-lg">
+                    <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                        <div>
+                            <p className="text-xs font-black text-rose-600 uppercase tracking-widest">실패 레코드 퀵뷰</p>
+                            <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-1">즉시 조치가 필요한 OCR 실패/대기 기록</h4>
+                            <p className="text-sm font-bold text-slate-500 mt-2">상위 {failedPreviewRecords.length}건을 바로 확인하고 재시도·상세검증·정상분류를 빠르게 실행할 수 있습니다.</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {failedTypeSummary.map(([label, count]) => (
+                                <span key={label} className="px-3 py-1.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-black">
+                                    {label} {count}건
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+
+                    {failedTypeGroups.length > 0 && !isAnalyzing && (
+                        <div className="mt-4 flex flex-wrap gap-2">
+                            {failedTypeGroups.map((group) => (
+                                <div key={group.type} className="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => runBatchAnalysis(group.records, `${group.label} 일괄 재분석`)}
+                                        className="px-3 py-2 rounded-xl bg-rose-100 text-rose-700 text-xs font-black hover:bg-rose-200 border border-rose-200"
+                                    >
+                                        {group.label} 재분석 {group.count}건
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleAdminNormalizeFailedGroup(group.records, group.label)}
+                                        className="px-3 py-2 rounded-xl bg-amber-100 text-amber-700 text-xs font-black hover:bg-amber-200 border border-amber-200"
+                                    >
+                                        {group.label} 정상분류 {group.count}건
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {failureProcessingStats.length > 0 && (
+                        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                            <div className="flex items-center justify-between gap-2">
+                                <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">실패 유형별 처리 완료율</p>
+                                <span className="text-[10px] font-bold text-slate-500">현재 잔여 + 처리 이력 기준</span>
+                            </div>
+                            <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-2">
+                                {failureProcessingStats.map((item) => (
+                                    <div key={item.label} className="rounded-xl border border-white bg-white px-3 py-3">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <p className="text-sm font-black text-slate-900">{item.label}</p>
+                                            <span className="text-[10px] font-black text-slate-600">완료율 {item.rate}%</span>
+                                        </div>
+                                        <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
+                                            <div className="h-full bg-gradient-to-r from-emerald-400 to-indigo-500" style={{ width: `${item.rate}%` }}></div>
+                                        </div>
+                                        <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] font-bold text-slate-600">
+                                            <div className="rounded-lg bg-slate-50 px-2 py-2 text-center">잔여<br/><span className="text-slate-900">{item.openCount}</span></div>
+                                            <div className="rounded-lg bg-emerald-50 px-2 py-2 text-center">처리<br/><span className="text-emerald-700">{item.resolvedCount}</span></div>
+                                            <div className="rounded-lg bg-indigo-50 px-2 py-2 text-center">총계<br/><span className="text-indigo-700">{item.total}</span></div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {failedTypeGroups.length > 0 && (
+                        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
+                            <div className="flex items-center justify-between gap-2">
+                                <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">실패 유형별 담당자 체크리스트</p>
+                                <span className="text-[10px] font-bold text-slate-500">유형별 우선 점검 순서</span>
+                            </div>
+                            <div className="mt-3 grid grid-cols-1 xl:grid-cols-2 gap-3">
+                                {failedTypeGroups.map((group) => (
+                                    <div key={group.type} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <p className="text-sm font-black text-slate-900">{group.label}</p>
+                                            <span className="text-[10px] font-black text-slate-600">{group.count}건 잔여</span>
+                                        </div>
+                                        <ul className="mt-2 space-y-1.5 text-[11px] font-semibold text-slate-600">
+                                            {getFailureChecklist(group.type).map((item, index) => (
+                                                <li key={`${group.type}-${index}`} className="flex items-start gap-2">
+                                                    <span className="mt-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-slate-900 text-[9px] font-black text-white">{index + 1}</span>
+                                                    <span>{item}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setRecordSortMode('error-type')}
+                                                className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-black hover:bg-slate-100"
+                                            >
+                                                유형순 정렬
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => runBatchAnalysis(group.records, `${group.label} 일괄 재분석`)}
+                                                className="px-3 py-2 rounded-xl bg-rose-100 text-rose-700 text-xs font-black hover:bg-rose-200"
+                                            >
+                                                재분석 실행
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-3">
+                        {failedPreviewRecords.map((record) => {
+                            const errorType = getOcrErrorTypeFromRecord(record);
+                            const guideMessage = getOcrErrorGuideMessage(errorType);
+                            const preflightReason = getPreflightFailureReason(record);
+                            const hasImage = hasRetryableOriginalImage(record.originalImage) || hasRetryableOriginalImage(record.profileImage);
+
+                            return (
+                                <div key={record.id} className="rounded-2xl border border-rose-100 bg-rose-50/50 p-4">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-black text-slate-900 truncate">{record.name || '이름 없음'}</p>
+                                            <p className="mt-1 text-[11px] font-bold text-slate-500 truncate">{record.jobField || '공종 미지정'} · 팀장 {record.teamLeader || '미지정'}</p>
+                                        </div>
+                                        <span className="shrink-0 px-2 py-1 rounded-full bg-white border border-rose-200 text-[10px] font-black text-rose-700">
+                                            {getOcrErrorTypeKoreanLabel(errorType)}
+                                        </span>
+                                    </div>
+                                    <p className="mt-3 text-[11px] font-semibold text-rose-700 leading-snug">{guideMessage}</p>
+                                    {preflightReason && (
+                                        <p className="mt-1 text-[11px] font-black text-amber-700 leading-snug">사전검증: {preflightReason}</p>
+                                    )}
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => onViewDetails(record)}
+                                            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-indigo-600 text-xs font-black hover:bg-indigo-50"
+                                        >
+                                            상세검증
+                                        </button>
+                                        {hasImage && !isAnalyzing && (
+                                            <button
+                                                type="button"
+                                                onClick={() => runBatchAnalysis([record], '개별 재분석')}
+                                                className="px-3 py-2 rounded-xl bg-rose-100 text-rose-700 text-xs font-black hover:bg-rose-200"
+                                            >
+                                                재시도
+                                            </button>
+                                        )}
+                                        {!isAnalyzing && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleAdminNormalizeFailedRecord(record)}
+                                                className="px-3 py-2 rounded-xl bg-amber-100 text-amber-700 text-xs font-black hover:bg-amber-200"
+                                            >
+                                                관리자 정상분류
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
                             🔄 다시 촬영하기
                         </button>
                     </div>
@@ -2186,6 +3094,192 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </div>
                     </div>
                 </div>
+
+                {recentAdminActivities.length > 0 && (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                            <div>
+                                <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em]">관리자 조치 이력</p>
+                                <h5 className="mt-2 text-base font-black text-slate-900">최근 24시간 운영 조치 요약</h5>
+                                <p className="mt-1 text-[12px] font-semibold text-slate-500">수정, 승인/반려, 2차 재분석 이력을 한 번에 확인할 수 있습니다.</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2 text-[11px] font-black">
+                                <span className="px-3 py-1.5 rounded-full bg-violet-100 text-violet-700">수정 {recentAdminActivitySummary.corrections}</span>
+                                <span className="px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-700">검토/승인 {recentAdminActivitySummary.approvals}</span>
+                                <span className="px-3 py-1.5 rounded-full bg-indigo-100 text-indigo-700">재분석 {recentAdminActivitySummary.reassessments}</span>
+                            </div>
+                        </div>
+                        <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-3">
+                            {recentAdminActivities.map((activity) => (
+                                <div key={activity.key} className="rounded-xl border border-white bg-white px-3 py-3 shadow-sm">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-black text-slate-900 truncate">{activity.name}</p>
+                                            <p className="mt-0.5 text-[11px] font-bold text-slate-500 truncate">{activity.jobField} · {activity.timestampLabel || '시각 없음'}</p>
+                                        </div>
+                                        <span className={`shrink-0 px-2 py-1 rounded-full text-[10px] font-black ${activity.type === '수정' ? 'bg-violet-100 text-violet-700' : activity.type === '재분석' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                            {activity.type}
+                                        </span>
+                                    </div>
+                                    <p className="mt-2 text-[11px] font-semibold text-slate-600 leading-snug whitespace-pre-wrap break-words">{activity.summary}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {reasonQaPreviewRecords.length > 0 && (
+                    <div className="rounded-2xl border border-rose-200 bg-gradient-to-r from-rose-50 via-amber-50 to-white px-4 py-4 shadow-sm">
+                        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
+                            <div>
+                                <p className="text-[11px] font-black text-rose-600 uppercase tracking-[0.2em]">운영 보완 필요</p>
+                                <h5 className="mt-2 text-base font-black text-slate-900">승인/검토 사유가 미흡한 기록이 남아 있습니다.</h5>
+                                <p className="mt-1 text-[12px] font-semibold text-slate-600 leading-relaxed">
+                                    사유 없음 {reasonQaSummary.missingDecision}건, 승인사유 보강 필요 {reasonQaSummary.weakDecision}건, 수정사유 보강 필요 {reasonQaSummary.weakCorrection}건을 우선 점검해 주세요.
+                                </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                {reasonQaPreviewRecords.find((record) => record.missingDecisionReason) && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFilterReason('missing-reason');
+                                            handleViewRecordById(reasonQaPreviewRecords.find((record) => record.missingDecisionReason)?.id || '');
+                                        }}
+                                        className="px-3 py-2 rounded-xl bg-rose-600 text-white text-xs font-black hover:bg-rose-700"
+                                    >
+                                        사유 없음 바로 확인
+                                    </button>
+                                )}
+                                {reasonQaPreviewRecords.find((record) => record.weakDecisionReason) && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setFilterReason('weak-reason');
+                                            handleViewRecordById(reasonQaPreviewRecords.find((record) => record.weakDecisionReason)?.id || '');
+                                        }}
+                                        className="px-3 py-2 rounded-xl bg-amber-500 text-white text-xs font-black hover:bg-amber-600"
+                                    >
+                                        승인사유 보강 이동
+                                    </button>
+                                )}
+                                {reasonQaPreviewRecords.find((record) => record.weakCorrection) && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleViewRecordById(reasonQaPreviewRecords.find((record) => record.weakCorrection)?.id || '')}
+                                        className="px-3 py-2 rounded-xl bg-violet-600 text-white text-xs font-black hover:bg-violet-700"
+                                    >
+                                        수정사유 보강 이동
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                        {reasonInputPrompt && (
+                            <div className="mt-4 rounded-2xl border border-white bg-white/80 px-4 py-3">
+                                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+                                    <div>
+                                        <p className="text-[11px] font-black text-rose-600 uppercase tracking-wider">사유 입력 가이드</p>
+                                        <p className="mt-1 text-sm font-black text-slate-900">{reasonInputPrompt.name} · {reasonInputPrompt.focus}</p>
+                                        <p className="mt-2 text-[12px] font-semibold text-slate-600 leading-relaxed">
+                                            짧은 문구 대신 검토 근거, 확인 범위, 반영 내용을 포함해 남기면 추적성과 QA 품질이 좋아집니다.
+                                        </p>
+                                        <div className="mt-3 rounded-xl bg-slate-50 px-3 py-3">
+                                            <p className="text-[11px] font-black text-slate-500">권장 입력 예시</p>
+                                            <p className="mt-1 text-[12px] font-semibold text-slate-700 leading-relaxed whitespace-pre-wrap break-words">{reasonInputPrompt.sample}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleViewRecordById(reasonInputPrompt.id)}
+                                            className="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-black hover:bg-black"
+                                        >
+                                            해당 기록 바로 열기
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFilterReason(reasonQaSummary.missingDecision > 0 ? 'missing-reason' : 'weak-reason')}
+                                            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-black hover:bg-slate-50"
+                                        >
+                                            관련 항목만 보기
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {reasonQaPreviewRecords.length > 0 && (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-4">
+                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                            <div>
+                                <p className="text-[11px] font-black text-amber-600 uppercase tracking-[0.2em]">사유 품질 QA</p>
+                                <h5 className="mt-2 text-base font-black text-slate-900">보강이 필요한 승인/수정 사유</h5>
+                                <p className="mt-1 text-[12px] font-semibold text-slate-600">사유 누락, 너무 짧은 승인/검토 문구, 약한 수정 사유를 한 번에 점검합니다.</p>
+                            </div>
+                            <div className="flex flex-wrap gap-2 text-[11px] font-black">
+                                <button type="button" onClick={() => setFilterReason('missing-reason')} className="px-3 py-1.5 rounded-full bg-white border border-amber-200 text-amber-700 hover:bg-amber-100">사유 없음 {reasonQaSummary.missingDecision}</button>
+                                <button type="button" onClick={() => setFilterReason('weak-reason')} className="px-3 py-1.5 rounded-full bg-white border border-amber-200 text-amber-700 hover:bg-amber-100">사유 보강 필요 {reasonQaSummary.weakDecision}</button>
+                                <span className="px-3 py-1.5 rounded-full bg-white border border-amber-200 text-amber-700">수정 사유 보강 {reasonQaSummary.weakCorrection}</span>
+                            </div>
+                        </div>
+                        <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-3">
+                            {reasonQaPreviewRecords.map((record) => (
+                                <div key={record.id} className="rounded-xl border border-white bg-white px-3 py-3 shadow-sm">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-black text-slate-900 truncate">{record.name}</p>
+                                            <p className="mt-0.5 text-[11px] font-bold text-slate-500 truncate">{record.jobField}</p>
+                                        </div>
+                                        <div className="flex flex-wrap justify-end gap-1">
+                                            {record.missingDecisionReason && <span className="px-2 py-1 rounded-full bg-rose-100 text-rose-700 text-[10px] font-black">사유 없음</span>}
+                                            {record.weakDecisionReason && <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black">승인사유 약함</span>}
+                                            {record.weakCorrection && <span className="px-2 py-1 rounded-full bg-violet-100 text-violet-700 text-[10px] font-black">수정사유 약함</span>}
+                                        </div>
+                                    </div>
+                                    <div className="mt-2 space-y-2 text-[11px]">
+                                        <div className="rounded-lg bg-slate-50 px-3 py-2">
+                                            <p className="font-black text-slate-500">승인/검토 사유</p>
+                                            <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{record.decisionReason || '사유 없음'}</p>
+                                        </div>
+                                        <div className="rounded-lg bg-slate-50 px-3 py-2">
+                                            <p className="font-black text-slate-500">최근 수정 사유</p>
+                                            <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{record.correctionReason || '수정 사유 없음'}</p>
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleViewRecordById(record.id)}
+                                            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-indigo-600 text-xs font-black hover:bg-indigo-50"
+                                        >
+                                            상세검증 이동
+                                        </button>
+                                        {record.missingDecisionReason && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setFilterReason('missing-reason')}
+                                                className="px-3 py-2 rounded-xl bg-rose-100 text-rose-700 text-xs font-black hover:bg-rose-200"
+                                            >
+                                                사유 없음만 보기
+                                            </button>
+                                        )}
+                                        {record.weakDecisionReason && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setFilterReason('weak-reason')}
+                                                className="px-3 py-2 rounded-xl bg-amber-100 text-amber-700 text-xs font-black hover:bg-amber-200"
+                                            >
+                                                사유 보강 필요만 보기
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-4 items-start">
                     <div className="space-y-3">
@@ -2237,6 +3331,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     <option value="failed">실패/대기</option>
                                 </select>
                             </div>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">승인/검토 사유</label>
+                                <select value={filterReason} onChange={(e) => setFilterReason(e.target.value as 'all' | 'has-reason' | 'missing-reason' | 'weak-reason')} className="mt-2 w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
+                                    <option value="all">전체</option>
+                                    <option value="has-reason">사유 있음</option>
+                                    <option value="missing-reason">사유 없음</option>
+                                    <option value="weak-reason">사유 보강 필요</option>
+                                </select>
+                            </div>
                             <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 flex flex-col justify-between">
                                 <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
                                     <input
@@ -2259,12 +3362,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                 <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">정렬</label>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full sm:w-auto">
+                                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 w-full sm:w-auto">
                                     <button type="button" onClick={() => setRecordSortMode('recent-correction')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'recent-correction' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>최근 수정순</button>
                                     <button type="button" onClick={() => setRecordSortMode('score-desc')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'score-desc' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>점수 높은순</button>
                                     <button type="button" onClick={() => setRecordSortMode('failed-first')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'failed-first' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>실패 우선</button>
+                                    <button type="button" onClick={() => setRecordSortMode('error-type')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'error-type' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>실패 유형순</button>
                                 </div>
                             </div>
+                            <p className="mt-2 text-[11px] font-bold text-slate-500">현재 정렬: {getRecordSortModeLabel(recordSortMode)}</p>
                         </div>
                     </div>
 
@@ -2358,6 +3463,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         {getLatestCorrectionPreview(record) && (
                                             <p className="mt-1 text-[10px] font-black text-violet-700 leading-snug truncate">최근 수정: {getLatestCorrectionPreview(record)}</p>
                                         )}
+                                        {getLatestCorrectionReason(record) && (
+                                            <p className="mt-1 text-[10px] font-semibold text-slate-600 leading-snug whitespace-pre-wrap break-words">사유 전문: {getLatestCorrectionReason(record)}</p>
+                                        )}
                                     </div>
                                 )) : (
                                     <p className="text-[11px] font-bold text-slate-500">조건에 맞는 2차 재분석 대상이 없습니다.</p>
@@ -2370,6 +3478,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     <p className="text-[11px] font-black text-emerald-700 uppercase tracking-wider">최근 재분석 결과</p>
                                     <span className="text-[11px] font-black text-emerald-700">성공률 {retrySuccessRate}%</span>
                                 </div>
+                                {retryLastUpdatedLabel && (
+                                    <p className="mt-1 text-[11px] font-bold text-emerald-800/80">마지막 집계: {retryLastUpdatedLabel}</p>
+                                )}
                                 <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
                                     <div className="rounded-xl bg-white border border-emerald-100 px-2 py-2">
                                         <p className="text-[10px] font-black text-slate-400 uppercase">총 대상</p>
@@ -2388,11 +3499,222 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         <p className="mt-1 text-lg font-black text-amber-700">{retryDiagnostics.preflightFail}</p>
                                     </div>
                                 </div>
-                                <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px] font-bold text-slate-600">
+                                <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-bold text-slate-600">
                                     <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">서버 성공: <span className="text-slate-900">{retryDiagnostics.serverSuccess}</span></div>
                                     <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">브라우저 폴백: <span className="text-slate-900">{retryDiagnostics.clientFallbackSuccess}</span></div>
                                     <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">처리 실패: <span className="text-slate-900">{retryDiagnostics.processingFail}</span></div>
+                                    <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">라우트 실패: <span className="text-slate-900">{retryDiagnostics.serverRouteFail}</span></div>
                                 </div>
+                                <div className="mt-3 rounded-2xl border border-white/70 bg-white/70 p-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">실패 대응 가이드</p>
+                                        <span className="text-[10px] font-bold text-slate-500">실패 유형 기준</span>
+                                    </div>
+                                    <div className="mt-2 space-y-2">
+                                        {retryActionGuides.length > 0 ? retryActionGuides.map((guide) => (
+                                            <div
+                                                key={guide.key}
+                                                className={`rounded-xl border px-3 py-2 ${guide.tone === 'amber' ? 'border-amber-200 bg-amber-50/80' : guide.tone === 'rose' ? 'border-rose-200 bg-rose-50/80' : 'border-violet-200 bg-violet-50/80'}`}
+                                            >
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <p className="text-[11px] font-black text-slate-800">{guide.label}</p>
+                                                    <span className="text-[10px] font-black text-slate-600">{guide.count}건</span>
+                                                </div>
+                                                <p className="mt-1 text-[11px] font-semibold text-slate-600 leading-snug">{guide.action}</p>
+                                            </div>
+                                        )) : (
+                                            <p className="text-[11px] font-bold text-emerald-700">현재 집계 기준으로 별도 실패 대응이 필요한 항목이 없습니다.</p>
+                                        )}
+                                    </div>
+                                </div>
+                                {recentReassessmentImpact.length > 0 && (
+                                    <div className="mt-3 rounded-2xl border border-indigo-100 bg-white/80 p-3">
+                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                            <div>
+                                                <p className="text-[11px] font-black text-indigo-700 uppercase tracking-wider">재분석 점수 변화</p>
+                                                <p className="mt-1 text-[11px] font-bold text-slate-500">최근 재분석된 기록의 점수/등급 변화를 빠르게 확인합니다.</p>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2 text-[10px] font-black">
+                                                <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">상승 {recentReassessmentDeltaSummary.up}</span>
+                                                <span className="px-2 py-1 rounded-full bg-rose-100 text-rose-700">하락 {recentReassessmentDeltaSummary.down}</span>
+                                                <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-600">유지 {recentReassessmentDeltaSummary.same}</span>
+                                            </div>
+                                        </div>
+                                        <div className="mt-3 space-y-2">
+                                            {recentReassessmentImpact.map((item) => (
+                                                <div key={item.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-black text-slate-900 truncate">{item.name}</p>
+                                                            <p className="mt-0.5 text-[11px] font-bold text-slate-500 truncate">{item.jobField} · {item.timestampLabel || '시각 없음'}</p>
+                                                        </div>
+                                                        <span className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] font-black ${item.delta > 0 ? 'bg-emerald-100 text-emerald-700' : item.delta < 0 ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-600'}`}>
+                                                            {item.delta > 0 ? `+${item.delta}` : item.delta}
+                                                        </span>
+                                                    </div>
+                                                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-bold">
+                                                        <div className="rounded-lg bg-slate-50 px-3 py-2 text-slate-600">점수: <span className="text-slate-900">{item.previousScore} → {item.nextScore}</span></div>
+                                                        <div className="rounded-lg bg-slate-50 px-3 py-2 text-slate-600">등급: <span className="text-slate-900">{item.previousLevel || '-'} → {item.nextLevel || '-'}</span></div>
+                                                    </div>
+                                                    {item.note && (
+                                                        <div className="mt-2 rounded-lg bg-indigo-50 px-3 py-2 text-[11px] font-semibold text-indigo-700 leading-snug whitespace-pre-wrap break-words">
+                                                            근거 요약: {item.note}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {recentInsightComparisons.length > 0 && (
+                                    <div className="mt-3 rounded-2xl border border-cyan-100 bg-white/80 p-3">
+                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                            <div>
+                                                <p className="text-[11px] font-black text-cyan-700 uppercase tracking-wider">AI 인사이트 전후 비교</p>
+                                                <p className="mt-1 text-[11px] font-bold text-slate-500">최근 수정/재분석에서 바뀐 인사이트 문구를 전후로 비교합니다.</p>
+                                            </div>
+                                            <span className="text-[10px] font-black text-cyan-700">최근 {recentInsightComparisons.length}건</span>
+                                        </div>
+                                        <div className="mt-3 space-y-2">
+                                            {recentInsightComparisons.map((item) => (
+                                                <div key={item.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-black text-slate-900 truncate">{item.name}</p>
+                                                            <p className="mt-0.5 text-[11px] font-bold text-slate-500 truncate">{item.jobField} · {item.timestampLabel || '시각 없음'}</p>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleViewRecordById(item.id)}
+                                                            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-indigo-600 text-xs font-black hover:bg-indigo-50"
+                                                        >
+                                                            상세검증 이동
+                                                        </button>
+                                                    </div>
+                                                    <div className="mt-2 grid grid-cols-1 lg:grid-cols-2 gap-2 text-[11px]">
+                                                        <div className="rounded-lg bg-rose-50 px-3 py-2">
+                                                            <p className="font-black text-rose-700">변경 전</p>
+                                                            <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{item.beforeInsight || '기존 인사이트 없음'}</p>
+                                                        </div>
+                                                        <div className="rounded-lg bg-emerald-50 px-3 py-2">
+                                                            <p className="font-black text-emerald-700">변경 후</p>
+                                                            <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{item.afterInsight || '변경 후 인사이트 없음'}</p>
+                                                        </div>
+                                                    </div>
+                                                    {item.reason && (
+                                                        <div className="mt-2 rounded-lg bg-cyan-50 px-3 py-2 text-[11px] font-semibold text-cyan-800 leading-snug whitespace-pre-wrap break-words">
+                                                            변경 사유: {item.reason}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {recentContentComparisons.length > 0 && (
+                                    <div className="mt-3 rounded-2xl border border-fuchsia-100 bg-white/80 p-3">
+                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                            <div>
+                                                <p className="text-[11px] font-black text-fuchsia-700 uppercase tracking-wider">강점/약점·근거 비교</p>
+                                                <p className="mt-1 text-[11px] font-bold text-slate-500">최근 수정/재분석에서 바뀐 핵심 평가 내용을 전후로 비교합니다.</p>
+                                            </div>
+                                            <span className="text-[10px] font-black text-fuchsia-700">최근 {recentContentComparisons.length}건</span>
+                                        </div>
+                                        <div className="mt-3 space-y-2">
+                                            {recentContentComparisons.map((item) => (
+                                                <div key={item.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-black text-slate-900 truncate">{item.name}</p>
+                                                            <p className="mt-0.5 text-[11px] font-bold text-slate-500 truncate">{item.jobField} · {item.timestampLabel || '시각 없음'}</p>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleViewRecordById(item.id)}
+                                                            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-indigo-600 text-xs font-black hover:bg-indigo-50"
+                                                        >
+                                                            상세검증 이동
+                                                        </button>
+                                                    </div>
+                                                    <div className="mt-2 space-y-2">
+                                                        {item.changes.map((change) => (
+                                                            <div key={change.field} className="rounded-lg bg-fuchsia-50/60 px-3 py-2 text-[11px]">
+                                                                <p className="font-black text-fuchsia-700">{change.label}</p>
+                                                                <div className="mt-1 grid grid-cols-1 lg:grid-cols-2 gap-2">
+                                                                    <div className="rounded-lg bg-white px-3 py-2">
+                                                                        <p className="font-black text-rose-700">변경 전</p>
+                                                                        <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{change.before}</p>
+                                                                    </div>
+                                                                    <div className="rounded-lg bg-white px-3 py-2">
+                                                                        <p className="font-black text-emerald-700">변경 후</p>
+                                                                        <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{change.after}</p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    {item.reason && (
+                                                        <div className="mt-2 rounded-lg bg-fuchsia-50 px-3 py-2 text-[11px] font-semibold text-fuchsia-800 leading-snug whitespace-pre-wrap break-words">
+                                                            변경 사유: {item.reason}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {recentTextComparisons.length > 0 && (
+                                    <div className="mt-3 rounded-2xl border border-sky-100 bg-white/80 p-3">
+                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                            <div>
+                                                <p className="text-[11px] font-black text-sky-700 uppercase tracking-wider">OCR 원문/번역 비교</p>
+                                                <p className="mt-1 text-[11px] font-bold text-slate-500">최근 수정으로 달라진 OCR 원문과 한글 번역을 전후 비교합니다.</p>
+                                            </div>
+                                            <span className="text-[10px] font-black text-sky-700">최근 {recentTextComparisons.length}건</span>
+                                        </div>
+                                        <div className="mt-3 space-y-2">
+                                            {recentTextComparisons.map((item) => (
+                                                <div key={item.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-black text-slate-900 truncate">{item.name}</p>
+                                                            <p className="mt-0.5 text-[11px] font-bold text-slate-500 truncate">{item.jobField} · {item.timestampLabel || '시각 없음'}</p>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleViewRecordById(item.id)}
+                                                            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-indigo-600 text-xs font-black hover:bg-indigo-50"
+                                                        >
+                                                            상세검증 이동
+                                                        </button>
+                                                    </div>
+                                                    <div className="mt-2 space-y-2">
+                                                        {item.changes.map((change) => (
+                                                            <div key={change.field} className="rounded-lg bg-sky-50/60 px-3 py-2 text-[11px]">
+                                                                <p className="font-black text-sky-700">{change.label}</p>
+                                                                <div className="mt-1 grid grid-cols-1 lg:grid-cols-2 gap-2">
+                                                                    <div className="rounded-lg bg-white px-3 py-2">
+                                                                        <p className="font-black text-rose-700">변경 전</p>
+                                                                        <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{change.before}</p>
+                                                                    </div>
+                                                                    <div className="rounded-lg bg-white px-3 py-2">
+                                                                        <p className="font-black text-emerald-700">변경 후</p>
+                                                                        <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{change.after}</p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    {item.reason && (
+                                                        <div className="mt-2 rounded-lg bg-sky-50 px-3 py-2 text-[11px] font-semibold text-sky-800 leading-snug whitespace-pre-wrap break-words">
+                                                            변경 사유: {item.reason}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                         <button onClick={handleBatchTextAnalysis} 
@@ -2464,7 +3786,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         const latestCorrectionTimestampLabel = getLatestCorrectionTimestampLabel(r);
                         const recentlyCorrected = isRecentlyCorrected(r);
                         const weakCorrectionReason = hasWeakCorrectionReason(r);
-                        const latestCorrectionReason = String((r.correctionHistory || []).slice(-1)[0]?.reason || '').trim();
+                        const latestCorrectionReason = getLatestCorrectionReason(r);
                         const hasImage = hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage);
                         const rowErrorType = failed ? getOcrErrorTypeFromRecord(r) : null;
                         const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
@@ -2487,6 +3809,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.jobField} · 팀장 {r.teamLeader || '미지정'}</p>
                                         {latestCorrectionPreview && (
                                             <p className="mt-1 text-[10px] text-violet-700 font-black leading-snug" title={latestCorrectionReason || latestCorrectionPreview}>최근 수정: {latestCorrectionPreview}</p>
+                                        )}
+                                        {latestCorrectionReason && (
+                                            <p className="mt-1 text-[10px] text-slate-600 font-semibold leading-snug whitespace-pre-wrap break-words">사유 전문: {latestCorrectionReason}</p>
                                         )}
                                         {latestCorrectionTimestampLabel && (
                                             <p className="mt-0.5 text-[10px] text-violet-500 font-bold">수정 시각: {latestCorrectionTimestampLabel}</p>
@@ -2563,7 +3888,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const latestCorrectionTimestampLabel = getLatestCorrectionTimestampLabel(r);
                                 const recentlyCorrected = isRecentlyCorrected(r);
                                 const weakCorrectionReason = hasWeakCorrectionReason(r);
-                                const latestCorrectionReason = String((r.correctionHistory || []).slice(-1)[0]?.reason || '').trim();
+                                const latestCorrectionReason = getLatestCorrectionReason(r);
                                 const rowErrorType = failed ? getOcrErrorTypeFromRecord(r) : null;
                                 const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
                                 const rowGuideSummary = rowErrorType ? getOcrErrorGuideSummary(rowErrorType) : '';
@@ -2596,6 +3921,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 {latestCorrectionPreview && (
                                                     <span className="text-[10px] text-violet-700 font-black mt-1 leading-snug" title={latestCorrectionReason || latestCorrectionPreview}>
                                                         최근 수정: {latestCorrectionPreview}
+                                                    </span>
+                                                )}
+                                                {latestCorrectionReason && (
+                                                    <span className="text-[10px] text-slate-600 font-semibold mt-1 leading-snug whitespace-pre-wrap break-words">
+                                                        사유 전문: {latestCorrectionReason}
                                                     </span>
                                                 )}
                                                 {latestCorrectionTimestampLabel && (

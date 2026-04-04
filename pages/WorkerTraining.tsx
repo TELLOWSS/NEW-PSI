@@ -16,6 +16,165 @@ type SessionRow = {
 
 type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
 
+const LANGUAGE_FLAG_EMOJI: Record<string, string> = {
+    'ko-KR': '🇰🇷',
+    'en-US': '🇺🇸',
+    'vi-VN': '🇻🇳',
+    'cmn-CN': '🇨🇳',
+    'zh-CN': '🇨🇳',
+    'th-TH': '🇹🇭',
+    'id-ID': '🇮🇩',
+    'uz-UZ': '🇺🇿',
+    'mn-MN': '🇲🇳',
+    'km-KH': '🇰🇭',
+    'ru-RU': '🇷🇺',
+    'ne-NP': '🇳🇵',
+    'my-MM': '🇲🇲',
+    'fil-PH': '🇵🇭',
+    'hi-IN': '🇮🇳',
+    'bn-BD': '🇧🇩',
+    'ur-PK': '🇵🇰',
+    'si-LK': '🇱🇰',
+    'kk-KZ': '🇰🇿',
+};
+
+const UX_TEXT: Record<UiLocale, {
+    stepLanguage: string;
+    stepListen: string;
+    stepSign: string;
+    stepLanguageDesc: string;
+    stepListenDesc: string;
+    stepSignDesc: string;
+    languageStatus: string;
+    audioMatched: string;
+    audioFallback: string;
+    textMatched: string;
+    textFallback: string;
+    availableLanguages: string;
+    signatureGuide: string;
+    signatureGuideSub: string;
+    submitBarTitle: string;
+    submitBarReady: string;
+    submitBarBlocked: string;
+    listenNow: string;
+    signNow: string;
+    submitConfirm: string;
+    signatureDone: string;
+    signaturePending: string;
+    submitReadyCta: string;
+    submitBlockedCta: string;
+    checklistStatus: string;
+}> = {
+    ko: {
+        stepLanguage: '1. 언어 선택',
+        stepListen: '2. 음성 듣기',
+        stepSign: '3. 서명 후 제출',
+        stepLanguageDesc: '내 언어가 맞는지 먼저 확인하세요.',
+        stepListenDesc: '큰 재생 버튼을 눌러 안내를 들으세요.',
+        stepSignDesc: '아래 서명칸 중앙에 서명하고 제출하세요.',
+        languageStatus: '언어 접근 확인',
+        audioMatched: '선택 언어 음성 연결됨',
+        audioFallback: '선택 언어 음성이 없어 대체 언어로 연결됨',
+        textMatched: '선택 언어 텍스트 확인됨',
+        textFallback: '선택 언어 텍스트가 없어 기본 안내로 대체됨',
+        availableLanguages: '현재 제공 언어',
+        signatureGuide: '아래 넓은 칸의 가운데에 서명해 주세요.',
+        signatureGuideSub: '손가락으로 천천히 크게 서명하면 더 잘 보입니다.',
+        submitBarTitle: '마지막 단계',
+        submitBarReady: '이제 제출할 수 있습니다.',
+        submitBarBlocked: '안내 확인과 체크, 서명을 완료해야 제출할 수 있습니다.',
+        listenNow: '음성 듣기',
+        signNow: '서명하기',
+        submitConfirm: '선택한 언어 안내를 확인했고 전자서명을 제출하시겠습니까?',
+        signatureDone: '서명 입력 완료',
+        signaturePending: '서명을 아직 하지 않았습니다',
+        submitReadyCta: '제출 준비 완료',
+        submitBlockedCta: '체크/서명 후 제출 가능',
+        checklistStatus: '체크 완료',
+    },
+    en: {
+        stepLanguage: '1. Select Language',
+        stepListen: '2. Listen to Audio',
+        stepSign: '3. Sign and Submit',
+        stepLanguageDesc: 'Check that your language is selected first.',
+        stepListenDesc: 'Press the large play button to hear guidance.',
+        stepSignDesc: 'Sign in the center of the box below and submit.',
+        languageStatus: 'Language access check',
+        audioMatched: 'Audio is available in the selected language',
+        audioFallback: 'Selected-language audio is missing, fallback language is used',
+        textMatched: 'Guidance text is available in the selected language',
+        textFallback: 'Selected-language text is missing, default guidance is used',
+        availableLanguages: 'Available languages',
+        signatureGuide: 'Please sign in the center of the wide box below.',
+        signatureGuideSub: 'A slow and larger signature is easier to read.',
+        submitBarTitle: 'Final step',
+        submitBarReady: 'You can submit now.',
+        submitBarBlocked: 'Review guidance, complete checks, and sign before submitting.',
+        listenNow: 'Listen now',
+        signNow: 'Sign now',
+        submitConfirm: 'Have you reviewed the selected-language guidance and want to submit your signature?',
+        signatureDone: 'Signature completed',
+        signaturePending: 'Signature is not completed yet',
+        submitReadyCta: 'Ready to submit',
+        submitBlockedCta: 'Complete checks/signature first',
+        checklistStatus: 'Checks done',
+    },
+    vi: {
+        stepLanguage: '1. Chọn ngôn ngữ',
+        stepListen: '2. Nghe âm thanh',
+        stepSign: '3. Ký và gửi',
+        stepLanguageDesc: 'Trước tiên hãy kiểm tra đúng ngôn ngữ của bạn.',
+        stepListenDesc: 'Nhấn nút phát lớn để nghe hướng dẫn.',
+        stepSignDesc: 'Ký vào giữa khung bên dưới rồi gửi.',
+        languageStatus: 'Kiểm tra truy cập ngôn ngữ',
+        audioMatched: 'Có âm thanh cho đúng ngôn ngữ đã chọn',
+        audioFallback: 'Không có âm thanh đúng ngôn ngữ, đang dùng ngôn ngữ thay thế',
+        textMatched: 'Có văn bản hướng dẫn cho đúng ngôn ngữ đã chọn',
+        textFallback: 'Không có văn bản đúng ngôn ngữ, đang dùng hướng dẫn mặc định',
+        availableLanguages: 'Ngôn ngữ hiện có',
+        signatureGuide: 'Vui lòng ký vào giữa khung rộng bên dưới.',
+        signatureGuideSub: 'Ký chậm và to sẽ dễ nhìn hơn.',
+        submitBarTitle: 'Bước cuối',
+        submitBarReady: 'Bây giờ bạn có thể gửi.',
+        submitBarBlocked: 'Bạn phải đọc hướng dẫn, chọn các mục và ký trước khi gửi.',
+        listenNow: 'Nghe ngay',
+        signNow: 'Ký ngay',
+        submitConfirm: 'Bạn đã kiểm tra hướng dẫn đúng ngôn ngữ và muốn gửi chữ ký điện tử chứ?',
+        signatureDone: 'Đã ký xong',
+        signaturePending: 'Bạn chưa ký',
+        submitReadyCta: 'Sẵn sàng gửi',
+        submitBlockedCta: 'Hãy chọn mục và ký trước',
+        checklistStatus: 'Mục đã chọn',
+    },
+    zh: {
+        stepLanguage: '1. 选择语言',
+        stepListen: '2. 收听语音',
+        stepSign: '3. 签名并提交',
+        stepLanguageDesc: '请先确认已选择自己的语言。',
+        stepListenDesc: '点击大播放按钮收听指引。',
+        stepSignDesc: '请在下方签名框中央签名后提交。',
+        languageStatus: '语言访问检查',
+        audioMatched: '已连接所选语言语音',
+        audioFallback: '所选语言语音缺失，已切换为替代语言',
+        textMatched: '已确认所选语言文本',
+        textFallback: '所选语言文本缺失，已切换为默认指引',
+        availableLanguages: '当前提供语言',
+        signatureGuide: '请在下方宽框中央进行签名。',
+        signatureGuideSub: '放慢速度并签大一些会更清晰。',
+        submitBarTitle: '最后一步',
+        submitBarReady: '现在可以提交。',
+        submitBarBlocked: '请先完成阅读、勾选确认并签名后再提交。',
+        listenNow: '立即收听',
+        signNow: '立即签名',
+        submitConfirm: '您已确认所选语言指引并准备提交电子签名吗？',
+        signatureDone: '已完成签名',
+        signaturePending: '尚未完成签名',
+        submitReadyCta: '可以提交',
+        submitBlockedCta: '请先完成勾选和签名',
+        checklistStatus: '已勾选项目',
+    },
+};
+
 const UI_TEXT: Record<UiLocale, {
     title: string;
     subtitle: string;
@@ -442,6 +601,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     const [submitting, setSubmitting] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
     const [submitted, setSubmitted] = useState(false);
+    const [hasSignature, setHasSignature] = useState(false);
+    const [signatureWarning, setSignatureWarning] = useState(false);
     const [hasReviewedGuidance, setHasReviewedGuidance] = useState(false);
     const [guidanceProgress, setGuidanceProgress] = useState(0);
     const [checklist, setChecklist] = useState({
@@ -453,10 +614,13 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     const sigRef = useRef<SignatureCanvas | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const guidanceRef = useRef<HTMLDivElement | null>(null);
+    const signatureWrapRef = useRef<HTMLDivElement | null>(null);
+    const [signatureWidth, setSignatureWidth] = useState(700);
 
     const langKey = useMemo(() => resolveLanguageCodeByNationality(nationality), [nationality]);
     const uiLocale = useMemo(() => resolveUiLocaleByLangCode(langKey), [langKey]);
     const t = UI_TEXT[uiLocale];
+    const ux = UX_TEXT[uiLocale];
     const selectedNationalityLangCode = useMemo(() => {
         return NATIONALITY_OPTIONS.find((item) => item.value === nationality)?.langCode;
     }, [nationality]);
@@ -511,6 +675,26 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
 
     const isChecklistComplete = checklist.riskReview && checklist.ppeConfirm && checklist.emergencyConfirm;
     const isComprehensionReady = hasReviewedGuidance && isChecklistComplete;
+    const completedChecklistCount = Number(checklist.riskReview) + Number(checklist.ppeConfirm) + Number(checklist.emergencyConfirm);
+    const audioMatchesSelectedLanguage = useMemo(() => {
+        const current = normalizedAudioMap[effectiveLangKey];
+        return typeof current === 'string' && current.trim().length > 0;
+    }, [normalizedAudioMap, effectiveLangKey]);
+    const textMatchesSelectedLanguage = useMemo(() => {
+        const current = normalizedTextMap[effectiveLangKey];
+        return typeof current === 'string' && current.trim().length > 0;
+    }, [normalizedTextMap, effectiveLangKey]);
+
+    useEffect(() => {
+        const syncSignatureWidth = () => {
+            const width = signatureWrapRef.current?.clientWidth || 700;
+            setSignatureWidth(Math.max(280, Math.floor(width - 2)));
+        };
+
+        syncSignatureWidth();
+        window.addEventListener('resize', syncSignatureWidth);
+        return () => window.removeEventListener('resize', syncSignatureWidth);
+    }, []);
 
     useEffect(() => {
         const audio = audioRef.current;
@@ -624,6 +808,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
 
     const handleClear = () => {
         sigRef.current?.clear();
+        setHasSignature(false);
+        setSignatureWarning(false);
     };
 
     const handleToggleAudio = async () => {
@@ -674,7 +860,13 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
         }
 
         if (!sigRef.current || sigRef.current.isEmpty()) {
+            setSignatureWarning(true);
+            signatureWrapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             alert(t.missingSignatureAlert);
+            return;
+        }
+
+        if (!confirm(ux.submitConfirm)) {
             return;
         }
 
@@ -709,6 +901,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             setMessage(t.submitSuccess);
             setWorkerName('');
             sigRef.current?.clear();
+            setHasSignature(false);
+            setSignatureWarning(false);
             setSubmitted(true);
         } catch (error: any) {
             setMessage(`${t.errorPrefix}: ${error?.message || t.submitFail}`);
@@ -734,7 +928,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     }
 
     return (
-        <div className="space-y-6 max-w-2xl">
+        <div className="space-y-6 max-w-2xl pb-32">
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h2 className="text-2xl font-black text-slate-900">{t.title}</h2>
                 <p className="text-sm font-bold text-slate-500 mt-2">{t.subtitle}</p>
@@ -743,6 +937,21 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                         {t.stayOnPageHint}
                     </p>
                 )}
+
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className={`rounded-2xl border px-4 py-3 ${effectiveLangKey ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50'}`}>
+                        <p className="text-xs font-black text-indigo-700">{ux.stepLanguage}</p>
+                        <p className="mt-1 text-[11px] font-bold text-slate-600">{ux.stepLanguageDesc}</p>
+                    </div>
+                    <div className={`rounded-2xl border px-4 py-3 ${selectedAudioUrl ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                        <p className="text-xs font-black text-emerald-700">{ux.stepListen}</p>
+                        <p className="mt-1 text-[11px] font-bold text-slate-600">{ux.stepListenDesc}</p>
+                    </div>
+                    <div className={`rounded-2xl border px-4 py-3 ${isComprehensionReady ? 'border-violet-200 bg-violet-50' : 'border-slate-200 bg-slate-50'}`}>
+                        <p className="text-xs font-black text-violet-700">{ux.stepSign}</p>
+                        <p className="mt-1 text-[11px] font-bold text-slate-600">{ux.stepSignDesc}</p>
+                    </div>
+                </div>
 
                 <div className="mt-4">
                     <label className="block text-xs font-black text-slate-500 mb-2">{t.nameLabel}</label>
@@ -757,7 +966,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                 <div className="mt-4">
                     <label className="block text-xs font-black text-slate-500 mb-2">{t.nationalityLabel}</label>
                     {simplifiedMode ? (
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                             {availableLanguageCodes.map((code) => (
                                 <button
                                     key={code}
@@ -766,9 +975,11 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                                         setSelectedLanguageCode(code);
                                         setNationality(resolveNationalityByLanguageCode(code));
                                     }}
-                                    className={`px-3 py-2 rounded-xl text-xs font-black border transition-colors ${effectiveLangKey === code ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
+                                    className={`px-3 py-3 rounded-2xl text-left border transition-all shadow-sm ${effectiveLangKey === code ? 'bg-indigo-600 text-white border-indigo-600 scale-[1.02]' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}
                                 >
-                                    {LANGUAGE_LABELS[code] || code}
+                                    <span className="block text-lg leading-none">{LANGUAGE_FLAG_EMOJI[code] || '🌐'}</span>
+                                    <span className="block text-sm font-black">{LANGUAGE_LABELS[code] || code}</span>
+                                    <span className={`mt-1 block text-[10px] font-black ${effectiveLangKey === code ? 'text-indigo-100' : 'text-slate-400'}`}>{code}</span>
                                 </button>
                             ))}
                         </div>
@@ -791,6 +1002,22 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                         {t.autoLangLabel}: <span className="text-slate-700">{LANGUAGE_LABELS[effectiveLangKey] || 'English'} ({effectiveLangKey})</span>
                     </p>
                     {!simplifiedMode && <p className="mt-1 text-[11px] font-bold text-slate-500">{t.nationalityHint}</p>}
+
+                    <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">{ux.languageStatus}</p>
+                            <span className="text-[10px] font-black text-slate-500">{LANGUAGE_LABELS[effectiveLangKey] || effectiveLangKey}</span>
+                        </div>
+                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-bold">
+                            <div className={`rounded-xl px-3 py-2 ${audioMatchesSelectedLanguage ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                                {audioMatchesSelectedLanguage ? ux.audioMatched : ux.audioFallback}
+                            </div>
+                            <div className={`rounded-xl px-3 py-2 ${textMatchesSelectedLanguage ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                                {textMatchesSelectedLanguage ? ux.textMatched : ux.textFallback}
+                            </div>
+                        </div>
+                        <p className="mt-2 text-[11px] font-bold text-slate-500">{ux.availableLanguages}: {availableLanguageCodes.map((code) => LANGUAGE_LABELS[code] || code).join(', ')}</p>
+                    </div>
                 </div>
 
                 <div className="mt-4">
@@ -808,6 +1035,23 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                         <p className="mt-3 text-sm font-black text-slate-700">
                             {selectedAudioUrl ? (isPlaying ? t.audioPlaying : t.audioReady) : t.audioMissing}
                         </p>
+                        <div className="mt-3 flex flex-wrap justify-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => void handleToggleAudio()}
+                                disabled={!selectedAudioUrl}
+                                className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-black hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                                {ux.listenNow}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => signatureWrapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-black hover:bg-slate-50"
+                            >
+                                {ux.signNow}
+                            </button>
+                        </div>
                         {!simplifiedMode && (
                             <button
                                 type="button"
@@ -896,18 +1140,36 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                 <div className="mt-4">
                     <label className="block text-xs font-black text-slate-500 mb-2">{t.signatureLabel}</label>
                     <p className="mb-2 text-[11px] font-bold text-slate-600">{t.understandingPledgeHint}</p>
-                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white">
-                        <SignatureCanvas
-                            ref={(ref) => {
-                                sigRef.current = ref;
-                            }}
-                            penColor="black"
-                            canvasProps={{
-                                width: 700,
-                                height: 220,
-                                className: 'w-full h-[220px]'
-                            }}
-                        />
+                    <div className={`mb-2 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-black ${hasSignature ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        <span className={`inline-block h-2.5 w-2.5 rounded-full ${hasSignature ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+                        {hasSignature ? ux.signatureDone : ux.signaturePending}
+                    </div>
+                    <div className="mb-2 rounded-xl bg-violet-50 border border-violet-200 px-3 py-2">
+                        <p className="text-[12px] font-black text-violet-700">{ux.signatureGuide}</p>
+                        <p className="mt-1 text-[11px] font-bold text-violet-600">{ux.signatureGuideSub}</p>
+                    </div>
+                    <div ref={signatureWrapRef} className={`border rounded-2xl overflow-hidden bg-gradient-to-b from-white to-slate-50 p-3 transition-all ${signatureWarning ? 'border-rose-300 ring-4 ring-rose-100 animate-pulse' : 'border-slate-200'}`}>
+                        <div className="relative rounded-xl border-2 border-dashed border-slate-200 bg-white overflow-hidden flex items-center justify-center">
+                            <div className="pointer-events-none absolute inset-x-6 top-1/2 border-t-2 border-dashed border-slate-200" />
+                            <div className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 px-2 py-1 rounded-full bg-white/90 text-[10px] font-black text-slate-400 border border-slate-100">
+                                SIGN HERE
+                            </div>
+                            <SignatureCanvas
+                                ref={(ref) => {
+                                    sigRef.current = ref;
+                                }}
+                                penColor="black"
+                                onEnd={() => {
+                                    setHasSignature(true);
+                                    setSignatureWarning(false);
+                                }}
+                                canvasProps={{
+                                    width: signatureWidth,
+                                    height: 220,
+                                    className: 'block w-full h-[220px] mx-auto'
+                                }}
+                            />
+                        </div>
                     </div>
                     <button
                         onClick={handleClear}
@@ -917,15 +1179,31 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                     </button>
                 </div>
 
-                <button
-                    onClick={handleSubmit}
-                    disabled={submitting || submitted || !isComprehensionReady}
-                    className="mt-6 w-full py-3 rounded-xl bg-indigo-600 text-white font-black hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                    {submitted ? t.alreadySubmitted : (submitting ? t.submitting : t.submit)}
-                </button>
-
                 {message && <p className="mt-3 text-sm font-bold text-slate-700">{message}</p>}
+            </div>
+
+            <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur-md shadow-[0_-8px_30px_rgba(15,23,42,0.12)]">
+                <div className="max-w-2xl mx-auto px-4 py-3">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                        <div>
+                            <p className="text-[11px] font-black text-slate-500 uppercase tracking-wider">{ux.submitBarTitle}</p>
+                            <p className={`mt-1 text-[12px] font-black ${isComprehensionReady ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                {isComprehensionReady ? ux.submitBarReady : ux.submitBarBlocked}
+                            </p>
+                        </div>
+                        <div className="text-right text-[11px] font-black text-slate-500 shrink-0">
+                            <p>{guidanceProgress}%</p>
+                            <p>{ux.checklistStatus} {completedChecklistCount}/3</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={submitting || submitted || !isComprehensionReady}
+                        className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-lg shadow-xl hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed animate-pulse"
+                    >
+                        {submitted ? t.alreadySubmitted : (submitting ? t.submitting : `${t.submit} · ${isComprehensionReady ? ux.submitReadyCta : ux.submitBlockedCta}`)}
+                    </button>
+                </div>
             </div>
         </div>
     );

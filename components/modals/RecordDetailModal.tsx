@@ -168,6 +168,20 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         return /수정|보정|변경|확인|검토|업데이트|ok|확인함/i.test(comment) && comment.length < 12;
     }, [approvalComment, hasChanges]);
 
+    const hasWeakApprovalReason = useMemo(() => {
+        const comment = approvalComment.trim();
+        if (comment.length === 0) return true;
+        if (comment.length < 8) return true;
+        return /승인|반려|확인|검토|ok|완료|이상없음/i.test(comment) && comment.length < 16;
+    }, [approvalComment]);
+
+    const approvalReasonGuide = useMemo(() => {
+        if (hasCriticalReviewEdits) {
+            return '예: OCR 원문과 번역, 점수 근거를 대조 검토한 뒤 수정 내용을 반영하여 승인합니다.';
+        }
+        return '예: 현장 확인 결과 기록 내용과 증빙이 일치하여 승인합니다. 반려 시에는 재촬영/재작성 필요 사유를 구체적으로 남겨주세요.';
+    }, [hasCriticalReviewEdits]);
+
     const safetyLevelThresholds = useMemo(() => getSafetyLevelThresholds(), []);
     const gradeExampleFor69 = useMemo(() => getSafetyLevelFromScore(69), []);
 
@@ -477,6 +491,19 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 ? '반려 사유(Comment)는 필수입니다.'
                 : '수정 사항이 있으므로 승인 사유(Comment)는 필수입니다.');
             return;
+        }
+
+        if ((status === 'rejected' || trimmedComment.length > 0 || hasCriticalReviewEdits) && hasWeakApprovalReason) {
+            const proceed = confirm(
+                '승인/반려 사유가 비어 있거나 너무 짧습니다.\n\n' +
+                '- 검토 근거, 확인 범위, 반영 내용을 포함하면 추적성이 좋아집니다.\n' +
+                '- 현재 상태로 진행하면 OCR 화면 QA에서 사유 보강 대상으로 보일 수 있습니다.\n\n' +
+                '그래도 계속 진행하시겠습니까?'
+            );
+            if (!proceed) {
+                setPendingApprovalAction(null);
+                return;
+            }
         }
 
         const scoreAdjustmentEntry = buildScoreAdjustmentEntry();
@@ -1082,12 +1109,18 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 </div>
                                             )}
                                             {showReviewCommentField ? (
-                                                <textarea
-                                                    value={approvalComment}
-                                                    onChange={(e) => setApprovalComment(e.target.value)}
-                                                    placeholder="수정/반려 사유(Comment)를 입력하세요"
-                                                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-medium min-h-[80px]"
-                                                />
+                                                <>
+                                                    <textarea
+                                                        value={approvalComment}
+                                                        onChange={(e) => setApprovalComment(e.target.value)}
+                                                        placeholder="수정/반려 사유(Comment)를 입력하세요"
+                                                        className={`w-full p-3 bg-slate-50 border rounded-xl font-medium min-h-[80px] ${hasWeakApprovalReason ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200'}`}
+                                                    />
+                                                    <div className="mt-2 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
+                                                        <p className="text-[11px] font-black text-slate-500">권장 입력 예시</p>
+                                                        <p className="mt-1 text-[11px] font-semibold text-slate-700 leading-relaxed">{approvalReasonGuide}</p>
+                                                    </div>
+                                                </>
                                             ) : (
                                                 <div className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-500">
                                                     점수/분석/판독 결과를 수정하거나 반려를 선택하면 사유(Comment) 입력창이 활성화됩니다.
@@ -1097,6 +1130,14 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 <p className="mt-2 text-[11px] font-black text-rose-600">
                                                     수정 또는 반려 처리 시 사유(Comment) 입력은 필수입니다.
                                                 </p>
+                                            )}
+                                            {showReviewCommentField && hasWeakApprovalReason && (
+                                                <div className="mt-2 rounded-xl bg-rose-50 border border-rose-200 px-3 py-2">
+                                                    <p className="text-[11px] font-black text-rose-700">강한 경고</p>
+                                                    <p className="mt-1 text-[11px] font-semibold text-rose-700 leading-relaxed">
+                                                        승인/반려 사유가 짧거나 일반적입니다. 검토 근거, 확인 범위, 반영 내용을 포함하지 않으면 QA 점검 대상으로 남습니다.
+                                                    </p>
+                                                </div>
                                             )}
                                             <div className="mt-3 flex flex-col sm:flex-row gap-2 justify-end">
                                                 <button
