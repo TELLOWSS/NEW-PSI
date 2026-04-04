@@ -199,6 +199,23 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         return /승인|반려|확인|검토|ok|완료|이상없음/i.test(comment) && comment.length < 16;
     }, [approvalComment]);
 
+    const hasCriticalReviewEdits = useMemo(() => {
+        const watchFields: (keyof WorkerRecord)[] = [
+            'safetyScore',
+            'safetyLevel',
+            'fullText',
+            'koreanTranslation',
+            'aiInsights',
+            'aiInsights_native',
+            'strengths',
+            'weakAreas',
+            'suggestions',
+            'handwrittenAnswers',
+        ];
+
+        return watchFields.some((field) => JSON.stringify(initialRecord[field]) !== JSON.stringify(record[field]));
+    }, [initialRecord, record]);
+
     const approvalReasonGuide = useMemo(() => {
         if (hasCriticalReviewEdits) {
             return '예: OCR 원문과 번역, 점수 근거를 대조 검토한 뒤 수정 내용을 반영하여 승인합니다.';
@@ -379,23 +396,6 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             onOpenNextRecord();
         }
     };
-
-    const hasCriticalReviewEdits = useMemo(() => {
-        const watchFields: (keyof WorkerRecord)[] = [
-            'safetyScore',
-            'safetyLevel',
-            'fullText',
-            'koreanTranslation',
-            'aiInsights',
-            'aiInsights_native',
-            'strengths',
-            'weakAreas',
-            'suggestions',
-            'handwrittenAnswers',
-        ];
-
-        return watchFields.some((field) => JSON.stringify(initialRecord[field]) !== JSON.stringify(record[field]));
-    }, [initialRecord, record]);
 
     const isFinalizedRecord = useMemo(() => {
         return record.reviewStatus === 'APPROVED'

@@ -96,7 +96,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                 payload: {
                     records: [
                         {
-                            worker_id: workerId,
+                            worker_id: selectedWorkerId,
                             assessment_month: String(date || '').slice(0, 7),
                             observed_at: nowIso,
                             observer_name: 'SafetyChecks',
