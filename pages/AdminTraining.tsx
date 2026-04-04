@@ -1034,8 +1034,10 @@ const AdminTraining: React.FC = () => {
         }
     };
 
-    const handleDeleteSession = async (targetSessionId?: string) => {
-        const sessionIdToDelete = targetSessionId || currentSessionId;
+    const handleDeleteSession = async (targetSessionId?: unknown) => {
+        const sessionIdToDelete = typeof targetSessionId === 'string' && targetSessionId.trim().length > 0
+            ? targetSessionId
+            : currentSessionId;
         if (!sessionIdToDelete) {
             setMessage(t.noSessionToDelete);
             return;
@@ -1379,7 +1381,7 @@ const AdminTraining: React.FC = () => {
                         </button>
                         <button
                             type="button"
-                            onClick={handleDeleteSession}
+                            onClick={() => void handleDeleteSession()}
                             disabled={!!deletingSessionId || !currentSessionId}
                             className="px-4 py-2 rounded-lg bg-rose-50 text-rose-700 text-xs font-black border border-rose-200 hover:bg-rose-100 disabled:opacity-60 disabled:cursor-not-allowed"
                         >
