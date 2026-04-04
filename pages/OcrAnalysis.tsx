@@ -2667,43 +2667,71 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             {/* Control Panel */}
             <div className="bg-slate-900 rounded-3xl p-5 sm:p-8 shadow-2xl text-white relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-48 -mt-48"></div>
-                <div className="relative z-10 flex flex-col lg:flex-row justify-between items-center gap-8">
-                    <div className="flex-1 text-center lg:text-left">
-                        <h3 className="text-xl sm:text-2xl font-black mb-2 flex items-center gap-3 justify-center lg:justify-start">
-                            기록 데이터 마스터 관리
-                            <span className="text-xs bg-indigo-600 px-2 py-1 rounded-md font-bold uppercase tracking-widest">PRO</span>
-                        </h3>
-                        <p className="text-slate-400 font-medium">
-                            <span className="text-indigo-400 font-bold">스마트 스로틀링(Smart Throttling)</span> 및 <span className="text-indigo-400 font-bold">Gemini Flash</span> 최적화로, 
-                            10,000장 이상의 대량 기록도 API 할당량에 맞춰 자동으로 속도를 조절하며 전수 분석합니다. (무료 티어 한도는 계정/시점별 변동)
-                        </p>
-                        <div className="flex justify-center lg:justify-start gap-8 mt-6">
-                            <div className="text-center">
-                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">총 기록수</p>
-                                <p className="text-2xl font-black text-indigo-400">{existingRecords.length}</p>
+                <div className="relative z-10 grid grid-cols-1 xl:grid-cols-[minmax(0,1.4fr)_380px] gap-6 xl:gap-8 items-start">
+                    <div className="min-w-0">
+                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                            <div>
+                                <h3 className="text-xl sm:text-2xl font-black mb-2 flex items-center gap-3">
+                                    OCR 분석 운영 대시보드
+                                    <span className="text-xs bg-indigo-600 px-2 py-1 rounded-md font-bold uppercase tracking-widest">PRO</span>
+                                </h3>
+                                <p className="text-slate-300 font-medium max-w-3xl leading-relaxed">
+                                    PC 화면에서는 <span className="text-indigo-300 font-bold">핵심 현황 → 긴급 조치 → 상세 운영</span> 순으로 바로 판단할 수 있어야 합니다.
+                                    실패 건, 저신뢰 기록, 재분석 가능 건을 먼저 보고 필요한 조치만 우측에서 바로 실행하도록 구조를 정리했습니다.
+                                </p>
                             </div>
-                            <div className="text-center">
-                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">분석 실패/대기</p>
-                                <p className={`text-2xl font-black ${failedRecords.length > 0 ? 'text-rose-400 animate-pulse' : 'text-slate-400'}`}>{failedRecords.length}</p>
+                            <div className="flex flex-wrap gap-2 text-[11px] font-black">
+                                <span className="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-slate-100">재분석 가능 {secondPassTargets.length}건</span>
+                                <span className="px-3 py-1.5 rounded-full bg-rose-500/15 border border-rose-400/20 text-rose-200">실패/대기 {failedRecords.length}건</span>
+                                <span className="px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/20 text-amber-200">저신뢰 {lowConfidenceCount}건</span>
                             </div>
-                            <div className="text-center">
-                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">신뢰도 미달(&lt;70%)</p>
-                                <p className={`text-2xl font-black ${lowConfidenceCount > 0 ? 'text-amber-400' : 'text-slate-400'}`}>{lowConfidenceCount}</p>
+                        </div>
+
+                        <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">총 기록수</p>
+                                <p className="mt-2 text-2xl font-black text-indigo-300">{existingRecords.length}</p>
+                                <p className="mt-1 text-[11px] font-bold text-slate-400">현재 OCR 운영 대상</p>
                             </div>
-                            <div className="text-center border-l border-white/10 pl-8">
-                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">오늘 API 호출</p>
-                                <p className={`text-2xl font-black ${dailyCounter.count > 800 ? 'text-rose-400' : dailyCounter.count > 400 ? 'text-amber-400' : 'text-emerald-400'}`}>{dailyCounter.count}</p>
-                                <p className="text-[9px] text-slate-600 mt-0.5">✓{dailyCounter.successCount} ✗{dailyCounter.failCount}</p>
-                                <button onClick={() => { resetApiCallCount(); setDailyCounter(getApiCallState()); }} className="text-[9px] text-slate-500 hover:text-slate-300 underline mt-0.5" title="오늘 카운터 초기화">초기화</button>
+                            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-4">
+                                <p className="text-[10px] text-rose-300 font-black uppercase tracking-widest">분석 실패/대기</p>
+                                <p className={`mt-2 text-2xl font-black ${failedRecords.length > 0 ? 'text-rose-300' : 'text-slate-400'}`}>{failedRecords.length}</p>
+                                <p className="mt-1 text-[11px] font-bold text-rose-200/80">즉시 조치 우선</p>
+                            </div>
+                            <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-4">
+                                <p className="text-[10px] text-amber-300 font-black uppercase tracking-widest">신뢰도 미달</p>
+                                <p className={`mt-2 text-2xl font-black ${lowConfidenceCount > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{lowConfidenceCount}</p>
+                                <p className="mt-1 text-[11px] font-bold text-amber-200/80">70% 미만 재검토</p>
+                            </div>
+                            <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-4">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                        <p className="text-[10px] text-emerald-300 font-black uppercase tracking-widest">오늘 API 호출</p>
+                                        <p className={`mt-2 text-2xl font-black ${dailyCounter.count > 800 ? 'text-rose-300' : dailyCounter.count > 400 ? 'text-amber-300' : 'text-emerald-300'}`}>{dailyCounter.count}</p>
+                                    </div>
+                                    <button onClick={() => { resetApiCallCount(); setDailyCounter(getApiCallState()); }} className="text-[10px] text-slate-300 hover:text-white underline" title="오늘 카운터 초기화">초기화</button>
+                                </div>
+                                <p className="mt-1 text-[11px] font-bold text-slate-300">✓{dailyCounter.successCount} · ✗{dailyCounter.failCount}</p>
                             </div>
                         </div>
                     </div>
-                    <div className="flex flex-col sm:flex-row sm:flex-wrap justify-center gap-2.5 sm:gap-3 w-full lg:w-auto">
+
+                    <div className="rounded-3xl border border-white/10 bg-white/5 p-4 sm:p-5 backdrop-blur-sm">
+                        <div>
+                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">빠른 실행</p>
+                            <h4 className="mt-2 text-lg font-black text-white">긴급 조치와 백업을 우측에 분리</h4>
+                            <p className="mt-1 text-[12px] font-semibold text-slate-400">PC에서는 버튼이 가로로 흩어지기보다 목적별로 묶여야 판단이 빠릅니다.</p>
+                        </div>
+
+                        <div className="mt-4 space-y-3">
+                            <div className="rounded-2xl border border-rose-400/15 bg-black/10 p-3">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-rose-300">실패 대응</p>
+                                <div className="mt-3 grid grid-cols-1 gap-2.5">
                         {/* Retry Button */}
                         {failedRecords.length > 0 && !isAnalyzing && (
                             <button 
                                 onClick={handleRetryFailed}
-                                className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all border border-rose-500 flex items-center justify-center gap-2 group animate-bounce"
+                                className="w-full px-5 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all border border-rose-500 flex items-center justify-center gap-2 group"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                                 실패/대기 건 스마트 재분석 ({failedRecords.length})
@@ -2714,7 +2742,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         {failedRecords.length > 0 && !isAnalyzing && (
                             <button 
                                 onClick={handleForceReanalyze}
-                                className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-red-700 hover:bg-red-800 rounded-2xl font-black text-sm shadow-xl transition-all border border-red-600 flex items-center justify-center gap-2 group"
+                                className="w-full px-5 py-3 bg-red-700 hover:bg-red-800 rounded-2xl font-black text-sm shadow-xl transition-all border border-red-600 flex items-center justify-center gap-2 group"
                                 title="Preflight 검증을 우회하고 모든 실패/대기 건을 직접 API로 재분석합니다"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
@@ -2725,33 +2753,42 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         {failedRecords.length > 0 && !isAnalyzing && (
                             <button
                                 onClick={handleAdminNormalizeFailedBatch}
-                                className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-amber-600 hover:bg-amber-700 rounded-2xl font-black text-sm shadow-xl transition-all border border-amber-500 flex items-center justify-center gap-2 group"
+                                className="w-full px-5 py-3 bg-amber-600 hover:bg-amber-700 rounded-2xl font-black text-sm shadow-xl transition-all border border-amber-500 flex items-center justify-center gap-2 group"
                                 title="재시도 불가 실패/대기 건을 관리자 검토 기준으로 일괄 정상분류합니다"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                                 관리자 일괄 정상분류 ({failedRecords.length})
                             </button>
                         )}
+                                </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-emerald-400/15 bg-black/10 p-3">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-300">운영 · 백업</p>
+                                <div className="mt-3 grid grid-cols-1 gap-2.5">
                         
                         {recordsWithImages.length > 0 && !isAnalyzing && (
                             <button 
                                 onClick={handleBatchReanalyze}
-                                className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-emerald-600 hover:bg-emerald-700 rounded-2xl font-black text-sm shadow-xl transition-all border border-emerald-500 flex items-center justify-center gap-2 group"
+                                className="w-full px-5 py-3 bg-emerald-600 hover:bg-emerald-700 rounded-2xl font-black text-sm shadow-xl transition-all border border-emerald-500 flex items-center justify-center gap-2 group"
                             >
                                 <svg className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeWidth={2.5}/></svg>
                                 전체 일괄 재분석 (OCR)
                             </button>
                         )}
                         
-                        <button onClick={() => importInputRef.current?.click()} className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-sm transition-all">JSON 불러오기</button>
+                        <button onClick={() => importInputRef.current?.click()} className="w-full px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-sm transition-all">JSON 불러오기</button>
                         <input type="file" ref={importInputRef} className="hidden" accept=".json" onChange={(e) => {
                              const file = e.target.files?.[0];
                              if (file) handleImportFile(file);
                         }} />
-                        <button onClick={() => { void handleCopyReanalysisSummary(); }} className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-slate-700 hover:bg-slate-800 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 복사</button>
-                        <button onClick={handleExportReanalysisSummary} className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 내보내기</button>
-                        <button onClick={handleExport} className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-2xl font-black text-sm shadow-xl transition-all">백업 내보내기</button>
-                        <button onClick={onDeleteAll} className="w-full sm:w-auto px-5 sm:px-6 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all">전체 삭제</button>
+                        <button onClick={() => { void handleCopyReanalysisSummary(); }} className="w-full px-5 py-3 bg-slate-700 hover:bg-slate-800 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 복사</button>
+                        <button onClick={handleExportReanalysisSummary} className="w-full px-5 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 내보내기</button>
+                        <button onClick={handleExport} className="w-full px-5 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-2xl font-black text-sm shadow-xl transition-all">백업 내보내기</button>
+                        <button onClick={onDeleteAll} className="w-full px-5 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all">전체 삭제</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
