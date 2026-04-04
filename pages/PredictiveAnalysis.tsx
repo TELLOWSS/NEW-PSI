@@ -53,6 +53,8 @@ interface ActionExecutionPlan {
 
 type PlanStatus = 'not-started' | 'in-progress' | 'completed';
 
+type ExecutionPlanFilter = 'all' | 'urgent' | PlanStatus;
+
 type PlanStatusApiItem = {
     planKey: string;
     status: PlanStatus;
@@ -507,8 +509,14 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
     const [planStatusMap, setPlanStatusMap] = useState<Record<string, PlanStatus>>(() => readSavedPlanStatusMap());
     const [planAuditMap, setPlanAuditMap] = useState<Record<string, PlanAuditMeta>>({});
     const [expandedHistoryPlanKey, setExpandedHistoryPlanKey] = useState<string | null>(null);
+    const [expandedPlanDetailKey, setExpandedPlanDetailKey] = useState<string | null>(null);
     const [planHistoryMap, setPlanHistoryMap] = useState<Record<string, PlanStatusHistoryItem[]>>({});
     const [planHistoryLoadingMap, setPlanHistoryLoadingMap] = useState<Record<string, boolean>>({});
+    const [executionPlanFilter, setExecutionPlanFilter] = useState<ExecutionPlanFilter>('urgent');
+    const [showAllExecutionPlans, setShowAllExecutionPlans] = useState(false);
+    const [showAllJobActionRates, setShowAllJobActionRates] = useState(false);
+    const [showAllRiskInsights, setShowAllRiskInsights] = useState(false);
+    const [showAllMeetingAgenda, setShowAllMeetingAgenda] = useState(false);
     const ontologyViewportRef = useRef<HTMLDivElement | null>(null);
     const [isPanningOntology, setIsPanningOntology] = useState(false);
     const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
@@ -724,6 +732,15 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
         }));
     }, [riskInsights, nextMonth]);
 
+    const visibleRiskInsights = useMemo(() => {
+        const topInsights = riskInsights.slice(0, 5);
+        return showAllRiskInsights ? topInsights : topInsights.slice(0, 3);
+    }, [riskInsights, showAllRiskInsights]);
+
+    const visibleMeetingAgenda = useMemo(() => {
+        return showAllMeetingAgenda ? meetingAgenda : meetingAgenda.slice(0, 2);
+    }, [meetingAgenda, showAllMeetingAgenda]);
+
     const executionPlans = useMemo<ActionExecutionPlan[]>(() => {
         return riskInsights.slice(0, 5).map((insight, index) => {
             const riskLabel = insight.topRisk;
@@ -888,6 +905,34 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
         return summary;
     }, [executionPlans, planStatusMap]);
 
+    const executionCompletionRate = useMemo(() => {
+        if (executionPlans.length === 0) return 0;
+        return Math.round((statusSummary.completed / executionPlans.length) * 100);
+    }, [executionPlans.length, statusSummary.completed]);
+
+    const executionPlanFilterOptions = useMemo<Array<{ key: ExecutionPlanFilter; label: string; count: number }>>(() => {
+        const urgentCount = executionPlans.filter((plan) => plan.priority === '즉시' || plan.priority === '고').length;
+        return [
+            { key: 'urgent', label: '긴급 우선', count: urgentCount },
+            { key: 'all', label: '전체', count: executionPlans.length },
+            { key: 'not-started', label: '미착수', count: statusSummary['not-started'] },
+            { key: 'in-progress', label: '진행중', count: statusSummary['in-progress'] },
+            { key: 'completed', label: '완료', count: statusSummary.completed },
+        ];
+    }, [executionPlans, statusSummary]);
+
+    const filteredExecutionPlans = useMemo(() => {
+        if (executionPlanFilter === 'all') return executionPlans;
+        if (executionPlanFilter === 'urgent') {
+            return executionPlans.filter((plan) => plan.priority === '즉시' || plan.priority === '고');
+        }
+        return executionPlans.filter((plan) => (planStatusMap[plan.key] || 'not-started') === executionPlanFilter);
+    }, [executionPlanFilter, executionPlans, planStatusMap]);
+
+    const visibleExecutionPlans = useMemo(() => {
+        return showAllExecutionPlans ? filteredExecutionPlans : filteredExecutionPlans.slice(0, 3);
+    }, [filteredExecutionPlans, showAllExecutionPlans]);
+
     const registeredJobFieldLabels = useMemo(() => {
         const configured = getRegisteredJobFields();
         const observed = Array.from(new Set(sourceRecords.map((record) => String(record.jobField || '').trim()).filter((value) => value.length > 0)));
@@ -934,6 +979,38 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
             };
         });
     }, [executionPlans, groupedJobStatLabels, planStatusMap]);
+
+    const sortedCustomJobActionRates = useMemo(() => {
+        return [...customJobActionRates].sort((a, b) => {
+            if (a.actionRate !== b.actionRate) return a.actionRate - b.actionRate;
+            if (a.total !== b.total) return b.total - a.total;
+            return a.jobLabel.localeCompare(b.jobLabel, 'ko');
+        });
+    }, [customJobActionRates]);
+
+    const visibleJobActionRates = useMemo(() => {
+        return showAllJobActionRates ? sortedCustomJobActionRates : sortedCustomJobActionRates.slice(0, 4);
+    }, [showAllJobActionRates, sortedCustomJobActionRates]);
+
+    const jobActionRateSummary = useMemo(() => {
+        if (sortedCustomJobActionRates.length === 0) {
+            return {
+                averageRate: 0,
+                zeroRateCount: 0,
+                focusLabels: [] as string[],
+            };
+        }
+
+        const totalRate = sortedCustomJobActionRates.reduce((sum, item) => sum + item.actionRate, 0);
+        return {
+            averageRate: Math.round(totalRate / sortedCustomJobActionRates.length),
+            zeroRateCount: sortedCustomJobActionRates.filter((item) => item.total > 0 && item.actionRate === 0).length,
+            focusLabels: sortedCustomJobActionRates
+                .filter((item) => item.total > 0)
+                .slice(0, 3)
+                .map((item) => item.jobLabel),
+        };
+    }, [sortedCustomJobActionRates]);
 
     const setPlanStatus = (planKey: string, status: PlanStatus) => {
         const nowIso = new Date().toISOString();
@@ -1189,13 +1266,13 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
             <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-lg border border-slate-100">
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="text-base sm:text-lg font-black text-slate-900">우선 개입 대상 TOP 5</h3>
-                    <span className="text-[11px] font-black text-slate-500">RiskScore 기준</span>
+                    <span className="text-[11px] font-black text-slate-500">기본 3건만 우선 표시</span>
                 </div>
                 {riskInsights.length === 0 ? (
                     <p className="text-sm font-bold text-slate-400">예측 분석을 위한 데이터가 부족합니다.</p>
                 ) : (
                     <div className="space-y-3">
-                        {riskInsights.slice(0, 5).map((item, index) => (
+                        {visibleRiskInsights.map((item, index) => (
                             <div key={item.key} className="rounded-xl border border-slate-200 p-3 bg-slate-50">
                                 <div className="flex items-start justify-between gap-2">
                                     <div>
@@ -1213,6 +1290,15 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                                 </div>
                             </div>
                         ))}
+                        {riskInsights.slice(0, 5).length > 3 && (
+                            <button
+                                type="button"
+                                onClick={() => setShowAllRiskInsights((prev) => !prev)}
+                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
+                            >
+                                {showAllRiskInsights ? '우선 개입 대상 접기' : `우선 개입 대상 ${riskInsights.slice(0, 5).length - visibleRiskInsights.length}건 더 보기`}
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
@@ -1333,12 +1419,21 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                 <div className="space-y-6">
                     {/* Agenda Card */}
                     <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[30px] shadow-lg border border-slate-100">
-                        <h3 className="text-lg font-black text-slate-900 mb-4 flex items-center gap-2">
-                            <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-                            {nextMonth} 중점 관리 안건
-                        </h3>
+                        <div className="flex items-start justify-between gap-3 mb-4">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                                    <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+                                    {nextMonth} 중점 관리 안건
+                                </h3>
+                                <p className="mt-1 text-[11px] font-bold text-slate-500">핵심 안건 2건만 먼저 보여주고 필요 시 펼쳐보도록 구성했습니다.</p>
+                            </div>
+                            <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-center shrink-0">
+                                <p className="text-[10px] font-black text-indigo-700">안건 수</p>
+                                <p className="text-base font-black text-indigo-900">{meetingAgenda.length}</p>
+                            </div>
+                        </div>
                         <div className="space-y-4">
-                            {meetingAgenda.length > 0 ? meetingAgenda.map((item) => (
+                            {meetingAgenda.length > 0 ? visibleMeetingAgenda.map((item) => (
                                 <div key={item.rank} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 hover:border-indigo-300 transition-colors group">
                                     <div className="flex items-start gap-3">
                                         <div className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-xs shadow-md group-hover:scale-110 transition-transform">
@@ -1358,6 +1453,15 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                                 </div>
                             )}
                         </div>
+                        {meetingAgenda.length > 2 && (
+                            <button
+                                type="button"
+                                onClick={() => setShowAllMeetingAgenda((prev) => !prev)}
+                                className="mt-4 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
+                            >
+                                {showAllMeetingAgenda ? '중점 관리 안건 접기' : `중점 관리 안건 ${meetingAgenda.length - visibleMeetingAgenda.length}건 더 보기`}
+                            </button>
+                        )}
                         <div className="mt-4 pt-4 border-t border-slate-100 text-center">
                             <p className="text-[10px] text-slate-400 font-bold">
                                 * 위 안건은 OCR 및 사용자 수정 데이터를 기반으로 자동 생성되었습니다.
@@ -1366,7 +1470,22 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                     </div>
 
                     <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[30px] shadow-lg border border-slate-100">
-                        <h3 className="text-lg font-black text-slate-900 mb-4">실행 계획 (누가 · 무엇을 · 언제)</h3>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900">실행 계획 (누가 · 무엇을 · 언제)</h3>
+                                <p className="mt-1 text-[11px] font-bold text-slate-500">긴급 우선안만 먼저 보여주고, 필요 시 전체 계획을 펼쳐보도록 단순화했습니다.</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 sm:min-w-[220px]">
+                                <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-center">
+                                    <p className="text-[10px] font-black text-indigo-700">완료율</p>
+                                    <p className="text-lg font-black text-indigo-900">{executionCompletionRate}%</p>
+                                </div>
+                                <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-center">
+                                    <p className="text-[10px] font-black text-rose-700">긴급/고</p>
+                                    <p className="text-lg font-black text-rose-900">{executionPlanFilterOptions.find((item) => item.key === 'urgent')?.count || 0}건</p>
+                                </div>
+                            </div>
+                        </div>
                         <div className="mb-3 grid grid-cols-3 gap-2">
                             <div className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-center">
                                 <p className="text-[10px] font-black text-slate-500">미착수</p>
@@ -1381,11 +1500,33 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                                 <p className="text-base font-black text-emerald-800">{statusSummary.completed}</p>
                             </div>
                         </div>
+                        <div className="mb-3 flex flex-wrap gap-2">
+                            {executionPlanFilterOptions.map((option) => {
+                                const active = executionPlanFilter === option.key;
+                                return (
+                                    <button
+                                        key={option.key}
+                                        type="button"
+                                        onClick={() => {
+                                            setExecutionPlanFilter(option.key);
+                                            setShowAllExecutionPlans(false);
+                                        }}
+                                        className={`rounded-full border px-3 py-1.5 text-[11px] font-black transition-colors ${active ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
+                                    >
+                                        {option.label} · {option.count}
+                                    </button>
+                                );
+                            })}
+                        </div>
                         {executionPlans.length === 0 ? (
                             <div className="text-center py-8 text-slate-400 text-sm">실행 계획을 생성할 데이터가 부족합니다.</div>
+                        ) : filteredExecutionPlans.length === 0 ? (
+                            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-400">
+                                선택한 조건에 해당하는 실행 계획이 없습니다.
+                            </div>
                         ) : (
                             <div className="space-y-3">
-                                {executionPlans.map((plan) => (
+                                {visibleExecutionPlans.map((plan) => (
                                     <div key={plan.key} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                                         <div className="flex items-start justify-between gap-2">
                                             <div>
@@ -1403,40 +1544,60 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                                         </div>
                                         <div className="mt-2 rounded-xl bg-white border border-slate-200 p-2.5">
                                             <p className="text-[11px] font-black text-slate-700">무엇을: {plan.actionTitle}</p>
-                                            <p className="mt-1 text-[11px] font-bold text-slate-500">누가: {plan.owner}</p>
-                                            <p className="mt-1 text-[11px] font-bold text-slate-500">언제: {plan.dueLabel}까지</p>
+                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-black text-slate-600">누가: {plan.owner}</span>
+                                                <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-black text-slate-600">언제: {plan.dueLabel}까지</span>
+                                            </div>
                                             <button
                                                 type="button"
-                                                onClick={() => { void togglePlanHistory(plan.key); }}
-                                                className="mt-1 text-[11px] font-bold text-indigo-600 underline underline-offset-2"
+                                                onClick={() => setExpandedPlanDetailKey((previous) => previous === plan.key ? null : plan.key)}
+                                                className="mt-2 inline-flex items-center gap-1 text-[11px] font-black text-slate-700 underline underline-offset-2"
                                             >
-                                                최근 변경: {planAuditMap[plan.key]?.updatedBy || '-'} · {formatAuditTime(planAuditMap[plan.key]?.updatedAt)}
+                                                {expandedPlanDetailKey === plan.key ? '세부 계획 접기' : '세부 계획 보기'}
                                             </button>
-                                            {expandedHistoryPlanKey === plan.key && (
-                                                <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
-                                                    <p className="text-[10px] font-black text-slate-500 mb-1">최근 변경 이력 (최대 5건)</p>
-                                                    {planHistoryLoadingMap[plan.key] ? (
-                                                        <p className="text-[10px] font-bold text-slate-400">불러오는 중...</p>
-                                                    ) : (planHistoryMap[plan.key] || []).length === 0 ? (
-                                                        <p className="text-[10px] font-bold text-slate-400">조회된 이력이 없습니다.</p>
-                                                    ) : (
-                                                        <div className="space-y-1.5">
-                                                            {(planHistoryMap[plan.key] || []).map((history, idx) => (
-                                                                <div key={`${plan.key}-history-${idx}`} className="text-[10px] font-bold text-slate-600">
-                                                                    <div className="flex items-center gap-1">
-                                                                        {history.previousStatus != null ? (
-                                                                            <>
-                                                                                <span className={`rounded px-1.5 py-0.5 text-[9px] font-black ${PLAN_STATUS_META[history.previousStatus].chipClass}`}>{PLAN_STATUS_META[history.previousStatus].label}</span>
-                                                                                <span className="text-slate-400">→</span>
-                                                                            </>
-                                                                        ) : null}
-                                                                        <span className={`rounded px-1.5 py-0.5 text-[9px] font-black ${PLAN_STATUS_META[history.status].chipClass}`}>{PLAN_STATUS_META[history.status].label}</span>
-                                                                    </div>
-                                                                    <div className="mt-0.5 text-slate-400">{history.updatedBy || '-'} · {formatAuditTime(history.updatedAt)}</div>
+                                            {expandedPlanDetailKey === plan.key && (
+                                                <div className="mt-2 border-t border-slate-100 pt-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => { void togglePlanHistory(plan.key); }}
+                                                        className="text-[11px] font-bold text-indigo-600 underline underline-offset-2"
+                                                    >
+                                                        최근 변경: {planAuditMap[plan.key]?.updatedBy || '-'} · {formatAuditTime(planAuditMap[plan.key]?.updatedAt)}
+                                                    </button>
+                                                    {expandedHistoryPlanKey === plan.key && (
+                                                        <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
+                                                            <p className="text-[10px] font-black text-slate-500 mb-1">최근 변경 이력 (최대 5건)</p>
+                                                            {planHistoryLoadingMap[plan.key] ? (
+                                                                <p className="text-[10px] font-bold text-slate-400">불러오는 중...</p>
+                                                            ) : (planHistoryMap[plan.key] || []).length === 0 ? (
+                                                                <p className="text-[10px] font-bold text-slate-400">조회된 이력이 없습니다.</p>
+                                                            ) : (
+                                                                <div className="space-y-1.5">
+                                                                    {(planHistoryMap[plan.key] || []).map((history, idx) => (
+                                                                        <div key={`${plan.key}-history-${idx}`} className="text-[10px] font-bold text-slate-600">
+                                                                            <div className="flex items-center gap-1">
+                                                                                {history.previousStatus != null ? (
+                                                                                    <>
+                                                                                        <span className={`rounded px-1.5 py-0.5 text-[9px] font-black ${PLAN_STATUS_META[history.previousStatus].chipClass}`}>{PLAN_STATUS_META[history.previousStatus].label}</span>
+                                                                                        <span className="text-slate-400">→</span>
+                                                                                    </>
+                                                                                ) : null}
+                                                                                <span className={`rounded px-1.5 py-0.5 text-[9px] font-black ${PLAN_STATUS_META[history.status].chipClass}`}>{PLAN_STATUS_META[history.status].label}</span>
+                                                                            </div>
+                                                                            <div className="mt-0.5 text-slate-400">{history.updatedBy || '-'} · {formatAuditTime(history.updatedAt)}</div>
+                                                                        </div>
+                                                                    ))}
                                                                 </div>
-                                                            ))}
+                                                            )}
                                                         </div>
                                                     )}
+                                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                                        {plan.checkItems.map((item) => (
+                                                            <span key={item} className="px-2 py-1 rounded-full border border-slate-200 bg-white text-[10px] font-black text-slate-600">
+                                                                {item}
+                                                            </span>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                             )}
                                         </div>
@@ -1455,30 +1616,61 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                                                 );
                                             })}
                                         </div>
-                                        <div className="mt-2 flex flex-wrap gap-1.5">
-                                            {plan.checkItems.map((item) => (
-                                                <span key={item} className="px-2 py-1 rounded-full border border-slate-200 bg-white text-[10px] font-black text-slate-600">
-                                                    {item}
-                                                </span>
-                                            ))}
-                                        </div>
                                     </div>
                                 ))}
+                                {filteredExecutionPlans.length > 3 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowAllExecutionPlans((prev) => !prev)}
+                                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
+                                    >
+                                        {showAllExecutionPlans
+                                            ? '실행 계획 접기'
+                                            : `실행 계획 ${filteredExecutionPlans.length - visibleExecutionPlans.length}건 더 보기`}
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>
 
                     <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[30px] shadow-lg border border-slate-100">
-                        <h3 className="text-lg font-black text-slate-900 mb-4">등록 공종별 조치율</h3>
-                        <div className="space-y-3">
-                            {customJobActionRates.map((item) => (
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
+                            <div>
+                                <h3 className="text-lg font-black text-slate-900">등록 공종별 조치율</h3>
+                                <p className="mt-1 text-[11px] font-bold text-slate-500">낮은 조치율 공종을 상단에 우선 배치해 바로 확인할 수 있게 정리했습니다.</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 sm:min-w-[220px]">
+                                <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-center">
+                                    <p className="text-[10px] font-black text-emerald-700">평균 조치율</p>
+                                    <p className="text-lg font-black text-emerald-900">{jobActionRateSummary.averageRate}%</p>
+                                </div>
+                                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-center">
+                                    <p className="text-[10px] font-black text-amber-700">즉시 확인</p>
+                                    <p className="text-lg font-black text-amber-900">{jobActionRateSummary.zeroRateCount}곳</p>
+                                </div>
+                            </div>
+                        </div>
+                        {jobActionRateSummary.focusLabels.length > 0 && (
+                            <div className="mb-3 rounded-2xl border border-amber-100 bg-amber-50 p-3">
+                                <p className="text-[10px] font-black text-amber-700">우선 확인 공종</p>
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {jobActionRateSummary.focusLabels.map((label) => (
+                                        <span key={label} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-slate-700 border border-amber-200">
+                                            {label}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {visibleJobActionRates.map((item) => (
                                 <div key={item.jobLabel} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                                     <div className="flex items-center justify-between gap-2">
                                         <p className="text-sm font-black text-slate-900">{item.jobLabel}</p>
-                                        <p className="text-xs font-black text-slate-700">조치율 {item.actionRate}%</p>
+                                        <p className={`text-xs font-black ${item.actionRate < 40 ? 'text-rose-700' : item.actionRate < 70 ? 'text-amber-700' : 'text-emerald-700'}`}>조치율 {item.actionRate}%</p>
                                     </div>
                                     <div className="mt-2 h-2 rounded-full bg-slate-200 overflow-hidden">
-                                        <div className="h-full bg-emerald-500" style={{ width: `${item.actionRate}%` }}></div>
+                                        <div className={`h-full ${item.actionRate < 40 ? 'bg-rose-500' : item.actionRate < 70 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${item.actionRate}%` }}></div>
                                     </div>
                                     <div className="mt-2 grid grid-cols-4 gap-1 text-center">
                                         <div className="rounded-lg bg-white border border-slate-200 py-1">
@@ -1501,6 +1693,17 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                                 </div>
                             ))}
                         </div>
+                        {sortedCustomJobActionRates.length > 4 && (
+                            <button
+                                type="button"
+                                onClick={() => setShowAllJobActionRates((prev) => !prev)}
+                                className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50"
+                            >
+                                {showAllJobActionRates
+                                    ? '공종별 조치율 접기'
+                                    : `공종별 조치율 ${sortedCustomJobActionRates.length - visibleJobActionRates.length}건 더 보기`}
+                            </button>
+                        )}
                         <p className="mt-3 text-[10px] font-bold text-slate-500">* 형틀 공종은 팀장 기준으로 팀 단위 세분화되며, 조치율 = 완료 건수 / 해당 공종(또는 팀) 실행계획 건수</p>
                     </div>
 
