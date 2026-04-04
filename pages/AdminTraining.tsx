@@ -359,10 +359,7 @@ const UI_TEXT: Record<UiLocale, {
     },
 };
 
-const resolveAdminLocale = (langs: string[]): UiLocale => {
-    if (langs.includes('vi-VN')) return 'vi';
-    if (langs.includes('cmn-CN') || langs.includes('zh-CN')) return 'zh';
-    if (langs.includes('en-US')) return 'en';
+const resolveAdminLocale = (): UiLocale => {
     return 'ko';
 };
 
@@ -461,7 +458,7 @@ const AdminTraining: React.FC = () => {
     const [savedPreset, setSavedPreset] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
     const [selectedLanguages, setSelectedLanguages] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
     const [recentSessions, setRecentSessions] = useState<TrainingSessionRow[]>([]);
-    const uiLocale = resolveAdminLocale(selectedLanguages);
+    const uiLocale = resolveAdminLocale();
     const t = UI_TEXT[uiLocale];
 
     const shareText = mobileUrl
