@@ -2,6 +2,29 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import type { WorkerRecord } from '../../types';
 
+const normalizeIdentityText = (value: unknown): string => typeof value === 'string' ? value.trim().toUpperCase() : '';
+
+const getWorkerUuidValue = (record: Partial<WorkerRecord>): string => normalizeIdentityText(record.worker_uuid || record.workerUuid);
+
+const isSameWorkerHistory = (base: WorkerRecord, candidate: WorkerRecord): boolean => {
+    const baseUuid = getWorkerUuidValue(base);
+    const candidateUuid = getWorkerUuidValue(candidate);
+    if (baseUuid && candidateUuid) return baseUuid === candidateUuid;
+
+    const baseEmployeeId = normalizeIdentityText(base.employeeId);
+    const candidateEmployeeId = normalizeIdentityText(candidate.employeeId);
+    if (baseEmployeeId && candidateEmployeeId) return baseEmployeeId === candidateEmployeeId;
+
+    const baseQrId = normalizeIdentityText(base.qrId);
+    const candidateQrId = normalizeIdentityText(candidate.qrId);
+    if (baseQrId && candidateQrId) return baseQrId === candidateQrId;
+
+    return normalizeIdentityText(base.name) === normalizeIdentityText(candidate.name)
+        && normalizeIdentityText(base.nationality) === normalizeIdentityText(candidate.nationality)
+        && normalizeIdentityText(base.teamLeader || '미지정') === normalizeIdentityText(candidate.teamLeader || '미지정')
+        && normalizeIdentityText(base.jobField) === normalizeIdentityText(candidate.jobField);
+};
+
 interface WorkerHistoryModalProps {
     workerName: string;
     allRecords: WorkerRecord[];
@@ -32,12 +55,7 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
 
     const workerHistory = useMemo(() => {
         return allRecords
-            .filter(r => {
-                const nameMatch = r.name === workerName;
-                const teamLeaderMatch = (r.teamLeader || '미지정') === (initialSelectedRecord.teamLeader || '미지정');
-                const jobMatch = r.jobField === initialSelectedRecord.jobField;
-                return nameMatch && teamLeaderMatch && jobMatch;
-            })
+            .filter(r => isSameWorkerHistory(initialSelectedRecord, r))
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     }, [allRecords, workerName, initialSelectedRecord]);
 

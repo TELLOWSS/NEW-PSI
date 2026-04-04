@@ -178,6 +178,8 @@ export interface AuditTrailEntry {
 
 export interface WorkerRecord {
     id: string; // Unique ID for each record
+    worker_uuid?: string;
+    workerUuid?: string;
     name: string;
     employeeId?: string;
     qrId?: string;

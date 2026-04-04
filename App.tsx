@@ -208,6 +208,183 @@ const normalizeImage = (imgData: unknown): string | undefined => {
     return `data:image/jpeg;base64,${cleanBase64}`;
 };
 
+const normalizeIdentityText = (value: unknown): string => {
+    return typeof value === 'string' ? value.trim().toUpperCase() : '';
+};
+
+const stableWorkerHash = (seed: string): string => {
+    let hash = 2166136261;
+    for (let index = 0; index < seed.length; index++) {
+        hash ^= seed.charCodeAt(index);
+        hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
+    }
+    return Math.abs(hash >>> 0).toString(36).toUpperCase();
+};
+
+const getWorkerUuidValue = (record: Partial<WorkerRecord>): string => {
+    return normalizeIdentityText(record.worker_uuid || record.workerUuid);
+};
+
+const hasUsableProfileImage = (record: Partial<WorkerRecord>): boolean => {
+    return typeof record.profileImage === 'string' && record.profileImage.length > 50;
+};
+
+const getComparableDateValue = (date?: string): number => {
+    const time = new Date(date || '').getTime();
+    return Number.isFinite(time) ? time : 0;
+};
+
+const getWorkerMatchScore = (target: Partial<WorkerRecord>, candidate: Partial<WorkerRecord>): number => {
+    const targetUuid = getWorkerUuidValue(target);
+    const candidateUuid = getWorkerUuidValue(candidate);
+    if (targetUuid && candidateUuid && targetUuid === candidateUuid) return 120;
+
+    const targetEmployeeId = normalizeIdentityText(target.employeeId);
+    const candidateEmployeeId = normalizeIdentityText(candidate.employeeId);
+    if (targetEmployeeId && candidateEmployeeId && targetEmployeeId === candidateEmployeeId) return 110;
+
+    const targetQrId = normalizeIdentityText(target.qrId);
+    const candidateQrId = normalizeIdentityText(candidate.qrId);
+    if (targetQrId && candidateQrId && targetQrId === candidateQrId) return 100;
+
+    const targetName = normalizeIdentityText(target.name);
+    const candidateName = normalizeIdentityText(candidate.name);
+    if (!targetName || !candidateName || targetName !== candidateName) return -1;
+
+    let score = 40;
+    const targetNationality = normalizeIdentityText(target.nationality);
+    const candidateNationality = normalizeIdentityText(candidate.nationality);
+    if (targetNationality && candidateNationality && targetNationality === candidateNationality) score += 15;
+
+    const targetTeam = normalizeIdentityText(target.teamLeader);
+    const candidateTeam = normalizeIdentityText(candidate.teamLeader);
+    if (targetTeam && candidateTeam && targetTeam === candidateTeam) score += 15;
+
+    const targetJob = normalizeIdentityText(target.jobField);
+    const candidateJob = normalizeIdentityText(candidate.jobField);
+    if (targetJob && candidateJob && targetJob === candidateJob) score += 15;
+
+    const targetRole = normalizeIdentityText(target.role);
+    const candidateRole = normalizeIdentityText(candidate.role);
+    if (targetRole && candidateRole && targetRole === candidateRole) score += 5;
+
+    return score >= 55 ? score : -1;
+};
+
+const findBestWorkerSource = (record: WorkerRecord, existingRecords: WorkerRecord[]): WorkerRecord | null => {
+    return existingRecords
+        .filter((candidate) => candidate.id !== record.id)
+        .map((candidate) => ({
+            candidate,
+            score: getWorkerMatchScore(record, candidate),
+        }))
+        .filter((item) => item.score >= 55)
+        .sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            if (Number(hasUsableProfileImage(b.candidate)) !== Number(hasUsableProfileImage(a.candidate))) {
+                return Number(hasUsableProfileImage(b.candidate)) - Number(hasUsableProfileImage(a.candidate));
+            }
+            return getComparableDateValue(b.candidate.date) - getComparableDateValue(a.candidate.date);
+        })[0]?.candidate || null;
+};
+
+const ensureWorkerUuid = (record: WorkerRecord, existingRecords: WorkerRecord[] = []): WorkerRecord => {
+    const existingUuid = getWorkerUuidValue(record);
+    if (existingUuid) {
+        return {
+            ...record,
+            worker_uuid: existingUuid,
+            workerUuid: existingUuid,
+        };
+    }
+
+    const source = findBestWorkerSource(record, existingRecords);
+    const sourceUuid = source ? getWorkerUuidValue(source) : '';
+    if (sourceUuid) {
+        return {
+            ...record,
+            worker_uuid: sourceUuid,
+            workerUuid: sourceUuid,
+        };
+    }
+
+    const employeeId = normalizeIdentityText(record.employeeId);
+    const qrId = normalizeIdentityText(record.qrId);
+    const generatedUuid = employeeId
+        ? `WU-${employeeId}`
+        : qrId
+            ? `WU-${qrId}`
+            : `WU-${stableWorkerHash([
+                normalizeIdentityText(record.name),
+                normalizeIdentityText(record.nationality),
+                normalizeIdentityText(record.teamLeader),
+                normalizeIdentityText(record.jobField),
+                normalizeIdentityText(record.role),
+            ].join('|')).slice(0, 12)}`;
+
+    return {
+        ...record,
+        worker_uuid: generatedUuid,
+        workerUuid: generatedUuid,
+    };
+};
+
+const applyWorkerProfilePolicy = (record: WorkerRecord, existingRecords: WorkerRecord[]): WorkerRecord => {
+    const source = findBestWorkerSource(record, existingRecords);
+    if (!source) return ensureWorkerUuid(record, existingRecords);
+
+    return ensureWorkerUuid({
+        ...record,
+        worker_uuid: record.worker_uuid || source.worker_uuid,
+        workerUuid: record.workerUuid || source.workerUuid,
+        employeeId: record.employeeId || source.employeeId,
+        qrId: record.qrId || source.qrId,
+        profileImage: record.profileImage || source.profileImage,
+    }, existingRecords);
+};
+
+const reconcileWorkerProfiles = (records: WorkerRecord[]): { records: WorkerRecord[]; changedIds: string[] } => {
+    const sorted = [...records].sort((a, b) => getComparableDateValue(b.date) - getComparableDateValue(a.date));
+    const resolved: WorkerRecord[] = [];
+    const changedIds: string[] = [];
+
+    for (const record of sorted) {
+        const profileAware = applyWorkerProfilePolicy(record, resolved);
+        const normalizedIdentity = applyIdentityPolicy(profileAware, resolved);
+        const unified = ensureWorkerUuid(normalizedIdentity, resolved);
+        const changed =
+            unified.worker_uuid !== record.worker_uuid ||
+            unified.workerUuid !== record.workerUuid ||
+            unified.employeeId !== record.employeeId ||
+            unified.qrId !== record.qrId ||
+            unified.profileImage !== record.profileImage;
+
+        resolved.push(changed
+            ? {
+                ...unified,
+                auditTrail: [
+                    ...(unified.auditTrail || []),
+                    {
+                        stage: 'validation' as const,
+                        timestamp: new Date().toISOString(),
+                        actor: 'system',
+                        note: '동일 근로자 식별자/프로필 자동 정렬',
+                    },
+                ],
+            }
+            : unified);
+
+        if (changed) {
+            changedIds.push(record.id);
+        }
+    }
+
+    return {
+        records: resolved.sort((a, b) => getComparableDateValue(b.date) - getComparableDateValue(a.date)),
+        changedIds,
+    };
+};
+
 const normalizeNationality = (rawNationality: string): string => {
     if (!rawNationality) return '미상';
 
@@ -331,7 +508,8 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
             approvalReason: toOptionalStringSafe(r.approvalReason),
         };
 
-        return applyIdentityPolicy(baseRecord);
+        const withIdentity = applyIdentityPolicy(baseRecord);
+        return ensureWorkerUuid(withIdentity);
     }).map((record) => {
         const withIntegrity = {
             ...record,
@@ -499,18 +677,34 @@ const App: React.FC = () => {
 
     useEffect(() => {
         loadWorkerRecordsFromDB().then(data => {
-            const sortedData = sanitizeRecords(data).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            setWorkerRecords(sortedData);
+            const sanitizedData = sanitizeRecords(data).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            const reconciled = reconcileWorkerProfiles(sanitizedData);
+            setWorkerRecords(reconciled.records);
             setIsDataLoaded(true);
+
+            if (reconciled.changedIds.length > 0) {
+                void (async () => {
+                    try {
+                        for (const record of reconciled.records.filter((item) => reconciled.changedIds.includes(item.id))) {
+                            await saveRecordToDB(record);
+                        }
+                        console.info('[PSI][WorkerProfileReconcile]', {
+                            changedCount: reconciled.changedIds.length,
+                        });
+                    } catch (error) {
+                        console.warn('Worker profile reconcile save skipped:', error);
+                    }
+                })();
+            }
 
             const thresholds = getSafetyLevelThresholds();
             const expectedMigrationSignature = `criteria-${thresholds.advancedMin}-${thresholds.intermediateMin}`;
             const migrated = localStorage.getItem(SAFETY_LEVEL_MIGRATION_KEY) === expectedMigrationSignature;
-            if (!migrated && sortedData.length > 0) {
+            if (!migrated && reconciled.records.length > 0) {
                 void (async () => {
                     try {
                         let changedCount = 0;
-                        for (const record of sortedData) {
+                        for (const record of reconciled.records) {
                             const original = data.find((item) => item?.id === record.id) as WorkerRecord | undefined;
                             if (original?.safetyLevel !== record.safetyLevel) changedCount += 1;
                             await saveRecordToDB(record);
@@ -549,9 +743,11 @@ const App: React.FC = () => {
 
     // [Updated] Stable Handler using useCallback
     const handleUpdateRecord = useCallback(async (updatedRecord: WorkerRecord) => {
-        const normalizedIdentityRecord = applyIdentityPolicy(updatedRecord, workerRecordsRef.current);
-        const previous = workerRecordsRef.current.find(r => r.id === normalizedIdentityRecord.id);
-        const withCorrection = appendCorrectionHistory(normalizedIdentityRecord, previous, 'manager');
+        const profileAwareRecord = applyWorkerProfilePolicy(updatedRecord, workerRecordsRef.current);
+        const normalizedIdentityRecord = applyIdentityPolicy(profileAwareRecord, workerRecordsRef.current);
+        const unifiedWorkerRecord = ensureWorkerUuid(normalizedIdentityRecord, workerRecordsRef.current);
+        const previous = workerRecordsRef.current.find(r => r.id === unifiedWorkerRecord.id);
+        const withCorrection = appendCorrectionHistory(unifiedWorkerRecord, previous, 'manager');
         const baseWithAudit = appendAuditTrail(withCorrection, {
             stage: 'correction',
             timestamp: new Date().toISOString(),
@@ -559,8 +755,8 @@ const App: React.FC = () => {
             note: '기록 수정/검토 반영',
         });
         const identityChanged =
-            (updatedRecord.employeeId || '') !== (normalizedIdentityRecord.employeeId || '') ||
-            (updatedRecord.qrId || '') !== (normalizedIdentityRecord.qrId || '');
+            (updatedRecord.employeeId || '') !== (unifiedWorkerRecord.employeeId || '') ||
+            (updatedRecord.qrId || '') !== (unifiedWorkerRecord.qrId || '');
 
         const withAudit = identityChanged
             ? appendAuditTrail(baseWithAudit, {
@@ -591,8 +787,39 @@ const App: React.FC = () => {
         const enforced = enforceSafetyLevel(withIntegrity);
         const hashed = await attachEvidenceHash(enforced);
 
-        setWorkerRecords(prev => prev.map(r => r.id === hashed.id ? hashed : r));
+        const relatedPhotoUpdates = hasUsableProfileImage(hashed)
+            ? workerRecordsRef.current
+                .filter((record) => record.id !== hashed.id)
+                .filter((record) => getWorkerMatchScore(hashed, record) >= 55)
+                .filter((record) => record.profileImage !== hashed.profileImage)
+                .map((record) => ({
+                    ...record,
+                    worker_uuid: hashed.worker_uuid || record.worker_uuid,
+                    workerUuid: hashed.workerUuid || record.workerUuid,
+                    employeeId: record.employeeId || hashed.employeeId,
+                    qrId: record.qrId || hashed.qrId,
+                    profileImage: hashed.profileImage,
+                    auditTrail: [
+                        ...(record.auditTrail || []),
+                        {
+                            stage: 'correction' as const,
+                            timestamp: new Date().toISOString(),
+                            actor: 'system',
+                            note: '동일 근로자 프로필 사진 자동 동기화',
+                        },
+                    ],
+                }))
+            : [];
+
+        setWorkerRecords(prev => prev.map(r => {
+            if (r.id === hashed.id) return hashed;
+            const synced = relatedPhotoUpdates.find(item => item.id === r.id);
+            return synced || r;
+        }));
         await saveRecordToDB(hashed);
+        for (const record of relatedPhotoUpdates) {
+            await saveRecordToDB(record);
+        }
         queueBestPracticeEmbedding(hashed);
     }, [queueBestPracticeEmbedding]);
 
@@ -666,19 +893,25 @@ const App: React.FC = () => {
         const sanitized = sanitizeRecords(records);
         const identityContext = [...workerRecordsRef.current];
         for (const record of sanitized) {
-            const normalizedIdentityRecord = applyIdentityPolicy(record, identityContext);
-            identityContext.push(normalizedIdentityRecord);
+            const profileAwareRecord = applyWorkerProfilePolicy(record, identityContext);
+            const normalizedIdentityRecord = applyIdentityPolicy(profileAwareRecord, identityContext);
+            const unifiedWorkerRecord = ensureWorkerUuid(normalizedIdentityRecord, identityContext);
+            identityContext.push(unifiedWorkerRecord);
             const withMetrics = {
-                ...normalizedIdentityRecord,
-                integrityScore: deriveIntegrityScore(normalizedIdentityRecord),
-                competencyProfile: deriveCompetencyProfile(normalizedIdentityRecord),
+                ...unifiedWorkerRecord,
+                integrityScore: deriveIntegrityScore(unifiedWorkerRecord),
+                competencyProfile: deriveCompetencyProfile(unifiedWorkerRecord),
             };
             const enforced = enforceSafetyLevel(withMetrics);
             const hashed = await attachEvidenceHash(enforced);
             await saveRecordToDB(hashed);
         }
         const allData = await loadWorkerRecordsFromDB();
-        setWorkerRecords(sanitizeRecords(allData).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        const reconciled = reconcileWorkerProfiles(sanitizeRecords(allData));
+        setWorkerRecords(reconciled.records);
+        for (const record of reconciled.records.filter((item) => reconciled.changedIds.includes(item.id))) {
+            await saveRecordToDB(record);
+        }
     }, []);
 
     const addWorkerRecords = useCallback(async (newRecords: WorkerRecord[]) => {
@@ -691,12 +924,14 @@ const App: React.FC = () => {
         const finalRecords: WorkerRecord[] = [];
         const identityContext = [...workerRecordsRef.current];
         for (const record of sanitized) {
-            const normalizedIdentityRecord = applyIdentityPolicy(record, identityContext);
-            identityContext.push(normalizedIdentityRecord);
+            const profileAwareRecord = applyWorkerProfilePolicy(record, identityContext);
+            const normalizedIdentityRecord = applyIdentityPolicy(profileAwareRecord, identityContext);
+            const unifiedWorkerRecord = ensureWorkerUuid(normalizedIdentityRecord, identityContext);
+            identityContext.push(unifiedWorkerRecord);
             const withIntegrity = {
-                ...normalizedIdentityRecord,
-                integrityScore: deriveIntegrityScore(normalizedIdentityRecord),
-                competencyProfile: deriveCompetencyProfile(normalizedIdentityRecord),
+                ...unifiedWorkerRecord,
+                integrityScore: deriveIntegrityScore(unifiedWorkerRecord),
+                competencyProfile: deriveCompetencyProfile(unifiedWorkerRecord),
             };
             const enforced = enforceSafetyLevel(withIntegrity);
             const hashed = await attachEvidenceHash(enforced);

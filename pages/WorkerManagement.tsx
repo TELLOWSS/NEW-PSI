@@ -212,6 +212,36 @@ const hasProfilePhoto = (worker: Pick<WorkerRecord, 'profileImage'>): boolean =>
     return Boolean(getSafeImageSrc(worker.profileImage));
 };
 
+const normalizeIdentityToken = (value: unknown): string => {
+    return typeof value === 'string' ? value.trim().toUpperCase() : '';
+};
+
+const getWorkerPrimaryIdentityKey = (record: WorkerRecord): string => {
+    const workerUuid = normalizeIdentityToken(record.worker_uuid || record.workerUuid);
+    if (workerUuid) return `worker_uuid:${workerUuid}`;
+
+    const employeeId = normalizeIdentityToken(record.employeeId);
+    if (employeeId) return `employeeId:${employeeId}`;
+
+    const qrId = normalizeIdentityToken(record.qrId);
+    if (qrId) return `qrId:${qrId}`;
+
+    return `fallback:${normalizeIdentityToken(record.name)}|${normalizeIdentityToken(record.teamLeader || '미지정')}|${normalizeIdentityToken(record.jobField)}|${normalizeIdentityToken(record.nationality)}`;
+};
+
+const getProfileLinkState = (record: WorkerRecord): 'linked' | 'manual' | 'missing' => {
+    const hasPhoto = hasProfilePhoto(record);
+    if (!hasPhoto) return 'missing';
+
+    const hasStableIdentity = Boolean(
+        normalizeIdentityToken(record.worker_uuid || record.workerUuid)
+        || normalizeIdentityToken(record.employeeId)
+        || normalizeIdentityToken(record.qrId)
+    );
+
+    return hasStableIdentity ? 'linked' : 'manual';
+};
+
 const toDisplayString = (value: unknown, fallback = ''): string => {
     if (typeof value === 'string') {
         const trimmed = value.trim();
@@ -1293,7 +1323,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const latestRecords = useMemo(() => {
         const map = new Map<string, WorkerRecord>();
         workerRecords.forEach(r => {
-            const key = `${r.name}-${r.teamLeader || '미지정'}-${r.jobField}`;
+            const key = getWorkerPrimaryIdentityKey(r);
             if (!map.has(key) || new Date(r.date) > new Date(map.get(key)!.date)) map.set(key, r);
         });
 
@@ -1355,10 +1385,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
     const filteredPhotoSummary = useMemo(() => {
         const registeredCount = filteredRecords.filter((worker) => hasProfilePhoto(worker)).length;
+        const linkedCount = filteredRecords.filter((worker) => getProfileLinkState(worker) === 'linked').length;
+        const manualCount = filteredRecords.filter((worker) => getProfileLinkState(worker) === 'manual').length;
         return {
             total: filteredRecords.length,
             registeredCount,
             missingCount: filteredRecords.length - registeredCount,
+            linkedCount,
+            manualCount,
         };
     }, [filteredRecords]);
 
@@ -2541,7 +2575,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         </select>
                     </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 w-full">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 w-full">
                     <div className="bg-indigo-50 px-4 py-3 rounded-2xl text-indigo-700 font-bold text-sm border border-indigo-100 flex items-center gap-2 min-w-0">
                         <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
                         <span className="truncate">발급 대기: {filteredRecords.length}명</span>
@@ -2558,6 +2592,10 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                         <span className="truncate">사진등록: {filteredPhotoSummary.registeredCount}명 / 미등록 {filteredPhotoSummary.missingCount}명</span>
                     </div>
+                    <div className="bg-sky-50 px-4 py-3 rounded-2xl text-sky-700 font-bold text-sm border border-sky-100 flex items-center gap-2 min-w-0">
+                        <span className="w-2 h-2 rounded-full bg-sky-500"></span>
+                        <span className="truncate">공통 프로필 연계: {filteredPhotoSummary.linkedCount}명 / 수동사진 {filteredPhotoSummary.manualCount}명</span>
+                    </div>
                 </div>
                 {filteredRecords.length > 0 && filteredReliabilitySummary.trustedCount === 0 && (
                     <div className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
@@ -2569,6 +2607,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     <div className="w-full rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-indigo-800">
                         <p className="text-sm font-black">가장 좋은 방식은 스티커와 사원증 모두 근로자 사진을 같이 넣는 것입니다.</p>
                         <p className="text-xs font-bold mt-1">현재 필터 기준으로 {filteredPhotoSummary.missingCount}명은 증명사진이 없어 기본 아이콘으로 출력됩니다. 카드 클릭 → 상세 보기 → 상단 `증명사진(프로필) 등록`에서 업로드 후 저장하면 가장 빠르게 정리됩니다.</p>
+                    </div>
+                )}
+                {filteredPhotoSummary.linkedCount > 0 && (
+                    <div className="w-full rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sky-800">
+                        <p className="text-sm font-black">공통 프로필 연계 사진이 자동 유지되고 있습니다.</p>
+                        <p className="text-xs font-bold mt-1">현재 필터 기준 {filteredPhotoSummary.linkedCount}명은 같은 근로자의 월별 기록끼리 사진과 식별자가 자동 연계되는 상태입니다. 이후 신규 월 기록도 같은 기준으로 이어집니다.</p>
                     </div>
                 )}
                 {missingPhotoQueue.length > 0 && (
@@ -2647,6 +2691,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     const profileImageSrc = getSafeImageSrc(worker.profileImage);
                     const reliability = verifyIssuanceReliability(worker);
                     const canIssue = reliability.trusted;
+                    const profileLinkState = getProfileLinkState(worker);
                     return (
                         <div key={worker.id} className="bg-white p-5 rounded-[24px] border border-slate-100 hover:border-indigo-300 hover:shadow-2xl transition-all cursor-pointer group relative overflow-hidden flex flex-col gap-3" onClick={() => onViewDetails(worker)}>
                             {/* Glassmorphism Overlay Menu on Hover */}
@@ -2726,6 +2771,16 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     ) : (
                                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200">
                                             📷 사진 등록 권장
+                                        </span>
+                                    )}
+                                    {profileLinkState === 'linked' && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-sky-100 text-sky-700 border border-sky-200">
+                                            🔗 공통 프로필 연계
+                                        </span>
+                                    )}
+                                    {profileLinkState === 'manual' && (
+                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-violet-100 text-violet-700 border border-violet-200">
+                                            🖼 수동 등록 사진
                                         </span>
                                     )}
                                 </div>
