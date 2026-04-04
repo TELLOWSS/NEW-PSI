@@ -702,8 +702,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     const [sessionData, setSessionData] = useState<SessionRow | null>(null);
 
     const [workerName, setWorkerName] = useState('');
-    const [nationality, setNationality] = useState('베트남');
-    const [selectedLanguageCode, setSelectedLanguageCode] = useState('vi-VN');
+    const [nationality, setNationality] = useState('대한민국');
+    const [selectedLanguageCode, setSelectedLanguageCode] = useState('ko-KR');
     const [message, setMessage] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -900,9 +900,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     useEffect(() => {
         if (!sessionData) return;
 
-        const browserLang = (navigator.language || 'en-US').toLowerCase();
-        const matched = availableLanguageCodes.find((code) => browserLang.startsWith(code.split('-')[0].toLowerCase()));
-        const preferred = matched || availableLanguageCodes[0] || 'en-US';
+        const preferred = 'ko-KR';
 
         setSelectedLanguageCode(preferred);
         setNationality(resolveNationalityByLanguageCode(preferred));
