@@ -26,9 +26,20 @@ interface DashboardProps {
     setCurrentPage: (page: Page) => void;
 }
 
+type DashboardTeamOption = {
+    key: string;
+    team: string;
+    trade: string;
+    label: string;
+    workerCount: number;
+    avgScore: number;
+};
+
 // 관리 직군 여부 확인 함수
 const isManagementRole = (field: string) => 
     /관리|팀장|부장|과장|기사|공무|소장/.test(field);
+
+const getDashboardTeamKey = (trade: string, team: string) => `${trade}::${team}`;
 
 const ChartSkeleton: React.FC<{ minHeight?: string }> = ({ minHeight = '220px' }) => (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6 animate-pulse" style={{ minHeight }}>
@@ -82,41 +93,64 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
     // 팀별 보기: 팀장 기준 유니크 팀 목록 추출
     const [selectedTeam, setSelectedTeam] = useState<string | 'ALL'>('ALL');
-    const teamList = useMemo(() => {
-        const teams = new Set<string>();
-        workerOnlyRecords.forEach(r => {
-            if (r.teamLeader && r.teamLeader.trim().length > 0) teams.add(r.teamLeader.trim());
+    const teamOptions = useMemo<DashboardTeamOption[]>(() => {
+        const grouped = new Map<string, WorkerRecord[]>();
+
+        workerOnlyRecords.forEach((record) => {
+            const team = record.teamLeader?.trim();
+            const trade = normalizeDashboardTrade(record.jobField);
+            if (!team || !trade) return;
+            const key = getDashboardTeamKey(trade, team);
+            if (!grouped.has(key)) {
+                grouped.set(key, []);
+            }
+            grouped.get(key)!.push(record);
         });
-        return Array.from(teams);
-    }, [workerOnlyRecords]);
 
-    // 팀별 필터링
-    const filteredWorkerRecords = useMemo(() => {
-        if (selectedTeam === 'ALL') return workerOnlyRecords;
-        return workerOnlyRecords.filter(r => r.teamLeader === selectedTeam);
-    }, [workerOnlyRecords, selectedTeam]);
-
-    const teamSummaries = useMemo(() => {
-        return teamList.map(team => {
-            const records = workerOnlyRecords.filter(r => r.teamLeader === team);
-            const uniqueWorkers = new Set(records.map(r => r.name));
-            const latestRecords = Array.from(uniqueWorkers).map(name => {
+        return Array.from(grouped.entries()).map(([key, records]) => {
+            const first = records[0];
+            const team = first.teamLeader?.trim() || '미지정 팀';
+            const trade = normalizeDashboardTrade(first.jobField);
+            const uniqueWorkers = new Set(records.map((record) => record.name));
+            const latestRecords = Array.from(uniqueWorkers).map((name) => {
                 return records
-                    .filter(r => r.name === name)
+                    .filter((record) => record.name === name)
                     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
             });
 
             const avgScore = latestRecords.length > 0
-                ? latestRecords.reduce((acc, r) => acc + r.safetyScore, 0) / latestRecords.length
+                ? latestRecords.reduce((acc, record) => acc + record.safetyScore, 0) / latestRecords.length
                 : 0;
 
             return {
+                key,
                 team,
+                trade,
+                label: `${team} (${trade})`,
                 workerCount: uniqueWorkers.size,
                 avgScore,
             };
-        }).sort((a, b) => a.avgScore - b.avgScore);
-    }, [teamList, workerOnlyRecords]);
+        }).sort((a, b) => a.avgScore - b.avgScore || a.label.localeCompare(b.label, 'ko'));
+    }, [workerOnlyRecords]);
+
+    const selectedTeamOption = useMemo(() => {
+        if (selectedTeam === 'ALL') return null;
+        return teamOptions.find((item) => item.key === selectedTeam) || null;
+    }, [selectedTeam, teamOptions]);
+
+    // 팀별 필터링
+    const filteredWorkerRecords = useMemo(() => {
+        if (selectedTeam === 'ALL') return workerOnlyRecords;
+        if (!selectedTeamOption) return workerOnlyRecords;
+        return workerOnlyRecords.filter((record) => (
+            (record.teamLeader || '').trim() === selectedTeamOption.team
+            && normalizeDashboardTrade(record.jobField) === selectedTeamOption.trade
+        ));
+    }, [workerOnlyRecords, selectedTeam, selectedTeamOption]);
+
+    const teamSummaries = useMemo(() => {
+        return teamOptions;
+    }, [teamOptions]);
 
     const [selectedTarget, setSelectedTarget] = useState<SelectedTarget | null>(null);
     const [selectedTradeForComparison, setSelectedTradeForComparison] = useState<string | null>(null);
@@ -163,10 +197,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     }, [selectedTarget]);
 
     useEffect(() => {
-        if (selectedTeam !== 'ALL' && teamList.length > 0 && !teamList.includes(selectedTeam)) {
+        if (selectedTeam !== 'ALL' && teamOptions.length > 0 && !teamOptions.some((item) => item.key === selectedTeam)) {
             setSelectedTeam('ALL');
         }
-    }, [selectedTeam, teamList]);
+    }, [selectedTeam, teamOptions]);
 
     useEffect(() => {
         setSelectedTeamsForComparison([]);
@@ -400,7 +434,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             )}
                             {selectedTeam !== 'ALL' && (
                                 <span className="px-3 py-1.5 rounded-xl bg-white/10 border border-white/10 text-[11px] sm:text-xs font-bold text-slate-100">
-                                    팀 필터: {selectedTeam}
+                                    팀 필터: {selectedTeamOption?.label || selectedTeam}
                                 </span>
                             )}
                             <button
@@ -640,8 +674,8 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             onChange={e => setSelectedTeam(e.target.value)}
                         >
                             <option value="ALL">전체</option>
-                            {teamList.map(team => (
-                                <option key={team} value={team}>{team}</option>
+                            {teamOptions.map(option => (
+                                <option key={option.key} value={option.key}>{option.label}</option>
                             ))}
                         </select>
                     </div>
@@ -707,10 +741,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         <div className="flex items-center justify-between gap-3 mb-3">
                             <div>
                                 <p className="text-xs font-black text-slate-700">팀 비교 바로가기</p>
-                                <p className="text-[11px] text-slate-500">형틀처럼 팀 편차가 큰 공종은 아래 칩으로 빠르게 전환할 수 있습니다.</p>
+                                <p className="text-[11px] text-slate-500">같은 팀장명이라도 공종이 다르면 별도 팀으로 분리합니다. 예: 김철수팀 (형틀), 김철수팀 (콘크리트비계)</p>
                             </div>
                             <span className="hidden sm:inline-flex px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-600 text-[11px] font-bold">
-                                낮은 평균점수 순 정렬
+                                공종 포함 팀명 기준
                             </span>
                         </div>
                         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -728,16 +762,17 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             </button>
                             {teamSummaries.map(summary => (
                                 <button
-                                    key={summary.team}
+                                    key={summary.key}
                                     type="button"
-                                    onClick={() => setSelectedTeam(summary.team)}
+                                    onClick={() => setSelectedTeam(summary.key)}
                                     className={`shrink-0 rounded-xl border px-3 py-2 text-left transition-colors min-w-[132px] ${
-                                        selectedTeam === summary.team
+                                        selectedTeam === summary.key
                                             ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
                                             : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                                     }`}
                                 >
                                     <p className="text-xs font-black truncate">{summary.team}</p>
+                                    <p className="text-[10px] font-bold mt-1 opacity-70">{summary.trade}</p>
                                     <div className="mt-1 flex items-center justify-between gap-2 text-[11px]">
                                         <span>{summary.workerCount}명</span>
                                         <span className="font-black">{summary.avgScore.toFixed(1)}점</span>
@@ -839,6 +874,11 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         팀 선택 초기화
                                     </button>
                                 </div>
+                            </div>
+                            <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px] font-bold text-slate-600">
+                                <div className="rounded-xl bg-white border border-indigo-100 px-3 py-2">1) 먼저 공종을 선택합니다.</div>
+                                <div className="rounded-xl bg-white border border-indigo-100 px-3 py-2">2) 비교할 팀을 2개 이상 고릅니다.</div>
+                                <div className="rounded-xl bg-white border border-indigo-100 px-3 py-2">3) 아래 카드에서 점수·위험·인원을 바로 비교합니다.</div>
                             </div>
                             {selectedTeamsForComparison.length > 0 && (
                                 <div className="mt-3 flex flex-wrap gap-2">
@@ -973,6 +1013,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                                 <div className="min-w-0">
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <p className="text-sm font-black text-slate-800 truncate">{team.team}</p>
+                                                        <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-black">{selectedTradeForComparison}</span>
                                                         {rankingIndex === 0 && (
                                                             <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-600 text-[10px] font-black">현재 기준 최상단</span>
                                                         )}
@@ -1033,7 +1074,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                                 <button
                                                     type="button"
                                                     onClick={() => {
-                                                        setSelectedTeam(team.team);
+                                                        setSelectedTeam(getDashboardTeamKey(selectedTradeForComparison, team.team));
                                                         openTradeIntegratedAnalysis(selectedTradeForComparison, 'chart');
                                                     }}
                                                     className="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-colors"
