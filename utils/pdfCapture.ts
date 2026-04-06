@@ -261,29 +261,8 @@ export const saveCanvasesAsA4Pdf = (
 
         const mimeType = imageType === 'PNG' ? 'image/png' : 'image/jpeg';
         const imageData = canvas.toDataURL(mimeType, quality);
-        const pageWidth = A4_WIDTH_MM;
-        const pageHeight = A4_HEIGHT_MM;
-        const imageWidth = pageWidth;
-        const imageHeight = (canvas.height * imageWidth) / Math.max(1, canvas.width);
-
-        if (imageHeight <= pageHeight || typeof pdf.addPage !== 'function') {
-            const placement = getCanvasPlacementOnA4(canvas);
-            pdf.addImage(imageData, imageType, placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'SLOW');
-            return;
-        }
-
-        let remainingHeight = imageHeight;
-        let currentY = 0;
-
-        pdf.addImage(imageData, imageType, 0, currentY, imageWidth, imageHeight, undefined, 'SLOW');
-        remainingHeight -= pageHeight;
-
-        while (remainingHeight > 0 && typeof pdf.addPage === 'function') {
-            pdf.addPage();
-            currentY = remainingHeight - imageHeight;
-            pdf.addImage(imageData, imageType, 0, currentY, imageWidth, imageHeight, undefined, 'SLOW');
-            remainingHeight -= pageHeight;
-        }
+        const placement = getCanvasPlacementOnA4(canvas);
+        pdf.addImage(imageData, imageType, placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'SLOW');
     });
 
     pdf.save(filename);

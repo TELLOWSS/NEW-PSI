@@ -621,19 +621,19 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         verdictKo: getNarrativeWrapWidth(record.nationality, isWeaknessContentDense, 'verdictKo'),
     }), [record.nationality, isWeaknessContentDense]);
     const frontStrengthEntries = useMemo(
-        () => strengthEntries.slice(0, isKorean ? 2 : 3).map((entry) => limitNarrativeEntry(entry, isWeaknessContentDense ? 46 : 58, isWeaknessContentDense ? 42 : 52)),
-        [strengthEntries, isWeaknessContentDense, isKorean],
+        () => strengthEntries.slice(0, 2).map((entry) => limitNarrativeEntry(entry, isWeaknessContentDense ? 40 : 50, isWeaknessContentDense ? 36 : 42)),
+        [strengthEntries, isWeaknessContentDense],
     );
     const frontImprovementEntries = useMemo(
-        () => improvementEntries.slice(0, isKorean ? 2 : 3).map((entry) => limitNarrativeEntry(entry, isWeaknessContentDense ? 48 : 60, isWeaknessContentDense ? 44 : 54)),
-        [improvementEntries, isWeaknessContentDense, isKorean],
+        () => improvementEntries.slice(0, 2).map((entry) => limitNarrativeEntry(entry, isWeaknessContentDense ? 42 : 52, isWeaknessContentDense ? 38 : 44)),
+        [improvementEntries, isWeaknessContentDense],
     );
     const frontCoachingText = useMemo(
-        () => wrapNarrativeText(limitNarrativeText(actionableCoachingText, isWeaknessContentDense ? 120 : 155), isWeaknessContentDense ? 34 : 40),
+        () => wrapNarrativeText(limitNarrativeText(actionableCoachingText, isWeaknessContentDense ? 92 : 118), isWeaknessContentDense ? 30 : 34),
         [actionableCoachingText, isWeaknessContentDense],
     );
     const frontCoachingNativeText = useMemo(
-        () => coachingNativeParagraphs.length > 0 ? wrapNarrativeText(limitNarrativeText(coachingNativeParagraphs[0], isWeaknessContentDense ? 120 : 155), isWeaknessContentDense ? 34 : 40) : '',
+        () => coachingNativeParagraphs.length > 0 ? wrapNarrativeText(limitNarrativeText(coachingNativeParagraphs[0], isWeaknessContentDense ? 92 : 118), isWeaknessContentDense ? 30 : 34) : '',
         [coachingNativeParagraphs, isWeaknessContentDense],
     );
     const frontVerdictNativeText = useMemo(
@@ -678,7 +678,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                 </div>
 
                 <div className="absolute inset-0 m-4 border-[2px] border-slate-800 z-10 pointer-events-none"></div>
-                <div className="relative z-10 px-[11mm] py-[8.5mm] grid h-full grid-rows-[auto_32mm_42mm_minmax(0,1fr)_auto] gap-2.5">
+                <div className="relative z-10 px-[11mm] py-[8.5mm] grid h-full grid-rows-[auto_38mm_40mm_minmax(0,1fr)_auto] gap-2.5 overflow-hidden">
                     <div className="text-center shrink-0">
                         <div className="flex justify-center mb-1.5">
                             <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
@@ -690,7 +690,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     </div>
 
                     {isKorean ? (
-                        <div className="grid grid-cols-[20mm_minmax(0,1fr)_18mm_44mm] items-start gap-3 pb-2.5 border-b-2 border-slate-800 min-h-[36mm]">
+                        <div className="grid grid-cols-[20mm_minmax(0,1fr)_17mm_40mm] items-start gap-3 pb-2.5 border-b-2 border-slate-800 min-h-[38mm] overflow-hidden">
                             <div className="w-[20mm] h-[28mm] bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
                                 {getProfileImage() ? (
                                     <img src={getProfileImage()!} className="w-full h-full object-cover" alt="Profile" />
@@ -726,15 +726,15 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 </span>
                             </div>
 
-                            <div data-report-chart-box="true" className="flex h-[44mm] w-[44mm] shrink-0 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/90 px-1 py-1 shadow-sm overflow-hidden">
-                                <div className="w-[41mm] h-[38mm] overflow-hidden">
+                            <div data-report-chart-box="true" className="flex h-[40mm] w-[40mm] shrink-0 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-1 py-1 shadow-sm overflow-hidden">
+                                <div className="w-[36mm] h-[33mm] overflow-hidden">
                                     <IndividualRadarChart record={record} />
                                 </div>
                                 <span className="mt-0.5 text-[8px] font-black text-slate-500 tracking-[0.14em] uppercase">6 Metrics</span>
                             </div>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-[19mm_minmax(0,1fr)_62mm] items-start gap-3 pb-2.5 border-b-2 border-slate-800 min-h-[36mm]">
+                        <div className="grid grid-cols-[19mm_minmax(0,1fr)_58mm] items-start gap-3 pb-2.5 border-b-2 border-slate-800 min-h-[38mm] overflow-hidden">
                             <div className="w-[19mm] h-[27mm] bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
                                 {getProfileImage() ? (
                                     <img src={getProfileImage()!} className="w-full h-full object-cover" alt="Profile" />
@@ -776,8 +776,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         기준: 고급≥{safetyLevelThresholds.advancedMin} / 중급≥{safetyLevelThresholds.intermediateMin} / 초급&lt;{safetyLevelThresholds.intermediateMin}
                                     </span>
                                 </div>
-                                <div data-report-chart-box="true" className="flex h-[48mm] w-[46mm] shrink-0 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/90 px-1 py-1 shadow-sm overflow-hidden">
-                                    <div className="w-[44mm] h-[42mm] overflow-hidden">
+                                <div data-report-chart-box="true" className="flex h-[42mm] w-[40mm] shrink-0 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-1 py-1 shadow-sm overflow-hidden">
+                                    <div className="w-[36mm] h-[34mm] overflow-hidden">
                                         <IndividualRadarChart record={record} />
                                     </div>
                                     <span className="mt-0.5 text-[8px] font-black text-slate-500 tracking-[0.16em] uppercase">6 Metrics</span>
@@ -895,8 +895,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     )}
 
                     {isKorean ? (
-                        <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_64px] gap-2.5">
-                            <div className="grid h-full min-h-0 grid-cols-[1fr_1fr_0.92fr] grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-2.5">
+                        <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_64px] gap-2.5 overflow-hidden">
+                            <div className="grid h-full min-h-0 grid-cols-[1fr_1fr_40mm] grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-2.5 overflow-hidden">
                                 <div className="rounded-xl border border-slate-100 bg-slate-50 p-2.5 shadow-sm overflow-hidden flex flex-col min-h-0">
                                     <h3 className="font-bold text-[10px] mb-1.5 text-slate-700 flex items-center gap-1.5">
                                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>

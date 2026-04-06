@@ -56,10 +56,10 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
     ];
     const percentages = metricValues.map((value, index) => Math.max(0, Math.min(100, Math.round((value / RADAR_METRIC_MAX[index]) * 100))));
 
-    const size = 240;
+    const size = 220;
     const center = size / 2;
-    const radius = 54;
-    const labelRadius = 70;
+    const radius = 44;
+    const labelRadius = 56;
     const levels = [0.25, 0.5, 0.75, 1];
     const startAngle = -Math.PI / 2;
     const step = (Math.PI * 2) / RADAR_LABELS.length;
@@ -78,7 +78,7 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
     return (
         <svg
             viewBox={`0 0 ${size} ${size}`}
-            className="block h-full w-full overflow-visible"
+            className="block h-full w-full overflow-hidden"
             preserveAspectRatio="xMidYMid meet"
             role="img"
             aria-label="6대 지표 레이더 차트"
@@ -142,7 +142,7 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
                         y={y}
                         textAnchor={anchor}
                         dominantBaseline="middle"
-                        fontSize="9"
+                        fontSize="8"
                         fontWeight="700"
                         fill="#334155"
                     >
