@@ -826,28 +826,19 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </div>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-2 gap-2.5 min-h-[46mm]">
-                            <div className="flex min-h-[46mm] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2.5 shadow-sm">
+                        <div className="grid h-[34mm] grid-cols-2 gap-2.5 overflow-hidden">
+                            <div className="flex h-[34mm] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2.5 shadow-sm">
                                 <p className="text-[10px] font-black leading-none text-slate-700 mb-1.5 flex items-center gap-1">
                                     <SectionSearchIcon /> 상세 채점 근거 (Score Reasoning)
                                 </p>
-                                {!isKorean && (
-                                    scoreReasonEntries[0]?.nativeText ? (
-                                        <p className="text-[10px] leading-relaxed text-slate-800 font-bold mb-1">
-                                            {scoreReasonEntries[0].nativeText}
-                                        </p>
-                                    ) : (
-                                        <p className="text-[9px] text-amber-600 italic mb-1">ℹ 모국어 번역 준비중 — 재분석 시 자동 생성됩니다.</p>
-                                    )
-                                )}
-                                {frontScoreReasonEntries.length > 0 && !isKorean && (
-                                    <div className="text-[8px] font-black text-slate-400 border-t border-slate-200 pt-1 mt-1 mb-0.5">[KO 관리자 확인용]</div>
-                                )}
                                 {frontScoreReasonEntries.length > 0 ? (
-                                    <ul className="space-y-0.5 overflow-hidden">
+                                    <ul className="space-y-1 overflow-hidden">
                                         {frontScoreReasonEntries.map((entry, i) => (
-                                            <li key={`score-reason-${i}`} className={`leading-tight ${!isKorean ? 'text-[8px] text-slate-500' : 'text-[9px] text-slate-700'}`}>
-                                                {!isKorean && <span className="text-[7px] font-black text-slate-300 mr-0.5">[KO]</span>}• <HighlightedText text={entry.text} />
+                                            <li key={`score-reason-${i}`} className="flex items-start gap-1 text-[8.5px] leading-[1.35] text-slate-700">
+                                                <span className="mt-[2px] text-slate-400">•</span>
+                                                <span style={createLineClampStyle(2)}>
+                                                    <HighlightedText text={entry.nativeText || entry.text} />
+                                                </span>
                                             </li>
                                         ))}
                                     </ul>
@@ -859,44 +850,15 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 </p>
                             </div>
 
-                            <div className="flex min-h-[46mm] flex-col overflow-hidden rounded-xl border-2 border-amber-300 bg-amber-50 p-2.5 shadow-sm">
-                                {!isKorean ? (
-                                    <div className="mb-1.5">
-                                        <p className="text-[10px] font-black text-amber-800 leading-none flex items-center gap-1">
-                                            <SectionCoachingIcon /> {coachingNativeParagraphs.length > 0 ? '⬇ 모국어 코칭 (아래 참조)' : '코칭 — 모국어 생성 대기'}
-                                        </p>
-                                        <p className="text-[8px] text-amber-600 font-bold">[KO] 다음번엔 이렇게 작성해 보세요!</p>
-                                    </div>
-                                ) : (
-                                    <p className="text-[10px] font-black text-amber-800 leading-none mb-1.5 flex items-center gap-1">
-                                        <SectionCoachingIcon /> 다음번엔 이렇게 작성해 보세요!
+                            <div className="flex h-[34mm] flex-col overflow-hidden rounded-xl border-2 border-amber-300 bg-amber-50 p-2.5 shadow-sm">
+                                <div className="mb-1.5">
+                                    <p className="text-[10px] font-black text-amber-800 leading-none flex items-center gap-1">
+                                        <SectionCoachingIcon /> {coachingNativeParagraphs.length > 0 ? '모국어 코칭' : '코칭 요약'}
                                     </p>
-                                )}
-                                {!isKorean && coachingNativeParagraphs.length > 0 ? (
-                                    <>
-                                        <p className="text-[10px] leading-relaxed text-amber-900 font-bold flex-1">
-                                            {frontCoachingNativeText}
-                                        </p>
-                                        <div className="mt-1.5 pt-1.5 border-t border-amber-300">
-                                            <span className="text-[8px] font-black text-amber-600">[KO 관리자 확인용]</span>
-                                            <p className="text-[9px] leading-relaxed text-amber-800 mt-0.5">
-                                                <HighlightedText text={frontCoachingText} />
-                                            </p>
-                                        </div>
-                                    </>
-                                ) : !isKorean ? (
-                                    <>
-                                        <p className="text-[9px] text-amber-600 italic mb-1">ℹ 모국어 번역 준비중 — 재분석 시 자동 생성됩니다.</p>
-                                        <p className="text-[9px] leading-relaxed text-amber-800 flex-1">
-                                            <span className="text-[8px] font-black text-amber-500 mr-1">[KO]</span>
-                                            <HighlightedText text={frontCoachingText} />
-                                        </p>
-                                    </>
-                                ) : (
-                                    <p className="text-[9px] leading-relaxed text-amber-900 flex-1 overflow-hidden">
-                                        <HighlightedText text={frontCoachingText} />
-                                    </p>
-                                )}
+                                </div>
+                                <p className="text-[8.5px] leading-relaxed text-amber-900 overflow-hidden" style={createLineClampStyle(4)}>
+                                    <HighlightedText text={frontCoachingNativeText || frontCoachingText} />
+                                </p>
                             </div>
                         </div>
                     )}
@@ -994,8 +956,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </div>
                     ) : (
                         <div className="min-h-0 h-full">
-                            <div className="grid h-full min-h-0 grid-cols-4 grid-rows-[minmax(0,1fr)_minmax(0,0.96fr)] items-stretch gap-2.5">
-                        <div className="col-span-2 row-span-1 h-full min-h-0 bg-slate-50 rounded-xl border border-slate-100 p-2.5 shadow-sm overflow-hidden flex flex-col">
+                            <div className="grid h-full min-h-0 grid-cols-[1fr_1fr_40mm] grid-rows-[42mm_42mm] items-stretch gap-2.5 overflow-hidden">
+                        <div className="h-[42mm] bg-slate-50 rounded-xl border border-slate-100 p-2.5 shadow-sm overflow-hidden flex flex-col">
                             <h3 className="font-bold text-[10px] mb-2 text-slate-700 flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
                                 {labels.strengths}
@@ -1003,25 +965,18 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             <ul className="space-y-1 overflow-hidden">
                                 {frontStrengthEntries.map((entry, i) => (
                                     <li key={`strength-${i}`}>
-                                        {!isKorean && entry.nativeText ? (
-                                            <div className="text-[9px] leading-[1.35] text-slate-800 flex items-start gap-1 min-w-0">
-                                                <CheckBulletIcon className="text-emerald-600" />
-                                                <span className="min-w-0 break-words font-bold leading-[1.35]">{entry.nativeText}</span>
-                                                <span className="text-[7px] font-black text-slate-300">| KO</span>
-                                                <span className="min-w-0 break-words text-slate-500 leading-[1.35]">{entry.text}</span>
-                                            </div>
-                                        ) : (
-                                            <div className="text-[9px] leading-[1.35] text-slate-800 flex items-start gap-1 min-w-0">
-                                                <CheckBulletIcon />
-                                                <span className="min-w-0 break-words leading-[1.35]"><HighlightedText text={entry.text} /></span>
-                                            </div>
-                                        )}
+                                        <div className="text-[8.5px] leading-[1.35] text-slate-800 flex items-start gap-1 min-w-0">
+                                            <CheckBulletIcon className="text-emerald-600" />
+                                            <span className="min-w-0 break-words font-bold leading-[1.35]" style={createLineClampStyle(2)}>
+                                                <HighlightedText text={entry.nativeText || entry.text} />
+                                            </span>
+                                        </div>
                                     </li>
                                 ))}
                             </ul>
                         </div>
 
-                        <div className={`col-span-2 row-span-1 h-full min-h-0 bg-rose-50 rounded-xl border border-rose-100 shadow-sm flex flex-col overflow-hidden ${isWeaknessContentDense ? 'p-2.5' : 'p-2.5'}`}>
+                        <div className="h-[42mm] bg-rose-50 rounded-xl border border-rose-100 shadow-sm flex flex-col overflow-hidden p-2.5">
                             <h3 className={`font-bold text-[10px] text-rose-800 flex items-center gap-1.5 ${isWeaknessContentDense ? 'mb-1.5' : 'mb-2'}`}>
                                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
                                 {labels.weaknesses}
@@ -1029,42 +984,29 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             <ul className="space-y-1 overflow-hidden">
                                 {frontImprovementEntries.map((entry, i) => (
                                     <li key={`improvement-${i}`}>
-                                        {!isKorean && entry.nativeText ? (
-                                            <div className={`text-rose-900 flex items-start gap-1 min-w-0 ${isWeaknessContentDense ? 'text-[8px] leading-[1.35]' : 'text-[9px] leading-[1.35]'}`}>
-                                                <WarningBulletIcon />
-                                                <span className="min-w-0 break-words font-bold leading-[1.35]">{entry.nativeText}</span>
-                                                <span className="text-[7px] font-black text-rose-400">| KO</span>
-                                                <span className="min-w-0 break-words text-rose-700/70 leading-[1.35]">{entry.text}</span>
-                                            </div>
-                                        ) : (
-                                            <div className={`text-rose-900 flex items-start gap-1 min-w-0 ${isWeaknessContentDense ? 'text-[8px] leading-[1.35]' : 'text-[9px] leading-[1.35]'}`}>
-                                                <WarningBulletIcon />
-                                                <span className="min-w-0 break-words leading-[1.35]"><HighlightedText text={entry.text} /></span>
-                                            </div>
-                                        )}
+                                        <div className="text-[8.5px] leading-[1.35] text-rose-900 flex items-start gap-1 min-w-0">
+                                            <WarningBulletIcon />
+                                            <span className="min-w-0 break-words font-bold leading-[1.35]" style={createLineClampStyle(2)}>
+                                                <HighlightedText text={entry.nativeText || entry.text} />
+                                            </span>
+                                        </div>
                                     </li>
                                 ))}
                             </ul>
                         </div>
 
-                        <div className={`col-span-2 row-span-1 min-h-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col ${isWeaknessContentDense ? 'p-2.5' : 'p-3'}`}>
+                        <div className="col-span-2 h-[42mm] bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col p-2.5">
                             <h3 className={`font-bold text-[10px] text-slate-700 flex items-center gap-1.5 ${isWeaknessContentDense ? 'mb-1.5' : 'mb-2'}`}>
                                 <span className="w-1.5 h-1.5 rounded-full bg-slate-800 shrink-0"></span>
                                 {labels.verdict}
                             </h3>
-                            {!isKorean && record.aiInsights_native && (
-                                <p className="text-[10px] leading-relaxed text-slate-800 font-bold flex-1 overflow-hidden whitespace-pre-line">
-                                    {frontVerdictNativeText}
-                                </p>
-                            )}
-                            <p className={`leading-relaxed overflow-hidden whitespace-pre-line ${!isKorean && record.aiInsights_native ? 'text-[9px] text-slate-400 mt-1 pt-1 border-t border-slate-100' : 'text-[10px] text-slate-800 flex-1'}`}>
-                                {!isKorean && record.aiInsights_native && <span className="text-[8px] font-black text-slate-300 mr-1">[KO]</span>}
-                                <HighlightedText text={frontVerdictKoText} />
+                            <p className="text-[8.5px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line" style={createLineClampStyle(5)}>
+                                <HighlightedText text={frontVerdictNativeText || frontVerdictKoText} />
                             </p>
                             {reassessmentTrail.length > 0 && (
-                                <div className="mt-1 pt-1 border-t border-slate-100">
-                                    {reassessmentTrail.map((entry, i) => (
-                                        <p key={`${entry.timestamp}-${i}`} className="text-[9px] text-violet-700 leading-tight">
+                                <div className="mt-1 pt-1 border-t border-slate-100 overflow-hidden">
+                                    {reassessmentTrail.slice(0, 1).map((entry, i) => (
+                                        <p key={`${entry.timestamp}-${i}`} className="text-[8px] text-violet-700 leading-tight">
                                             • {reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)} {entry.note || reassessmentFallback}
                                         </p>
                                     ))}
@@ -1072,28 +1014,27 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             )}
                         </div>
 
-                        <div className={`col-span-2 row-span-1 h-full min-h-0 grid ${isWeaknessContentDense ? 'gap-1.5' : 'gap-2'} grid-rows-[minmax(0,0.88fr)_minmax(0,1.12fr)]`}>
-                            <div className={`border border-slate-200 rounded-xl bg-white shadow-sm flex flex-col min-h-0 ${isWeaknessContentDense ? 'p-1.5' : 'p-2'}`}>
+                        <div className="h-[42mm] grid gap-2 grid-rows-[16mm_minmax(0,1fr)]">
+                            <div className="border border-slate-200 rounded-xl bg-white shadow-sm flex flex-col overflow-hidden p-1.5">
                                 <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trends} (6M)</h4>
                                 <div className="flex-1 w-full relative min-h-0">
                                     <TrendMiniChart history={history} record={record} />
                                 </div>
                             </div>
-                            <div className={`min-h-0 border-2 border-slate-100 rounded-xl bg-white shadow-sm flex flex-col ${isWeaknessContentDense ? 'p-1.5' : 'p-2'}`}>
+                            <div className="min-h-0 border-2 border-slate-100 rounded-xl bg-white shadow-sm flex flex-col overflow-hidden p-1.5">
                                 <h3 className="font-bold text-[8px] mb-1.5 text-slate-800 uppercase tracking-wide flex items-center gap-1">
                                     <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0"></span>
                                     {labels.pictogram}
                                 </h3>
-                                <div className="grid flex-1 min-h-0 auto-rows-fr grid-cols-2 items-stretch gap-1.5">
+                                <div className="grid flex-1 min-h-0 grid-cols-2 grid-rows-2 items-stretch gap-1">
                                     {safetySigns.map((sign, i) => (
-                                        <div key={i} className="border border-slate-200 rounded bg-slate-50 h-full min-h-[58px] flex flex-col items-center justify-center p-1 text-center relative overflow-hidden">
-                                            <div className="flex h-8 w-8 items-center justify-center mb-1 shrink-0">
+                                        <div key={i} className="border border-slate-200 rounded bg-slate-50 h-full min-h-0 flex flex-col items-center justify-center p-1 text-center relative overflow-hidden">
+                                            <div className="flex h-7 w-7 items-center justify-center mb-0.5 shrink-0">
                                                 <svg viewBox="0 0 100 100" className="block w-full h-full drop-shadow-sm">
                                                     {sign.icon}
                                                 </svg>
                                             </div>
-                                            <p className="text-[7.5px] font-black text-slate-900 leading-tight break-keep">{sign.labels.ko}</p>
-                                            {!isKorean && <p className="text-[6.5px] font-bold text-slate-500 mt-0.5 leading-none break-keep">{getSignLabel(sign, record.nationality)}</p>}
+                                            <p className="text-[6.5px] font-black text-slate-900 leading-tight break-keep">{getSignLabel(sign, record.nationality)}</p>
                                             <div className={`absolute top-0 right-0 w-2 h-2 ${sign.type === 'warning' ? 'bg-yellow-400' : 'bg-blue-600'} rounded-bl`}></div>
                                         </div>
                                     ))}
