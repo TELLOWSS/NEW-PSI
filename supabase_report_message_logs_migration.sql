@@ -11,6 +11,7 @@ create table if not exists public.report_message_logs (
     worker_name text not null,
     team_name text null,
     phone_number text not null,
+    send_mode text not null default 'INDIVIDUAL',
     status text not null check (status in ('SUCCESS', 'FAILED')),
     failure_category text null,
     sent_count integer not null default 0,
@@ -20,6 +21,36 @@ create table if not exists public.report_message_logs (
     created_by text null,
     created_at timestamptz not null default now()
 );
+
+alter table public.report_message_logs
+    add column if not exists send_mode text;
+
+update public.report_message_logs
+set send_mode = case
+    when lower(coalesce(created_by, '')) like '%bulk%' then 'BULK'
+    else 'INDIVIDUAL'
+end
+where send_mode is null
+   or trim(send_mode) = '';
+
+alter table public.report_message_logs
+    alter column send_mode set default 'INDIVIDUAL';
+
+alter table public.report_message_logs
+    alter column send_mode set not null;
+
+do $$
+begin
+    if not exists (
+        select 1
+        from pg_constraint
+        where conname = 'report_message_logs_send_mode_check'
+    ) then
+        alter table public.report_message_logs
+            add constraint report_message_logs_send_mode_check
+            check (send_mode in ('INDIVIDUAL', 'BULK'));
+    end if;
+end $$;
 
 create index if not exists report_message_logs_worker_id_idx
     on public.report_message_logs (worker_id);
@@ -38,6 +69,9 @@ create index if not exists report_message_logs_created_at_idx
 
 create index if not exists report_message_logs_status_idx
     on public.report_message_logs (status, created_at desc);
+
+create index if not exists report_message_logs_send_mode_created_at_idx
+    on public.report_message_logs (send_mode, created_at desc);
 
 create index if not exists report_message_logs_failure_category_idx
     on public.report_message_logs (failure_category, created_at desc);
@@ -81,6 +115,21 @@ from public.report_message_logs
 where status = 'FAILED'
 group by 1
 order by failure_count desc, failure_category asc;
+
+create or replace view public.report_message_send_mode_summary as
+select
+    coalesce(nullif(trim(send_mode), ''), 'INDIVIDUAL') as send_mode,
+    count(*)::integer as total_count,
+    count(*) filter (where status = 'SUCCESS')::integer as success_count,
+    count(*) filter (where status = 'FAILED')::integer as failed_count,
+    case
+        when count(*) = 0 then 0
+        else round((count(*) filter (where status = 'SUCCESS'))::numeric * 100 / count(*), 1)
+    end as success_rate,
+    max(created_at) as last_sent_at
+from public.report_message_logs
+group by 1
+order by total_count desc, send_mode asc;
 
 create or replace view public.report_message_retry_queue as
 with latest_status as (
@@ -141,9 +190,11 @@ create policy report_message_logs_authenticated_select
     using (auth.role() = 'authenticated' or auth.role() = 'service_role');
 
 comment on table public.report_message_logs is 'PSI 근로자 리포트 문자/MMS 발송 로그';
+comment on column public.report_message_logs.send_mode is '발송 방식(INDIVIDUAL=개별 발송, BULK=선택 근로자 일괄 발송)';
 comment on column public.report_message_logs.failure_category is '실패 원인 분류(타임아웃, 인증/권한, 전화번호 오류 등)';
 comment on column public.report_message_logs.result_payload is 'SOLAPI 응답, 페이지별 발송 결과, 실패 원인 등';
 comment on view public.report_message_monthly_summary is 'PSI 리포트 문자/MMS 월별 발송 집계 뷰';
 comment on view public.report_message_team_summary is 'PSI 리포트 문자/MMS 팀별 발송 집계 뷰';
 comment on view public.report_message_failure_summary is 'PSI 리포트 문자/MMS 실패 사유 집계 뷰';
+comment on view public.report_message_send_mode_summary is 'PSI 리포트 문자/MMS 발송 방식별 집계 뷰';
 comment on view public.report_message_retry_queue is 'PSI 리포트 문자/MMS 재시도 우선순위 큐 뷰';

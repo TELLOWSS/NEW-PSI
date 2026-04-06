@@ -90,6 +90,7 @@ const REPORT_MESSAGE_SUMMARY_RELATIONS = new Set([
     'report_message_monthly_summary',
     'report_message_team_summary',
     'report_message_failure_summary',
+    'report_message_send_mode_summary',
     'report_message_retry_queue',
 ]);
 
@@ -118,6 +119,19 @@ function buildSafetySchemaMissingMessage(errorMessage: string): string | null {
 
 function isReportMessageLogTableMissing(errorMessage: string): boolean {
     return extractMissingPublicTableName(String(errorMessage || '')) === REPORT_MESSAGE_LOG_TABLE;
+}
+
+function resolveReportMessageRangeStart(range: unknown): string | null {
+    const normalized = String(range || '').trim().toLowerCase();
+    if (!normalized || normalized === 'all') return null;
+
+    const days = normalized === '7d' ? 7 : normalized === '30d' ? 30 : normalized === '90d' ? 90 : 0;
+    if (!days) return null;
+
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - days + 1);
+    return date.toISOString();
 }
 
 function isReportMessageSummaryRelationMissing(errorMessage: string): boolean {
@@ -1216,8 +1230,8 @@ async function handleListReportMessageLogs(payload: any): Promise<any> {
         let query = supabase
             .from(REPORT_MESSAGE_LOG_TABLE)
             .select(includeFailureCategory
-                ? 'id, worker_id, worker_name, team_name, phone_number, status, failure_category, sent_count, provider, message, created_at'
-                : 'id, worker_id, worker_name, team_name, phone_number, status, sent_count, provider, message, created_at', { count: 'exact' })
+                ? 'id, worker_id, worker_name, team_name, phone_number, send_mode, status, failure_category, sent_count, provider, message, created_at'
+                : 'id, worker_id, worker_name, team_name, phone_number, send_mode, status, sent_count, provider, message, created_at', { count: 'exact' })
             .order('created_at', { ascending: false })
             .range(offset, offset + limit - 1);
 
@@ -1228,6 +1242,26 @@ async function handleListReportMessageLogs(payload: any): Promise<any> {
 
     if (error && isReportMessageLogColumnMissing(error.message || error.details || '', 'failure_category')) {
         ({ data, error, count } = await buildQuery(false));
+    }
+
+    if (error && isReportMessageLogColumnMissing(error.message || error.details || '', 'send_mode')) {
+        const buildLegacyQuery = (includeFailureCategory: boolean) => {
+            let query = supabase
+                .from(REPORT_MESSAGE_LOG_TABLE)
+                .select(includeFailureCategory
+                    ? 'id, worker_id, worker_name, team_name, phone_number, status, failure_category, sent_count, provider, message, created_at'
+                    : 'id, worker_id, worker_name, team_name, phone_number, status, sent_count, provider, message, created_at', { count: 'exact' })
+                .order('created_at', { ascending: false })
+                .range(offset, offset + limit - 1);
+
+            return workerId ? query.eq('worker_id', workerId) : query.eq('worker_name', workerName);
+        };
+
+        ({ data, error, count } = await buildLegacyQuery(true));
+
+        if (error && isReportMessageLogColumnMissing(error.message || error.details || '', 'failure_category')) {
+            ({ data, error, count } = await buildLegacyQuery(false));
+        }
     }
 
     if (error) {
@@ -1247,6 +1281,7 @@ async function handleListReportMessageLogs(payload: any): Promise<any> {
         worker_name: String(row?.worker_name || '').trim(),
         team_name: String(row?.team_name || '').trim(),
         phone_number: normalizePhone(row?.phone_number || ''),
+        send_mode: String(row?.send_mode || '').trim() || 'INDIVIDUAL',
         status: String(row?.status || '').trim() || 'UNKNOWN',
         failure_category: String(row?.failure_category || '').trim(),
         sent_count: Number(row?.sent_count || 0),
@@ -1273,15 +1308,198 @@ async function handleGetReportMessageDashboardSummary(payload: any): Promise<any
     const limit = Number.isFinite(requestedLimit)
         ? Math.min(Math.max(Math.floor(requestedLimit), 3), 12)
         : 6;
+    const range = String(payload?.range || '30d').trim().toLowerCase();
+    const rangeStart = resolveReportMessageRangeStart(range);
 
-    const [monthlyResult, teamResult, failureResult, retryResult] = await Promise.all([
+    if (rangeStart) {
+        const { data, error } = await supabase
+            .from(REPORT_MESSAGE_LOG_TABLE)
+            .select('worker_id, worker_name, team_name, phone_number, send_mode, status, failure_category, provider, message, created_at')
+            .gte('created_at', rangeStart)
+            .order('created_at', { ascending: false })
+            .limit(5000);
+
+        if (error) {
+            if (isReportMessageLogTableMissing(error.message || error.details || '')) {
+                return {
+                    monthlyRows: [],
+                    teamRows: [],
+                    failureRows: [],
+                    sendModeRows: [],
+                    retryRows: [],
+                    overview: {
+                        totalCount: 0,
+                        successCount: 0,
+                        failedCount: 0,
+                        successRate: 0,
+                        individualCount: 0,
+                        bulkCount: 0,
+                        topTeam: '-',
+                        topFailureCategory: '-',
+                        retryCandidateCount: 0,
+                    },
+                    schemaReady: false,
+                };
+            }
+
+            throw new Error(error.message || '리포트 문자 운영 요약 조회 실패');
+        }
+
+        const rows = Array.isArray(data) ? data : [];
+        const monthBucket = new Map<string, { month_date: string; month_label: string; total_count: number; success_count: number; failed_count: number; success_rate: number; }>();
+        const teamBucket = new Map<string, { team_name: string; total_count: number; success_count: number; failed_count: number; success_rate: number; last_sent_at: string; }>();
+        const failureBucket = new Map<string, { failure_category: string; failure_count: number; last_occurred_at: string; }>();
+        const sendModeBucket = new Map<string, { send_mode: string; total_count: number; success_count: number; failed_count: number; success_rate: number; last_sent_at: string; }>();
+        const retryLatestBucket = new Map<string, {
+            retry_key: string;
+            worker_id: string;
+            worker_name: string;
+            team_name: string;
+            phone_number: string;
+            failure_category: string;
+            provider: string;
+            message: string;
+            failed_at: string;
+            priority_score: number;
+            status: string;
+        }>();
+
+        rows.forEach((row: any) => {
+            const createdAt = String(row?.created_at || '').trim();
+            const createdDate = new Date(createdAt);
+            if (Number.isNaN(createdDate.getTime())) return;
+
+            const monthDate = `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}-01`;
+            const monthLabel = `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}`;
+            const teamName = String(row?.team_name || '').trim() || '미지정';
+            const failureCategory = String(row?.failure_category || '').trim() || '미분류';
+            const sendMode = String(row?.send_mode || '').trim() === 'BULK' ? 'BULK' : 'INDIVIDUAL';
+            const status = String(row?.status || '').trim() || 'UNKNOWN';
+            const isSuccess = status === 'SUCCESS';
+
+            const monthCurrent = monthBucket.get(monthLabel) || {
+                month_date: monthDate,
+                month_label: monthLabel,
+                total_count: 0,
+                success_count: 0,
+                failed_count: 0,
+                success_rate: 0,
+            };
+            monthCurrent.total_count += 1;
+            if (isSuccess) monthCurrent.success_count += 1;
+            else monthCurrent.failed_count += 1;
+            monthCurrent.success_rate = monthCurrent.total_count > 0 ? Math.round((monthCurrent.success_count * 1000) / monthCurrent.total_count) / 10 : 0;
+            monthBucket.set(monthLabel, monthCurrent);
+
+            const teamCurrent = teamBucket.get(teamName) || {
+                team_name: teamName,
+                total_count: 0,
+                success_count: 0,
+                failed_count: 0,
+                success_rate: 0,
+                last_sent_at: createdAt,
+            };
+            teamCurrent.total_count += 1;
+            if (isSuccess) teamCurrent.success_count += 1;
+            else teamCurrent.failed_count += 1;
+            teamCurrent.success_rate = teamCurrent.total_count > 0 ? Math.round((teamCurrent.success_count * 1000) / teamCurrent.total_count) / 10 : 0;
+            if (!teamCurrent.last_sent_at || createdAt > teamCurrent.last_sent_at) teamCurrent.last_sent_at = createdAt;
+            teamBucket.set(teamName, teamCurrent);
+
+            if (!isSuccess) {
+                const failureCurrent = failureBucket.get(failureCategory) || {
+                    failure_category: failureCategory,
+                    failure_count: 0,
+                    last_occurred_at: createdAt,
+                };
+                failureCurrent.failure_count += 1;
+                if (!failureCurrent.last_occurred_at || createdAt > failureCurrent.last_occurred_at) failureCurrent.last_occurred_at = createdAt;
+                failureBucket.set(failureCategory, failureCurrent);
+            }
+
+            const sendModeCurrent = sendModeBucket.get(sendMode) || {
+                send_mode: sendMode,
+                total_count: 0,
+                success_count: 0,
+                failed_count: 0,
+                success_rate: 0,
+                last_sent_at: createdAt,
+            };
+            sendModeCurrent.total_count += 1;
+            if (isSuccess) sendModeCurrent.success_count += 1;
+            else sendModeCurrent.failed_count += 1;
+            sendModeCurrent.success_rate = sendModeCurrent.total_count > 0 ? Math.round((sendModeCurrent.success_count * 1000) / sendModeCurrent.total_count) / 10 : 0;
+            if (!sendModeCurrent.last_sent_at || createdAt > sendModeCurrent.last_sent_at) sendModeCurrent.last_sent_at = createdAt;
+            sendModeBucket.set(sendMode, sendModeCurrent);
+
+            const workerId = String(row?.worker_id || '').trim();
+            const workerName = String(row?.worker_name || '').trim();
+            const phoneNumber = normalizePhone(row?.phone_number || '');
+            const retryKey = workerId || `${workerName}|${phoneNumber}`;
+            if (!retryKey) return;
+
+            const existingRetry = retryLatestBucket.get(retryKey);
+            if (!existingRetry || createdAt > existingRetry.failed_at) {
+                retryLatestBucket.set(retryKey, {
+                    retry_key: retryKey,
+                    worker_id: workerId,
+                    worker_name: workerName,
+                    team_name: teamName,
+                    phone_number: phoneNumber,
+                    failure_category: failureCategory,
+                    provider: String(row?.provider || '').trim(),
+                    message: String(row?.message || '').trim(),
+                    failed_at: createdAt,
+                    priority_score: failureCategory === '전화번호 오류' ? 100 : failureCategory === '인증/권한' ? 95 : failureCategory === '이미지 업로드' ? 90 : failureCategory === '타임아웃' ? 80 : failureCategory === '한도/속도 제한' ? 70 : failureCategory === '네트워크' ? 60 : 50,
+                    status,
+                });
+            }
+        });
+
+        const monthlyRows = Array.from(monthBucket.values()).sort((a, b) => a.month_date.localeCompare(b.month_date)).slice(-limit);
+        const teamRows = Array.from(teamBucket.values()).sort((a, b) => (b.total_count - a.total_count) || (b.success_rate - a.success_rate) || a.team_name.localeCompare(b.team_name)).slice(0, limit);
+        const failureRows = Array.from(failureBucket.values()).sort((a, b) => (b.failure_count - a.failure_count) || a.failure_category.localeCompare(b.failure_category)).slice(0, limit);
+        const sendModeRows = Array.from(sendModeBucket.values()).sort((a, b) => (b.total_count - a.total_count) || a.send_mode.localeCompare(b.send_mode)).slice(0, 4);
+        const retryRows = Array.from(retryLatestBucket.values())
+            .filter((row) => row.status === 'FAILED')
+            .sort((a, b) => (b.priority_score - a.priority_score) || b.failed_at.localeCompare(a.failed_at))
+            .slice(0, limit)
+            .map(({ status: _status, ...rest }) => rest);
+
+        const totalCount = rows.length;
+        const successCount = rows.filter((row: any) => String(row?.status || '').trim() === 'SUCCESS').length;
+        const failedCount = totalCount - successCount;
+
+        return {
+            monthlyRows,
+            teamRows,
+            failureRows,
+            sendModeRows,
+            retryRows,
+            overview: {
+                totalCount,
+                successCount,
+                failedCount,
+                successRate: totalCount > 0 ? Math.round((successCount * 1000) / totalCount) / 10 : 0,
+                individualCount: sendModeRows.find((row) => row.send_mode === 'INDIVIDUAL')?.total_count || 0,
+                bulkCount: sendModeRows.find((row) => row.send_mode === 'BULK')?.total_count || 0,
+                topTeam: teamRows[0]?.team_name || '-',
+                topFailureCategory: failureRows[0]?.failure_category || '-',
+                retryCandidateCount: retryRows.length,
+            },
+            schemaReady: true,
+        };
+    }
+
+    const [monthlyResult, teamResult, failureResult, sendModeResult, retryResult] = await Promise.all([
         supabase.from('report_message_monthly_summary').select('month_date, month_label, total_count, success_count, failed_count, success_rate').order('month_date', { ascending: false }).limit(limit),
         supabase.from('report_message_team_summary').select('team_name, total_count, success_count, failed_count, success_rate, last_sent_at').order('total_count', { ascending: false }).limit(limit),
         supabase.from('report_message_failure_summary').select('failure_category, failure_count, last_occurred_at').order('failure_count', { ascending: false }).limit(limit),
+        supabase.from('report_message_send_mode_summary').select('send_mode, total_count, success_count, failed_count, success_rate, last_sent_at').order('total_count', { ascending: false }).limit(4),
         supabase.from('report_message_retry_queue').select('retry_key, worker_id, worker_name, team_name, phone_number, failure_category, provider, message, failed_at, priority_score').order('priority_score', { ascending: false }).order('failed_at', { ascending: false }).limit(limit),
     ]);
 
-    const summaryError = monthlyResult.error || teamResult.error || failureResult.error || retryResult.error;
+    const summaryError = monthlyResult.error || teamResult.error || failureResult.error || sendModeResult.error || retryResult.error;
     if (summaryError) {
         const message = summaryError.message || summaryError.details || '';
         if (isReportMessageSummaryRelationMissing(message)) {
@@ -1289,12 +1507,15 @@ async function handleGetReportMessageDashboardSummary(payload: any): Promise<any
                 monthlyRows: [],
                 teamRows: [],
                 failureRows: [],
+                sendModeRows: [],
                 retryRows: [],
                 overview: {
                     totalCount: 0,
                     successCount: 0,
                     failedCount: 0,
                     successRate: 0,
+                    individualCount: 0,
+                    bulkCount: 0,
                     topTeam: '-',
                     topFailureCategory: '-',
                     retryCandidateCount: 0,
@@ -1329,6 +1550,15 @@ async function handleGetReportMessageDashboardSummary(payload: any): Promise<any
         last_occurred_at: String(row?.last_occurred_at || '').trim(),
     }));
 
+    const sendModeRows = (sendModeResult.data || []).map((row: any) => ({
+        send_mode: String(row?.send_mode || '').trim() || 'INDIVIDUAL',
+        total_count: Number(row?.total_count || 0),
+        success_count: Number(row?.success_count || 0),
+        failed_count: Number(row?.failed_count || 0),
+        success_rate: Number(row?.success_rate || 0),
+        last_sent_at: String(row?.last_sent_at || '').trim(),
+    }));
+
     const retryRows = (retryResult.data || []).map((row: any) => ({
         retry_key: String(row?.retry_key || '').trim(),
         worker_id: String(row?.worker_id || '').trim(),
@@ -1348,12 +1578,15 @@ async function handleGetReportMessageDashboardSummary(payload: any): Promise<any
         monthlyRows,
         teamRows,
         failureRows,
+        sendModeRows,
         retryRows,
         overview: {
             totalCount: latestMonthly?.total_count || 0,
             successCount: latestMonthly?.success_count || 0,
             failedCount: latestMonthly?.failed_count || 0,
             successRate: latestMonthly?.success_rate || 0,
+            individualCount: sendModeRows.find((row) => row.send_mode === 'INDIVIDUAL')?.total_count || 0,
+            bulkCount: sendModeRows.find((row) => row.send_mode === 'BULK')?.total_count || 0,
             topTeam: teamRows[0]?.team_name || '-',
             topFailureCategory: failureRows[0]?.failure_category || '-',
             retryCandidateCount: retryRows.length,

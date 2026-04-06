@@ -52,6 +52,7 @@ type MessageHistoryEntry = {
 type ServerMessageLogEntry = {
     id: string;
     phone_number: string;
+    send_mode?: string;
     status: string;
     sent_count: number;
     message: string;
@@ -292,8 +293,6 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         let disposed = false;
 
         const fetchRegisteredPhone = async () => {
-            if (normalizePhoneInput(messagePhoneNumber)) return;
-
             try {
                 const response = await postAdminJson<{ ok: true; data: { worker: { phone_number?: string | null } | null; matchCount: number; matchedBy: string } }>(
                     '/api/admin/safety-management',
@@ -310,8 +309,8 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
 
                 const phone = normalizePhoneInput(String(response?.data?.worker?.phone_number || ''));
                 if (!disposed && phone) {
-                    setMessagePhoneNumber((prev) => normalizePhoneInput(prev) || phone);
-                    setMessageSendStatus((prev) => prev || (response?.data?.matchCount > 1 ? '등록 근로자 번호를 후보 중 첫 번째로 불러왔습니다. 확인 후 발송해 주세요.' : '등록된 근로자 전화번호를 불러왔습니다.'));
+                    setMessagePhoneNumber(phone);
+                    setMessageSendStatus((prev) => prev || (response?.data?.matchCount > 1 ? '등록 근로자 전화번호와 연동했습니다. 후보 중 첫 번째 번호이므로 확인 후 발송해 주세요.' : '등록 근로자 전화번호와 자동 연동했습니다.'));
                 }
             } catch {
                 // 자동 조회 실패는 조용히 무시
@@ -502,6 +501,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                     workerUuid: record.worker_uuid || record.workerUuid || '',
                     teamName: record.teamLeader || '',
                     phoneNumber: normalizedPhone,
+                    sendMode: 'INDIVIDUAL',
                     coverMessage: messageNote,
                     reportImages,
                 },
@@ -522,6 +522,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             setServerMessageLogs((prev) => [{
                 id: `local-${nextHistory.sentAt}`,
                 phone_number: normalizedPhone,
+                send_mode: 'INDIVIDUAL',
                 status: 'SUCCESS',
                 sent_count: nextHistory.sentCount,
                 message: `문자/MMS ${nextHistory.sentCount}건 발송 완료`,
@@ -535,6 +536,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             setServerMessageLogs((prev) => [{
                 id: `local-failed-${new Date().toISOString()}`,
                 phone_number: normalizedPhone,
+                send_mode: 'INDIVIDUAL',
                 status: 'FAILED',
                 sent_count: 0,
                 message: errorMessage,
@@ -727,9 +729,14 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                                         {serverMessageLogs.length > 0 ? serverMessageLogs.map((item) => (
                                             <div key={item.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
                                                 <div className="flex items-center justify-between gap-2">
-                                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${item.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                                                        {item.status === 'SUCCESS' ? '성공' : '실패'}
-                                                    </span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${item.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                                            {item.status === 'SUCCESS' ? '성공' : '실패'}
+                                                        </span>
+                                                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${item.send_mode === 'BULK' ? 'bg-violet-100 text-violet-700' : 'bg-sky-100 text-sky-700'}`}>
+                                                            {item.send_mode === 'BULK' ? '일괄발송' : '개별발송'}
+                                                        </span>
+                                                    </div>
                                                     <span className="text-[10px] font-bold text-slate-400">{new Date(item.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</span>
                                                 </div>
                                                 <p className="mt-1 text-[11px] font-black text-slate-700">{formatPhoneForDisplay(item.phone_number)} · {item.sent_count}건</p>

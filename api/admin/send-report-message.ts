@@ -102,22 +102,40 @@ function buildPageMessage(options: {
     return lines.join('\n');
 }
 
-async function persistPhoneNumber(workerUuid: string, phoneNumber: string) {
-    if (!workerUuid || !phoneNumber) {
+function normalizeSendMode(value: unknown): 'INDIVIDUAL' | 'BULK' {
+    return String(value || '').trim().toUpperCase() === 'BULK' ? 'BULK' : 'INDIVIDUAL';
+}
+
+async function persistPhoneNumber(workerUuid: string, workerName: string, teamName: string, phoneNumber: string) {
+    if (!phoneNumber) {
         return { updated: false, reason: '식별자 없음' };
     }
 
     try {
-        const { error } = await supabase
+        let query = supabase
             .from('workers')
-            .update({ phone_number: phoneNumber })
-            .eq('id', workerUuid);
+            .update({ phone_number: phoneNumber });
+
+        if (workerUuid) {
+            query = query.eq('id', workerUuid);
+        } else if (workerName && teamName) {
+            query = query.eq('name', workerName).eq('team_name', teamName);
+        } else if (workerName) {
+            query = query.eq('name', workerName);
+        } else {
+            return { updated: false, reason: '식별자 없음' };
+        }
+
+        const { error, data } = await query.select('id').limit(1);
 
         if (error) {
             return { updated: false, reason: error.message || 'workers.phone_number 저장 실패' };
         }
 
-        return { updated: true };
+        return {
+            updated: Array.isArray(data) ? data.length > 0 : true,
+            matchedBy: workerUuid ? 'id' : teamName ? 'name+team' : 'name',
+        };
     } catch (error: any) {
         return { updated: false, reason: error?.message || 'workers.phone_number 저장 실패' };
     }
@@ -128,6 +146,7 @@ async function appendReportMessageLog(payload: {
     workerName: string;
     teamName?: string;
     phoneNumber: string;
+    sendMode?: 'INDIVIDUAL' | 'BULK';
     status: 'SUCCESS' | 'FAILED';
     failureCategory?: string | null;
     sentCount: number;
@@ -142,13 +161,14 @@ async function appendReportMessageLog(payload: {
                 worker_name: payload.workerName,
                 team_name: payload.teamName || null,
                 phone_number: payload.phoneNumber,
+                send_mode: normalizeSendMode(payload.sendMode),
                 status: payload.status,
                 failure_category: payload.failureCategory || null,
                 sent_count: payload.sentCount,
                 provider: 'SOLAPI',
                 message: payload.message,
                 result_payload: payload.resultPayload || {},
-                created_by: 'admin-ui',
+                created_by: normalizeSendMode(payload.sendMode) === 'BULK' ? 'admin-ui-bulk' : 'admin-ui-individual',
             });
 
         if (error && !isReportMessageLogTableMissing(error)) {
@@ -182,12 +202,14 @@ export default async function handler(req: any, res: any) {
             phoneNumber,
             workerUuid,
             teamName,
+            sendMode,
             coverMessage,
             reportImages,
         } = req.body || {};
 
         const normalizedPhone = normalizePhone(phoneNumber);
         const normalizedWorkerUuid = normalizeWorkerUuid(workerUuid);
+        const normalizedSendMode = normalizeSendMode(sendMode);
         const safeWorkerName = String(workerName || '').trim() || '근로자';
         const safeTeamName = String(teamName || '').trim();
         const images = (Array.isArray(reportImages) ? reportImages : []).slice(0, MAX_REPORT_IMAGES) as ReportImagePayload[];
@@ -253,18 +275,20 @@ export default async function handler(req: any, res: any) {
             });
         }
 
-        const phonePersistResult = await persistPhoneNumber(normalizedWorkerUuid, normalizedPhone);
+        const phonePersistResult = await persistPhoneNumber(normalizedWorkerUuid, safeWorkerName, safeTeamName, normalizedPhone);
 
         await appendReportMessageLog({
             workerId: normalizedWorkerUuid,
             workerName: safeWorkerName,
             teamName: safeTeamName,
             phoneNumber: normalizedPhone,
+            sendMode: normalizedSendMode,
             status: 'SUCCESS',
             failureCategory: null,
             sentCount: sendResults.length,
             message: `${sendResults.length}건 MMS 발송 완료`,
             resultPayload: {
+                sendMode: normalizedSendMode,
                 coverMessage: String(coverMessage || '').trim(),
                 results: sendResults,
                 phonePersistResult,
@@ -276,6 +300,7 @@ export default async function handler(req: any, res: any) {
             data: {
                 workerName: safeWorkerName,
                 phoneNumber: normalizedPhone,
+                sendMode: normalizedSendMode,
                 sentCount: sendResults.length,
                 results: sendResults,
                 phonePersistResult,
@@ -289,11 +314,13 @@ export default async function handler(req: any, res: any) {
                 workerName: logContext.workerName,
                 teamName: logContext.teamName,
                 phoneNumber: logContext.phoneNumber,
+                sendMode: normalizeSendMode(req?.body?.sendMode),
                 status: 'FAILED',
                 failureCategory: classifyFailureCategory(error?.message || error),
                 sentCount: 0,
                 message: error?.message || '리포트 문자 발송 실패',
                 resultPayload: {
+                    sendMode: normalizeSendMode(req?.body?.sendMode),
                     error: error?.message || 'unknown error',
                 },
             });

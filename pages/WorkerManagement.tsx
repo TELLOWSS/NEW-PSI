@@ -2,10 +2,12 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import type { WorkerRecord } from '../types';
+import { ReportTemplate } from '../components/ReportTemplate';
 import { generateReportUrl } from '../utils/qrUtils';
 import { extractMessage } from '../utils/errorUtils';
 import { postAdminJson } from '../utils/adminApiClient';
-import { ensureQRCodeJs } from '../utils/externalScripts';
+import { ensureHtml2Canvas, ensureQRCodeJs } from '../utils/externalScripts';
+import { canvasToBlob, captureReportCanvases } from '../utils/pdfCapture';
 import { getWindowProp } from '../utils/windowUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import {
@@ -619,6 +621,12 @@ type RegisteredWorkerListRow = {
     passport_number: string;
 };
 
+type ReportMessageImagePayload = {
+    fileName: string;
+    dataUrl: string;
+    pageLabel: string;
+};
+
 type RegisteredWorkerListMeta = {
     hiddenExactDuplicateCount: number;
     sameNameGroupCount: number;
@@ -631,6 +639,7 @@ type WorkerMessageLogRow = {
     worker_name: string;
     team_name: string;
     phone_number: string;
+    send_mode?: string;
     status: string;
     failure_category?: string;
     sent_count: number;
@@ -673,6 +682,15 @@ type ReportMessageDashboardFailureRow = {
     last_occurred_at: string;
 };
 
+type ReportMessageDashboardSendModeRow = {
+    send_mode: string;
+    total_count: number;
+    success_count: number;
+    failed_count: number;
+    success_rate: number;
+    last_sent_at: string;
+};
+
 type ReportMessageDashboardRetryRow = {
     retry_key: string;
     worker_id: string;
@@ -690,12 +708,15 @@ type ReportMessageDashboardSummary = {
     monthlyRows: ReportMessageDashboardMonthlyRow[];
     teamRows: ReportMessageDashboardTeamRow[];
     failureRows: ReportMessageDashboardFailureRow[];
+    sendModeRows: ReportMessageDashboardSendModeRow[];
     retryRows: ReportMessageDashboardRetryRow[];
     overview: {
         totalCount: number;
         successCount: number;
         failedCount: number;
         successRate: number;
+        individualCount: number;
+        bulkCount: number;
         topTeam: string;
         topFailureCategory: string;
         retryCandidateCount: number;
@@ -726,6 +747,7 @@ type MessageHistoryRangeFilter = 'all' | '7d' | '30d' | '90d';
 type RetryQueueFilter = 'all' | 'actionable' | 'blocked';
 
 const MESSAGE_HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
+const MAX_REPORT_MESSAGE_IMAGE_BYTES = 190 * 1024;
 
 const ALLOWED_JOB_FIELDS = [
     '형틀',
@@ -836,6 +858,15 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [registeredWorkerJobFilter, setRegisteredWorkerJobFilter] = useState('전체');
     const [registeredWorkerTeamFilter, setRegisteredWorkerTeamFilter] = useState('전체');
     const [registeredWorkerMissingFilter, setRegisteredWorkerMissingFilter] = useState<'all' | 'missing-any' | 'missing-phone' | 'missing-birth' | 'missing-passport'>('all');
+    const [selectedBulkMessageWorkerIds, setSelectedBulkMessageWorkerIds] = useState<string[]>([]);
+    const [bulkMessageNote, setBulkMessageNote] = useState('PSI 안전 리포트입니다. 현장 작업 전 내용을 꼭 확인해 주세요.');
+    const [isBulkSendingReports, setIsBulkSendingReports] = useState(false);
+    const [isBulkSendCancelRequested, setIsBulkSendCancelRequested] = useState(false);
+    const [bulkMessageStatus, setBulkMessageStatus] = useState<string | null>(null);
+    const [bulkMessageProgress, setBulkMessageProgress] = useState<{ total: number; completed: number; success: number; failed: number; currentWorker: string; } | null>(null);
+    const [lastBulkFailedWorkerIds, setLastBulkFailedWorkerIds] = useState<string[]>([]);
+    const [bulkMessagePreviewRecord, setBulkMessagePreviewRecord] = useState<WorkerRecord | null>(null);
+    const [bulkMessagePreviewHistory, setBulkMessagePreviewHistory] = useState<WorkerRecord[]>([]);
     const [selectedMessageHistoryWorkerId, setSelectedMessageHistoryWorkerId] = useState('');
     const [messageLogCache, setMessageLogCache] = useState<Record<string, WorkerMessageLogCacheEntry>>({});
     const [isMessageLogLoading, setIsMessageLogLoading] = useState(false);
@@ -844,6 +875,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [messageLogLastFetchedAt, setMessageLogLastFetchedAt] = useState('');
     const [messageHistoryStatusFilter, setMessageHistoryStatusFilter] = useState<MessageHistoryStatusFilter>('all');
     const [messageHistoryRangeFilter, setMessageHistoryRangeFilter] = useState<MessageHistoryRangeFilter>('30d');
+    const [dashboardRangeFilter, setDashboardRangeFilter] = useState<MessageHistoryRangeFilter>('30d');
     const [messageHistorySearchTerm, setMessageHistorySearchTerm] = useState('');
     const [isMessageLogLoadingMore, setIsMessageLogLoadingMore] = useState(false);
     const [reportMessageDashboardSummary, setReportMessageDashboardSummary] = useState<ReportMessageDashboardSummary | null>(null);
@@ -863,6 +895,8 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     });
     const bulkFileInputRef = useRef<HTMLInputElement | null>(null);
     const printAreaRef = useRef<HTMLDivElement | null>(null);
+    const bulkMessageReportRef = useRef<HTMLDivElement | null>(null);
+    const bulkSendCancelRequestedRef = useRef(false);
     const singlePrintBackupRef = useRef<{
         workers: WorkerRecord[];
         renderLimit: number;
@@ -890,6 +924,58 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         if (digits.length <= 4) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
         if (digits.length <= 6) return `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
         return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+    };
+    const getRangeFilterLabel = (range: MessageHistoryRangeFilter) => (
+        range === '7d' ? '최근 7일' : range === '30d' ? '최근 30일' : range === '90d' ? '최근 90일' : '전체 기간'
+    );
+    const getRangeFilterFileToken = (range: MessageHistoryRangeFilter) => (
+        range === '7d' ? '7d' : range === '30d' ? '30d' : range === '90d' ? '90d' : 'all'
+    );
+    const applyMessageOpsRangeFilter = (range: MessageHistoryRangeFilter) => {
+        setMessageHistoryRangeFilter(range);
+        setDashboardRangeFilter(range);
+    };
+    const blobToDataUrl = (blob: Blob) => new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('이미지 인코딩에 실패했습니다.'));
+        reader.readAsDataURL(blob);
+    });
+    const createScaledCanvas = (sourceCanvas: HTMLCanvasElement, scale: number) => {
+        const targetCanvas = document.createElement('canvas');
+        targetCanvas.width = Math.max(1, Math.round(sourceCanvas.width * scale));
+        targetCanvas.height = Math.max(1, Math.round(sourceCanvas.height * scale));
+        const ctx = targetCanvas.getContext('2d');
+        if (!ctx) {
+            throw new Error('문자 발송용 이미지 변환 캔버스를 만들 수 없습니다.');
+        }
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(sourceCanvas, 0, 0, targetCanvas.width, targetCanvas.height);
+        return targetCanvas;
+    };
+    const buildMessageImagePayload = async (sourceCanvas: HTMLCanvasElement, workerName: string, pageIndex: number): Promise<ReportMessageImagePayload> => {
+        const qualitySteps = [0.82, 0.74, 0.68, 0.6, 0.52, 0.46];
+        let scale = Math.min(1, 1280 / Math.max(1, sourceCanvas.width));
+        let lastBlob: Blob | null = null;
+
+        for (let scaleAttempt = 0; scaleAttempt < 6; scaleAttempt += 1) {
+            const workingCanvas = createScaledCanvas(sourceCanvas, scale);
+            for (const quality of qualitySteps) {
+                const blob = await canvasToBlob(workingCanvas, 'image/jpeg', quality);
+                lastBlob = blob;
+                if (blob.size <= MAX_REPORT_MESSAGE_IMAGE_BYTES) {
+                    return {
+                        fileName: `PSI_Report_${workerName}_p${pageIndex + 1}.jpg`,
+                        dataUrl: await blobToDataUrl(blob),
+                        pageLabel: pageIndex === 0 ? '요약 페이지' : '상세 해설 페이지',
+                    };
+                }
+            }
+            scale *= 0.86;
+        }
+
+        throw new Error(`문자용 이미지 압축에 실패했습니다. 마지막 크기: ${Math.round((lastBlob?.size || 0) / 1024)}KB`);
     };
     const normalizeJobField = (raw: unknown) => {
         const base = String(raw || '').trim();
@@ -1095,17 +1181,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             .sort((a, b) => a.name.localeCompare(b.name));
     }, [workerRecords]);
 
-    const selectedMessageHistoryWorker = useMemo(
-        () => registeredWorkers.find((worker) => worker.id === selectedMessageHistoryWorkerId) || null,
-        [registeredWorkers, selectedMessageHistoryWorkerId],
-    );
+    const findLatestRecordForRegisteredWorker = useCallback((worker: RegisteredWorkerListRow | null) => {
+        if (!worker) return null;
 
-    const selectedMessageHistoryLatestRecord = useMemo(() => {
-        if (!selectedMessageHistoryWorker) return null;
-
-        const selectedId = normalizeIdentityToken(selectedMessageHistoryWorker.id);
-        const selectedName = normalizeIdentityToken(selectedMessageHistoryWorker.name);
-        const selectedTeam = normalizeIdentityToken(selectedMessageHistoryWorker.team_name || '미지정');
+        const selectedId = normalizeIdentityToken(worker.id);
+        const selectedName = normalizeIdentityToken(worker.name);
+        const selectedTeam = normalizeIdentityToken(worker.team_name || '미지정');
 
         return latestRecords.find((record) => {
             const recordWorkerUuid = normalizeIdentityToken(record.worker_uuid || record.workerUuid);
@@ -1115,7 +1196,38 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             const recordTeam = normalizeIdentityToken(record.teamLeader || '미지정');
             return selectedName === recordName && selectedTeam === recordTeam;
         }) || null;
-    }, [latestRecords, selectedMessageHistoryWorker]);
+    }, [latestRecords]);
+
+    const getHistoryForRegisteredWorker = useCallback((worker: RegisteredWorkerListRow | null, latestRecord?: WorkerRecord | null) => {
+        if (!worker || !latestRecord) return [];
+
+        const selectedId = normalizeIdentityToken(worker.id);
+        const selectedName = normalizeIdentityToken(worker.name);
+        const selectedTeam = normalizeIdentityToken(worker.team_name || '미지정');
+
+        return workerRecords.filter((record) => {
+            const recordWorkerUuid = normalizeIdentityToken(record.worker_uuid || record.workerUuid);
+            if (selectedId && recordWorkerUuid && selectedId === recordWorkerUuid) return true;
+
+            const recordName = normalizeIdentityToken(record.name);
+            const recordTeam = normalizeIdentityToken(record.teamLeader || '미지정');
+            return selectedName === recordName && selectedTeam === recordTeam;
+        }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    }, [workerRecords]);
+
+    const selectedBulkMessageWorkers = useMemo(
+        () => registeredWorkers.filter((worker) => selectedBulkMessageWorkerIds.includes(worker.id)),
+        [registeredWorkers, selectedBulkMessageWorkerIds],
+    );
+
+    const selectedMessageHistoryWorker = useMemo(
+        () => registeredWorkers.find((worker) => worker.id === selectedMessageHistoryWorkerId) || null,
+        [registeredWorkers, selectedMessageHistoryWorkerId],
+    );
+
+    const selectedMessageHistoryLatestRecord = useMemo(() => {
+        return findLatestRecordForRegisteredWorker(selectedMessageHistoryWorker);
+    }, [findLatestRecordForRegisteredWorker, selectedMessageHistoryWorker]);
 
     const selectedMessageHistoryLogEntry = useMemo(
         () => selectedMessageHistoryWorkerId ? messageLogCache[selectedMessageHistoryWorkerId] || null : null,
@@ -1261,10 +1373,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const downloadMessageHistoryCsv = () => {
         if (!selectedMessageHistoryWorker || filteredMessageHistoryRows.length === 0) return;
 
+        const rangeLabel = getRangeFilterLabel(messageHistoryRangeFilter);
+        const rangeToken = getRangeFilterFileToken(messageHistoryRangeFilter);
+
         const escapeCsv = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
         const rows = [
-            ['근로자명', '팀명', '전화번호', '발송시각', '상태', '페이지수', '공급자', '메모'],
+            ['조회기간', '근로자명', '팀명', '전화번호', '발송시각', '상태', '페이지수', '공급자', '메모'],
             ...filteredMessageHistoryRows.map((row) => [
+                rangeLabel,
                 row.worker_name || selectedMessageHistoryWorker.name,
                 row.team_name || selectedMessageHistoryWorker.team_name,
                 formatPhoneForDisplay(row.phone_number),
@@ -1281,7 +1397,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
-        anchor.download = `message_history_${(selectedMessageHistoryWorker.name || 'worker').replace(/\s+/g, '_')}.csv`;
+        anchor.download = `message_history_${(selectedMessageHistoryWorker.name || 'worker').replace(/\s+/g, '_')}_${rangeToken}.csv`;
         document.body.appendChild(anchor);
         anchor.click();
         document.body.removeChild(anchor);
@@ -1302,6 +1418,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             },
             filters: {
                 range: messageHistoryRangeFilter,
+                rangeLabel: getRangeFilterLabel(messageHistoryRangeFilter),
                 status: messageHistoryStatusFilter,
                 search: messageHistorySearchTerm,
             },
@@ -1312,7 +1429,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
-        anchor.download = `message_history_${(selectedMessageHistoryWorker.name || 'worker').replace(/\s+/g, '_')}.json`;
+        anchor.download = `message_history_${(selectedMessageHistoryWorker.name || 'worker').replace(/\s+/g, '_')}_${getRangeFilterFileToken(messageHistoryRangeFilter)}.json`;
         document.body.appendChild(anchor);
         anchor.click();
         document.body.removeChild(anchor);
@@ -1323,7 +1440,10 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         if (!selectedMessageHistoryWorker || filteredMessageHistoryRows.length === 0) return;
 
         const XLSX = await loadXlsx();
+        const rangeLabel = getRangeFilterLabel(messageHistoryRangeFilter);
+        const rangeToken = getRangeFilterFileToken(messageHistoryRangeFilter);
         const exportRows = filteredMessageHistoryRows.map((row) => ({
+            조회기간: rangeLabel,
             근로자명: row.worker_name || selectedMessageHistoryWorker.name,
             팀명: row.team_name || selectedMessageHistoryWorker.team_name,
             전화번호: formatPhoneForDisplay(row.phone_number),
@@ -1337,19 +1457,27 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         const workbook = XLSX.utils.book_new();
         const worksheet = XLSX.utils.json_to_sheet(exportRows);
         XLSX.utils.book_append_sheet(workbook, worksheet, 'MessageLogs');
-        XLSX.writeFile(workbook, `message_history_${(selectedMessageHistoryWorker.name || 'worker').replace(/\s+/g, '_')}.xlsx`);
+        XLSX.writeFile(workbook, `message_history_${(selectedMessageHistoryWorker.name || 'worker').replace(/\s+/g, '_')}_${rangeToken}.xlsx`);
     };
 
     const downloadDashboardSummaryJson = () => {
         if (!reportMessageDashboardSummary?.schemaReady) return;
 
+        const rangeLabel = getRangeFilterLabel(dashboardRangeFilter);
+        const rangeToken = getRangeFilterFileToken(dashboardRangeFilter);
+
         const payload = {
             exportedAt: new Date().toISOString(),
             source: 'report_message_dashboard_summary',
+            range: {
+                key: dashboardRangeFilter,
+                label: rangeLabel,
+            },
             overview: reportMessageDashboardSummary.overview,
             monthlyRows: reportMessageDashboardSummary.monthlyRows,
             teamRows: reportMessageDashboardSummary.teamRows,
             failureRows: reportMessageDashboardSummary.failureRows,
+            sendModeRows: reportMessageDashboardSummary.sendModeRows,
             retryRows: reportMessageDashboardSummary.retryRows,
         };
 
@@ -1357,7 +1485,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
-        anchor.download = `message_dashboard_summary_${new Date().toISOString().slice(0, 10)}.json`;
+        anchor.download = `message_dashboard_summary_${rangeToken}_${new Date().toISOString().slice(0, 10)}.json`;
         document.body.appendChild(anchor);
         anchor.click();
         document.body.removeChild(anchor);
@@ -1367,15 +1495,21 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const downloadDashboardSummaryCsv = () => {
         if (!reportMessageDashboardSummary?.schemaReady) return;
 
+        const rangeLabel = getRangeFilterLabel(dashboardRangeFilter);
+        const rangeToken = getRangeFilterFileToken(dashboardRangeFilter);
+
         const escapeCsv = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
         const sections = [
             ['[Overview]'],
-            ['총발송', '성공', '실패', '성공률', '최다 팀', '주요 실패 원인'],
+            ['조회기간', '총발송', '성공', '실패', '성공률', '개별발송', '일괄발송', '최다 팀', '주요 실패 원인'],
             [
+                rangeLabel,
                 reportMessageDashboardSummary.overview.totalCount,
                 reportMessageDashboardSummary.overview.successCount,
                 reportMessageDashboardSummary.overview.failedCount,
                 `${reportMessageDashboardSummary.overview.successRate}%`,
+                reportMessageDashboardSummary.overview.individualCount,
+                reportMessageDashboardSummary.overview.bulkCount,
                 reportMessageDashboardSummary.overview.topTeam,
                 reportMessageDashboardSummary.overview.topFailureCategory,
             ],
@@ -1392,6 +1526,10 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             ['실패사유', '건수', '최근발생'],
             ...reportMessageDashboardSummary.failureRows.map((row) => [row.failure_category, row.failure_count, formatMessageLogDateTime(row.last_occurred_at)]),
             [],
+            ['[Send Mode Summary]'],
+            ['발송방식', '총발송', '성공', '실패', '성공률', '최근발송'],
+            ...reportMessageDashboardSummary.sendModeRows.map((row) => [row.send_mode === 'BULK' ? '일괄발송' : '개별발송', row.total_count, row.success_count, row.failed_count, `${row.success_rate}%`, formatMessageLogDateTime(row.last_sent_at)]),
+            [],
             ['[Retry Queue]'],
             ['근로자명', '팀명', '전화번호', '실패사유', '우선점수', '실패시각', '메모'],
             ...reportMessageDashboardSummary.retryRows.map((row) => [row.worker_name, row.team_name, formatPhoneForDisplay(row.phone_number), row.failure_category, row.priority_score, formatMessageLogDateTime(row.failed_at), row.message || '-']),
@@ -1402,7 +1540,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url;
-        anchor.download = `message_dashboard_summary_${new Date().toISOString().slice(0, 10)}.csv`;
+        anchor.download = `message_dashboard_summary_${rangeToken}_${new Date().toISOString().slice(0, 10)}.csv`;
         document.body.appendChild(anchor);
         anchor.click();
         document.body.removeChild(anchor);
@@ -1412,15 +1550,21 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const downloadDashboardSummaryExcel = async () => {
         if (!reportMessageDashboardSummary?.schemaReady) return;
 
+        const rangeLabel = getRangeFilterLabel(dashboardRangeFilter);
+        const rangeToken = getRangeFilterFileToken(dashboardRangeFilter);
+
         const XLSX = await loadXlsx();
         const workbook = XLSX.utils.book_new();
 
         const overviewSheet = XLSX.utils.json_to_sheet([
             {
+                조회기간: rangeLabel,
                 총발송: reportMessageDashboardSummary.overview.totalCount,
                 성공: reportMessageDashboardSummary.overview.successCount,
                 실패: reportMessageDashboardSummary.overview.failedCount,
                 성공률: `${reportMessageDashboardSummary.overview.successRate}%`,
+                개별발송: reportMessageDashboardSummary.overview.individualCount,
+                일괄발송: reportMessageDashboardSummary.overview.bulkCount,
                 최다팀: reportMessageDashboardSummary.overview.topTeam,
                 주요실패원인: reportMessageDashboardSummary.overview.topFailureCategory,
             },
@@ -1445,6 +1589,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             건수: row.failure_count,
             최근발생: formatMessageLogDateTime(row.last_occurred_at),
         })));
+        const sendModeSheet = XLSX.utils.json_to_sheet(reportMessageDashboardSummary.sendModeRows.map((row) => ({
+            발송방식: row.send_mode === 'BULK' ? '일괄발송' : '개별발송',
+            총발송: row.total_count,
+            성공: row.success_count,
+            실패: row.failed_count,
+            성공률: `${row.success_rate}%`,
+            최근발송: formatMessageLogDateTime(row.last_sent_at),
+        })));
         const retrySheet = XLSX.utils.json_to_sheet(reportMessageDashboardSummary.retryRows.map((row) => ({
             근로자명: row.worker_name,
             팀명: row.team_name,
@@ -1460,8 +1612,9 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         XLSX.utils.book_append_sheet(workbook, monthlySheet, 'Monthly');
         XLSX.utils.book_append_sheet(workbook, teamSheet, 'Team');
         XLSX.utils.book_append_sheet(workbook, failureSheet, 'Failure');
+        XLSX.utils.book_append_sheet(workbook, sendModeSheet, 'SendMode');
         XLSX.utils.book_append_sheet(workbook, retrySheet, 'RetryQueue');
-        XLSX.writeFile(workbook, `message_dashboard_summary_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        XLSX.writeFile(workbook, `message_dashboard_summary_${rangeToken}_${new Date().toISOString().slice(0, 10)}.xlsx`);
     };
 
     const fetchWorkerMessageHistory = useCallback(async (worker: RegisteredWorkerListRow, options?: { force?: boolean; append?: boolean }) => {
@@ -1504,6 +1657,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 worker_name: String(row?.worker_name || '').trim(),
                 team_name: String(row?.team_name || '').trim(),
                 phone_number: String(row?.phone_number || '').trim(),
+                send_mode: String(row?.send_mode || '').trim() || 'INDIVIDUAL',
                 status: String(row?.status || '').trim() || 'UNKNOWN',
                 failure_category: String(row?.failure_category || '').trim(),
                 sent_count: Number(row?.sent_count || 0),
@@ -1541,6 +1695,210 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         setRegisteredWorkerAdminTab('message-history');
         setSelectedMessageHistoryWorkerId(worker.id);
         setMessageLogError('');
+    };
+
+    const toggleBulkMessageWorkerSelection = (workerId: string) => {
+        setSelectedBulkMessageWorkerIds((prev) => prev.includes(workerId) ? prev.filter((id) => id !== workerId) : [...prev, workerId]);
+    };
+
+    const toggleSelectAllFilteredWorkersForBulkMessage = () => {
+        const filteredIds = filteredRegisteredWorkers.map((worker) => worker.id);
+        if (filteredIds.length === 0) return;
+
+        setSelectedBulkMessageWorkerIds((prev) => {
+            const allSelected = filteredIds.every((id) => prev.includes(id));
+            if (allSelected) {
+                return prev.filter((id) => !filteredIds.includes(id));
+            }
+            return Array.from(new Set([...prev, ...filteredIds]));
+        });
+    };
+
+    const reselectLastBulkFailedWorkers = () => {
+        if (lastBulkFailedWorkerIds.length === 0) return;
+        setRegisteredWorkerAdminTab('list');
+        setSelectedBulkMessageWorkerIds(lastBulkFailedWorkerIds);
+        setBulkMessageStatus(`직전 일괄 발송 실패 대상 ${lastBulkFailedWorkerIds.length}명을 다시 선택했습니다.`);
+    };
+
+    const selectRetryQueueActionableWorkers = () => {
+        if (!reportMessageDashboardSummary?.retryRows?.length) {
+            setBulkMessageStatus('재시도 큐 데이터가 아직 없습니다.');
+            return;
+        }
+
+        const actionableWorkerIds = Array.from(new Set(
+            reportMessageDashboardSummary.retryRows
+                .filter((row) => isRetryQueueRowActionable(row))
+                .map((row) => findRegisteredWorkerForRetryRow(row)?.id || '')
+                .filter(Boolean),
+        ));
+
+        if (actionableWorkerIds.length === 0) {
+            setBulkMessageStatus('현재 재시도 가능한 실패 대상이 없습니다.');
+            return;
+        }
+
+        setRegisteredWorkerAdminTab('list');
+        setSelectedBulkMessageWorkerIds(actionableWorkerIds);
+        setBulkMessageStatus(`재시도 큐에서 즉시 재발송 가능한 ${actionableWorkerIds.length}명을 선택했습니다.`);
+    };
+
+    const requestCancelBulkSend = () => {
+        if (!isBulkSendingReports) return;
+        bulkSendCancelRequestedRef.current = true;
+        setIsBulkSendCancelRequested(true);
+        setBulkMessageStatus('일괄 발송 중단 요청을 접수했습니다. 현재 처리 중인 근로자까지 완료 후 중단합니다.');
+    };
+
+    const waitForBulkMessageRender = async () => {
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+            if (bulkMessageReportRef.current) return;
+            await new Promise((resolve) => window.setTimeout(resolve, 60));
+        }
+        throw new Error('리포트 렌더링 준비에 실패했습니다.');
+    };
+
+    const buildWorkerReportMessageImages = useCallback(async (worker: RegisteredWorkerListRow, record: WorkerRecord, history: WorkerRecord[]) => {
+        flushSync(() => {
+            setBulkMessagePreviewRecord(record);
+            setBulkMessagePreviewHistory(history);
+        });
+
+        await waitForBulkMessageRender();
+        await new Promise((resolve) => window.setTimeout(resolve, 220));
+
+        const html2canvas = await ensureHtml2Canvas().catch(() => null);
+        if (!html2canvas || !bulkMessageReportRef.current) {
+            throw new Error('리포트 이미지 변환 준비에 실패했습니다.');
+        }
+
+        const canvases = await captureReportCanvases(bulkMessageReportRef.current, html2canvas, { scale: 2 });
+        return Promise.all(canvases.map((canvas, index) => buildMessageImagePayload(canvas, worker.name || record.name, index)));
+    }, []);
+
+    const handleBulkSendSelectedWorkerReports = async () => {
+        if (isBulkSendingReports) return;
+
+        const selectedWorkers = selectedBulkMessageWorkers;
+        if (selectedWorkers.length === 0) {
+            alert('문자를 보낼 근로자를 1명 이상 선택하세요.');
+            return;
+        }
+
+        const eligibleWorkers = selectedWorkers.filter((worker) => normalizePhone(worker.phone_number).length >= 10 && findLatestRecordForRegisteredWorker(worker));
+        const missingPhoneWorkers = selectedWorkers.filter((worker) => normalizePhone(worker.phone_number).length < 10);
+        const missingReportWorkers = selectedWorkers.filter((worker) => !findLatestRecordForRegisteredWorker(worker));
+
+        if (eligibleWorkers.length === 0) {
+            alert('선택한 근로자 중 발송 가능한 대상이 없습니다. 전화번호와 최신 리포트 연결 상태를 확인해 주세요.');
+            return;
+        }
+
+        const confirmMessage = [
+            `선택 근로자 ${selectedWorkers.length}명 중 ${eligibleWorkers.length}명에게 리포트를 일괄 발송합니다.`,
+            missingPhoneWorkers.length > 0 ? `- 전화번호 미등록: ${missingPhoneWorkers.length}명` : null,
+            missingReportWorkers.length > 0 ? `- 최신 리포트 없음: ${missingReportWorkers.length}명` : null,
+            '',
+            '계속 진행하시겠습니까?',
+        ].filter(Boolean).join('\n');
+
+        if (!window.confirm(confirmMessage)) return;
+
+        bulkSendCancelRequestedRef.current = false;
+        setIsBulkSendingReports(true);
+        setIsBulkSendCancelRequested(false);
+        setLastBulkFailedWorkerIds([]);
+        setBulkMessageProgress({ total: eligibleWorkers.length, completed: 0, success: 0, failed: 0, currentWorker: '' });
+        setBulkMessageStatus(`일괄 발송 준비 중 · 0/${eligibleWorkers.length}`);
+
+        const successNames: string[] = [];
+        const failedNames: string[] = [];
+        const failedWorkerIds: string[] = [];
+
+        try {
+            for (let index = 0; index < eligibleWorkers.length; index += 1) {
+                if (bulkSendCancelRequestedRef.current) {
+                    setBulkMessageStatus(`일괄 발송 중단됨 · 완료 ${successNames.length + failedNames.length}/${eligibleWorkers.length} · 성공 ${successNames.length}명 / 실패 ${failedNames.length}명`);
+                    break;
+                }
+
+                const worker = eligibleWorkers[index];
+                const latestRecord = findLatestRecordForRegisteredWorker(worker);
+                if (!latestRecord) {
+                    failedNames.push(worker.name || '이름 미상');
+                    failedWorkerIds.push(worker.id);
+                    setBulkMessageProgress((prev) => prev ? {
+                        ...prev,
+                        completed: prev.completed + 1,
+                        failed: prev.failed + 1,
+                        currentWorker: worker.name || '이름 미상',
+                    } : prev);
+                    continue;
+                }
+
+                const history = getHistoryForRegisteredWorker(worker, latestRecord);
+                setBulkMessageProgress((prev) => prev ? { ...prev, currentWorker: worker.name || '이름 미상' } : prev);
+                setBulkMessageStatus(`리포트 생성 및 발송 중 · ${index + 1}/${eligibleWorkers.length} · ${worker.name}`);
+
+                try {
+                    const reportImages = await buildWorkerReportMessageImages(worker, latestRecord, history);
+                    await postAdminJson(
+                        '/api/admin/send-report-message',
+                        {
+                            workerName: latestRecord.name,
+                            workerUuid: worker.id,
+                            teamName: worker.team_name || latestRecord.teamLeader || '',
+                            phoneNumber: normalizePhone(worker.phone_number),
+                            sendMode: 'BULK',
+                            coverMessage: bulkMessageNote,
+                            reportImages,
+                        },
+                        { fallbackMessage: `${worker.name} 리포트 문자 발송 실패` },
+                    );
+                    successNames.push(worker.name || '이름 미상');
+                    setBulkMessageProgress((prev) => prev ? {
+                        ...prev,
+                        completed: prev.completed + 1,
+                        success: prev.success + 1,
+                        currentWorker: worker.name || '이름 미상',
+                    } : prev);
+                    setMessageLogCache((prev) => {
+                        const next = { ...prev };
+                        delete next[worker.id];
+                        return next;
+                    });
+                } catch (error) {
+                    console.error('[WorkerManagement] bulk report message failed:', error);
+                    failedNames.push(worker.name || '이름 미상');
+                    failedWorkerIds.push(worker.id);
+                    setBulkMessageProgress((prev) => prev ? {
+                        ...prev,
+                        completed: prev.completed + 1,
+                        failed: prev.failed + 1,
+                        currentWorker: worker.name || '이름 미상',
+                    } : prev);
+                }
+            }
+
+            setLastBulkFailedWorkerIds(failedWorkerIds);
+            if (!bulkSendCancelRequestedRef.current) {
+                setBulkMessageStatus(`일괄 발송 완료 · 성공 ${successNames.length}명 / 실패 ${failedNames.length}명${failedNames.length ? ` · 실패: ${failedNames.slice(0, 5).join(', ')}${failedNames.length > 5 ? ' 외' : ''}` : ''}`);
+            }
+            if (selectedMessageHistoryWorker) {
+                void fetchWorkerMessageHistory(selectedMessageHistoryWorker, { force: true });
+            }
+            setReportMessageDashboardSummary(null);
+        } finally {
+            bulkSendCancelRequestedRef.current = false;
+            setIsBulkSendingReports(false);
+            setIsBulkSendCancelRequested(false);
+            setBulkMessageProgress((prev) => prev ? { ...prev, currentWorker: '' } : prev);
+            flushSync(() => {
+                setBulkMessagePreviewRecord(null);
+                setBulkMessagePreviewHistory([]);
+            });
+        }
     };
 
     const findRegisteredWorkerForRetryRow = (row: ReportMessageDashboardRetryRow) => {
@@ -2296,6 +2654,10 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     }, [fetchRegisteredWorkers]);
 
     useEffect(() => {
+        setSelectedBulkMessageWorkerIds((prev) => prev.filter((id) => registeredWorkers.some((worker) => worker.id === id)));
+    }, [registeredWorkers]);
+
+    useEffect(() => {
         if (registeredWorkerAdminTab !== 'message-history') return;
         if (filteredRegisteredWorkers.length === 0) {
             setSelectedMessageHistoryWorkerId('');
@@ -2330,7 +2692,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     '/api/admin/safety-management',
                     {
                         action: 'get-report-message-dashboard-summary',
-                        payload: { limit: 6 },
+                        payload: { limit: 6, range: dashboardRangeFilter },
                     },
                     { fallbackMessage: '문자 운영 집계 요약 조회 실패' },
                 );
@@ -2354,7 +2716,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         return () => {
             disposed = true;
         };
-    }, [registeredWorkerAdminTab, reportMessageDashboardSummary]);
+    }, [dashboardRangeFilter, registeredWorkerAdminTab, reportMessageDashboardSummary]);
+
+    useEffect(() => {
+        if (registeredWorkerAdminTab !== 'message-history') return;
+        setReportMessageDashboardSummary(null);
+    }, [dashboardRangeFilter, registeredWorkerAdminTab]);
 
     useEffect(() => {
         return () => {
@@ -3698,6 +4065,11 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 <p className="mt-2 text-[11px] font-bold text-slate-500">
                     등록 {registeredWorkers.length}명 · 필터 결과 {filteredRegisteredWorkers.length}명
                 </p>
+                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                    <p className="text-[11px] font-black text-emerald-700 uppercase tracking-[0.18em]">PHONE LINK</p>
+                    <p className="mt-1 text-xs font-bold text-emerald-900">등록 근로자 관리자 센터의 전화번호는 개인 리포트 문자 발송 화면과 연동됩니다.</p>
+                    <p className="mt-1 text-[11px] font-bold text-emerald-700">관리자 센터에서 번호를 수정하면 개인별 리포트 문자 발송 시 해당 번호를 우선 불러오고, 개인 리포트에서 발송한 번호도 다시 등록 근로자 데이터에 저장됩니다.</p>
+                </div>
 
                 {registeredWorkerAdminTab === 'message-history' && (
                     <div className="mt-4 rounded-[24px] border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-slate-50 p-4 sm:p-5">
@@ -3716,9 +4088,19 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
                                     <div>
                                         <p className="text-xs font-black text-slate-800 uppercase tracking-[0.18em]">MESSAGE OPS DASHBOARD</p>
-                                        <p className="mt-1 text-[11px] font-bold text-slate-500">DB 집계 뷰 기준 전체 문자 운영 현황입니다.</p>
+                                        <p className="mt-1 text-[11px] font-bold text-slate-500">{getRangeFilterLabel(dashboardRangeFilter)} 기준 문자 운영 현황입니다.</p>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
+                                        {(['7d', '30d', '90d', 'all'] as MessageHistoryRangeFilter[]).map((range) => (
+                                            <button
+                                                key={`dashboard-range-${range}`}
+                                                type="button"
+                                                onClick={() => applyMessageOpsRangeFilter(range)}
+                                                className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black ${dashboardRangeFilter === range ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                                            >
+                                                {getRangeFilterLabel(range)}
+                                            </button>
+                                        ))}
                                         <button
                                             type="button"
                                             onClick={() => void downloadDashboardSummaryExcel()}
@@ -3752,19 +4134,19 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
                                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
                                     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-slate-500">월 기준 총 발송</p>
+                                        <p className="text-[10px] font-black text-slate-500">{getRangeFilterLabel(dashboardRangeFilter)} 총 발송</p>
                                         <p className="mt-1 text-2xl font-black text-slate-900">{reportMessageDashboardSummary.overview.totalCount}</p>
                                     </div>
                                     <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-emerald-600">월 성공</p>
+                                        <p className="text-[10px] font-black text-emerald-600">{getRangeFilterLabel(dashboardRangeFilter)} 성공</p>
                                         <p className="mt-1 text-2xl font-black text-emerald-900">{reportMessageDashboardSummary.overview.successCount}</p>
                                     </div>
                                     <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-rose-600">월 실패</p>
+                                        <p className="text-[10px] font-black text-rose-600">{getRangeFilterLabel(dashboardRangeFilter)} 실패</p>
                                         <p className="mt-1 text-2xl font-black text-rose-900">{reportMessageDashboardSummary.overview.failedCount}</p>
                                     </div>
                                     <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-amber-600">월 성공률</p>
+                                        <p className="text-[10px] font-black text-amber-600">{getRangeFilterLabel(dashboardRangeFilter)} 성공률</p>
                                         <p className="mt-1 text-2xl font-black text-amber-900">{reportMessageDashboardSummary.overview.successRate}%</p>
                                     </div>
                                     <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3">
@@ -3776,9 +4158,19 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         <p className="mt-1 text-sm font-black text-violet-900 truncate">{reportMessageDashboardSummary.overview.topFailureCategory}</p>
                                     </div>
                                 </div>
-                                <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
-                                    <p className="text-[10px] font-black text-amber-700">재시도 후보</p>
-                                    <p className="mt-1 text-lg font-black text-amber-900">{reportMessageDashboardSummary.overview.retryCandidateCount}건</p>
+                                <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3">
+                                        <p className="text-[10px] font-black text-sky-700">개별 발송 누계</p>
+                                        <p className="mt-1 text-lg font-black text-sky-900">{reportMessageDashboardSummary.overview.individualCount}건</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3">
+                                        <p className="text-[10px] font-black text-violet-700">일괄 발송 누계</p>
+                                        <p className="mt-1 text-lg font-black text-violet-900">{reportMessageDashboardSummary.overview.bulkCount}건</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
+                                        <p className="text-[10px] font-black text-amber-700">재시도 후보</p>
+                                        <p className="mt-1 text-lg font-black text-amber-900">{reportMessageDashboardSummary.overview.retryCandidateCount}건</p>
+                                    </div>
                                 </div>
 
                                 <div className="mt-4 grid grid-cols-1 xl:grid-cols-4 gap-4">
@@ -3828,6 +4220,17 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                                         <p className="text-xs font-black text-slate-800">재시도 큐</p>
                                         <p className="mt-1 text-[11px] font-bold text-slate-500">현재 최신 상태가 실패인 대상만 우선 점수순으로 표시합니다.</p>
+                                        <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3">
+                                            <p className="text-[10px] font-black text-sky-700">QUICK RETRY</p>
+                                            <p className="mt-1 text-[11px] font-bold text-slate-600">전화번호·등록 근로자·리포트 원본이 모두 확인된 실패 대상만 골라 일괄 발송 선택 목록으로 바로 보냅니다.</p>
+                                            <button
+                                                type="button"
+                                                onClick={selectRetryQueueActionableWorkers}
+                                                className="mt-2 inline-flex items-center rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-[10px] font-black text-sky-700 hover:bg-sky-100"
+                                            >
+                                                재시도 가능 대상 일괄 선택
+                                            </button>
+                                        </div>
                                         <div className="mt-3 flex flex-wrap gap-2">
                                             <button
                                                 type="button"
@@ -3920,12 +4323,68 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         </div>
                                     </div>
                                 </div>
+                                {reportMessageDashboardSummary.sendModeRows.length > 0 && (
+                                    <div className="mt-4 grid grid-cols-1 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-4">
+                                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                                            <p className="text-xs font-black text-slate-800">발송 방식 집계 뷰</p>
+                                            <p className="mt-1 text-[11px] font-bold text-slate-500">개별 발송과 선택 근로자 일괄 발송의 운영 비중 및 성공/실패를 비교합니다.</p>
+                                            <div className="mt-4 h-[240px]">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <BarChart
+                                                        data={reportMessageDashboardSummary.sendModeRows.map((row) => ({
+                                                            ...row,
+                                                            send_mode_label: row.send_mode === 'BULK' ? '일괄발송' : '개별발송',
+                                                        }))}
+                                                        margin={{ top: 8, right: 8, left: -16, bottom: 0 }}
+                                                    >
+                                                        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                                                        <XAxis dataKey="send_mode_label" tick={{ fontSize: 11, fontWeight: 700, fill: '#475569' }} />
+                                                        <YAxis allowDecimals={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#475569' }} />
+                                                        <Tooltip formatter={(value: number, name: string) => [value, name === 'success_count' ? '성공' : name === 'failed_count' ? '실패' : '총발송']} />
+                                                        <Legend formatter={(value) => value === 'success_count' ? '성공' : value === 'failed_count' ? '실패' : '총발송'} />
+                                                        <Bar dataKey="total_count" fill="#0F172A" radius={[8, 8, 0, 0]} />
+                                                        <Bar dataKey="success_count" fill="#10B981" radius={[8, 8, 0, 0]} />
+                                                        <Bar dataKey="failed_count" fill="#8B5CF6" radius={[8, 8, 0, 0]} />
+                                                    </BarChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-1 gap-4">
+                                            {reportMessageDashboardSummary.sendModeRows.map((row) => (
+                                                <div key={row.send_mode} className={`rounded-2xl border px-4 py-4 ${row.send_mode === 'BULK' ? 'border-violet-200 bg-violet-50' : 'border-sky-200 bg-sky-50'}`}>
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div>
+                                                            <p className={`text-[10px] font-black ${row.send_mode === 'BULK' ? 'text-violet-700' : 'text-sky-700'}`}>{row.send_mode === 'BULK' ? 'BULK MODE' : 'INDIVIDUAL MODE'}</p>
+                                                            <p className="mt-1 text-lg font-black text-slate-900">{row.send_mode === 'BULK' ? '선택 근로자 일괄 발송' : '개별 리포트 발송'}</p>
+                                                        </div>
+                                                        <span className={`rounded-full px-3 py-1 text-[10px] font-black ${row.send_mode === 'BULK' ? 'bg-violet-100 text-violet-700' : 'bg-sky-100 text-sky-700'}`}>{row.total_count}건</span>
+                                                    </div>
+                                                    <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                                                        <div className="rounded-xl bg-white/80 px-3 py-2">
+                                                            <p className="text-[10px] font-black text-slate-500">성공</p>
+                                                            <p className="mt-1 text-base font-black text-emerald-700">{row.success_count}</p>
+                                                        </div>
+                                                        <div className="rounded-xl bg-white/80 px-3 py-2">
+                                                            <p className="text-[10px] font-black text-slate-500">실패</p>
+                                                            <p className="mt-1 text-base font-black text-rose-700">{row.failed_count}</p>
+                                                        </div>
+                                                        <div className="rounded-xl bg-white/80 px-3 py-2">
+                                                            <p className="text-[10px] font-black text-slate-500">성공률</p>
+                                                            <p className="mt-1 text-base font-black text-slate-900">{row.success_rate}%</p>
+                                                        </div>
+                                                    </div>
+                                                    <p className="mt-3 text-[11px] font-bold text-slate-500">최근 발송: {formatMessageLogDateTime(row.last_sent_at)}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                         {reportMessageDashboardSummary && !reportMessageDashboardSummary.schemaReady && (
                             <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
                                 <p className="font-black">운영 집계 뷰가 아직 준비되지 않았습니다.</p>
-                                <p className="mt-1 text-xs font-bold">최신 [supabase_report_message_logs_migration.sql](supabase_report_message_logs_migration.sql)를 실행하면 월별/팀별/실패사유 대시보드가 활성화됩니다.</p>
+                                <p className="mt-1 text-xs font-bold">최신 [supabase_report_message_logs_migration.sql](supabase_report_message_logs_migration.sql)를 실행하면 월별/팀별/실패사유/발송방식 대시보드가 활성화됩니다.</p>
                             </div>
                         )}
                         <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-4">
@@ -4050,7 +4509,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     />
                                     <select
                                         value={messageHistoryRangeFilter}
-                                        onChange={(event) => setMessageHistoryRangeFilter(event.target.value as MessageHistoryRangeFilter)}
+                                        onChange={(event) => applyMessageOpsRangeFilter(event.target.value as MessageHistoryRangeFilter)}
                                         className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white"
                                     >
                                         <option value="7d">최근 7일</option>
@@ -4229,6 +4688,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             <thead className="bg-slate-50">
                                                 <tr>
                                                     <th className="px-4 py-3 text-left text-xs font-black text-slate-600">발송시각</th>
+                                                    <th className="px-4 py-3 text-left text-xs font-black text-slate-600">방식</th>
                                                     <th className="px-4 py-3 text-left text-xs font-black text-slate-600">상태</th>
                                                     <th className="px-4 py-3 text-left text-xs font-black text-slate-600">페이지수</th>
                                                     <th className="px-4 py-3 text-left text-xs font-black text-slate-600">전화번호</th>
@@ -4238,7 +4698,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             <tbody>
                                                 {isMessageLogLoading && !selectedMessageHistoryLogEntry && (
                                                     <tr>
-                                                        <td colSpan={5} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
+                                                        <td colSpan={6} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
                                                             문자 발송 이력을 불러오는 중입니다.
                                                         </td>
                                                     </tr>
@@ -4246,7 +4706,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
                                                 {!isMessageLogLoading && selectedMessageHistoryLogEntry && filteredMessageHistoryRows.length === 0 && (
                                                     <tr>
-                                                        <td colSpan={5} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
+                                                        <td colSpan={6} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
                                                             현재 필터 조건에 맞는 문자 발송 이력이 없습니다.
                                                         </td>
                                                     </tr>
@@ -4255,6 +4715,11 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 {filteredMessageHistoryRows.map((row) => (
                                                     <tr key={row.id} className={`border-t hover:bg-slate-50/70 ${isSuccessfulMessageStatus(row.status) ? 'border-slate-100' : 'border-rose-100 bg-rose-50/40'}`}>
                                                         <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">{formatMessageLogDateTime(row.created_at)}</td>
+                                                        <td className="px-4 py-3 whitespace-nowrap">
+                                                            <span className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-black border ${row.send_mode === 'BULK' ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-sky-200 bg-sky-50 text-sky-700'}`}>
+                                                                {row.send_mode === 'BULK' ? '일괄발송' : '개별발송'}
+                                                            </span>
+                                                        </td>
                                                         <td className="px-4 py-3 whitespace-nowrap">
                                                             <span className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-black border ${isSuccessfulMessageStatus(row.status) ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
                                                                 {row.status}
@@ -4303,10 +4768,104 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 )}
 
                 {registeredWorkerAdminTab === 'list' && (
+                <>
+                <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-4">
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                        <div>
+                            <p className="text-[11px] font-black text-sky-700 uppercase tracking-[0.18em]">BULK REPORT MESSAGE</p>
+                            <p className="mt-1 text-sm font-black text-slate-900">선택 근로자 리포트 일괄 문자 발송</p>
+                            <p className="mt-1 text-[11px] font-bold text-slate-600">선택한 등록 근로자의 저장된 전화번호를 그대로 사용해 최신 개인 리포트를 순차 발송합니다.</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
+                            <span className="rounded-full border border-sky-200 bg-white px-3 py-1 text-sky-700">선택 {selectedBulkMessageWorkerIds.length}명</span>
+                            <span className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-emerald-700">발송 가능 {selectedBulkMessageWorkers.filter((worker) => normalizePhone(worker.phone_number).length >= 10 && findLatestRecordForRegisteredWorker(worker)).length}명</span>
+                        </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto] gap-3 items-start">
+                        <textarea
+                            value={bulkMessageNote}
+                            onChange={(event) => setBulkMessageNote(event.target.value.slice(0, 180))}
+                            rows={3}
+                            className="w-full resize-none rounded-2xl border border-sky-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 focus:border-sky-400"
+                            placeholder="선택 근로자 일괄 발송 메모"
+                        />
+                        <div className="flex flex-col gap-2 xl:w-[220px]">
+                            <button
+                                type="button"
+                                onClick={toggleSelectAllFilteredWorkersForBulkMessage}
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                            >
+                                {filteredRegisteredWorkers.length > 0 && filteredRegisteredWorkers.every((worker) => selectedBulkMessageWorkerIds.includes(worker.id)) ? '필터 결과 전체 해제' : '필터 결과 전체 선택'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedBulkMessageWorkerIds([])}
+                                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100"
+                            >
+                                선택 초기화
+                            </button>
+                            {lastBulkFailedWorkerIds.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={reselectLastBulkFailedWorkers}
+                                    className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100"
+                                >
+                                    실패 대상 다시 선택 ({lastBulkFailedWorkerIds.length}명)
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => void handleBulkSendSelectedWorkerReports()}
+                                disabled={isBulkSendingReports || selectedBulkMessageWorkerIds.length === 0}
+                                className="rounded-xl border border-sky-700 bg-sky-600 px-3 py-2 text-xs font-black text-white hover:bg-sky-700 disabled:opacity-60"
+                            >
+                                {isBulkSendingReports ? '일괄 발송 중...' : `선택 근로자 일괄 발송 (${selectedBulkMessageWorkerIds.length}명)`}
+                            </button>
+                            {isBulkSendingReports && (
+                                <button
+                                    type="button"
+                                    onClick={requestCancelBulkSend}
+                                    disabled={isBulkSendCancelRequested}
+                                    className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+                                >
+                                    {isBulkSendCancelRequested ? '중단 요청됨' : '일괄 발송 중단'}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                    {bulkMessageProgress && bulkMessageProgress.total > 0 && (
+                        <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-xs font-black text-slate-800">일괄 발송 진행률</p>
+                                <p className="text-[11px] font-black text-slate-500">
+                                    {bulkMessageProgress.completed}/{bulkMessageProgress.total} · 성공 {bulkMessageProgress.success} · 실패 {bulkMessageProgress.failed}
+                                </p>
+                            </div>
+                            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                                <div
+                                    className={`h-full rounded-full transition-all ${bulkMessageProgress.completed >= bulkMessageProgress.total && !isBulkSendingReports ? 'bg-emerald-500' : 'bg-sky-500'}`}
+                                    style={{ width: `${bulkMessageProgress.total > 0 ? Math.round((bulkMessageProgress.completed / bulkMessageProgress.total) * 100) : 0}%` }}
+                                />
+                            </div>
+                            <p className="mt-2 text-[11px] font-bold text-slate-500">
+                                {bulkMessageProgress.currentWorker ? `현재 처리: ${bulkMessageProgress.currentWorker}` : isBulkSendingReports ? '리포트 렌더링 준비 중' : '최근 일괄 발송 결과가 유지됩니다.'}
+                            </p>
+                            {isBulkSendCancelRequested && (
+                                <p className="mt-1 text-[11px] font-black text-rose-600">중단 요청 접수됨 · 현재 처리 중인 근로자 완료 후 안전하게 종료합니다.</p>
+                            )}
+                        </div>
+                    )}
+                    {bulkMessageStatus && (
+                        <p className={`mt-3 text-xs font-bold ${bulkMessageStatus.includes('실패') ? 'text-rose-700' : 'text-sky-700'}`}>
+                            {bulkMessageStatus}
+                        </p>
+                    )}
+                </div>
                 <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
                     <table className="min-w-full text-sm">
                         <thead className="bg-slate-50">
                             <tr>
+                                <th className="px-4 py-3 text-center text-xs font-black text-slate-600">선택</th>
                                 <th className="px-4 py-3 text-left text-xs font-black text-slate-600">이름</th>
                                 <th className="px-4 py-3 text-left text-xs font-black text-slate-600">공종</th>
                                 <th className="px-4 py-3 text-left text-xs font-black text-slate-600">팀명</th>
@@ -4336,7 +4895,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         <tbody>
                             {isRegisteredWorkersLoading && (
                                 <tr>
-                                    <td colSpan={6} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
+                                    <td colSpan={7} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
                                         등록 근로자 목록을 불러오는 중입니다.
                                     </td>
                                 </tr>
@@ -4344,7 +4903,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
                             {!isRegisteredWorkersLoading && registeredWorkersError && (
                                 <tr>
-                                    <td colSpan={6} className="px-4 py-6 text-center text-xs font-bold text-rose-600">
+                                    <td colSpan={7} className="px-4 py-6 text-center text-xs font-bold text-rose-600">
                                         목록 조회 오류: {registeredWorkersError}
                                     </td>
                                 </tr>
@@ -4352,7 +4911,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
                             {!isRegisteredWorkersLoading && !registeredWorkersError && registeredWorkers.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
+                                    <td colSpan={7} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
                                         등록된 근로자 데이터가 없습니다.
                                     </td>
                                 </tr>
@@ -4360,7 +4919,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
                             {!isRegisteredWorkersLoading && !registeredWorkersError && registeredWorkers.length > 0 && filteredRegisteredWorkers.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
+                                    <td colSpan={7} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
                                         검색/필터 조건에 맞는 근로자가 없습니다.
                                     </td>
                                 </tr>
@@ -4368,6 +4927,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
                             {!isRegisteredWorkersLoading && !registeredWorkersError && filteredRegisteredWorkers.map((worker) => (
                                 <tr key={worker.id} className="border-t border-slate-100 hover:bg-slate-50/70">
+                                    <td className="px-4 py-3 text-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedBulkMessageWorkerIds.includes(worker.id)}
+                                            onChange={() => toggleBulkMessageWorkerSelection(worker.id)}
+                                            className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                                        />
+                                    </td>
                                     <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">
                                         {editingWorkerId === worker.id ? (
                                             <input
@@ -4479,7 +5046,18 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         </tbody>
                     </table>
                 </div>
+                </>
                 )}
+                <div className="pointer-events-none fixed left-[-200vw] top-0 opacity-0" aria-hidden="true">
+                    {bulkMessagePreviewRecord && (
+                        <div ref={bulkMessageReportRef} className="bg-white">
+                            <ReportTemplate
+                                record={bulkMessagePreviewRecord}
+                                history={bulkMessagePreviewHistory}
+                            />
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
