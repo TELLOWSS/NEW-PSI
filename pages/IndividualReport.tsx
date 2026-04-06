@@ -421,10 +421,10 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             throw new Error('이미지 라이브러리가 로드되지 않았습니다. 다시 시도해 주세요.');
         }
 
-        const canvases = await captureReportCanvases(reportRef.current, html2canvas, { scale: 4 });
+        const canvases = await captureReportCanvases(reportRef.current, html2canvas, { scale: 3 });
         const files = await Promise.all(canvases.map(async (canvas, index) => {
-            const blob = await canvasToBlob(canvas, 'image/png', 1);
-            return new File([blob], `PSI_Report_${record.name}_p${index + 1}.png`, { type: 'image/png' });
+            const blob = await canvasToBlob(canvas, 'image/jpeg', 0.9);
+            return new File([blob], `PSI_Report_${record.name}_p${index + 1}.jpg`, { type: 'image/jpeg' });
         }));
 
         return { canvases, files };
@@ -563,13 +563,13 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         setIsGeneratingPdf(true);
         try {
             updateGenerationProgress(15, '데이터 수집 중');
-            const canvases = await captureReportCanvases(reportRef.current, html2canvas, { scale: 4 });
+            const canvases = await captureReportCanvases(reportRef.current, html2canvas, { scale: 3 });
             updateGenerationProgress(65, '양면 리포트 변환 중');
             updateGenerationProgress(82, 'PDF 문서 구성 중');
             saveCanvasesAsA4Pdf(canvases, PDFCtor as new (orientation: string, unit: string, format: string) => {
                 addImage: (...args: unknown[]) => void;
                 save: (filename: string) => void;
-            }, `PSI_Report_${record.name}.pdf`, 'PNG', 1);
+            }, `PSI_Report_${record.name}.pdf`, 'JPEG', 0.88);
             updateGenerationProgress(95, '파일 저장 중');
             completeGenerationProgress();
         } catch (err: unknown) {
@@ -599,12 +599,12 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         setIsGeneratingImage(true);
         try {
             updateGenerationProgress(20, '데이터 수집 중');
-            const canvases = await captureReportCanvases(reportRef.current, html2canvas, { scale: 4 });
+            const canvases = await captureReportCanvases(reportRef.current, html2canvas, { scale: 3 });
             updateGenerationProgress(72, '양면 이미지 변환 중');
             const zip = new JSZip();
-            const pageBlobs = await Promise.all(canvases.map((canvas) => canvasToBlob(canvas, 'image/png', 1)));
+            const pageBlobs = await Promise.all(canvases.map((canvas) => canvasToBlob(canvas, 'image/jpeg', 0.9)));
             pageBlobs.forEach((blob, index) => {
-                zip.file(`PSI_Report_${record.name}_p${index + 1}.png`, blob);
+                zip.file(`PSI_Report_${record.name}_p${index + 1}.jpg`, blob);
             });
             updateGenerationProgress(90, 'ZIP 패키징 중');
             const content = await zip.generateAsync({ type: 'blob' });

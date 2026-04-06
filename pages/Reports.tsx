@@ -270,7 +270,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         if (!confirm(`'${currentPreviewRecord.name}' 근로자의 보고서를 PDF로 내보내시겠습니까?`)) return;
 
         try {
-            const canvases = await captureReportCanvases(previewRef.current, html2canvas, { scale: 4 });
+            const canvases = await captureReportCanvases(previewRef.current, html2canvas, { scale: 3 });
             saveCanvasesAsA4Pdf(
                 canvases,
                 JsPDF as new (orientation: string, unit: string, format: string) => {
@@ -278,8 +278,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     save: (filename: string) => void;
                 },
                 `PSI_Report_${currentPreviewRecord.name}_${currentPreviewRecord.jobField}.pdf`,
-                'PNG',
-                1
+                'JPEG',
+                0.88
             );
         } catch (e) {
             console.error(e);
@@ -376,7 +376,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
                 if (bulkReportRef.current && !abortRef.current) {
                     try {
-                        const canvases = await captureReportCanvases(bulkReportRef.current, html2canvas, { scale: 4 });
+                        const canvases = await captureReportCanvases(bulkReportRef.current, html2canvas, { scale: 3 });
 
                         const fileNameBase = `${record.name}_${record.jobField}`;
 
@@ -388,9 +388,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             }
                             canvases.forEach((canvas, pageIndex) => {
                                 const placement = getCanvasPlacementOnA4(canvas);
-                                const imgData = getCanvasImageData(canvas, 'PNG', 1);
+                                const imgData = getCanvasImageData(canvas, 'JPEG', 0.88);
                                 if (i > 0 || pageIndex > 0) masterPdf!.addPage!();
-                                masterPdf!.addImage!(imgData, 'PNG', placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
+                                masterPdf!.addImage!(imgData, 'JPEG', placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
                             });
                         } 
                         else if (genMode === 'individual-pdf') {
@@ -402,8 +402,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                     output?: (type: string) => Blob;
                                     addPage?: () => void;
                                 },
-                                'PNG',
-                                1,
+                                'JPEG',
+                                0.88,
                             );
                             folder.file(`${fileNameBase}.pdf`, pdfBlob);
                         } 

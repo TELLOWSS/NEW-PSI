@@ -263,7 +263,7 @@ export const saveCanvasesAsA4Pdf = (
         const mimeType = imageType === 'PNG' ? 'image/png' : 'image/jpeg';
         const imageData = canvas.toDataURL(mimeType, quality);
         const placement = getCanvasPlacementOnA4(canvas);
-        pdf.addImage(imageData, imageType, placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'SLOW');
+        pdf.addImage(imageData, imageType, placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
     });
 
     pdf.save(filename);
@@ -289,7 +289,7 @@ export const buildPdfBlobFromCanvases = (
 
         const imageData = getCanvasImageData(canvas, imageType, quality);
         const placement = getCanvasPlacementOnA4(canvas);
-        pdf.addImage(imageData, imageType, placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'SLOW');
+        pdf.addImage(imageData, imageType, placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
     });
 
     if (typeof pdf.output !== 'function') {
