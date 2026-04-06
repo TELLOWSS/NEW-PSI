@@ -1,10 +1,7 @@
 
-import React, { useEffect, useRef, useMemo } from 'react';
-import type { Chart } from 'chart.js/auto';
+import React, { useMemo } from 'react';
 import type { SixMetricBreakdown, WorkerRecord } from '../types';
 import { IndividualRadarChart } from './charts/IndividualRadarChart';
-import { ensureChartJs } from '../utils/externalScripts';
-import { getWindowProp } from '../utils/windowUtils';
 import { deriveCompetencyProfile } from '../utils/evidenceUtils';
 import { getSafetyLevelThresholds } from '../utils/safetyLevelUtils';
 import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
@@ -511,10 +508,72 @@ const buildFallbackScoreBreakdown = (record: WorkerRecord): SixMetricBreakdown =
     };
 };
 
-export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>(({ record, history = [], onPhotoClick }, ref) => {
-    const trendChartRef = useRef<HTMLCanvasElement>(null);
-    const trendChartInstance = useRef<Chart | null>(null);
+const TrendMiniChart: React.FC<{ history: WorkerRecord[]; record: WorkerRecord }> = ({ history, record }) => {
+    const displayData = useMemo(() => {
+        const sortedHistory = [...history]
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+            .slice(-6);
+        const source = sortedHistory.length > 0 ? sortedHistory : [record];
+        return source.map((item) => ({
+            label: String(item.date || '').slice(5) || '-',
+            score: clampMetric(Number(item.safetyScore || 0), 100),
+        }));
+    }, [history, record]);
 
+    const width = 240;
+    const height = 110;
+    const padding = { top: 10, right: 10, bottom: 22, left: 22 };
+    const innerWidth = width - padding.left - padding.right;
+    const innerHeight = height - padding.top - padding.bottom;
+    const maxValue = 100;
+    const xStep = displayData.length > 1 ? innerWidth / (displayData.length - 1) : 0;
+
+    const points = displayData.map((item, index) => {
+        const x = padding.left + (displayData.length > 1 ? xStep * index : innerWidth / 2);
+        const y = padding.top + innerHeight - (item.score / maxValue) * innerHeight;
+        return { ...item, x, y };
+    });
+
+    const linePath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+    const areaPath = points.length > 0
+        ? `${linePath} L ${points[points.length - 1].x} ${padding.top + innerHeight} L ${points[0].x} ${padding.top + innerHeight} Z`
+        : '';
+    const yTicks = [0, 20, 40, 60, 80, 100];
+
+    return (
+        <svg viewBox={`0 0 ${width} ${height}`} className="block h-full w-full" role="img" aria-label="6개월 안전 점수 추이">
+            <defs>
+                <linearGradient id="trend-fill-gradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="rgba(100,116,139,0.24)" />
+                    <stop offset="100%" stopColor="rgba(100,116,139,0.04)" />
+                </linearGradient>
+            </defs>
+
+            {yTicks.map((tick) => {
+                const y = padding.top + innerHeight - (tick / maxValue) * innerHeight;
+                return (
+                    <g key={`tick-${tick}`}>
+                        <line x1={padding.left} y1={y} x2={width - padding.right} y2={y} stroke="rgba(148,163,184,0.28)" strokeWidth="1" strokeDasharray="3 3" />
+                        <text x={padding.left - 6} y={y} textAnchor="end" dominantBaseline="middle" fontSize="8" fontWeight="700" fill="#94A3B8">{tick}</text>
+                    </g>
+                );
+            })}
+
+            {points.length > 1 && <path d={areaPath} fill="url(#trend-fill-gradient)" />}
+            {points.length > 1 && <path d={linePath} fill="none" stroke="#64748B" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />}
+
+            {points.map((point) => (
+                <g key={`point-${point.label}-${point.score}`}>
+                    <circle cx={point.x} cy={point.y} r="4" fill="#ffffff" />
+                    <circle cx={point.x} cy={point.y} r="2.5" fill="#64748B" />
+                    <text x={point.x} y={height - 6} textAnchor="middle" fontSize="8" fontWeight="700" fill="#64748B">{point.label}</text>
+                </g>
+            ))}
+        </svg>
+    );
+};
+
+export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>(({ record, history = [], onPhotoClick }, ref) => {
     const labels = useMemo(() => getLabels(record.nationality), [record.nationality]);
     const isKorean = record.nationality === '대한민국' || record.nationality === '한국' || (record.nationality || '').toLowerCase().includes('korea');
     const timelineLocale = isKorean ? 'ko-KR' : 'en-US';
@@ -586,73 +645,6 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         [record.aiInsights, isWeaknessContentDense, narrativeWrapWidth.verdictKo],
     );
 
-    // Trend Chart Rendering
-    useEffect(() => {
-        let disposed = false;
-
-        const renderChart = async () => {
-            if (!trendChartRef.current) return;
-            if (trendChartInstance.current) trendChartInstance.current.destroy();
-            const ctx = trendChartRef.current.getContext('2d');
-            if (!ctx) return;
-
-            const ChartLib = await ensureChartJs().catch(() => null);
-            if (!ChartLib || disposed || !trendChartRef.current) return;
-
-        const sortedHistory = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()).slice(-6);
-        const displayData = sortedHistory.length > 0 ? sortedHistory : [record];
-        
-            try {
-                trendChartInstance.current = new ChartLib(ctx, {
-                type: 'line',
-                data: { 
-                    labels: displayData.map(h => h.date.substring(5)), 
-                    datasets: [{ 
-                        label: 'Safety Score',
-                        data: displayData.map(h => h.safetyScore), 
-                        borderColor: '#64748b', 
-                        backgroundColor: 'rgba(100, 116, 139, 0.1)',
-                        borderWidth: 2,
-                        tension: 0.3, 
-                        fill: true,
-                        pointRadius: 4, 
-                        pointBackgroundColor: '#fff',
-                        pointBorderColor: '#64748b'
-                    }] 
-                },
-                options: { 
-                    responsive: true, 
-                    maintainAspectRatio: false, 
-                    animation: false,
-                    devicePixelRatio: getWindowProp<number>('devicePixelRatio') || 2,
-                    layout: { padding: { top: 10, right: 10, bottom: 5, left: 5 } },
-                    plugins: { legend: { display: false } }, 
-                    scales: { 
-                        y: { 
-                            min: 0, 
-                            max: 100, 
-                            grid: { borderDash: [4, 4] },
-                            ticks: { stepSize: 20, font: { size: 9, family: "'Pretendard', sans-serif" } }
-                        }, 
-                        x: { 
-                            grid: { display: false },
-                            ticks: { font: { size: 9, family: "'Pretendard', sans-serif" } } 
-                        } 
-                    } 
-                } 
-                });
-            } catch(e) { console.error(e); }
-
-        };
-
-        void renderChart();
-
-        return () => {
-            disposed = true;
-            if (trendChartInstance.current) trendChartInstance.current.destroy();
-        };
-    }, [history, record]);
-
     const getProfileImage = () => {
         if (record.profileImage && record.profileImage.length > 50) {
             return record.profileImage.startsWith('data:') ? record.profileImage : `data:image/jpeg;base64,${record.profileImage}`;
@@ -685,9 +677,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <p className="text-[10px] font-bold text-slate-500 tracking-widest">{labels.cert}</p>
                     </div>
 
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 pb-2.5 border-b-2 border-slate-800 shrink-0">
-                        <div className="flex min-w-0 items-center gap-3.5">
-                            <div className="w-20 h-28 bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
+                    <div className="grid grid-cols-[minmax(0,1fr)_152px] items-center gap-2.5 pb-2.5 border-b-2 border-slate-800 shrink-0">
+                        <div className="flex min-w-0 items-center gap-3">
+                            <div className="w-[19mm] h-[27mm] bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
                                 {getProfileImage() ? (
                                     <img src={getProfileImage()!} className="w-full h-full object-cover" alt="Profile" />
                                 ) : (
@@ -697,8 +689,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     </div>
                                 )}
                             </div>
-                            <div className="min-w-0 max-w-[88mm]">
-                                <h2 className="text-[28px] font-serif font-bold text-slate-900 leading-[1.02] mb-2 break-keep">{record.name}</h2>
+                            <div className="min-w-0 max-w-[84mm]">
+                                <h2 className="text-[25px] font-serif font-bold text-slate-900 leading-[1.03] mb-1.5 break-keep">{record.name}</h2>
                                 <div className="flex flex-wrap gap-1.5 mb-1.5">
                                     <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded">{record.nationality}</span>
                                     <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded">{record.jobField}</span>
@@ -709,23 +701,23 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2.5 shrink-0 self-stretch pl-1">
-                            <div className="flex flex-col items-center justify-center gap-1 min-w-[82px]">
-                                <div className={`relative w-20 h-20 flex items-center justify-center rounded-full border-[3px] shadow-md ${record.safetyLevel === '고급' ? 'bg-emerald-50 border-emerald-400' : record.safetyLevel === '중급' ? 'bg-amber-50 border-amber-400' : 'bg-rose-50 border-rose-400'}`}>
-                                    <span className={`text-[34px] font-black tracking-tighter ${record.safetyLevel === '고급' ? 'text-emerald-700' : record.safetyLevel === '중급' ? 'text-amber-700' : 'text-rose-700'}`}>
+                        <div className="flex items-center justify-end gap-2 shrink-0 self-stretch pl-1">
+                            <div className="flex flex-col items-center justify-center gap-1 min-w-[74px]">
+                                <div className={`relative w-[18mm] h-[18mm] flex items-center justify-center rounded-full border-[3px] shadow-md ${record.safetyLevel === '고급' ? 'bg-emerald-50 border-emerald-400' : record.safetyLevel === '중급' ? 'bg-amber-50 border-amber-400' : 'bg-rose-50 border-rose-400'}`}>
+                                    <span className={`text-[29px] font-black tracking-tighter ${record.safetyLevel === '고급' ? 'text-emerald-700' : record.safetyLevel === '중급' ? 'text-amber-700' : 'text-rose-700'}`}>
                                         {record.safetyScore}
                                     </span>
                                 </div>
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">TOTAL SCORE</span>
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.18em]">TOTAL SCORE</span>
                                 <span className={`px-3 py-0.5 rounded-full text-[10px] font-black ${record.safetyLevel === '고급' ? 'bg-emerald-100 text-emerald-800' : record.safetyLevel === '중급' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
                                     {record.safetyLevel}
                                 </span>
-                                <span className="text-[8px] font-bold text-slate-400 text-center leading-tight">
+                                <span className="text-[7px] font-bold text-slate-400 text-center leading-tight">
                                     기준: 고급≥{safetyLevelThresholds.advancedMin} / 중급≥{safetyLevelThresholds.intermediateMin} / 초급&lt;{safetyLevelThresholds.intermediateMin}
                                 </span>
                             </div>
-                            <div data-report-chart-box="true" className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/90 px-1.5 py-1 shadow-sm min-w-[38mm]">
-                                <div className="w-[38mm] h-[38mm]">
+                            <div data-report-chart-box="true" className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/90 px-1 py-1.5 shadow-sm min-w-[44mm]">
+                                <div className="w-[44mm] h-[44mm]">
                                     <IndividualRadarChart record={record} />
                                 </div>
                                 <span className="mt-1 text-[8px] font-black text-slate-500 tracking-[0.16em] uppercase">6 Metrics</span>
@@ -733,8 +725,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2.5 shrink-0">
-                        <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-3 shadow-sm">
+                    <div className="grid grid-cols-2 gap-2.5 shrink-0 min-h-[41mm]">
+                        <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-3 shadow-sm min-h-[41mm]">
                             <p className="text-[10px] font-black leading-none text-slate-700 mb-1.5 flex items-center gap-1">
                                 <SectionSearchIcon /> 상세 채점 근거 (Score Reasoning)
                             </p>
@@ -790,7 +782,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </p>
                         </div>
 
-                        <div className="flex-1 bg-amber-50 border-2 border-amber-300 rounded-xl p-3 shadow-sm flex flex-col">
+                        <div className="flex-1 bg-amber-50 border-2 border-amber-300 rounded-xl p-3 shadow-sm flex flex-col min-h-[41mm]">
                             {!isKorean ? (
                                 <div className="mb-1.5">
                                     <p className="text-[10px] font-black text-amber-800 leading-none flex items-center gap-1">
@@ -831,8 +823,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </div>
                     </div>
 
-                    <div className="flex-1 min-h-0 grid grid-cols-4 auto-rows-[minmax(0,1fr)] items-stretch gap-2.5">
-                        <div className="col-span-2 h-full min-h-0 bg-slate-50 rounded-xl border border-slate-100 p-3 shadow-sm overflow-hidden flex flex-col">
+                    <div className={`flex-1 min-h-0 ${isKorean ? 'grid grid-rows-[minmax(0,1fr)_68px] gap-2.5' : ''}`}>
+                        <div className="grid h-full min-h-0 grid-cols-4 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] items-stretch gap-2.5">
+                        <div className="col-span-2 row-span-1 h-full min-h-0 bg-slate-50 rounded-xl border border-slate-100 p-3 shadow-sm overflow-hidden flex flex-col">
                             <h3 className="font-bold text-[10px] mb-2 text-slate-700 flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
                                 {labels.strengths}
@@ -858,7 +851,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </ul>
                         </div>
 
-                        <div className={`col-span-2 h-full min-h-0 bg-rose-50 rounded-xl border border-rose-100 shadow-sm flex flex-col ${isWeaknessContentDense ? 'p-2.5' : 'p-3'}`}>
+                        <div className={`col-span-2 row-span-1 h-full min-h-0 bg-rose-50 rounded-xl border border-rose-100 shadow-sm flex flex-col ${isWeaknessContentDense ? 'p-2.5' : 'p-3'}`}>
                             <h3 className={`font-bold text-[10px] text-rose-800 flex items-center gap-1.5 ${isWeaknessContentDense ? 'mb-1.5' : 'mb-2'}`}>
                                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
                                 {labels.weaknesses}
@@ -884,7 +877,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </ul>
                         </div>
 
-                        <div className={`col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col ${isWeaknessContentDense ? 'p-2.5' : 'p-3'}`}>
+                        <div className={`col-span-2 row-span-1 min-h-0 bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col ${isWeaknessContentDense ? 'p-2.5' : 'p-3'}`}>
                             <h3 className={`font-bold text-[10px] text-slate-700 flex items-center gap-1.5 ${isWeaknessContentDense ? 'mb-1.5' : 'mb-2'}`}>
                                 <span className="w-1.5 h-1.5 rounded-full bg-slate-800 shrink-0"></span>
                                 {labels.verdict}
@@ -909,11 +902,11 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             )}
                         </div>
 
-                        <div className={`col-span-2 h-full min-h-0 flex flex-col ${isWeaknessContentDense ? 'gap-1.5' : 'gap-2'}`}>
+                        <div className={`col-span-2 row-span-1 h-full min-h-0 flex flex-col ${isWeaknessContentDense ? 'gap-1.5' : 'gap-2'}`}>
                             <div className={`flex-1 border border-slate-200 rounded-xl bg-white shadow-sm flex flex-col min-h-0 ${isWeaknessContentDense ? 'p-1.5' : 'p-2'}`}>
                                 <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trends} (6M)</h4>
                                 <div className="flex-1 w-full relative min-h-0">
-                                    <canvas ref={trendChartRef}></canvas>
+                                    <TrendMiniChart history={history} record={record} />
                                 </div>
                             </div>
                             <div className={`flex-1 min-h-0 border-2 border-slate-100 rounded-xl bg-white shadow-sm flex flex-col ${isWeaknessContentDense ? 'p-1.5' : 'p-2'}`}>
@@ -923,7 +916,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 </h3>
                                 <div className="grid flex-1 min-h-0 grid-cols-2 gap-1.5">
                                     {safetySigns.map((sign, i) => (
-                                        <div key={i} className="border border-slate-200 rounded bg-slate-50 flex min-h-[74px] flex-col items-center justify-center p-1.5 text-center relative overflow-hidden">
+                                        <div key={i} className="border border-slate-200 rounded bg-slate-50 flex min-h-[68px] flex-col items-center justify-center p-1.5 text-center relative overflow-hidden">
                                             <div className="flex h-10 w-10 items-center justify-center mb-1 shrink-0">
                                                 <svg viewBox="0 0 100 100" className="block w-full h-full drop-shadow-sm">
                                                     {sign.icon}
@@ -938,14 +931,18 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </div>
                         </div>
 
+                        </div>
+
                         {isKorean && (
-                            <div className="col-span-4 border border-slate-200 rounded-xl bg-slate-50 p-2 relative overflow-hidden flex items-center justify-center min-h-[72px]" style={{ maxHeight: '72px' }}>
+                            <div className="border border-slate-200 rounded-xl bg-slate-50 px-2 py-1.5 relative overflow-hidden flex items-center justify-center h-[68px] min-h-[68px] shrink-0">
                                 <p className="absolute top-1.5 left-2 text-[8px] font-bold text-slate-400 uppercase z-10">{labels.original}</p>
-                                {getOriginalImage() ? (
-                                    <img src={getOriginalImage()!} className="block max-w-full max-h-full object-contain mix-blend-multiply" />
-                                ) : (
-                                    <div className="text-[10px] text-slate-300">No Image</div>
-                                )}
+                                <div className="w-full h-full pt-3 flex items-center justify-center overflow-hidden">
+                                    {getOriginalImage() ? (
+                                        <img src={getOriginalImage()!} className="block max-w-full max-h-full object-contain mix-blend-multiply" alt="Original handwritten record" />
+                                    ) : (
+                                        <div className="text-[10px] text-slate-300">No Image</div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>

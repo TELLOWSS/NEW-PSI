@@ -80,11 +80,13 @@ const ensureCloneStyle = (doc: Document) => {
             animation: none !important;
             transition: none !important;
             caret-color: transparent !important;
+            text-rendering: optimizeLegibility;
         }
         [data-report-template-root="true"] img,
         [data-report-template-root="true"] canvas {
             display: block !important;
             max-width: none !important;
+            image-rendering: -webkit-optimize-contrast;
         }
         [data-report-template-root="true"] svg {
             display: block !important;
@@ -167,7 +169,7 @@ export const captureReportCanvases = async (
     options: CaptureReportCanvasOptions = {}
 ): Promise<HTMLCanvasElement[]> => {
     await waitForStableLayout(element);
-    const scale = options.scale ?? Math.max(2, Math.min(3, window.devicePixelRatio || 1));
+    const scale = options.scale ?? Math.max(2, Math.min(4, window.devicePixelRatio || 1));
 
     const captureSingleCanvas = async (target: HTMLElement): Promise<HTMLCanvasElement> => {
         const { width, height } = getElementLayoutSize(target);
@@ -193,6 +195,8 @@ export const captureReportCanvases = async (
                         clonedRoot.style.boxShadow = 'none';
                         clonedRoot.style.margin = '0';
                         clonedRoot.style.transform = 'none';
+                        clonedRoot.style.transformOrigin = 'top left';
+                        clonedRoot.style.textRendering = 'optimizeLegibility';
                     }
                 },
             });
@@ -213,6 +217,7 @@ export const captureReportCanvases = async (
                 style: {
                     margin: '0',
                     transform: 'none',
+                    transformOrigin: 'top left',
                     boxShadow: 'none',
                 },
             });
@@ -263,20 +268,20 @@ export const saveCanvasesAsA4Pdf = (
 
         if (imageHeight <= pageHeight || typeof pdf.addPage !== 'function') {
             const placement = getCanvasPlacementOnA4(canvas);
-            pdf.addImage(imageData, imageType, placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
+            pdf.addImage(imageData, imageType, placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'SLOW');
             return;
         }
 
         let remainingHeight = imageHeight;
         let currentY = 0;
 
-        pdf.addImage(imageData, imageType, 0, currentY, imageWidth, imageHeight, undefined, 'FAST');
+        pdf.addImage(imageData, imageType, 0, currentY, imageWidth, imageHeight, undefined, 'SLOW');
         remainingHeight -= pageHeight;
 
         while (remainingHeight > 0 && typeof pdf.addPage === 'function') {
             pdf.addPage();
             currentY = remainingHeight - imageHeight;
-            pdf.addImage(imageData, imageType, 0, currentY, imageWidth, imageHeight, undefined, 'FAST');
+            pdf.addImage(imageData, imageType, 0, currentY, imageWidth, imageHeight, undefined, 'SLOW');
             remainingHeight -= pageHeight;
         }
     });
@@ -304,7 +309,7 @@ export const buildPdfBlobFromCanvases = (
 
         const imageData = getCanvasImageData(canvas, imageType, quality);
         const placement = getCanvasPlacementOnA4(canvas);
-        pdf.addImage(imageData, imageType, placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
+        pdf.addImage(imageData, imageType, placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'SLOW');
     });
 
     if (typeof pdf.output !== 'function') {

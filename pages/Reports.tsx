@@ -270,7 +270,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         if (!confirm(`'${currentPreviewRecord.name}' 근로자의 보고서를 PDF로 내보내시겠습니까?`)) return;
 
         try {
-            const canvases = await captureReportCanvases(previewRef.current, html2canvas, { scale: 3 });
+            const canvases = await captureReportCanvases(previewRef.current, html2canvas, { scale: 4 });
             saveCanvasesAsA4Pdf(
                 canvases,
                 JsPDF as new (orientation: string, unit: string, format: string) => {
@@ -376,7 +376,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
                 if (bulkReportRef.current && !abortRef.current) {
                     try {
-                        const canvases = await captureReportCanvases(bulkReportRef.current, html2canvas, { scale: 3 });
+                        const canvases = await captureReportCanvases(bulkReportRef.current, html2canvas, { scale: 4 });
 
                         const fileNameBase = `${record.name}_${record.jobField}`;
 
