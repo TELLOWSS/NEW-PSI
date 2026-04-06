@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { BrandPhilosophyLogo } from '../components/shared/BrandPhilosophyLogo';
+import { PSI_APP_VERSION, PSI_CURRENT_RELEASE, PSI_SYSTEM_NAME } from '../lib/appInfo';
 
 const Introduction: React.FC = () => {
     const [isGravityOff, setIsGravityOff] = useState(false);
@@ -20,6 +21,11 @@ const Introduction: React.FC = () => {
         setIsGravityOff(!isGravityOff);
     };
 
+    const latestUpgradeColumns = [
+        PSI_CURRENT_RELEASE.highlights.slice(0, 3),
+        PSI_CURRENT_RELEASE.highlights.slice(3),
+    ];
+
     return (
         <div className="space-y-12 pb-12">
             {/* Hero Section */}
@@ -37,6 +43,10 @@ const Introduction: React.FC = () => {
                     <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight mb-6">
                         PSI: Proactive Safety Intelligence
                     </h1>
+                    <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-300/30 bg-white/10 px-4 py-2 text-xs font-black tracking-[0.18em] text-emerald-100 backdrop-blur-md">
+                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        CURRENT RELEASE {PSI_APP_VERSION}
+                    </div>
                     <p className="max-w-3xl text-lg sm:text-xl text-indigo-100 leading-relaxed mb-8 break-keep">
                         2026년, 데이터는 이제 정답을 제시합니다. PSI는 흩어져 있던 기록 속에서 사고의 패턴을 읽어내고 미래의 위험을 예측하여 <span className="font-bold text-white border-b-2 border-indigo-400 pb-0.5">오늘의 행동을 이끌어내는 자율 안전 AI 시스템</span>입니다. 300명 이상의 대규모 현장에서도 안정적으로 작동하며, 기업 수준의 신뢰성을 보장합니다.
                     </p>
@@ -97,7 +107,7 @@ const Introduction: React.FC = () => {
                     </div>
                     <dl className="grid grid-cols-1 sm:grid-cols-[170px_1fr] gap-x-4 gap-y-2 text-sm">
                         <dt className="font-bold text-slate-600">시스템명</dt>
-                        <dd className="text-slate-800">PSI (Proactive Safety Intelligence) v1.0</dd>
+                        <dd className="text-slate-800">{PSI_SYSTEM_NAME}</dd>
 
                         <dt className="font-bold text-slate-600">출원번호</dt>
                         <dd className="text-slate-800">10-2026-0039151</dd>
@@ -122,13 +132,36 @@ const Introduction: React.FC = () => {
                 </div>
 
                 <div className="relative border-l-4 border-indigo-100 ml-4 md:ml-1/2 space-y-12">
-                    {/* 2026 Feb - v2.1 (NEW) */}
+                    {/* 2026 Apr - v2.2 (NEW) */}
                     <div className="relative md:flex items-center justify-between md:flex-row-reverse group card-gravity-target">
                         <div className="absolute -left-[22px] md:left-auto md:right-1/2 md:-mr-[11px] top-0 w-10 h-10 bg-white border-4 border-emerald-600 rounded-full z-10 shadow-lg shadow-emerald-200 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                              <div className="w-4 h-4 bg-emerald-600 rounded-full animate-pulse"></div>
                         </div>
                         <div className="ml-10 md:ml-0 md:w-[45%] p-6 bg-gradient-to-br from-emerald-50 to-white rounded-2xl shadow-xl border border-emerald-100 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 ring-1 ring-emerald-100">
-                            <span className="text-emerald-700 font-bold text-sm mb-2 block">2026년 02월 (최신)</span>
+                            <span className="text-emerald-700 font-bold text-sm mb-2 block">{PSI_CURRENT_RELEASE.periodLabel}</span>
+                            <h3 className="text-xl font-bold text-slate-900 mb-3">PSI {PSI_APP_VERSION} - {PSI_CURRENT_RELEASE.title}</h3>
+                            <p className="text-slate-700 text-sm leading-relaxed">
+                                {PSI_CURRENT_RELEASE.summary}
+                            </p>
+                            <ul className="mt-4 space-y-1.5 text-[13px] font-semibold text-slate-700">
+                                {PSI_CURRENT_RELEASE.highlights.slice(0, 3).map((item) => (
+                                    <li key={item} className="flex items-start gap-2">
+                                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                                        <span>{item}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div className="hidden md:block md:w-[45%]"></div>
+                    </div>
+
+                    {/* 2026 Feb - v2.1 */}
+                    <div className="relative md:flex items-center justify-between group card-gravity-target">
+                        <div className="absolute -left-[22px] md:left-1/2 md:-ml-[11px] top-0 w-10 h-10 bg-white border-4 border-indigo-600 rounded-full z-10 shadow-lg shadow-indigo-200 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                             <div className="w-4 h-4 bg-indigo-600 rounded-full"></div>
+                        </div>
+                        <div className="ml-10 md:ml-0 md:w-[45%] p-6 bg-gradient-to-br from-indigo-50 to-white rounded-2xl shadow-xl border border-indigo-100 hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 ring-1 ring-indigo-100">
+                            <span className="text-indigo-700 font-bold text-sm mb-2 block">2026년 02월</span>
                             <h3 className="text-xl font-bold text-slate-900 mb-3">PSI 2.1 - Enterprise Grade</h3>
                             <p className="text-slate-700 text-sm leading-relaxed">
                                 대규모 현장을 위한 안정성 강화. 300명 이상의 근로자 데이터를 안정적으로 처리하고, 무한 재시도 방지, 메모리 최적화 등 기업 환경에 필수적인 안정성과 확장성을 확보했습니다.
@@ -252,50 +285,43 @@ const Introduction: React.FC = () => {
                 </div>
             </div>
 
-            {/* Gemini Collaboration Roadmap */}
+            {/* Latest Upgrade Snapshot */}
             <div className="max-w-5xl mx-auto px-4 card-gravity-target">
                 <div className="bg-white rounded-3xl shadow-xl border border-slate-200 p-6 sm:p-8">
                     <div className="flex items-center gap-3 mb-4">
                         <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 3v2.25m4.5-2.25v2.25M4.5 9h15m-15 0v8.25A2.25 2.25 0 006.75 19.5h10.5a2.25 2.25 0 002.25-2.25V9m-15 0A2.25 2.25 0 016.75 6.75h10.5A2.25 2.25 0 0119.5 9M9 14.25h6" /></svg>
                         </div>
-                        <h2 className="text-xl sm:text-2xl font-black text-slate-900">다음 단계: Gemini 공동 개선 아젠다</h2>
+                        <h2 className="text-xl sm:text-2xl font-black text-slate-900">최신 누적 업그레이드 스냅샷</h2>
                     </div>
                     <p className="text-sm text-slate-600 leading-relaxed mb-5 break-keep">
-                        PSI v2.1 기준으로 핵심 안정화는 완료되었습니다. 다음 스프린트부터는 Gemini와 함께 기능·운영·디자인을 통합 점검하며,
-                        현장 적용성을 높이는 방향으로 업데이트를 진행합니다.
+                        PSI {PSI_APP_VERSION} 기준으로 최근 누적된 핵심 개선사항을 영역별로 정리했습니다. 보고서 전달 품질, 운영 추적성, 현장 실행성을 동시에 끌어올리는 방향으로 업데이트가 반영되었습니다.
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                         <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
-                            <h3 className="font-black text-indigo-800 mb-2">기능 고도화</h3>
+                            <h3 className="font-black text-indigo-800 mb-2">리포트/전달 체계</h3>
                             <ul className="text-slate-700 font-semibold space-y-1 list-disc list-inside">
-                                <li>OCR/번역 품질 지표 자동 리포팅</li>
-                                <li>보고서 생성 실패 사전 예측 경고</li>
-                                <li>저무결성 응답 자동 후속조치 플로우</li>
+                                {latestUpgradeColumns[0].map((item) => <li key={item}>{item}</li>)}
                             </ul>
                         </div>
                         <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-                            <h3 className="font-black text-emerald-800 mb-2">디자인/UX 고도화</h3>
+                            <h3 className="font-black text-emerald-800 mb-2">운영/성능 안정화</h3>
                             <ul className="text-slate-700 font-semibold space-y-1 list-disc list-inside">
-                                <li>모바일 핵심 시나리오(입력/검수/출력) 동선 단축</li>
-                                <li>색상 대비 및 시인성 기준 재검증</li>
-                                <li>버전·신뢰 배지 표현 일관성 강화</li>
+                                {latestUpgradeColumns[1].map((item) => <li key={item}>{item}</li>)}
                             </ul>
                         </div>
                         <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
-                            <h3 className="font-black text-amber-800 mb-2">운영/거버넌스</h3>
+                            <h3 className="font-black text-amber-800 mb-2">검증 상태</h3>
                             <ul className="text-slate-700 font-semibold space-y-1 list-disc list-inside">
-                                <li>설정 변경 이력 승인 정책 표준화</li>
-                                <li>현장별 KPI 비교 리포트 템플릿 정리</li>
-                                <li>배포 전 점검 체크리스트 자동화</li>
+                                {PSI_CURRENT_RELEASE.validations.map((item) => <li key={item}>{item}</li>)}
                             </ul>
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <h3 className="font-black text-slate-800 mb-2">협업 방식</h3>
+                            <h3 className="font-black text-slate-800 mb-2">다음 협업 초점</h3>
                             <ul className="text-slate-700 font-semibold space-y-1 list-disc list-inside">
-                                <li>피드백 탭 카테고리 기반 의사결정 기록</li>
-                                <li>문서 중심 변경 제안 → 코드 반영 → 검증 루프</li>
-                                <li>월 단위 로드맵 리뷰(기능/디자인 동시)</li>
+                                <li>피드백 탭 카테고리 기반 의사결정 기록 강화</li>
+                                <li>문서 중심 변경 제안 → 코드 반영 → 검증 루프 유지</li>
+                                <li>월 단위 로드맵 리뷰에서 리포트 품질·발송 효율 동시 점검</li>
                             </ul>
                         </div>
                     </div>

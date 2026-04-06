@@ -5,6 +5,7 @@ import { IndividualRadarChart } from './charts/IndividualRadarChart';
 import { deriveCompetencyProfile } from '../utils/evidenceUtils';
 import { getSafetyLevelThresholds } from '../utils/safetyLevelUtils';
 import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
+import { PSI_APP_VERSION } from '../lib/appInfo';
 
 interface ReportTemplateProps {
     record: WorkerRecord;
@@ -883,7 +884,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
 
                     {isKorean ? (
                         <div className="grid h-[150mm] grid-rows-[minmax(0,1fr)_20mm] gap-2.5 overflow-hidden">
-                            <div className="grid h-full min-h-0 grid-cols-[1fr_1fr_46mm] grid-rows-[58mm_minmax(0,1fr)] gap-2.5 overflow-hidden">
+                            <div className="grid h-full min-h-0 grid-cols-2 grid-rows-[58mm_minmax(0,1fr)] gap-2.5 overflow-hidden">
                                 <div className="rounded-xl border border-slate-100 bg-slate-50 p-2.5 shadow-sm overflow-hidden flex flex-col h-full min-h-0">
                                     <h3 className="font-bold text-[10px] mb-1.5 text-slate-700 flex items-center gap-1.5">
                                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
@@ -914,14 +915,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     </ul>
                                 </div>
 
-                                <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm overflow-hidden flex flex-col h-full min-h-0">
-                                    <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trends} (6M)</h4>
-                                    <div className="flex-1 w-full relative min-h-0">
-                                        <TrendMiniChart history={history} record={record} />
-                                    </div>
-                                </div>
-
-                                <div className="col-span-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm overflow-hidden flex flex-col min-h-0 h-full">
+                                <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm overflow-hidden flex flex-col min-h-0 h-full">
                                     <h3 className="font-bold text-[10px] mb-1.5 text-slate-700 flex items-center gap-1.5">
                                         <span className="w-1.5 h-1.5 rounded-full bg-slate-800 shrink-0"></span>
                                         {labels.verdict}
@@ -951,23 +945,32 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     )}
                                 </div>
 
-                                <div className="rounded-xl border-2 border-slate-100 bg-white p-2 shadow-sm overflow-hidden flex flex-col min-h-0 h-full">
-                                    <h3 className="font-bold text-[8px] mb-1.5 text-slate-800 uppercase tracking-wide flex items-center gap-1">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0"></span>
-                                        {labels.pictogram}
-                                    </h3>
-                                    <div className="grid h-full min-h-0 grid-cols-2 grid-rows-2 gap-1">
-                                        {safetySigns.map((sign, i) => (
-                                            <div key={i} className="border border-slate-200 rounded bg-slate-50 flex flex-col items-center justify-center p-1 text-center relative overflow-hidden min-h-0">
-                                                <div className="flex h-9 w-9 items-center justify-center mb-0.5 shrink-0">
-                                                    <svg viewBox="0 0 100 100" className="block w-full h-full drop-shadow-sm">
-                                                        {sign.icon}
-                                                    </svg>
+                                <div className="grid min-h-0 h-full gap-2.5 grid-rows-[25mm_minmax(0,1fr)]">
+                                    <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm overflow-hidden flex flex-col h-full min-h-0">
+                                        <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trends} (6M)</h4>
+                                        <div className="flex-1 w-full relative min-h-0">
+                                            <TrendMiniChart history={history} record={record} />
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-xl border-2 border-slate-100 bg-white p-2 shadow-sm overflow-hidden flex flex-col min-h-0 h-full">
+                                        <h3 className="font-bold text-[8px] mb-1.5 text-slate-800 uppercase tracking-wide flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0"></span>
+                                            {labels.pictogram}
+                                        </h3>
+                                        <div className="grid h-full min-h-0 grid-cols-2 grid-rows-2 gap-1">
+                                            {safetySigns.map((sign, i) => (
+                                                <div key={i} className="border border-slate-200 rounded bg-slate-50 flex flex-col items-center justify-center p-1 text-center relative overflow-hidden min-h-0">
+                                                    <div className="flex h-10 w-10 items-center justify-center mb-0.5 shrink-0">
+                                                        <svg viewBox="0 0 100 100" className="block w-full h-full drop-shadow-sm">
+                                                            {sign.icon}
+                                                        </svg>
+                                                    </div>
+                                                    <p className="text-[7px] font-black text-slate-900 leading-tight break-keep">{sign.labels.ko}</p>
+                                                    <div className={`absolute top-0 right-0 w-2 h-2 ${sign.type === 'warning' ? 'bg-yellow-400' : 'bg-blue-600'} rounded-bl`}></div>
                                                 </div>
-                                                <p className="text-[7px] font-black text-slate-900 leading-tight break-keep">{sign.labels.ko}</p>
-                                                <div className={`absolute top-0 right-0 w-2 h-2 ${sign.type === 'warning' ? 'bg-yellow-400' : 'bg-blue-600'} rounded-bl`}></div>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -985,109 +988,108 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </div>
                     ) : (
                         <div className="min-h-0 h-full">
-                            <div className="grid h-[150mm] min-h-0 grid-cols-[1fr_1fr_46mm] grid-rows-[58mm_minmax(0,1fr)] items-stretch gap-2.5 overflow-hidden">
-                        <div className="h-full min-h-0 bg-slate-50 rounded-xl border border-slate-100 p-2.5 shadow-sm overflow-hidden flex flex-col">
-                            <h3 className="font-bold text-[10px] mb-2 text-slate-700 flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
-                                {labels.strengths}
-                            </h3>
-                            <ul className="space-y-1 overflow-hidden">
-                                {frontStrengthEntries.map((entry, i) => (
-                                    <li key={`strength-${i}`}>
-                                        <div className="text-[8.5px] leading-[1.35] text-slate-800 flex items-start gap-1 min-w-0">
-                                            <CheckBulletIcon className="text-emerald-600" />
-                                            <span className="min-w-0 break-words font-bold leading-[1.35]" style={createLineClampStyle(2)}>
-                                                <HighlightedText text={entry.nativeText || entry.text} />
-                                            </span>
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-
-                        <div className="h-full min-h-0 bg-rose-50 rounded-xl border border-rose-100 shadow-sm flex flex-col overflow-hidden p-2.5">
-                            <h3 className={`font-bold text-[10px] text-rose-800 flex items-center gap-1.5 ${isWeaknessContentDense ? 'mb-1.5' : 'mb-2'}`}>
-                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
-                                {labels.weaknesses}
-                            </h3>
-                            <ul className="space-y-1 overflow-hidden">
-                                {frontImprovementEntries.map((entry, i) => (
-                                    <li key={`improvement-${i}`}>
-                                        <div className="text-[8.5px] leading-[1.35] text-rose-900 flex items-start gap-1 min-w-0">
-                                            <WarningBulletIcon />
-                                            <span className="min-w-0 break-words font-bold leading-[1.35]" style={createLineClampStyle(2)}>
-                                                <HighlightedText text={entry.nativeText || entry.text} />
-                                            </span>
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-
-                                <div className="col-span-2 min-h-0 h-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col p-2.5">
-                            <h3 className={`font-bold text-[10px] text-slate-700 flex items-center gap-1.5 ${isWeaknessContentDense ? 'mb-1.5' : 'mb-2'}`}>
-                                <span className="w-1.5 h-1.5 rounded-full bg-slate-800 shrink-0"></span>
-                                {labels.verdict}
-                            </h3>
-                            <p className="text-[8.5px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line" style={createLineClampStyle(6)}>
-                                <HighlightedText text={frontVerdictPrimaryText} />
-                            </p>
-                            <div className="mt-1 pt-1 border-t border-slate-100 overflow-hidden">
-                                <p className="text-[7px] font-black uppercase tracking-[0.14em] text-slate-400 mb-1">Action checklist</p>
-                                <ul className="space-y-1 text-[8px] text-slate-700 leading-[1.3]">
-                                    {frontImprovementEntries.slice(0, 2).map((entry, i) => (
-                                        <li key={`action-${i}`} className="flex items-start gap-1">
-                                            <span className="mt-[2px] text-violet-500">•</span>
-                                            <span style={createLineClampStyle(2)}><HighlightedText text={entry.nativeText || entry.text} /></span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                            {reassessmentTrail.length > 0 && (
-                                <div className="mt-1 pt-1 border-t border-slate-100 overflow-hidden">
-                                    {reassessmentTrail.slice(0, 1).map((entry, i) => (
-                                        <p key={`${entry.timestamp}-${i}`} className="text-[8px] text-violet-700 leading-tight">
-                                            • {reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)} {entry.note || reassessmentFallback}
-                                        </p>
-                                    ))}
+                            <div className="grid h-[150mm] min-h-0 grid-cols-2 grid-rows-[58mm_minmax(0,1fr)] items-stretch gap-2.5 overflow-hidden">
+                                <div className="h-full min-h-0 bg-slate-50 rounded-xl border border-slate-100 p-2.5 shadow-sm overflow-hidden flex flex-col">
+                                    <h3 className="font-bold text-[10px] mb-2 text-slate-700 flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
+                                        {labels.strengths}
+                                    </h3>
+                                    <ul className="space-y-1 overflow-hidden">
+                                        {frontStrengthEntries.map((entry, i) => (
+                                            <li key={`strength-${i}`}>
+                                                <div className="text-[8.5px] leading-[1.35] text-slate-800 flex items-start gap-1 min-w-0">
+                                                    <CheckBulletIcon className="text-emerald-600" />
+                                                    <span className="min-w-0 break-words font-bold leading-[1.35]" style={createLineClampStyle(2)}>
+                                                        <HighlightedText text={entry.nativeText || entry.text} />
+                                                    </span>
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ul>
                                 </div>
-                            )}
-                        </div>
 
-                        <div className="min-h-0 h-full grid gap-2 grid-rows-[20mm_minmax(0,1fr)]">
-                            <div className="border border-slate-200 rounded-xl bg-white shadow-sm flex flex-col overflow-hidden p-1.5 h-[18mm]">
-                                <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trends} (6M)</h4>
-                                <div className="flex-1 w-full relative min-h-0">
-                                    <TrendMiniChart history={history} record={record} />
+                                <div className="h-full min-h-0 bg-rose-50 rounded-xl border border-rose-100 shadow-sm flex flex-col overflow-hidden p-2.5">
+                                    <h3 className={`font-bold text-[10px] text-rose-800 flex items-center gap-1.5 ${isWeaknessContentDense ? 'mb-1.5' : 'mb-2'}`}>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
+                                        {labels.weaknesses}
+                                    </h3>
+                                    <ul className="space-y-1 overflow-hidden">
+                                        {frontImprovementEntries.map((entry, i) => (
+                                            <li key={`improvement-${i}`}>
+                                                <div className="text-[8.5px] leading-[1.35] text-rose-900 flex items-start gap-1 min-w-0">
+                                                    <WarningBulletIcon />
+                                                    <span className="min-w-0 break-words font-bold leading-[1.35]" style={createLineClampStyle(2)}>
+                                                        <HighlightedText text={entry.nativeText || entry.text} />
+                                                    </span>
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ul>
                                 </div>
-                            </div>
-                            <div className="min-h-0 h-full border-2 border-slate-100 rounded-xl bg-white shadow-sm flex flex-col overflow-hidden p-1.5">
-                                <h3 className="font-bold text-[8px] mb-1.5 text-slate-800 uppercase tracking-wide flex items-center gap-1">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0"></span>
-                                    {labels.pictogram}
-                                </h3>
-                                <div className="grid flex-1 min-h-0 grid-cols-2 grid-rows-2 items-stretch gap-1">
-                                    {safetySigns.map((sign, i) => (
-                                        <div key={i} className="border border-slate-200 rounded bg-slate-50 h-full min-h-0 flex flex-col items-center justify-center p-1 text-center relative overflow-hidden">
-                                            <div className="flex h-8 w-8 items-center justify-center mb-0.5 shrink-0">
-                                                <svg viewBox="0 0 100 100" className="block w-full h-full drop-shadow-sm">
-                                                    {sign.icon}
-                                                </svg>
-                                            </div>
-                                            <p className="text-[6.5px] font-black text-slate-900 leading-tight break-keep">{getSignLabel(sign, record.nationality)}</p>
-                                            <div className={`absolute top-0 right-0 w-2 h-2 ${sign.type === 'warning' ? 'bg-yellow-400' : 'bg-blue-600'} rounded-bl`}></div>
+
+                                <div className="min-h-0 h-full bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col p-2.5">
+                                    <h3 className={`font-bold text-[10px] text-slate-700 flex items-center gap-1.5 ${isWeaknessContentDense ? 'mb-1.5' : 'mb-2'}`}>
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-800 shrink-0"></span>
+                                        {labels.verdict}
+                                    </h3>
+                                    <p className="text-[8.5px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line" style={createLineClampStyle(6)}>
+                                        <HighlightedText text={frontVerdictPrimaryText} />
+                                    </p>
+                                    <div className="mt-1 pt-1 border-t border-slate-100 overflow-hidden">
+                                        <p className="text-[7px] font-black uppercase tracking-[0.14em] text-slate-400 mb-1">Action checklist</p>
+                                        <ul className="space-y-1 text-[8px] text-slate-700 leading-[1.3]">
+                                            {frontImprovementEntries.slice(0, 2).map((entry, i) => (
+                                                <li key={`action-${i}`} className="flex items-start gap-1">
+                                                    <span className="mt-[2px] text-violet-500">•</span>
+                                                    <span style={createLineClampStyle(2)}><HighlightedText text={entry.nativeText || entry.text} /></span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                    {reassessmentTrail.length > 0 && (
+                                        <div className="mt-1 pt-1 border-t border-slate-100 overflow-hidden">
+                                            {reassessmentTrail.slice(0, 1).map((entry, i) => (
+                                                <p key={`${entry.timestamp}-${i}`} className="text-[8px] text-violet-700 leading-tight">
+                                                    • {reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)} {entry.note || reassessmentFallback}
+                                                </p>
+                                            ))}
                                         </div>
-                                    ))}
+                                    )}
                                 </div>
-                            </div>
-                        </div>
 
+                                <div className="min-h-0 h-full grid gap-2.5 grid-rows-[25mm_minmax(0,1fr)]">
+                                    <div className="border border-slate-200 rounded-xl bg-white shadow-sm flex flex-col overflow-hidden p-2 h-full min-h-0">
+                                        <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trends} (6M)</h4>
+                                        <div className="flex-1 w-full relative min-h-0">
+                                            <TrendMiniChart history={history} record={record} />
+                                        </div>
+                                    </div>
+                                    <div className="min-h-0 h-full border-2 border-slate-100 rounded-xl bg-white shadow-sm flex flex-col overflow-hidden p-2">
+                                        <h3 className="font-bold text-[8px] mb-1.5 text-slate-800 uppercase tracking-wide flex items-center gap-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0"></span>
+                                            {labels.pictogram}
+                                        </h3>
+                                        <div className="grid flex-1 min-h-0 grid-cols-2 grid-rows-2 items-stretch gap-1.5">
+                                            {safetySigns.map((sign, i) => (
+                                                <div key={i} className="border border-slate-200 rounded bg-slate-50 h-full min-h-0 flex flex-col items-center justify-center p-1 text-center relative overflow-hidden">
+                                                    <div className="flex h-10 w-10 items-center justify-center mb-0.5 shrink-0">
+                                                        <svg viewBox="0 0 100 100" className="block w-full h-full drop-shadow-sm">
+                                                            {sign.icon}
+                                                        </svg>
+                                                    </div>
+                                                    <p className="text-[6.8px] font-black text-slate-900 leading-tight break-keep">{getSignLabel(sign, record.nationality)}</p>
+                                                    <div className={`absolute top-0 right-0 w-2 h-2 ${sign.type === 'warning' ? 'bg-yellow-400' : 'bg-blue-600'} rounded-bl`}></div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
 
                     <div className="pt-1.5 border-t-2 border-slate-900 shrink-0 flex justify-between items-end">
-                        <div className="text-[8px] font-bold text-slate-400">PSI Safety Intelligence System v2.0.0 · 월간 안전보건정기교육</div>
+                        <div className="text-[8px] font-bold text-slate-400">PSI Safety Intelligence System {PSI_APP_VERSION} · 월간 안전보건정기교육</div>
                         <div className="flex gap-8 text-center">
                             <div className="text-[9px] font-bold">Safety Manager 박 성 훈</div>
                             <div className="text-[9px] font-bold">Site Manager 정 용 현</div>

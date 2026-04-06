@@ -734,10 +734,12 @@ type RegisteredWorkerEditDraft = {
 };
 
 type RegisteredWorkerSortKey = 'birth_date' | 'phone_number';
+type RegisteredWorkerDuplicateFilter = 'all' | 'duplicates' | 'suggested-delete' | 'exact-duplicates';
 
 type DeletedWorkerUndoState = {
-    id: string;
-    name: string;
+    ids: string[];
+    names: string[];
+    displayLabel: string;
     softDeleted: boolean;
 };
 
@@ -858,6 +860,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [registeredWorkerJobFilter, setRegisteredWorkerJobFilter] = useState('전체');
     const [registeredWorkerTeamFilter, setRegisteredWorkerTeamFilter] = useState('전체');
     const [registeredWorkerMissingFilter, setRegisteredWorkerMissingFilter] = useState<'all' | 'missing-any' | 'missing-phone' | 'missing-birth' | 'missing-passport'>('all');
+    const [registeredWorkerDuplicateFilter, setRegisteredWorkerDuplicateFilter] = useState<RegisteredWorkerDuplicateFilter>('all');
     const [selectedBulkMessageWorkerIds, setSelectedBulkMessageWorkerIds] = useState<string[]>([]);
     const [bulkMessageNote, setBulkMessageNote] = useState('PSI 안전 리포트입니다. 현장 작업 전 내용을 꼭 확인해 주세요.');
     const [isBulkSendingReports, setIsBulkSendingReports] = useState(false);
@@ -1068,7 +1071,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 '/api/admin/safety-management',
                 {
                     action: 'list-workers',
-                    payload: { limit: 3000 },
+                    payload: { limit: 3000, includeExactDuplicates: true },
                 },
                 { fallbackMessage: '등록 근로자 목록 조회 실패' },
             );
@@ -1163,6 +1166,148 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         registeredWorkerTeamFilter,
         registeredWorkerMissingFilter,
     ]);
+
+    const getRegisteredWorkerFillScore = useCallback((worker: RegisteredWorkerListRow) => {
+        let score = 0;
+        if (normalizeJobField(worker.job_field)) score += 1;
+        if (normalizeWorkerTeamKey(worker.team_name)) score += 1;
+        if (normalizePhone(worker.phone_number).length >= 10) score += 3;
+        if (normalizeBirthDate(worker.birth_date).length >= 6) score += 2;
+        if (normalizePassport(worker.passport_number).length >= 6) score += 4;
+        return score;
+    }, []);
+
+    const registeredWorkerDuplicateSummary = useMemo(() => {
+        type DuplicateReason = 'name-phone' | 'name-birth';
+        type GroupInfo = {
+            key: string;
+            reason: DuplicateReason;
+            label: string;
+            memberIds: string[];
+            keeperId: string;
+        };
+
+        const phoneGroups = new Map<string, RegisteredWorkerListRow[]>();
+        const birthGroups = new Map<string, RegisteredWorkerListRow[]>();
+
+        registeredWorkers.forEach((worker) => {
+            const nameKey = normalizeWorkerNameKey(worker.name);
+            const phoneKey = normalizePhone(worker.phone_number);
+            const birthKey = normalizeBirthDate(worker.birth_date);
+
+            if (nameKey && phoneKey) {
+                const key = `${nameKey}|${phoneKey}`;
+                phoneGroups.set(key, [...(phoneGroups.get(key) || []), worker]);
+            }
+            if (nameKey && birthKey) {
+                const key = `${nameKey}|${birthKey}`;
+                birthGroups.set(key, [...(birthGroups.get(key) || []), worker]);
+            }
+        });
+
+        const metaMap = new Map<string, { reasons: Set<DuplicateReason>; groupLabels: Set<string>; suggestedDelete: boolean }>();
+        const autoDeleteIds = new Set<string>();
+        const groups: GroupInfo[] = [];
+
+        const registerGroup = (members: RegisteredWorkerListRow[], reason: DuplicateReason, label: string, key: string) => {
+            if (members.length <= 1) return;
+
+            const sortedMembers = [...members].sort((a, b) => {
+                const scoreDiff = getRegisteredWorkerFillScore(b) - getRegisteredWorkerFillScore(a);
+                if (scoreDiff !== 0) return scoreDiff;
+                return a.id.localeCompare(b.id);
+            });
+
+            const keeperId = sortedMembers[0]?.id || '';
+            groups.push({ key, reason, label, memberIds: sortedMembers.map((worker) => worker.id), keeperId });
+
+            sortedMembers.forEach((worker, index) => {
+                const current = metaMap.get(worker.id) || { reasons: new Set<DuplicateReason>(), groupLabels: new Set<string>(), suggestedDelete: false };
+                current.reasons.add(reason);
+                current.groupLabels.add(label);
+                if (index > 0) {
+                    current.suggestedDelete = true;
+                    autoDeleteIds.add(worker.id);
+                }
+                metaMap.set(worker.id, current);
+            });
+        };
+
+        Array.from(phoneGroups.entries()).forEach(([key, members]) => registerGroup(members, 'name-phone', '이름+전화번호 중복', `phone:${key}`));
+        Array.from(birthGroups.entries()).forEach(([key, members]) => registerGroup(members, 'name-birth', '이름+생년월일 중복', `birth:${key}`));
+
+        const duplicateWorkerIds = Array.from(metaMap.keys());
+        const duplicateRows = filteredRegisteredWorkers.filter((worker) => duplicateWorkerIds.includes(worker.id));
+        const suggestedDeleteRows = filteredRegisteredWorkers.filter((worker) => autoDeleteIds.has(worker.id));
+
+        return {
+            groups,
+            metaMap,
+            duplicateWorkerIds,
+            autoDeleteIds: Array.from(autoDeleteIds),
+            duplicateGroupCount: groups.length,
+            duplicateWorkerCount: duplicateWorkerIds.length,
+            duplicateRows,
+            suggestedDeleteRows,
+        };
+    }, [filteredRegisteredWorkers, getRegisteredWorkerFillScore, registeredWorkers]);
+
+    const registeredWorkerExactDuplicateSummary = useMemo(() => {
+        const signatureGroups = new Map<string, RegisteredWorkerListRow[]>();
+
+        registeredWorkers.forEach((worker) => {
+            const signature = buildRegisteredWorkerSignature(worker);
+            signatureGroups.set(signature, [...(signatureGroups.get(signature) || []), worker]);
+        });
+
+        const groups = Array.from(signatureGroups.entries())
+            .map(([signature, members]) => ({ signature, members: [...members].sort((a, b) => a.id.localeCompare(b.id)) }))
+            .filter((group) => group.members.length > 1);
+
+        return {
+            groups,
+            exactDuplicateIds: groups.flatMap((group) => group.members.slice(1).map((member) => member.id)),
+            groupCount: groups.length,
+        };
+    }, [registeredWorkers]);
+
+    const visibleRegisteredWorkers = useMemo(() => {
+        if (registeredWorkerDuplicateFilter === 'duplicates') {
+            return filteredRegisteredWorkers.filter((worker) => registeredWorkerDuplicateSummary.metaMap.has(worker.id));
+        }
+        if (registeredWorkerDuplicateFilter === 'suggested-delete') {
+            return filteredRegisteredWorkers.filter((worker) => registeredWorkerDuplicateSummary.autoDeleteIds.includes(worker.id));
+        }
+        if (registeredWorkerDuplicateFilter === 'exact-duplicates') {
+            return filteredRegisteredWorkers.filter((worker) => registeredWorkerExactDuplicateSummary.exactDuplicateIds.includes(worker.id));
+        }
+        return filteredRegisteredWorkers;
+    }, [filteredRegisteredWorkers, registeredWorkerDuplicateFilter, registeredWorkerDuplicateSummary.autoDeleteIds, registeredWorkerDuplicateSummary.metaMap, registeredWorkerExactDuplicateSummary.exactDuplicateIds]);
+
+    const registeredWorkerDuplicateGroupPreview = useMemo(() => {
+        const workerMap = new Map(registeredWorkers.map((worker) => [worker.id, worker]));
+        const visibleIds = new Set(visibleRegisteredWorkers.map((worker) => worker.id));
+
+        return registeredWorkerDuplicateSummary.groups
+            .map((group) => {
+                const members = group.memberIds
+                    .map((id) => workerMap.get(id))
+                    .filter((worker): worker is RegisteredWorkerListRow => Boolean(worker));
+                const keeper = members.find((worker) => worker.id === group.keeperId) || members[0] || null;
+                const duplicateMembers = members.filter((worker) => worker.id !== group.keeperId);
+                const visibleMemberCount = members.filter((worker) => visibleIds.has(worker.id)).length;
+
+                return {
+                    ...group,
+                    keeper,
+                    duplicateMembers,
+                    members,
+                    visibleMemberCount,
+                };
+            })
+            .filter((group) => group.members.length > 1 && (registeredWorkerDuplicateFilter === 'all' || group.visibleMemberCount > 0))
+            .sort((a, b) => b.members.length - a.members.length || a.label.localeCompare(b.label, 'ko-KR'));
+    }, [registeredWorkerDuplicateFilter, registeredWorkerDuplicateSummary.groups, registeredWorkers, visibleRegisteredWorkers]);
 
     const latestRecords = useMemo(() => {
         const map = new Map<string, WorkerRecord>();
@@ -1702,7 +1847,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     };
 
     const toggleSelectAllFilteredWorkersForBulkMessage = () => {
-        const filteredIds = filteredRegisteredWorkers.map((worker) => worker.id);
+        const filteredIds = visibleRegisteredWorkers.map((worker) => worker.id);
         if (filteredIds.length === 0) return;
 
         setSelectedBulkMessageWorkerIds((prev) => {
@@ -1712,6 +1857,89 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             }
             return Array.from(new Set([...prev, ...filteredIds]));
         });
+    };
+
+    const selectSuggestedDuplicateWorkers = () => {
+        const ids = registeredWorkerDuplicateSummary.autoDeleteIds.filter((id) => visibleRegisteredWorkers.some((worker) => worker.id === id));
+        if (ids.length === 0) {
+            setRegisteredWorkerUpdateMessage('ℹ 현재 화면에서 자동 선택할 중복 삭제 권장 대상이 없습니다.');
+            return;
+        }
+        setSelectedBulkMessageWorkerIds(ids);
+        setRegisteredWorkerUpdateMessage(`✅ 중복 삭제 권장 대상 ${ids.length}명을 선택했습니다.`);
+    };
+
+    const selectExactDuplicateWorkers = () => {
+        const ids = registeredWorkerExactDuplicateSummary.exactDuplicateIds.filter((id) => visibleRegisteredWorkers.some((worker) => worker.id === id));
+        if (ids.length === 0) {
+            setRegisteredWorkerUpdateMessage('ℹ 현재 화면에서 자동 선택할 완전 동일 중복 대상이 없습니다.');
+            return;
+        }
+        setSelectedBulkMessageWorkerIds(ids);
+        setRegisteredWorkerUpdateMessage(`✅ 완전 동일 중복 ${ids.length}명을 선택했습니다.`);
+    };
+
+    const handleBulkDeleteRegisteredWorkers = async () => {
+        const ids = Array.from(new Set(selectedBulkMessageWorkerIds.filter((id) => registeredWorkers.some((worker) => worker.id === id))));
+        if (ids.length === 0) {
+            setRegisteredWorkerUpdateMessage('❌ 일괄삭제할 근로자를 먼저 선택해 주세요.');
+            return;
+        }
+
+        const selectedWorkers = registeredWorkers.filter((worker) => ids.includes(worker.id));
+        const previewLines = selectedWorkers.slice(0, 8).map((worker) => `- ${worker.name || '이름 미상'} / ${formatPhoneForDisplay(worker.phone_number) || '전화 미등록'} / ${formatBirthDateForDisplay(worker.birth_date) || '생년월일 미등록'}`);
+        const confirmed = window.confirm(`선택한 등록 근로자 ${ids.length}명을 일괄삭제하시겠습니까?\n\n${previewLines.join('\n')}${selectedWorkers.length > 8 ? `\n... 외 ${selectedWorkers.length - 8}명` : ''}`);
+        if (!confirmed) return;
+
+        setRegisteredWorkerUpdateMessage(null);
+        setDeletingWorkerId('__bulk__');
+
+        try {
+            const data = await postAdminJson<any>(
+                '/api/admin/safety-management',
+                {
+                    action: 'delete-workers',
+                    payload: { ids },
+                },
+                { fallbackMessage: '선택 근로자 일괄삭제 실패' },
+            );
+
+            const deletedWorkerIds = Array.isArray(data?.data?.deletedWorkerIds)
+                ? data.data.deletedWorkerIds.map((value: unknown) => String(value || '').trim()).filter(Boolean)
+                : [];
+
+            if (deletedWorkerIds.length === 0) {
+                throw new Error('일괄삭제 응답이 올바르지 않습니다.');
+            }
+
+            setSelectedBulkMessageWorkerIds((prev) => prev.filter((id) => !deletedWorkerIds.includes(id)));
+            setRegisteredWorkers((prev) => prev.filter((worker) => !deletedWorkerIds.includes(worker.id)));
+            if (editingWorkerId && deletedWorkerIds.includes(editingWorkerId)) {
+                cancelEditRegisteredWorker();
+            }
+            clearDeleteUndoTimer();
+            if (Boolean(data?.data?.softDeleted)) {
+                setDeletedWorkerUndo({
+                    ids: deletedWorkerIds,
+                    names: selectedWorkers.filter((worker) => deletedWorkerIds.includes(worker.id)).map((worker) => worker.name || '이름 미상'),
+                    displayLabel: `선택 근로자 ${deletedWorkerIds.length}명`,
+                    softDeleted: true,
+                });
+                deleteUndoTimerRef.current = setTimeout(() => {
+                    setDeletedWorkerUndo(null);
+                    deleteUndoTimerRef.current = null;
+                }, 7000);
+                setRegisteredWorkerUpdateMessage(`✅ 선택 근로자 ${deletedWorkerIds.length}명이 삭제되었습니다. (7초 내 실행 취소 가능)`);
+            } else {
+                setDeletedWorkerUndo(null);
+                setRegisteredWorkerUpdateMessage(`✅ 선택 근로자 ${deletedWorkerIds.length}명이 삭제되었습니다.`);
+            }
+            await fetchRegisteredWorkers();
+        } catch (error) {
+            setRegisteredWorkerUpdateMessage(`❌ ${extractMessage(error)}`);
+        } finally {
+            setDeletingWorkerId('');
+        }
     };
 
     const reselectLastBulkFailedWorkers = () => {
@@ -2041,8 +2269,9 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             clearDeleteUndoTimer();
             if (softDeleted) {
                 setDeletedWorkerUndo({
-                    id: deletedWorkerId,
-                    name: worker.name,
+                    ids: [deletedWorkerId],
+                    names: [worker.name || '이름 미상'],
+                    displayLabel: worker.name || '근로자',
                     softDeleted: true,
                 });
                 deleteUndoTimerRef.current = setTimeout(() => {
@@ -2062,23 +2291,34 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     };
 
     const handleUndoDeleteRegisteredWorker = async () => {
-        if (!deletedWorkerUndo?.id || !deletedWorkerUndo.softDeleted) return;
+        if (!deletedWorkerUndo?.ids?.length || !deletedWorkerUndo.softDeleted) return;
 
         clearDeleteUndoTimer();
         setRegisteredWorkerUpdateMessage(null);
 
         try {
-            await postAdminJson<any>(
-                '/api/admin/safety-management',
-                {
-                    action: 'restore-worker',
-                    payload: { id: deletedWorkerUndo.id },
-                },
-                { fallbackMessage: '등록 근로자 복구 실패' },
-            );
+            if (deletedWorkerUndo.ids.length === 1) {
+                await postAdminJson<any>(
+                    '/api/admin/safety-management',
+                    {
+                        action: 'restore-worker',
+                        payload: { id: deletedWorkerUndo.ids[0] },
+                    },
+                    { fallbackMessage: '등록 근로자 복구 실패' },
+                );
+            } else {
+                await postAdminJson<any>(
+                    '/api/admin/safety-management',
+                    {
+                        action: 'restore-workers',
+                        payload: { ids: deletedWorkerUndo.ids },
+                    },
+                    { fallbackMessage: '등록 근로자 일괄복구 실패' },
+                );
+            }
 
             setDeletedWorkerUndo(null);
-            setRegisteredWorkerUpdateMessage('✅ 삭제된 근로자 정보를 복구했습니다.');
+            setRegisteredWorkerUpdateMessage(`✅ ${deletedWorkerUndo.displayLabel} 복구를 완료했습니다.`);
             await fetchRegisteredWorkers();
         } catch (error) {
             setRegisteredWorkerUpdateMessage(`❌ ${extractMessage(error)}`);
@@ -3998,12 +4238,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         <p className="mt-1 text-lg font-black text-slate-900">{registeredWorkers.length}명</p>
                     </div>
                     <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
-                        <p className="text-[10px] font-black text-amber-600">숨김 중복 행</p>
+                        <p className="text-[10px] font-black text-amber-600">완전 동일 중복</p>
                         <p className="mt-1 text-lg font-black text-amber-900">{registeredWorkerListMeta.hiddenExactDuplicateCount}건</p>
                     </div>
                     <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3">
-                        <p className="text-[10px] font-black text-indigo-600">동명이인 그룹</p>
-                        <p className="mt-1 text-lg font-black text-indigo-900">{registeredWorkerListMeta.sameNameGroupCount}그룹</p>
+                        <p className="text-[10px] font-black text-indigo-600">중복 후보 그룹</p>
+                        <p className="mt-1 text-lg font-black text-indigo-900">{registeredWorkerDuplicateSummary.duplicateGroupCount}그룹</p>
                     </div>
                 </div>
                 {registeredWorkerUpdateMessage && (
@@ -4013,7 +4253,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 )}
                 {deletedWorkerUndo && (
                     <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
-                        <p className="text-xs font-bold text-amber-800">{deletedWorkerUndo.name || '근로자'} 삭제됨</p>
+                        <p className="text-xs font-bold text-amber-800">{deletedWorkerUndo.displayLabel || '근로자'} 삭제됨</p>
                         <button
                             type="button"
                             onClick={() => void handleUndoDeleteRegisteredWorker()}
@@ -4024,7 +4264,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     </div>
                 )}
 
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
                     <input
                         type="text"
                         value={registeredWorkerSearchTerm}
@@ -4061,10 +4301,124 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         <option value="missing-birth">누락 필터: 생년월일 누락</option>
                         <option value="missing-passport">누락 필터: 여권번호 누락</option>
                     </select>
+                    <select
+                        value={registeredWorkerDuplicateFilter}
+                        onChange={(event) => setRegisteredWorkerDuplicateFilter(event.target.value as RegisteredWorkerDuplicateFilter)}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white"
+                    >
+                        <option value="all">중복 필터: 전체</option>
+                        <option value="duplicates">중복 필터: 중복 후보만</option>
+                        <option value="suggested-delete">중복 필터: 삭제 권장만</option>
+                        <option value="exact-duplicates">중복 필터: 완전 동일 중복만</option>
+                    </select>
                 </div>
                 <p className="mt-2 text-[11px] font-bold text-slate-500">
-                    등록 {registeredWorkers.length}명 · 필터 결과 {filteredRegisteredWorkers.length}명
+                    등록 {registeredWorkers.length}명 · 필터 결과 {visibleRegisteredWorkers.length}명 · 중복 후보 {registeredWorkerDuplicateSummary.duplicateWorkerCount}명 · 삭제 권장 {registeredWorkerDuplicateSummary.autoDeleteIds.length}명 · 완전 동일 중복 {registeredWorkerExactDuplicateSummary.exactDuplicateIds.length}명
                 </p>
+                <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4">
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                        <div>
+                            <p className="text-[11px] font-black text-rose-700 uppercase tracking-[0.18em]">DUPLICATE CLEANUP</p>
+                            <p className="mt-1 text-sm font-black text-rose-900">이름+전화번호 또는 이름+생년월일이 겹치는 등록 근로자를 찾아 정리합니다.</p>
+                            <p className="mt-1 text-[11px] font-bold text-rose-700">각 중복 그룹에서 정보가 가장 풍부한 1명은 남기고 나머지를 삭제 권장 대상으로 자동 선택할 수 있습니다.</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full border border-rose-200 bg-white px-3 py-1 text-[11px] font-black text-rose-700">중복 그룹 {registeredWorkerDuplicateSummary.duplicateGroupCount}개</span>
+                            <span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-black text-amber-700">삭제 권장 {registeredWorkerDuplicateSummary.autoDeleteIds.length}명</span>
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-700">완전 동일 중복 {registeredWorkerExactDuplicateSummary.exactDuplicateIds.length}명</span>
+                            <button
+                                type="button"
+                                onClick={selectSuggestedDuplicateWorkers}
+                                disabled={registeredWorkerDuplicateSummary.autoDeleteIds.length === 0 || deletingWorkerId === '__bulk__'}
+                                className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-black text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+                            >
+                                중복 삭제 권장 자동선택
+                            </button>
+                            <button
+                                type="button"
+                                onClick={selectExactDuplicateWorkers}
+                                disabled={registeredWorkerExactDuplicateSummary.exactDuplicateIds.length === 0 || deletingWorkerId === '__bulk__'}
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                            >
+                                완전 동일 중복 자동선택
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedBulkMessageWorkerIds([])}
+                                disabled={selectedBulkMessageWorkerIds.length === 0 || deletingWorkerId === '__bulk__'}
+                                className="rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                            >
+                                선택 해제
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => void handleBulkDeleteRegisteredWorkers()}
+                                disabled={selectedBulkMessageWorkerIds.length === 0 || deletingWorkerId === '__bulk__'}
+                                className="rounded-xl border border-rose-200 bg-rose-600 px-3 py-2 text-xs font-black text-white hover:bg-rose-700 disabled:opacity-60"
+                            >
+                                {deletingWorkerId === '__bulk__' ? '일괄삭제 중...' : `선택 근로자 일괄삭제 (${selectedBulkMessageWorkerIds.length}명)`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                {registeredWorkerDuplicateGroupPreview.length > 0 && (
+                    <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p className="text-[11px] font-black text-amber-700 uppercase tracking-[0.18em]">DUPLICATE PREVIEW</p>
+                                <p className="mt-1 text-sm font-black text-slate-900">중복 그룹 미리보기</p>
+                                <p className="mt-1 text-[11px] font-bold text-slate-600">각 그룹의 보존 후보와 삭제 권장 대상을 바로 확인할 수 있습니다.</p>
+                            </div>
+                            <span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-black text-amber-700">표시 {Math.min(registeredWorkerDuplicateGroupPreview.length, 8)} / 전체 {registeredWorkerDuplicateGroupPreview.length}그룹</span>
+                        </div>
+                        <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-3">
+                            {registeredWorkerDuplicateGroupPreview.slice(0, 8).map((group) => (
+                                <div key={group.key} className="rounded-2xl border border-amber-200 bg-white px-4 py-4 shadow-sm">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div>
+                                            <p className="text-xs font-black text-amber-700">{group.label}</p>
+                                            <p className="mt-1 text-sm font-black text-slate-900">{group.keeper?.name || '이름 미상'} · 그룹 {group.members.length}명</p>
+                                        </div>
+                                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black text-slate-700">보존 1명 / 삭제 권장 {group.duplicateMembers.length}명</span>
+                                    </div>
+
+                                    {group.keeper && (
+                                        <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3">
+                                            <p className="text-[10px] font-black text-emerald-700 uppercase tracking-[0.16em]">보존 후보</p>
+                                            <p className="mt-1 text-sm font-black text-emerald-900">{group.keeper.name}</p>
+                                            <p className="mt-1 text-[11px] font-bold text-emerald-800">
+                                                {group.keeper.job_field || '미분류'} · {group.keeper.team_name || '미지정'} · {formatPhoneForDisplay(group.keeper.phone_number) || '전화 미등록'} · {formatBirthDateForDisplay(group.keeper.birth_date) || '생년월일 미등록'}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    <div className="mt-3 space-y-2">
+                                        {group.duplicateMembers.map((member) => (
+                                            <div key={member.id} className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3">
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-black text-rose-800 truncate">{member.name}</p>
+                                                        <p className="mt-1 text-[11px] font-bold text-rose-700 truncate">{member.job_field || '미분류'} · {member.team_name || '미지정'}</p>
+                                                        <p className="mt-1 text-[11px] font-bold text-slate-600">{formatPhoneForDisplay(member.phone_number) || '전화 미등록'} · {formatBirthDateForDisplay(member.birth_date) || '생년월일 미등록'}</p>
+                                                    </div>
+                                                    <label className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-2 py-1 text-[10px] font-black text-rose-700">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedBulkMessageWorkerIds.includes(member.id)}
+                                                            onChange={() => toggleBulkMessageWorkerSelection(member.id)}
+                                                            className="h-3.5 w-3.5 rounded border-rose-300 text-rose-600 focus:ring-rose-500"
+                                                        />
+                                                        삭제 선택
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
                 <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
                     <p className="text-[11px] font-black text-emerald-700 uppercase tracking-[0.18em]">PHONE LINK</p>
                     <p className="mt-1 text-xs font-bold text-emerald-900">등록 근로자 관리자 센터의 전화번호는 개인 리포트 문자 발송 화면과 연동됩니다.</p>
@@ -4795,7 +5149,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 onClick={toggleSelectAllFilteredWorkersForBulkMessage}
                                 className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
                             >
-                                {filteredRegisteredWorkers.length > 0 && filteredRegisteredWorkers.every((worker) => selectedBulkMessageWorkerIds.includes(worker.id)) ? '필터 결과 전체 해제' : '필터 결과 전체 선택'}
+                                {visibleRegisteredWorkers.length > 0 && visibleRegisteredWorkers.every((worker) => selectedBulkMessageWorkerIds.includes(worker.id)) ? '필터 결과 전체 해제' : '필터 결과 전체 선택'}
                             </button>
                             <button
                                 type="button"
@@ -4890,12 +5244,13 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     </button>
                                 </th>
                                 <th className="px-4 py-3 text-left text-xs font-black text-slate-600">관리</th>
+                                <th className="px-4 py-3 text-left text-xs font-black text-slate-600">중복 상태</th>
                             </tr>
                         </thead>
                         <tbody>
                             {isRegisteredWorkersLoading && (
                                 <tr>
-                                    <td colSpan={7} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
+                                    <td colSpan={8} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
                                         등록 근로자 목록을 불러오는 중입니다.
                                     </td>
                                 </tr>
@@ -4903,7 +5258,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
                             {!isRegisteredWorkersLoading && registeredWorkersError && (
                                 <tr>
-                                    <td colSpan={7} className="px-4 py-6 text-center text-xs font-bold text-rose-600">
+                                    <td colSpan={8} className="px-4 py-6 text-center text-xs font-bold text-rose-600">
                                         목록 조회 오류: {registeredWorkersError}
                                     </td>
                                 </tr>
@@ -4911,22 +5266,25 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
                             {!isRegisteredWorkersLoading && !registeredWorkersError && registeredWorkers.length === 0 && (
                                 <tr>
-                                    <td colSpan={7} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
+                                    <td colSpan={8} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
                                         등록된 근로자 데이터가 없습니다.
                                     </td>
                                 </tr>
                             )}
 
-                            {!isRegisteredWorkersLoading && !registeredWorkersError && registeredWorkers.length > 0 && filteredRegisteredWorkers.length === 0 && (
+                            {!isRegisteredWorkersLoading && !registeredWorkersError && registeredWorkers.length > 0 && visibleRegisteredWorkers.length === 0 && (
                                 <tr>
-                                    <td colSpan={7} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
+                                    <td colSpan={8} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
                                         검색/필터 조건에 맞는 근로자가 없습니다.
                                     </td>
                                 </tr>
                             )}
 
-                            {!isRegisteredWorkersLoading && !registeredWorkersError && filteredRegisteredWorkers.map((worker) => (
-                                <tr key={worker.id} className="border-t border-slate-100 hover:bg-slate-50/70">
+                            {!isRegisteredWorkersLoading && !registeredWorkersError && visibleRegisteredWorkers.map((worker) => {
+                                const duplicateMeta = registeredWorkerDuplicateSummary.metaMap.get(worker.id);
+
+                                return (
+                                <tr key={worker.id} className={`border-t border-slate-100 hover:bg-slate-50/70 ${duplicateMeta ? 'bg-rose-50/40' : ''}`}>
                                     <td className="px-4 py-3 text-center">
                                         <input
                                             type="checkbox"
@@ -5017,7 +5375,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 <button
                                                     type="button"
                                                     onClick={() => startEditRegisteredWorker(worker)}
-                                                    disabled={deletingWorkerId === worker.id}
+                                                    disabled={deletingWorkerId === worker.id || deletingWorkerId === '__bulk__'}
                                                     className="rounded-lg bg-indigo-50 border border-indigo-200 px-2 py-1 text-[11px] font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
                                                 >
                                                     수정
@@ -5025,7 +5383,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 <button
                                                     type="button"
                                                     onClick={() => handleOpenWorkerMessageHistory(worker)}
-                                                    disabled={deletingWorkerId === worker.id}
+                                                    disabled={deletingWorkerId === worker.id || deletingWorkerId === '__bulk__'}
                                                     className="rounded-lg bg-sky-50 border border-sky-200 px-2 py-1 text-[11px] font-black text-sky-700 hover:bg-sky-100 disabled:opacity-60"
                                                 >
                                                     문자이력
@@ -5033,7 +5391,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 <button
                                                     type="button"
                                                     onClick={() => void handleDeleteRegisteredWorker(worker)}
-                                                    disabled={deletingWorkerId === worker.id}
+                                                    disabled={deletingWorkerId === worker.id || deletingWorkerId === '__bulk__'}
                                                     className="rounded-lg bg-rose-50 border border-rose-200 px-2 py-1 text-[11px] font-black text-rose-700 hover:bg-rose-100 disabled:opacity-60"
                                                 >
                                                     {deletingWorkerId === worker.id ? '삭제중' : '삭제'}
@@ -5041,8 +5399,27 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             </div>
                                         )}
                                     </td>
+                                    <td className="px-4 py-3 align-top">
+                                        {duplicateMeta ? (
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {duplicateMeta.groupLabels.size > 0 && Array.from(duplicateMeta.groupLabels).map((label) => (
+                                                    <span key={`${worker.id}-${label}`} className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-700">
+                                                        {label}
+                                                    </span>
+                                                ))}
+                                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${duplicateMeta.suggestedDelete ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                                                    {duplicateMeta.suggestedDelete ? '삭제 권장' : '보존 후보'}
+                                                </span>
+                                            </div>
+                                        ) : (
+                                            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black text-slate-500">
+                                                정상
+                                            </span>
+                                        )}
+                                    </td>
                                 </tr>
-                            ))}
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>

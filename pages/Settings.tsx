@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import type { AppSettings } from '../types';
 import { getIsPaidApiMode, setIsPaidApiMode } from '../utils/apiModeUtils';
+import { PSI_APP_VERSION, PSI_SYSTEM_NAME } from '../lib/appInfo';
 
 const TRAINING_LANGUAGE_OPTIONS = [
     { code: 'ko-KR', label: '한국어 (ko-KR)' },
@@ -431,6 +432,10 @@ const Settings: React.FC = () => {
                     <h2 className="text-2xl sm:text-3xl font-black mb-1.5 sm:mb-2">시스템 설정 (System Configuration)</h2>
                     <p className="text-slate-400 max-w-xl text-sm sm:text-base md:text-lg">현장 맞춤형 환경을 구성하고 API 키를 관리하세요.</p>
                 </div>
+                <div className="relative z-10 inline-flex items-center gap-2 rounded-full border border-indigo-300/30 bg-white/10 px-4 py-2 text-xs font-black text-indigo-100">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
+                    현재 버전 {PSI_APP_VERSION}
+                </div>
                 <button
                     onClick={() => setShowGuide(!showGuide)}
                     className={`relative z-10 w-full md:w-auto px-5 sm:px-6 py-3 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg ${showGuide ? 'bg-white text-indigo-900' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}
@@ -797,7 +802,7 @@ const Settings: React.FC = () => {
 
                 <dl className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-x-4 gap-y-3 text-sm">
                     <dt className="font-bold text-slate-600">시스템명</dt>
-                    <dd className="text-slate-800">PSI (Proactive Safety Intelligence) v1.0</dd>
+                    <dd className="text-slate-800">{PSI_SYSTEM_NAME}</dd>
 
                     <dt className="font-bold text-slate-600">발명의 명칭</dt>
                     <dd className="text-slate-800">인공지능(AI) 기반 위험성평가 무결성 검증 및 대규모 근로자 안전 관리 자동화 시스템</dd>

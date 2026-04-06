@@ -5,7 +5,7 @@
  *
  * Body 형식:
  *   {
- *     action: 'record-unsafe-behavior' | 'register-coaching-action' | 'evaluate-worker-integrity' | 'bulk-upload-workers' | 'list-workers' | 'get-worker-contact' | 'list-report-message-logs' | 'get-report-message-dashboard-summary' | 'update-worker' | 'delete-worker' | 'restore-worker' | 'flush-audio-storage',
+ *     action: 'record-unsafe-behavior' | 'register-coaching-action' | 'evaluate-worker-integrity' | 'bulk-upload-workers' | 'list-workers' | 'get-worker-contact' | 'list-report-message-logs' | 'get-report-message-dashboard-summary' | 'update-worker' | 'delete-worker' | 'delete-workers' | 'restore-worker' | 'restore-workers' | 'flush-audio-storage',
  *     payload: { ... 액션별 필드 }
  *   }
  *
@@ -1032,6 +1032,7 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
 async function handleListWorkers(payload: any): Promise<any> {
     const requestedLimit = Number(payload?.limit || 3000);
     const includeDeleted = Boolean(payload?.includeDeleted);
+    const includeExactDuplicates = Boolean(payload?.includeExactDuplicates);
     const limit = Number.isFinite(requestedLimit)
         ? Math.min(Math.max(Math.floor(requestedLimit), 1), 5000)
         : 3000;
@@ -1112,9 +1113,10 @@ async function handleListWorkers(payload: any): Promise<any> {
         hiddenExactDuplicateCount += 1;
     });
 
+    const sortedRawRows = [...rows].sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
     const dedupedRows = Array.from(dedupedMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
     const sameNameGroupCount = Array.from(
-        dedupedRows.reduce((acc, row) => {
+        (includeExactDuplicates ? sortedRawRows : dedupedRows).reduce((acc, row) => {
             const key = normalizeWorkerNameKey(row.name);
             acc.set(key, (acc.get(key) || 0) + 1);
             return acc;
@@ -1122,8 +1124,8 @@ async function handleListWorkers(payload: any): Promise<any> {
     ).filter((count) => count > 1).length;
 
     return {
-        rows: dedupedRows,
-        total: dedupedRows.length,
+        rows: includeExactDuplicates ? sortedRawRows : dedupedRows,
+        total: includeExactDuplicates ? sortedRawRows.length : dedupedRows.length,
         hiddenExactDuplicateCount,
         sameNameGroupCount,
         rawTotal: rows.length,
@@ -1694,6 +1696,58 @@ async function handleDeleteWorker(payload: any): Promise<any> {
     };
 }
 
+async function handleDeleteWorkers(payload: any): Promise<any> {
+    const ids = Array.from(new Set(
+        (Array.isArray(payload?.ids) ? payload.ids : [])
+            .map((value) => String(value || '').trim())
+            .filter(Boolean),
+    ));
+
+    if (ids.length === 0) throw new Error('삭제할 worker id 목록이 필요합니다.');
+
+    const timestamp = new Date().toISOString();
+    const softDelete = await supabase
+        .from('workers')
+        .update({ deleted_at: timestamp, updated_at: timestamp })
+        .in('id', ids)
+        .is('deleted_at', null)
+        .select('id');
+
+    if (softDelete.error && !isDeletedAtColumnMissing(softDelete.error)) {
+        throw new Error(softDelete.error.message || 'workers 일괄삭제 실패');
+    }
+
+    if (Array.isArray(softDelete.data) && softDelete.data.length > 0) {
+        return {
+            deletedWorkerIds: softDelete.data.map((row: any) => String(row?.id || '').trim()).filter(Boolean),
+            softDeleted: true,
+        };
+    }
+
+    const fallbackHardDelete = await supabase
+        .from('workers')
+        .delete()
+        .in('id', ids)
+        .select('id');
+
+    if (fallbackHardDelete.error) {
+        throw new Error(fallbackHardDelete.error.message || 'workers 일괄삭제 실패');
+    }
+
+    const deletedWorkerIds = Array.isArray(fallbackHardDelete.data)
+        ? fallbackHardDelete.data.map((row: any) => String(row?.id || '').trim()).filter(Boolean)
+        : [];
+
+    if (deletedWorkerIds.length === 0) {
+        throw new Error('삭제 대상 근로자를 찾지 못했습니다.');
+    }
+
+    return {
+        deletedWorkerIds,
+        softDeleted: false,
+    };
+}
+
 // -----------------------------------------------------------------------
 // 액션 8: 등록 근로자 삭제 복구
 // -----------------------------------------------------------------------
@@ -1722,6 +1776,42 @@ async function handleRestoreWorker(payload: any): Promise<any> {
 
     return {
         restoredWorkerId: String(data.id || '').trim(),
+    };
+}
+
+async function handleRestoreWorkers(payload: any): Promise<any> {
+    const ids = Array.from(new Set(
+        (Array.isArray(payload?.ids) ? payload.ids : [])
+            .map((value) => String(value || '').trim())
+            .filter(Boolean),
+    ));
+
+    if (ids.length === 0) throw new Error('복구할 worker id 목록이 필요합니다.');
+
+    const { data, error } = await supabase
+        .from('workers')
+        .update({ deleted_at: null, updated_at: new Date().toISOString() })
+        .in('id', ids)
+        .not('deleted_at', 'is', null)
+        .select('id');
+
+    if (error) {
+        if (isDeletedAtColumnMissing(error)) {
+            throw new Error('일괄 복구 기능을 사용하려면 workers 테이블에 deleted_at 컬럼이 필요합니다.');
+        }
+        throw new Error(error.message || 'workers 일괄복구 실패');
+    }
+
+    const restoredWorkerIds = Array.isArray(data)
+        ? data.map((row: any) => String(row?.id || '').trim()).filter(Boolean)
+        : [];
+
+    if (restoredWorkerIds.length === 0) {
+        throw new Error('복구 대상 근로자를 찾지 못했습니다.');
+    }
+
+    return {
+        restoredWorkerIds,
     };
 }
 
@@ -1984,8 +2074,20 @@ export default async function handler(req: any, res: any) {
                 data = await handleDeleteWorker(payload);
                 break;
 
+            case 'delete-workers':
+                data = await handleDeleteWorkers(payload);
+                break;
+
             case 'restore-worker':
                 data = await handleRestoreWorker(payload);
+                break;
+
+            case 'restore-workers':
+                data = await handleRestoreWorkers(payload);
+                break;
+
+            case 'restore-workers':
+                data = await handleRestoreWorkers(payload);
                 break;
 
             case 'flush-audio-storage':
