@@ -573,6 +573,13 @@ const TrendMiniChart: React.FC<{ history: WorkerRecord[]; record: WorkerRecord }
     );
 };
 
+const createLineClampStyle = (lines: number): React.CSSProperties => ({
+    display: '-webkit-box',
+    WebkitBoxOrient: 'vertical',
+    WebkitLineClamp: lines,
+    overflow: 'hidden',
+});
+
 export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>(({ record, history = [], onPhotoClick }, ref) => {
     const labels = useMemo(() => getLabels(record.nationality), [record.nationality]);
     const isKorean = record.nationality === '대한민국' || record.nationality === '한국' || (record.nationality || '').toLowerCase().includes('korea');
@@ -678,8 +685,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                 </div>
 
                 <div className="absolute inset-0 m-4 border-[2px] border-slate-800 z-10 pointer-events-none"></div>
-                <div className="relative z-10 px-[11mm] py-[8.5mm] grid h-full grid-rows-[auto_38mm_40mm_minmax(0,1fr)_auto] gap-2.5 overflow-hidden">
-                    <div className="text-center shrink-0">
+                <div className="relative z-10 px-[11mm] py-[8.5mm] grid h-full grid-rows-[18mm_40mm_34mm_minmax(0,1fr)_10mm] gap-2.5 overflow-hidden">
+                    <div className="text-center shrink-0 h-[18mm] overflow-hidden">
                         <div className="flex justify-center mb-1.5">
                             <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
                                 <BrandPhilosophyLogo className="w-7 h-7" />
@@ -690,7 +697,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     </div>
 
                     {isKorean ? (
-                        <div className="grid grid-cols-[20mm_minmax(0,1fr)_17mm_40mm] items-start gap-3 pb-2.5 border-b-2 border-slate-800 min-h-[38mm] overflow-hidden">
+                        <div className="grid h-[40mm] grid-cols-[20mm_minmax(0,1fr)_16mm_38mm] items-start gap-3 pb-2.5 border-b-2 border-slate-800 overflow-hidden">
                             <div className="w-[20mm] h-[28mm] bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
                                 {getProfileImage() ? (
                                     <img src={getProfileImage()!} className="w-full h-full object-cover" alt="Profile" />
@@ -715,9 +722,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 </div>
                             </div>
 
-                            <div className="flex flex-col items-center justify-start gap-1 pt-0.5">
-                                <div className={`relative w-[16mm] h-[16mm] flex items-center justify-center rounded-full border-[3px] shadow-md ${record.safetyLevel === '고급' ? 'bg-emerald-50 border-emerald-400' : record.safetyLevel === '중급' ? 'bg-amber-50 border-amber-400' : 'bg-rose-50 border-rose-400'}`}>
-                                    <span className={`text-[24px] font-black tracking-tighter ${record.safetyLevel === '고급' ? 'text-emerald-700' : record.safetyLevel === '중급' ? 'text-amber-700' : 'text-rose-700'}`}>
+                            <div className="flex flex-col items-center justify-start gap-1 pt-0.5 overflow-hidden">
+                                <div className={`relative w-[15mm] h-[15mm] flex items-center justify-center rounded-full border-[3px] shadow-md ${record.safetyLevel === '고급' ? 'bg-emerald-50 border-emerald-400' : record.safetyLevel === '중급' ? 'bg-amber-50 border-amber-400' : 'bg-rose-50 border-rose-400'}`}>
+                                    <span className={`text-[22px] font-black tracking-tighter ${record.safetyLevel === '고급' ? 'text-emerald-700' : record.safetyLevel === '중급' ? 'text-amber-700' : 'text-rose-700'}`}>
                                         {record.safetyScore}
                                     </span>
                                 </div>
@@ -726,11 +733,11 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 </span>
                             </div>
 
-                            <div data-report-chart-box="true" className="flex h-[40mm] w-[40mm] shrink-0 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-1 py-1 shadow-sm overflow-hidden">
-                                <div className="w-[36mm] h-[33mm] overflow-hidden">
+                            <div data-report-chart-box="true" className="flex h-[38mm] w-[38mm] shrink-0 flex-col items-center justify-center rounded-2xl border border-slate-300 bg-white px-1 py-1 shadow-sm overflow-hidden">
+                                <div className="w-[34mm] h-[30mm] overflow-hidden">
                                     <IndividualRadarChart record={record} />
                                 </div>
-                                <span className="mt-0.5 text-[8px] font-black text-slate-500 tracking-[0.14em] uppercase">6 Metrics</span>
+                                <span className="mt-0.5 text-[7px] font-black text-slate-500 tracking-[0.12em] uppercase">6 Metrics</span>
                             </div>
                         </div>
                     ) : (
@@ -787,8 +794,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     )}
 
                     {isKorean ? (
-                        <div className="grid grid-cols-[1fr_1fr] gap-2.5 min-h-[38mm]">
-                            <div className="flex min-h-[38mm] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2.5 shadow-sm">
+                        <div className="grid h-[34mm] grid-cols-[1fr_1fr] gap-2.5 overflow-hidden">
+                            <div className="flex h-[34mm] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2.5 shadow-sm">
                                 <p className="text-[10px] font-black leading-none text-slate-700 mb-1.5 flex items-center gap-1">
                                     <SectionSearchIcon /> 핵심 채점 요약
                                 </p>
@@ -797,7 +804,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         {frontScoreReasonEntries.map((entry, i) => (
                                             <li key={`score-reason-ko-${i}`} className="flex items-start gap-1">
                                                 <span className="mt-[2px] text-slate-400">•</span>
-                                                <span className="break-words"><HighlightedText text={entry.text} /></span>
+                                                <span className="break-words" style={createLineClampStyle(2)}><HighlightedText text={entry.text} /></span>
                                             </li>
                                         ))}
                                     </ul>
@@ -809,11 +816,11 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 </p>
                             </div>
 
-                            <div className="flex min-h-[38mm] flex-col overflow-hidden rounded-xl border border-amber-300 bg-amber-50 p-2.5 shadow-sm">
+                            <div className="flex h-[34mm] flex-col overflow-hidden rounded-xl border border-amber-300 bg-amber-50 p-2.5 shadow-sm">
                                 <p className="text-[10px] font-black text-amber-800 leading-none mb-1.5 flex items-center gap-1">
                                     <SectionCoachingIcon /> 다음번엔 이렇게 작성해 보세요!
                                 </p>
-                                <p className="text-[9px] leading-relaxed text-amber-900 overflow-hidden">
+                                <p className="text-[8.5px] leading-relaxed text-amber-900 overflow-hidden" style={createLineClampStyle(4)}>
                                     <HighlightedText text={frontCoachingText} />
                                 </p>
                             </div>
@@ -896,8 +903,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
 
                     {isKorean ? (
                         <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_64px] gap-2.5 overflow-hidden">
-                            <div className="grid h-full min-h-0 grid-cols-[1fr_1fr_40mm] grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-2.5 overflow-hidden">
-                                <div className="rounded-xl border border-slate-100 bg-slate-50 p-2.5 shadow-sm overflow-hidden flex flex-col min-h-0">
+                            <div className="grid h-full min-h-0 grid-cols-[1fr_1fr_40mm] grid-rows-[42mm_42mm] gap-2.5 overflow-hidden">
+                                <div className="rounded-xl border border-slate-100 bg-slate-50 p-2.5 shadow-sm overflow-hidden flex flex-col h-[42mm]">
                                     <h3 className="font-bold text-[10px] mb-1.5 text-slate-700 flex items-center gap-1.5">
                                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
                                         {labels.strengths}
@@ -906,13 +913,13 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         {frontStrengthEntries.map((entry, i) => (
                                             <li key={`strength-ko-${i}`} className="text-[9px] leading-[1.35] text-slate-800 flex items-start gap-1 min-w-0">
                                                 <CheckBulletIcon />
-                                                <span className="min-w-0 break-words leading-[1.35]"><HighlightedText text={entry.text} /></span>
+                                                <span className="min-w-0 break-words leading-[1.35]" style={createLineClampStyle(2)}><HighlightedText text={entry.text} /></span>
                                             </li>
                                         ))}
                                     </ul>
                                 </div>
 
-                                <div className="rounded-xl border border-rose-100 bg-rose-50 p-2.5 shadow-sm overflow-hidden flex flex-col min-h-0">
+                                <div className="rounded-xl border border-rose-100 bg-rose-50 p-2.5 shadow-sm overflow-hidden flex flex-col h-[42mm]">
                                     <h3 className="font-bold text-[10px] mb-1.5 text-rose-800 flex items-center gap-1.5">
                                         <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
                                         {labels.weaknesses}
@@ -921,25 +928,25 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         {frontImprovementEntries.map((entry, i) => (
                                             <li key={`improvement-ko-${i}`} className="text-[9px] leading-[1.35] text-rose-900 flex items-start gap-1 min-w-0">
                                                 <WarningBulletIcon />
-                                                <span className="min-w-0 break-words leading-[1.35]"><HighlightedText text={entry.text} /></span>
+                                                <span className="min-w-0 break-words leading-[1.35]" style={createLineClampStyle(2)}><HighlightedText text={entry.text} /></span>
                                             </li>
                                         ))}
                                     </ul>
                                 </div>
 
-                                <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm overflow-hidden flex flex-col min-h-0">
+                                <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm overflow-hidden flex flex-col h-[42mm]">
                                     <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trends} (6M)</h4>
                                     <div className="flex-1 w-full relative min-h-0">
                                         <TrendMiniChart history={history} record={record} />
                                     </div>
                                 </div>
 
-                                <div className="col-span-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm overflow-hidden flex flex-col min-h-0">
+                                <div className="col-span-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm overflow-hidden flex flex-col h-[42mm]">
                                     <h3 className="font-bold text-[10px] mb-1.5 text-slate-700 flex items-center gap-1.5">
                                         <span className="w-1.5 h-1.5 rounded-full bg-slate-800 shrink-0"></span>
                                         {labels.verdict}
                                     </h3>
-                                    <p className="text-[9px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line">
+                                    <p className="text-[8.5px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line" style={createLineClampStyle(5)}>
                                         <HighlightedText text={frontVerdictKoText} />
                                     </p>
                                     {reassessmentTrail.length > 0 && (
@@ -953,7 +960,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     )}
                                 </div>
 
-                                <div className="rounded-xl border-2 border-slate-100 bg-white p-2 shadow-sm overflow-hidden flex flex-col min-h-0">
+                                <div className="rounded-xl border-2 border-slate-100 bg-white p-2 shadow-sm overflow-hidden flex flex-col h-[42mm]">
                                     <h3 className="font-bold text-[8px] mb-1.5 text-slate-800 uppercase tracking-wide flex items-center gap-1">
                                         <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0"></span>
                                         {labels.pictogram}
