@@ -1246,17 +1246,19 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         {/* Preview Content Area */}
                         <div className="flex-1 overflow-auto bg-slate-200 p-4 md:p-6 xl:p-8 custom-scrollbar">
                             {currentPreviewRecord && (
-                                <div className="mx-auto flex min-w-fit justify-center">
-                                    <div className="rounded-[28px] border border-slate-300/70 bg-white p-3 shadow-xl">
+                                <div className="mx-auto flex w-full max-w-[calc(210mm+36px)] min-w-fit justify-center">
+                                    <div className="w-full rounded-[28px] border border-slate-300/70 bg-white p-3 shadow-xl">
                                         <div className="overflow-auto max-h-[calc(100vh-240px)] rounded-2xl bg-slate-100/70 p-2 custom-scrollbar">
-                                            <div className="min-w-[210mm] origin-top bg-white shadow-2xl">
-                                                <Suspense fallback={<ReportTemplateFallback />}>
-                                                    <ReportTemplate 
-                                                        ref={previewRef}
-                                                        record={currentPreviewRecord} 
-                                                        history={currentPreviewHistory} 
-                                                    />
-                                                </Suspense>
+                                            <div className="mx-auto flex min-w-fit justify-center">
+                                                <div className="min-w-[210mm] origin-top bg-white shadow-2xl">
+                                                    <Suspense fallback={<ReportTemplateFallback />}>
+                                                        <ReportTemplate 
+                                                            ref={previewRef}
+                                                            record={currentPreviewRecord} 
+                                                            history={currentPreviewHistory} 
+                                                        />
+                                                    </Suspense>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

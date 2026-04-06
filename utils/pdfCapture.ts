@@ -80,6 +80,13 @@ const ensureCloneStyle = (doc: Document) => {
             transition: none !important;
             caret-color: transparent !important;
         }
+        [data-report-template-root="true"] canvas {
+            display: block !important;
+            max-width: none !important;
+        }
+        [data-report-template-root="true"] [data-report-chart-box="true"] {
+            overflow: visible !important;
+        }
         [data-report-template-root="true"] svg {
             shape-rendering: geometricPrecision;
             text-rendering: geometricPrecision;

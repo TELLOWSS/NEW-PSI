@@ -16,27 +16,27 @@ interface ReportTemplateProps {
 }
 
 const SectionSearchIcon: React.FC = () => (
-    <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-slate-600 shrink-0" fill="none" stroke="currentColor" aria-hidden="true">
+    <svg viewBox="0 0 16 16" className="block w-3.5 h-3.5 text-slate-600 shrink-0" fill="none" stroke="currentColor" aria-hidden="true">
         <circle cx="7" cy="7" r="4.5" strokeWidth="1.8" />
         <path d="M10.5 10.5L14 14" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
 );
 
 const SectionCoachingIcon: React.FC = () => (
-    <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-amber-700 shrink-0" fill="none" stroke="currentColor" aria-hidden="true">
+    <svg viewBox="0 0 16 16" className="block w-3.5 h-3.5 text-amber-700 shrink-0" fill="none" stroke="currentColor" aria-hidden="true">
         <path d="M8 1.5a4.5 4.5 0 0 0-2.64 8.14c.4.28.64.73.64 1.21V11.5h4v-.65c0-.48.23-.93.63-1.21A4.5 4.5 0 0 0 8 1.5Z" strokeWidth="1.6" strokeLinejoin="round" />
         <path d="M6.2 13h3.6M6.6 14.5h2.8" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
 );
 
 const CheckBulletIcon: React.FC<{ className?: string }> = ({ className = 'text-emerald-600' }) => (
-    <svg viewBox="0 0 16 16" className={`w-3.5 h-3.5 shrink-0 ${className}`} fill="none" stroke="currentColor" aria-hidden="true">
+    <svg viewBox="0 0 16 16" className={`block w-3.5 h-3.5 shrink-0 ${className}`} fill="none" stroke="currentColor" aria-hidden="true">
         <path d="M3.5 8.5 6.5 11.5 12.5 4.5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
 );
 
 const WarningBulletIcon: React.FC = () => (
-    <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-rose-600 shrink-0" fill="none" stroke="currentColor" aria-hidden="true">
+    <svg viewBox="0 0 16 16" className="block w-3.5 h-3.5 text-rose-600 shrink-0" fill="none" stroke="currentColor" aria-hidden="true">
         <path d="M8 2.2 14 13H2L8 2.2Z" strokeWidth="1.6" strokeLinejoin="round" />
         <path d="M8 6v3.2" strokeWidth="1.8" strokeLinecap="round" />
         <circle cx="8" cy="11.5" r="0.8" fill="currentColor" stroke="none" />
@@ -419,6 +419,36 @@ const wrapNarrativeText = (value?: string, maxChars: number = 44): string => {
     return targets.map((sentence) => hardWrapText(sentence, maxChars)).join('\n');
 };
 
+const limitNarrativeText = (value?: string, maxChars: number = 80): string => {
+    const normalized = normalizeNarrativeText(value).replace(/\s+/g, ' ').trim();
+    if (!normalized) return '';
+    if (normalized.length <= maxChars) return normalized;
+
+    const sentenceChunks = normalized.split(/(?<=[.!?。！？])\s+/u).filter(Boolean);
+    if (sentenceChunks.length > 1) {
+        let combined = '';
+        for (const chunk of sentenceChunks) {
+            const next = combined ? `${combined} ${chunk}` : chunk;
+            if (next.length > maxChars) break;
+            combined = next;
+        }
+
+        if (combined) {
+            return combined.length < normalized.length ? `${combined}…` : combined;
+        }
+    }
+
+    const short = normalized.slice(0, maxChars);
+    const breakIndex = short.lastIndexOf(' ');
+    const safeIndex = breakIndex >= Math.floor(maxChars * 0.6) ? breakIndex : maxChars;
+    return `${normalized.slice(0, safeIndex).trim()}…`;
+};
+
+const limitNarrativeEntry = (entry: NarrativeEntry, textMax: number, nativeMax: number): NarrativeEntry => ({
+    text: limitNarrativeText(entry.text, textMax),
+    nativeText: entry.nativeText ? limitNarrativeText(entry.nativeText, nativeMax) : undefined,
+});
+
 type NarrativeWrapSection = 'weakNative' | 'weakKo' | 'verdictNative' | 'verdictKo';
 
 const getNarrativeWrapWidth = (nationality: string, dense: boolean, section: NarrativeWrapSection): number => {
@@ -531,6 +561,30 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         verdictNative: getNarrativeWrapWidth(record.nationality, isWeaknessContentDense, 'verdictNative'),
         verdictKo: getNarrativeWrapWidth(record.nationality, isWeaknessContentDense, 'verdictKo'),
     }), [record.nationality, isWeaknessContentDense]);
+    const frontStrengthEntries = useMemo(
+        () => strengthEntries.slice(0, 3).map((entry) => limitNarrativeEntry(entry, isWeaknessContentDense ? 46 : 58, isWeaknessContentDense ? 42 : 52)),
+        [strengthEntries, isWeaknessContentDense],
+    );
+    const frontImprovementEntries = useMemo(
+        () => improvementEntries.slice(0, 3).map((entry) => limitNarrativeEntry(entry, isWeaknessContentDense ? 48 : 60, isWeaknessContentDense ? 44 : 54)),
+        [improvementEntries, isWeaknessContentDense],
+    );
+    const frontCoachingText = useMemo(
+        () => wrapNarrativeText(limitNarrativeText(actionableCoachingText, isWeaknessContentDense ? 120 : 155), isWeaknessContentDense ? 34 : 40),
+        [actionableCoachingText, isWeaknessContentDense],
+    );
+    const frontCoachingNativeText = useMemo(
+        () => coachingNativeParagraphs.length > 0 ? wrapNarrativeText(limitNarrativeText(coachingNativeParagraphs[0], isWeaknessContentDense ? 120 : 155), isWeaknessContentDense ? 34 : 40) : '',
+        [coachingNativeParagraphs, isWeaknessContentDense],
+    );
+    const frontVerdictNativeText = useMemo(
+        () => wrapNarrativeText(limitNarrativeText(record.aiInsights_native, isWeaknessContentDense ? 118 : 150), narrativeWrapWidth.verdictNative),
+        [record.aiInsights_native, isWeaknessContentDense, narrativeWrapWidth.verdictNative],
+    );
+    const frontVerdictKoText = useMemo(
+        () => wrapNarrativeText(limitNarrativeText(record.aiInsights, isWeaknessContentDense ? 124 : 164), narrativeWrapWidth.verdictKo),
+        [record.aiInsights, isWeaknessContentDense, narrativeWrapWidth.verdictKo],
+    );
 
     // Trend Chart Rendering
     useEffect(() => {
@@ -631,8 +685,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <p className="text-[10px] font-bold text-slate-500 tracking-widest">{labels.cert}</p>
                     </div>
 
-                    <div className="flex items-center justify-between gap-3 pb-2.5 border-b-2 border-slate-800 shrink-0">
-                        <div className="flex items-center gap-3.5">
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 pb-2.5 border-b-2 border-slate-800 shrink-0">
+                        <div className="flex min-w-0 items-center gap-3.5">
                             <div className="w-20 h-28 bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
                                 {getProfileImage() ? (
                                     <img src={getProfileImage()!} className="w-full h-full object-cover" alt="Profile" />
@@ -643,8 +697,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     </div>
                                 )}
                             </div>
-                            <div>
-                                <h2 className="text-[28px] font-serif font-bold text-slate-900 leading-none mb-2">{record.name}</h2>
+                            <div className="min-w-0 max-w-[88mm]">
+                                <h2 className="text-[28px] font-serif font-bold text-slate-900 leading-[1.02] mb-2 break-keep">{record.name}</h2>
                                 <div className="flex flex-wrap gap-1.5 mb-1.5">
                                     <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded">{record.nationality}</span>
                                     <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded">{record.jobField}</span>
@@ -655,8 +709,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-3 shrink-0">
-                            <div className="flex flex-col items-center gap-1">
+                        <div className="flex items-center gap-2.5 shrink-0 self-stretch pl-1">
+                            <div className="flex flex-col items-center justify-center gap-1 min-w-[82px]">
                                 <div className={`relative w-20 h-20 flex items-center justify-center rounded-full border-[3px] shadow-md ${record.safetyLevel === '고급' ? 'bg-emerald-50 border-emerald-400' : record.safetyLevel === '중급' ? 'bg-amber-50 border-amber-400' : 'bg-rose-50 border-rose-400'}`}>
                                     <span className={`text-[34px] font-black tracking-tighter ${record.safetyLevel === '고급' ? 'text-emerald-700' : record.safetyLevel === '중급' ? 'text-amber-700' : 'text-rose-700'}`}>
                                         {record.safetyScore}
@@ -670,15 +724,18 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     기준: 고급≥{safetyLevelThresholds.advancedMin} / 중급≥{safetyLevelThresholds.intermediateMin} / 초급&lt;{safetyLevelThresholds.intermediateMin}
                                 </span>
                             </div>
-                            <div className="w-32 h-32">
-                                <IndividualRadarChart record={record} />
+                            <div data-report-chart-box="true" className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/90 px-1.5 py-1 shadow-sm min-w-[38mm]">
+                                <div className="w-[38mm] h-[38mm]">
+                                    <IndividualRadarChart record={record} />
+                                </div>
+                                <span className="mt-1 text-[8px] font-black text-slate-500 tracking-[0.16em] uppercase">6 Metrics</span>
                             </div>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2.5 shrink-0">
                         <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-3 shadow-sm">
-                            <p className="text-[10px] font-black text-slate-700 mb-1.5 flex items-center gap-1">
+                            <p className="text-[10px] font-black leading-none text-slate-700 mb-1.5 flex items-center gap-1">
                                 <SectionSearchIcon /> 상세 채점 근거 (Score Reasoning)
                             </p>
                             {!isKorean && (
@@ -736,25 +793,25 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <div className="flex-1 bg-amber-50 border-2 border-amber-300 rounded-xl p-3 shadow-sm flex flex-col">
                             {!isKorean ? (
                                 <div className="mb-1.5">
-                                    <p className="text-[10px] font-black text-amber-800 leading-tight flex items-center gap-1">
+                                    <p className="text-[10px] font-black text-amber-800 leading-none flex items-center gap-1">
                                         <SectionCoachingIcon /> {coachingNativeParagraphs.length > 0 ? '⬇ 모국어 코칭 (아래 참조)' : '코칭 — 모국어 생성 대기'}
                                     </p>
                                     <p className="text-[8px] text-amber-600 font-bold">[KO] 다음번엔 이렇게 작성해 보세요!</p>
                                 </div>
                             ) : (
-                                <p className="text-[10px] font-black text-amber-800 mb-1.5 flex items-center gap-1">
+                                <p className="text-[10px] font-black text-amber-800 leading-none mb-1.5 flex items-center gap-1">
                                     <SectionCoachingIcon /> 다음번엔 이렇게 작성해 보세요!
                                 </p>
                             )}
                             {!isKorean && coachingNativeParagraphs.length > 0 ? (
                                 <>
                                     <p className="text-[10px] leading-relaxed text-amber-900 font-bold flex-1">
-                                        {coachingNativeParagraphs[0]}
+                                        {frontCoachingNativeText}
                                     </p>
                                     <div className="mt-1.5 pt-1.5 border-t border-amber-300">
                                         <span className="text-[8px] font-black text-amber-600">[KO 관리자 확인용]</span>
                                         <p className="text-[9px] leading-relaxed text-amber-800 mt-0.5">
-                                            <HighlightedText text={actionableCoachingText} />
+                                            <HighlightedText text={frontCoachingText} />
                                         </p>
                                     </div>
                                 </>
@@ -763,12 +820,12 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     <p className="text-[9px] text-amber-600 italic mb-1">ℹ 모국어 번역 준비중 — 재분석 시 자동 생성됩니다.</p>
                                     <p className="text-[9px] leading-relaxed text-amber-800 flex-1">
                                         <span className="text-[8px] font-black text-amber-500 mr-1">[KO]</span>
-                                        <HighlightedText text={actionableCoachingText} />
+                                        <HighlightedText text={frontCoachingText} />
                                     </p>
                                 </>
                             ) : (
                                 <p className="text-[10px] leading-relaxed text-amber-900 flex-1">
-                                    <HighlightedText text={actionableCoachingText} />
+                                    <HighlightedText text={frontCoachingText} />
                                 </p>
                             )}
                         </div>
@@ -781,19 +838,19 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 {labels.strengths}
                             </h3>
                             <ul className="space-y-1">
-                                {strengthEntries.slice(0, 3).map((entry, i) => (
+                                {frontStrengthEntries.map((entry, i) => (
                                     <li key={`strength-${i}`}>
                                         {!isKorean && entry.nativeText ? (
-                                            <div className="text-[9px] leading-[1.35] text-slate-800 flex items-start gap-1 overflow-hidden">
+                                            <div className="text-[9px] leading-[1.35] text-slate-800 flex items-start gap-1 min-w-0">
                                                 <CheckBulletIcon className="text-emerald-600" />
-                                                <span className="font-bold truncate">{entry.nativeText}</span>
+                                                <span className="min-w-0 break-words font-bold leading-[1.35]">{entry.nativeText}</span>
                                                 <span className="text-[7px] font-black text-slate-300">| KO</span>
-                                                <span className="text-slate-500 truncate">{entry.text}</span>
+                                                <span className="min-w-0 break-words text-slate-500 leading-[1.35]">{entry.text}</span>
                                             </div>
                                         ) : (
-                                            <div className="text-[9px] leading-[1.35] text-slate-800 flex items-start gap-1 overflow-hidden">
+                                            <div className="text-[9px] leading-[1.35] text-slate-800 flex items-start gap-1 min-w-0">
                                                 <CheckBulletIcon />
-                                                <span className="truncate"><HighlightedText text={entry.text} /></span>
+                                                <span className="min-w-0 break-words leading-[1.35]"><HighlightedText text={entry.text} /></span>
                                             </div>
                                         )}
                                     </li>
@@ -807,19 +864,19 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 {labels.weaknesses}
                             </h3>
                             <ul className="space-y-1">
-                                {improvementEntries.slice(0, 3).map((entry, i) => (
+                                {frontImprovementEntries.map((entry, i) => (
                                     <li key={`improvement-${i}`}>
                                         {!isKorean && entry.nativeText ? (
-                                            <div className={`text-rose-900 flex items-start gap-1 overflow-hidden ${isWeaknessContentDense ? 'text-[8px] leading-[1.35]' : 'text-[9px] leading-[1.35]'}`}>
+                                            <div className={`text-rose-900 flex items-start gap-1 min-w-0 ${isWeaknessContentDense ? 'text-[8px] leading-[1.35]' : 'text-[9px] leading-[1.35]'}`}>
                                                 <WarningBulletIcon />
-                                                <span className="font-bold truncate">{entry.nativeText}</span>
+                                                <span className="min-w-0 break-words font-bold leading-[1.35]">{entry.nativeText}</span>
                                                 <span className="text-[7px] font-black text-rose-400">| KO</span>
-                                                <span className="text-rose-700/70 truncate">{entry.text}</span>
+                                                <span className="min-w-0 break-words text-rose-700/70 leading-[1.35]">{entry.text}</span>
                                             </div>
                                         ) : (
-                                            <div className={`text-rose-900 flex items-start gap-1 overflow-hidden ${isWeaknessContentDense ? 'text-[8px] leading-[1.35]' : 'text-[9px] leading-[1.35]'}`}>
+                                            <div className={`text-rose-900 flex items-start gap-1 min-w-0 ${isWeaknessContentDense ? 'text-[8px] leading-[1.35]' : 'text-[9px] leading-[1.35]'}`}>
                                                 <WarningBulletIcon />
-                                                <span className="truncate"><HighlightedText text={entry.text} /></span>
+                                                <span className="min-w-0 break-words leading-[1.35]"><HighlightedText text={entry.text} /></span>
                                             </div>
                                         )}
                                     </li>
@@ -834,12 +891,12 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </h3>
                             {!isKorean && record.aiInsights_native && (
                                 <p className="text-[10px] leading-relaxed text-slate-800 font-bold flex-1 overflow-hidden whitespace-pre-line">
-                                    {wrapNarrativeText(record.aiInsights_native, narrativeWrapWidth.verdictNative)}
+                                    {frontVerdictNativeText}
                                 </p>
                             )}
                             <p className={`leading-relaxed overflow-hidden whitespace-pre-line ${!isKorean && record.aiInsights_native ? 'text-[9px] text-slate-400 mt-1 pt-1 border-t border-slate-100' : 'text-[10px] text-slate-800 flex-1'}`}>
                                 {!isKorean && record.aiInsights_native && <span className="text-[8px] font-black text-slate-300 mr-1">[KO]</span>}
-                                <HighlightedText text={wrapNarrativeText(record.aiInsights, narrativeWrapWidth.verdictKo)} />
+                                <HighlightedText text={frontVerdictKoText} />
                             </p>
                             {reassessmentTrail.length > 0 && (
                                 <div className="mt-1 pt-1 border-t border-slate-100">
@@ -924,7 +981,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     </div>
 
                     <div className="grid grid-cols-12 auto-rows-fr gap-2.5 flex-1 min-h-0">
-                        <section className="col-span-7 rounded-[18px] border border-slate-200 bg-white/95 p-3.5 shadow-sm">
+                        <section className="col-span-7 rounded-[18px] border border-slate-200 bg-white/95 p-3.5 shadow-sm min-h-0">
                             <div className="flex items-center justify-between gap-3">
                                 <h3 className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-700">Formal score reasoning</h3>
                                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[8px] font-black text-slate-500">검증용 상세 기술</span>
@@ -962,7 +1019,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </div>
                         </section>
 
-                        <section className="col-span-5 rounded-[18px] border border-amber-200 bg-[linear-gradient(180deg,rgba(255,251,235,0.98),rgba(255,247,237,0.96))] p-3.5 shadow-sm">
+                        <section className="col-span-5 rounded-[18px] border border-amber-200 bg-[linear-gradient(180deg,rgba(255,251,235,0.98),rgba(255,247,237,0.96))] p-3.5 shadow-sm min-h-0">
                             <div className="flex items-center justify-between gap-2">
                                 <h3 className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-900">Action coaching</h3>
                                 <span className="rounded-full bg-white/80 px-2.5 py-1 text-[8px] font-black text-amber-700">현장 실행 우선</span>
@@ -999,7 +1056,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </div>
                         </section>
 
-                        <section className="col-span-6 rounded-[18px] border border-emerald-200 bg-emerald-50/80 p-3.5 shadow-sm">
+                        <section className="col-span-6 rounded-[18px] border border-emerald-200 bg-emerald-50/80 p-3.5 shadow-sm min-h-0">
                             <div className="flex items-center justify-between gap-2">
                                 <h3 className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-900">Strength details</h3>
                                 <span className="text-[8px] font-black text-emerald-700">강점 상세 표현</span>
@@ -1019,7 +1076,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </div>
                         </section>
 
-                        <section className="col-span-6 rounded-[18px] border border-rose-200 bg-rose-50/85 p-3.5 shadow-sm">
+                        <section className="col-span-6 rounded-[18px] border border-rose-200 bg-rose-50/85 p-3.5 shadow-sm min-h-0">
                             <div className="flex items-center justify-between gap-2">
                                 <h3 className="text-[11px] font-black uppercase tracking-[0.16em] text-rose-900">Focus area details</h3>
                                 <span className="text-[8px] font-black text-rose-700">중복 검증 후 정리</span>

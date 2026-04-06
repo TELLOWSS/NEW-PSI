@@ -800,11 +800,15 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             )}
 
             {/* A4 REPORT CONTAINER - Using Shared Template */}
-            <div className="w-full max-w-[calc(210mm+24px)] overflow-x-auto rounded-[28px] border border-slate-200 bg-white p-3 shadow-xl pb-2">
-                <div className="shadow-2xl min-w-[210mm] bg-white">
-                    <Suspense fallback={<ReportTemplateFallback />}>
-                        <ReportTemplate record={record} history={history} onPhotoClick={startCamera} ref={reportRef} />
-                    </Suspense>
+            <div className="w-full max-w-[calc(210mm+36px)] rounded-[28px] border border-slate-300/70 bg-white p-3 shadow-xl">
+                <div className="overflow-auto max-h-[calc(100vh-220px)] rounded-2xl bg-slate-100/70 p-2 custom-scrollbar">
+                    <div className="mx-auto flex min-w-fit justify-center">
+                        <div className="min-w-[210mm] bg-white shadow-2xl">
+                            <Suspense fallback={<ReportTemplateFallback />}>
+                                <ReportTemplate record={record} history={history} onPhotoClick={startCamera} ref={reportRef} />
+                            </Suspense>
+                        </div>
+                    </div>
                 </div>
             </div>
             

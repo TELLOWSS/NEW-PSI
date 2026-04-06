@@ -157,6 +157,69 @@ function normalizeJobField(raw: string): string {
     return JOB_FIELD_ALIASES[compact] || JOB_FIELD_ALIASES[base] || base;
 }
 
+function normalizeWorkerNameKey(raw: string): string {
+    return String(raw || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function normalizeWorkerTeamKey(raw: string): string {
+    return String(raw || '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function buildWorkerIdentitySignature(row: {
+    name?: string | null;
+    job_field?: string | null;
+    team_name?: string | null;
+    phone_number?: string | null;
+    birth_date?: string | null;
+    passport_number?: string | null;
+}): string {
+    return [
+        normalizeWorkerNameKey(String(row?.name || '')),
+        normalizeJobField(String(row?.job_field || '')),
+        normalizeWorkerTeamKey(String(row?.team_name || '')),
+        normalizePhone(String(row?.phone_number || '')),
+        normalizeBirthDate(String(row?.birth_date || '')),
+        normalizePassport(String(row?.passport_number || '')),
+    ].join('|');
+}
+
+function getWorkerIdentityFillScore(row: {
+    nationality?: string | null;
+    phone_number?: string | null;
+    birth_date?: string | null;
+    passport_number?: string | null;
+}): number {
+    let score = 0;
+    if (String(row?.nationality || '').trim()) score += 1;
+    if (normalizePhone(String(row?.phone_number || '')).length >= 10) score += 3;
+    if (normalizeBirthDate(String(row?.birth_date || '')).length >= 6) score += 2;
+    if (normalizePassport(String(row?.passport_number || '')).length >= 6) score += 4;
+    return score;
+}
+
+function hasIdentityOverlap(left: {
+    phone_number?: string | null;
+    birth_date?: string | null;
+    passport_number?: string | null;
+}, right: {
+    phone_number?: string | null;
+    birth_date?: string | null;
+    passport_number?: string | null;
+}): boolean {
+    const leftPhone = normalizePhone(String(left?.phone_number || ''));
+    const leftBirth = normalizeBirthDate(String(left?.birth_date || ''));
+    const leftPassport = normalizePassport(String(left?.passport_number || ''));
+    const rightPhone = normalizePhone(String(right?.phone_number || ''));
+    const rightBirth = normalizeBirthDate(String(right?.birth_date || ''));
+    const rightPassport = normalizePassport(String(right?.passport_number || ''));
+
+    return Boolean(
+        (leftPhone && rightPhone && leftPhone === rightPhone) ||
+        (leftBirth && rightBirth && leftBirth === rightBirth) ||
+        (leftPassport && rightPassport && leftPassport === rightPassport)
+    );
+}
+
 function isDeletedAtColumnMissing(error: any): boolean {
     const message = String(error?.message || '').toLowerCase();
     const details = String((error as any)?.details || '').toLowerCase();
@@ -774,10 +837,26 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
     }
 
     const existingByKey = new Map<string, ExistingWorkerRow[]>();
+    const existingByPhone = new Map<string, ExistingWorkerRow[]>();
+    const existingByBirth = new Map<string, ExistingWorkerRow[]>();
+    const existingByPassport = new Map<string, ExistingWorkerRow[]>();
     for (const row of existingRows) {
         const key = toMatchKey(row.name, row.job_field, row.team_name);
         if (!existingByKey.has(key)) existingByKey.set(key, []);
         existingByKey.get(key)!.push(row);
+
+        if (row.phone_number) {
+            const list = existingByPhone.get(row.phone_number) || [];
+            existingByPhone.set(row.phone_number, [...list, row]);
+        }
+        if (row.birth_date) {
+            const list = existingByBirth.get(row.birth_date) || [];
+            existingByBirth.set(row.birth_date, [...list, row]);
+        }
+        if (row.passport_number) {
+            const list = existingByPassport.get(row.passport_number) || [];
+            existingByPassport.set(row.passport_number, [...list, row]);
+        }
     }
 
     let insertedCount = 0;
@@ -791,6 +870,25 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
         let matched: ExistingWorkerRow | undefined;
 
         if (row.passport_number) {
+            const passportMatches = existingByPassport.get(row.passport_number) || [];
+            if (passportMatches.length === 1) {
+                matched = passportMatches[0];
+            }
+        }
+        if (!matched && row.phone_number) {
+            const phoneMatches = existingByPhone.get(row.phone_number) || [];
+            if (phoneMatches.length === 1) {
+                matched = phoneMatches[0];
+            }
+        }
+        if (!matched && row.birth_date) {
+            const birthMatches = existingByBirth.get(row.birth_date) || [];
+            if (birthMatches.length === 1) {
+                matched = birthMatches[0];
+            }
+        }
+
+        if (!matched && row.passport_number) {
             matched = candidates.find((item) => item.passport_number && item.passport_number === row.passport_number);
         }
         if (!matched && row.phone_number) {
@@ -801,6 +899,22 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
         }
         if (!matched && candidates.length === 1) {
             matched = candidates[0];
+        }
+        if (!matched && candidates.length > 1) {
+            const rankedCandidate = [...candidates]
+                .map((candidate) => {
+                    let score = getWorkerIdentityFillScore(candidate);
+                    if (hasIdentityOverlap(candidate, row)) score += 10;
+                    if (normalizeWorkerNameKey(candidate.name) === normalizeWorkerNameKey(row.name)) score += 1;
+                    if (normalizeWorkerTeamKey(candidate.team_name) === normalizeWorkerTeamKey(row.team_name)) score += 1;
+                    if (normalizeJobField(candidate.job_field) === normalizeJobField(row.job_field)) score += 1;
+                    return { candidate, score };
+                })
+                .sort((a, b) => b.score - a.score)[0];
+
+            if (rankedCandidate && rankedCandidate.score >= 10) {
+                matched = rankedCandidate.candidate;
+            }
         }
 
         if (!matched) {
@@ -838,6 +952,18 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
             const nextKey = toMatchKey(insertedRow.name, insertedRow.job_field, insertedRow.team_name);
             const nextList = existingByKey.get(nextKey) || [];
             existingByKey.set(nextKey, [...nextList, insertedRow]);
+            if (insertedRow.phone_number) {
+                const nextPhoneList = existingByPhone.get(insertedRow.phone_number) || [];
+                existingByPhone.set(insertedRow.phone_number, [...nextPhoneList, insertedRow]);
+            }
+            if (insertedRow.birth_date) {
+                const nextBirthList = existingByBirth.get(insertedRow.birth_date) || [];
+                existingByBirth.set(insertedRow.birth_date, [...nextBirthList, insertedRow]);
+            }
+            if (insertedRow.passport_number) {
+                const nextPassportList = existingByPassport.get(insertedRow.passport_number) || [];
+                existingByPassport.set(insertedRow.passport_number, [...nextPassportList, insertedRow]);
+            }
             continue;
         }
 
@@ -953,11 +1079,40 @@ async function handleListWorkers(payload: any): Promise<any> {
         deleted_at: String(row?.deleted_at || '').trim() || null,
     }));
 
-    rows.sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
+    const dedupedMap = new Map<string, typeof rows[number]>();
+    let hiddenExactDuplicateCount = 0;
+    rows.forEach((row) => {
+        const signature = buildWorkerIdentitySignature(row);
+        const existing = dedupedMap.get(signature);
+        if (!existing) {
+            dedupedMap.set(signature, row);
+            return;
+        }
+
+        const existingScore = getWorkerIdentityFillScore(existing);
+        const nextScore = getWorkerIdentityFillScore(row);
+        const shouldReplace = nextScore > existingScore || (nextScore === existingScore && existing.id.localeCompare(row.id) > 0);
+        if (shouldReplace) {
+            dedupedMap.set(signature, row);
+        }
+        hiddenExactDuplicateCount += 1;
+    });
+
+    const dedupedRows = Array.from(dedupedMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
+    const sameNameGroupCount = Array.from(
+        dedupedRows.reduce((acc, row) => {
+            const key = normalizeWorkerNameKey(row.name);
+            acc.set(key, (acc.get(key) || 0) + 1);
+            return acc;
+        }, new Map<string, number>()).values(),
+    ).filter((count) => count > 1).length;
 
     return {
-        rows,
-        total: rows.length,
+        rows: dedupedRows,
+        total: dedupedRows.length,
+        hiddenExactDuplicateCount,
+        sameNameGroupCount,
+        rawTotal: rows.length,
     };
 }
 

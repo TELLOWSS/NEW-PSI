@@ -619,6 +619,12 @@ type RegisteredWorkerListRow = {
     passport_number: string;
 };
 
+type RegisteredWorkerListMeta = {
+    hiddenExactDuplicateCount: number;
+    sameNameGroupCount: number;
+    rawTotal: number;
+};
+
 type WorkerMessageLogRow = {
     id: string;
     worker_id: string;
@@ -809,6 +815,11 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [bulkUploadSummary, setBulkUploadSummary] = useState<BulkUploadSummary | null>(null);
     const [isManualRegistering, setIsManualRegistering] = useState(false);
     const [registeredWorkers, setRegisteredWorkers] = useState<RegisteredWorkerListRow[]>([]);
+    const [registeredWorkerListMeta, setRegisteredWorkerListMeta] = useState<RegisteredWorkerListMeta>({
+        hiddenExactDuplicateCount: 0,
+        sameNameGroupCount: 0,
+        rawTotal: 0,
+    });
     const [isRegisteredWorkersLoading, setIsRegisteredWorkersLoading] = useState(false);
     const [registeredWorkersError, setRegisteredWorkersError] = useState('');
     const [editingWorkerId, setEditingWorkerId] = useState('');
@@ -886,6 +897,16 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         const compact = base.replace(/\s+/g, '');
         return JOB_FIELD_ALIASES[compact] || JOB_FIELD_ALIASES[base] || base;
     };
+    const normalizeWorkerNameKey = (raw: unknown) => String(raw || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const normalizeWorkerTeamKey = (raw: unknown) => String(raw || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const buildRegisteredWorkerSignature = (worker: Pick<RegisteredWorkerListRow, 'name' | 'job_field' | 'team_name' | 'phone_number' | 'birth_date' | 'passport_number'>) => [
+        normalizeWorkerNameKey(worker.name),
+        normalizeJobField(worker.job_field),
+        normalizeWorkerTeamKey(worker.team_name),
+        normalizePhone(worker.phone_number),
+        normalizeBirthDate(worker.birth_date),
+        normalizePassport(worker.passport_number),
+    ].join('|');
     const isSuccessfulMessageStatus = (status: string) => ['SUCCESS', 'SENT', 'OK'].includes(String(status || '').trim().toUpperCase());
     const isMessageHistoryCacheFresh = (fetchedAt: string) => {
         const time = new Date(fetchedAt).getTime();
@@ -976,9 +997,15 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 phone_number: String(row?.phone_number || '').trim(),
                 passport_number: String(row?.passport_number || '').trim(),
             })));
+            setRegisteredWorkerListMeta({
+                hiddenExactDuplicateCount: Number(data?.data?.hiddenExactDuplicateCount || 0),
+                sameNameGroupCount: Number(data?.data?.sameNameGroupCount || 0),
+                rawTotal: Number(data?.data?.rawTotal || rows.length || 0),
+            });
         } catch (error) {
             setRegisteredWorkersError(extractMessage(error));
             setRegisteredWorkers([]);
+            setRegisteredWorkerListMeta({ hiddenExactDuplicateCount: 0, sameNameGroupCount: 0, rawTotal: 0 });
         } finally {
             setIsRegisteredWorkersLoading(false);
         }
@@ -1943,6 +1970,31 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             return alert('생년월일은 6자리 또는 8자리만 입력해 주세요.');
         }
 
+        const manualSignature = buildRegisteredWorkerSignature({
+            name,
+            job_field: jobField,
+            team_name: teamName,
+            phone_number: phoneNumber,
+            birth_date: birthDate,
+            passport_number: passportNumber,
+        });
+        const exactRegisteredMatch = registeredWorkers.find((worker) => buildRegisteredWorkerSignature(worker) === manualSignature);
+        if (exactRegisteredMatch) {
+            setRegisteredWorkerAdminTab('list');
+            setRegisteredWorkerSearchTerm(name);
+            setBulkUploadMessage('ℹ 이미 동일한 근로자가 등록되어 있어 새로 추가하지 않았습니다.');
+            setBulkUploadSummary({
+                status: 'success',
+                requested: 1,
+                inserted: 0,
+                updated: 0,
+                skipped: 1,
+                fileName: '프로그램 내 직접 등록',
+                message: '완전 동일한 등록 건은 중복 생성하지 않고 기존 데이터로 유지합니다.',
+            });
+            return;
+        }
+
         setIsManualRegistering(true);
         try {
             const data = await postAdminJson<any>(
@@ -1980,6 +2032,8 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 fileName: '프로그램 내 직접 등록',
                 message: '프로그램에서 근로자 등록이 완료되었습니다.',
             });
+            setRegisteredWorkerAdminTab('list');
+            setRegisteredWorkerSearchTerm(name);
             void fetchRegisteredWorkers();
 
             setManualWorkerForm({
@@ -3240,6 +3294,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     >
                         {isManualRegistering ? '프로그램 등록 처리 중...' : '프로그램에서 1명 등록'}
                     </button>
+                    <p className="mt-2 text-[11px] font-bold text-slate-500">동일 이름·공종·팀 기준에서 전화번호/생년월일/여권번호가 같으면 새 행을 만들지 않고 기존 등록자 유지 또는 보완 업데이트로 처리합니다.</p>
                 </div>
 
                 {bulkUploadMessage && (
@@ -3543,6 +3598,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     <div>
                         <h3 className="text-base sm:text-lg font-black text-slate-900">등록 근로자 관리자 센터</h3>
                         <p className="mt-1 text-[11px] font-bold text-slate-500">근로자 기본정보 수정과 문자 발송 이력을 같은 화면에서 저용량 호출 방식으로 확인합니다.</p>
+                        <p className="mt-1 text-[11px] font-bold text-slate-400">완전 동일한 중복 행은 자동 숨김 처리하고, 동명이인은 그대로 유지합니다.</p>
                     </div>
                     <div className="flex items-center gap-2">
                         <button
@@ -3567,6 +3623,20 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         >
                             {isRegisteredWorkersLoading ? '불러오는 중...' : '새로고침'}
                         </button>
+                    </div>
+                </div>
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                        <p className="text-[10px] font-black text-slate-500">현재 표시 등록자</p>
+                        <p className="mt-1 text-lg font-black text-slate-900">{registeredWorkers.length}명</p>
+                    </div>
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+                        <p className="text-[10px] font-black text-amber-600">숨김 중복 행</p>
+                        <p className="mt-1 text-lg font-black text-amber-900">{registeredWorkerListMeta.hiddenExactDuplicateCount}건</p>
+                    </div>
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3">
+                        <p className="text-[10px] font-black text-indigo-600">동명이인 그룹</p>
+                        <p className="mt-1 text-lg font-black text-indigo-900">{registeredWorkerListMeta.sameNameGroupCount}그룹</p>
                     </div>
                 </div>
                 {registeredWorkerUpdateMessage && (
