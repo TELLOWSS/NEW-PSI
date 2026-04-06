@@ -644,6 +644,14 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         () => wrapNarrativeText(limitNarrativeText(record.aiInsights, isWeaknessContentDense ? 124 : 164), narrativeWrapWidth.verdictKo),
         [record.aiInsights, isWeaknessContentDense, narrativeWrapWidth.verdictKo],
     );
+    const workerNameClassName = useMemo(() => {
+        const nameLength = (record.name || '').trim().length;
+
+        if (nameLength >= 18) return 'text-[18px] leading-[1.08]';
+        if (nameLength >= 14) return 'text-[20px] leading-[1.06]';
+        if (nameLength >= 10) return 'text-[22px] leading-[1.04]';
+        return 'text-[24px] leading-[1.02]';
+    }, [record.name]);
 
     const getProfileImage = () => {
         if (record.profileImage && record.profileImage.length > 50) {
@@ -666,7 +674,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                 </div>
 
                 <div className="absolute inset-0 m-4 border-[2px] border-slate-800 z-10 pointer-events-none"></div>
-                <div className="relative z-10 px-[11mm] py-[8.5mm] flex h-full flex-col justify-between gap-2.5">
+                <div className="relative z-10 px-[11mm] py-[8.5mm] grid h-full grid-rows-[auto_32mm_42mm_minmax(0,1fr)_auto] gap-2.5">
                     <div className="text-center shrink-0">
                         <div className="flex justify-center mb-1.5">
                             <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
@@ -677,7 +685,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <p className="text-[10px] font-bold text-slate-500 tracking-widest">{labels.cert}</p>
                     </div>
 
-                    <div className="grid grid-cols-[minmax(0,1fr)_152px] items-center gap-2.5 pb-2.5 border-b-2 border-slate-800 shrink-0">
+                    <div className="grid grid-cols-[minmax(0,1fr)_62mm] items-start gap-2.5 pb-2.5 border-b-2 border-slate-800 min-h-[32mm]">
                         <div className="flex min-w-0 items-center gap-3">
                             <div className="w-[19mm] h-[27mm] bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
                                 {getProfileImage() ? (
@@ -689,8 +697,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     </div>
                                 )}
                             </div>
-                            <div className="min-w-0 max-w-[84mm]">
-                                <h2 className="text-[25px] font-serif font-bold text-slate-900 leading-[1.03] mb-1.5 break-keep">{record.name}</h2>
+                            <div className="min-w-0 max-w-[80mm]">
+                                <h2 className={`${workerNameClassName} font-serif font-bold text-slate-900 mb-1.5 break-keep`}>{record.name}</h2>
                                 <div className="flex flex-wrap gap-1.5 mb-1.5">
                                     <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded">{record.nationality}</span>
                                     <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded">{record.jobField}</span>
@@ -701,32 +709,32 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-end gap-2 shrink-0 self-stretch pl-1">
-                            <div className="flex flex-col items-center justify-center gap-1 min-w-[74px]">
-                                <div className={`relative w-[18mm] h-[18mm] flex items-center justify-center rounded-full border-[3px] shadow-md ${record.safetyLevel === '고급' ? 'bg-emerald-50 border-emerald-400' : record.safetyLevel === '중급' ? 'bg-amber-50 border-amber-400' : 'bg-rose-50 border-rose-400'}`}>
-                                    <span className={`text-[29px] font-black tracking-tighter ${record.safetyLevel === '고급' ? 'text-emerald-700' : record.safetyLevel === '중급' ? 'text-amber-700' : 'text-rose-700'}`}>
+                        <div className="flex items-start justify-between gap-1.5 shrink-0 self-stretch pl-1">
+                            <div className="flex flex-col items-center justify-start gap-1 min-w-[68px] pt-0.5">
+                                <div className={`relative w-[17mm] h-[17mm] flex items-center justify-center rounded-full border-[3px] shadow-md ${record.safetyLevel === '고급' ? 'bg-emerald-50 border-emerald-400' : record.safetyLevel === '중급' ? 'bg-amber-50 border-amber-400' : 'bg-rose-50 border-rose-400'}`}>
+                                    <span className={`text-[27px] font-black tracking-tighter ${record.safetyLevel === '고급' ? 'text-emerald-700' : record.safetyLevel === '중급' ? 'text-amber-700' : 'text-rose-700'}`}>
                                         {record.safetyScore}
                                     </span>
                                 </div>
                                 <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.18em]">TOTAL SCORE</span>
-                                <span className={`px-3 py-0.5 rounded-full text-[10px] font-black ${record.safetyLevel === '고급' ? 'bg-emerald-100 text-emerald-800' : record.safetyLevel === '중급' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${record.safetyLevel === '고급' ? 'bg-emerald-100 text-emerald-800' : record.safetyLevel === '중급' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
                                     {record.safetyLevel}
                                 </span>
                                 <span className="text-[7px] font-bold text-slate-400 text-center leading-tight">
                                     기준: 고급≥{safetyLevelThresholds.advancedMin} / 중급≥{safetyLevelThresholds.intermediateMin} / 초급&lt;{safetyLevelThresholds.intermediateMin}
                                 </span>
                             </div>
-                            <div data-report-chart-box="true" className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/90 px-1 py-1.5 shadow-sm min-w-[44mm]">
-                                <div className="w-[44mm] h-[44mm]">
+                            <div data-report-chart-box="true" className="flex h-[50mm] w-[48mm] shrink-0 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/90 px-1 py-1.5 shadow-sm overflow-hidden">
+                                <div className="w-[47mm] h-[47mm] overflow-hidden">
                                     <IndividualRadarChart record={record} />
                                 </div>
-                                <span className="mt-1 text-[8px] font-black text-slate-500 tracking-[0.16em] uppercase">6 Metrics</span>
+                                <span className="mt-0.5 text-[8px] font-black text-slate-500 tracking-[0.16em] uppercase">6 Metrics</span>
                             </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2.5 shrink-0 min-h-[41mm]">
-                        <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-3 shadow-sm min-h-[41mm]">
+                    <div className="grid grid-cols-2 gap-2.5 min-h-[42mm]">
+                        <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-3 shadow-sm min-h-[42mm]">
                             <p className="text-[10px] font-black leading-none text-slate-700 mb-1.5 flex items-center gap-1">
                                 <SectionSearchIcon /> 상세 채점 근거 (Score Reasoning)
                             </p>
@@ -782,7 +790,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </p>
                         </div>
 
-                        <div className="flex-1 bg-amber-50 border-2 border-amber-300 rounded-xl p-3 shadow-sm flex flex-col min-h-[41mm]">
+                        <div className="flex-1 bg-amber-50 border-2 border-amber-300 rounded-xl p-3 shadow-sm flex flex-col min-h-[42mm]">
                             {!isKorean ? (
                                 <div className="mb-1.5">
                                     <p className="text-[10px] font-black text-amber-800 leading-none flex items-center gap-1">
@@ -823,8 +831,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </div>
                     </div>
 
-                    <div className={`flex-1 min-h-0 ${isKorean ? 'grid grid-rows-[minmax(0,1fr)_68px] gap-2.5' : ''}`}>
-                        <div className="grid h-full min-h-0 grid-cols-4 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] items-stretch gap-2.5">
+                    <div className={`min-h-0 ${isKorean ? 'grid grid-rows-[minmax(0,1fr)_64px] gap-2.5' : 'h-full'}`}>
+                        <div className="grid h-full min-h-0 grid-cols-4 grid-rows-[minmax(0,1fr)_minmax(0,0.96fr)] items-stretch gap-2.5">
                         <div className="col-span-2 row-span-1 h-full min-h-0 bg-slate-50 rounded-xl border border-slate-100 p-3 shadow-sm overflow-hidden flex flex-col">
                             <h3 className="font-bold text-[10px] mb-2 text-slate-700 flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
@@ -902,28 +910,28 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             )}
                         </div>
 
-                        <div className={`col-span-2 row-span-1 h-full min-h-0 flex flex-col ${isWeaknessContentDense ? 'gap-1.5' : 'gap-2'}`}>
-                            <div className={`flex-1 border border-slate-200 rounded-xl bg-white shadow-sm flex flex-col min-h-0 ${isWeaknessContentDense ? 'p-1.5' : 'p-2'}`}>
+                        <div className={`col-span-2 row-span-1 h-full min-h-0 grid ${isWeaknessContentDense ? 'gap-1.5' : 'gap-2'} grid-rows-[minmax(0,0.88fr)_minmax(0,1.12fr)]`}>
+                            <div className={`border border-slate-200 rounded-xl bg-white shadow-sm flex flex-col min-h-0 ${isWeaknessContentDense ? 'p-1.5' : 'p-2'}`}>
                                 <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trends} (6M)</h4>
                                 <div className="flex-1 w-full relative min-h-0">
                                     <TrendMiniChart history={history} record={record} />
                                 </div>
                             </div>
-                            <div className={`flex-1 min-h-0 border-2 border-slate-100 rounded-xl bg-white shadow-sm flex flex-col ${isWeaknessContentDense ? 'p-1.5' : 'p-2'}`}>
+                            <div className={`min-h-0 border-2 border-slate-100 rounded-xl bg-white shadow-sm flex flex-col ${isWeaknessContentDense ? 'p-1.5' : 'p-2'}`}>
                                 <h3 className="font-bold text-[8px] mb-1.5 text-slate-800 uppercase tracking-wide flex items-center gap-1">
                                     <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0"></span>
                                     {labels.pictogram}
                                 </h3>
-                                <div className="grid flex-1 min-h-0 grid-cols-2 gap-1.5">
+                                <div className="grid flex-1 min-h-0 auto-rows-fr grid-cols-2 items-stretch gap-1.5">
                                     {safetySigns.map((sign, i) => (
-                                        <div key={i} className="border border-slate-200 rounded bg-slate-50 flex min-h-[68px] flex-col items-center justify-center p-1.5 text-center relative overflow-hidden">
-                                            <div className="flex h-10 w-10 items-center justify-center mb-1 shrink-0">
+                                        <div key={i} className="border border-slate-200 rounded bg-slate-50 h-full min-h-[58px] flex flex-col items-center justify-center p-1 text-center relative overflow-hidden">
+                                            <div className="flex h-8 w-8 items-center justify-center mb-1 shrink-0">
                                                 <svg viewBox="0 0 100 100" className="block w-full h-full drop-shadow-sm">
                                                     {sign.icon}
                                                 </svg>
                                             </div>
-                                            <p className="text-[8px] font-black text-slate-900 leading-tight">{sign.labels.ko}</p>
-                                            {!isKorean && <p className="text-[7px] font-bold text-slate-500 mt-0.5 leading-none">{getSignLabel(sign, record.nationality)}</p>}
+                                            <p className="text-[7.5px] font-black text-slate-900 leading-tight break-keep">{sign.labels.ko}</p>
+                                            {!isKorean && <p className="text-[6.5px] font-bold text-slate-500 mt-0.5 leading-none break-keep">{getSignLabel(sign, record.nationality)}</p>}
                                             <div className={`absolute top-0 right-0 w-2 h-2 ${sign.type === 'warning' ? 'bg-yellow-400' : 'bg-blue-600'} rounded-bl`}></div>
                                         </div>
                                     ))}
@@ -934,7 +942,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </div>
 
                         {isKorean && (
-                            <div className="border border-slate-200 rounded-xl bg-slate-50 px-2 py-1.5 relative overflow-hidden flex items-center justify-center h-[68px] min-h-[68px] shrink-0">
+                            <div className="border border-slate-200 rounded-xl bg-slate-50 px-2 py-1.5 relative overflow-hidden flex items-center justify-center h-[64px] min-h-[64px] shrink-0">
                                 <p className="absolute top-1.5 left-2 text-[8px] font-bold text-slate-400 uppercase z-10">{labels.original}</p>
                                 <div className="w-full h-full pt-3 flex items-center justify-center overflow-hidden">
                                     {getOriginalImage() ? (

@@ -56,10 +56,10 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
     ];
     const percentages = metricValues.map((value, index) => Math.max(0, Math.min(100, Math.round((value / RADAR_METRIC_MAX[index]) * 100))));
 
-    const size = 220;
+    const size = 240;
     const center = size / 2;
-    const radius = 66;
-    const labelRadius = 90;
+    const radius = 54;
+    const labelRadius = 70;
     const levels = [0.25, 0.5, 0.75, 1];
     const startAngle = -Math.PI / 2;
     const step = (Math.PI * 2) / RADAR_LABELS.length;
@@ -76,7 +76,13 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
     const polygonPath = points.map((point) => `${point.x},${point.y}`).join(' ');
 
     return (
-        <svg viewBox={`0 0 ${size} ${size}`} className="block h-full w-full" role="img" aria-label="6대 지표 레이더 차트">
+        <svg
+            viewBox={`0 0 ${size} ${size}`}
+            className="block h-full w-full overflow-visible"
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+            aria-label="6대 지표 레이더 차트"
+        >
             <defs>
                 <linearGradient id="radar-fill-gradient" x1="0" y1="0" x2="1" y2="1">
                     <stop offset="0%" stopColor="rgba(79,70,229,0.34)" />
@@ -115,12 +121,12 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
                 );
             })}
 
-            <polygon points={polygonPath} fill="url(#radar-fill-gradient)" stroke="#4F46E5" strokeWidth="2.5" strokeLinejoin="round" />
+            <polygon points={polygonPath} fill="url(#radar-fill-gradient)" stroke="#4F46E5" strokeWidth="2.2" strokeLinejoin="round" />
 
             {points.map((point, index) => (
                 <g key={`point-${RADAR_LABELS[index]}`}>
-                    <circle cx={point.x} cy={point.y} r="4.2" fill="#ffffff" />
-                    <circle cx={point.x} cy={point.y} r="2.8" fill="#4F46E5" />
+                    <circle cx={point.x} cy={point.y} r="3.8" fill="#ffffff" />
+                    <circle cx={point.x} cy={point.y} r="2.5" fill="#4F46E5" />
                 </g>
             ))}
 
@@ -128,7 +134,7 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
                 const angle = startAngle + step * index;
                 const x = center + Math.cos(angle) * labelRadius;
                 const y = center + Math.sin(angle) * labelRadius;
-                const anchor = x < center - 6 ? 'end' : x > center + 6 ? 'start' : 'middle';
+                const anchor = x < center - 8 ? 'end' : x > center + 8 ? 'start' : 'middle';
                 return (
                     <text
                         key={`label-${label}`}
@@ -136,7 +142,7 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
                         y={y}
                         textAnchor={anchor}
                         dominantBaseline="middle"
-                        fontSize="11"
+                        fontSize="9"
                         fontWeight="700"
                         fill="#334155"
                     >
