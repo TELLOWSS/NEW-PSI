@@ -5,7 +5,7 @@
  *
  * Body 형식:
  *   {
- *     action: 'record-unsafe-behavior' | 'register-coaching-action' | 'evaluate-worker-integrity' | 'bulk-upload-workers' | 'list-workers' | 'update-worker' | 'delete-worker' | 'restore-worker' | 'flush-audio-storage',
+ *     action: 'record-unsafe-behavior' | 'register-coaching-action' | 'evaluate-worker-integrity' | 'bulk-upload-workers' | 'list-workers' | 'get-worker-contact' | 'list-report-message-logs' | 'get-report-message-dashboard-summary' | 'update-worker' | 'delete-worker' | 'restore-worker' | 'flush-audio-storage',
  *     payload: { ... 액션별 필드 }
  *   }
  *
@@ -85,6 +85,13 @@ const SAFETY_INTEGRITY_REQUIRED_TABLES = new Set([
     'safety_coaching_actions',
     'worker_integrity_reviews',
 ]);
+const REPORT_MESSAGE_LOG_TABLE = 'report_message_logs';
+const REPORT_MESSAGE_SUMMARY_RELATIONS = new Set([
+    'report_message_monthly_summary',
+    'report_message_team_summary',
+    'report_message_failure_summary',
+    'report_message_retry_queue',
+]);
 
 function extractMissingPublicTableName(errorMessage: string): string | null {
     if (!errorMessage) return null;
@@ -107,6 +114,20 @@ function buildSafetySchemaMissingMessage(errorMessage: string): string | null {
         `필수 테이블(public.${tableName})이 없어 안전행동 등록을 처리할 수 없습니다.`,
         'Supabase SQL Editor에서 supabase_safety_integrity_migration.sql 파일을 실행해 스키마를 먼저 생성해주세요.',
     ].join(' ');
+}
+
+function isReportMessageLogTableMissing(errorMessage: string): boolean {
+    return extractMissingPublicTableName(String(errorMessage || '')) === REPORT_MESSAGE_LOG_TABLE;
+}
+
+function isReportMessageSummaryRelationMissing(errorMessage: string): boolean {
+    const relationName = extractMissingPublicTableName(String(errorMessage || ''));
+    return relationName ? REPORT_MESSAGE_SUMMARY_RELATIONS.has(relationName) : false;
+}
+
+function isReportMessageLogColumnMissing(errorMessage: string, columnName: string): boolean {
+    const source = String(errorMessage || '').toLowerCase();
+    return source.includes(columnName.toLowerCase()) && (source.includes('column') || source.includes('does not exist'));
 }
 
 // -----------------------------------------------------------------------
@@ -941,6 +962,252 @@ async function handleListWorkers(payload: any): Promise<any> {
 }
 
 // -----------------------------------------------------------------------
+// 액션 5-1: 등록 근로자 연락처 단건 조회
+// -----------------------------------------------------------------------
+async function handleGetWorkerContact(payload: any): Promise<any> {
+    const workerId = String(payload?.workerId || payload?.workerUuid || payload?.id || '').trim();
+    const workerName = String(payload?.workerName || payload?.name || '').trim();
+    const teamName = String(payload?.teamName || payload?.team_name || '').trim();
+
+    let rows: any[] | null = null;
+    let error: any = null;
+
+    if (workerId) {
+        const response = await supabase
+            .from('workers')
+            .select('id, name, team_name, job_field, phone_number, deleted_at')
+            .eq('id', workerId)
+            .limit(1);
+        rows = response.data;
+        error = response.error;
+
+        if (error && isDeletedAtColumnMissing(error)) {
+            const fallback = await supabase
+                .from('workers')
+                .select('id, name, team_name, job_field, phone_number')
+                .eq('id', workerId)
+                .limit(1);
+            rows = fallback.data;
+            error = fallback.error;
+        }
+    } else if (workerName) {
+        const response = await supabase
+            .from('workers')
+            .select('id, name, team_name, job_field, phone_number, deleted_at')
+            .eq('name', workerName)
+            .limit(10);
+        rows = response.data;
+        error = response.error;
+
+        if (error && isDeletedAtColumnMissing(error)) {
+            const fallback = await supabase
+                .from('workers')
+                .select('id, name, team_name, job_field, phone_number')
+                .eq('name', workerName)
+                .limit(10);
+            rows = fallback.data;
+            error = fallback.error;
+        }
+    } else {
+        throw new Error('workerId 또는 workerName 필수');
+    }
+
+    if (error) throw new Error(error.message || '근로자 연락처 조회 실패');
+
+    const normalizedRows = (rows || [])
+        .map((row: any) => ({
+            id: String(row?.id || '').trim(),
+            name: String(row?.name || '').trim(),
+            team_name: String(row?.team_name || '').trim(),
+            job_field: String(row?.job_field || '').trim(),
+            phone_number: normalizePhone(row?.phone_number || ''),
+            deleted_at: String(row?.deleted_at || '').trim() || null,
+        }))
+        .filter((row) => !row.deleted_at);
+
+    const exactTeamMatch = teamName
+        ? normalizedRows.find((row) => row.team_name && row.team_name === teamName)
+        : null;
+
+    const worker = exactTeamMatch || normalizedRows[0] || null;
+
+    return {
+        worker,
+        matchCount: normalizedRows.length,
+        matchedBy: workerId ? 'id' : exactTeamMatch ? 'name+team' : 'name',
+    };
+}
+
+// -----------------------------------------------------------------------
+// 액션 5-2: 리포트 문자 발송 로그 조회
+// -----------------------------------------------------------------------
+async function handleListReportMessageLogs(payload: any): Promise<any> {
+    const workerId = String(payload?.workerId || payload?.workerUuid || payload?.id || '').trim();
+    const workerName = String(payload?.workerName || payload?.name || '').trim();
+    const requestedLimit = Number(payload?.limit || 10);
+    const requestedOffset = Number(payload?.offset || 0);
+    const limit = Number.isFinite(requestedLimit)
+        ? Math.min(Math.max(Math.floor(requestedLimit), 1), 50)
+        : 10;
+    const offset = Number.isFinite(requestedOffset)
+        ? Math.max(Math.floor(requestedOffset), 0)
+        : 0;
+
+    if (!workerId && !workerName) {
+        throw new Error('workerId 또는 workerName 필수');
+    }
+
+    const buildQuery = (includeFailureCategory: boolean) => {
+        let query = supabase
+            .from(REPORT_MESSAGE_LOG_TABLE)
+            .select(includeFailureCategory
+                ? 'id, worker_id, worker_name, team_name, phone_number, status, failure_category, sent_count, provider, message, created_at'
+                : 'id, worker_id, worker_name, team_name, phone_number, status, sent_count, provider, message, created_at', { count: 'exact' })
+            .order('created_at', { ascending: false })
+            .range(offset, offset + limit - 1);
+
+        return workerId ? query.eq('worker_id', workerId) : query.eq('worker_name', workerName);
+    };
+
+    let { data, error, count } = await buildQuery(true);
+
+    if (error && isReportMessageLogColumnMissing(error.message || error.details || '', 'failure_category')) {
+        ({ data, error, count } = await buildQuery(false));
+    }
+
+    if (error) {
+        if (isReportMessageLogTableMissing(error.message || error.details || '')) {
+            return {
+                rows: [],
+                total: 0,
+                schemaReady: false,
+            };
+        }
+        throw new Error(error.message || '리포트 문자 발송 로그 조회 실패');
+    }
+
+    const rows = (data || []).map((row: any) => ({
+        id: String(row?.id || '').trim(),
+        worker_id: String(row?.worker_id || '').trim(),
+        worker_name: String(row?.worker_name || '').trim(),
+        team_name: String(row?.team_name || '').trim(),
+        phone_number: normalizePhone(row?.phone_number || ''),
+        status: String(row?.status || '').trim() || 'UNKNOWN',
+        failure_category: String(row?.failure_category || '').trim(),
+        sent_count: Number(row?.sent_count || 0),
+        provider: String(row?.provider || '').trim(),
+        message: String(row?.message || '').trim(),
+        created_at: String(row?.created_at || '').trim(),
+    }));
+
+    return {
+        rows,
+        total: Number(count || 0),
+        offset,
+        limit,
+        hasMore: offset + rows.length < Number(count || 0),
+        schemaReady: true,
+    };
+}
+
+// -----------------------------------------------------------------------
+// 액션 5-3: 리포트 문자 발송 운영 대시보드 요약
+// -----------------------------------------------------------------------
+async function handleGetReportMessageDashboardSummary(payload: any): Promise<any> {
+    const requestedLimit = Number(payload?.limit || 6);
+    const limit = Number.isFinite(requestedLimit)
+        ? Math.min(Math.max(Math.floor(requestedLimit), 3), 12)
+        : 6;
+
+    const [monthlyResult, teamResult, failureResult, retryResult] = await Promise.all([
+        supabase.from('report_message_monthly_summary').select('month_date, month_label, total_count, success_count, failed_count, success_rate').order('month_date', { ascending: false }).limit(limit),
+        supabase.from('report_message_team_summary').select('team_name, total_count, success_count, failed_count, success_rate, last_sent_at').order('total_count', { ascending: false }).limit(limit),
+        supabase.from('report_message_failure_summary').select('failure_category, failure_count, last_occurred_at').order('failure_count', { ascending: false }).limit(limit),
+        supabase.from('report_message_retry_queue').select('retry_key, worker_id, worker_name, team_name, phone_number, failure_category, provider, message, failed_at, priority_score').order('priority_score', { ascending: false }).order('failed_at', { ascending: false }).limit(limit),
+    ]);
+
+    const summaryError = monthlyResult.error || teamResult.error || failureResult.error || retryResult.error;
+    if (summaryError) {
+        const message = summaryError.message || summaryError.details || '';
+        if (isReportMessageSummaryRelationMissing(message)) {
+            return {
+                monthlyRows: [],
+                teamRows: [],
+                failureRows: [],
+                retryRows: [],
+                overview: {
+                    totalCount: 0,
+                    successCount: 0,
+                    failedCount: 0,
+                    successRate: 0,
+                    topTeam: '-',
+                    topFailureCategory: '-',
+                    retryCandidateCount: 0,
+                },
+                schemaReady: false,
+            };
+        }
+        throw new Error(message || '리포트 문자 운영 요약 조회 실패');
+    }
+
+    const monthlyRows = (monthlyResult.data || []).map((row: any) => ({
+        month_date: String(row?.month_date || '').trim(),
+        month_label: String(row?.month_label || '').trim(),
+        total_count: Number(row?.total_count || 0),
+        success_count: Number(row?.success_count || 0),
+        failed_count: Number(row?.failed_count || 0),
+        success_rate: Number(row?.success_rate || 0),
+    })).reverse();
+
+    const teamRows = (teamResult.data || []).map((row: any) => ({
+        team_name: String(row?.team_name || '').trim() || '미지정',
+        total_count: Number(row?.total_count || 0),
+        success_count: Number(row?.success_count || 0),
+        failed_count: Number(row?.failed_count || 0),
+        success_rate: Number(row?.success_rate || 0),
+        last_sent_at: String(row?.last_sent_at || '').trim(),
+    }));
+
+    const failureRows = (failureResult.data || []).map((row: any) => ({
+        failure_category: String(row?.failure_category || '').trim() || '미분류',
+        failure_count: Number(row?.failure_count || 0),
+        last_occurred_at: String(row?.last_occurred_at || '').trim(),
+    }));
+
+    const retryRows = (retryResult.data || []).map((row: any) => ({
+        retry_key: String(row?.retry_key || '').trim(),
+        worker_id: String(row?.worker_id || '').trim(),
+        worker_name: String(row?.worker_name || '').trim(),
+        team_name: String(row?.team_name || '').trim() || '미지정',
+        phone_number: normalizePhone(row?.phone_number || ''),
+        failure_category: String(row?.failure_category || '').trim() || '미분류',
+        provider: String(row?.provider || '').trim(),
+        message: String(row?.message || '').trim(),
+        failed_at: String(row?.failed_at || '').trim(),
+        priority_score: Number(row?.priority_score || 0),
+    }));
+
+    const latestMonthly = monthlyRows[monthlyRows.length - 1] || null;
+
+    return {
+        monthlyRows,
+        teamRows,
+        failureRows,
+        retryRows,
+        overview: {
+            totalCount: latestMonthly?.total_count || 0,
+            successCount: latestMonthly?.success_count || 0,
+            failedCount: latestMonthly?.failed_count || 0,
+            successRate: latestMonthly?.success_rate || 0,
+            topTeam: teamRows[0]?.team_name || '-',
+            topFailureCategory: failureRows[0]?.failure_category || '-',
+            retryCandidateCount: retryRows.length,
+        },
+        schemaReady: true,
+    };
+}
+
+// -----------------------------------------------------------------------
 // 액션 6: 등록 근로자 정보 수정
 // -----------------------------------------------------------------------
 async function handleUpdateWorker(payload: any): Promise<any> {
@@ -1307,6 +1574,18 @@ export default async function handler(req: any, res: any) {
 
             case 'list-workers':
                 data = await handleListWorkers(payload);
+                break;
+
+            case 'get-worker-contact':
+                data = await handleGetWorkerContact(payload);
+                break;
+
+            case 'list-report-message-logs':
+                data = await handleListReportMessageLogs(payload);
+                break;
+
+            case 'get-report-message-dashboard-summary':
+                data = await handleGetReportMessageDashboardSummary(payload);
                 break;
 
             case 'update-worker':

@@ -93,6 +93,11 @@ interface CaptureReportCanvasOptions {
     scale?: number;
 }
 
+const getReportCaptureTargets = (element: HTMLElement): HTMLElement[] => {
+    const pageNodes = Array.from(element.querySelectorAll(':scope > [data-report-page="true"]')) as HTMLElement[];
+    return pageNodes.length > 0 ? pageNodes : [element];
+};
+
 let htmlToImagePromise: Promise<typeof import('html-to-image')> | null = null;
 const loadHtmlToImage = () => {
     if (!htmlToImagePromise) {
@@ -106,54 +111,68 @@ export const captureReportCanvas = async (
     html2canvas: Html2Canvas,
     options: CaptureReportCanvasOptions = {}
 ): Promise<HTMLCanvasElement> => {
-    await waitForStableLayout(element);
+    const [firstCanvas] = await captureReportCanvases(element, html2canvas, options);
+    return firstCanvas;
+};
 
-    const bounds = element.getBoundingClientRect();
-    const width = Math.max(1, Math.ceil(bounds.width));
-    const height = Math.max(1, Math.ceil(bounds.height));
+export const captureReportCanvases = async (
+    element: HTMLElement,
+    html2canvas: Html2Canvas,
+    options: CaptureReportCanvasOptions = {}
+): Promise<HTMLCanvasElement[]> => {
+    await waitForStableLayout(element);
     const scale = options.scale ?? Math.max(2, Math.min(3, window.devicePixelRatio || 1));
 
-    try {
-        const { toCanvas } = await loadHtmlToImage();
-        return await toCanvas(element, {
-            cacheBust: true,
-            pixelRatio: scale,
+    const captureSingleCanvas = async (target: HTMLElement): Promise<HTMLCanvasElement> => {
+        const bounds = target.getBoundingClientRect();
+        const width = Math.max(1, Math.ceil(bounds.width));
+        const height = Math.max(1, Math.ceil(bounds.height));
+
+        try {
+            const { toCanvas } = await loadHtmlToImage();
+            return await toCanvas(target, {
+                cacheBust: true,
+                pixelRatio: scale,
+                backgroundColor: '#ffffff',
+                width,
+                height,
+                canvasWidth: Math.round(width * scale),
+                canvasHeight: Math.round(height * scale),
+                style: {
+                    margin: '0',
+                    transform: 'none',
+                    boxShadow: 'none',
+                },
+            });
+        } catch {
+            // html-to-image 실패 시 html2canvas로 폴백
+        }
+
+        return html2canvas(target, {
+            scale,
+            useCORS: true,
             backgroundColor: '#ffffff',
+            logging: false,
+            foreignObjectRendering: true,
+            removeContainer: true,
             width,
             height,
-            canvasWidth: Math.round(width * scale),
-            canvasHeight: Math.round(height * scale),
-            style: {
-                margin: '0',
-                transform: 'none',
-                boxShadow: 'none',
+            windowWidth: width,
+            windowHeight: height,
+            onclone: (clonedDocument: Document) => {
+                ensureCloneStyle(clonedDocument);
+                const clonedRoot = clonedDocument.querySelector('[data-report-template-root="true"]') as HTMLElement | null;
+                if (clonedRoot) {
+                    clonedRoot.style.boxShadow = 'none';
+                    clonedRoot.style.margin = '0';
+                    clonedRoot.style.transform = 'none';
+                }
             },
         });
-    } catch {
-        // html-to-image 실패 시 html2canvas로 폴백
-    }
+    };
 
-    return html2canvas(element, {
-        scale,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        foreignObjectRendering: true,
-        removeContainer: true,
-        width,
-        height,
-        windowWidth: width,
-        windowHeight: height,
-        onclone: (clonedDocument: Document) => {
-            ensureCloneStyle(clonedDocument);
-            const clonedRoot = clonedDocument.querySelector('[data-report-template-root="true"]') as HTMLElement | null;
-            if (clonedRoot) {
-                clonedRoot.style.boxShadow = 'none';
-                clonedRoot.style.margin = '0';
-                clonedRoot.style.transform = 'none';
-            }
-        },
-    });
+    const targets = getReportCaptureTargets(element);
+    return Promise.all(targets.map((target) => captureSingleCanvas(target)));
 };
 
 export const saveCanvasAsA4Pdf = (
@@ -163,36 +182,104 @@ export const saveCanvasAsA4Pdf = (
     imageType: 'PNG' | 'JPEG' = 'PNG',
     quality: number = 1
 ) => {
-    const pdf = new JsPDF('p', 'mm', 'a4');
-    const mimeType = imageType === 'PNG' ? 'image/png' : 'image/jpeg';
-    const imageData = canvas.toDataURL(mimeType, quality);
+    saveCanvasesAsA4Pdf([canvas], JsPDF, filename, imageType, quality);
+};
 
-    const pageWidth = A4_WIDTH_MM;
-    const pageHeight = A4_HEIGHT_MM;
-    const imageWidth = pageWidth;
-    const imageHeight = (canvas.height * imageWidth) / Math.max(1, canvas.width);
-
-    if (imageHeight <= pageHeight || typeof pdf.addPage !== 'function') {
-        const placement = getCanvasPlacementOnA4(canvas);
-        pdf.addImage(imageData, imageType, placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
-        pdf.save(filename);
-        return;
+export const saveCanvasesAsA4Pdf = (
+    canvases: HTMLCanvasElement[],
+    JsPDF: JsPdfConstructor,
+    filename: string,
+    imageType: 'PNG' | 'JPEG' = 'PNG',
+    quality: number = 1
+) => {
+    const targetCanvases = canvases.filter((canvas) => canvas.width > 0 && canvas.height > 0);
+    if (targetCanvases.length === 0) {
+        throw new Error('PDF로 저장할 캔버스가 없습니다.');
     }
 
-    let remainingHeight = imageHeight;
-    let currentY = 0;
+    const pdf = new JsPDF('p', 'mm', 'a4');
 
-    pdf.addImage(imageData, imageType, 0, currentY, imageWidth, imageHeight, undefined, 'FAST');
-    remainingHeight -= pageHeight;
+    targetCanvases.forEach((canvas, index) => {
+        if (index > 0 && typeof pdf.addPage === 'function') {
+            pdf.addPage();
+        }
 
-    while (remainingHeight > 0) {
-        pdf.addPage();
-        currentY = remainingHeight - imageHeight;
+        const mimeType = imageType === 'PNG' ? 'image/png' : 'image/jpeg';
+        const imageData = canvas.toDataURL(mimeType, quality);
+        const pageWidth = A4_WIDTH_MM;
+        const pageHeight = A4_HEIGHT_MM;
+        const imageWidth = pageWidth;
+        const imageHeight = (canvas.height * imageWidth) / Math.max(1, canvas.width);
+
+        if (imageHeight <= pageHeight || typeof pdf.addPage !== 'function') {
+            const placement = getCanvasPlacementOnA4(canvas);
+            pdf.addImage(imageData, imageType, placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
+            return;
+        }
+
+        let remainingHeight = imageHeight;
+        let currentY = 0;
+
         pdf.addImage(imageData, imageType, 0, currentY, imageWidth, imageHeight, undefined, 'FAST');
         remainingHeight -= pageHeight;
-    }
+
+        while (remainingHeight > 0 && typeof pdf.addPage === 'function') {
+            pdf.addPage();
+            currentY = remainingHeight - imageHeight;
+            pdf.addImage(imageData, imageType, 0, currentY, imageWidth, imageHeight, undefined, 'FAST');
+            remainingHeight -= pageHeight;
+        }
+    });
 
     pdf.save(filename);
+};
+
+export const buildPdfBlobFromCanvases = (
+    canvases: HTMLCanvasElement[],
+    JsPDF: JsPdfConstructor,
+    imageType: 'PNG' | 'JPEG' = 'PNG',
+    quality: number = 1
+): Blob => {
+    const targetCanvases = canvases.filter((canvas) => canvas.width > 0 && canvas.height > 0);
+    if (targetCanvases.length === 0) {
+        throw new Error('PDF로 변환할 캔버스가 없습니다.');
+    }
+
+    const pdf = new JsPDF('p', 'mm', 'a4');
+
+    targetCanvases.forEach((canvas, index) => {
+        if (index > 0 && typeof pdf.addPage === 'function') {
+            pdf.addPage();
+        }
+
+        const imageData = getCanvasImageData(canvas, imageType, quality);
+        const placement = getCanvasPlacementOnA4(canvas);
+        pdf.addImage(imageData, imageType, placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
+    });
+
+    if (typeof pdf.output !== 'function') {
+        throw new Error('PDF Blob 출력을 지원하지 않습니다.');
+    }
+
+    return pdf.output('blob');
+};
+
+export const canvasToBlob = async (
+    canvas: HTMLCanvasElement,
+    mimeType: string,
+    quality?: number,
+    timeoutMs: number = 10000
+): Promise<Blob> => {
+    const blob = await Promise.race([
+        new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, mimeType, quality)),
+        new Promise<Blob | null>((resolve) => window.setTimeout(() => resolve(null), timeoutMs)),
+    ]);
+
+    if (!blob) {
+        throw new Error('캔버스 Blob 변환에 실패했습니다.');
+    }
+
+    return blob;
 };
 
 export const getCanvasPlacementOnA4 = (canvas: HTMLCanvasElement): CanvasPlacement => {

@@ -8,6 +8,16 @@ import { postAdminJson } from '../utils/adminApiClient';
 import { ensureQRCodeJs } from '../utils/externalScripts';
 import { getWindowProp } from '../utils/windowUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
+import {
+    ResponsiveContainer,
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    Legend,
+} from 'recharts';
 
 // [시스템] QR 코드 생성 상태 관리 및 동기화 컴포넌트
 interface QRCodeProps {
@@ -609,6 +619,84 @@ type RegisteredWorkerListRow = {
     passport_number: string;
 };
 
+type WorkerMessageLogRow = {
+    id: string;
+    worker_id: string;
+    worker_name: string;
+    team_name: string;
+    phone_number: string;
+    status: string;
+    failure_category?: string;
+    sent_count: number;
+    provider: string;
+    message: string;
+    created_at: string;
+};
+
+type WorkerMessageLogCacheEntry = {
+    rows: WorkerMessageLogRow[];
+    total: number;
+    offset: number;
+    limit: number;
+    hasMore: boolean;
+    schemaReady: boolean;
+    fetchedAt: string;
+};
+
+type ReportMessageDashboardMonthlyRow = {
+    month_date: string;
+    month_label: string;
+    total_count: number;
+    success_count: number;
+    failed_count: number;
+    success_rate: number;
+};
+
+type ReportMessageDashboardTeamRow = {
+    team_name: string;
+    total_count: number;
+    success_count: number;
+    failed_count: number;
+    success_rate: number;
+    last_sent_at: string;
+};
+
+type ReportMessageDashboardFailureRow = {
+    failure_category: string;
+    failure_count: number;
+    last_occurred_at: string;
+};
+
+type ReportMessageDashboardRetryRow = {
+    retry_key: string;
+    worker_id: string;
+    worker_name: string;
+    team_name: string;
+    phone_number: string;
+    failure_category: string;
+    provider: string;
+    message: string;
+    failed_at: string;
+    priority_score: number;
+};
+
+type ReportMessageDashboardSummary = {
+    monthlyRows: ReportMessageDashboardMonthlyRow[];
+    teamRows: ReportMessageDashboardTeamRow[];
+    failureRows: ReportMessageDashboardFailureRow[];
+    retryRows: ReportMessageDashboardRetryRow[];
+    overview: {
+        totalCount: number;
+        successCount: number;
+        failedCount: number;
+        successRate: number;
+        topTeam: string;
+        topFailureCategory: string;
+        retryCandidateCount: number;
+    };
+    schemaReady: boolean;
+};
+
 type RegisteredWorkerEditDraft = {
     id: string;
     name: string;
@@ -625,6 +713,13 @@ type DeletedWorkerUndoState = {
     name: string;
     softDeleted: boolean;
 };
+
+type RegisteredWorkerAdminTab = 'list' | 'message-history';
+type MessageHistoryStatusFilter = 'all' | 'success' | 'fail';
+type MessageHistoryRangeFilter = 'all' | '7d' | '30d' | '90d';
+type RetryQueueFilter = 'all' | 'actionable' | 'blocked';
+
+const MESSAGE_HISTORY_CACHE_TTL_MS = 5 * 60 * 1000;
 
 const ALLOWED_JOB_FIELDS = [
     '형틀',
@@ -725,10 +820,25 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         key: 'birth_date',
         order: 'asc',
     });
+    const [registeredWorkerAdminTab, setRegisteredWorkerAdminTab] = useState<RegisteredWorkerAdminTab>('list');
     const [registeredWorkerSearchTerm, setRegisteredWorkerSearchTerm] = useState('');
     const [registeredWorkerJobFilter, setRegisteredWorkerJobFilter] = useState('전체');
     const [registeredWorkerTeamFilter, setRegisteredWorkerTeamFilter] = useState('전체');
     const [registeredWorkerMissingFilter, setRegisteredWorkerMissingFilter] = useState<'all' | 'missing-any' | 'missing-phone' | 'missing-birth' | 'missing-passport'>('all');
+    const [selectedMessageHistoryWorkerId, setSelectedMessageHistoryWorkerId] = useState('');
+    const [messageLogCache, setMessageLogCache] = useState<Record<string, WorkerMessageLogCacheEntry>>({});
+    const [isMessageLogLoading, setIsMessageLogLoading] = useState(false);
+    const [messageLogError, setMessageLogError] = useState('');
+    const [messageLogSessionApiCount, setMessageLogSessionApiCount] = useState(0);
+    const [messageLogLastFetchedAt, setMessageLogLastFetchedAt] = useState('');
+    const [messageHistoryStatusFilter, setMessageHistoryStatusFilter] = useState<MessageHistoryStatusFilter>('all');
+    const [messageHistoryRangeFilter, setMessageHistoryRangeFilter] = useState<MessageHistoryRangeFilter>('30d');
+    const [messageHistorySearchTerm, setMessageHistorySearchTerm] = useState('');
+    const [isMessageLogLoadingMore, setIsMessageLogLoadingMore] = useState(false);
+    const [reportMessageDashboardSummary, setReportMessageDashboardSummary] = useState<ReportMessageDashboardSummary | null>(null);
+    const [isReportMessageDashboardLoading, setIsReportMessageDashboardLoading] = useState(false);
+    const [reportMessageDashboardError, setReportMessageDashboardError] = useState('');
+    const [retryQueueFilter, setRetryQueueFilter] = useState<RetryQueueFilter>('all');
     const [deletedWorkerUndo, setDeletedWorkerUndo] = useState<DeletedWorkerUndoState | null>(null);
     const deleteUndoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [manualWorkerForm, setManualWorkerForm] = useState<ManualWorkerForm>({
@@ -775,6 +885,43 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         if (!base) return '';
         const compact = base.replace(/\s+/g, '');
         return JOB_FIELD_ALIASES[compact] || JOB_FIELD_ALIASES[base] || base;
+    };
+    const isSuccessfulMessageStatus = (status: string) => ['SUCCESS', 'SENT', 'OK'].includes(String(status || '').trim().toUpperCase());
+    const isMessageHistoryCacheFresh = (fetchedAt: string) => {
+        const time = new Date(fetchedAt).getTime();
+        if (!Number.isFinite(time) || time <= 0) return false;
+        return Date.now() - time < MESSAGE_HISTORY_CACHE_TTL_MS;
+    };
+    const formatMessageLogDateTime = (raw: string) => {
+        if (!raw) return '-';
+        const date = new Date(raw);
+        if (Number.isNaN(date.getTime())) return raw;
+        return new Intl.DateTimeFormat('ko-KR', {
+            timeZone: 'Asia/Seoul',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+        }).format(date);
+    };
+    const isMessageLogWithinRange = (createdAt: string, range: MessageHistoryRangeFilter) => {
+        if (range === 'all') return true;
+        const createdTime = new Date(createdAt).getTime();
+        if (!Number.isFinite(createdTime) || createdTime <= 0) return false;
+        const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
+        return Date.now() - createdTime <= days * 24 * 60 * 60 * 1000;
+    };
+    const classifyFailureReason = (row: Pick<WorkerMessageLogRow, 'status' | 'message' | 'provider'>) => {
+        if (isSuccessfulMessageStatus(row.status)) return '성공';
+        const source = `${String(row.message || '')} ${String(row.provider || '')}`.toLowerCase();
+        if (source.includes('timeout') || source.includes('time out') || source.includes('timed out')) return '타임아웃';
+        if (source.includes('auth') || source.includes('인증') || source.includes('forbidden') || source.includes('unauthorized')) return '인증/권한';
+        if (source.includes('phone') || source.includes('번호') || source.includes('invalid recipient') || source.includes('recipient')) return '전화번호 오류';
+        if (source.includes('quota') || source.includes('limit') || source.includes('rate') || source.includes('429')) return '한도/속도 제한';
+        if (source.includes('upload') || source.includes('image') || source.includes('file')) return '이미지 업로드';
+        if (source.includes('network') || source.includes('fetch') || source.includes('socket') || source.includes('dns')) return '네트워크';
+        return '기타 실패';
     };
 
     const normalizeHeader = (header: string) => String(header || '').trim().toLowerCase().replace(/\s+/g, '');
@@ -903,6 +1050,530 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         registeredWorkerTeamFilter,
         registeredWorkerMissingFilter,
     ]);
+
+    const selectedMessageHistoryWorker = useMemo(
+        () => registeredWorkers.find((worker) => worker.id === selectedMessageHistoryWorkerId) || null,
+        [registeredWorkers, selectedMessageHistoryWorkerId],
+    );
+
+    const selectedMessageHistoryLatestRecord = useMemo(() => {
+        if (!selectedMessageHistoryWorker) return null;
+
+        const selectedId = normalizeIdentityToken(selectedMessageHistoryWorker.id);
+        const selectedName = normalizeIdentityToken(selectedMessageHistoryWorker.name);
+        const selectedTeam = normalizeIdentityToken(selectedMessageHistoryWorker.team_name || '미지정');
+
+        return latestRecords.find((record) => {
+            const recordWorkerUuid = normalizeIdentityToken(record.worker_uuid || record.workerUuid);
+            if (selectedId && recordWorkerUuid && selectedId === recordWorkerUuid) return true;
+
+            const recordName = normalizeIdentityToken(record.name);
+            const recordTeam = normalizeIdentityToken(record.teamLeader || '미지정');
+            return selectedName === recordName && selectedTeam === recordTeam;
+        }) || null;
+    }, [latestRecords, selectedMessageHistoryWorker]);
+
+    const selectedMessageHistoryLogEntry = useMemo(
+        () => selectedMessageHistoryWorkerId ? messageLogCache[selectedMessageHistoryWorkerId] || null : null,
+        [messageLogCache, selectedMessageHistoryWorkerId],
+    );
+
+    const selectedMessageHistoryRows = useMemo(
+        () => selectedMessageHistoryLogEntry?.rows || [],
+        [selectedMessageHistoryLogEntry],
+    );
+
+    const filteredMessageHistoryRows = useMemo(
+        () => selectedMessageHistoryRows.filter((row) => {
+            const search = messageHistorySearchTerm.trim().toLowerCase();
+            const matchesStatus =
+                messageHistoryStatusFilter === 'all' ||
+                (messageHistoryStatusFilter === 'success' && isSuccessfulMessageStatus(row.status)) ||
+                (messageHistoryStatusFilter === 'fail' && !isSuccessfulMessageStatus(row.status));
+            const matchesRange = isMessageLogWithinRange(row.created_at, messageHistoryRangeFilter);
+            const normalizedPhone = normalizePhone(row.phone_number);
+            const searchableText = [row.message, row.provider, row.status, row.team_name, row.worker_name]
+                .map((value) => String(value || '').toLowerCase())
+                .join(' ');
+            const matchesSearch = !search || searchableText.includes(search) || normalizedPhone.includes(search.replace(/\D/g, ''));
+            return matchesStatus && matchesRange && matchesSearch;
+        }),
+        [messageHistoryRangeFilter, messageHistorySearchTerm, messageHistoryStatusFilter, selectedMessageHistoryRows],
+    );
+
+    const selectedMessageHistorySummary = useMemo(() => {
+        const successCount = filteredMessageHistoryRows.filter((row) => isSuccessfulMessageStatus(row.status)).length;
+        const failureCount = filteredMessageHistoryRows.length - successCount;
+        const sentPageCount = filteredMessageHistoryRows.reduce((sum, row) => sum + Math.max(0, Number(row.sent_count || 0)), 0);
+        const providerMap = new Map<string, number>();
+        filteredMessageHistoryRows.forEach((row) => {
+            const key = String(row.provider || '미기록').trim() || '미기록';
+            providerMap.set(key, (providerMap.get(key) || 0) + 1);
+        });
+        const topProviderEntry = Array.from(providerMap.entries()).sort((a, b) => b[1] - a[1])[0] || null;
+
+        return {
+            successCount,
+            failureCount,
+            sentPageCount,
+            successRate: filteredMessageHistoryRows.length > 0 ? Math.round((successCount / filteredMessageHistoryRows.length) * 100) : 0,
+            topProviderLabel: topProviderEntry?.[0] || '-',
+            topProviderCount: topProviderEntry?.[1] || 0,
+        };
+    }, [filteredMessageHistoryRows]);
+
+    const messageHistoryMonthlyTrend = useMemo(() => {
+        const bucket = new Map<string, { month: string; success: number; fail: number; total: number }>();
+
+        filteredMessageHistoryRows.forEach((row) => {
+            const date = new Date(row.created_at);
+            if (Number.isNaN(date.getTime())) return;
+            const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            const current = bucket.get(month) || { month, success: 0, fail: 0, total: 0 };
+            current.total += 1;
+            if (isSuccessfulMessageStatus(row.status)) current.success += 1;
+            else current.fail += 1;
+            bucket.set(month, current);
+        });
+
+        return Array.from(bucket.values())
+            .sort((a, b) => a.month.localeCompare(b.month))
+            .slice(-6)
+            .map((item) => ({
+                ...item,
+                successRate: item.total > 0 ? Math.round((item.success / item.total) * 100) : 0,
+            }));
+    }, [filteredMessageHistoryRows]);
+
+    const cachedMessageRows = useMemo(
+        () => Object.values(messageLogCache).flatMap((entry) => entry.rows || []),
+        [messageLogCache],
+    );
+
+    const cachedTeamSuccessTrend = useMemo(() => {
+        const bucket = new Map<string, { team: string; success: number; fail: number; total: number; successRate: number }>();
+        cachedMessageRows.forEach((row) => {
+            if (!isMessageLogWithinRange(row.created_at, messageHistoryRangeFilter)) return;
+            const team = String(row.team_name || '미지정').trim() || '미지정';
+            const current = bucket.get(team) || { team, success: 0, fail: 0, total: 0, successRate: 0 };
+            current.total += 1;
+            if (isSuccessfulMessageStatus(row.status)) current.success += 1;
+            else current.fail += 1;
+            current.successRate = current.total > 0 ? Math.round((current.success / current.total) * 100) : 0;
+            bucket.set(team, current);
+        });
+
+        return Array.from(bucket.values())
+            .sort((a, b) => {
+                if (b.total !== a.total) return b.total - a.total;
+                return b.successRate - a.successRate;
+            })
+            .slice(0, 6);
+    }, [cachedMessageRows, messageHistoryRangeFilter]);
+
+    const failureReasonData = useMemo(() => {
+        const bucket = new Map<string, number>();
+        filteredMessageHistoryRows
+            .filter((row) => !isSuccessfulMessageStatus(row.status))
+            .forEach((row) => {
+                const label = String(row.failure_category || '').trim() || classifyFailureReason(row);
+                bucket.set(label, (bucket.get(label) || 0) + 1);
+            });
+
+        return Array.from(bucket.entries())
+            .map(([reason, count]) => ({ reason, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 5);
+    }, [filteredMessageHistoryRows]);
+
+    const failurePriorityActions = useMemo(() => {
+        const getActionGuide = (reason: string) => {
+            switch (reason) {
+                case '타임아웃':
+                    return '첨부 이미지 용량과 네트워크 상태를 먼저 점검한 뒤 재발송';
+                case '인증/권한':
+                    return 'SOLAPI 키/발신번호와 관리자 인증 상태를 즉시 확인';
+                case '전화번호 오류':
+                    return '등록 근로자 전화번호를 수정하고 개별 리포트에서 재발송';
+                case '한도/속도 제한':
+                    return '잠시 대기 후 재시도하고 대량 발송 시간대를 분산';
+                case '이미지 업로드':
+                    return '리포트 이미지 생성 상태와 크기 제한을 재검토';
+                case '네트워크':
+                    return '서버 연결 상태를 확인한 뒤 재시도';
+                default:
+                    return '상세 메시지를 확인하고 개별 재발송 전 원인을 재검토';
+            }
+        };
+
+        return failureReasonData.slice(0, 3).map((item, index) => ({
+            rank: index + 1,
+            reason: item.reason,
+            count: item.count,
+            action: getActionGuide(item.reason),
+        }));
+    }, [failureReasonData]);
+
+    const downloadMessageHistoryCsv = () => {
+        if (!selectedMessageHistoryWorker || filteredMessageHistoryRows.length === 0) return;
+
+        const escapeCsv = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+        const rows = [
+            ['근로자명', '팀명', '전화번호', '발송시각', '상태', '페이지수', '공급자', '메모'],
+            ...filteredMessageHistoryRows.map((row) => [
+                row.worker_name || selectedMessageHistoryWorker.name,
+                row.team_name || selectedMessageHistoryWorker.team_name,
+                formatPhoneForDisplay(row.phone_number),
+                formatMessageLogDateTime(row.created_at),
+                row.status,
+                row.sent_count,
+                row.provider || '-',
+                row.message || '-',
+            ]),
+        ];
+
+        const csv = `\uFEFF${rows.map((row) => row.map(escapeCsv).join(',')).join('\r\n')}`;
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `message_history_${(selectedMessageHistoryWorker.name || 'worker').replace(/\s+/g, '_')}.csv`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+    };
+
+    const downloadMessageHistoryJson = () => {
+        if (!selectedMessageHistoryWorker || filteredMessageHistoryRows.length === 0) return;
+
+        const payload = {
+            exportedAt: new Date().toISOString(),
+            worker: {
+                id: selectedMessageHistoryWorker.id,
+                name: selectedMessageHistoryWorker.name,
+                team_name: selectedMessageHistoryWorker.team_name,
+                job_field: selectedMessageHistoryWorker.job_field,
+                phone_number: formatPhoneForDisplay(selectedMessageHistoryWorker.phone_number),
+            },
+            filters: {
+                range: messageHistoryRangeFilter,
+                status: messageHistoryStatusFilter,
+                search: messageHistorySearchTerm,
+            },
+            rows: filteredMessageHistoryRows,
+        };
+
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `message_history_${(selectedMessageHistoryWorker.name || 'worker').replace(/\s+/g, '_')}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+    };
+
+    const downloadMessageHistoryExcel = async () => {
+        if (!selectedMessageHistoryWorker || filteredMessageHistoryRows.length === 0) return;
+
+        const XLSX = await loadXlsx();
+        const exportRows = filteredMessageHistoryRows.map((row) => ({
+            근로자명: row.worker_name || selectedMessageHistoryWorker.name,
+            팀명: row.team_name || selectedMessageHistoryWorker.team_name,
+            전화번호: formatPhoneForDisplay(row.phone_number),
+            발송시각: formatMessageLogDateTime(row.created_at),
+            상태: row.status,
+            페이지수: row.sent_count,
+            공급자: row.provider || '-',
+            메모: row.message || '-',
+        }));
+
+        const workbook = XLSX.utils.book_new();
+        const worksheet = XLSX.utils.json_to_sheet(exportRows);
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'MessageLogs');
+        XLSX.writeFile(workbook, `message_history_${(selectedMessageHistoryWorker.name || 'worker').replace(/\s+/g, '_')}.xlsx`);
+    };
+
+    const downloadDashboardSummaryJson = () => {
+        if (!reportMessageDashboardSummary?.schemaReady) return;
+
+        const payload = {
+            exportedAt: new Date().toISOString(),
+            source: 'report_message_dashboard_summary',
+            overview: reportMessageDashboardSummary.overview,
+            monthlyRows: reportMessageDashboardSummary.monthlyRows,
+            teamRows: reportMessageDashboardSummary.teamRows,
+            failureRows: reportMessageDashboardSummary.failureRows,
+            retryRows: reportMessageDashboardSummary.retryRows,
+        };
+
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `message_dashboard_summary_${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+    };
+
+    const downloadDashboardSummaryCsv = () => {
+        if (!reportMessageDashboardSummary?.schemaReady) return;
+
+        const escapeCsv = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+        const sections = [
+            ['[Overview]'],
+            ['총발송', '성공', '실패', '성공률', '최다 팀', '주요 실패 원인'],
+            [
+                reportMessageDashboardSummary.overview.totalCount,
+                reportMessageDashboardSummary.overview.successCount,
+                reportMessageDashboardSummary.overview.failedCount,
+                `${reportMessageDashboardSummary.overview.successRate}%`,
+                reportMessageDashboardSummary.overview.topTeam,
+                reportMessageDashboardSummary.overview.topFailureCategory,
+            ],
+            [],
+            ['[Monthly Summary]'],
+            ['월', '총발송', '성공', '실패', '성공률'],
+            ...reportMessageDashboardSummary.monthlyRows.map((row) => [row.month_label, row.total_count, row.success_count, row.failed_count, `${row.success_rate}%`]),
+            [],
+            ['[Team Summary]'],
+            ['팀명', '총발송', '성공', '실패', '성공률', '최근발송'],
+            ...reportMessageDashboardSummary.teamRows.map((row) => [row.team_name, row.total_count, row.success_count, row.failed_count, `${row.success_rate}%`, formatMessageLogDateTime(row.last_sent_at)]),
+            [],
+            ['[Failure Summary]'],
+            ['실패사유', '건수', '최근발생'],
+            ...reportMessageDashboardSummary.failureRows.map((row) => [row.failure_category, row.failure_count, formatMessageLogDateTime(row.last_occurred_at)]),
+            [],
+            ['[Retry Queue]'],
+            ['근로자명', '팀명', '전화번호', '실패사유', '우선점수', '실패시각', '메모'],
+            ...reportMessageDashboardSummary.retryRows.map((row) => [row.worker_name, row.team_name, formatPhoneForDisplay(row.phone_number), row.failure_category, row.priority_score, formatMessageLogDateTime(row.failed_at), row.message || '-']),
+        ];
+
+        const csv = `\uFEFF${sections.map((row) => row.map(escapeCsv).join(',')).join('\r\n')}`;
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `message_dashboard_summary_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+    };
+
+    const downloadDashboardSummaryExcel = async () => {
+        if (!reportMessageDashboardSummary?.schemaReady) return;
+
+        const XLSX = await loadXlsx();
+        const workbook = XLSX.utils.book_new();
+
+        const overviewSheet = XLSX.utils.json_to_sheet([
+            {
+                총발송: reportMessageDashboardSummary.overview.totalCount,
+                성공: reportMessageDashboardSummary.overview.successCount,
+                실패: reportMessageDashboardSummary.overview.failedCount,
+                성공률: `${reportMessageDashboardSummary.overview.successRate}%`,
+                최다팀: reportMessageDashboardSummary.overview.topTeam,
+                주요실패원인: reportMessageDashboardSummary.overview.topFailureCategory,
+            },
+        ]);
+        const monthlySheet = XLSX.utils.json_to_sheet(reportMessageDashboardSummary.monthlyRows.map((row) => ({
+            월: row.month_label,
+            총발송: row.total_count,
+            성공: row.success_count,
+            실패: row.failed_count,
+            성공률: `${row.success_rate}%`,
+        })));
+        const teamSheet = XLSX.utils.json_to_sheet(reportMessageDashboardSummary.teamRows.map((row) => ({
+            팀명: row.team_name,
+            총발송: row.total_count,
+            성공: row.success_count,
+            실패: row.failed_count,
+            성공률: `${row.success_rate}%`,
+            최근발송: formatMessageLogDateTime(row.last_sent_at),
+        })));
+        const failureSheet = XLSX.utils.json_to_sheet(reportMessageDashboardSummary.failureRows.map((row) => ({
+            실패사유: row.failure_category,
+            건수: row.failure_count,
+            최근발생: formatMessageLogDateTime(row.last_occurred_at),
+        })));
+        const retrySheet = XLSX.utils.json_to_sheet(reportMessageDashboardSummary.retryRows.map((row) => ({
+            근로자명: row.worker_name,
+            팀명: row.team_name,
+            전화번호: formatPhoneForDisplay(row.phone_number),
+            실패사유: row.failure_category,
+            우선점수: row.priority_score,
+            실패시각: formatMessageLogDateTime(row.failed_at),
+            공급자: row.provider || '-',
+            메모: row.message || '-',
+        })));
+
+        XLSX.utils.book_append_sheet(workbook, overviewSheet, 'Overview');
+        XLSX.utils.book_append_sheet(workbook, monthlySheet, 'Monthly');
+        XLSX.utils.book_append_sheet(workbook, teamSheet, 'Team');
+        XLSX.utils.book_append_sheet(workbook, failureSheet, 'Failure');
+        XLSX.utils.book_append_sheet(workbook, retrySheet, 'RetryQueue');
+        XLSX.writeFile(workbook, `message_dashboard_summary_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    };
+
+    const fetchWorkerMessageHistory = useCallback(async (worker: RegisteredWorkerListRow, options?: { force?: boolean; append?: boolean }) => {
+        const workerId = String(worker?.id || '').trim();
+        if (!workerId) return null;
+
+        const cached = messageLogCache[workerId];
+        if (!options?.force && cached && isMessageHistoryCacheFresh(cached.fetchedAt)) {
+            setMessageLogError('');
+            return cached;
+        }
+
+        const nextOffset = options?.append ? (cached?.rows.length || 0) : 0;
+
+        if (options?.append) {
+            setIsMessageLogLoadingMore(true);
+        } else {
+            setIsMessageLogLoading(true);
+        }
+        setMessageLogError('');
+        try {
+            const data = await postAdminJson<any>(
+                '/api/admin/safety-management',
+                {
+                    action: 'list-report-message-logs',
+                    payload: {
+                        workerId,
+                        workerName: worker.name,
+                        limit: 30,
+                        offset: nextOffset,
+                    },
+                },
+                { fallbackMessage: '문자 발송 이력 조회 실패' },
+            );
+
+            const rows = Array.isArray(data?.data?.rows) ? data.data.rows : [];
+            const normalizedRows = rows.map((row: any) => ({
+                id: String(row?.id || '').trim(),
+                worker_id: String(row?.worker_id || '').trim(),
+                worker_name: String(row?.worker_name || '').trim(),
+                team_name: String(row?.team_name || '').trim(),
+                phone_number: String(row?.phone_number || '').trim(),
+                status: String(row?.status || '').trim() || 'UNKNOWN',
+                failure_category: String(row?.failure_category || '').trim(),
+                sent_count: Number(row?.sent_count || 0),
+                provider: String(row?.provider || '').trim(),
+                message: String(row?.message || '').trim(),
+                created_at: String(row?.created_at || '').trim(),
+            }));
+            const entry: WorkerMessageLogCacheEntry = {
+                rows: options?.append ? [...(cached?.rows || []), ...normalizedRows] : normalizedRows,
+                total: Number(data?.data?.total || rows.length || 0),
+                offset: Number(data?.data?.offset || nextOffset || 0),
+                limit: Number(data?.data?.limit || 30),
+                hasMore: Boolean(data?.data?.hasMore),
+                schemaReady: Boolean(data?.data?.schemaReady ?? true),
+                fetchedAt: new Date().toISOString(),
+            };
+
+            setMessageLogCache((prev) => ({ ...prev, [workerId]: entry }));
+            setMessageLogSessionApiCount((prev) => prev + 1);
+            setMessageLogLastFetchedAt(entry.fetchedAt);
+            return entry;
+        } catch (error) {
+            setMessageLogError(extractMessage(error));
+            return null;
+        } finally {
+            if (options?.append) {
+                setIsMessageLogLoadingMore(false);
+            } else {
+                setIsMessageLogLoading(false);
+            }
+        }
+    }, [messageLogCache]);
+
+    const handleOpenWorkerMessageHistory = (worker: RegisteredWorkerListRow) => {
+        setRegisteredWorkerAdminTab('message-history');
+        setSelectedMessageHistoryWorkerId(worker.id);
+        setMessageLogError('');
+    };
+
+    const findRegisteredWorkerForRetryRow = (row: ReportMessageDashboardRetryRow) => {
+        const retryWorkerId = normalizeIdentityToken(row.worker_id);
+        const retryWorkerName = normalizeIdentityToken(row.worker_name);
+        const retryTeamName = normalizeIdentityToken(row.team_name || '미지정');
+        const retryPhone = normalizePhone(row.phone_number);
+
+        return registeredWorkers.find((worker) => {
+            const workerId = normalizeIdentityToken(worker.id);
+            const workerName = normalizeIdentityToken(worker.name);
+            const workerTeam = normalizeIdentityToken(worker.team_name || '미지정');
+            const workerPhone = normalizePhone(worker.phone_number);
+
+            if (retryWorkerId && workerId && retryWorkerId === workerId) return true;
+            if (retryWorkerName === workerName && retryTeamName === workerTeam) return true;
+            return retryPhone.length >= 10 && workerPhone === retryPhone;
+        }) || null;
+    };
+
+    const findLatestRecordForRetryRow = (row: ReportMessageDashboardRetryRow) => {
+        const retryWorkerId = normalizeIdentityToken(row.worker_id);
+        const retryWorkerName = normalizeIdentityToken(row.worker_name);
+        const retryTeamName = normalizeIdentityToken(row.team_name || '미지정');
+
+        return latestRecords.find((record) => {
+            const recordWorkerUuid = normalizeIdentityToken(record.worker_uuid || record.workerUuid);
+            if (retryWorkerId && recordWorkerUuid && retryWorkerId === recordWorkerUuid) return true;
+
+            const recordName = normalizeIdentityToken(record.name);
+            const recordTeam = normalizeIdentityToken(record.teamLeader || '미지정');
+            return retryWorkerName === recordName && retryTeamName === recordTeam;
+        }) || null;
+    };
+
+    const handleInspectRetryQueueRow = (row: ReportMessageDashboardRetryRow) => {
+        const matchedWorker = findRegisteredWorkerForRetryRow(row);
+        if (matchedWorker) {
+            handleOpenWorkerMessageHistory(matchedWorker);
+        }
+    };
+
+    const handleOpenRetryQueueReport = (row: ReportMessageDashboardRetryRow) => {
+        const matchedRecord = findLatestRecordForRetryRow(row);
+        if (matchedRecord) {
+            onViewDetails(matchedRecord);
+        }
+    };
+
+    const buildRetryQueueBlockers = (row: ReportMessageDashboardRetryRow) => {
+        const blockers: string[] = [];
+        if (normalizePhone(row.phone_number).length < 10) {
+            blockers.push('전화번호 확인 필요');
+        }
+        if (!findRegisteredWorkerForRetryRow(row)) {
+            blockers.push('등록 근로자 매칭 없음');
+        }
+        if (!findLatestRecordForRetryRow(row)) {
+            blockers.push('리포트 원본 없음');
+        }
+        return blockers;
+    };
+
+    const isRetryQueueRowActionable = (row: ReportMessageDashboardRetryRow) => buildRetryQueueBlockers(row).length === 0;
+
+    const handleEditRetryQueueWorker = (row: ReportMessageDashboardRetryRow) => {
+        const matchedWorker = findRegisteredWorkerForRetryRow(row);
+        if (!matchedWorker) return;
+        setRegisteredWorkerAdminTab('list');
+        setRegisteredWorkerSearchTerm(matchedWorker.name || '');
+        startEditRegisteredWorker(matchedWorker);
+    };
+
+    const openSelectedWorkerReport = () => {
+        if (!selectedMessageHistoryLatestRecord) return;
+        onViewDetails(selectedMessageHistoryLatestRecord);
+    };
 
     const toggleRegisteredWorkersSort = (key: RegisteredWorkerSortKey) => {
         setRegisteredWorkersSort((prev) => {
@@ -1567,6 +2238,67 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     useEffect(() => {
         void fetchRegisteredWorkers();
     }, [fetchRegisteredWorkers]);
+
+    useEffect(() => {
+        if (registeredWorkerAdminTab !== 'message-history') return;
+        if (filteredRegisteredWorkers.length === 0) {
+            setSelectedMessageHistoryWorkerId('');
+            return;
+        }
+
+        const hasSelectedWorker = filteredRegisteredWorkers.some((worker) => worker.id === selectedMessageHistoryWorkerId);
+        if (!hasSelectedWorker) {
+            setSelectedMessageHistoryWorkerId(filteredRegisteredWorkers[0].id);
+        }
+    }, [filteredRegisteredWorkers, registeredWorkerAdminTab, selectedMessageHistoryWorkerId]);
+
+    useEffect(() => {
+        if (registeredWorkerAdminTab !== 'message-history') return;
+        if (!selectedMessageHistoryWorker) return;
+        const cached = messageLogCache[selectedMessageHistoryWorker.id];
+        if (cached && isMessageHistoryCacheFresh(cached.fetchedAt)) return;
+        void fetchWorkerMessageHistory(selectedMessageHistoryWorker);
+    }, [fetchWorkerMessageHistory, messageLogCache, registeredWorkerAdminTab, selectedMessageHistoryWorker]);
+
+    useEffect(() => {
+        if (registeredWorkerAdminTab !== 'message-history') return;
+        if (reportMessageDashboardSummary) return;
+
+        let disposed = false;
+
+        const fetchDashboardSummary = async () => {
+            setIsReportMessageDashboardLoading(true);
+            setReportMessageDashboardError('');
+            try {
+                const response = await postAdminJson<{ ok: true; data: ReportMessageDashboardSummary }>(
+                    '/api/admin/safety-management',
+                    {
+                        action: 'get-report-message-dashboard-summary',
+                        payload: { limit: 6 },
+                    },
+                    { fallbackMessage: '문자 운영 집계 요약 조회 실패' },
+                );
+
+                if (!disposed) {
+                    setReportMessageDashboardSummary(response?.data || null);
+                }
+            } catch (error) {
+                if (!disposed) {
+                    setReportMessageDashboardError(extractMessage(error));
+                }
+            } finally {
+                if (!disposed) {
+                    setIsReportMessageDashboardLoading(false);
+                }
+            }
+        };
+
+        void fetchDashboardSummary();
+
+        return () => {
+            disposed = true;
+        };
+    }, [registeredWorkerAdminTab, reportMessageDashboardSummary]);
 
     useEffect(() => {
         return () => {
@@ -2805,16 +3537,35 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             </div>
 
             <div className="mt-8 bg-white rounded-[24px] border border-slate-100 shadow-xl p-5 sm:p-6">
-                <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-base sm:text-lg font-black text-slate-900">등록 근로자 리스트 뷰</h3>
-                    <button
-                        type="button"
-                        onClick={() => void fetchRegisteredWorkers()}
-                        disabled={isRegisteredWorkersLoading}
-                        className="px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-black hover:bg-indigo-100 disabled:opacity-60"
-                    >
-                        {isRegisteredWorkersLoading ? '불러오는 중...' : '새로고침'}
-                    </button>
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                    <div>
+                        <h3 className="text-base sm:text-lg font-black text-slate-900">등록 근로자 관리자 센터</h3>
+                        <p className="mt-1 text-[11px] font-bold text-slate-500">근로자 기본정보 수정과 문자 발송 이력을 같은 화면에서 저용량 호출 방식으로 확인합니다.</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setRegisteredWorkerAdminTab('list')}
+                            className={`px-3 py-2 rounded-xl border text-xs font-black transition-colors ${registeredWorkerAdminTab === 'list' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'}`}
+                        >
+                            등록 리스트
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setRegisteredWorkerAdminTab('message-history')}
+                            className={`px-3 py-2 rounded-xl border text-xs font-black transition-colors ${registeredWorkerAdminTab === 'message-history' ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}
+                        >
+                            문자 발송 이력
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => void fetchRegisteredWorkers()}
+                            disabled={isRegisteredWorkersLoading}
+                            className="px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-black hover:bg-indigo-100 disabled:opacity-60"
+                        >
+                            {isRegisteredWorkersLoading ? '불러오는 중...' : '새로고침'}
+                        </button>
+                    </div>
                 </div>
                 {registeredWorkerUpdateMessage && (
                     <p className={`mt-3 text-xs font-bold ${registeredWorkerUpdateMessage.startsWith('✅') ? 'text-emerald-700' : 'text-rose-600'}`}>
@@ -2876,6 +3627,610 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     등록 {registeredWorkers.length}명 · 필터 결과 {filteredRegisteredWorkers.length}명
                 </p>
 
+                {registeredWorkerAdminTab === 'message-history' && (
+                    <div className="mt-4 rounded-[24px] border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-slate-50 p-4 sm:p-5">
+                        {reportMessageDashboardError && (
+                            <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-700">
+                                운영 집계 요약 조회 오류: {reportMessageDashboardError}
+                            </div>
+                        )}
+                        {isReportMessageDashboardLoading && !reportMessageDashboardSummary && (
+                            <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-xs font-bold text-slate-500">
+                                운영 집계 요약을 불러오는 중입니다.
+                            </div>
+                        )}
+                        {reportMessageDashboardSummary?.schemaReady && (
+                            <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+                                <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+                                    <div>
+                                        <p className="text-xs font-black text-slate-800 uppercase tracking-[0.18em]">MESSAGE OPS DASHBOARD</p>
+                                        <p className="mt-1 text-[11px] font-bold text-slate-500">DB 집계 뷰 기준 전체 문자 운영 현황입니다.</p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => void downloadDashboardSummaryExcel()}
+                                            className="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-50"
+                                        >
+                                            대시보드 Excel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={downloadDashboardSummaryCsv}
+                                            className="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100"
+                                        >
+                                            대시보드 CSV
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={downloadDashboardSummaryJson}
+                                            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                                        >
+                                            대시보드 JSON
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setReportMessageDashboardSummary(null)}
+                                            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100"
+                                        >
+                                            운영 집계 새로고침
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                        <p className="text-[10px] font-black text-slate-500">월 기준 총 발송</p>
+                                        <p className="mt-1 text-2xl font-black text-slate-900">{reportMessageDashboardSummary.overview.totalCount}</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+                                        <p className="text-[10px] font-black text-emerald-600">월 성공</p>
+                                        <p className="mt-1 text-2xl font-black text-emerald-900">{reportMessageDashboardSummary.overview.successCount}</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
+                                        <p className="text-[10px] font-black text-rose-600">월 실패</p>
+                                        <p className="mt-1 text-2xl font-black text-rose-900">{reportMessageDashboardSummary.overview.failedCount}</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
+                                        <p className="text-[10px] font-black text-amber-600">월 성공률</p>
+                                        <p className="mt-1 text-2xl font-black text-amber-900">{reportMessageDashboardSummary.overview.successRate}%</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3">
+                                        <p className="text-[10px] font-black text-indigo-600">최다 팀</p>
+                                        <p className="mt-1 text-sm font-black text-indigo-900 truncate">{reportMessageDashboardSummary.overview.topTeam}</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3">
+                                        <p className="text-[10px] font-black text-violet-600">주요 실패 원인</p>
+                                        <p className="mt-1 text-sm font-black text-violet-900 truncate">{reportMessageDashboardSummary.overview.topFailureCategory}</p>
+                                    </div>
+                                </div>
+                                <div className="mt-3 rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
+                                    <p className="text-[10px] font-black text-amber-700">재시도 후보</p>
+                                    <p className="mt-1 text-lg font-black text-amber-900">{reportMessageDashboardSummary.overview.retryCandidateCount}건</p>
+                                </div>
+
+                                <div className="mt-4 grid grid-cols-1 xl:grid-cols-4 gap-4">
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                                        <p className="text-xs font-black text-slate-800">월별 집계 뷰</p>
+                                        <div className="mt-4 h-[220px]">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={reportMessageDashboardSummary.monthlyRows} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                                                    <XAxis dataKey="month_label" tick={{ fontSize: 11, fontWeight: 700, fill: '#475569' }} />
+                                                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#475569' }} />
+                                                    <Tooltip />
+                                                    <Bar dataKey="success_count" fill="#10B981" radius={[8, 8, 0, 0]} />
+                                                    <Bar dataKey="failed_count" fill="#F43F5E" radius={[8, 8, 0, 0]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                                        <p className="text-xs font-black text-slate-800">팀별 집계 뷰</p>
+                                        <div className="mt-4 h-[220px]">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={reportMessageDashboardSummary.teamRows} layout="vertical" margin={{ top: 8, right: 18, left: 18, bottom: 0 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                                                    <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fontWeight: 700, fill: '#475569' }} />
+                                                    <YAxis type="category" dataKey="team_name" width={90} tick={{ fontSize: 11, fontWeight: 700, fill: '#475569' }} />
+                                                    <Tooltip formatter={(value: number) => [`${value}%`, '성공률']} />
+                                                    <Bar dataKey="success_rate" fill="#6366F1" radius={[0, 8, 8, 0]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                                        <p className="text-xs font-black text-slate-800">실패 사유 집계 뷰</p>
+                                        <div className="mt-4 h-[220px]">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={reportMessageDashboardSummary.failureRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                                                    <XAxis dataKey="failure_category" tick={{ fontSize: 11, fontWeight: 700, fill: '#475569' }} interval={0} angle={-10} textAnchor="end" height={56} />
+                                                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#475569' }} />
+                                                    <Tooltip formatter={(value: number) => [value, '건수']} />
+                                                    <Bar dataKey="failure_count" fill="#F97316" radius={[8, 8, 0, 0]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                                        <p className="text-xs font-black text-slate-800">재시도 큐</p>
+                                        <p className="mt-1 text-[11px] font-bold text-slate-500">현재 최신 상태가 실패인 대상만 우선 점수순으로 표시합니다.</p>
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setRetryQueueFilter('all')}
+                                                className={`rounded-lg border px-2.5 py-1 text-[10px] font-black ${retryQueueFilter === 'all' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                                            >
+                                                전체
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setRetryQueueFilter('actionable')}
+                                                className={`rounded-lg border px-2.5 py-1 text-[10px] font-black ${retryQueueFilter === 'actionable' ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+                                            >
+                                                재시도 가능만
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setRetryQueueFilter('blocked')}
+                                                className={`rounded-lg border px-2.5 py-1 text-[10px] font-black ${retryQueueFilter === 'blocked' ? 'border-rose-600 bg-rose-600 text-white' : 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'}`}
+                                            >
+                                                차단 대상만
+                                            </button>
+                                        </div>
+                                        <div className="mt-4 space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                                            {reportMessageDashboardSummary.retryRows.filter((row) => {
+                                                const actionable = isRetryQueueRowActionable(row);
+                                                return retryQueueFilter === 'all' || (retryQueueFilter === 'actionable' && actionable) || (retryQueueFilter === 'blocked' && !actionable);
+                                            }).length > 0 ? reportMessageDashboardSummary.retryRows.filter((row) => {
+                                                const actionable = isRetryQueueRowActionable(row);
+                                                return retryQueueFilter === 'all' || (retryQueueFilter === 'actionable' && actionable) || (retryQueueFilter === 'blocked' && !actionable);
+                                            }).map((row) => {
+                                                const matchedWorker = findRegisteredWorkerForRetryRow(row);
+                                                const matchedRecord = findLatestRecordForRetryRow(row);
+                                                const blockers = buildRetryQueueBlockers(row);
+
+                                                return (
+                                                <div key={row.retry_key} className="rounded-xl border border-amber-200 bg-white px-3 py-3">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-black text-slate-900 truncate">{row.worker_name || '근로자 미상'}</p>
+                                                            <p className="mt-1 text-[11px] font-bold text-slate-500 truncate">{row.team_name || '미지정'} · {formatPhoneForDisplay(row.phone_number) || '전화 미등록'}</p>
+                                                        </div>
+                                                        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700">{row.priority_score}</span>
+                                                    </div>
+                                                    <p className="mt-2 text-[11px] font-black text-rose-700">{row.failure_category}</p>
+                                                    <p className="mt-1 text-[11px] font-bold text-slate-500 break-words">{row.message || row.provider || '-'}</p>
+                                                    <p className="mt-1 text-[10px] font-bold text-slate-400">{formatMessageLogDateTime(row.failed_at)}</p>
+                                                    {blockers.length > 0 && (
+                                                        <div className="mt-2 flex flex-wrap gap-1.5">
+                                                            {blockers.map((blocker) => (
+                                                                <span key={`${row.retry_key}-${blocker}`} className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-700">
+                                                                    {blocker}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    <div className="mt-3 flex flex-wrap gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleInspectRetryQueueRow(row)}
+                                                            disabled={!matchedWorker}
+                                                            className="inline-flex items-center rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+                                                        >
+                                                            이력 열기
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenRetryQueueReport(row)}
+                                                            disabled={!matchedRecord}
+                                                            className="inline-flex items-center rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-black text-sky-700 hover:bg-sky-100 disabled:opacity-60"
+                                                        >
+                                                            리포트 열기
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleEditRetryQueueWorker(row)}
+                                                            disabled={!matchedWorker}
+                                                            className="inline-flex items-center rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+                                                        >
+                                                            근로자 수정
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                );
+                                            }) : (
+                                                <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-xs font-bold text-slate-500">
+                                                    현재 필터 조건에 맞는 재시도 후보가 없습니다.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                        {reportMessageDashboardSummary && !reportMessageDashboardSummary.schemaReady && (
+                            <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                                <p className="font-black">운영 집계 뷰가 아직 준비되지 않았습니다.</p>
+                                <p className="mt-1 text-xs font-bold">최신 [supabase_report_message_logs_migration.sql](supabase_report_message_logs_migration.sql)를 실행하면 월별/팀별/실패사유 대시보드가 활성화됩니다.</p>
+                            </div>
+                        )}
+                        <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-4">
+                            <div className="rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm">
+                                <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3">
+                                    <p className="text-xs font-black text-indigo-900">Vercel 무료버전 API 절약 모드</p>
+                                    <p className="mt-1 text-[11px] font-bold text-indigo-700">이 탭은 선택한 근로자 1명만 조회하고, 조회 결과를 5분간 캐시하여 불필요한 서버 호출을 줄입니다.</p>
+                                </div>
+                                <div className="mt-3 grid grid-cols-2 gap-2">
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                        <p className="text-[10px] font-black text-slate-500">세션 API 호출</p>
+                                        <p className="mt-1 text-lg font-black text-slate-900">{messageLogSessionApiCount}</p>
+                                    </div>
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                        <p className="text-[10px] font-black text-slate-500">캐시된 근로자</p>
+                                        <p className="mt-1 text-lg font-black text-slate-900">{Object.keys(messageLogCache).length}</p>
+                                    </div>
+                                </div>
+                                <p className="mt-2 text-[11px] font-bold text-slate-500">
+                                    최근 실조회: {messageLogLastFetchedAt ? formatMessageLogDateTime(messageLogLastFetchedAt) : '아직 없음'}
+                                </p>
+
+                                <div className="mt-4 max-h-[560px] overflow-y-auto pr-1 space-y-2">
+                                    {filteredRegisteredWorkers.length === 0 ? (
+                                        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-xs font-bold text-slate-500">
+                                            현재 검색 조건에 맞는 근로자가 없습니다.
+                                        </div>
+                                    ) : filteredRegisteredWorkers.map((worker) => {
+                                        const cachedEntry = messageLogCache[worker.id];
+                                        const lastLog = cachedEntry?.rows?.[0];
+                                        const isActive = worker.id === selectedMessageHistoryWorkerId;
+
+                                        return (
+                                            <button
+                                                key={worker.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedMessageHistoryWorkerId(worker.id);
+                                                    setMessageLogError('');
+                                                }}
+                                                className={`w-full rounded-2xl border px-4 py-3 text-left transition-colors ${isActive ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-200 bg-white hover:border-indigo-200 hover:bg-slate-50'}`}
+                                            >
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-black text-slate-900 truncate">{worker.name || '이름 미상'}</p>
+                                                        <p className="mt-1 text-[11px] font-bold text-slate-500 truncate">{worker.job_field || '미분류'} · {worker.team_name || '미지정'}</p>
+                                                    </div>
+                                                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black border ${cachedEntry ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+                                                        {cachedEntry ? '캐시됨' : '미조회'}
+                                                    </span>
+                                                </div>
+                                                <div className="mt-2 text-[11px] font-bold text-slate-500">
+                                                    <p>전화: {formatPhoneForDisplay(worker.phone_number) || '미등록'}</p>
+                                                    <p className="mt-1 truncate">최근 발송: {lastLog ? `${formatMessageLogDateTime(lastLog.created_at)} · ${lastLog.status}` : '기록 없음'}</p>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                    <div>
+                                        <p className="text-xs font-black text-indigo-600 uppercase tracking-[0.2em]">MESSAGE HISTORY</p>
+                                        <h4 className="mt-1 text-lg font-black text-slate-900">{selectedMessageHistoryWorker?.name || '근로자를 선택하세요'}</h4>
+                                        <p className="mt-1 text-[11px] font-bold text-slate-500">
+                                            {selectedMessageHistoryWorker ? `${selectedMessageHistoryWorker.job_field || '미분류'} · ${selectedMessageHistoryWorker.team_name || '미지정'} · ${formatPhoneForDisplay(selectedMessageHistoryWorker.phone_number) || '전화 미등록'}` : '좌측 목록에서 확인할 근로자를 선택하세요.'}
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={openSelectedWorkerReport}
+                                            disabled={!selectedMessageHistoryLatestRecord}
+                                            className="inline-flex items-center justify-center rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-black text-sky-700 hover:bg-sky-100 disabled:opacity-60"
+                                        >
+                                            최신 리포트 열기
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => void downloadMessageHistoryExcel()}
+                                            disabled={!selectedMessageHistoryWorker || filteredMessageHistoryRows.length === 0}
+                                            className="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
+                                        >
+                                            Excel 다운로드
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={downloadMessageHistoryCsv}
+                                            disabled={!selectedMessageHistoryWorker || filteredMessageHistoryRows.length === 0}
+                                            className="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+                                        >
+                                            CSV 다운로드
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={downloadMessageHistoryJson}
+                                            disabled={!selectedMessageHistoryWorker || filteredMessageHistoryRows.length === 0}
+                                            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                        >
+                                            JSON 다운로드
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => selectedMessageHistoryWorker && void fetchWorkerMessageHistory(selectedMessageHistoryWorker, { force: true })}
+                                            disabled={!selectedMessageHistoryWorker || isMessageLogLoading}
+                                            className="inline-flex items-center justify-center rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+                                        >
+                                            {isMessageLogLoading ? '조회 중...' : '선택 근로자 이력 새로고침'}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <input
+                                        type="text"
+                                        value={messageHistorySearchTerm}
+                                        onChange={(event) => setMessageHistorySearchTerm(event.target.value)}
+                                        placeholder="메모/상태/전화번호 검색"
+                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white"
+                                    />
+                                    <select
+                                        value={messageHistoryRangeFilter}
+                                        onChange={(event) => setMessageHistoryRangeFilter(event.target.value as MessageHistoryRangeFilter)}
+                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white"
+                                    >
+                                        <option value="7d">최근 7일</option>
+                                        <option value="30d">최근 30일</option>
+                                        <option value="90d">최근 90일</option>
+                                        <option value="all">전체 기간</option>
+                                    </select>
+                                    <select
+                                        value={messageHistoryStatusFilter}
+                                        onChange={(event) => setMessageHistoryStatusFilter(event.target.value as MessageHistoryStatusFilter)}
+                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white"
+                                    >
+                                        <option value="all">상태: 전체</option>
+                                        <option value="success">상태: 성공만</option>
+                                        <option value="fail">상태: 실패/보류만</option>
+                                    </select>
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                        <p className="text-[10px] font-black text-slate-500">표시 중</p>
+                                        <p className="mt-1 text-sm font-black text-slate-900">{filteredMessageHistoryRows.length}건 / 원본 {selectedMessageHistoryRows.length}건</p>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+                                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+                                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.18em]">SUCCESS</p>
+                                        <p className="mt-1 text-2xl font-black text-emerald-900">{selectedMessageHistorySummary.successCount}</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
+                                        <p className="text-[10px] font-black text-rose-600 uppercase tracking-[0.18em]">FAIL / HOLD</p>
+                                        <p className="mt-1 text-2xl font-black text-rose-900">{selectedMessageHistorySummary.failureCount}</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3">
+                                        <p className="text-[10px] font-black text-sky-600 uppercase tracking-[0.18em]">SENT PAGES</p>
+                                        <p className="mt-1 text-2xl font-black text-sky-900">{selectedMessageHistorySummary.sentPageCount}</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
+                                        <p className="text-[10px] font-black text-amber-600 uppercase tracking-[0.18em]">SUCCESS RATE</p>
+                                        <p className="mt-1 text-2xl font-black text-amber-900">{selectedMessageHistorySummary.successRate}%</p>
+                                    </div>
+                                    <div className="rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3">
+                                        <p className="text-[10px] font-black text-violet-600 uppercase tracking-[0.18em]">TOP PROVIDER</p>
+                                        <p className="mt-1 text-base font-black text-violet-900 truncate">{selectedMessageHistorySummary.topProviderLabel}</p>
+                                        <p className="mt-1 text-xs font-bold text-violet-700">{selectedMessageHistorySummary.topProviderCount}건</p>
+                                    </div>
+                                </div>
+                                {messageHistoryMonthlyTrend.length > 0 && (
+                                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div>
+                                                <p className="text-xs font-black text-slate-800">월별 발송 추이</p>
+                                                <p className="mt-1 text-[11px] font-bold text-slate-500">현재 필터 기준 최근 최대 6개월의 성공/실패 건수를 표시합니다.</p>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 h-[240px]">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart data={messageHistoryMonthlyTrend} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                                                    <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                                                    <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 700, fill: '#475569' }} />
+                                                    <YAxis allowDecimals={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#475569' }} />
+                                                    <Tooltip
+                                                        formatter={(value: number, name: string) => [value, name === 'success' ? '성공' : '실패']}
+                                                        labelFormatter={(label) => `${label} 발송 현황`}
+                                                    />
+                                                    <Legend formatter={(value) => value === 'success' ? '성공' : '실패'} />
+                                                    <Bar dataKey="success" name="success" fill="#10B981" radius={[8, 8, 0, 0]} />
+                                                    <Bar dataKey="fail" name="fail" fill="#F43F5E" radius={[8, 8, 0, 0]} />
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                )}
+                                {(cachedTeamSuccessTrend.length > 0 || failureReasonData.length > 0) && (
+                                    <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                                            <div>
+                                                <p className="text-xs font-black text-slate-800">팀별 성공률 비교</p>
+                                                <p className="mt-1 text-[11px] font-bold text-slate-500">현재 캐시에 적재된 팀 기준으로 최근 기간 성공률을 비교합니다.</p>
+                                            </div>
+                                            {cachedTeamSuccessTrend.length > 0 ? (
+                                                <div className="mt-4 h-[240px]">
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <BarChart data={cachedTeamSuccessTrend} layout="vertical" margin={{ top: 8, right: 18, left: 18, bottom: 0 }}>
+                                                            <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                                                            <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11, fontWeight: 700, fill: '#475569' }} />
+                                                            <YAxis type="category" dataKey="team" width={90} tick={{ fontSize: 11, fontWeight: 700, fill: '#475569' }} />
+                                                            <Tooltip formatter={(value: number) => [`${value}%`, '성공률']} />
+                                                            <Bar dataKey="successRate" fill="#6366F1" radius={[0, 8, 8, 0]} />
+                                                        </BarChart>
+                                                    </ResponsiveContainer>
+                                                </div>
+                                            ) : (
+                                                <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-xs font-bold text-slate-500">
+                                                    아직 팀 비교가 가능한 캐시 데이터가 부족합니다.
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                                            <div>
+                                                <p className="text-xs font-black text-slate-800">실패 사유 분류</p>
+                                                <p className="mt-1 text-[11px] font-bold text-slate-500">실패/보류 메시지 문구를 기준으로 주요 원인을 자동 분류합니다.</p>
+                                            </div>
+                                            {failureReasonData.length > 0 ? (
+                                                <div className="mt-4 h-[240px]">
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <BarChart data={failureReasonData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                                                            <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                                                            <XAxis dataKey="reason" tick={{ fontSize: 11, fontWeight: 700, fill: '#475569' }} interval={0} angle={-10} textAnchor="end" height={56} />
+                                                            <YAxis allowDecimals={false} tick={{ fontSize: 11, fontWeight: 700, fill: '#475569' }} />
+                                                            <Tooltip formatter={(value: number) => [value, '건수']} />
+                                                            <Bar dataKey="count" fill="#F97316" radius={[8, 8, 0, 0]} />
+                                                        </BarChart>
+                                                    </ResponsiveContainer>
+                                                </div>
+                                            ) : (
+                                                <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-xs font-bold text-slate-500">
+                                                    현재 필터에서는 실패/보류 로그가 없어 사유 분류가 비어 있습니다.
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                                {failurePriorityActions.length > 0 && (
+                                    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
+                                        <div>
+                                            <p className="text-xs font-black text-amber-900">재발송 우선순위 가이드</p>
+                                            <p className="mt-1 text-[11px] font-bold text-amber-700">실패 빈도가 높은 원인부터 현장 대응 우선순위를 안내합니다.</p>
+                                        </div>
+                                        <div className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3">
+                                            {failurePriorityActions.map((item) => (
+                                                <div key={item.reason} className="rounded-2xl border border-amber-200 bg-white px-4 py-4 shadow-sm">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-800">우선 {item.rank}</span>
+                                                        <span className="text-[11px] font-black text-amber-700">{item.count}건</span>
+                                                    </div>
+                                                    <p className="mt-3 text-sm font-black text-slate-900">{item.reason}</p>
+                                                    <p className="mt-2 text-[11px] font-bold text-slate-600 break-words">{item.action}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                {selectedMessageHistoryLogEntry && (
+                                    <p className="mt-3 text-[11px] font-bold text-slate-500">
+                                        서버 원본 {selectedMessageHistoryLogEntry.total}건 중 현재 {selectedMessageHistoryRows.length}건 로드됨
+                                    </p>
+                                )}
+                                {selectedMessageHistoryWorker && !selectedMessageHistoryLatestRecord && (
+                                    <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">
+                                        현재 근로자와 연결된 최신 리포트 원본을 찾지 못했습니다. 문자 이력은 확인 가능하지만 상세 리포트 바로 열기는 비활성화됩니다.
+                                    </div>
+                                )}
+
+                                {messageLogError && (
+                                    <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-700">
+                                        문자 발송 이력 조회 오류: {messageLogError}
+                                    </div>
+                                )}
+
+                                {!selectedMessageHistoryWorker && (
+                                    <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm font-bold text-slate-500">
+                                        좌측에서 근로자를 선택하면 개인별 문자 발송 이력이 표시됩니다.
+                                    </div>
+                                )}
+
+                                {selectedMessageHistoryWorker && selectedMessageHistoryLogEntry && !selectedMessageHistoryLogEntry.schemaReady && (
+                                    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+                                        <p className="font-black">문자 발송 로그 스키마가 아직 준비되지 않았습니다.</p>
+                                        <p className="mt-1 text-xs font-bold">Supabase SQL Editor에서 `supabase_report_message_logs_migration.sql`을 먼저 실행하면 관리자 이력 탭이 즉시 활성화됩니다.</p>
+                                    </div>
+                                )}
+
+                                {selectedMessageHistoryWorker && (!selectedMessageHistoryLogEntry || selectedMessageHistoryLogEntry.schemaReady) && (
+                                    <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+                                        <table className="min-w-full text-sm">
+                                            <thead className="bg-slate-50">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-left text-xs font-black text-slate-600">발송시각</th>
+                                                    <th className="px-4 py-3 text-left text-xs font-black text-slate-600">상태</th>
+                                                    <th className="px-4 py-3 text-left text-xs font-black text-slate-600">페이지수</th>
+                                                    <th className="px-4 py-3 text-left text-xs font-black text-slate-600">전화번호</th>
+                                                    <th className="px-4 py-3 text-left text-xs font-black text-slate-600">메모</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {isMessageLogLoading && !selectedMessageHistoryLogEntry && (
+                                                    <tr>
+                                                        <td colSpan={5} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
+                                                            문자 발송 이력을 불러오는 중입니다.
+                                                        </td>
+                                                    </tr>
+                                                )}
+
+                                                {!isMessageLogLoading && selectedMessageHistoryLogEntry && filteredMessageHistoryRows.length === 0 && (
+                                                    <tr>
+                                                        <td colSpan={5} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
+                                                            현재 필터 조건에 맞는 문자 발송 이력이 없습니다.
+                                                        </td>
+                                                    </tr>
+                                                )}
+
+                                                {filteredMessageHistoryRows.map((row) => (
+                                                    <tr key={row.id} className={`border-t hover:bg-slate-50/70 ${isSuccessfulMessageStatus(row.status) ? 'border-slate-100' : 'border-rose-100 bg-rose-50/40'}`}>
+                                                        <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">{formatMessageLogDateTime(row.created_at)}</td>
+                                                        <td className="px-4 py-3 whitespace-nowrap">
+                                                            <span className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-black border ${isSuccessfulMessageStatus(row.status) ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+                                                                {row.status}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{row.sent_count || 0}p</td>
+                                                        <td className="px-4 py-3 font-bold text-slate-700 whitespace-nowrap">{formatPhoneForDisplay(row.phone_number) || '-'}</td>
+                                                        <td className="px-4 py-3 text-xs font-bold text-slate-500">
+                                                            <div className="max-w-[360px] whitespace-pre-wrap break-words">{row.message || row.provider || '-'}</div>
+                                                            {!isSuccessfulMessageStatus(row.status) && (
+                                                                <div className="mt-1 flex flex-wrap items-center gap-2">
+                                                                    <p className="text-[10px] font-black text-rose-600">재확인 필요</p>
+                                                                    {selectedMessageHistoryLatestRecord && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={openSelectedWorkerReport}
+                                                                            className="inline-flex items-center rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-black text-sky-700 hover:bg-sky-100"
+                                                                        >
+                                                                            리포트 보기
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                                {selectedMessageHistoryWorker && selectedMessageHistoryLogEntry?.hasMore && (
+                                    <div className="mt-3 flex justify-center">
+                                        <button
+                                            type="button"
+                                            onClick={() => void fetchWorkerMessageHistory(selectedMessageHistoryWorker, { append: true, force: true })}
+                                            disabled={isMessageLogLoadingMore}
+                                            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                        >
+                                            {isMessageLogLoadingMore ? '추가 이력 불러오는 중...' : '이력 더 보기'}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {registeredWorkerAdminTab === 'list' && (
                 <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
                     <table className="min-w-full text-sm">
                         <thead className="bg-slate-50">
@@ -3030,6 +4385,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 </button>
                                                 <button
                                                     type="button"
+                                                    onClick={() => handleOpenWorkerMessageHistory(worker)}
+                                                    disabled={deletingWorkerId === worker.id}
+                                                    className="rounded-lg bg-sky-50 border border-sky-200 px-2 py-1 text-[11px] font-black text-sky-700 hover:bg-sky-100 disabled:opacity-60"
+                                                >
+                                                    문자이력
+                                                </button>
+                                                <button
+                                                    type="button"
                                                     onClick={() => void handleDeleteRegisteredWorker(worker)}
                                                     disabled={deletingWorkerId === worker.id}
                                                     className="rounded-lg bg-rose-50 border border-rose-200 px-2 py-1 text-[11px] font-black text-rose-700 hover:bg-rose-100 disabled:opacity-60"
@@ -3044,6 +4407,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         </tbody>
                     </table>
                 </div>
+                )}
             </div>
         </div>
     );

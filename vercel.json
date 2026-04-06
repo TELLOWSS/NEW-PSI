@@ -4,7 +4,13 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
+    "api/admin/safety-management.ts": {
+      "maxDuration": 10
+    },
     "api/admin/create-training.ts": {
+      "maxDuration": 10
+    },
+    "api/admin/send-report-message.ts": {
       "maxDuration": 10
     }
   }

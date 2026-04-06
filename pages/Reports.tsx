@@ -8,7 +8,7 @@ import { ensureFileSaver, ensureHtml2Canvas, ensureJsPdfConstructor, ensureJsZip
 import { verifyEvidenceManifest, formatEvidenceVerificationSummary } from '../utils/evidenceVerificationUtils';
 import type { EvidenceManifest, EvidenceManifestVerificationResult } from '../utils/evidenceVerificationUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
-import { captureReportCanvas, getCanvasImageData, getCanvasPlacementOnA4, saveCanvasAsA4Pdf } from '../utils/pdfCapture';
+import { buildPdfBlobFromCanvases, canvasToBlob, captureReportCanvases, getCanvasImageData, getCanvasPlacementOnA4, saveCanvasesAsA4Pdf } from '../utils/pdfCapture';
 
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
 
@@ -270,9 +270,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         if (!confirm(`'${currentPreviewRecord.name}' 근로자의 보고서를 PDF로 내보내시겠습니까?`)) return;
 
         try {
-            const canvas = await captureReportCanvas(previewRef.current, html2canvas, { scale: 3 });
-            saveCanvasAsA4Pdf(
-                canvas,
+            const canvases = await captureReportCanvases(previewRef.current, html2canvas, { scale: 3 });
+            saveCanvasesAsA4Pdf(
+                canvases,
                 JsPDF as new (orientation: string, unit: string, format: string) => {
                     addImage: (...args: unknown[]) => void;
                     save: (filename: string) => void;
@@ -376,10 +376,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
                 if (bulkReportRef.current && !abortRef.current) {
                     try {
-                        const canvas = await captureReportCanvas(bulkReportRef.current, html2canvas, { scale: 3 });
+                        const canvases = await captureReportCanvases(bulkReportRef.current, html2canvas, { scale: 3 });
 
                         const fileNameBase = `${record.name}_${record.jobField}`;
-                        const placement = getCanvasPlacementOnA4(canvas);
 
                         // --- 모드별 분기 처리 ---
                         if (genMode === 'combined-pdf') {
@@ -387,29 +386,33 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             if (!masterPdf || !masterPdf.addPage || !masterPdf.addImage) {
                                 throw new Error('PDF 생성기 초기화 실패');
                             }
-                            const imgData = getCanvasImageData(canvas, 'PNG', 1);
-                            if (i > 0) masterPdf.addPage();
-                            masterPdf.addImage(imgData, 'PNG', placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
+                            canvases.forEach((canvas, pageIndex) => {
+                                const placement = getCanvasPlacementOnA4(canvas);
+                                const imgData = getCanvasImageData(canvas, 'PNG', 1);
+                                if (i > 0 || pageIndex > 0) masterPdf!.addPage!();
+                                masterPdf!.addImage!(imgData, 'PNG', placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
+                            });
                         } 
                         else if (genMode === 'individual-pdf') {
-                            const imgData = getCanvasImageData(canvas, 'PNG', 1);
-                            const tempPdf = new JsPDF('p', 'mm', 'a4');
-                            tempPdf.addImage(imgData, 'PNG', placement.offsetX, placement.offsetY, placement.width, placement.height, undefined, 'FAST');
-                            // PDF Blob 생성
-                            const pdfBlob = tempPdf.output('blob');
+                            const pdfBlob = buildPdfBlobFromCanvases(
+                                canvases,
+                                JsPDF as new (orientation: string, unit: string, format: string) => {
+                                    addImage: (...args: unknown[]) => void;
+                                    save: (filename: string) => void;
+                                    output?: (type: string) => Blob;
+                                    addPage?: () => void;
+                                },
+                                'PNG',
+                                1,
+                            );
                             folder.file(`${fileNameBase}.pdf`, pdfBlob);
                         } 
                         else if (genMode === 'individual-img') {
-                            // [FIXED] Add timeout to prevent infinite hang
-                            const blob = await Promise.race([
-                                new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9)),
-                                new Promise<Blob | null>(resolve => setTimeout(() => resolve(null), 10000)) // 10s timeout
-                            ]);
-                            if (blob) {
-                                folder.file(`${fileNameBase}.jpg`, blob);
-                            } else {
-                                console.warn(`[Warning] ${record.name} 이미지 생성 실패 (timeout or null)`);
-                            }
+                            const workerFolder = folder.folder(fileNameBase);
+                            const blobs = await Promise.all(canvases.map((canvas) => canvasToBlob(canvas, 'image/jpeg', 0.9)));
+                            blobs.forEach((blob, pageIndex) => {
+                                workerFolder.file(`${fileNameBase}_p${pageIndex + 1}.jpg`, blob);
+                            });
                         }
 
                         setReportGenerationUi(prev => ({

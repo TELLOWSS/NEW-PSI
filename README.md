@@ -37,6 +37,13 @@ Quick troubleshooting:
 - Vercel Project Settings에서 Root Directory가 이 저장소 루트인지 확인하세요.
 - 배포 후 빈 화면이면 브라우저 콘솔에서 `index.tsx` 404 또는 모듈 파싱 오류 여부를 먼저 확인하세요.
 - 기존 사용자 데이터가 손상된 경우를 대비해 앱 초기 `localStorage` 파싱은 안전 처리되어 화면 중단을 방지합니다.
+- 관리자 문자 발송 이력은 선택 근로자 단건 조회 + 5분 캐시 방식으로 구성되어 Vercel 무료 플랜에서 API 호출 낭비를 줄입니다.
+- 관리자 문자/MMS 관련 함수는 [vercel.json](vercel.json)에 `maxDuration`이 명시되어 있습니다.
+
+## 문자/MMS 운영 참고
+
+- 자동문자 설정과 환경변수, 로그 마이그레이션은 [SMS_MMS_SETUP.md](SMS_MMS_SETUP.md) 참고
+- 관리자 > 근로자 관리 화면에서 근로자별 `문자 발송 이력` 탭 사용 가능
 
 What I changed during automated verification:
 
