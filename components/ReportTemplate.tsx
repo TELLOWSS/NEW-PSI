@@ -621,12 +621,12 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         verdictKo: getNarrativeWrapWidth(record.nationality, isWeaknessContentDense, 'verdictKo'),
     }), [record.nationality, isWeaknessContentDense]);
     const frontStrengthEntries = useMemo(
-        () => strengthEntries.slice(0, 3).map((entry) => limitNarrativeEntry(entry, isWeaknessContentDense ? 46 : 58, isWeaknessContentDense ? 42 : 52)),
-        [strengthEntries, isWeaknessContentDense],
+        () => strengthEntries.slice(0, isKorean ? 2 : 3).map((entry) => limitNarrativeEntry(entry, isWeaknessContentDense ? 46 : 58, isWeaknessContentDense ? 42 : 52)),
+        [strengthEntries, isWeaknessContentDense, isKorean],
     );
     const frontImprovementEntries = useMemo(
-        () => improvementEntries.slice(0, 3).map((entry) => limitNarrativeEntry(entry, isWeaknessContentDense ? 48 : 60, isWeaknessContentDense ? 44 : 54)),
-        [improvementEntries, isWeaknessContentDense],
+        () => improvementEntries.slice(0, isKorean ? 2 : 3).map((entry) => limitNarrativeEntry(entry, isWeaknessContentDense ? 48 : 60, isWeaknessContentDense ? 44 : 54)),
+        [improvementEntries, isWeaknessContentDense, isKorean],
     );
     const frontCoachingText = useMemo(
         () => wrapNarrativeText(limitNarrativeText(actionableCoachingText, isWeaknessContentDense ? 120 : 155), isWeaknessContentDense ? 34 : 40),
@@ -689,20 +689,20 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <p className="text-[10px] font-bold text-slate-500 tracking-widest">{labels.cert}</p>
                     </div>
 
-                    <div className="grid grid-cols-[19mm_minmax(0,1fr)_62mm] items-start gap-3 pb-2.5 border-b-2 border-slate-800 min-h-[36mm]">
-                        <div className="w-[19mm] h-[27mm] bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
-                            {getProfileImage() ? (
-                                <img src={getProfileImage()!} className="w-full h-full object-cover" alt="Profile" />
-                            ) : (
-                                <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-300 text-xs text-center">
-                                    <PhotoPlaceholderIcon />
-                                    <span className="text-[9px]">Photo</span>
-                                </div>
-                            )}
-                        </div>
+                    {isKorean ? (
+                        <div className="grid grid-cols-[20mm_minmax(0,1fr)_18mm_44mm] items-start gap-3 pb-2.5 border-b-2 border-slate-800 min-h-[36mm]">
+                            <div className="w-[20mm] h-[28mm] bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
+                                {getProfileImage() ? (
+                                    <img src={getProfileImage()!} className="w-full h-full object-cover" alt="Profile" />
+                                ) : (
+                                    <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-300 text-xs text-center">
+                                        <PhotoPlaceholderIcon />
+                                        <span className="text-[9px]">Photo</span>
+                                    </div>
+                                )}
+                            </div>
 
-                        <div className="min-w-0 pt-0.5">
-                            <div className="min-w-0 max-w-[78mm]">
+                            <div className="min-w-0 pt-0.5">
                                 <h2 className={`${workerNameClassName} font-serif font-bold text-slate-900 mb-1.5 break-keep`}>{record.name}</h2>
                                 <div className="flex flex-wrap gap-1.5 mb-1.5">
                                     <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[9px] font-bold rounded">{record.nationality}</span>
@@ -710,136 +710,284 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     {record.role === 'leader' && <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-[9px] font-black rounded">팀장</span>}
                                 </div>
                                 <div className="space-y-0.5">
-                                    <p className="text-[9px] text-slate-400 font-medium leading-tight">Date: {formatDate(record.date)}</p>
+                                    <p className="text-[9px] text-slate-400 font-medium leading-tight">교육일: {formatDate(record.date)}</p>
                                     {record.teamLeader && <p className="text-[9px] text-slate-400 font-medium leading-tight">팀장: {record.teamLeader}</p>}
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="flex items-start justify-between gap-1.5 shrink-0 self-start pl-1">
-                            <div className="flex flex-col items-center justify-start gap-1 min-w-[68px] pt-0.5">
-                                <div className={`relative w-[17mm] h-[17mm] flex items-center justify-center rounded-full border-[3px] shadow-md ${record.safetyLevel === '고급' ? 'bg-emerald-50 border-emerald-400' : record.safetyLevel === '중급' ? 'bg-amber-50 border-amber-400' : 'bg-rose-50 border-rose-400'}`}>
-                                    <span className={`text-[27px] font-black tracking-tighter ${record.safetyLevel === '고급' ? 'text-emerald-700' : record.safetyLevel === '중급' ? 'text-amber-700' : 'text-rose-700'}`}>
+                            <div className="flex flex-col items-center justify-start gap-1 pt-0.5">
+                                <div className={`relative w-[16mm] h-[16mm] flex items-center justify-center rounded-full border-[3px] shadow-md ${record.safetyLevel === '고급' ? 'bg-emerald-50 border-emerald-400' : record.safetyLevel === '중급' ? 'bg-amber-50 border-amber-400' : 'bg-rose-50 border-rose-400'}`}>
+                                    <span className={`text-[24px] font-black tracking-tighter ${record.safetyLevel === '고급' ? 'text-emerald-700' : record.safetyLevel === '중급' ? 'text-amber-700' : 'text-rose-700'}`}>
                                         {record.safetyScore}
                                     </span>
                                 </div>
-                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.18em]">TOTAL SCORE</span>
-                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${record.safetyLevel === '고급' ? 'bg-emerald-100 text-emerald-800' : record.safetyLevel === '중급' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
+                                <span className={`px-2 py-0.5 rounded-full text-[8px] font-black ${record.safetyLevel === '고급' ? 'bg-emerald-100 text-emerald-800' : record.safetyLevel === '중급' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
                                     {record.safetyLevel}
                                 </span>
-                                <span className="text-[7px] font-bold text-slate-400 text-center leading-tight">
-                                    기준: 고급≥{safetyLevelThresholds.advancedMin} / 중급≥{safetyLevelThresholds.intermediateMin} / 초급&lt;{safetyLevelThresholds.intermediateMin}
-                                </span>
                             </div>
-                            <div data-report-chart-box="true" className="flex h-[48mm] w-[46mm] shrink-0 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/90 px-1 py-1 shadow-sm overflow-hidden">
-                                <div className="w-[44mm] h-[42mm] overflow-hidden">
+
+                            <div data-report-chart-box="true" className="flex h-[44mm] w-[44mm] shrink-0 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/90 px-1 py-1 shadow-sm overflow-hidden">
+                                <div className="w-[41mm] h-[38mm] overflow-hidden">
                                     <IndividualRadarChart record={record} />
                                 </div>
-                                <span className="mt-0.5 text-[8px] font-black text-slate-500 tracking-[0.16em] uppercase">6 Metrics</span>
+                                <span className="mt-0.5 text-[8px] font-black text-slate-500 tracking-[0.14em] uppercase">6 Metrics</span>
                             </div>
                         </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2.5 min-h-[46mm]">
-                        <div className="flex min-h-[46mm] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2.5 shadow-sm">
-                            <p className="text-[10px] font-black leading-none text-slate-700 mb-1.5 flex items-center gap-1">
-                                <SectionSearchIcon /> 상세 채점 근거 (Score Reasoning)
-                            </p>
-                            {!isKorean && (
-                                scoreReasonEntries[0]?.nativeText ? (
-                                    <p className="text-[10px] leading-relaxed text-slate-800 font-bold mb-1">
-                                        {scoreReasonEntries[0].nativeText}
-                                    </p>
+                    ) : (
+                        <div className="grid grid-cols-[19mm_minmax(0,1fr)_62mm] items-start gap-3 pb-2.5 border-b-2 border-slate-800 min-h-[36mm]">
+                            <div className="w-[19mm] h-[27mm] bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
+                                {getProfileImage() ? (
+                                    <img src={getProfileImage()!} className="w-full h-full object-cover" alt="Profile" />
                                 ) : (
-                                    <p className="text-[9px] text-amber-600 italic mb-1">ℹ 모국어 번역 준비중 — 재분석 시 자동 생성됩니다.</p>
-                                )
-                            )}
-                            {frontScoreReasonEntries.length > 0 && !isKorean && (
-                                <div className="text-[8px] font-black text-slate-400 border-t border-slate-200 pt-1 mt-1 mb-0.5">[KO 관리자 확인용]</div>
-                            )}
-                            {frontScoreReasonEntries.length > 0 ? (
-                                <ul className="space-y-0.5 overflow-hidden">
-                                    {frontScoreReasonEntries.map((entry, i) => (
-                                        <li key={`score-reason-${i}`} className={`leading-tight ${!isKorean ? 'text-[8px] text-slate-500' : 'text-[9px] text-slate-700'}`}>
-                                            {!isKorean && <span className="text-[7px] font-black text-slate-300 mr-0.5">[KO]</span>}• <HighlightedText text={entry.text} />
-                                        </li>
-                                    ))}
-                                </ul>
-                            ) : (
-                                <p className="text-[10px] text-slate-400 italic">채점 근거 없음</p>
-                            )}
-                            <div className="mt-1.5 pt-1.5 border-t border-slate-200 grid grid-cols-2 gap-x-2 gap-y-1 overflow-hidden">
-                                {([
-                                    ['①심리', competencyProfile.psychologicalScore, 100],
-                                    ['②업무이해', competencyProfile.jobUnderstandingScore, 100],
-                                    ['③위험평가', competencyProfile.riskAssessmentUnderstandingScore, 100],
-                                    ['④숙련도', competencyProfile.proficiencyScore, 100],
-                                    ['⑤개선이행', competencyProfile.improvementExecutionScore, 100],
-                                    ['⑥패널티', competencyProfile.repeatViolationPenalty, 20, true],
-                                ] as [string, number, number, boolean?][]).map(([label, rawVal, max, isPenalty]) => {
-                                    const val = clampMetric(rawVal, max);
-                                    return (
-                                        <div key={label} className="flex items-center gap-1">
-                                            <span className="text-[7px] font-bold text-slate-500 w-11 shrink-0">{label}</span>
-                                            <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                                                <div
-                                                    className={`h-full rounded-full ${isPenalty ? 'bg-rose-400' : 'bg-indigo-500'}`}
-                                                    style={{ width: `${Math.min(100, (val / max) * 100)}%` }}
-                                                />
-                                            </div>
-                                            <span className={`text-[7px] font-black w-8 text-right ${isPenalty ? 'text-rose-600' : 'text-indigo-700'}`}>{isPenalty ? `-${val}` : `${val}`}</span>
-                                        </div>
-                                    );
-                                })}
+                                    <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-300 text-xs text-center">
+                                        <PhotoPlaceholderIcon />
+                                        <span className="text-[9px]">Photo</span>
+                                    </div>
+                                )}
                             </div>
-                            <p className="mt-1 text-[7px] text-slate-400 leading-tight">
-                                기준 요약: ④숙련도는 검증 가능한 실무 행동 구체성, ⑤개선이행도는 실행 계획 명확성 중심 평가
-                            </p>
-                        </div>
 
-                        <div className="flex min-h-[46mm] flex-col overflow-hidden rounded-xl border-2 border-amber-300 bg-amber-50 p-2.5 shadow-sm">
-                            {!isKorean ? (
-                                <div className="mb-1.5">
-                                    <p className="text-[10px] font-black text-amber-800 leading-none flex items-center gap-1">
-                                        <SectionCoachingIcon /> {coachingNativeParagraphs.length > 0 ? '⬇ 모국어 코칭 (아래 참조)' : '코칭 — 모국어 생성 대기'}
-                                    </p>
-                                    <p className="text-[8px] text-amber-600 font-bold">[KO] 다음번엔 이렇게 작성해 보세요!</p>
+                            <div className="min-w-0 pt-0.5">
+                                <div className="min-w-0 max-w-[78mm]">
+                                    <h2 className={`${workerNameClassName} font-serif font-bold text-slate-900 mb-1.5 break-keep`}>{record.name}</h2>
+                                    <div className="flex flex-wrap gap-1.5 mb-1.5">
+                                        <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[9px] font-bold rounded">{record.nationality}</span>
+                                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[9px] font-bold rounded">{record.jobField}</span>
+                                        {record.role === 'leader' && <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-[9px] font-black rounded">팀장</span>}
+                                    </div>
+                                    <div className="space-y-0.5">
+                                        <p className="text-[9px] text-slate-400 font-medium leading-tight">Date: {formatDate(record.date)}</p>
+                                        {record.teamLeader && <p className="text-[9px] text-slate-400 font-medium leading-tight">팀장: {record.teamLeader}</p>}
+                                    </div>
                                 </div>
-                            ) : (
+                            </div>
+
+                            <div className="flex items-start justify-between gap-1.5 shrink-0 self-start pl-1">
+                                <div className="flex flex-col items-center justify-start gap-1 min-w-[68px] pt-0.5">
+                                    <div className={`relative w-[17mm] h-[17mm] flex items-center justify-center rounded-full border-[3px] shadow-md ${record.safetyLevel === '고급' ? 'bg-emerald-50 border-emerald-400' : record.safetyLevel === '중급' ? 'bg-amber-50 border-amber-400' : 'bg-rose-50 border-rose-400'}`}>
+                                        <span className={`text-[27px] font-black tracking-tighter ${record.safetyLevel === '고급' ? 'text-emerald-700' : record.safetyLevel === '중급' ? 'text-amber-700' : 'text-rose-700'}`}>
+                                            {record.safetyScore}
+                                        </span>
+                                    </div>
+                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.18em]">TOTAL SCORE</span>
+                                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${record.safetyLevel === '고급' ? 'bg-emerald-100 text-emerald-800' : record.safetyLevel === '중급' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
+                                        {record.safetyLevel}
+                                    </span>
+                                    <span className="text-[7px] font-bold text-slate-400 text-center leading-tight">
+                                        기준: 고급≥{safetyLevelThresholds.advancedMin} / 중급≥{safetyLevelThresholds.intermediateMin} / 초급&lt;{safetyLevelThresholds.intermediateMin}
+                                    </span>
+                                </div>
+                                <div data-report-chart-box="true" className="flex h-[48mm] w-[46mm] shrink-0 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/90 px-1 py-1 shadow-sm overflow-hidden">
+                                    <div className="w-[44mm] h-[42mm] overflow-hidden">
+                                        <IndividualRadarChart record={record} />
+                                    </div>
+                                    <span className="mt-0.5 text-[8px] font-black text-slate-500 tracking-[0.16em] uppercase">6 Metrics</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {isKorean ? (
+                        <div className="grid grid-cols-[1fr_1fr] gap-2.5 min-h-[38mm]">
+                            <div className="flex min-h-[38mm] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2.5 shadow-sm">
+                                <p className="text-[10px] font-black leading-none text-slate-700 mb-1.5 flex items-center gap-1">
+                                    <SectionSearchIcon /> 핵심 채점 요약
+                                </p>
+                                {frontScoreReasonEntries.length > 0 ? (
+                                    <ul className="space-y-1 overflow-hidden text-[9px] leading-[1.35] text-slate-700">
+                                        {frontScoreReasonEntries.map((entry, i) => (
+                                            <li key={`score-reason-ko-${i}`} className="flex items-start gap-1">
+                                                <span className="mt-[2px] text-slate-400">•</span>
+                                                <span className="break-words"><HighlightedText text={entry.text} /></span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="text-[9px] text-slate-400 italic">채점 근거 없음</p>
+                                )}
+                                <p className="mt-auto pt-1.5 text-[7px] text-slate-400 leading-tight border-t border-slate-200">
+                                    상세 지표 막대 해설은 후면 부록에서 확인합니다.
+                                </p>
+                            </div>
+
+                            <div className="flex min-h-[38mm] flex-col overflow-hidden rounded-xl border border-amber-300 bg-amber-50 p-2.5 shadow-sm">
                                 <p className="text-[10px] font-black text-amber-800 leading-none mb-1.5 flex items-center gap-1">
                                     <SectionCoachingIcon /> 다음번엔 이렇게 작성해 보세요!
                                 </p>
-                            )}
-                            {!isKorean && coachingNativeParagraphs.length > 0 ? (
-                                <>
-                                    <p className="text-[10px] leading-relaxed text-amber-900 font-bold flex-1">
-                                        {frontCoachingNativeText}
-                                    </p>
-                                    <div className="mt-1.5 pt-1.5 border-t border-amber-300">
-                                        <span className="text-[8px] font-black text-amber-600">[KO 관리자 확인용]</span>
-                                        <p className="text-[9px] leading-relaxed text-amber-800 mt-0.5">
-                                            <HighlightedText text={frontCoachingText} />
-                                        </p>
-                                    </div>
-                                </>
-                            ) : !isKorean ? (
-                                <>
-                                    <p className="text-[9px] text-amber-600 italic mb-1">ℹ 모국어 번역 준비중 — 재분석 시 자동 생성됩니다.</p>
-                                    <p className="text-[9px] leading-relaxed text-amber-800 flex-1">
-                                        <span className="text-[8px] font-black text-amber-500 mr-1">[KO]</span>
-                                        <HighlightedText text={frontCoachingText} />
-                                    </p>
-                                </>
-                            ) : (
-                                <p className="text-[9px] leading-relaxed text-amber-900 flex-1 overflow-hidden">
+                                <p className="text-[9px] leading-relaxed text-amber-900 overflow-hidden">
                                     <HighlightedText text={frontCoachingText} />
                                 </p>
-                            )}
+                            </div>
                         </div>
-                    </div>
+                    ) : (
+                        <div className="grid grid-cols-2 gap-2.5 min-h-[46mm]">
+                            <div className="flex min-h-[46mm] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2.5 shadow-sm">
+                                <p className="text-[10px] font-black leading-none text-slate-700 mb-1.5 flex items-center gap-1">
+                                    <SectionSearchIcon /> 상세 채점 근거 (Score Reasoning)
+                                </p>
+                                {!isKorean && (
+                                    scoreReasonEntries[0]?.nativeText ? (
+                                        <p className="text-[10px] leading-relaxed text-slate-800 font-bold mb-1">
+                                            {scoreReasonEntries[0].nativeText}
+                                        </p>
+                                    ) : (
+                                        <p className="text-[9px] text-amber-600 italic mb-1">ℹ 모국어 번역 준비중 — 재분석 시 자동 생성됩니다.</p>
+                                    )
+                                )}
+                                {frontScoreReasonEntries.length > 0 && !isKorean && (
+                                    <div className="text-[8px] font-black text-slate-400 border-t border-slate-200 pt-1 mt-1 mb-0.5">[KO 관리자 확인용]</div>
+                                )}
+                                {frontScoreReasonEntries.length > 0 ? (
+                                    <ul className="space-y-0.5 overflow-hidden">
+                                        {frontScoreReasonEntries.map((entry, i) => (
+                                            <li key={`score-reason-${i}`} className={`leading-tight ${!isKorean ? 'text-[8px] text-slate-500' : 'text-[9px] text-slate-700'}`}>
+                                                {!isKorean && <span className="text-[7px] font-black text-slate-300 mr-0.5">[KO]</span>}• <HighlightedText text={entry.text} />
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="text-[10px] text-slate-400 italic">채점 근거 없음</p>
+                                )}
+                                <p className="mt-1 text-[7px] text-slate-400 leading-tight border-t border-slate-200 pt-1.5">
+                                    상세 지표 막대 해설은 후면 부록에서 확인합니다.
+                                </p>
+                            </div>
 
-                    <div className={`min-h-0 ${isKorean ? 'grid grid-rows-[minmax(0,1fr)_64px] gap-2.5' : 'h-full'}`}>
-                        <div className="grid h-full min-h-0 grid-cols-4 grid-rows-[minmax(0,1fr)_minmax(0,0.96fr)] items-stretch gap-2.5">
+                            <div className="flex min-h-[46mm] flex-col overflow-hidden rounded-xl border-2 border-amber-300 bg-amber-50 p-2.5 shadow-sm">
+                                {!isKorean ? (
+                                    <div className="mb-1.5">
+                                        <p className="text-[10px] font-black text-amber-800 leading-none flex items-center gap-1">
+                                            <SectionCoachingIcon /> {coachingNativeParagraphs.length > 0 ? '⬇ 모국어 코칭 (아래 참조)' : '코칭 — 모국어 생성 대기'}
+                                        </p>
+                                        <p className="text-[8px] text-amber-600 font-bold">[KO] 다음번엔 이렇게 작성해 보세요!</p>
+                                    </div>
+                                ) : (
+                                    <p className="text-[10px] font-black text-amber-800 leading-none mb-1.5 flex items-center gap-1">
+                                        <SectionCoachingIcon /> 다음번엔 이렇게 작성해 보세요!
+                                    </p>
+                                )}
+                                {!isKorean && coachingNativeParagraphs.length > 0 ? (
+                                    <>
+                                        <p className="text-[10px] leading-relaxed text-amber-900 font-bold flex-1">
+                                            {frontCoachingNativeText}
+                                        </p>
+                                        <div className="mt-1.5 pt-1.5 border-t border-amber-300">
+                                            <span className="text-[8px] font-black text-amber-600">[KO 관리자 확인용]</span>
+                                            <p className="text-[9px] leading-relaxed text-amber-800 mt-0.5">
+                                                <HighlightedText text={frontCoachingText} />
+                                            </p>
+                                        </div>
+                                    </>
+                                ) : !isKorean ? (
+                                    <>
+                                        <p className="text-[9px] text-amber-600 italic mb-1">ℹ 모국어 번역 준비중 — 재분석 시 자동 생성됩니다.</p>
+                                        <p className="text-[9px] leading-relaxed text-amber-800 flex-1">
+                                            <span className="text-[8px] font-black text-amber-500 mr-1">[KO]</span>
+                                            <HighlightedText text={frontCoachingText} />
+                                        </p>
+                                    </>
+                                ) : (
+                                    <p className="text-[9px] leading-relaxed text-amber-900 flex-1 overflow-hidden">
+                                        <HighlightedText text={frontCoachingText} />
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {isKorean ? (
+                        <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_64px] gap-2.5">
+                            <div className="grid h-full min-h-0 grid-cols-[1fr_1fr_0.92fr] grid-rows-[minmax(0,1fr)_minmax(0,1fr)] gap-2.5">
+                                <div className="rounded-xl border border-slate-100 bg-slate-50 p-2.5 shadow-sm overflow-hidden flex flex-col min-h-0">
+                                    <h3 className="font-bold text-[10px] mb-1.5 text-slate-700 flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
+                                        {labels.strengths}
+                                    </h3>
+                                    <ul className="space-y-1 overflow-hidden">
+                                        {frontStrengthEntries.map((entry, i) => (
+                                            <li key={`strength-ko-${i}`} className="text-[9px] leading-[1.35] text-slate-800 flex items-start gap-1 min-w-0">
+                                                <CheckBulletIcon />
+                                                <span className="min-w-0 break-words leading-[1.35]"><HighlightedText text={entry.text} /></span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+
+                                <div className="rounded-xl border border-rose-100 bg-rose-50 p-2.5 shadow-sm overflow-hidden flex flex-col min-h-0">
+                                    <h3 className="font-bold text-[10px] mb-1.5 text-rose-800 flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
+                                        {labels.weaknesses}
+                                    </h3>
+                                    <ul className="space-y-1 overflow-hidden">
+                                        {frontImprovementEntries.map((entry, i) => (
+                                            <li key={`improvement-ko-${i}`} className="text-[9px] leading-[1.35] text-rose-900 flex items-start gap-1 min-w-0">
+                                                <WarningBulletIcon />
+                                                <span className="min-w-0 break-words leading-[1.35]"><HighlightedText text={entry.text} /></span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+
+                                <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm overflow-hidden flex flex-col min-h-0">
+                                    <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trends} (6M)</h4>
+                                    <div className="flex-1 w-full relative min-h-0">
+                                        <TrendMiniChart history={history} record={record} />
+                                    </div>
+                                </div>
+
+                                <div className="col-span-2 rounded-xl border border-slate-200 bg-white p-2.5 shadow-sm overflow-hidden flex flex-col min-h-0">
+                                    <h3 className="font-bold text-[10px] mb-1.5 text-slate-700 flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-800 shrink-0"></span>
+                                        {labels.verdict}
+                                    </h3>
+                                    <p className="text-[9px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line">
+                                        <HighlightedText text={frontVerdictKoText} />
+                                    </p>
+                                    {reassessmentTrail.length > 0 && (
+                                        <div className="mt-1 pt-1 border-t border-slate-100 overflow-hidden">
+                                            {reassessmentTrail.slice(0, 1).map((entry, i) => (
+                                                <p key={`${entry.timestamp}-${i}`} className="text-[8px] text-violet-700 leading-tight">
+                                                    • {reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)} {entry.note || reassessmentFallback}
+                                                </p>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="rounded-xl border-2 border-slate-100 bg-white p-2 shadow-sm overflow-hidden flex flex-col min-h-0">
+                                    <h3 className="font-bold text-[8px] mb-1.5 text-slate-800 uppercase tracking-wide flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0"></span>
+                                        {labels.pictogram}
+                                    </h3>
+                                    <div className="grid h-full min-h-0 grid-cols-2 grid-rows-2 gap-1.5">
+                                        {safetySigns.map((sign, i) => (
+                                            <div key={i} className="border border-slate-200 rounded bg-slate-50 flex flex-col items-center justify-center p-1 text-center relative overflow-hidden min-h-0">
+                                                <div className="flex h-8 w-8 items-center justify-center mb-1 shrink-0">
+                                                    <svg viewBox="0 0 100 100" className="block w-full h-full drop-shadow-sm">
+                                                        {sign.icon}
+                                                    </svg>
+                                                </div>
+                                                <p className="text-[7.5px] font-black text-slate-900 leading-tight break-keep">{sign.labels.ko}</p>
+                                                <div className={`absolute top-0 right-0 w-2 h-2 ${sign.type === 'warning' ? 'bg-yellow-400' : 'bg-blue-600'} rounded-bl`}></div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="border border-slate-200 rounded-xl bg-slate-50 px-2 py-1.5 relative overflow-hidden flex items-center justify-center h-[64px] min-h-[64px] shrink-0">
+                                <p className="absolute top-1.5 left-2 text-[8px] font-bold text-slate-400 uppercase z-10">{labels.original}</p>
+                                <div className="w-full h-full pt-3 flex items-center justify-center overflow-hidden">
+                                    {getOriginalImage() ? (
+                                        <img src={getOriginalImage()!} className="block max-w-full max-h-full object-contain mix-blend-multiply" alt="Original handwritten record" />
+                                    ) : (
+                                        <div className="text-[10px] text-slate-300">No Image</div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="min-h-0 h-full">
+                            <div className="grid h-full min-h-0 grid-cols-4 grid-rows-[minmax(0,1fr)_minmax(0,0.96fr)] items-stretch gap-2.5">
                         <div className="col-span-2 row-span-1 h-full min-h-0 bg-slate-50 rounded-xl border border-slate-100 p-2.5 shadow-sm overflow-hidden flex flex-col">
                             <h3 className="font-bold text-[10px] mb-2 text-slate-700 flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
@@ -946,21 +1094,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </div>
                         </div>
 
-                        </div>
-
-                        {isKorean && (
-                            <div className="border border-slate-200 rounded-xl bg-slate-50 px-2 py-1.5 relative overflow-hidden flex items-center justify-center h-[64px] min-h-[64px] shrink-0">
-                                <p className="absolute top-1.5 left-2 text-[8px] font-bold text-slate-400 uppercase z-10">{labels.original}</p>
-                                <div className="w-full h-full pt-3 flex items-center justify-center overflow-hidden">
-                                    {getOriginalImage() ? (
-                                        <img src={getOriginalImage()!} className="block max-w-full max-h-full object-contain mix-blend-multiply" alt="Original handwritten record" />
-                                    ) : (
-                                        <div className="text-[10px] text-slate-300">No Image</div>
-                                    )}
-                                </div>
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
 
                     <div className="pt-1.5 border-t-2 border-slate-900 shrink-0 flex justify-between items-end">
                         <div className="text-[8px] font-bold text-slate-400">PSI Safety Intelligence System v2.0.0 · 월간 안전보건정기교육</div>
@@ -1010,6 +1146,39 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 )) : (
                                     <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-[9px] font-bold text-slate-400">상세 채점 근거 데이터가 아직 등록되지 않았습니다.</p>
                                 )}
+                            </div>
+
+                            <div className="mt-2.5 rounded-[18px] border border-slate-200 bg-white px-3 py-3">
+                                <div className="flex items-center justify-between gap-2">
+                                    <h4 className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-700">Metric breakdown</h4>
+                                    <span className="text-[8px] font-black text-slate-400">전면 막대영역 이동</span>
+                                </div>
+                                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
+                                    {([
+                                        ['①심리', competencyProfile.psychologicalScore, 100],
+                                        ['②업무이해', competencyProfile.jobUnderstandingScore, 100],
+                                        ['③위험평가', competencyProfile.riskAssessmentUnderstandingScore, 100],
+                                        ['④숙련도', competencyProfile.proficiencyScore, 100],
+                                        ['⑤개선이행', competencyProfile.improvementExecutionScore, 100],
+                                        ['⑥패널티', competencyProfile.repeatViolationPenalty, 20, true],
+                                    ] as [string, number, number, boolean?][]).map(([label, rawVal, max, isPenalty]) => {
+                                        const val = clampMetric(rawVal, max);
+                                        return (
+                                            <div key={`appendix-metric-${label}`} className="flex items-center gap-1.5">
+                                                <span className="w-12 shrink-0 text-[7.5px] font-bold text-slate-500">{label}</span>
+                                                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
+                                                    <div
+                                                        className={`h-full rounded-full ${isPenalty ? 'bg-rose-400' : 'bg-indigo-500'}`}
+                                                        style={{ width: `${Math.min(100, (val / max) * 100)}%` }}
+                                                    />
+                                                </div>
+                                                <span className={`w-8 text-right text-[7.5px] font-black ${isPenalty ? 'text-rose-600' : 'text-indigo-700'}`}>
+                                                    {isPenalty ? `-${val}` : `${val}`}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
 
                             <div className="mt-2.5 rounded-[18px] border border-slate-200 bg-slate-50 px-3 py-3">
