@@ -1210,7 +1210,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             <div className="mt-2.5 rounded-[18px] border border-violet-200 bg-violet-50/90 px-3 py-3">
                                 <h4 className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-800">Reassessment timeline</h4>
                                 <div className="mt-2 space-y-1.5">
-                                    {reassessmentTrail.length > 0 ? reassessmentTrail.slice(0, 3).map((entry, index) => (
+                                    {reassessmentTrail.length > 0 ? reassessmentTrail.slice(-1).map((entry, index) => (
                                         <div key={`appendix-trail-${entry.timestamp}-${index}`} className="rounded-xl border border-violet-100 bg-white/90 px-3 py-2">
                                             <p className="text-[8px] font-black text-violet-700">{reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)}</p>
                                             <p className="mt-0.5 text-[8.5px] leading-relaxed text-violet-900">{entry.note || reassessmentFallback}</p>
