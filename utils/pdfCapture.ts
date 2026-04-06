@@ -175,6 +175,28 @@ export const captureReportCanvases = async (
         const { width, height } = getElementLayoutSize(target);
 
         try {
+            const { toCanvas } = await loadHtmlToImage();
+            return await toCanvas(target, {
+                cacheBust: true,
+                pixelRatio: scale,
+                backgroundColor: '#ffffff',
+                width,
+                height,
+                canvasWidth: Math.round(width * scale),
+                canvasHeight: Math.round(height * scale),
+                style: {
+                    margin: '0',
+                    transform: 'none',
+                    transformOrigin: 'top left',
+                    boxShadow: 'none',
+                    background: '#ffffff',
+                },
+            });
+        } catch {
+            // html-to-image 실패 시 html2canvas로 폴백
+        }
+
+        try {
             return await html2canvas(target, {
                 scale,
                 useCORS: true,
@@ -198,27 +220,6 @@ export const captureReportCanvases = async (
                         clonedRoot.style.transformOrigin = 'top left';
                         clonedRoot.style.textRendering = 'optimizeLegibility';
                     }
-                },
-            });
-        } catch {
-            // html2canvas 실패 시 html-to-image로 폴백
-        }
-
-        try {
-            const { toCanvas } = await loadHtmlToImage();
-            return await toCanvas(target, {
-                cacheBust: true,
-                pixelRatio: scale,
-                backgroundColor: '#ffffff',
-                width,
-                height,
-                canvasWidth: Math.round(width * scale),
-                canvasHeight: Math.round(height * scale),
-                style: {
-                    margin: '0',
-                    transform: 'none',
-                    transformOrigin: 'top left',
-                    boxShadow: 'none',
                 },
             });
         } catch (error) {

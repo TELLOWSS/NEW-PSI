@@ -693,7 +693,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                 </div>
 
                 <div className="absolute inset-0 m-4 border-[2px] border-slate-800 z-10 pointer-events-none"></div>
-                <div className="relative z-10 px-[11mm] py-[8.5mm] grid h-full grid-rows-[18mm_44mm_40mm_minmax(0,1fr)_10mm] gap-2.5 overflow-hidden">
+                <div className="relative z-10 px-[11mm] py-[8.5mm] grid h-full grid-rows-[18mm_48mm_46mm_150mm_10mm] gap-2.5 overflow-hidden">
                     <div className="text-center shrink-0 h-[18mm] overflow-hidden">
                         <div className="flex justify-center mb-1.5">
                             <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
@@ -802,8 +802,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     )}
 
                     {isKorean ? (
-                        <div className="grid h-[40mm] grid-cols-[1fr_1fr] gap-2.5 overflow-hidden">
-                            <div className="flex h-[40mm] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2.5 shadow-sm">
+                        <div className="grid h-[46mm] grid-cols-[1fr_1fr] gap-2.5 overflow-hidden">
+                            <div className="flex h-[46mm] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
                                 <p className="text-[10px] font-black leading-none text-slate-700 mb-1.5 flex items-center gap-1">
                                     <SectionSearchIcon /> 핵심 채점 요약
                                 </p>
@@ -824,7 +824,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 </p>
                             </div>
 
-                            <div className="flex h-[40mm] flex-col overflow-hidden rounded-xl border border-amber-300 bg-amber-50 p-2.5 shadow-sm">
+                            <div className="flex h-[46mm] flex-col overflow-hidden rounded-xl border border-amber-300 bg-amber-50 p-3 shadow-sm">
                                 <p className="text-[10px] font-black text-amber-800 leading-none mb-1.5 flex items-center gap-1">
                                     <SectionCoachingIcon /> 다음번엔 이렇게 작성해 보세요!
                                 </p>
@@ -839,8 +839,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </div>
                         </div>
                     ) : (
-                        <div className="grid h-[40mm] grid-cols-2 gap-2.5 overflow-hidden">
-                            <div className="flex h-[40mm] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2.5 shadow-sm">
+                        <div className="grid h-[46mm] grid-cols-2 gap-2.5 overflow-hidden">
+                            <div className="flex h-[46mm] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
                                 <p className="text-[10px] font-black leading-none text-slate-700 mb-1.5 flex items-center gap-1">
                                     <SectionSearchIcon /> 상세 채점 근거 (Score Reasoning)
                                 </p>
@@ -863,7 +863,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 </p>
                             </div>
 
-                            <div className="flex h-[40mm] flex-col overflow-hidden rounded-xl border-2 border-amber-300 bg-amber-50 p-2.5 shadow-sm">
+                            <div className="flex h-[46mm] flex-col overflow-hidden rounded-xl border-2 border-amber-300 bg-amber-50 p-3 shadow-sm">
                                 <div className="mb-1.5">
                                     <p className="text-[10px] font-black text-amber-800 leading-none flex items-center gap-1">
                                         <SectionCoachingIcon /> {coachingNativeParagraphs.length > 0 ? '모국어 코칭' : '코칭 요약'}
@@ -882,8 +882,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     )}
 
                     {isKorean ? (
-                        <div className="grid h-[118mm] grid-rows-[minmax(0,1fr)_17mm] gap-2.5 overflow-hidden">
-                            <div className="grid h-full min-h-0 grid-cols-[1fr_1fr_44mm] grid-rows-[50mm_minmax(0,1fr)] gap-2.5 overflow-hidden">
+                        <div className="grid h-[150mm] grid-rows-[minmax(0,1fr)_20mm] gap-2.5 overflow-hidden">
+                            <div className="grid h-full min-h-0 grid-cols-[1fr_1fr_46mm] grid-rows-[58mm_minmax(0,1fr)] gap-2.5 overflow-hidden">
                                 <div className="rounded-xl border border-slate-100 bg-slate-50 p-2.5 shadow-sm overflow-hidden flex flex-col h-full min-h-0">
                                     <h3 className="font-bold text-[10px] mb-1.5 text-slate-700 flex items-center gap-1.5">
                                         <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
@@ -972,7 +972,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 </div>
                             </div>
 
-                            <div className="border border-slate-200 rounded-xl bg-slate-50 px-2 py-1.5 relative overflow-hidden flex items-center justify-center h-[17mm] min-h-[17mm] shrink-0">
+                            <div className="border border-slate-200 rounded-xl bg-slate-50 px-2 py-1.5 relative overflow-hidden flex items-center justify-center h-[20mm] min-h-[20mm] shrink-0">
                                 <p className="absolute top-1.5 left-2 text-[8px] font-bold text-slate-400 uppercase z-10">{labels.original}</p>
                                 <div className="w-full h-full pt-3 flex items-center justify-center overflow-hidden">
                                     {getOriginalImage() ? (
@@ -985,7 +985,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </div>
                     ) : (
                         <div className="min-h-0 h-full">
-                            <div className="grid h-[118mm] min-h-0 grid-cols-[1fr_1fr_44mm] grid-rows-[50mm_minmax(0,1fr)] items-stretch gap-2.5 overflow-hidden">
+                            <div className="grid h-[150mm] min-h-0 grid-cols-[1fr_1fr_46mm] grid-rows-[58mm_minmax(0,1fr)] items-stretch gap-2.5 overflow-hidden">
                         <div className="h-full min-h-0 bg-slate-50 rounded-xl border border-slate-100 p-2.5 shadow-sm overflow-hidden flex flex-col">
                             <h3 className="font-bold text-[10px] mb-2 text-slate-700 flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
