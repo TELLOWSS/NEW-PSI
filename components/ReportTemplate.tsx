@@ -644,6 +644,10 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         () => wrapNarrativeText(limitNarrativeText(record.aiInsights, isWeaknessContentDense ? 124 : 164), narrativeWrapWidth.verdictKo),
         [record.aiInsights, isWeaknessContentDense, narrativeWrapWidth.verdictKo],
     );
+    const frontScoreReasonEntries = useMemo(
+        () => scoreReasonEntries.slice(0, 2).map((entry) => limitNarrativeEntry(entry, isWeaknessContentDense ? 38 : 50, isWeaknessContentDense ? 34 : 42)),
+        [scoreReasonEntries, isWeaknessContentDense],
+    );
     const workerNameClassName = useMemo(() => {
         const nameLength = (record.name || '').trim().length;
 
@@ -685,31 +689,34 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <p className="text-[10px] font-bold text-slate-500 tracking-widest">{labels.cert}</p>
                     </div>
 
-                    <div className="grid grid-cols-[minmax(0,1fr)_62mm] items-start gap-2.5 pb-2.5 border-b-2 border-slate-800 min-h-[32mm]">
-                        <div className="flex min-w-0 items-center gap-3">
-                            <div className="w-[19mm] h-[27mm] bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
-                                {getProfileImage() ? (
-                                    <img src={getProfileImage()!} className="w-full h-full object-cover" alt="Profile" />
-                                ) : (
-                                    <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-300 text-xs text-center">
-                                        <PhotoPlaceholderIcon />
-                                        <span className="text-[9px]">Photo</span>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="min-w-0 max-w-[80mm]">
+                    <div className="grid grid-cols-[19mm_minmax(0,1fr)_62mm] items-start gap-3 pb-2.5 border-b-2 border-slate-800 min-h-[36mm]">
+                        <div className="w-[19mm] h-[27mm] bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
+                            {getProfileImage() ? (
+                                <img src={getProfileImage()!} className="w-full h-full object-cover" alt="Profile" />
+                            ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-300 text-xs text-center">
+                                    <PhotoPlaceholderIcon />
+                                    <span className="text-[9px]">Photo</span>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="min-w-0 pt-0.5">
+                            <div className="min-w-0 max-w-[78mm]">
                                 <h2 className={`${workerNameClassName} font-serif font-bold text-slate-900 mb-1.5 break-keep`}>{record.name}</h2>
                                 <div className="flex flex-wrap gap-1.5 mb-1.5">
-                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded">{record.nationality}</span>
-                                    <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded">{record.jobField}</span>
-                                    {record.role === 'leader' && <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-[10px] font-black rounded">팀장</span>}
+                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[9px] font-bold rounded">{record.nationality}</span>
+                                    <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[9px] font-bold rounded">{record.jobField}</span>
+                                    {record.role === 'leader' && <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-[9px] font-black rounded">팀장</span>}
                                 </div>
-                                <p className="text-[10px] text-slate-400 font-medium">Date: {formatDate(record.date)}</p>
-                                {record.teamLeader && <p className="text-[10px] text-slate-400 font-medium">팀장: {record.teamLeader}</p>}
+                                <div className="space-y-0.5">
+                                    <p className="text-[9px] text-slate-400 font-medium leading-tight">Date: {formatDate(record.date)}</p>
+                                    {record.teamLeader && <p className="text-[9px] text-slate-400 font-medium leading-tight">팀장: {record.teamLeader}</p>}
+                                </div>
                             </div>
                         </div>
 
-                        <div className="flex items-start justify-between gap-1.5 shrink-0 self-stretch pl-1">
+                        <div className="flex items-start justify-between gap-1.5 shrink-0 self-start pl-1">
                             <div className="flex flex-col items-center justify-start gap-1 min-w-[68px] pt-0.5">
                                 <div className={`relative w-[17mm] h-[17mm] flex items-center justify-center rounded-full border-[3px] shadow-md ${record.safetyLevel === '고급' ? 'bg-emerald-50 border-emerald-400' : record.safetyLevel === '중급' ? 'bg-amber-50 border-amber-400' : 'bg-rose-50 border-rose-400'}`}>
                                     <span className={`text-[27px] font-black tracking-tighter ${record.safetyLevel === '고급' ? 'text-emerald-700' : record.safetyLevel === '중급' ? 'text-amber-700' : 'text-rose-700'}`}>
@@ -724,8 +731,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     기준: 고급≥{safetyLevelThresholds.advancedMin} / 중급≥{safetyLevelThresholds.intermediateMin} / 초급&lt;{safetyLevelThresholds.intermediateMin}
                                 </span>
                             </div>
-                            <div data-report-chart-box="true" className="flex h-[50mm] w-[48mm] shrink-0 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/90 px-1 py-1.5 shadow-sm overflow-hidden">
-                                <div className="w-[47mm] h-[47mm] overflow-hidden">
+                            <div data-report-chart-box="true" className="flex h-[48mm] w-[46mm] shrink-0 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50/90 px-1 py-1 shadow-sm overflow-hidden">
+                                <div className="w-[44mm] h-[42mm] overflow-hidden">
                                     <IndividualRadarChart record={record} />
                                 </div>
                                 <span className="mt-0.5 text-[8px] font-black text-slate-500 tracking-[0.16em] uppercase">6 Metrics</span>
@@ -733,8 +740,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2.5 min-h-[42mm]">
-                        <div className="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-3 shadow-sm min-h-[42mm]">
+                    <div className="grid grid-cols-2 gap-2.5 min-h-[46mm]">
+                        <div className="flex min-h-[46mm] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-2.5 shadow-sm">
                             <p className="text-[10px] font-black leading-none text-slate-700 mb-1.5 flex items-center gap-1">
                                 <SectionSearchIcon /> 상세 채점 근거 (Score Reasoning)
                             </p>
@@ -747,13 +754,13 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     <p className="text-[9px] text-amber-600 italic mb-1">ℹ 모국어 번역 준비중 — 재분석 시 자동 생성됩니다.</p>
                                 )
                             )}
-                            {scoreReasonEntries.length > 0 && !isKorean && (
+                            {frontScoreReasonEntries.length > 0 && !isKorean && (
                                 <div className="text-[8px] font-black text-slate-400 border-t border-slate-200 pt-1 mt-1 mb-0.5">[KO 관리자 확인용]</div>
                             )}
-                            {scoreReasonEntries.length > 0 ? (
-                                <ul className="space-y-0.5">
-                                    {scoreReasonEntries.slice(0, 3).map((entry, i) => (
-                                        <li key={`score-reason-${i}`} className={`leading-tight ${!isKorean ? 'text-[9px] text-slate-500' : 'text-[10px] text-slate-700'}`}>
+                            {frontScoreReasonEntries.length > 0 ? (
+                                <ul className="space-y-0.5 overflow-hidden">
+                                    {frontScoreReasonEntries.map((entry, i) => (
+                                        <li key={`score-reason-${i}`} className={`leading-tight ${!isKorean ? 'text-[8px] text-slate-500' : 'text-[9px] text-slate-700'}`}>
                                             {!isKorean && <span className="text-[7px] font-black text-slate-300 mr-0.5">[KO]</span>}• <HighlightedText text={entry.text} />
                                         </li>
                                     ))}
@@ -761,7 +768,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             ) : (
                                 <p className="text-[10px] text-slate-400 italic">채점 근거 없음</p>
                             )}
-                            <div className="mt-2 pt-2 border-t border-slate-200 grid grid-cols-2 gap-x-3 gap-y-0.5">
+                            <div className="mt-1.5 pt-1.5 border-t border-slate-200 grid grid-cols-2 gap-x-2 gap-y-1 overflow-hidden">
                                 {([
                                     ['①심리', competencyProfile.psychologicalScore, 100],
                                     ['②업무이해', competencyProfile.jobUnderstandingScore, 100],
@@ -772,25 +779,25 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 ] as [string, number, number, boolean?][]).map(([label, rawVal, max, isPenalty]) => {
                                     const val = clampMetric(rawVal, max);
                                     return (
-                                        <div key={label} className="flex items-center gap-1.5">
-                                            <span className="text-[8px] font-bold text-slate-500 w-14 shrink-0">{label}</span>
+                                        <div key={label} className="flex items-center gap-1">
+                                            <span className="text-[7px] font-bold text-slate-500 w-11 shrink-0">{label}</span>
                                             <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden">
                                                 <div
                                                     className={`h-full rounded-full ${isPenalty ? 'bg-rose-400' : 'bg-indigo-500'}`}
                                                     style={{ width: `${Math.min(100, (val / max) * 100)}%` }}
                                                 />
                                             </div>
-                                            <span className={`text-[8px] font-black w-10 text-right ${isPenalty ? 'text-rose-600' : 'text-indigo-700'}`}>{isPenalty ? `-${val}` : `${val}점`}</span>
+                                            <span className={`text-[7px] font-black w-8 text-right ${isPenalty ? 'text-rose-600' : 'text-indigo-700'}`}>{isPenalty ? `-${val}` : `${val}`}</span>
                                         </div>
                                     );
                                 })}
                             </div>
-                            <p className="mt-1.5 text-[8px] text-slate-400 leading-tight">
+                            <p className="mt-1 text-[7px] text-slate-400 leading-tight">
                                 기준 요약: ④숙련도는 검증 가능한 실무 행동 구체성, ⑤개선이행도는 실행 계획 명확성 중심 평가
                             </p>
                         </div>
 
-                        <div className="flex-1 bg-amber-50 border-2 border-amber-300 rounded-xl p-3 shadow-sm flex flex-col min-h-[42mm]">
+                        <div className="flex min-h-[46mm] flex-col overflow-hidden rounded-xl border-2 border-amber-300 bg-amber-50 p-2.5 shadow-sm">
                             {!isKorean ? (
                                 <div className="mb-1.5">
                                     <p className="text-[10px] font-black text-amber-800 leading-none flex items-center gap-1">
@@ -824,7 +831,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     </p>
                                 </>
                             ) : (
-                                <p className="text-[10px] leading-relaxed text-amber-900 flex-1">
+                                <p className="text-[9px] leading-relaxed text-amber-900 flex-1 overflow-hidden">
                                     <HighlightedText text={frontCoachingText} />
                                 </p>
                             )}
@@ -833,12 +840,12 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
 
                     <div className={`min-h-0 ${isKorean ? 'grid grid-rows-[minmax(0,1fr)_64px] gap-2.5' : 'h-full'}`}>
                         <div className="grid h-full min-h-0 grid-cols-4 grid-rows-[minmax(0,1fr)_minmax(0,0.96fr)] items-stretch gap-2.5">
-                        <div className="col-span-2 row-span-1 h-full min-h-0 bg-slate-50 rounded-xl border border-slate-100 p-3 shadow-sm overflow-hidden flex flex-col">
+                        <div className="col-span-2 row-span-1 h-full min-h-0 bg-slate-50 rounded-xl border border-slate-100 p-2.5 shadow-sm overflow-hidden flex flex-col">
                             <h3 className="font-bold text-[10px] mb-2 text-slate-700 flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
                                 {labels.strengths}
                             </h3>
-                            <ul className="space-y-1">
+                            <ul className="space-y-1 overflow-hidden">
                                 {frontStrengthEntries.map((entry, i) => (
                                     <li key={`strength-${i}`}>
                                         {!isKorean && entry.nativeText ? (
@@ -859,12 +866,12 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </ul>
                         </div>
 
-                        <div className={`col-span-2 row-span-1 h-full min-h-0 bg-rose-50 rounded-xl border border-rose-100 shadow-sm flex flex-col ${isWeaknessContentDense ? 'p-2.5' : 'p-3'}`}>
+                        <div className={`col-span-2 row-span-1 h-full min-h-0 bg-rose-50 rounded-xl border border-rose-100 shadow-sm flex flex-col overflow-hidden ${isWeaknessContentDense ? 'p-2.5' : 'p-2.5'}`}>
                             <h3 className={`font-bold text-[10px] text-rose-800 flex items-center gap-1.5 ${isWeaknessContentDense ? 'mb-1.5' : 'mb-2'}`}>
                                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
                                 {labels.weaknesses}
                             </h3>
-                            <ul className="space-y-1">
+                            <ul className="space-y-1 overflow-hidden">
                                 {frontImprovementEntries.map((entry, i) => (
                                     <li key={`improvement-${i}`}>
                                         {!isKorean && entry.nativeText ? (
