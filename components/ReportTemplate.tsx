@@ -831,8 +831,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </div>
                     </div>
 
-                    <div className="flex-1 min-h-0 grid grid-cols-4 auto-rows-fr gap-2.5">
-                        <div className="col-span-2 bg-slate-50 rounded-xl border border-slate-100 p-3 shadow-sm overflow-hidden">
+                    <div className="flex-1 min-h-0 grid grid-cols-4 auto-rows-[minmax(0,1fr)] items-stretch gap-2.5">
+                        <div className="col-span-2 h-full min-h-0 bg-slate-50 rounded-xl border border-slate-100 p-3 shadow-sm overflow-hidden flex flex-col">
                             <h3 className="font-bold text-[10px] mb-2 text-slate-700 flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0"></span>
                                 {labels.strengths}
@@ -858,7 +858,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </ul>
                         </div>
 
-                        <div className={`col-span-2 bg-rose-50 rounded-xl border border-rose-100 shadow-sm ${isWeaknessContentDense ? 'p-2.5' : 'p-3'}`}>
+                        <div className={`col-span-2 h-full min-h-0 bg-rose-50 rounded-xl border border-rose-100 shadow-sm flex flex-col ${isWeaknessContentDense ? 'p-2.5' : 'p-3'}`}>
                             <h3 className={`font-bold text-[10px] text-rose-800 flex items-center gap-1.5 ${isWeaknessContentDense ? 'mb-1.5' : 'mb-2'}`}>
                                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span>
                                 {labels.weaknesses}
@@ -909,23 +909,23 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             )}
                         </div>
 
-                        <div className={`col-span-2 flex flex-col ${isWeaknessContentDense ? 'gap-1.5' : 'gap-2'}`}>
+                        <div className={`col-span-2 h-full min-h-0 flex flex-col ${isWeaknessContentDense ? 'gap-1.5' : 'gap-2'}`}>
                             <div className={`flex-1 border border-slate-200 rounded-xl bg-white shadow-sm flex flex-col min-h-0 ${isWeaknessContentDense ? 'p-1.5' : 'p-2'}`}>
                                 <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trends} (6M)</h4>
                                 <div className="flex-1 w-full relative min-h-0">
                                     <canvas ref={trendChartRef}></canvas>
                                 </div>
                             </div>
-                            <div className={`border-2 border-slate-100 rounded-xl bg-white shadow-sm ${isWeaknessContentDense ? 'p-1.5' : 'p-2'}`}>
+                            <div className={`flex-1 min-h-0 border-2 border-slate-100 rounded-xl bg-white shadow-sm flex flex-col ${isWeaknessContentDense ? 'p-1.5' : 'p-2'}`}>
                                 <h3 className="font-bold text-[8px] mb-1.5 text-slate-800 uppercase tracking-wide flex items-center gap-1">
                                     <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 shrink-0"></span>
                                     {labels.pictogram}
                                 </h3>
-                                <div className="grid grid-cols-2 gap-1.5">
+                                <div className="grid flex-1 min-h-0 grid-cols-2 gap-1.5">
                                     {safetySigns.map((sign, i) => (
-                                        <div key={i} className="border border-slate-200 rounded bg-slate-50 flex flex-col items-center justify-center p-1.5 text-center relative overflow-hidden">
-                                            <div className="w-10 h-10 mb-1">
-                                                <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-sm">
+                                        <div key={i} className="border border-slate-200 rounded bg-slate-50 flex min-h-[74px] flex-col items-center justify-center p-1.5 text-center relative overflow-hidden">
+                                            <div className="flex h-10 w-10 items-center justify-center mb-1 shrink-0">
+                                                <svg viewBox="0 0 100 100" className="block w-full h-full drop-shadow-sm">
                                                     {sign.icon}
                                                 </svg>
                                             </div>
@@ -939,10 +939,10 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </div>
 
                         {isKorean && (
-                            <div className="col-span-4 border border-slate-200 rounded-xl bg-slate-50 p-2 relative overflow-hidden flex items-center justify-center" style={{ maxHeight: '72px' }}>
+                            <div className="col-span-4 border border-slate-200 rounded-xl bg-slate-50 p-2 relative overflow-hidden flex items-center justify-center min-h-[72px]" style={{ maxHeight: '72px' }}>
                                 <p className="absolute top-1.5 left-2 text-[8px] font-bold text-slate-400 uppercase z-10">{labels.original}</p>
                                 {getOriginalImage() ? (
-                                    <img src={getOriginalImage()!} className="max-w-full max-h-full object-contain mix-blend-multiply" />
+                                    <img src={getOriginalImage()!} className="block max-w-full max-h-full object-contain mix-blend-multiply" />
                                 ) : (
                                     <div className="text-[10px] text-slate-300">No Image</div>
                                 )}

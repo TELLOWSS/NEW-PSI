@@ -3120,9 +3120,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
             <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-100 flex flex-col gap-5 no-print">
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                    <div>
+                    <div className="flex-1 min-w-0">
                         <h4 className="text-base sm:text-lg font-black text-slate-900">검색 및 필터링</h4>
                         <p className="mt-1 text-xs sm:text-sm font-semibold text-slate-500">검색·필터·재분석 대상을 한 번에 정리할 수 있게 재구성했습니다.</p>
+                        <div className="relative w-full mt-4 max-w-2xl">
+                            <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={2}/></svg>
+                            <input type="text" placeholder="근로자명 · 공종 · 국적 · 팀장으로 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold" />
+                        </div>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 w-full lg:w-auto">
                         <div className="rounded-2xl bg-slate-50 border border-slate-200 px-3 py-2">
@@ -3352,10 +3356,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 >
                 <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-4 items-start">
                     <div className="space-y-3">
-                        <div className="relative w-full">
-                            <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={2}/></svg>
-                            <input type="text" placeholder="근로자명 · 공종 · 국적 · 팀장으로 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold" />
-                        </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
                                 <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">공종</label>

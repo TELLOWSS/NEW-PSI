@@ -76,13 +76,19 @@ const ensureCloneStyle = (doc: Document) => {
         }
         [data-report-template-root="true"],
         [data-report-template-root="true"] * {
+            box-sizing: border-box !important;
             animation: none !important;
             transition: none !important;
             caret-color: transparent !important;
         }
+        [data-report-template-root="true"] img,
         [data-report-template-root="true"] canvas {
             display: block !important;
             max-width: none !important;
+        }
+        [data-report-template-root="true"] svg {
+            display: block !important;
+            overflow: visible !important;
         }
         [data-report-template-root="true"] [data-report-chart-box="true"] {
             overflow: visible !important;
