@@ -1780,11 +1780,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         try {
             for (let i = 0; i < processQueue.length; i++) {
                 if (stopRef.current) { stopped = true; break; }
-                
                 const record = processQueue[i];
                 setBatchProgress(p => ({ ...p, current: i + 1 }));
                 setProgress(`[${title}] ${record.name || '미상'} 처리 중...`);
-                
+                // 2차 재가공 시작: 상태 IN_PROGRESS
+                onUpdateRecord({ ...record, secondPassStatus: 'IN_PROGRESS' });
                 try {
                     const retryImageSource = getBestRetryImageSource(record);
 
@@ -1795,6 +1795,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             ocrErrorType: 'LAYOUT',
                             ocrErrorMessage: '원본/대체 이미지 데이터 없음',
                             safetyScore: 0,
+                            secondPassStatus: 'NEEDED',
                         };
                         onUpdateRecord(errorRecord);
                         failCount++;
@@ -2020,6 +2021,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     note: `OCR 재분석 성공 (${previousErrorLabel}) | ${usedClientFallback ? '브라우저 폴백' : '서버 성공'}`,
                                 },
                             ],
+                            secondPassStatus: isFailedRecord(apiResult) ? 'NEEDED' : 'DONE',
                         };
                         onUpdateRecord(updatedRecord);
 
@@ -2058,11 +2060,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                     } else {
                         // Final Failure after retries
-                                const errorRecord: WorkerRecord = {
+                        const errorRecord: WorkerRecord = {
                             ...record,
                             aiInsights: "⛔ 반복적인 API 오류로 분석 실패 (재시도 필요)",
                             ocrErrorType: 'UNKNOWN',
                             ocrErrorMessage: '반복적인 API 오류',
+                            secondPassStatus: 'NEEDED',
                         };
                         onUpdateRecord(errorRecord);
                         failCount++;
@@ -2201,7 +2204,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         actor: 'manager',
                                         note: buildReassessmentAuditNote(record, updatedAnalysis),
                                     }
-                                ]
+                                ],
+                                secondPassStatus: isFailedRecord({ ...record, ...updatedAnalysis }) ? 'NEEDED' : 'DONE',
                             };
                             const mergedRecord: WorkerRecord = isFailedRecord(mergedBase)
                                 ? mergedBase
@@ -2213,6 +2217,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             onUpdateRecord(mergedRecord);
                             successCount++;
                         } else {
+                            onUpdateRecord({ ...record, secondPassStatus: 'NEEDED' });
                             failCount++;
                         }
                         shouldExitRetry = true; // Successfully completed (success or intentional null)

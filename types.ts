@@ -4,7 +4,7 @@ export type Page =
     'ocr-analysis' | 
     'worker-management' | 
     'predictive-analysis' |
-    'performance-analysis' |
+    export type IntegrityStatus = '확정' | '검증보류' | '재교육필요' | '관리자검토' | '2차재가공필요';
     'safety-checks' |
     'site-issue-management' |
     'reports' |
@@ -72,6 +72,8 @@ export type PsiFeedbackType =
     | '모바일UX'
     | '특허법무'
     | '운영';
+        /** 2차 재가공 상태: '필요', '진행중', '완료' */
+        secondPassStatus?: 'NEEDED' | 'IN_PROGRESS' | 'DONE';
 
 export interface PsiFeedbackPayload {
     id: string;
