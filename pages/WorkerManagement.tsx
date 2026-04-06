@@ -1051,6 +1051,23 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         registeredWorkerMissingFilter,
     ]);
 
+    const latestRecords = useMemo(() => {
+        const map = new Map<string, WorkerRecord>();
+        workerRecords.forEach((r) => {
+            const key = getWorkerPrimaryIdentityKey(r);
+            if (!map.has(key) || new Date(r.date) > new Date(map.get(key)!.date)) {
+                map.set(key, r);
+            }
+        });
+
+        return Array.from(map.values())
+            .map((record) => ({
+                ...record,
+                safetyLevel: getSafetyLevelFromScore(Number(record.safetyScore)),
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name));
+    }, [workerRecords]);
+
     const selectedMessageHistoryWorker = useMemo(
         () => registeredWorkers.find((worker) => worker.id === selectedMessageHistoryWorkerId) || null,
         [registeredWorkers, selectedMessageHistoryWorkerId],
@@ -1990,21 +2007,6 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             setIsManualRegistering(false);
         }
     };
-
-    const latestRecords = useMemo(() => {
-        const map = new Map<string, WorkerRecord>();
-        workerRecords.forEach(r => {
-            const key = getWorkerPrimaryIdentityKey(r);
-            if (!map.has(key) || new Date(r.date) > new Date(map.get(key)!.date)) map.set(key, r);
-        });
-
-        return Array.from(map.values())
-            .map((record) => ({
-                ...record,
-                safetyLevel: getSafetyLevelFromScore(Number(record.safetyScore)),
-            }))
-            .sort((a,b) => a.name.localeCompare(b.name));
-    }, [workerRecords]);
 
     const jobFields = useMemo(() => ['전체', ...Array.from(new Set(latestRecords.map(r => r.jobField))).sort()], [latestRecords]);
     const crews = useMemo(() => ['전체', ...Array.from(new Set(latestRecords.map(r => r.teamLeader || '미지정'))).sort()], [latestRecords]);
