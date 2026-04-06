@@ -66,6 +66,14 @@ const ensureCloneStyle = (doc: Document) => {
             transform: none !important;
             overflow: visible !important;
         }
+        [data-report-page="true"] {
+            width: 210mm !important;
+            min-height: 297mm !important;
+            height: 297mm !important;
+            max-height: 297mm !important;
+            box-shadow: none !important;
+            overflow: hidden !important;
+        }
         [data-report-template-root="true"],
         [data-report-template-root="true"] * {
             animation: none !important;
@@ -93,6 +101,11 @@ interface CaptureReportCanvasOptions {
     scale?: number;
 }
 
+interface ElementLayoutSize {
+    width: number;
+    height: number;
+}
+
 const getReportCaptureTargets = (element: HTMLElement): HTMLElement[] => {
     const pageNodes = Array.from(element.querySelectorAll(':scope > [data-report-page="true"]')) as HTMLElement[];
     return pageNodes.length > 0 ? pageNodes : [element];
@@ -104,6 +117,26 @@ const loadHtmlToImage = () => {
         htmlToImagePromise = import('html-to-image');
     }
     return htmlToImagePromise;
+};
+
+const getElementLayoutSize = (target: HTMLElement): ElementLayoutSize => {
+    const rect = target.getBoundingClientRect();
+    const width = Math.max(
+        1,
+        Math.ceil(target.scrollWidth || 0),
+        Math.ceil(target.offsetWidth || 0),
+        Math.ceil(target.clientWidth || 0),
+        Math.ceil(rect.width || 0),
+    );
+    const height = Math.max(
+        1,
+        Math.ceil(target.scrollHeight || 0),
+        Math.ceil(target.offsetHeight || 0),
+        Math.ceil(target.clientHeight || 0),
+        Math.ceil(rect.height || 0),
+    );
+
+    return { width, height };
 };
 
 export const captureReportCanvas = async (
@@ -124,9 +157,35 @@ export const captureReportCanvases = async (
     const scale = options.scale ?? Math.max(2, Math.min(3, window.devicePixelRatio || 1));
 
     const captureSingleCanvas = async (target: HTMLElement): Promise<HTMLCanvasElement> => {
-        const bounds = target.getBoundingClientRect();
-        const width = Math.max(1, Math.ceil(bounds.width));
-        const height = Math.max(1, Math.ceil(bounds.height));
+        const { width, height } = getElementLayoutSize(target);
+
+        try {
+            return await html2canvas(target, {
+                scale,
+                useCORS: true,
+                backgroundColor: '#ffffff',
+                logging: false,
+                foreignObjectRendering: false,
+                removeContainer: true,
+                width,
+                height,
+                windowWidth: width,
+                windowHeight: height,
+                scrollX: 0,
+                scrollY: -window.scrollY,
+                onclone: (clonedDocument: Document) => {
+                    ensureCloneStyle(clonedDocument);
+                    const clonedRoot = clonedDocument.querySelector('[data-report-template-root="true"]') as HTMLElement | null;
+                    if (clonedRoot) {
+                        clonedRoot.style.boxShadow = 'none';
+                        clonedRoot.style.margin = '0';
+                        clonedRoot.style.transform = 'none';
+                    }
+                },
+            });
+        } catch {
+            // html2canvas 실패 시 html-to-image로 폴백
+        }
 
         try {
             const { toCanvas } = await loadHtmlToImage();
@@ -144,31 +203,9 @@ export const captureReportCanvases = async (
                     boxShadow: 'none',
                 },
             });
-        } catch {
-            // html-to-image 실패 시 html2canvas로 폴백
+        } catch (error) {
+            throw error instanceof Error ? error : new Error('리포트 캡처에 실패했습니다.');
         }
-
-        return html2canvas(target, {
-            scale,
-            useCORS: true,
-            backgroundColor: '#ffffff',
-            logging: false,
-            foreignObjectRendering: true,
-            removeContainer: true,
-            width,
-            height,
-            windowWidth: width,
-            windowHeight: height,
-            onclone: (clonedDocument: Document) => {
-                ensureCloneStyle(clonedDocument);
-                const clonedRoot = clonedDocument.querySelector('[data-report-template-root="true"]') as HTMLElement | null;
-                if (clonedRoot) {
-                    clonedRoot.style.boxShadow = 'none';
-                    clonedRoot.style.margin = '0';
-                    clonedRoot.style.transform = 'none';
-                }
-            },
-        });
     };
 
     const targets = getReportCaptureTargets(element);

@@ -1244,16 +1244,22 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         </div>
 
                         {/* Preview Content Area */}
-                        <div className="flex-1 overflow-auto bg-slate-200 p-8 flex justify-center items-start custom-scrollbar">
+                        <div className="flex-1 overflow-auto bg-slate-200 p-4 md:p-6 xl:p-8 custom-scrollbar">
                             {currentPreviewRecord && (
-                                <div className="shadow-2xl scale-[0.6] origin-top md:scale-[0.8] xl:scale-[0.9] transition-transform duration-300 bg-white">
-                                    <Suspense fallback={<ReportTemplateFallback />}>
-                                        <ReportTemplate 
-                                            ref={previewRef}
-                                            record={currentPreviewRecord} 
-                                            history={currentPreviewHistory} 
-                                        />
-                                    </Suspense>
+                                <div className="mx-auto flex min-w-fit justify-center">
+                                    <div className="rounded-[28px] border border-slate-300/70 bg-white p-3 shadow-xl">
+                                        <div className="overflow-auto max-h-[calc(100vh-240px)] rounded-2xl bg-slate-100/70 p-2 custom-scrollbar">
+                                            <div className="min-w-[210mm] origin-top bg-white shadow-2xl">
+                                                <Suspense fallback={<ReportTemplateFallback />}>
+                                                    <ReportTemplate 
+                                                        ref={previewRef}
+                                                        record={currentPreviewRecord} 
+                                                        history={currentPreviewHistory} 
+                                                    />
+                                                </Suspense>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>

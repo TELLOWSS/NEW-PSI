@@ -23,7 +23,8 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
 
         // [알고리즘] 텍스트 분석 기반 역량 점수 산출
         const baseScore = record.safetyScore;
-        const textAnalysis = (record.weakAreas.join(' ') + ' ' + record.aiInsights).toLowerCase();
+        const textAnalysis = `${record.weakAreas.join(' ')} ${record.aiInsights}`.toLowerCase();
+        const clampScore = (value: number) => Math.min(100, Math.max(30, Math.round(value)));
 
         let scores = {
             awareness: baseScore,   // 위험 인지
@@ -51,14 +52,12 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
             scores.awareness = Math.min(100, scores.awareness + 5);
         }
 
-        const randomize = (val: number) => Math.min(100, Math.max(30, val + (Math.random() * 6 - 3)));
-
         const data = [
-            randomize(scores.awareness),
-            randomize(scores.ppe),
-            randomize(scores.compliance),
-            randomize(scores.prevention),
-            randomize(scores.attitude)
+            clampScore(scores.awareness),
+            clampScore(scores.ppe),
+            clampScore(scores.compliance),
+            clampScore(scores.prevention),
+            clampScore(scores.attitude)
         ];
 
         if (chartInstance.current) {
@@ -91,10 +90,10 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    devicePixelRatio: (w.devicePixelRatio as number) || 2, // High resolution for PDF
+                    devicePixelRatio: getWindowProp<number>('devicePixelRatio') || 2,
                     animation: false, 
                     layout: {
-                        padding: 20 // [FIX] Increased padding to ensure labels are not cut off in PDF
+                        padding: 14
                     },
                     scales: {
                         r: {
@@ -102,12 +101,12 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
                             grid: { color: 'rgba(0,0,0,0.1)' },
                             pointLabels: {
                                 font: { 
-                                    size: 10, 
+                                    size: 9,
                                     family: "'Pretendard', sans-serif", 
                                     weight: '700' 
                                 },
                                 color: '#1e293b', 
-                                backdropPadding: 2
+                                backdropPadding: 1
                             },
                             ticks: { display: false, backdropColor: 'transparent' },
                             suggestedMin: 20,
@@ -135,5 +134,5 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
         };
     }, [record]);
 
-    return <canvas ref={chartRef} />;
+    return <canvas ref={chartRef} className="w-full h-full" />;
 };
