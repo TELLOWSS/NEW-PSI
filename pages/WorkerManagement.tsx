@@ -7,6 +7,7 @@ import { generateReportUrl } from '../utils/qrUtils';
 import { extractMessage } from '../utils/errorUtils';
 import { postAdminJson } from '../utils/adminApiClient';
 import { ensureHtml2Canvas, ensureQRCodeJs } from '../utils/externalScripts';
+import { BRAND_ACTION_LABELS, BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { canvasToBlob, captureReportCanvases } from '../utils/pdfCapture';
 import { getWindowProp } from '../utils/windowUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
@@ -1646,7 +1647,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         const escapeCsv = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
         const sections = [
             ['[Overview]'],
-            ['조회기간', '총발송', '성공', '실패', '성공률', '개별발송', '일괄발송', '최다 팀', '주요 실패 원인'],
+            ['조회기간', '총발송', '성공', BRAND_STATUS_LABELS.attention, '성공률', '개별발송', '일괄발송', '최다 팀', `주요 ${BRAND_STATUS_LABELS.attention} 원인`],
             [
                 rangeLabel,
                 reportMessageDashboardSummary.overview.totalCount,
@@ -1946,12 +1947,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         if (lastBulkFailedWorkerIds.length === 0) return;
         setRegisteredWorkerAdminTab('list');
         setSelectedBulkMessageWorkerIds(lastBulkFailedWorkerIds);
-        setBulkMessageStatus(`직전 일괄 발송 실패 대상 ${lastBulkFailedWorkerIds.length}명을 다시 선택했습니다.`);
+        setBulkMessageStatus(`직전 일괄 발송에서 확인이 더 필요한 ${lastBulkFailedWorkerIds.length}명을 다시 선택했습니다.`);
     };
 
     const selectRetryQueueActionableWorkers = () => {
         if (!reportMessageDashboardSummary?.retryRows?.length) {
-            setBulkMessageStatus('재시도 큐 데이터가 아직 없습니다.');
+            setBulkMessageStatus(`${BRAND_ACTION_LABELS.retryQueue} 데이터가 아직 없습니다.`);
             return;
         }
 
@@ -1963,13 +1964,13 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         ));
 
         if (actionableWorkerIds.length === 0) {
-            setBulkMessageStatus('현재 재시도 가능한 실패 대상이 없습니다.');
+            setBulkMessageStatus(`현재 다시 보낼 수 있는 ${BRAND_STATUS_LABELS.attention} 대상이 없습니다.`);
             return;
         }
 
         setRegisteredWorkerAdminTab('list');
         setSelectedBulkMessageWorkerIds(actionableWorkerIds);
-        setBulkMessageStatus(`재시도 큐에서 즉시 재발송 가능한 ${actionableWorkerIds.length}명을 선택했습니다.`);
+        setBulkMessageStatus(`${BRAND_ACTION_LABELS.retryQueue}에서 즉시 다시 보낼 수 있는 ${actionableWorkerIds.length}명을 선택했습니다.`);
     };
 
     const requestCancelBulkSend = () => {
@@ -2047,7 +2048,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         try {
             for (let index = 0; index < eligibleWorkers.length; index += 1) {
                 if (bulkSendCancelRequestedRef.current) {
-                    setBulkMessageStatus(`일괄 발송 중단됨 · 완료 ${successNames.length + failedNames.length}/${eligibleWorkers.length} · 성공 ${successNames.length}명 / 실패 ${failedNames.length}명`);
+                    setBulkMessageStatus(`일괄 발송 중단됨 · 완료 ${successNames.length + failedNames.length}/${eligibleWorkers.length} · 성공 ${successNames.length}명 / 확인 필요 ${failedNames.length}명`);
                     break;
                 }
 
@@ -2111,7 +2112,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
             setLastBulkFailedWorkerIds(failedWorkerIds);
             if (!bulkSendCancelRequestedRef.current) {
-                setBulkMessageStatus(`일괄 발송 완료 · 성공 ${successNames.length}명 / 실패 ${failedNames.length}명${failedNames.length ? ` · 실패: ${failedNames.slice(0, 5).join(', ')}${failedNames.length > 5 ? ' 외' : ''}` : ''}`);
+                setBulkMessageStatus(`일괄 발송 완료 · 성공 ${successNames.length}명 / 확인 필요 ${failedNames.length}명${failedNames.length ? ` · 확인 필요: ${failedNames.slice(0, 5).join(', ')}${failedNames.length > 5 ? ' 외' : ''}` : ''}`);
             }
             if (selectedMessageHistoryWorker) {
                 void fetchWorkerMessageHistory(selectedMessageHistoryWorker, { force: true });
@@ -4496,7 +4497,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         <p className="mt-1 text-2xl font-black text-emerald-900">{reportMessageDashboardSummary.overview.successCount}</p>
                                     </div>
                                     <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-rose-600">{getRangeFilterLabel(dashboardRangeFilter)} 실패</p>
+                                        <p className="text-[10px] font-black text-rose-600">{getRangeFilterLabel(dashboardRangeFilter)} {BRAND_STATUS_LABELS.attention}</p>
                                         <p className="mt-1 text-2xl font-black text-rose-900">{reportMessageDashboardSummary.overview.failedCount}</p>
                                     </div>
                                     <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
@@ -4508,7 +4509,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         <p className="mt-1 text-sm font-black text-indigo-900 truncate">{reportMessageDashboardSummary.overview.topTeam}</p>
                                     </div>
                                     <div className="rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-violet-600">주요 실패 원인</p>
+                                        <p className="text-[10px] font-black text-violet-600">주요 {BRAND_STATUS_LABELS.attention} 원인</p>
                                         <p className="mt-1 text-sm font-black text-violet-900 truncate">{reportMessageDashboardSummary.overview.topFailureCategory}</p>
                                     </div>
                                 </div>
@@ -4522,7 +4523,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         <p className="mt-1 text-lg font-black text-violet-900">{reportMessageDashboardSummary.overview.bulkCount}건</p>
                                     </div>
                                     <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-amber-700">재시도 후보</p>
+                                        <p className="text-[10px] font-black text-amber-700">{BRAND_ACTION_LABELS.retryCandidate}</p>
                                         <p className="mt-1 text-lg font-black text-amber-900">{reportMessageDashboardSummary.overview.retryCandidateCount}건</p>
                                     </div>
                                 </div>
@@ -4558,7 +4559,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         </div>
                                     </div>
                                     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                                        <p className="text-xs font-black text-slate-800">실패 사유 집계 뷰</p>
+                                        <p className="text-xs font-black text-slate-800">확인 필요 사유 집계 뷰</p>
                                         <div className="mt-4 h-[220px]">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart data={reportMessageDashboardSummary.failureRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -4572,17 +4573,17 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         </div>
                                     </div>
                                     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                                        <p className="text-xs font-black text-slate-800">재시도 큐</p>
-                                        <p className="mt-1 text-[11px] font-bold text-slate-500">현재 최신 상태가 실패인 대상만 우선 점수순으로 표시합니다.</p>
+                                        <p className="text-xs font-black text-slate-800">{BRAND_ACTION_LABELS.retryQueue}</p>
+                                        <p className="mt-1 text-[11px] font-bold text-slate-500">현재 최신 상태가 {BRAND_STATUS_LABELS.attention}인 대상만 우선 점수순으로 표시합니다.</p>
                                         <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3">
                                             <p className="text-[10px] font-black text-sky-700">QUICK RETRY</p>
-                                            <p className="mt-1 text-[11px] font-bold text-slate-600">전화번호·등록 근로자·리포트 원본이 모두 확인된 실패 대상만 골라 일괄 발송 선택 목록으로 바로 보냅니다.</p>
+                                            <p className="mt-1 text-[11px] font-bold text-slate-600">전화번호·등록 근로자·리포트 원본이 모두 확인된 확인 필요 대상만 골라 일괄 발송 선택 목록으로 바로 보냅니다.</p>
                                             <button
                                                 type="button"
                                                 onClick={selectRetryQueueActionableWorkers}
                                                 className="mt-2 inline-flex items-center rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-[10px] font-black text-sky-700 hover:bg-sky-100"
                                             >
-                                                재시도 가능 대상 일괄 선택
+                                                다시 보낼 수 있는 대상 일괄 선택
                                             </button>
                                         </div>
                                         <div className="mt-3 flex flex-wrap gap-2">
@@ -4598,7 +4599,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 onClick={() => setRetryQueueFilter('actionable')}
                                                 className={`rounded-lg border px-2.5 py-1 text-[10px] font-black ${retryQueueFilter === 'actionable' ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
                                             >
-                                                재시도 가능만
+                                                다시 보낼 수 있는 대상만
                                             </button>
                                             <button
                                                 type="button"
@@ -4671,7 +4672,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 );
                                             }) : (
                                                 <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-xs font-bold text-slate-500">
-                                                    현재 필터 조건에 맞는 재시도 후보가 없습니다.
+                                                    현재 필터 조건에 맞는 {BRAND_ACTION_LABELS.retryCandidate}가 없습니다.
                                                 </div>
                                             )}
                                         </div>
@@ -4681,7 +4682,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     <div className="mt-4 grid grid-cols-1 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-4">
                                         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                                             <p className="text-xs font-black text-slate-800">발송 방식 집계 뷰</p>
-                                            <p className="mt-1 text-[11px] font-bold text-slate-500">개별 발송과 선택 근로자 일괄 발송의 운영 비중 및 성공/실패를 비교합니다.</p>
+                                            <p className="mt-1 text-[11px] font-bold text-slate-500">개별 발송과 선택 근로자 일괄 발송의 운영 비중 및 성공/확인 필요를 비교합니다.</p>
                                             <div className="mt-4 h-[240px]">
                                                 <ResponsiveContainer width="100%" height="100%">
                                                     <BarChart
@@ -4878,7 +4879,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     >
                                         <option value="all">상태: 전체</option>
                                         <option value="success">상태: 성공만</option>
-                                        <option value="fail">상태: 실패/보류만</option>
+                                        <option value="fail">상태: 확인 필요/보류만</option>
                                     </select>
                                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                                         <p className="text-[10px] font-black text-slate-500">표시 중</p>
@@ -4892,7 +4893,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         <p className="mt-1 text-2xl font-black text-emerald-900">{selectedMessageHistorySummary.successCount}</p>
                                     </div>
                                     <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-rose-600 uppercase tracking-[0.18em]">FAIL / HOLD</p>
+                                        <p className="text-[10px] font-black text-rose-600 uppercase tracking-[0.18em]">CHECK / HOLD</p>
                                         <p className="mt-1 text-2xl font-black text-rose-900">{selectedMessageHistorySummary.failureCount}</p>
                                     </div>
                                     <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3">
@@ -4914,7 +4915,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         <div className="flex items-center justify-between gap-3">
                                             <div>
                                                 <p className="text-xs font-black text-slate-800">월별 발송 추이</p>
-                                                <p className="mt-1 text-[11px] font-bold text-slate-500">현재 필터 기준 최근 최대 6개월의 성공/실패 건수를 표시합니다.</p>
+                                                <p className="mt-1 text-[11px] font-bold text-slate-500">현재 필터 기준 최근 최대 6개월의 성공/확인 필요 건수를 표시합니다.</p>
                                             </div>
                                         </div>
                                         <div className="mt-4 h-[240px]">
@@ -4963,8 +4964,8 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
                                         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                                             <div>
-                                                <p className="text-xs font-black text-slate-800">실패 사유 분류</p>
-                                                <p className="mt-1 text-[11px] font-bold text-slate-500">실패/보류 메시지 문구를 기준으로 주요 원인을 자동 분류합니다.</p>
+                                                <p className="text-xs font-black text-slate-800">확인 필요 사유 분류</p>
+                                                <p className="mt-1 text-[11px] font-bold text-slate-500">확인 필요/보류 메시지 문구를 기준으로 주요 원인을 자동 분류합니다.</p>
                                             </div>
                                             {failureReasonData.length > 0 ? (
                                                 <div className="mt-4 h-[240px]">
@@ -4980,7 +4981,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 </div>
                                             ) : (
                                                 <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-xs font-bold text-slate-500">
-                                                    현재 필터에서는 실패/보류 로그가 없어 사유 분류가 비어 있습니다.
+                                                    현재 필터에서는 확인 필요/보류 로그가 없어 사유 분류가 비어 있습니다.
                                                 </div>
                                             )}
                                         </div>
@@ -4990,7 +4991,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
                                         <div>
                                             <p className="text-xs font-black text-amber-900">재발송 우선순위 가이드</p>
-                                            <p className="mt-1 text-[11px] font-bold text-amber-700">실패 빈도가 높은 원인부터 현장 대응 우선순위를 안내합니다.</p>
+                                            <p className="mt-1 text-[11px] font-bold text-amber-700">확인 필요 빈도가 높은 원인부터 현장 대응 우선순위를 안내합니다.</p>
                                         </div>
                                         <div className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3">
                                             {failurePriorityActions.map((item) => (
@@ -5164,7 +5165,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     onClick={reselectLastBulkFailedWorkers}
                                     className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100"
                                 >
-                                    실패 대상 다시 선택 ({lastBulkFailedWorkerIds.length}명)
+                                    확인 필요 대상 다시 선택 ({lastBulkFailedWorkerIds.length}명)
                                 </button>
                             )}
                             <button
@@ -5192,7 +5193,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             <div className="flex flex-wrap items-center justify-between gap-2">
                                 <p className="text-xs font-black text-slate-800">일괄 발송 진행률</p>
                                 <p className="text-[11px] font-black text-slate-500">
-                                    {bulkMessageProgress.completed}/{bulkMessageProgress.total} · 성공 {bulkMessageProgress.success} · 실패 {bulkMessageProgress.failed}
+                                    {bulkMessageProgress.completed}/{bulkMessageProgress.total} · 성공 {bulkMessageProgress.success} · 확인 필요 {bulkMessageProgress.failed}
                                 </p>
                             </div>
                             <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
@@ -5210,7 +5211,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         </div>
                     )}
                     {bulkMessageStatus && (
-                        <p className={`mt-3 text-xs font-bold ${bulkMessageStatus.includes('실패') ? 'text-rose-700' : 'text-sky-700'}`}>
+                        <p className={`mt-3 text-xs font-bold ${bulkMessageStatus.includes('확인 필요') || bulkMessageStatus.includes('보류') ? 'text-rose-700' : 'text-sky-700'}`}>
                             {bulkMessageStatus}
                         </p>
                     )}

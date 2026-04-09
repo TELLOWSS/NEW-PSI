@@ -8,6 +8,7 @@ import type { WorkerRecord, OcrErrorType, AppSettings } from '../types';
 import { fileToBase64 } from '../utils/fileUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { getApiCallState, incrementApiCallCount, resetApiCallCount, type DailyCounterState } from '../utils/apiCounterUtils';
+import { BRAND_ACTION_LABELS, BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { MasterTemplateList, type MasterTemplate } from '../components/shared/MasterTemplateList';
 import { MasterAssignment, type MasterAssignmentItem, type MasterGroup } from '../components/shared/MasterAssignment';
 import { CollapsibleSection } from '../components/shared/CollapsibleSection';
@@ -82,7 +83,7 @@ const getOcrErrorGuideMessage = (errorType: OcrErrorType): string => {
         case 'RESOLUTION':
             return '🔎 해상도가 낮거나 너무 멀리서 촬영되었습니다. 문서에 가까이 다가가 선명하게 촬영해 주세요.';
         default:
-            return '🛠️ 서버 또는 네트워크 오류가 발생했습니다. 잠시 후 다시 촬영하거나 재시도해 주세요.';
+            return '🛠️ 서버 또는 네트워크 확인이 더 필요합니다. 잠시 후 다시 촬영하거나 다시 확인해 주세요.';
     }
 };
 
@@ -97,7 +98,7 @@ const getOcrErrorGuideSummary = (errorType: OcrErrorType): string => {
         case 'RESOLUTION':
             return '조치: 가까이서 고해상도 재촬영';
         default:
-            return '조치: 잠시 후 재시도 또는 네트워크 확인';
+            return '조치: 잠시 후 다시 확인 또는 네트워크 점검';
     }
 };
 
@@ -143,7 +144,7 @@ const getFailureChecklist = (errorType: OcrErrorType): string[] => {
             return [
                 '반사광·그림자·흔들림 여부 확인',
                 '초점이 맞는 원본 사진으로 재업로드',
-                '야간/역광 촬영이면 밝기 보정 후 재시도',
+                '야간/역광 촬영이면 밝기 보정 후 다시 확인',
             ];
         case 'RESOLUTION':
             return [
@@ -493,11 +494,24 @@ const getRecordSortModeLabel = (mode: RecordSortMode): string => {
         case 'score-desc':
             return '점수 높은순';
         case 'failed-first':
-            return '실패 우선';
+            return '우선 확인 필요순';
         case 'error-type':
-            return '실패 유형순';
+            return '확인 필요 유형순';
         default:
             return '최근 수정순';
+    }
+};
+
+const getSafetyLevelDisplayLabel = (level: WorkerRecord['safetyLevel']): string => {
+    switch (level) {
+        case '고급':
+            return '고급 · 안정적';
+        case '중급':
+            return '중급 · 관찰 필요';
+        case '초급':
+            return '초급 · 집중 케어';
+        default:
+            return level;
     }
 };
 
@@ -518,7 +532,7 @@ const getOcrErrorTypePriority = (errorType: OcrErrorType): number => {
 
 const getSecondPassEligibility = (record: WorkerRecord, editedOnly = false): { eligible: boolean; reason?: string } => {
     if (isFailedRecord(record)) {
-        return { eligible: false, reason: 'OCR 실패/대기 기록' };
+        return { eligible: false, reason: `OCR ${BRAND_STATUS_LABELS.attentionHold} 기록` };
     }
 
     if (editedOnly && !hasManagerCorrections(record)) {
@@ -1139,7 +1153,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 label: 'OCR 처리 실패',
                 count: retryDiagnostics.processingFail,
                 tone: 'rose',
-                action: '이미지 품질·해상도·문서 구도를 재점검한 뒤 재시도하세요.',
+                action: '이미지 품질·해상도·문서 구도를 재점검한 뒤 다시 확인하세요.',
             },
             {
                 key: 'route',
@@ -1558,17 +1572,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             `- 전체 기록: ${existingRecords.length}건`,
             `- 현재 조회 결과: ${filteredRecords.length}건`,
             `- 2차 재분석 가능: ${secondPassTargets.length}건`,
-            `- 실패/대기: ${failedRecords.length}건`,
+            `- ${BRAND_STATUS_LABELS.attentionPending}: ${failedRecords.length}건`,
             `- 사유 QA 대상: ${reasonQaPreviewRecords.length}건`,
             '',
             '[최근 재분석 집계]',
             `- 성공률: ${retrySuccessRate}%`,
             `- 총 대상: ${retryDiagnostics?.total || 0}건`,
             `- 성공: ${retryDiagnostics?.success || 0}건`,
-            `- 실패: ${retryDiagnostics?.fail || 0}건`,
-            `- 사전 실패: ${retryDiagnostics?.preflightFail || 0}건`,
-            `- 처리 실패: ${retryDiagnostics?.processingFail || 0}건`,
-            `- 라우트 실패: ${retryDiagnostics?.serverRouteFail || 0}건`,
+            `- 추가 확인: ${retryDiagnostics?.fail || 0}건`,
+            `- 사전 확인 필요: ${retryDiagnostics?.preflightFail || 0}건`,
+            `- 처리 확인 필요: ${retryDiagnostics?.processingFail || 0}건`,
+            `- 라우트 확인 필요: ${retryDiagnostics?.serverRouteFail || 0}건`,
             '',
             '[재분석 점수 변화]',
             `- 상승: ${recentReassessmentDeltaSummary.up}건`,
@@ -1582,14 +1596,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 ]
                 : []),
             '',
-            '[실패 유형별 처리 완료율]',
+            '[확인 필요 유형별 처리 완료율]',
             ...(failureProcessingStats.length > 0
                 ? failureProcessingStats.map((item) => `- ${item.label}: 완료율 ${item.rate}% (잔여 ${item.openCount} / 처리 ${item.resolvedCount} / 총계 ${item.total})`)
                 : ['- 집계 대상 없음']),
             ...(failedTypeGroups.length > 0
                 ? [
                     '',
-                    '[실패 유형별 체크리스트]',
+                    '[확인 필요 유형별 체크리스트]',
                     ...failedTypeGroups.map((group) => `- ${group.label}: ${getFailureChecklistSummary(group.type)}`),
                 ]
                 : []),
@@ -1731,9 +1745,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         if (quotaState.isExhausted) {
             const recoveryTime = Math.ceil((quotaState.nextRetryTime - Date.now()) / 1000);
             if (recoveryTime > 0) {
-                const forceRetry = confirm(`⚠️ API 할당량 대기 상태입니다.\n예상 복구: 약 ${recoveryTime}초 후\n\n지금 즉시 재시도(대기상태 해제) 하시겠습니까?\n※ 즉시 재시도 시 429가 다시 발생할 수 있습니다.`);
+                const forceRetry = confirm(`⚠️ API 할당량 대기 상태입니다.\n예상 복구: 약 ${recoveryTime}초 후\n\n지금 즉시 다시 확인(대기상태 해제) 하시겠습니까?\n※ 즉시 다시 확인 시 429가 다시 발생할 수 있습니다.`);
                 if (!forceRetry) {
-                    alert(`복구 대기 중입니다.\n${new Date(quotaState.nextRetryTime).toLocaleTimeString()} 이후 재시도 권장`);
+                    alert(`복구 대기 중입니다.\n${new Date(quotaState.nextRetryTime).toLocaleTimeString()} 이후 다시 확인을 권장합니다.`);
                     return;
                 }
                 clearQuotaState();
@@ -2062,7 +2076,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         // Final Failure after retries
                         const errorRecord: WorkerRecord = {
                             ...record,
-                            aiInsights: "⛔ 반복적인 API 오류로 분석 실패 (재시도 필요)",
+                            aiInsights: "⛔ 반복적인 API 오류로 추가 확인이 필요합니다. 다시 확인해 주세요.",
                             ocrErrorType: 'UNKNOWN',
                             ocrErrorMessage: '반복적인 API 오류',
                             secondPassStatus: 'NEEDED',
@@ -2121,16 +2135,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             setCooldownTime(0);
             setBatchProgress({ current: 0, total: 0 });
             
-            const modeLabel = forceReanalyze ? '[강제 재분석]' : '';
+            const modeLabel = forceReanalyze ? `[${BRAND_ACTION_LABELS.directReanalyze}]` : '';
             const reasonsReport = `\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 폴백 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}`;
             
             if (stopped) {
-                alert(`${modeLabel} 분석이 중단되었습니다.\n(성공: ${successCount}, 실패: ${failCount})${reasonsReport}`);
+                alert(`${modeLabel} 분석이 중단되었습니다.\n(완료: ${successCount}, 추가 확인: ${failCount})${reasonsReport}`);
             } else {
                 if (forceReanalyze) {
-                    alert(`${modeLabel} ${title} 완료.\n\n✅ 성공: ${successCount}\n❌ 실패: ${failCount}${reasonsReport}\n\n※ Preflight 검증 스킵 모드로 실행되었습니다.\n※ 실패 건은 '강제 재분석' 또는 '스마트 재분석' 버튼으로 다시 시도할 수 있습니다.`);
+                    alert(`${modeLabel} ${title} 완료.\n\n✅ 완료: ${successCount}\n⚠ 추가 확인: ${failCount}${reasonsReport}\n\n※ Preflight 검증 스킵 모드로 실행되었습니다.\n※ 추가 확인 건은 '${BRAND_ACTION_LABELS.directReanalyze}' 또는 '${BRAND_ACTION_LABELS.smartReanalyze}' 버튼으로 ${BRAND_ACTION_LABELS.recheck}할 수 있습니다.`);
                 } else {
-                    alert(`${title} 완료.\n성공: ${successCount}\n실패: ${failCount}${reasonsReport}\n\n* 실패 건은 '실패/대기 건 재분석' 버튼으로 다시 시도할 수 있습니다.`);
+                    alert(`${title} 완료.\n완료: ${successCount}\n추가 확인: ${failCount}${reasonsReport}\n\n* 추가 확인 건은 '${BRAND_STATUS_LABELS.attentionHold} 건 재분석' 버튼으로 ${BRAND_ACTION_LABELS.recheck}할 수 있습니다.`);
                 }
             }
         }
@@ -2151,7 +2165,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 `2차 AI 재분석 가능 대상이 없습니다.\n\n` +
                 `- 현재 필터 결과: ${baseFilteredRecords.length}건\n` +
                 `- 제외 사유: ${secondPassSkippedSummary || '재분석 가능한 기록 없음'}\n\n` +
-                `※ OCR 실패/대기 건은 '스마트 재분석' 또는 '강제 재분석'을 사용해 주세요.`
+                `※ OCR ${BRAND_STATUS_LABELS.attentionPending} 건은 '${BRAND_ACTION_LABELS.smartReanalyze}' 또는 '${BRAND_ACTION_LABELS.directReanalyze}'을 사용해 주세요.`
             );
             return;
         }
@@ -2299,29 +2313,29 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const handleRetryFailed = () => {
         const hardTargets = failedRecords.filter(isHardRetryTarget);
         if (hardTargets.length === 0) {
-            alert('재시도할 하드 실패 건이 없습니다.\n(점수 미달/저신뢰 건은 개별 검토를 권장합니다.)');
+            alert('다시 확인할 우선 점검 건이 없습니다.\n(점수 미달/저신뢰 건은 개별 검토를 권장합니다.)');
             return;
         }
 
-        if (confirm(`하드 실패 ${hardTargets.length}건만 우선 재시도 하시겠습니까?\n(할당량 절약을 위해 저신뢰 경고 건은 제외)`)) {
-            runBatchAnalysis(hardTargets, "하드 실패 재분석");
+        if (confirm(`우선 점검 대상 ${hardTargets.length}건만 먼저 다시 확인하시겠습니까?\n(할당량 절약을 위해 저신뢰 경고 건은 제외)`)) {
+            runBatchAnalysis(hardTargets, "우선 점검 재분석");
         }
     };
 
     const handleForceReanalyze = () => {
         if (failedRecords.length === 0) {
-            alert('재분석할 실패/대기 건이 없습니다.');
+            alert(`재분석할 ${BRAND_STATUS_LABELS.attentionPending} 건이 없습니다.`);
             return;
         }
 
         const confirm_msg = confirm(
-            `⚠️ 강제 재분석 모드\n\n실패/대기 건 ${failedRecords.length}건을 Preflight 검증을 우회하여\n` +
+            `⚠️ ${BRAND_ACTION_LABELS.directReanalyze} 모드\n\n${BRAND_STATUS_LABELS.attentionPending} 건 ${failedRecords.length}건을 Preflight 검증을 우회하여\n` +
             `직접 Gemini API로 재분석하시겠습니까?\n\n` +
             `※ 유료 API를 사용하므로 재분석 결과가 나올 때까지 비용이 발생합니다.`
         );
         
         if (confirm_msg) {
-            runBatchAnalysis(failedRecords, "강제 재분석 (Preflight 스킵)", true);
+            runBatchAnalysis(failedRecords, `${BRAND_ACTION_LABELS.directReanalyze} (Preflight 스킵)`, true);
         }
     };
 
@@ -2357,13 +2371,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
     const handleAdminNormalizeFailedBatch = () => {
         if (failedRecords.length === 0) {
-            alert('정상분류할 실패/대기 건이 없습니다.');
+            alert(`정상분류할 ${BRAND_STATUS_LABELS.attentionPending} 건이 없습니다.`);
             return;
         }
 
         const proceed = confirm(
-            `실패/대기 ${failedRecords.length}건을 관리자 권한으로 일괄 정상분류하시겠습니까?\n\n` +
-            `- OCR 실패 플래그 제거\n` +
+            `${BRAND_STATUS_LABELS.attentionPending} ${failedRecords.length}건을 관리자 권한으로 일괄 정상분류하시겠습니까?\n\n` +
+            `- OCR ${BRAND_STATUS_LABELS.attention} 플래그 제거\n` +
             `- 점수/등급 최소 보정\n` +
             `- 감사이력 기록`
         );
@@ -2465,7 +2479,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         if (isRateLimitError(eMsg)) {
                             console.warn(`Rate limit hit on file ${files[i].name}`);
                             setQuotaExhausted(60);
-                            const failMessage = '⛔ API 할당량 초과로 분석 실패 (재시도 필요)';
+                            const failMessage = '⛔ API 할당량이 가득 차 추가 확인이 필요합니다. 잠시 후 다시 확인해 주세요.';
                             results.push(createFileAnalysisErrorRecord(files[i], failMessage, 'UNKNOWN'));
                             const next = incrementApiCallCount('fail');
                             setDailyCounter(next);
@@ -2475,7 +2489,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         
                         // 다른 에러는 재시도
                         if (retryCount < MAX_FILE_RETRIES) {
-                            await waitWithCountdown(30, `재시도 중 (${retryCount}/${MAX_FILE_RETRIES})`);
+                            await waitWithCountdown(30, `다시 확인 중 (${retryCount}/${MAX_FILE_RETRIES})`);
                         } else {
                             console.error(`Failed after ${MAX_FILE_RETRIES} retries:`, e);
                             const failMessage = `⛔ 파일 분석 실패: ${extractMessage(e) || '알 수 없는 오류'}`;
@@ -2682,12 +2696,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 </h3>
                                 <p className="text-slate-300 font-medium max-w-3xl leading-relaxed">
                                     PC 화면에서는 <span className="text-indigo-300 font-bold">핵심 현황 → 긴급 조치 → 상세 운영</span> 순으로 바로 판단할 수 있어야 합니다.
-                                    실패 건, 저신뢰 기록, 재분석 가능 건을 먼저 보고 필요한 조치만 우측에서 바로 실행하도록 구조를 정리했습니다.
+                                    추가 확인 건, 저신뢰 기록, 재분석 가능 건을 먼저 보고 필요한 조치만 우측에서 바로 실행하도록 구조를 정리했습니다.
                                 </p>
                             </div>
                             <div className="flex flex-wrap gap-2 text-[11px] font-black">
                                 <span className="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-slate-100">재분석 가능 {secondPassTargets.length}건</span>
-                                <span className="px-3 py-1.5 rounded-full bg-rose-500/15 border border-rose-400/20 text-rose-200">실패/대기 {failedRecords.length}건</span>
+                                <span className="px-3 py-1.5 rounded-full bg-rose-500/15 border border-rose-400/20 text-rose-200">추가 확인/대기 {failedRecords.length}건</span>
                                 <span className="px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/20 text-amber-200">저신뢰 {lowConfidenceCount}건</span>
                             </div>
                         </div>
@@ -2699,9 +2713,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <p className="mt-1 text-[11px] font-bold text-slate-400">현재 OCR 운영 대상</p>
                             </div>
                             <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-4">
-                                <p className="text-[10px] text-rose-300 font-black uppercase tracking-widest">분석 실패/대기</p>
+                                <p className="text-[10px] text-rose-300 font-black uppercase tracking-widest">추가 확인/대기</p>
                                 <p className={`mt-2 text-2xl font-black ${failedRecords.length > 0 ? 'text-rose-300' : 'text-slate-400'}`}>{failedRecords.length}</p>
-                                <p className="mt-1 text-[11px] font-bold text-rose-200/80">즉시 조치 우선</p>
+                                <p className="mt-1 text-[11px] font-bold text-rose-200/80">우선 확인 권장</p>
                             </div>
                             <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-4">
                                 <p className="text-[10px] text-amber-300 font-black uppercase tracking-widest">신뢰도 미달</p>
@@ -2730,7 +2744,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                         <div className="mt-4 space-y-3">
                             <div className="rounded-2xl border border-rose-400/15 bg-black/10 p-3">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-rose-300">실패 대응</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-rose-300">추가 확인 대응</p>
                                 <div className="mt-3 grid grid-cols-1 gap-2.5">
                         {/* Retry Button */}
                         {failedRecords.length > 0 && !isAnalyzing && (
@@ -2739,7 +2753,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 className="w-full px-5 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all border border-rose-500 flex items-center justify-center gap-2 group"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                                실패/대기 건 스마트 재분석 ({failedRecords.length})
+                                추가 확인/대기 건 스마트 재분석 ({failedRecords.length})
                             </button>
                         )}
                         
@@ -2748,10 +2762,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <button 
                                 onClick={handleForceReanalyze}
                                 className="w-full px-5 py-3 bg-red-700 hover:bg-red-800 rounded-2xl font-black text-sm shadow-xl transition-all border border-red-600 flex items-center justify-center gap-2 group"
-                                title="Preflight 검증을 우회하고 모든 실패/대기 건을 직접 API로 재분석합니다"
+                                title="Preflight 검증을 우회하고 모든 추가 확인/대기 건을 직접 API로 재분석합니다"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                강제 재분석 (검증 스킵)
+                                직접 재분석 (검증 스킵)
                             </button>
                         )}
 
@@ -2759,7 +2773,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <button
                                 onClick={handleAdminNormalizeFailedBatch}
                                 className="w-full px-5 py-3 bg-amber-600 hover:bg-amber-700 rounded-2xl font-black text-sm shadow-xl transition-all border border-amber-500 flex items-center justify-center gap-2 group"
-                                title="재시도 불가 실패/대기 건을 관리자 검토 기준으로 일괄 정상분류합니다"
+                                title="다시 확인이 어려운 추가 확인/대기 건을 관리자 검토 기준으로 일괄 정상분류합니다"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                                 관리자 일괄 정상분류 ({failedRecords.length})
@@ -2949,9 +2963,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 <div className="bg-white border border-rose-100 rounded-3xl p-5 sm:p-6 shadow-lg">
                     <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                         <div>
-                            <p className="text-xs font-black text-rose-600 uppercase tracking-widest">실패 레코드 퀵뷰</p>
-                            <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-1">즉시 조치가 필요한 OCR 실패/대기 기록</h4>
-                            <p className="text-sm font-bold text-slate-500 mt-2">상위 {failedPreviewRecords.length}건을 바로 확인하고 재시도·상세검증·정상분류를 빠르게 실행할 수 있습니다.</p>
+                            <p className="text-xs font-black text-rose-600 uppercase tracking-widest">확인 필요 레코드 퀵뷰</p>
+                            <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-1">우선 확인이 필요한 OCR 추가 확인/대기 기록</h4>
+                            <p className="text-sm font-bold text-slate-500 mt-2">상위 {failedPreviewRecords.length}건을 바로 확인하고 다시 확인·상세검증·정상분류를 빠르게 실행할 수 있습니다.</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {failedTypeSummary.map(([label, count]) => (
@@ -2986,15 +3000,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     )}
 
                     <CollapsibleSection
-                        title="실패 상세 조치"
+                        title="확인 필요 상세 조치"
                         isOpen={showFailedQuickActions}
                         onToggle={() => setShowFailedQuickActions((prev) => !prev)}
-                        summary={<span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-black text-rose-700">실패 {failedRecords.length}건 · 유형 {failedTypeGroups.length}개</span>}
+                        summary={<span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-black text-rose-700">확인 필요 {failedRecords.length}건 · 유형 {failedTypeGroups.length}개</span>}
                     >
                     {failureProcessingStats.length > 0 && (
                         <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                             <div className="flex items-center justify-between gap-2">
-                                <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">실패 유형별 처리 완료율</p>
+                                <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">확인 필요 유형별 처리 완료율</p>
                                 <span className="text-[10px] font-bold text-slate-500">현재 잔여 + 처리 이력 기준</span>
                             </div>
                             <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-2">
@@ -3021,7 +3035,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     {failedTypeGroups.length > 0 && (
                         <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
                             <div className="flex items-center justify-between gap-2">
-                                <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">실패 유형별 담당자 체크리스트</p>
+                                <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">확인 필요 유형별 담당자 체크리스트</p>
                                 <span className="text-[10px] font-bold text-slate-500">유형별 우선 점검 순서</span>
                             </div>
                             <div className="mt-3 grid grid-cols-1 xl:grid-cols-2 gap-3">
@@ -3097,7 +3111,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 onClick={() => runBatchAnalysis([record], '개별 재분석')}
                                                 className="px-3 py-2 rounded-xl bg-rose-100 text-rose-700 text-xs font-black hover:bg-rose-200"
                                             >
-                                                재시도
+                                                다시 확인
                                             </button>
                                         )}
                                         {!isAnalyzing && (
@@ -3143,7 +3157,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <p className="mt-1 text-lg font-black text-emerald-700">{secondPassTargets.length}</p>
                         </div>
                         <div className="rounded-2xl bg-rose-50 border border-rose-200 px-3 py-2">
-                            <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest">실패/대기</p>
+                            <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest">추가 확인/대기</p>
                             <p className="mt-1 text-lg font-black text-rose-700">{filteredRecords.filter(r => isFailedRecord(r)).length}</p>
                         </div>
                         <div className="rounded-2xl bg-violet-50 border border-violet-200 px-3 py-2">
@@ -3402,7 +3416,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as 'all' | 'success' | 'failed')} className="mt-2 w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
                                     <option value="all">전체</option>
                                     <option value="success">성공</option>
-                                    <option value="failed">실패/대기</option>
+                                    <option value="failed">확인 필요/대기</option>
                                 </select>
                             </div>
                             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
@@ -3426,7 +3440,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         }}
                                         className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
                                     />
-                                    실패/대기만 보기 기본값
+                                    확인 필요/대기만 보기 기본값
                                 </label>
                                 <button onClick={resetFilters} className="mt-3 w-full px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-black text-sm hover:bg-slate-50 transition-all">
                                     필터 초기화
@@ -3439,8 +3453,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 w-full sm:w-auto">
                                     <button type="button" onClick={() => setRecordSortMode('recent-correction')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'recent-correction' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>최근 수정순</button>
                                     <button type="button" onClick={() => setRecordSortMode('score-desc')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'score-desc' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>점수 높은순</button>
-                                    <button type="button" onClick={() => setRecordSortMode('failed-first')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'failed-first' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>실패 우선</button>
-                                    <button type="button" onClick={() => setRecordSortMode('error-type')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'error-type' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>실패 유형순</button>
+                                    <button type="button" onClick={() => setRecordSortMode('failed-first')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'failed-first' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>우선 확인 필요</button>
+                                    <button type="button" onClick={() => setRecordSortMode('error-type')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'error-type' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>확인 필요 유형순</button>
                                 </div>
                             </div>
                             <p className="mt-2 text-[11px] font-bold text-slate-500">현재 정렬: {getRecordSortModeLabel(recordSortMode)}</p>
@@ -3455,8 +3469,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </p>
                         <ul className="mt-4 space-y-2 text-[12px] font-bold text-slate-600">
                             <li>• 적용 대상: {secondPassTargets.length}건</li>
-                            <li>• 자동 제외: OCR 실패/대기, 원문 텍스트 없음{secondPassEditedOnly ? ', 관리자 수정이력 없음' : ''}</li>
-                            <li>• 실패 건 재처리: 스마트 재분석 / 강제 재분석 사용</li>
+                            <li>• 자동 제외: OCR 확인 필요/대기, 원문 텍스트 없음{secondPassEditedOnly ? ', 관리자 수정이력 없음' : ''}</li>
+                            <li>• 확인 필요 건 재처리: 스마트 재분석 / 직접 재분석 사용</li>
                         </ul>
                         <label className="mt-4 flex items-center gap-2 text-xs font-black text-violet-700">
                             <input
@@ -3587,8 +3601,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 >
                                 <div className="mt-3 rounded-2xl border border-white/70 bg-white/70 p-3">
                                     <div className="flex items-center justify-between gap-2">
-                                        <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">실패 대응 가이드</p>
-                                        <span className="text-[10px] font-bold text-slate-500">실패 유형 기준</span>
+                                        <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">확인 필요 대응 가이드</p>
+                                        <span className="text-[10px] font-bold text-slate-500">확인 필요 유형 기준</span>
                                     </div>
                                     <div className="mt-2 space-y-2">
                                         {retryActionGuides.length > 0 ? retryActionGuides.map((guide) => (
@@ -3603,7 +3617,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 <p className="mt-1 text-[11px] font-semibold text-slate-600 leading-snug">{guide.action}</p>
                                             </div>
                                         )) : (
-                                            <p className="text-[11px] font-bold text-emerald-700">현재 집계 기준으로 별도 실패 대응이 필요한 항목이 없습니다.</p>
+                                            <p className="text-[11px] font-bold text-emerald-700">현재 집계 기준으로 별도 추가 확인 대응이 필요한 항목이 없습니다.</p>
                                         )}
                                     </div>
                                 </div>
@@ -3911,7 +3925,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 </div>
 
                                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
-                                    <span className={`px-2.5 py-1 rounded-full font-black ${getSafetyLevelClass(r.safetyLevel)}`}>{r.safetyScore}점 {r.safetyLevel}</span>
+                                    <span className={`px-2.5 py-1 rounded-full font-black ${getSafetyLevelClass(r.safetyLevel)}`}>{r.safetyScore}점 {getSafetyLevelDisplayLabel(r.safetyLevel)}</span>
                                     <span className={`px-2 py-1 rounded font-black ${hasImage ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{hasImage ? '이미지 OK' : '이미지 누락'}</span>
                                     {recentlyCorrected && <span className="px-2 py-1 rounded bg-violet-600 text-white font-black">최근 24h 수정</span>}
                                     {weakCorrectionReason && <span className="px-2 py-1 rounded bg-amber-100 text-amber-800 font-black" title={latestCorrectionReason || '수정 사유가 비어 있거나 너무 짧습니다.'}>수정사유 보강 필요</span>}
@@ -3934,10 +3948,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-3 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl">상세검증</button>
                                     <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-3 py-2 bg-slate-900 text-white font-black text-xs rounded-xl">리포트</button>
                                     {failed && !isAnalyzing && hasImage && (
-                                        <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className="col-span-2 px-3 py-2 bg-rose-100 text-rose-600 font-bold text-xs rounded-xl">재시도</button>
+                                        <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className="col-span-2 px-3 py-2 bg-rose-100 text-rose-600 font-bold text-xs rounded-xl">다시 확인</button>
                                     )}
                                     {failed && !isAnalyzing && (
-                                        <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="col-span-2 px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl" title="재시도 불가 건을 관리자 확인 후 정상 분류">관리자 정상분류</button>
+                                        <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="col-span-2 px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl" title="추가 확인이 필요한 건을 관리자 검토 후 정상 흐름으로 전환">관리자 확인 후 정상분류</button>
                                     )}
                                     <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="col-span-2 px-3 py-2 bg-slate-100 text-slate-500 font-bold text-xs rounded-xl">삭제</button>
                                 </div>
@@ -4025,7 +4039,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                         수정사유 보강 필요
                                                     </span>
                                                 )}
-                                                {failed && <span className="text-[9px] text-rose-500 font-bold">⚠️ 분석 필요/실패</span>}
+                                                {failed && <span className="text-[9px] text-rose-500 font-bold">⚠️ 추가 확인 필요</span>}
                                                 {failed && rowErrorType && (
                                                     <span className="mt-1 inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-100 text-rose-700 border border-rose-200">
                                                         {getOcrErrorTypeKoreanLabel(rowErrorType)}
@@ -4089,11 +4103,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             <div className="flex justify-end gap-2">
                                                 {failed && !isAnalyzing && hasImage && (
                                                     <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className="px-3 py-2 bg-rose-100 text-rose-600 font-bold text-xs rounded-xl hover:bg-rose-200 transition-all">
-                                                        재시도
+                                                        다시 확인
                                                     </button>
                                                 )}
                                                 {failed && !isAnalyzing && (
-                                                    <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl hover:bg-amber-200 transition-all" title="재시도 불가 건을 관리자 확인 후 정상 분류">
+                                                    <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl hover:bg-amber-200 transition-all" title="다시 확인이 어려운 건을 관리자 확인 후 정상 분류">
                                                         관리자 정상분류
                                                     </button>
                                                 )}

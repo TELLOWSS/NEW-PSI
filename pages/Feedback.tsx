@@ -581,20 +581,20 @@ const Feedback: React.FC = () => {
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-100 border border-rose-200 mb-2">
                             <span className="text-rose-600 text-xs font-black">⚠️ Outbox Warning</span>
                         </div>
-                        <h3 className="text-2xl font-black text-rose-800">피드백 실패 보관함 (Outbox)</h3>
-                        <p className="text-sm font-bold text-rose-700 mt-1">실패 건 {outboxItems.length}건 · 성공 재전송 시 즉시 삭제됩니다.</p>
+                        <h3 className="text-2xl font-black text-rose-800">피드백 확인 필요 보관함 (Outbox)</h3>
+                        <p className="text-sm font-bold text-rose-700 mt-1">확인 필요 건 {outboxItems.length}건 · 성공 재전송 시 즉시 삭제됩니다.</p>
                     </div>
                     <button
                         onClick={handleRetryAll}
                         disabled={isRetryingAll || outboxItems.length === 0}
                         className={`w-full md:w-auto min-w-[320px] py-4 px-6 rounded-2xl text-base font-black shadow-xl transition-all ${isRetryingAll || outboxItems.length === 0 ? 'bg-rose-100 text-rose-300 cursor-not-allowed' : 'bg-rose-600 text-white hover:bg-rose-700'}`}
                     >
-                        {isRetryingAll ? '🔄 실패 건 일괄 다시 보내는 중...' : '🔄 실패 건 일괄 다시 보내기 (Retry All Failed)'}
+                        {isRetryingAll ? '🔄 확인 필요 건 일괄 다시 보내는 중...' : '🔄 확인 필요 건 일괄 다시 보내기'}
                     </button>
                 </div>
 
                 {outboxItems.length === 0 ? (
-                    <p className="text-sm text-rose-500 font-bold">현재 보관 중인 실패 건이 없습니다.</p>
+                    <p className="text-sm text-rose-500 font-bold">현재 보관 중인 확인 필요 건이 없습니다.</p>
                 ) : (
                     <div className="space-y-3 max-h-64 overflow-y-auto custom-scrollbar pr-1">
                         {outboxItems.slice(0, 30).map((item) => (
@@ -602,7 +602,7 @@ const Feedback: React.FC = () => {
                                 <p className="text-xs font-black text-slate-800">{item.payload.type}</p>
                                 <p className="text-[11px] text-slate-500 mt-1">{new Date(item.payload.timestamp).toLocaleString()}</p>
                                 <p className="text-[12px] text-slate-700 mt-2 line-clamp-2">{item.payload.content}</p>
-                                <p className="text-[11px] text-rose-600 mt-2">재시도 {item.retryCount || 0}회{item.lastError ? ` · 최근 오류: ${item.lastError}` : ''}</p>
+                                <p className="text-[11px] text-rose-600 mt-2">다시 보내기 {item.retryCount || 0}회{item.lastError ? ` · 최근 안내: ${item.lastError}` : ''}</p>
                             </div>
                         ))}
                     </div>

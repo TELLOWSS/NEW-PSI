@@ -3,6 +3,7 @@ import React, { Suspense, lazy, useRef, useState, useEffect } from 'react';
 import type { WorkerRecord } from '../types';
 import { generateReportUrl } from '../utils/qrUtils';
 import { postAdminJson } from '../utils/adminApiClient';
+import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { ReportGenerationProgress } from '../components/shared/ReportGenerationProgress';
 import { ensureFileSaver, ensureHtml2Canvas, ensureJsPdfConstructor, ensureJsZip } from '../utils/externalScripts';
 import { canvasToBlob, captureReportCanvases, saveCanvasesAsA4Pdf } from '../utils/pdfCapture';
@@ -261,7 +262,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         setGenerationProgress(prev => ({
             ...prev,
             status: 'error',
-            phaseLabel: '오류 발생',
+            phaseLabel: BRAND_STATUS_LABELS.attention,
             errorMessage,
         }));
     };
@@ -310,7 +311,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                 const phone = normalizePhoneInput(String(response?.data?.worker?.phone_number || ''));
                 if (!disposed && phone) {
                     setMessagePhoneNumber(phone);
-                    setMessageSendStatus((prev) => prev || (response?.data?.matchCount > 1 ? '등록 근로자 전화번호와 연동했습니다. 후보 중 첫 번째 번호이므로 확인 후 발송해 주세요.' : '등록 근로자 전화번호와 자동 연동했습니다.'));
+                        setMessageSendStatus((prev) => prev || (response?.data?.matchCount > 1 ? '등록 근로자 전화번호와 연동했습니다. 후보 중 첫 번째 번호이므로 확인 후 발송해 주세요.' : '등록 근로자 전화번호와 자동 연동했습니다.'));
                 }
             } catch {
                 // 자동 조회 실패는 조용히 무시
@@ -370,7 +371,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
             streamRef.current = stream;
         } catch (e) {
-            try { const stream = await navigator.mediaDevices.getUserMedia({ video: true }); streamRef.current = stream; } catch (err) { alert('카메라 권한 오류'); setIsCameraOpen(false); }
+            try { const stream = await navigator.mediaDevices.getUserMedia({ video: true }); streamRef.current = stream; } catch (err) { alert('카메라 권한 확인이 필요합니다.'); setIsCameraOpen(false); }
         }
     };
 
@@ -395,7 +396,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
     const handleShare = async () => {
         const url = generateReportUrl(record);
         if (!url) {
-            alert('공유 URL 생성 실패');
+            alert('공유 URL 생성 확인이 필요합니다.');
             return;
         }
         const shareData = {
@@ -469,7 +470,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             alert('이 기기에서는 이미지 첨부 공유를 지원하지 않습니다. 이미지 저장 후 문자/MMS 앱에서 첨부해 주세요.');
         } catch (err) {
             console.error('Image share failed:', err);
-            failGenerationProgress(err instanceof Error ? err.message : '이미지 공유에 실패했습니다.');
+            failGenerationProgress(err instanceof Error ? err.message : `이미지 공유에 ${BRAND_STATUS_LABELS.attention}가 필요합니다.`);
         } finally {
             setIsGeneratingImage(false);
         }
@@ -505,7 +506,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                     coverMessage: messageNote,
                     reportImages,
                 },
-                { fallbackMessage: '리포트 문자 발송 실패' },
+                { fallbackMessage: `리포트 문자 발송 ${BRAND_STATUS_LABELS.attention}` },
             );
 
             updateGenerationProgress(96, '문자 발송 결과 정리 중');
@@ -530,7 +531,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             }, ...prev].slice(0, 5));
         } catch (error) {
             console.error('Report message send failed:', error);
-            const errorMessage = error instanceof Error ? error.message : '문자 발송에 실패했습니다.';
+            const errorMessage = error instanceof Error ? error.message : `문자 발송에 ${BRAND_STATUS_LABELS.attention}가 필요합니다.`;
             failGenerationProgress(errorMessage);
             setMessageSendStatus(errorMessage);
             setServerMessageLogs((prev) => [{
@@ -574,8 +575,8 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             completeGenerationProgress();
         } catch (err: unknown) {
             console.error('PDF generation failed:', err);
-            failGenerationProgress('PDF 생성에 실패했습니다. 다시 시도해 주세요.');
-            alert('PDF 생성 실패');
+            failGenerationProgress(`PDF 생성에 ${BRAND_STATUS_LABELS.attention}가 필요합니다. 다시 확인해 주세요.`);
+            alert('PDF 생성 확인이 필요합니다.');
         } finally { setIsGeneratingPdf(false); }
     };
 
@@ -613,8 +614,8 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             completeGenerationProgress();
         } catch (err: unknown) {
             console.error('Image save failed:', err);
-            failGenerationProgress('이미지 저장에 실패했습니다. 다시 시도해 주세요.');
-            alert('이미지 저장 실패');
+            failGenerationProgress(`이미지 저장에 ${BRAND_STATUS_LABELS.attention}가 필요합니다. 다시 확인해 주세요.`);
+            alert('이미지 저장 확인이 필요합니다.');
         } finally { setIsGeneratingImage(false); }
     };
 
@@ -716,7 +717,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                                     </p>
                                 )}
                                 {messageSendStatus && (
-                                    <p className={`text-sm font-black ${messageSendStatus.includes('완료') ? 'text-emerald-700' : messageSendStatus.includes('실패') || messageSendStatus.includes('오류') ? 'text-rose-600' : 'text-indigo-700'}`}>
+                                    <p className={`text-sm font-black ${messageSendStatus.includes('완료') ? 'text-emerald-700' : messageSendStatus.includes(BRAND_STATUS_LABELS.attention) || messageSendStatus.includes('오류') ? 'text-rose-600' : 'text-indigo-700'}`}>
                                         {messageSendStatus}
                                     </p>
                                 )}
@@ -731,7 +732,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                                                 <div className="flex items-center justify-between gap-2">
                                                     <div className="flex items-center gap-2">
                                                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${item.status === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                                                            {item.status === 'SUCCESS' ? '성공' : '실패'}
+                                                            {item.status === 'SUCCESS' ? '성공' : BRAND_STATUS_LABELS.attention}
                                                         </span>
                                                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${item.send_mode === 'BULK' ? 'bg-violet-100 text-violet-700' : 'bg-sky-100 text-sky-700'}`}>
                                                             {item.send_mode === 'BULK' ? '일괄발송' : '개별발송'}

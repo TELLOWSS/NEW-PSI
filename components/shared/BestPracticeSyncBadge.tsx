@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { BestPracticeSyncFailureLog, BestPracticeSyncState } from '../../utils/bestPracticeSyncStatus';
+import { BRAND_STATUS_LABELS } from '../../utils/brandLabels';
 
 type BestPracticeSyncBadgeProps = {
     state: BestPracticeSyncState;
@@ -54,10 +55,10 @@ export const BestPracticeSyncBadge: React.FC<BestPracticeSyncBadgeProps> = ({ st
     const label = state.status === 'success'
         ? '우수사례 동기화 성공'
         : state.status === 'failed'
-            ? '우수사례 동기화 실패'
+            ? BRAND_STATUS_LABELS.syncAttention
             : state.status === 'pending'
                 ? '우수사례 동기화 중'
-                : '우수사례 동기화 대기';
+                : BRAND_STATUS_LABELS.syncPending;
 
     const lastText = state.status === 'success'
         ? `최근 성공: ${formatKoreanTime(state.lastSuccessAt)}`
@@ -88,9 +89,9 @@ export const BestPracticeSyncBadge: React.FC<BestPracticeSyncBadgeProps> = ({ st
                     <p className="mt-1 text-[11px] text-slate-500">{state.message || lastText}</p>
 
                     <div className="mt-3 border-t border-slate-100 pt-3">
-                        <p className="text-[11px] font-black text-slate-700">최근 실패 원인 (최대 5건)</p>
+                        <p className="text-[11px] font-black text-slate-700">최근 확인 필요 원인 (최대 5건)</p>
                         {failureLogs.length === 0 ? (
-                            <p className="mt-2 text-[11px] text-slate-500">실패 이력이 없습니다.</p>
+                            <p className="mt-2 text-[11px] text-slate-500">확인 필요 이력이 없습니다.</p>
                         ) : (
                             <ul className="mt-2 space-y-2 max-h-48 overflow-y-auto">
                                 {failureLogs.map((entry, index) => (

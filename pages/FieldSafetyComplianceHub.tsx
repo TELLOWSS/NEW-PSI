@@ -14,6 +14,7 @@ import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import type { WorkerRecord } from '../types';
 import { postAdminJson } from '../utils/adminApiClient';
 import { isAdminAuthenticated } from '../utils/adminGuard';
+import { BRAND_STATUS_LABELS, TRAFFIC_LIGHT_BRAND_LABELS, VIOLATION_BRAND_LABELS } from '../utils/brandLabels';
 import { compressImage } from '../utils/imageCompression';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -170,9 +171,9 @@ const VIOLATION_CATEGORIES = [
 ];
 
 const VIOLATION_STATUS_META: Record<ViolationStatus, { label: string; badgeClass: string }> = {
-    'open':        { label: '미조치',  badgeClass: 'bg-rose-100 text-rose-700' },
-    'in-progress': { label: '조치중',  badgeClass: 'bg-amber-100 text-amber-700' },
-    'resolved':    { label: '조치완료', badgeClass: 'bg-emerald-100 text-emerald-700' },
+    'open':        { label: VIOLATION_BRAND_LABELS.open,  badgeClass: 'bg-rose-100 text-rose-700' },
+    'in-progress': { label: VIOLATION_BRAND_LABELS['in-progress'],  badgeClass: 'bg-amber-100 text-amber-700' },
+    'resolved':    { label: VIOLATION_BRAND_LABELS.resolved, badgeClass: 'bg-emerald-100 text-emerald-700' },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -201,20 +202,20 @@ function saveViolations(violations: SiteViolation[]) {
 
 function reasonCodeToKo(code: string): string {
     const map: Record<string, string> = {
-        EDUCATION_INCOMPLETE: '교육 미완료',
-        COACHING_MISSING: '코칭 미실시',
+        EDUCATION_INCOMPLETE: '교육 확인 필요',
+        COACHING_MISSING: '코칭 확인 필요',
         REPEAT_VIOLATION: '반복 위반',
-        TIMELINE_MISMATCH: '타임라인 불일치',
-        DOCUMENT_INSUFFICIENT: '문서 점수 미달',
-        FOLLOWUP_PENDING: '사후 조치 미완',
+        TIMELINE_MISMATCH: '타임라인 추가 확인',
+        DOCUMENT_INSUFFICIENT: '문서 점수 보완 필요',
+        FOLLOWUP_PENDING: '사후 조치 확인 필요',
     };
     return map[code] || code;
 }
 
 function tlConfig(light: TrafficLight) {
-    if (light === 'green')  return { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500', label: '확정' };
-    if (light === 'yellow') return { bg: 'bg-amber-100',   text: 'text-amber-700',   border: 'border-amber-200',   dot: 'bg-amber-400',   label: '검토중' };
-    return                         { bg: 'bg-red-100',     text: 'text-red-700',     border: 'border-red-200',     dot: 'bg-red-500',     label: '위험/보류' };
+    if (light === 'green')  return { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500', label: TRAFFIC_LIGHT_BRAND_LABELS.green };
+    if (light === 'yellow') return { bg: 'bg-amber-100',   text: 'text-amber-700',   border: 'border-amber-200',   dot: 'bg-amber-400',   label: TRAFFIC_LIGHT_BRAND_LABELS.yellow };
+    return                         { bg: 'bg-red-100',     text: 'text-red-700',     border: 'border-red-200',     dot: 'bg-red-500',     label: TRAFFIC_LIGHT_BRAND_LABELS.red };
 }
 
 const PANEL_CLASS = 'rounded-2xl border border-slate-200 bg-white shadow-[0_10px_30px_-18px_rgba(15,23,42,0.35)]';
@@ -545,7 +546,7 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
                 const data = await postAdminJson<{ ok: boolean; inserted_observations?: number; inserted_coaching?: number }>(
                     '/api/admin/safety-management',
                     { action: 'record-safety-closure-loop', payload: { records } },
-                    { fallbackMessage: '관찰·코칭 등록 실패' }
+                    { fallbackMessage: '관찰·코칭 등록 확인 필요' }
                 );
                 const obs = Number(data.inserted_observations || 0);
                 const c   = Number(data.inserted_coaching || 0);
@@ -558,7 +559,7 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
             if (photoRef.current) photoRef.current.value = '';
             setActionType(null); setActionDetail('');
         } catch (e: any) {
-            setResult({ ok: false, message: e.message || '등록 실패' });
+            setResult({ ok: false, message: e.message || '등록 확인 필요' });
         } finally {
             setSubmitting(false);
         }
@@ -815,11 +816,11 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-center">
                         <div className="text-3xl font-black text-rose-600">{openCount}</div>
-                        <div className="mt-1 text-xs font-bold text-rose-700">미조치</div>
+                        <div className="mt-1 text-xs font-bold text-rose-700">조치 필요</div>
                     </div>
                     <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center">
                         <div className="text-3xl font-black text-amber-600">{inProgressCount}</div>
-                        <div className="mt-1 text-xs font-bold text-amber-700">조치중</div>
+                        <div className="mt-1 text-xs font-bold text-amber-700">조치 진행중</div>
                     </div>
                     <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
                         <div className="text-3xl font-black text-emerald-600">{violations.filter(v => v.status === 'resolved').length}</div>
@@ -1145,7 +1146,7 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
             const data = await postAdminJson<{ ok: boolean; data?: { results: any[] } }>(
                 '/api/admin/safety-management',
                 { action: 'evaluate-worker-integrity', payload: { worker_ids: workers.map(w => w.id), assessment_month: assessmentMonth } },
-                { fallbackMessage: '무결성 판정 API 호출 실패' }
+                    { fallbackMessage: '무결성 판정 API 호출 확인 필요' }
             );
             const nameMap = Object.fromEntries(workers.map(w => [w.id, w.label]));
             const rows: IntegrityRow[] = (data.data?.results || []).map((r: any) => ({
@@ -1191,12 +1192,12 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
                     <div className={`rounded-2xl border p-4 text-center ${localStats.openViolations > 0 ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
                         <div className="text-lg">●</div>
                         <div className={`text-2xl font-black ${localStats.openViolations > 0 ? 'text-rose-600' : 'text-slate-500'}`}>{localStats.openViolations}</div>
-                        <div className={`mt-1 text-xs font-bold ${localStats.openViolations > 0 ? 'text-rose-700' : 'text-slate-600'}`}>미조치 지적</div>
+                        <div className={`mt-1 text-xs font-bold ${localStats.openViolations > 0 ? 'text-rose-700' : 'text-slate-600'}`}>{BRAND_STATUS_LABELS.actionNeeded} 지적</div>
                     </div>
                     <div className={`rounded-2xl border p-4 text-center ${localStats.criticalViolations > 0 ? 'bg-red-50 border-red-300' : 'bg-slate-50 border-slate-200'}`}>
                         <div className="text-lg">⚠️</div>
                         <div className={`text-2xl font-black ${localStats.criticalViolations > 0 ? 'text-red-700' : 'text-slate-500'}`}>{localStats.criticalViolations}</div>
-                        <div className={`mt-1 text-xs font-bold ${localStats.criticalViolations > 0 ? 'text-red-700' : 'text-slate-600'}`}>중대 미조치</div>
+                        <div className={`mt-1 text-xs font-bold ${localStats.criticalViolations > 0 ? 'text-red-700' : 'text-slate-600'}`}>중대 {BRAND_STATUS_LABELS.actionNeeded}</div>
                     </div>
                 </div>
             </div>
@@ -1219,9 +1220,9 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
                 {reviews.length > 0 && (
                     <>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-                            {[{ key: 'green', icon: '🟢', label: '확정', count: summary.green, bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
-                              { key: 'yellow', icon: '🟡', label: '검토중', count: summary.yellow, bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
-                              { key: 'red', icon: '🔴', label: '위험/보류', count: summary.red, bg: 'bg-red-50 border-red-200', text: 'text-red-700' }
+                                                        {[{ key: 'green', icon: '🟢', label: TRAFFIC_LIGHT_BRAND_LABELS.green, count: summary.green, bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+                                                            { key: 'yellow', icon: '🟡', label: TRAFFIC_LIGHT_BRAND_LABELS.yellow, count: summary.yellow, bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+                                                            { key: 'red', icon: '🔴', label: TRAFFIC_LIGHT_BRAND_LABELS.red, count: summary.red, bg: 'bg-red-50 border-red-200', text: 'text-red-700' }
                             ].map(s => (
                                 <div key={s.key} className={`${s.bg} border rounded-2xl p-4 text-center`}>
                                     <div className="text-xl mb-1">{s.icon}</div>
@@ -1232,8 +1233,8 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
                         </div>
                         <div className="mb-4 flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-medium text-slate-700">
                             <span className="rounded-full bg-white px-2.5 py-1">🟢 확정 = 우선 확인 완료</span>
-                            <span className="rounded-full bg-white px-2.5 py-1">🟡 검토중 = 보완 검토 필요</span>
-                            <span className="rounded-full bg-white px-2.5 py-1">🔴 위험/보류 = 즉시 조치 필요</span>
+                            <span className="rounded-full bg-white px-2.5 py-1">🟡 {TRAFFIC_LIGHT_BRAND_LABELS.yellow} = 보완 검토 필요</span>
+                            <span className="rounded-full bg-white px-2.5 py-1">🔴 {TRAFFIC_LIGHT_BRAND_LABELS.red} = 즉시 조치 필요</span>
                         </div>
                         <div className="overflow-x-auto rounded-2xl border border-slate-200">
                             <table className="w-full min-w-[760px] table-fixed text-sm">
@@ -1278,7 +1279,7 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
                 {reviews.length === 0 && !loading && (
                     <div className={EMPTY_STATE_CLASS}>
                         <div className="text-3xl">🤖</div>
-                        <p className="mt-3 text-base font-semibold text-slate-700">자동 판정 대기 상태입니다.</p>
+                        <p className="mt-3 text-base font-semibold text-slate-700">자동 판정 준비 상태입니다.</p>
                         <p className="mt-1 text-sm font-medium text-slate-500">상단의 「자동 판정 실행」 버튼을 눌러 근로자별 행동 무결성을 평가하세요.</p>
                     </div>
                 )}

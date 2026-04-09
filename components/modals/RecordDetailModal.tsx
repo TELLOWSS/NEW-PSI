@@ -431,7 +431,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                         stage: 'reassessment',
                         timestamp: new Date().toISOString(),
                         actor: 'manager',
-                        note: '2차 재가공 실패: AI가 갱신 결과를 반환하지 않음',
+                        note: '2차 재가공 확인 필요: AI가 갱신 결과를 반환하지 않음',
                     }
                 ]
             };
@@ -445,7 +445,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                         stage: 'reassessment',
                         timestamp: new Date().toISOString(),
                         actor: 'manager',
-                        note: `2차 재가공 오류: ${errorMessage}`,
+                        note: `2차 재가공 확인 필요: ${errorMessage}`,
                     }
                 ]
             };
@@ -613,7 +613,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             setApprovalComment('');
             setPendingApprovalAction(null);
             setHasChanges(false);
-            alert('반려 처리되었습니다.');
+            alert('반려가 기록되었습니다.');
             return;
         }
 
@@ -627,7 +627,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         setApprovalComment('');
         setPendingApprovalAction(null);
         setHasChanges(false);
-        alert('최종 승인 처리되었습니다. 코멘트 기반 확정 데이터로 2차 가공이 실행되었습니다.');
+        alert('최종 승인이 기록되었습니다. 코멘트 기반 확정 데이터로 2차 가공이 실행되었습니다.');
     };
 
     const handleAnswerChange = (index: number, field: 'answerText' | 'koreanTranslation', value: string) => {
@@ -712,7 +712,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                             } catch (error) {
                                 console.error('프로필 사진 자동 저장 실패:', error);
                                 setHasChanges(true);
-                                setPhotoQueueNotice('자동 저장에 실패했습니다. 상단 1차 저장 버튼으로 저장해 주세요.');
+                                setPhotoQueueNotice('자동 저장에 추가 확인이 필요합니다. 상단 1차 저장 버튼으로 저장해 주세요.');
                             } finally {
                                 setIsPhotoAutoSaving(false);
                             }
@@ -898,8 +898,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         </div>
                                     )}
                                     {photoQueueNotice && (
-                                        <div className={`mt-3 rounded-2xl border px-3 py-3 ${photoQueueNotice.includes('실패') ? 'border-rose-200 bg-rose-50' : 'border-indigo-200 bg-indigo-50'}`}>
-                                            <p className={`text-[11px] font-black ${photoQueueNotice.includes('실패') ? 'text-rose-700' : 'text-indigo-700'}`}>{photoQueueNotice}</p>
+                                        <div className={`mt-3 rounded-2xl border px-3 py-3 ${photoQueueNotice.includes('확인 필요') ? 'border-rose-200 bg-rose-50' : 'border-indigo-200 bg-indigo-50'}`}>
+                                            <p className={`text-[11px] font-black ${photoQueueNotice.includes('확인 필요') ? 'text-rose-700' : 'text-indigo-700'}`}>{photoQueueNotice}</p>
                                         </div>
                                     )}
                                     {!hasProfileImage && (

@@ -47,8 +47,12 @@ const Introduction: React.FC = () => {
                         <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
                         CURRENT RELEASE {PSI_APP_VERSION}
                     </div>
+                    <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold text-white/90 backdrop-blur-md">
+                        <span className="text-emerald-300">●</span>
+                        깐깐하지만 내 편인 현장 안전 코치
+                    </div>
                     <p className="max-w-3xl text-lg sm:text-xl text-indigo-100 leading-relaxed mb-8 break-keep">
-                        2026년, 데이터는 이제 정답을 제시합니다. PSI는 흩어져 있던 기록 속에서 사고의 패턴을 읽어내고 미래의 위험을 예측하여 <span className="font-bold text-white border-b-2 border-indigo-400 pb-0.5">오늘의 행동을 이끌어내는 자율 안전 AI 시스템</span>입니다. 300명 이상의 대규모 현장에서도 안정적으로 작동하며, 기업 수준의 신뢰성을 보장합니다.
+                        PSI는 사람을 평가하기 위해 만들어진 시스템이 아닙니다. 거칠고 짧은 현장 기록 속에서도 위험의 신호를 놓치지 않고, 그 신호를 <span className="font-bold text-white border-b-2 border-indigo-400 pb-0.5">보호와 실행의 언어로 번역하는 현장 안전 파트너</span>입니다. 300명 이상의 대규모 현장에서도 안정적으로 작동하며, 근로자·관리자·경영진 각각에게 맞는 안전 판단 흐름을 제공합니다.
                     </p>
 
                     <button 
@@ -124,11 +128,31 @@ const Introduction: React.FC = () => {
                 </div>
             </div>
 
+            <div className="max-w-5xl mx-auto px-4 card-gravity-target">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-6 shadow-sm">
+                        <p className="text-xs font-black tracking-[0.18em] text-emerald-700 mb-3">BRAND PRINCIPLE 01</p>
+                        <h3 className="text-lg font-black text-slate-900 mb-2">평가보다 해석</h3>
+                        <p className="text-sm leading-relaxed text-slate-700">PSI는 점수만 보여주지 않고 왜 그런 판단이 나왔는지 설명해 현장의 신뢰를 높입니다.</p>
+                    </div>
+                    <div className="rounded-3xl border border-indigo-100 bg-indigo-50 p-6 shadow-sm">
+                        <p className="text-xs font-black tracking-[0.18em] text-indigo-700 mb-3">BRAND PRINCIPLE 02</p>
+                        <h3 className="text-lg font-black text-slate-900 mb-2">지적보다 보완</h3>
+                        <p className="text-sm leading-relaxed text-slate-700">근로자에게는 불합격 대신 보완 권고를, 관리자에게는 재검토 근거를 제시하는 코칭형 구조를 따릅니다.</p>
+                    </div>
+                    <div className="rounded-3xl border border-sky-100 bg-sky-50 p-6 shadow-sm">
+                        <p className="text-xs font-black tracking-[0.18em] text-sky-700 mb-3">BRAND PRINCIPLE 03</p>
+                        <h3 className="text-lg font-black text-slate-900 mb-2">감시보다 보호</h3>
+                        <p className="text-sm leading-relaxed text-slate-700">동일한 분석 결과도 역할별 안전 언어로 바꿔 현장을 압박하지 않고 보호 중심의 행동으로 연결합니다.</p>
+                    </div>
+                </div>
+            </div>
+
             {/* Timeline Section - History */}
             <div className="max-w-5xl mx-auto px-4 card-gravity-target">
                 <div className="text-center mb-12">
                     <h2 className="text-3xl font-bold text-slate-900 mb-3">PSI 탄생 배경</h2>
-                    <p className="text-slate-500">PSI는 하루아침에 만들어지지 않았습니다. 현장의 필요와 고민 속에서, 더 나은 안전을 향한 열망이 기술과 만나 단계적으로 진화해 온 결과물입니다.</p>
+                    <p className="text-slate-500">PSI는 단순한 AI 기능에서 출발하지 않았습니다. 현장의 심리와 위험 신호를 더 정확하게 이해하고, 그것을 사람을 살리는 언어로 바꾸기 위한 고민에서 시작되었습니다.</p>
                 </div>
 
                 <div className="relative border-l-4 border-indigo-100 ml-4 md:ml-1/2 space-y-12">
@@ -235,7 +259,7 @@ const Introduction: React.FC = () => {
             {/* Philosophy & Values */}
             <div className="bg-slate-50 rounded-3xl p-12 card-gravity-target">
                 <div className="text-center mb-10">
-                    <h2 className="text-3xl font-bold text-slate-900">PSI 브랜드 철학: 예측의 방패</h2>
+                    <h2 className="text-3xl font-bold text-slate-900">PSI 브랜드 철학: 현장의 신호를 보호의 언어로 번역하다</h2>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
@@ -249,7 +273,7 @@ const Introduction: React.FC = () => {
                     
                     <div className="space-y-8">
                         <p className="text-slate-600 leading-relaxed">
-                            PSI 로고는 단순한 상징을 넘어, 우리가 추구하는 '선제적 안전'의 철학을 담고 있습니다. 각 요소는 시스템의 핵심 가치를 시각적으로 표현합니다.
+                            PSI 로고는 단순한 상징이 아닙니다. 현장의 신호를 읽고, 그것을 보호와 실행의 언어로 바꾸는 브랜드 철학을 담고 있습니다. 각 요소는 정확함, 신뢰, 보호라는 핵심 가치를 시각적으로 표현합니다.
                         </p>
                         
                         <div className="flex items-start space-x-4">
@@ -258,7 +282,7 @@ const Introduction: React.FC = () => {
                             </div>
                             <div>
                                 <h3 className="font-bold text-slate-800 text-lg">견고한 방패 (The Shield)</h3>
-                                <p className="text-slate-500 text-sm mt-1">기본 형태인 방패는 현장과 근로자를 모든 위험으로부터 보호하겠다는 굳건한 약속을 상징합니다.</p>
+                                <p className="text-slate-500 text-sm mt-1">기본 형태인 방패는 현장과 근로자를 위험으로부터 지키겠다는 굳건한 약속, 그리고 PSI가 끝까지 사용자 편에 서겠다는 브랜드 태도를 상징합니다.</p>
                             </div>
                         </div>
 
@@ -268,7 +292,7 @@ const Introduction: React.FC = () => {
                             </div>
                             <div>
                                 <h3 className="font-bold text-slate-800 text-lg">비대칭적 형태 (The Asymmetry)</h3>
-                                <p className="text-slate-500 text-sm mt-1">정적인 대칭을 벗어난 형태는 위험을 기다리는 '수동적 방어'가 아닌, <span className="font-bold text-indigo-600">우상향하며 미래를 향해 나아가는 '능동적 보호'</span>와 혁신을 의미합니다.</p>
+                                <p className="text-slate-500 text-sm mt-1">정적인 대칭을 벗어난 형태는 위험을 기다리는 수동적 방어가 아니라, <span className="font-bold text-indigo-600">먼저 읽고 먼저 개입하는 능동적 보호</span>와 실행 중심의 안전 문화를 의미합니다.</p>
                             </div>
                         </div>
 
@@ -278,7 +302,7 @@ const Introduction: React.FC = () => {
                             </div>
                             <div>
                                 <h3 className="font-bold text-slate-800 text-lg">AI의 눈 (The AI Eye)</h3>
-                                <p className="text-slate-500 text-sm mt-1">중심부의 데이터 회로 눈동자는 AI의 지능으로 보이지 않는 패턴을 읽어내고 미래의 위험을 예측하는 시스템의 핵심 능력을 나타냅니다.</p>
+                                <p className="text-slate-500 text-sm mt-1">중심부의 눈동자는 보이지 않는 패턴을 읽어내는 AI의 예리함을 나타내지만, 그 목적은 감시가 아니라 현장의 작은 신호까지 놓치지 않는 따뜻한 관찰입니다.</p>
                             </div>
                         </div>
                     </div>
@@ -339,7 +363,7 @@ const Introduction: React.FC = () => {
                         </div>
                         <div className="text-left">
                             <p className="text-slate-700 text-lg leading-8 italic font-medium">
-                                "PSI는 단순한 도구가 아닙니다. 이는 '모든 근로자가 안전하게 집으로 돌아가야 한다'는 저희의 믿음이자, 현장을 향한 굳은 약속입니다. 저희는 데이터와 코드 한 줄 한 줄에 진심을 담았습니다. 이 진심이 2026년에도 모든 현장의 안전을 밝히는 등대가 되기를 소망합니다."
+                                "PSI는 현장을 판단하려는 시스템이 아니라 현장을 이해하려는 시스템입니다. 우리는 수기 기록 속 짧고 투박한 문장에서도 위험의 신호를 놓치지 않고, 그 신호를 사람이 바로 행동할 수 있는 보호의 언어로 바꾸고자 했습니다. PSI가 2026년에도 현장에서 가장 믿을 수 있는 안전 파트너로 남기를 바랍니다."
                             </p>
                             <div className="mt-6 flex items-center justify-end gap-3">
                                 <div className="text-right">

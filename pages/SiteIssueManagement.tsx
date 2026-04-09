@@ -32,12 +32,12 @@ const readFileAsBase64 = (file: File): Promise<string> => {
             const result = typeof reader.result === 'string' ? reader.result : '';
             const base64 = result.includes(',') ? result.split(',')[1] : '';
             if (!base64) {
-                reject(new Error('파일 Base64 변환에 실패했습니다.'));
+                reject(new Error('파일 Base64 변환에 추가 확인이 필요합니다.'));
                 return;
             }
             resolve(base64);
         };
-        reader.onerror = () => reject(new Error('파일을 읽는 중 오류가 발생했습니다.'));
+        reader.onerror = () => reject(new Error('파일을 읽는 중 추가 확인이 필요합니다.'));
         reader.readAsDataURL(file);
     });
 };
@@ -122,7 +122,7 @@ const SiteIssueManagement: React.FC = () => {
             setNewIssue((prev) => ({ ...prev, image: compressedBase64 }));
         } catch (error) {
             console.error('Issue image compression failed:', error);
-            alert('사진 최적화 중 오류가 발생했습니다. 다시 시도해주세요.');
+            alert('사진 최적화 중 추가 확인이 필요합니다. 다시 확인해 주세요.');
         }
     };
 
@@ -168,7 +168,7 @@ const SiteIssueManagement: React.FC = () => {
             setShowAddModal(true);
         } catch (error) {
             console.error('External issue auto-analysis failed:', error);
-            alert(error instanceof Error ? error.message : '외부 지적사항 분석 중 오류가 발생했습니다.');
+            alert(error instanceof Error ? error.message : '외부 지적사항 분석 중 추가 확인이 필요합니다.');
         } finally {
             setIsAiAnalyzing(false);
             if (externalIssueInputRef.current) {
@@ -253,7 +253,7 @@ const SiteIssueManagement: React.FC = () => {
                     <h3 className="text-lg font-bold text-slate-800">지적사항 목록 <span className="text-slate-500 font-normal text-sm ml-2">총 {filteredIssues.length}건</span></h3>
                     <div className="flex space-x-2">
                         <button onClick={() => setFilter('all')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${filter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>전체</button>
-                        <button onClick={() => setFilter('pending')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${filter === 'pending' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>미조치</button>
+                        <button onClick={() => setFilter('pending')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${filter === 'pending' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>조치 필요</button>
                         <button onClick={() => setFilter('completed')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${filter === 'completed' ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>조치 완료</button>
                     </div>
                 </div>

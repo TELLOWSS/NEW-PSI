@@ -70,7 +70,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
             setAttachedImage(compressedBase64);
         } catch (error) {
             console.error('Safety check image compression failed:', error);
-            alert('사진 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+            alert('사진 처리 중 추가 확인이 필요합니다. 다시 확인해 주세요.');
         } finally {
             setIsCompressingImage(false);
         }
@@ -108,7 +108,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                         },
                     ],
                 },
-            }, { fallbackMessage: '점검 통합 등록 실패' });
+            }, { fallbackMessage: '점검 통합 등록 확인 필요' });
 
             onAddCheck({ workerName: selectedWorker.name, date, type, reason: riskType, details, image: attachedImage || undefined });
             setSubmitStatus({ ok: true, message: '통합 액션으로 점검 기록이 등록되었습니다.' });
@@ -123,7 +123,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
             }
         } catch (error) {
             const message = extractMessage(error);
-            setSubmitStatus({ ok: false, message: message || '점검 등록 실패' });
+            setSubmitStatus({ ok: false, message: message || '점검 등록 확인 필요' });
         } finally {
             setIsSubmitting(false);
         }
@@ -165,7 +165,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                     </div>
                     <div>
                         <label htmlFor="details" className="block text-sm font-medium text-slate-700">상세 내용</label>
-                        <textarea id="details" value={details} onChange={e => setDetails(e.target.value)} placeholder="예: 안전고리 미체결" rows={3} className="mt-1 block w-full border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" />
+                        <textarea id="details" value={details} onChange={e => setDetails(e.target.value)} placeholder="예: 안전고리 착용 확인 필요" rows={3} className="mt-1 block w-full border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">사진 첨부</label>
@@ -210,7 +210,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                     </div>
                     {submitStatus && (
                         <div className={`rounded-md px-3 py-2 text-xs font-semibold ${submitStatus.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
-                            {submitStatus.ok ? '✅ ' : '❌ '}{submitStatus.message}
+                            {submitStatus.ok ? '✅ ' : '⚠️ '}{submitStatus.message}
                         </div>
                     )}
                 </form>

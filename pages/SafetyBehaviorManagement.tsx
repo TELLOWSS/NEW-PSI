@@ -11,6 +11,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { postAdminJson } from '../utils/adminApiClient';
+import { TRAFFIC_LIGHT_BRAND_LABELS } from '../utils/brandLabels';
 import type { WorkerRecord } from '../types';
 
 // -----------------------------------------------------------------------
@@ -100,19 +101,19 @@ function getCurrentMonth(): string {
 }
 
 function trafficLightConfig(light: TrafficLight) {
-    if (light === 'green') return { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500', label: '확정' };
-    if (light === 'yellow') return { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-400', label: '검토중' };
-    return { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200', dot: 'bg-red-500', label: '위험/보류' };
+    if (light === 'green') return { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500', label: TRAFFIC_LIGHT_BRAND_LABELS.green };
+    if (light === 'yellow') return { bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-400', label: TRAFFIC_LIGHT_BRAND_LABELS.yellow };
+    return { bg: 'bg-red-100', text: 'text-red-700', border: 'border-red-200', dot: 'bg-red-500', label: TRAFFIC_LIGHT_BRAND_LABELS.red };
 }
 
 function reasonCodeToKo(code: string): string {
     const map: Record<string, string> = {
-        EDUCATION_INCOMPLETE: '교육 미완료',
-        COACHING_MISSING: '코칭 미실시',
+        EDUCATION_INCOMPLETE: '교육 확인 필요',
+        COACHING_MISSING: '코칭 확인 필요',
         REPEAT_VIOLATION: '반복 위반',
-        TIMELINE_MISMATCH: '타임라인 불일치',
-        DOCUMENT_INSUFFICIENT: '문서 점수 미달',
-        FOLLOWUP_PENDING: '사후조치 미완',
+        TIMELINE_MISMATCH: '타임라인 추가 확인',
+        DOCUMENT_INSUFFICIENT: '문서 점수 보완 필요',
+        FOLLOWUP_PENDING: '사후조치 확인 필요',
     };
     return map[code] || code;
 }
@@ -140,7 +141,7 @@ function buildWorkerOptionLabel(worker: Pick<WorkerRecord, 'name' | 'jobField' |
 // -----------------------------------------------------------------------
 async function callApi(endpoint: string, body: object): Promise<{ ok: boolean; [key: string]: any }> {
     return postAdminJson<{ ok: boolean; [key: string]: any }>(endpoint, body, {
-        fallbackMessage: '관리자 API 호출 실패',
+        fallbackMessage: '관리자 API 호출 확인 필요',
     });
 }
 
@@ -720,9 +721,9 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
             {reviews.length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
                     {[
-                        { key: 'green', label: '확정', icon: '🟢', count: summary.green, bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
-                        { key: 'yellow', label: '검토중', icon: '🟡', count: summary.yellow, bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
-                        { key: 'red', label: '위험/보류', icon: '🔴', count: summary.red, bg: 'bg-red-50 border-red-200', text: 'text-red-700' },
+                        { key: 'green', label: TRAFFIC_LIGHT_BRAND_LABELS.green, icon: '🟢', count: summary.green, bg: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700' },
+                        { key: 'yellow', label: TRAFFIC_LIGHT_BRAND_LABELS.yellow, icon: '🟡', count: summary.yellow, bg: 'bg-amber-50 border-amber-200', text: 'text-amber-700' },
+                        { key: 'red', label: TRAFFIC_LIGHT_BRAND_LABELS.red, icon: '🔴', count: summary.red, bg: 'bg-red-50 border-red-200', text: 'text-red-700' },
                     ].map((s) => (
                         <div key={s.key} className={`${s.bg} border rounded-xl p-3 text-center`}>
                             <div className="text-2xl mb-1">{s.icon}</div>

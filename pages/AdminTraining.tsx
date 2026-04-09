@@ -112,7 +112,7 @@ const UI_TEXT: Record<UiLocale, {
         shareHeader: '[PSI 다국어 안전교육 링크]',
         shareFailedPrefix: '음성 미생성 언어(텍스트 대체)',
         shareAllAudioLine: '모든 선택 언어의 음성 안내가 생성되었습니다.',
-        copyFailed: '클립보드 복사에 실패했습니다. 텍스트를 직접 복사해 주세요.',
+        copyFailed: '클립보드 복사에 추가 확인이 필요합니다. 텍스트를 직접 복사해 주세요.',
         copyDone: '공유 텍스트를 복사했습니다. 메신저에 붙여넣어 전달해 주세요.',
         directLinkCopyDone: '직접 접속 링크를 복사했습니다.',
         shortShareCopyDone: '짧은 안내문을 복사했습니다. 문자/메신저로 바로 전달해 주세요.',
@@ -120,11 +120,11 @@ const UI_TEXT: Record<UiLocale, {
         minLangAlert: '최소 1개 언어를 선택해 주세요.',
         missingShareAlert: '복사할 공유 텍스트가 없습니다. 먼저 생성을 완료해 주세요.',
         success: '생성 완료! 아래 QR을 근로자에게 공유하세요.',
-        partialSuccess: '생성 완료(부분 성공): 일부 언어는 음성 생성에 실패하여 텍스트 안내로 대체됩니다.',
-        parseFail: '서버 JSON 응답 파싱에 실패했습니다.',
+        partialSuccess: '생성 완료(부분 성공): 일부 언어는 음성 생성 확인이 더 필요해 텍스트 안내로 대체됩니다.',
+        parseFail: '서버 JSON 응답을 확인하는 중 문제가 있어 다시 확인이 필요합니다.',
         emptyResponse: '서버가 비어있는 응답을 반환했습니다.',
-        createFail: '세션 생성 실패',
-        errorPrefix: '오류',
+        createFail: '세션 생성 확인 필요',
+        errorPrefix: '안내',
         recentTitle: '최근 테스트 세션',
         recentEmpty: '표시할 세션이 없습니다.',
         recentLoad: '불러오기',
@@ -134,7 +134,7 @@ const UI_TEXT: Record<UiLocale, {
         deleting: '삭제 중...',
         deleteCurrent: '테스트 세션 제거',
         deleteDone: '테스트 세션을 삭제했습니다.',
-        deleteFailPrefix: '삭제 오류',
+        deleteFailPrefix: '삭제 안내',
         deleteConfirm: '현재 표시된 테스트 세션을 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.',
         removeFromScreen: '화면에서 제거',
         removeDone: '표시 중인 세션 정보를 화면에서 제거했습니다.',
@@ -146,14 +146,14 @@ const UI_TEXT: Record<UiLocale, {
         shareTitle: '공유 텍스트',
         directAccessHint: 'QR 접속이 어려운 근로자에게는 아래 링크/공유 텍스트를 메신저로 직접 전송하거나 관리자 휴대폰 브라우저에 링크를 직접 입력해 접속시켜 주세요.',
         failedLangTitle: '음성 미생성 언어 (텍스트 대체)',
-        failedBadge: '일부 음성 실패',
+        failedBadge: '일부 음성 확인 필요',
         attemptLabel: '시도 코드',
         linkExpiryLabel: '링크 만료 시각',
         linkExpiredBadge: '만료됨',
         reissueLink: '링크 재발급',
         reissuing: '재발급 중...',
         reissueDone: '링크를 재발급했습니다.',
-        reissueFail: '링크 재발급 실패',
+        reissueFail: '링크 재발급 확인 필요',
         historyTitle: '링크 생성/재발급 이력',
         historyEmpty: '아직 기록이 없습니다.',
         historyCreate: '초기 생성',
@@ -575,7 +575,7 @@ const AdminTraining: React.FC = () => {
         }
 
         if (!response.ok || !data?.ok) {
-            throw new Error(data?.message || data?.error || `링크 재발급 실패 (HTTP ${response.status})`);
+            throw new Error(data?.message || data?.error || `링크 재발급 확인 필요 (HTTP ${response.status})`);
         }
 
         return {
@@ -615,7 +615,7 @@ const AdminTraining: React.FC = () => {
             }
 
             if (!response.ok || !data?.ok) {
-                throw new Error(data?.message || `통계 조회 실패 (HTTP ${response.status})`);
+                throw new Error(data?.message || `통계 조회 확인 필요 (HTTP ${response.status})`);
             }
 
             setAwarenessStats({
@@ -733,7 +733,7 @@ const AdminTraining: React.FC = () => {
         setFailedLanguageAttempts({});
 
         if (restoredFailed.length > 0) {
-            setMessage(`${label} 일부 언어는 음성 생성에 실패하여 텍스트 안내로 대체됩니다.`);
+            setMessage(`${label} 일부 언어는 음성 생성 확인이 더 필요해 텍스트 안내로 대체됩니다.`);
         } else {
             setMessage(label);
         }
@@ -799,7 +799,7 @@ const AdminTraining: React.FC = () => {
         return new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(String(reader.result || ''));
-            reader.onerror = () => reject(new Error(`${file.name} 읽기 실패`));
+            reader.onerror = () => reject(new Error(`${file.name} 읽기 확인 필요`));
             reader.readAsDataURL(file);
         });
     };
@@ -856,7 +856,7 @@ const AdminTraining: React.FC = () => {
             }
 
             if (!response.ok || !data?.ok) {
-                throw new Error(data?.message || `음성 업로드 실패 (HTTP ${response.status})`);
+                throw new Error(data?.message || `음성 업로드 확인 필요 (HTTP ${response.status})`);
             }
 
             const nextAudioUrls = data?.audioUrls && typeof data.audioUrls === 'object' ? data.audioUrls : {};
@@ -913,7 +913,7 @@ const AdminTraining: React.FC = () => {
             }
 
             if (!response.ok) {
-                const serverMessage = data?.message || data?.error || `요청 실패 (HTTP ${response.status})`;
+                const serverMessage = data?.message || data?.error || `요청 확인 필요 (HTTP ${response.status})`;
                 throw new Error(serverMessage);
             }
 
@@ -1067,7 +1067,7 @@ const AdminTraining: React.FC = () => {
             }
 
             if (!response.ok || !data?.ok) {
-                throw new Error(data?.message || data?.error || `세션 삭제 실패 (HTTP ${response.status})`);
+                throw new Error(data?.message || data?.error || `세션 삭제 확인 필요 (HTTP ${response.status})`);
             }
 
             if (sessionIdToDelete === currentSessionId) {
@@ -1109,7 +1109,7 @@ const AdminTraining: React.FC = () => {
                     </div>
                     <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
                         <p className="text-[12px] font-black text-amber-800">안되는 언어 대응</p>
-                        <p className="mt-1 text-[11px] font-bold text-amber-700">몽골어 등 일부 언어는 생성 대상에 포함되어 있어도 외부 음성 생성 상태에 따라 실패할 수 있습니다. 이 경우 해당 언어는 텍스트 안내로 자동 대체하고, 필요 시 가장 가까운 공용 언어(예: 한국어/영어/러시아어) 또는 현장 통역 지원을 함께 운영하세요.</p>
+                        <p className="mt-1 text-[11px] font-bold text-amber-700">몽골어 등 일부 언어는 생성 대상에 포함되어 있어도 외부 음성 생성 상태에 따라 추가 확인이 필요할 수 있습니다. 이 경우 해당 언어는 텍스트 안내로 자동 대체하고, 필요 시 가장 가까운 공용 언어(예: 한국어/영어/러시아어) 또는 현장 통역 지원을 함께 운영하세요.</p>
                     </div>
                 </div>
 

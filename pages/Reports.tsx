@@ -2,6 +2,7 @@
 import React, { Suspense, lazy, useState, useRef, useMemo, useEffect } from 'react';
 import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord } from '../types';
 import { extractMessage } from '../utils/errorUtils';
+import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { ReportGenerationProgress } from '../components/shared/ReportGenerationProgress';
 import { createEvidencePackagePdfBlob } from '../utils/evidenceReportUtils';
 import { ensureFileSaver, ensureHtml2Canvas, ensureJsPdfConstructor, ensureJsZip } from '../utils/externalScripts';
@@ -464,7 +465,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     const remainingCount = failedRecords.length - displayLimit;
                     const failureList = displayedFailures.join(', ') + (remainingCount > 0 ? `\n... 외 ${remainingCount}건` : '');
                     
-                    alert(`생성이 완료되었습니다.\n\n성공: ${filteredRecords.length - failedRecords.length}건\n실패: ${failedRecords.length}건\n\n실패한 근로자:\n${failureList}\n\n다운로드 폴더를 확인해주세요.`);
+                    alert(`생성이 완료되었습니다.\n\n성공: ${filteredRecords.length - failedRecords.length}건\n${BRAND_STATUS_LABELS.attention}: ${failedRecords.length}건\n\n${BRAND_STATUS_LABELS.attention}가 필요한 근로자:\n${failureList}\n\n다운로드 폴더를 확인해주세요.`);
                 } else {
                     alert(`생성이 완료되었습니다.\n\n총 ${filteredRecords.length}건 성공\n\n다운로드 폴더를 확인해주세요.`);
                 }
@@ -473,7 +474,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     status: 'error',
                     progress: Math.max(1, bulkProgressPercent),
                     phaseLabel: '중단됨',
-                    errorMessage: '보고서 생성이 중단되었습니다. 다시 시도해 주세요.',
+                    errorMessage: '보고서 생성이 중단되었습니다. 다시 확인해 주세요.',
                 });
                 alert('작업이 중단되었습니다.');
             }
@@ -484,10 +485,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             setReportGenerationUi({
                 status: 'error',
                 progress: Math.max(1, bulkProgressPercent),
-                phaseLabel: '오류 발생',
-                errorMessage: `오류가 발생했습니다: ${errMsg}`,
+                    phaseLabel: BRAND_STATUS_LABELS.attention,
+                    errorMessage: `${BRAND_STATUS_LABELS.attention}가 필요합니다: ${errMsg}`,
             });
-            alert(`오류가 발생했습니다: ${errMsg}\n브라우저 메모리가 부족할 수 있습니다. 페이지를 새로고침 후 다시 시도해주세요.`);
+            alert(`${BRAND_STATUS_LABELS.attention}가 필요합니다: ${errMsg}\n브라우저 메모리가 부족할 수 있습니다. 페이지를 새로고침 후 다시 확인해주세요.`);
         } finally {
             setIsGenerating(false);
             setGeneratingRecord(null);
@@ -696,7 +697,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             alert(`증빙 패키지 ZIP 생성 완료 (${filteredRecords.length}건)`);
         } catch (e: unknown) {
             const msg = extractMessage(e);
-            alert(`증빙 패키지 생성 중 오류가 발생했습니다: ${msg}`);
+            alert(`증빙 패키지 생성 중 ${BRAND_STATUS_LABELS.attention}가 필요합니다: ${msg}`);
         } finally {
             setIsPackagingEvidence(false);
             setBulkProgress({ current: 0, total: 0 });
@@ -815,7 +816,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             setVerificationSummary(formatEvidenceVerificationSummary(result));
         } catch (error: unknown) {
             const message = extractMessage(error);
-            alert(`증빙 검증 중 오류가 발생했습니다: ${message}`);
+            alert(`증빙 검증 중 ${BRAND_STATUS_LABELS.attention}가 필요합니다: ${message}`);
         } finally {
             setIsVerifyingEvidence(false);
         }
@@ -1066,7 +1067,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 {verificationSummary && verificationResult && (
                     <div className={`rounded-xl border px-4 py-3 ${verificationResult.isValid ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
                         <p className={`text-xs font-black mb-2 ${verificationResult.isValid ? 'text-emerald-700' : 'text-rose-700'}`}>
-                            {verificationResult.isValid ? '검증 성공' : '검증 실패'}
+                            {verificationResult.isValid ? '검증 성공' : `검증 ${BRAND_STATUS_LABELS.attention}`}
                         </p>
                         <pre className="text-xs whitespace-pre-wrap text-slate-700 font-semibold">{verificationSummary}</pre>
 
