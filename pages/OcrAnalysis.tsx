@@ -13,6 +13,7 @@ import { MasterTemplateList, type MasterTemplate } from '../components/shared/Ma
 import { MasterAssignment, type MasterAssignmentItem, type MasterGroup } from '../components/shared/MasterAssignment';
 import { CollapsibleSection } from '../components/shared/CollapsibleSection';
 import { InterpretationCardGrid } from '../components/shared/InterpretationCardGrid';
+import { StatusEvidenceActionPanel } from '../components/shared/StatusEvidenceActionPanel';
 import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
 
 const buildMasterDataLoadErrorMessage = (rawMessage?: string) => {
@@ -3314,21 +3315,38 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             {getOcrErrorTypeKoreanLabel(errorType)}
                                         </span>
                                     </div>
-                                    <div className="mt-3 grid grid-cols-1 gap-2">
-                                        <div className="rounded-xl border border-white bg-white px-3 py-3">
-                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">지금 상태</p>
-                                            <p className="mt-1 text-[12px] font-black text-slate-900">{getOcrErrorTypeKoreanLabel(errorType)} 신호가 남아 있습니다</p>
-                                            <p className="mt-1 text-[11px] font-semibold text-slate-600 leading-snug">{guideMessage}</p>
-                                        </div>
-                                        <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-3">
-                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">판단 근거</p>
-                                            <p className="mt-1 text-[11px] font-semibold text-amber-800 leading-snug">{preflightReason ? `사전검증: ${preflightReason}` : '사전검증 경고는 없지만 원문/배치/필기 품질을 다시 확인할 필요가 있습니다.'}</p>
-                                        </div>
-                                        <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-3">
-                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600">다음 행동</p>
-                                            <p className="mt-1 text-[11px] font-semibold text-emerald-800 leading-snug">{actionGuide}</p>
-                                        </div>
-                                    </div>
+                                    <StatusEvidenceActionPanel
+                                        className="mt-3 grid grid-cols-1 gap-2"
+                                        cardClassName="rounded-xl border px-3 py-3"
+                                        titleClassName="mt-1 text-[12px] font-black text-slate-900"
+                                        descriptionClassName="mt-1 text-[11px] font-semibold leading-snug text-slate-600"
+                                        items={[
+                                            {
+                                                key: `${record.id}-status`,
+                                                eyebrow: '지금 상태',
+                                                title: `${getOcrErrorTypeKoreanLabel(errorType)} 신호가 남아 있습니다`,
+                                                description: guideMessage,
+                                                tone: 'border-white bg-white',
+                                                eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
+                                            },
+                                            {
+                                                key: `${record.id}-evidence`,
+                                                eyebrow: '판단 근거',
+                                                title: preflightReason ? `사전검증: ${preflightReason}` : '사전검증 경고는 없지만 원문/배치/필기 품질을 다시 확인할 필요가 있습니다.',
+                                                tone: 'border-amber-100 bg-amber-50',
+                                                eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-600',
+                                                description: undefined,
+                                            },
+                                            {
+                                                key: `${record.id}-action`,
+                                                eyebrow: '다음 행동',
+                                                title: actionGuide,
+                                                tone: 'border-emerald-100 bg-emerald-50',
+                                                eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600',
+                                                description: undefined,
+                                            },
+                                        ]}
+                                    />
                                     <div className="mt-3 flex flex-wrap gap-2">
                                         <button
                                             type="button"
@@ -3562,30 +3580,50 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             {record.weakCorrection && <span className="px-2 py-1 rounded-full bg-violet-100 text-violet-700 text-[10px] font-black">수정사유 약함</span>}
                                         </div>
                                     </div>
-                                    <div className="mt-2 space-y-2 text-[11px]">
-                                        <div className="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2">
-                                            <p className="font-black text-rose-600 uppercase tracking-[0.18em]">지금 상태</p>
-                                            <p className="mt-1 font-semibold text-rose-800 leading-snug whitespace-pre-wrap break-words">
-                                                {record.missingDecisionReason
+                                    <StatusEvidenceActionPanel
+                                        className="mt-2 space-y-2 text-[11px]"
+                                        cardClassName="rounded-lg px-3 py-2"
+                                        titleClassName="mt-1 font-semibold leading-snug whitespace-pre-wrap break-words text-slate-700"
+                                        descriptionClassName="mt-1 font-semibold leading-snug whitespace-pre-wrap break-words text-slate-700"
+                                        items={[
+                                            {
+                                                key: `${record.id}-qa-status`,
+                                                eyebrow: '지금 상태',
+                                                title: record.missingDecisionReason
                                                     ? '승인/검토 사유가 비어 있습니다.'
                                                     : record.weakDecisionReason
                                                         ? '승인/검토 사유가 너무 짧거나 일반적입니다.'
-                                                        : '수정 사유가 충분히 남지 않았습니다.'}
-                                            </p>
-                                        </div>
-                                        <div className="rounded-lg bg-slate-50 px-3 py-2">
-                                            <p className="font-black text-slate-500">판단 근거 · 승인/검토 사유</p>
-                                            <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{record.decisionReason || '사유 없음'}</p>
-                                        </div>
-                                        <div className="rounded-lg bg-slate-50 px-3 py-2">
-                                            <p className="font-black text-slate-500">판단 근거 · 최근 수정 사유</p>
-                                            <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{record.correctionReason || '수정 사유 없음'}</p>
-                                        </div>
-                                        <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
-                                            <p className="font-black text-emerald-600 uppercase tracking-[0.18em]">다음 행동</p>
-                                            <p className="mt-1 font-semibold text-emerald-800 leading-snug">상세 화면에서 검토 근거, 확인 범위, 반영 내용을 한 문장 이상으로 남겨 QA 잔여를 줄이세요.</p>
-                                        </div>
-                                    </div>
+                                                        : '수정 사유가 충분히 남지 않았습니다.',
+                                                tone: 'border border-rose-100 bg-rose-50',
+                                                eyebrowClassName: 'font-black text-rose-600 uppercase tracking-[0.18em]',
+                                                description: undefined,
+                                            },
+                                            {
+                                                key: `${record.id}-qa-decision`,
+                                                eyebrow: '판단 근거 · 승인/검토 사유',
+                                                title: record.decisionReason || '사유 없음',
+                                                tone: 'bg-slate-50',
+                                                eyebrowClassName: 'font-black text-slate-500',
+                                                description: undefined,
+                                            },
+                                            {
+                                                key: `${record.id}-qa-correction`,
+                                                eyebrow: '판단 근거 · 최근 수정 사유',
+                                                title: record.correctionReason || '수정 사유 없음',
+                                                tone: 'bg-slate-50',
+                                                eyebrowClassName: 'font-black text-slate-500',
+                                                description: undefined,
+                                            },
+                                            {
+                                                key: `${record.id}-qa-action`,
+                                                eyebrow: '다음 행동',
+                                                title: '상세 화면에서 검토 근거, 확인 범위, 반영 내용을 한 문장 이상으로 남겨 QA 잔여를 줄이세요.',
+                                                tone: 'border border-emerald-100 bg-emerald-50',
+                                                eyebrowClassName: 'font-black text-emerald-600 uppercase tracking-[0.18em]',
+                                                description: undefined,
+                                            },
+                                        ]}
+                                    />
                                     <div className="mt-3 flex flex-wrap gap-2">
                                         <button
                                             type="button"
@@ -4215,20 +4253,38 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     </div>
                                 )}
 
-                                <div className="mt-3 grid grid-cols-1 gap-2 text-[11px]">
-                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                        <p className="font-black text-slate-400 uppercase tracking-[0.18em]">지금 상태</p>
-                                        <p className="mt-1 font-semibold text-slate-700 leading-snug">{rowStatusSummary}</p>
-                                    </div>
-                                    <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
-                                        <p className="font-black text-amber-600 uppercase tracking-[0.18em]">판단 근거</p>
-                                        <p className="mt-1 font-semibold text-amber-800 leading-snug whitespace-pre-wrap break-words">{rowEvidenceSummary}</p>
-                                    </div>
-                                    <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
-                                        <p className="font-black text-emerald-600 uppercase tracking-[0.18em]">다음 행동</p>
-                                        <p className="mt-1 font-semibold text-emerald-800 leading-snug">{rowNextAction}</p>
-                                    </div>
-                                </div>
+                                <StatusEvidenceActionPanel
+                                    className="mt-3 grid grid-cols-1 gap-2 text-[11px]"
+                                    cardClassName="rounded-xl border px-3 py-2"
+                                    titleClassName="mt-1 font-semibold leading-snug text-slate-700"
+                                    descriptionClassName="mt-1 font-semibold leading-snug whitespace-pre-wrap break-words text-slate-700"
+                                    items={[
+                                        {
+                                            key: `${r.id}-row-status`,
+                                            eyebrow: '지금 상태',
+                                            title: rowStatusSummary,
+                                            tone: 'border-slate-200 bg-slate-50',
+                                            eyebrowClassName: 'font-black text-slate-400 uppercase tracking-[0.18em]',
+                                            description: undefined,
+                                        },
+                                        {
+                                            key: `${r.id}-row-evidence`,
+                                            eyebrow: '판단 근거',
+                                            title: rowEvidenceSummary,
+                                            tone: 'border-amber-100 bg-amber-50',
+                                            eyebrowClassName: 'font-black text-amber-600 uppercase tracking-[0.18em]',
+                                            description: undefined,
+                                        },
+                                        {
+                                            key: `${r.id}-row-action`,
+                                            eyebrow: '다음 행동',
+                                            title: rowNextAction,
+                                            tone: 'border-emerald-100 bg-emerald-50',
+                                            eyebrowClassName: 'font-black text-emerald-600 uppercase tracking-[0.18em]',
+                                            description: undefined,
+                                        },
+                                    ]}
+                                />
 
                                 <div className="mt-3 grid grid-cols-2 gap-2">
                                     <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-3 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl">상세 판단</button>

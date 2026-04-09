@@ -9,6 +9,7 @@ import { postAdminJson } from '../utils/adminApiClient';
 import { ensureHtml2Canvas, ensureQRCodeJs } from '../utils/externalScripts';
 import { BRAND_ACTION_LABELS, BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
+import { StatusEvidenceActionPanel } from '../components/shared/StatusEvidenceActionPanel';
 import { canvasToBlob, captureReportCanvases } from '../utils/pdfCapture';
 import { getWindowProp } from '../utils/windowUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
@@ -4749,42 +4750,55 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                             <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black text-slate-700">우선순위 {row.priority_score}</span>
                                                         </div>
                                                     </div>
-                                                    <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
-                                                        <div className={`rounded-xl border px-3 py-3 ${actionable ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
-                                                            <p className={`text-[10px] font-black uppercase tracking-[0.16em] ${actionable ? 'text-emerald-700' : 'text-rose-700'}`}>지금 상태</p>
-                                                            <p className="mt-1 text-[11px] font-black text-slate-900">
-                                                                {actionable ? '등록 정보와 리포트 원본이 연결돼 바로 다시 보낼 수 있습니다.' : `재발송 전에 ${blockers.length}가지 확인이 더 필요합니다.`}
-                                                            </p>
-                                                            <p className="mt-1 text-[10px] font-bold text-slate-500">{row.failure_category} · {formatMessageLogDateTime(row.failed_at)}</p>
-                                                        </div>
-                                                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">판단 근거</p>
-                                                            <p className="mt-1 text-[11px] font-black text-slate-900 break-words">{row.message || row.provider || '-'}</p>
-                                                            <div className="mt-2 flex flex-wrap gap-1.5">
-                                                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${matchedWorker ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
-                                                                    {matchedWorker ? '등록 근로자 연결됨' : '등록 근로자 매칭 없음'}
-                                                                </span>
-                                                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${matchedRecord ? 'border-sky-200 bg-sky-50 text-sky-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
-                                                                    {matchedRecord ? '리포트 원본 확인됨' : '리포트 원본 없음'}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                        <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3">
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">다음 행동</p>
-                                                            <p className="mt-1 text-[11px] font-black text-slate-900">
-                                                                {actionable ? '이력 확인 후 즉시 재발송 대상으로 묶거나 원본 리포트를 열어 최종 판단하세요.' : '차단 원인을 먼저 풀어야 동일 실패를 반복하지 않습니다.'}
-                                                            </p>
-                                                            {blockers.length > 0 && (
-                                                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                                                    {blockers.map((blocker) => (
-                                                                        <span key={`${row.retry_key}-${blocker}`} className="inline-flex items-center rounded-full border border-rose-200 bg-white px-2 py-0.5 text-[10px] font-black text-rose-700">
-                                                                            {blocker}
+                                                    <StatusEvidenceActionPanel
+                                                        className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3"
+                                                        cardClassName="rounded-xl border px-3 py-3"
+                                                        titleClassName="mt-1 text-[11px] font-black text-slate-900"
+                                                        descriptionClassName="mt-1 text-[10px] font-bold text-slate-500"
+                                                        items={[
+                                                            {
+                                                                key: `${row.retry_key}-status`,
+                                                                eyebrow: '지금 상태',
+                                                                title: actionable ? '등록 정보와 리포트 원본이 연결돼 바로 다시 보낼 수 있습니다.' : `재발송 전에 ${blockers.length}가지 확인이 더 필요합니다.`,
+                                                                description: `${row.failure_category} · ${formatMessageLogDateTime(row.failed_at)}`,
+                                                                tone: actionable ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50',
+                                                                eyebrowClassName: `text-[10px] font-black uppercase tracking-[0.16em] ${actionable ? 'text-emerald-700' : 'text-rose-700'}`,
+                                                            },
+                                                            {
+                                                                key: `${row.retry_key}-evidence`,
+                                                                eyebrow: '판단 근거',
+                                                                title: <span className="break-words">{row.message || row.provider || '-'}</span>,
+                                                                tone: 'border-slate-200 bg-slate-50',
+                                                                eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-slate-500',
+                                                                content: (
+                                                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${matchedWorker ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+                                                                            {matchedWorker ? '등록 근로자 연결됨' : '등록 근로자 매칭 없음'}
                                                                         </span>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
+                                                                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${matchedRecord ? 'border-sky-200 bg-sky-50 text-sky-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+                                                                            {matchedRecord ? '리포트 원본 확인됨' : '리포트 원본 없음'}
+                                                                        </span>
+                                                                    </div>
+                                                                ),
+                                                            },
+                                                            {
+                                                                key: `${row.retry_key}-action`,
+                                                                eyebrow: '다음 행동',
+                                                                title: actionable ? '이력 확인 후 즉시 재발송 대상으로 묶거나 원본 리포트를 열어 최종 판단하세요.' : '차단 원인을 먼저 풀어야 동일 실패를 반복하지 않습니다.',
+                                                                tone: 'border-indigo-200 bg-indigo-50',
+                                                                eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700',
+                                                                content: blockers.length > 0 ? (
+                                                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                        {blockers.map((blocker) => (
+                                                                            <span key={`${row.retry_key}-${blocker}`} className="inline-flex items-center rounded-full border border-rose-200 bg-white px-2 py-0.5 text-[10px] font-black text-rose-700">
+                                                                                {blocker}
+                                                                            </span>
+                                                                        ))}
+                                                                    </div>
+                                                                ) : null,
+                                                            },
+                                                        ]}
+                                                    />
                                                     {blockers.length > 0 && (
                                                         <p className="mt-2 text-[10px] font-bold text-rose-600">차단 원인을 해결한 뒤 다시 보낼 대상을 선택하는 것이 안전합니다.</p>
                                                     )}
@@ -5596,41 +5610,58 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         )}
                                     </td>
                                     <td className="px-4 py-3 align-top">
-                                        <div className="min-w-[280px] space-y-2">
-                                            <div className={`rounded-xl border px-3 py-2 ${isActionReady ? 'border-emerald-200 bg-emerald-50' : isSuggestedDelete ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
-                                                <p className={`text-[10px] font-black uppercase tracking-[0.16em] ${isActionReady ? 'text-emerald-700' : isSuggestedDelete ? 'text-amber-700' : 'text-slate-500'}`}>지금 상태</p>
-                                                <p className="mt-1 text-[11px] font-black text-slate-900">{stateTitle}</p>
-                                            </div>
-                                            <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">판단 근거</p>
-                                                <p className="mt-1 text-[11px] font-bold text-slate-600">{evidenceSummary}</p>
-                                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                                    {duplicateMeta?.groupLabels.size ? Array.from(duplicateMeta.groupLabels).map((label) => (
-                                                        <span key={`${worker.id}-${label}`} className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-700">
-                                                            {label}
-                                                        </span>
-                                                    )) : (
-                                                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black text-slate-500">
-                                                            중복 신호 없음
-                                                        </span>
-                                                    )}
-                                                    {duplicateMeta && (
-                                                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${duplicateMeta.suggestedDelete ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
-                                                            {duplicateMeta.suggestedDelete ? '삭제 권장' : '보존 후보'}
-                                                        </span>
-                                                    )}
-                                                    {missingLabels.map((label) => (
-                                                        <span key={`${worker.id}-${label}`} className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-700">
-                                                            {label}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                            <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2">
-                                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">다음 행동</p>
-                                                <p className="mt-1 text-[11px] font-bold text-slate-700">{nextActionSummary}</p>
-                                            </div>
-                                        </div>
+                                        <StatusEvidenceActionPanel
+                                            className="min-w-[280px] space-y-2"
+                                            cardClassName="rounded-xl border px-3 py-2"
+                                            titleClassName="mt-1 text-[11px] font-black text-slate-900"
+                                            descriptionClassName="mt-1 text-[11px] font-bold text-slate-600"
+                                            items={[
+                                                {
+                                                    key: `${worker.id}-status`,
+                                                    eyebrow: '지금 상태',
+                                                    title: stateTitle,
+                                                    tone: isActionReady ? 'border-emerald-200 bg-emerald-50' : isSuggestedDelete ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50',
+                                                    eyebrowClassName: `text-[10px] font-black uppercase tracking-[0.16em] ${isActionReady ? 'text-emerald-700' : isSuggestedDelete ? 'text-amber-700' : 'text-slate-500'}`,
+                                                },
+                                                {
+                                                    key: `${worker.id}-evidence`,
+                                                    eyebrow: '판단 근거',
+                                                    title: evidenceSummary,
+                                                    tone: 'border-slate-200 bg-white',
+                                                    eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-slate-500',
+                                                    content: (
+                                                        <div className="mt-2 flex flex-wrap gap-1.5">
+                                                            {duplicateMeta?.groupLabels.size ? Array.from(duplicateMeta.groupLabels).map((label) => (
+                                                                <span key={`${worker.id}-${label}`} className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-700">
+                                                                    {label}
+                                                                </span>
+                                                            )) : (
+                                                                <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black text-slate-500">
+                                                                    중복 신호 없음
+                                                                </span>
+                                                            )}
+                                                            {duplicateMeta && (
+                                                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${duplicateMeta.suggestedDelete ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                                                                    {duplicateMeta.suggestedDelete ? '삭제 권장' : '보존 후보'}
+                                                                </span>
+                                                            )}
+                                                            {missingLabels.map((label) => (
+                                                                <span key={`${worker.id}-${label}`} className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-700">
+                                                                    {label}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    ),
+                                                },
+                                                {
+                                                    key: `${worker.id}-action`,
+                                                    eyebrow: '다음 행동',
+                                                    title: nextActionSummary,
+                                                    tone: 'border-indigo-200 bg-indigo-50',
+                                                    eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700',
+                                                },
+                                            ]}
+                                        />
                                     </td>
                                 </tr>
                                 );

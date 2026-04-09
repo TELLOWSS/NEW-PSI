@@ -16,6 +16,7 @@ import { postAdminJson } from '../utils/adminApiClient';
 import { isAdminAuthenticated } from '../utils/adminGuard';
 import { BRAND_STATUS_LABELS, TRAFFIC_LIGHT_BRAND_LABELS, VIOLATION_BRAND_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
+import { StatusEvidenceActionPanel } from '../components/shared/StatusEvidenceActionPanel';
 import { compressImage } from '../utils/imageCompression';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1176,29 +1177,32 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                                 <p className="text-sm text-slate-600">{v.issueDate}{v.dueDate ? ` → 기한: ${v.dueDate}` : ''}{v.responsibleTeam ? ` · ${v.responsibleTeam}` : ''}</p>
                                 <p className="text-base font-semibold leading-relaxed text-slate-700">{v.description}</p>
                                 {v.photo && <img src={`data:image/jpeg;base64,${v.photo}`} alt="지적" className="w-20 h-20 object-cover rounded-lg border border-slate-200" />}
-                                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">지금 상태</p>
-                                        <p className="mt-2 text-sm font-black text-slate-900">{stMeta.label}</p>
-                                        <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-600">
-                                            {isOverdue ? '기한이 지나 우선 조치가 필요한 상태입니다.' : v.status === 'resolved' ? '조치 완료 상태로 기록이 정리되고 있습니다.' : '현장 확인과 후속 조치를 이어가야 하는 단계입니다.'}
-                                        </p>
-                                    </div>
-                                    <div className="rounded-2xl border border-slate-200 bg-white px-3.5 py-3">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">판단 근거</p>
-                                        <p className="mt-2 text-sm font-black text-slate-900">{v.category} · {v.severity}</p>
-                                        <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-600">
-                                            {v.source === 'external' && v.externalAuthority ? `${v.externalAuthority} 지적이며 ` : ''}{v.responsibleTeam ? `${v.responsibleTeam} 팀이 대응 대상으로 지정되어 있습니다.` : '책임 팀 지정 전 상태입니다.'}
-                                        </p>
-                                    </div>
-                                    <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-3.5 py-3">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-700">다음 행동</p>
-                                        <p className="mt-2 text-sm font-black text-slate-900">상태 변경과 조치 메모를 이어서 남기세요.</p>
-                                        <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-700">
-                                            {v.status === 'resolved' ? '필요하면 조치 내용을 짧게 남겨 후속 확인 근거를 보완하세요.' : '아래 상태 버튼으로 진행 상황을 갱신하고, 완료 시 조치 메모를 기록하면 됩니다.'}
-                                        </p>
-                                    </div>
-                                </div>
+                                <StatusEvidenceActionPanel
+                                    items={[
+                                        {
+                                            key: `${v.id}-status`,
+                                            eyebrow: '지금 상태',
+                                            title: stMeta.label,
+                                            description: isOverdue ? '기한이 지나 우선 조치가 필요한 상태입니다.' : v.status === 'resolved' ? '조치 완료 상태로 기록이 정리되고 있습니다.' : '현장 확인과 후속 조치를 이어가야 하는 단계입니다.',
+                                            tone: 'border-slate-200 bg-slate-50',
+                                        },
+                                        {
+                                            key: `${v.id}-evidence`,
+                                            eyebrow: '판단 근거',
+                                            title: `${v.category} · ${v.severity}`,
+                                            description: `${v.source === 'external' && v.externalAuthority ? `${v.externalAuthority} 지적이며 ` : ''}${v.responsibleTeam ? `${v.responsibleTeam} 팀이 대응 대상으로 지정되어 있습니다.` : '책임 팀 지정 전 상태입니다.'}`,
+                                            tone: 'border-slate-200 bg-white',
+                                        },
+                                        {
+                                            key: `${v.id}-action`,
+                                            eyebrow: '다음 행동',
+                                            title: '상태 변경과 조치 메모를 이어서 남기세요.',
+                                            description: v.status === 'resolved' ? '필요하면 조치 내용을 짧게 남겨 후속 확인 근거를 보완하세요.' : '아래 상태 버튼으로 진행 상황을 갱신하고, 완료 시 조치 메모를 기록하면 됩니다.',
+                                            tone: 'border-amber-200 bg-amber-50/70',
+                                            eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.22em] text-amber-700',
+                                        },
+                                    ]}
+                                />
                                 {/* 조치 상태 변경 */}
                                 <div className="flex flex-wrap gap-1.5 pt-3 border-t border-slate-100">
                                     {(['open', 'in-progress', 'resolved'] as ViolationStatus[]).map(s => (

@@ -5,6 +5,7 @@ import { analyzeExternalIssueDocument } from '../services/geminiService';
 import { compressImage } from '../utils/imageCompression';
 import { BRAND_STATUS_LABELS, VIOLATION_BRAND_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
+import { StatusEvidenceActionPanel } from '../components/shared/StatusEvidenceActionPanel';
 
 interface Issue {
     id: string;
@@ -384,33 +385,45 @@ const SiteIssueManagement: React.FC = () => {
                                 
                                 <p className="text-slate-700 font-medium mb-4 flex-1">{issue.description}</p>
 
-                                <div className="grid grid-cols-1 xl:grid-cols-3 gap-2 mb-4">
-                                    <div className={`rounded-xl border px-3 py-3 ${issue.status === '조치 완료' ? 'border-emerald-200 bg-emerald-50' : issue.status === '조치 중' ? 'border-sky-200 bg-sky-50' : 'border-rose-200 bg-rose-50'}`}>
-                                        <p className={`text-[10px] font-black uppercase tracking-[0.16em] ${issue.status === '조치 완료' ? 'text-emerald-700' : issue.status === '조치 중' ? 'text-sky-700' : 'text-rose-700'}`}>지금 상태</p>
-                                        <p className="mt-1 text-[11px] font-black text-slate-900">
-                                            {issue.status === '조치 완료'
+                                <StatusEvidenceActionPanel
+                                    className="mb-4 grid grid-cols-1 gap-2 xl:grid-cols-3"
+                                    cardClassName="rounded-xl border px-3 py-3"
+                                    titleClassName="mt-1 text-[11px] font-black text-slate-900"
+                                    descriptionClassName="mt-1 text-[11px] font-bold text-slate-600"
+                                    items={[
+                                        {
+                                            key: `${issue.id}-status`,
+                                            eyebrow: '지금 상태',
+                                            title: issue.status === '조치 완료'
                                                 ? '현장 보완이 마무리되어 종료 확인 단계입니다.'
                                                 : issue.status === '조치 중'
                                                     ? '현재 보완이 진행 중이라 후속 확인이 필요한 상태입니다.'
-                                                    : '아직 검토와 담당자 연결이 더 필요한 상태입니다.'}
-                                        </p>
-                                    </div>
-                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">판단 근거</p>
-                                        <p className="mt-1 text-[11px] font-bold text-slate-700">위험도 {issue.riskLevel || 'Medium'} · 담당자 {issue.responsiblePerson || '미지정'}</p>
-                                        <p className="mt-1 text-[11px] font-bold text-slate-600">{issue.actionRequired || '조치 요구 문구가 아직 정리되지 않았습니다.'}</p>
-                                    </div>
-                                    <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">다음 행동</p>
-                                        <p className="mt-1 text-[11px] font-bold text-slate-700">
-                                            {issue.status === '조치 완료'
+                                                    : '아직 검토와 담당자 연결이 더 필요한 상태입니다.',
+                                            tone: issue.status === '조치 완료' ? 'border-emerald-200 bg-emerald-50' : issue.status === '조치 중' ? 'border-sky-200 bg-sky-50' : 'border-rose-200 bg-rose-50',
+                                            eyebrowClassName: `text-[10px] font-black uppercase tracking-[0.16em] ${issue.status === '조치 완료' ? 'text-emerald-700' : issue.status === '조치 중' ? 'text-sky-700' : 'text-rose-700'}`,
+                                            description: `${issue.date} ${issue.time}`,
+                                        },
+                                        {
+                                            key: `${issue.id}-evidence`,
+                                            eyebrow: '판단 근거',
+                                            title: `위험도 ${issue.riskLevel || 'Medium'} · 담당자 ${issue.responsiblePerson || '미지정'}`,
+                                            description: issue.actionRequired || '조치 요구 문구가 아직 정리되지 않았습니다.',
+                                            tone: 'border-slate-200 bg-slate-50',
+                                            eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-slate-500',
+                                        },
+                                        {
+                                            key: `${issue.id}-action`,
+                                            eyebrow: '다음 행동',
+                                            title: issue.status === '조치 완료'
                                                 ? '동일 유형이 반복되는지만 추적하면 됩니다.'
                                                 : issue.status === '조치 중'
                                                     ? '조치 요구가 실제로 반영됐는지 완료 처리 전 한 번 더 확인하세요.'
-                                                    : '담당자 지정과 조치 시작을 먼저 연결해 현장 대기 시간을 줄이세요.'}
-                                        </p>
-                                    </div>
-                                </div>
+                                                    : '담당자 지정과 조치 시작을 먼저 연결해 현장 대기 시간을 줄이세요.',
+                                            tone: 'border-indigo-200 bg-indigo-50',
+                                            eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700',
+                                        },
+                                    ]}
+                                />
                                 
                                 {issue.actionRequired && (
                                     <div className="bg-slate-50 p-3 rounded-md text-sm text-slate-600 mb-4 border border-slate-200">
