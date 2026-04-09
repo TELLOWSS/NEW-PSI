@@ -11,8 +11,9 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { postAdminJson } from '../utils/adminApiClient';
-import { TRAFFIC_LIGHT_BRAND_LABELS } from '../utils/brandLabels';
+import { BRAND_STATUS_LABELS, TRAFFIC_LIGHT_BRAND_LABELS } from '../utils/brandLabels';
 import type { WorkerRecord } from '../types';
+import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 
 // -----------------------------------------------------------------------
 // 상수 / 프리셋 목록 (API와 동기화)
@@ -108,12 +109,12 @@ function trafficLightConfig(light: TrafficLight) {
 
 function reasonCodeToKo(code: string): string {
     const map: Record<string, string> = {
-        EDUCATION_INCOMPLETE: '교육 확인 필요',
-        COACHING_MISSING: '코칭 확인 필요',
+        EDUCATION_INCOMPLETE: `교육 ${BRAND_STATUS_LABELS.attention}`,
+        COACHING_MISSING: `코칭 ${BRAND_STATUS_LABELS.attention}`,
         REPEAT_VIOLATION: '반복 위반',
         TIMELINE_MISMATCH: '타임라인 추가 확인',
         DOCUMENT_INSUFFICIENT: '문서 점수 보완 필요',
-        FOLLOWUP_PENDING: '사후조치 확인 필요',
+        FOLLOWUP_PENDING: `사후조치 ${BRAND_STATUS_LABELS.attention}`,
     };
     return map[code] || code;
 }
@@ -141,7 +142,7 @@ function buildWorkerOptionLabel(worker: Pick<WorkerRecord, 'name' | 'jobField' |
 // -----------------------------------------------------------------------
 async function callApi(endpoint: string, body: object): Promise<{ ok: boolean; [key: string]: any }> {
     return postAdminJson<{ ok: boolean; [key: string]: any }>(endpoint, body, {
-        fallbackMessage: '관리자 API 호출 확인 필요',
+        fallbackMessage: `관리자 API 호출 ${BRAND_STATUS_LABELS.attention}`,
     });
 }
 
@@ -179,6 +180,36 @@ const ObserveTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }>
     const [actionDetail, setActionDetail] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+    const observeInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
+        return [
+            {
+                eyebrow: '지금 상태',
+                title: `현재 ${selectedWorkers.size}명을 관찰·코칭 대상에 묶고 있습니다.`,
+                description: selectedWorkers.size > 0
+                    ? '여러 근로자를 한 번에 연결해 같은 현장 신호를 동일 기준으로 남길 수 있습니다.'
+                    : '먼저 대상 근로자를 고르면 현장 관찰과 코칭 기록이 누구에게 연결되는지 분명해집니다.',
+            },
+            {
+                eyebrow: '판단 근거',
+                title: `${behaviorPreset || '불안전행동 미선택'} · 심각도 ${severity} · ${includeCoaching ? '코칭 동시 등록 ON' : '코칭 동시 등록 OFF'}`,
+                description: includeCoaching
+                    ? `${actionType || '조치 유형 미선택'} / 사후조치 ${followupResult} 기준으로 관찰과 코칭을 같은 기록 흐름으로 묶고 있습니다.`
+                    : '현재는 순수 관찰 기록만 남기고 있어, 후속 코칭은 별도 판단으로 이어집니다.',
+            },
+            {
+                eyebrow: '다음 행동',
+                title: selectedWorkers.size === 0
+                    ? '대상 근로자를 먼저 선택하세요.'
+                    : !behaviorPreset
+                        ? '불안전행동 유형을 먼저 고르세요.'
+                        : includeCoaching && !actionType
+                            ? '코칭 조치 유형을 선택하면 통합 등록이 가능합니다.'
+                            : '이제 통합 등록을 실행해 관찰과 코칭을 한 번에 남기세요.',
+                description: '현장 입력은 지적보다 보완 흐름을 빠르게 여는 것이 목적이므로, 같은 상황을 같은 프리셋 기준으로 남기는 것이 중요합니다.',
+            },
+        ];
+    }, [actionType, behaviorPreset, followupResult, includeCoaching, selectedWorkers.size, severity]);
 
     const toggleWorker = (id: string) => {
         setSelectedWorkers((prev) => {
@@ -243,6 +274,14 @@ const ObserveTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }>
 
     return (
         <div className="space-y-5">
+            <InterpretationCardGrid
+                items={observeInterpretationCards}
+                className="grid-cols-1 xl:grid-cols-3"
+                cardClassName="border-slate-200 bg-slate-50"
+                eyebrowClassName="text-slate-500"
+                titleClassName="text-slate-900"
+                descriptionClassName="text-slate-600"
+            />
             {/* 근로자 선택 + 필터/검색 */}
             <div className="bg-white rounded-xl border border-slate-200 p-4">
                 <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-3">
@@ -487,6 +526,34 @@ const CoachingTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth })
     const [submitting, setSubmitting] = useState(false);
     const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+    const coachingInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
+        return [
+            {
+                eyebrow: '지금 상태',
+                title: `현재 ${selectedWorkers.size}명을 코칭 후속조치 대상으로 보고 있습니다.`,
+                description: selectedWorkers.size > 0
+                    ? '대상을 먼저 좁혀 두면 같은 조치 유형을 묶어 후속 기록 품질을 일정하게 유지할 수 있습니다.'
+                    : '코칭은 누가 보완 대상인지 먼저 분명히 해야 후속 기록의 신뢰가 생깁니다.',
+            },
+            {
+                eyebrow: '판단 근거',
+                title: `${actionType || '조치 유형 미선택'} · 사후조치 ${followupResult}`,
+                description: coachName || actionDetail
+                    ? `코치 ${coachName || '미기록'} / 메모 ${actionDetail || '미기록'}로 후속 근거를 함께 남기고 있습니다.`
+                    : '코치 이름과 메모가 없어도 등록은 가능하지만, 실제 개선 확인 근거는 약해질 수 있습니다.',
+            },
+            {
+                eyebrow: '다음 행동',
+                title: selectedWorkers.size === 0
+                    ? '코칭 대상 근로자를 먼저 선택하세요.'
+                    : !actionType
+                        ? '조치 유형을 먼저 고르세요.'
+                        : '이제 코칭 조치를 일괄 등록하고 후속 결과를 추적하세요.',
+                description: '사후조치 결과까지 함께 남겨야 단순 교육 여부가 아니라 실제 개선 여부를 계속 읽을 수 있습니다.',
+            },
+        ];
+    }, [actionDetail, actionType, coachName, followupResult, selectedWorkers.size]);
+
     const toggleWorker = (id: string) => {
         setSelectedWorkers((prev) => {
             const next = new Set(prev);
@@ -530,6 +597,14 @@ const CoachingTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth })
 
     return (
         <div className="space-y-5">
+            <InterpretationCardGrid
+                items={coachingInterpretationCards}
+                className="grid-cols-1 xl:grid-cols-3"
+                cardClassName="border-slate-200 bg-slate-50"
+                eyebrowClassName="text-slate-500"
+                titleClassName="text-slate-900"
+                descriptionClassName="text-slate-600"
+            />
             {/* 근로자 선택 */}
             <div className="bg-white rounded-xl border border-slate-200 p-4">
                 <h3 className="font-bold text-slate-800 text-sm mb-3">코칭 대상 근로자</h3>
@@ -690,8 +765,48 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
         red: reviews.filter((r) => r.traffic_light === 'red').length,
     };
 
+    const reviewInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
+        return [
+            {
+                eyebrow: '지금 상태',
+                title: reviews.length > 0
+                    ? `${assessmentMonth} 기준 ${reviews.length}명에 대한 무결성 판정 결과를 보고 있습니다.`
+                    : '아직 자동 판정이 실행되지 않아 현재 월 상태를 읽을 결과가 없습니다.',
+                description: reviews.length > 0
+                    ? `${summary.red + summary.yellow}명은 추가 확인이 필요해, 현장 보완 흐름을 다시 점검해야 하는 상태입니다.`
+                    : '판정을 실행하면 관찰·코칭·사후조치 기록이 실제로 닫히고 있는지 한 번에 읽을 수 있습니다.',
+            },
+            {
+                eyebrow: '판단 근거',
+                title: `🟢 ${summary.green} · 🟡 ${summary.yellow} · 🔴 ${summary.red}`,
+                description: summary.red > 0
+                    ? '빨간 신호는 교육·코칭·사후조치 중 하나 이상이 비어 있거나 반복 위반 신호가 남아 있다는 뜻입니다.'
+                    : reviews.length > 0
+                        ? '빨간 신호 없이 운영되고 있어, 현재는 노란 신호 중심으로만 보완 우선순위를 나누면 됩니다.'
+                        : '아직 결과가 없어 분포 근거를 만들지 못했습니다.',
+            },
+            {
+                eyebrow: '다음 행동',
+                title: summary.red > 0
+                    ? '빨간 신호 근로자부터 사유 코드를 확인해 먼저 보완하세요.'
+                    : reviews.length > 0
+                        ? '노란 신호의 사유 코드를 보며 예방형 코칭으로 옮기세요.'
+                        : '자동 판정 실행을 눌러 이번 달 상태를 먼저 읽어 보세요.',
+                description: '점수만 보는 대신 사유 코드를 함께 봐야 왜 신호가 바뀌었는지 현장 수준에서 설명할 수 있습니다.',
+            },
+        ];
+    }, [assessmentMonth, reviews.length, summary.green, summary.red, summary.yellow]);
+
     return (
         <div className="space-y-5">
+            <InterpretationCardGrid
+                items={reviewInterpretationCards}
+                className="grid-cols-1 xl:grid-cols-3"
+                cardClassName="border-slate-200 bg-slate-50"
+                eyebrowClassName="text-slate-500"
+                titleClassName="text-slate-900"
+                descriptionClassName="text-slate-600"
+            />
             {/* 실행 버튼 */}
             <div className="flex items-center justify-between">
                 <div>
@@ -845,6 +960,28 @@ const SafetyBehaviorManagement: React.FC<SafetyBehaviorManagementProps> = ({ wor
         { id: 'review', label: '무결성 판정', icon: '🏷️' },
     ];
 
+    const pageInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
+        return [
+            {
+                eyebrow: '지금 상태',
+                title: `${workerOptions.length}명 기준으로 불안전행동 관찰, 코칭, 무결성 판정을 한 흐름에서 관리합니다.`,
+                description: '이 화면은 현장 신호를 발견하는 단계와 보완이 실제로 닫히는 단계를 분리하지 않고 이어서 보게 만드는 운영 허브입니다.',
+            },
+            {
+                eyebrow: '판단 근거',
+                title: activeTab === 'observe' ? '현재는 관찰·코칭 입력 흐름을 보고 있습니다.' : '현재는 무결성 판정 결과를 보고 있습니다.',
+                description: activeTab === 'observe'
+                    ? '프리셋과 일괄 선택을 이용하면 동일 현장 신호를 빠르게 기록해 입력 누락을 줄일 수 있습니다.'
+                    : '트래픽라이트 결과를 이용하면 어느 근로자에게 후속 개입이 더 필요한지 즉시 가를 수 있습니다.',
+            },
+            {
+                eyebrow: '다음 행동',
+                title: activeTab === 'observe' ? '관찰과 코칭을 먼저 기록한 뒤 무결성 판정으로 넘어가세요.' : '빨간·노란 신호를 다시 observe 흐름으로 연결해 보완하세요.',
+                description: '기록과 판정을 왕복해야 폐루프가 완성되므로, 한 탭에서 멈추지 않고 다음 탭으로 이어 보는 것이 중요합니다.',
+            },
+        ];
+    }, [activeTab, workerOptions.length]);
+
     return (
         <div className="p-4 sm:p-6 max-w-4xl mx-auto">
             {/* 헤더 */}
@@ -865,6 +1002,15 @@ const SafetyBehaviorManagement: React.FC<SafetyBehaviorManagementProps> = ({ wor
                     />
                 </div>
             </div>
+
+            <InterpretationCardGrid
+                items={pageInterpretationCards}
+                className="mb-5 grid-cols-1 xl:grid-cols-3"
+                cardClassName="border-slate-200 bg-slate-50"
+                eyebrowClassName="text-slate-500"
+                titleClassName="text-slate-900"
+                descriptionClassName="text-slate-600"
+            />
 
             {/* 탭 네비게이션 */}
             <div className="flex gap-1 bg-slate-100 rounded-xl p-1 mb-5">

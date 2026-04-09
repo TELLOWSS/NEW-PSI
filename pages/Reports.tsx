@@ -3,6 +3,7 @@ import React, { Suspense, lazy, useState, useRef, useMemo, useEffect } from 'rea
 import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord } from '../types';
 import { extractMessage } from '../utils/errorUtils';
 import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
+import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { ReportGenerationProgress } from '../components/shared/ReportGenerationProgress';
 import { createEvidencePackagePdfBlob } from '../utils/evidenceReportUtils';
 import { ensureFileSaver, ensureHtml2Canvas, ensureJsPdfConstructor, ensureJsZip } from '../utils/externalScripts';
@@ -244,6 +245,140 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             (r.teamLeader || '미지정') === (currentPreviewRecord.teamLeader || '미지정')
         );
     }, [currentPreviewRecord, scoredRecords]);
+
+    const reportSummaryCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'report-status',
+            eyebrow: '지금 상태',
+            title: `${filteredRecords.length}명의 보고서 흐름을 정리할 준비가 되어 있습니다.`,
+            description: activeTab === 'team-report'
+                ? `${selectedTeam === '전체' ? '전체 공종' : `${selectedTeam} 공종`} 기준으로 보고 대상을 모아 팀 단위 비교와 일괄 생성을 바로 이어갈 수 있습니다.`
+                : '전체 근로자 목록에서 개별 미리보기와 일괄 생성 흐름을 같은 화면에서 이어갈 수 있습니다.',
+            tone: 'border-indigo-200 bg-indigo-50/70',
+        },
+        {
+            key: 'report-evidence',
+            eyebrow: '판단 근거',
+            title: '공종, 등급, 기간 필터가 현재 보고 범위를 만듭니다.',
+            description: `현재 ${dateFilterLabel} 기준이며${filterLevel !== '전체' ? ` ${filterLevel} 등급만` : ' 전체 등급을'} 보고 있습니다. 필터 조건은 목록, 미리보기, ZIP/PDF 출력에 동일하게 반영됩니다.`,
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'report-action',
+            eyebrow: '다음 행동',
+            title: viewMode === 'preview' ? '현재 미리보기 보고서를 먼저 확인하세요.' : '대상 목록에서 먼저 우선순위를 읽으세요.',
+            description: viewMode === 'preview'
+                ? '미리보기에서 내용이 맞는지 확인한 뒤 현재 보고서 내보내기 또는 일괄 생성으로 이어가면 됩니다.'
+                : '약점, 점수, 등급을 함께 비교해 어떤 근로자군부터 설명과 보호 조치를 연결할지 먼저 정리할 수 있습니다.',
+            tone: viewMode === 'preview' ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80',
+        },
+    ], [activeTab, dateFilterLabel, filterLevel, filteredRecords.length, selectedTeam, viewMode]);
+
+    const filterInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'filter-status',
+            eyebrow: '지금 상태',
+            title: hasCustomDateRangeError ? '기간 조건 확인이 필요합니다.' : '보고서 생성 조건이 정리되어 있습니다.',
+            description: hasCustomDateRangeError
+                ? '사용자 지정 기간이 완성되지 않았거나 시작일과 종료일 순서가 맞지 않아 생성 버튼이 보호 모드로 잠겨 있습니다.'
+                : `현재 출력 형태는 ${genMode === 'combined-pdf' ? '통합 PDF 1개' : genMode === 'individual-pdf' ? '개별 PDF ZIP' : '개별 이미지 ZIP'}입니다.`,
+            tone: hasCustomDateRangeError ? 'border-rose-200 bg-rose-50/80' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'filter-evidence',
+            eyebrow: '판단 근거',
+            title: '대상 수와 출력 방식이 작업량을 보여줍니다.',
+            description: `현재 ${filteredRecords.length}명을 처리 대상으로 보고 있으며, 목록 보기와 상세 미리보기는 같은 필터 집합을 공유합니다.`,
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'filter-action',
+            eyebrow: '다음 행동',
+            title: filteredRecords.length > 0 ? '조건이 맞다면 생성 또는 증빙 패키지로 이어가세요.' : '필터를 완화해 대상자를 다시 불러오세요.',
+            description: '먼저 대상을 너무 좁게 걸러내지 않았는지 확인한 뒤, 필요 시 목록에서 개별 확인 후 일괄 생성으로 넘어가면 됩니다.',
+            tone: filteredRecords.length > 0 ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80',
+        },
+    ], [filteredRecords.length, genMode, hasCustomDateRangeError]);
+
+    const generationInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'generation-status',
+            eyebrow: '지금 상태',
+            title: reportGenerationUi.status === 'running' ? '보고서 생성이 진행 중입니다.' : reportGenerationUi.status === 'success' ? '보고서 생성이 완료되었습니다.' : reportGenerationUi.status === 'error' ? '생성 흐름 점검이 필요합니다.' : '아직 생성 전 대기 상태입니다.',
+            description: reportGenerationUi.status === 'idle'
+                ? '생성 버튼을 누르면 데이터 수집, 렌더링, PDF/ZIP 패키징 순서로 진행됩니다.'
+                : `${reportGenerationUi.phaseLabel} 단계이며 진행률은 ${reportGenerationUi.progress}%입니다.`,
+            tone: reportGenerationUi.status === 'error' ? 'border-rose-200 bg-rose-50/80' : reportGenerationUi.status === 'success' ? 'border-emerald-200 bg-emerald-50/80' : 'border-indigo-200 bg-indigo-50/70',
+        },
+        {
+            key: 'generation-evidence',
+            eyebrow: '판단 근거',
+            title: '진행 상태 바와 대상 수가 생성 근거입니다.',
+            description: `현재 대상 ${filteredRecords.length}명 기준으로 처리 중이며${bulkProgress.total > 0 ? `, ${bulkProgress.current}/${bulkProgress.total}건이 반영되고 있습니다.` : ' 생성 시작 전에는 대상 수만 먼저 확인할 수 있습니다.'}`,
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'generation-action',
+            eyebrow: '다음 행동',
+            title: reportGenerationUi.status === 'error' ? '오류 메시지를 확인한 뒤 다시 시도하세요.' : '진행 중에는 화면을 유지하고 완료 후 결과를 확인하세요.',
+            description: '실패한 대상이 있더라도 어떤 근로자에게 추가 확인이 필요한지 결과 메시지로 이어서 읽을 수 있도록 구성되어 있습니다.',
+            tone: reportGenerationUi.status === 'error' ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+        },
+    ], [bulkProgress.current, bulkProgress.total, filteredRecords.length, reportGenerationUi.phaseLabel, reportGenerationUi.progress, reportGenerationUi.status]);
+
+    const verificationInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'verify-status',
+            eyebrow: '지금 상태',
+            title: verificationResult ? (verificationResult.isValid ? '증빙 패키지 검증이 완료되었습니다.' : '증빙 패키지에 추가 확인이 필요합니다.') : '증빙 패키지 검증 전 단계입니다.',
+            description: verificationResult
+                ? 'Manifest와 JSON 묶음의 일관성을 읽어 패키지 무결성을 현장에서 바로 확인할 수 있습니다.'
+                : 'manifest.json과 json 폴더 파일을 넣으면 해시와 누락 파일 여부를 한 번에 확인할 수 있습니다.',
+            tone: verificationResult ? (verificationResult.isValid ? 'border-emerald-200 bg-emerald-50/80' : 'border-rose-200 bg-rose-50/80') : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'verify-evidence',
+            eyebrow: '판단 근거',
+            title: 'Manifest, JSON 파일 수, 해시 비교가 기준입니다.',
+            description: `현재 Manifest ${verificationManifestFile ? '1개 선택됨' : '미선택'}, JSON ${verificationJsonFiles.length}개가 준비되어 있습니다.`,
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'verify-action',
+            eyebrow: '다음 행동',
+            title: verificationResult && !verificationResult.isValid ? '누락 파일과 해시 불일치를 먼저 보완하세요.' : '파일 준비 후 검증 실행으로 넘어가세요.',
+            description: '검증 실패 시 패키지 요약 해시와 누락 JSON 목록을 기준으로 어떤 산출물을 다시 생성해야 하는지 바로 판단할 수 있습니다.',
+            tone: verificationResult && !verificationResult.isValid ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+        },
+    ], [verificationJsonFiles.length, verificationManifestFile, verificationResult]);
+
+    const viewInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'view-status',
+            eyebrow: '지금 상태',
+            title: viewMode === 'list' ? '생성 대상 목록을 비교 중입니다.' : `${currentPreviewRecord?.name || '선택된 근로자'} 보고서를 미리보고 있습니다.`,
+            description: viewMode === 'list'
+                ? '이름, 공종, 점수, 등급, 취약점을 같은 행에서 확인해 설명이 더 필요한 대상을 빠르게 찾을 수 있습니다.'
+                : `${previewIndex + 1}/${filteredRecords.length} 순서이며 현재 보고서 내용을 실제 출력 전 단계에서 검토할 수 있습니다.`,
+            tone: 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'view-evidence',
+            eyebrow: '판단 근거',
+            title: viewMode === 'list' ? '점수와 약점 조합이 우선 해설 대상을 보여줍니다.' : '미리보기 템플릿이 실제 PDF/이미지 출력 기준입니다.',
+            description: viewMode === 'list'
+                ? '단순 점수보다 주요 취약점을 함께 읽어 어떤 설명과 코칭이 필요한지 보호 중심으로 판단할 수 있습니다.'
+                : '현재 보이는 템플릿이 그대로 캡처되어 PDF 또는 이미지로 저장됩니다.',
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'view-action',
+            eyebrow: '다음 행동',
+            title: viewMode === 'list' ? '행을 눌러 개별 미리보기로 이동하세요.' : '내용 확인 후 현재 보고서 내보내기 또는 일괄 생성으로 이어가세요.',
+            description: '목록과 미리보기를 오가며 먼저 설명이 필요한 사람을 확인한 뒤 출력하면 보고서가 평가 문서가 아니라 보호 안내서처럼 작동합니다.',
+            tone: viewMode === 'preview' ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80',
+        },
+    ], [currentPreviewRecord, filteredRecords.length, previewIndex, viewMode]);
 
     // 렌더링 안정화 대기 함수
     const waitForRender = async (ms: number = 1500) => {
@@ -834,6 +969,11 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 </div>
             </div>
 
+            <InterpretationCardGrid
+                items={reportSummaryCards}
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
+
             <div className="overflow-x-auto pb-2 -mb-2 shrink-0 no-print">
                 <div className="flex space-x-6 border-b border-slate-200 min-w-max">
                     <button onClick={() => setActiveTab('team-report')} className={`pb-4 text-sm font-bold transition-colors relative ${activeTab === 'team-report' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}>
@@ -848,6 +988,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             </div>
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap gap-4 items-end no-print">
+                <div className="w-full">
+                    <InterpretationCardGrid
+                        items={filterInterpretationCards}
+                        cardClassName="rounded-2xl border p-4"
+                    />
+                </div>
                 {/* Filters */}
                 {activeTab === 'team-report' && (
                     <div>
@@ -999,7 +1145,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             </div>
 
             {reportGenerationUi.status !== 'idle' && (
-                <div className="no-print flex items-center gap-3">
+                <div className="no-print space-y-3">
+                    <InterpretationCardGrid
+                        items={generationInterpretationCards}
+                        cardClassName="rounded-2xl border p-4"
+                    />
+                    <div className="flex items-center gap-3">
                     <div className="flex-1 min-w-0">
                         <ReportGenerationProgress
                             status={reportGenerationUi.status === 'running' ? 'running' : reportGenerationUi.status === 'success' ? 'success' : 'error'}
@@ -1018,10 +1169,15 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             중단
                         </button>
                     )}
+                    </div>
                 </div>
             )}
 
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 no-print space-y-4">
+                <InterpretationCardGrid
+                    items={verificationInterpretationCards}
+                    cardClassName="rounded-2xl border p-4"
+                />
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                     <h3 className="text-sm font-black text-slate-800">증빙 패키지 무결성 검증</h3>
                     <button
@@ -1163,6 +1319,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 생성 대상 목록 ({filteredRecords.length}명)
                             </h3>
                         </div>
+                        <div className="border-b border-slate-100 bg-white p-4">
+                            <InterpretationCardGrid
+                                items={viewInterpretationCards}
+                                cardClassName="rounded-2xl border p-4"
+                            />
+                        </div>
                         <div className="overflow-y-auto flex-1 p-0 custom-scrollbar">
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs sticky top-0 z-10 shadow-sm">
@@ -1242,6 +1404,13 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                     현재 보고서 내보내기
                                 </button>
                             </div>
+                        </div>
+
+                        <div className="border-b border-slate-200 bg-white p-4">
+                            <InterpretationCardGrid
+                                items={viewInterpretationCards}
+                                cardClassName="rounded-2xl border p-4"
+                            />
                         </div>
 
                         {/* Preview Content Area */}

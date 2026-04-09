@@ -1,8 +1,10 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Spinner } from '../components/Spinner';
 import { analyzeExternalIssueDocument } from '../services/geminiService';
 import { compressImage } from '../utils/imageCompression';
+import { BRAND_STATUS_LABELS, VIOLATION_BRAND_LABELS } from '../utils/brandLabels';
+import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 
 interface Issue {
     id: string;
@@ -32,12 +34,12 @@ const readFileAsBase64 = (file: File): Promise<string> => {
             const result = typeof reader.result === 'string' ? reader.result : '';
             const base64 = result.includes(',') ? result.split(',')[1] : '';
             if (!base64) {
-                reject(new Error('파일 Base64 변환에 추가 확인이 필요합니다.'));
+                reject(new Error(`파일 Base64 변환 ${BRAND_STATUS_LABELS.attention}`));
                 return;
             }
             resolve(base64);
         };
-        reader.onerror = () => reject(new Error('파일을 읽는 중 추가 확인이 필요합니다.'));
+        reader.onerror = () => reject(new Error(`파일 읽기 ${BRAND_STATUS_LABELS.attention}`));
         reader.readAsDataURL(file);
     });
 };
@@ -95,6 +97,17 @@ const SiteIssueManagement: React.FC = () => {
         }
     };
 
+    const getStatusLabel = (status: Issue['status']) => {
+        switch (status) {
+            case '조치 완료':
+                return VIOLATION_BRAND_LABELS.resolved;
+            case '조치 중':
+                return VIOLATION_BRAND_LABELS['in-progress'];
+            default:
+                return VIOLATION_BRAND_LABELS.open;
+        }
+    };
+
     const getRiskBadge = (riskLevel?: Issue['riskLevel']) => {
         if (riskLevel === 'High') return 'bg-red-100 text-red-700 border border-red-200';
         if (riskLevel === 'Low') return 'bg-green-100 text-green-700 border border-green-200';
@@ -122,7 +135,7 @@ const SiteIssueManagement: React.FC = () => {
             setNewIssue((prev) => ({ ...prev, image: compressedBase64 }));
         } catch (error) {
             console.error('Issue image compression failed:', error);
-            alert('사진 최적화 중 추가 확인이 필요합니다. 다시 확인해 주세요.');
+            alert(`사진 최적화 ${BRAND_STATUS_LABELS.attention}. 다시 확인해 주세요.`);
         }
     };
 
@@ -168,7 +181,7 @@ const SiteIssueManagement: React.FC = () => {
             setShowAddModal(true);
         } catch (error) {
             console.error('External issue auto-analysis failed:', error);
-            alert(error instanceof Error ? error.message : '외부 지적사항 분석 중 추가 확인이 필요합니다.');
+            alert(error instanceof Error ? error.message : `외부 지적사항 분석 ${BRAND_STATUS_LABELS.attention}`);
         } finally {
             setIsAiAnalyzing(false);
             if (externalIssueInputRef.current) {
@@ -216,6 +229,81 @@ const SiteIssueManagement: React.FC = () => {
         return true;
     });
 
+    const issueSummary = useMemo(() => {
+        const pendingCount = issues.filter((issue) => issue.status === '검토 필요').length;
+        const inProgressCount = issues.filter((issue) => issue.status === '조치 중').length;
+        const completedCount = issues.filter((issue) => issue.status === '조치 완료').length;
+        const highRiskCount = issues.filter((issue) => issue.riskLevel === 'High').length;
+        const withImageCount = issues.filter((issue) => Boolean(issue.image)).length;
+        const latestIssue = issues[0] || null;
+
+        return {
+            pendingCount,
+            inProgressCount,
+            completedCount,
+            highRiskCount,
+            withImageCount,
+            latestIssue,
+        };
+    }, [issues]);
+
+    const managementInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
+        return [
+            {
+                eyebrow: '지금 상태',
+                title: `전체 ${issues.length}건 중 조치가 더 필요한 항목은 ${issueSummary.pendingCount + issueSummary.inProgressCount}건입니다.`,
+                description:
+                    issueSummary.pendingCount + issueSummary.inProgressCount > 0
+                        ? '현장 지적사항은 등록 자체보다, 아직 닫히지 않은 항목을 얼마나 빠르게 보완 흐름으로 연결하느냐가 더 중요합니다.'
+                        : '현재 등록된 항목은 모두 조치 완료 상태라, 신규 지적사항 유입 여부만 계속 보면 됩니다.',
+            },
+            {
+                eyebrow: '판단 근거',
+                title: `고위험 ${issueSummary.highRiskCount}건 · 사진 근거 ${issueSummary.withImageCount}건 · 완료 ${issueSummary.completedCount}건`,
+                description: issueSummary.latestIssue
+                    ? `가장 최근 항목은 ${issueSummary.latestIssue.location} / ${issueSummary.latestIssue.type}이며 현재 상태는 ${getStatusLabel(issueSummary.latestIssue.status)}입니다.`
+                    : '아직 최근 지적사항이 없어 현장 보완 흐름을 읽을 기준 데이터가 부족합니다.',
+            },
+            {
+                eyebrow: '다음 행동',
+                title: issueSummary.highRiskCount > 0
+                    ? '고위험 항목부터 담당자와 조치 상태를 먼저 확정하세요.'
+                    : '검토 필요와 조치 중 항목을 먼저 줄여 현장 잔여 이슈를 정리하세요.',
+                description: 'AI 자동 등록이나 수기 등록 모두 같은 기준으로 모아 두면, 현장 신호를 놓치지 않고 후속 조치 우선순위를 더 쉽게 나눌 수 있습니다.',
+            },
+        ];
+    }, [issueSummary, issues.length]);
+
+    const draftInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
+        return [
+            {
+                eyebrow: '지금 상태',
+                title: newIssue.location && newIssue.description
+                    ? '새 지적사항 초안이 등록 가능한 수준까지 채워지고 있습니다.'
+                    : '초안은 열려 있지만 위치와 내용이 더 필요합니다.',
+                description: newIssue.location && newIssue.description
+                    ? '핵심 정보가 들어오면 현장 신호를 바로 기록으로 전환할 수 있습니다.'
+                    : '위치와 내용이 빠지면 어떤 구역에서 무엇을 보완해야 하는지 판단이 흐려집니다.',
+            },
+            {
+                eyebrow: '판단 근거',
+                title: `${newIssue.riskLevel || 'Medium'} 위험도 · ${newIssue.type || '기타'} 유형 · ${newIssue.image ? '사진 근거 있음' : '사진 근거 없음'}`,
+                description: newIssue.actionRequired
+                    ? `현재 조치 요구는 “${newIssue.actionRequired}”로 정리되어 있습니다.`
+                    : '조치 요구를 함께 적어 두면 등록 직후 누구가 무엇을 해야 하는지 더 빠르게 이어집니다.',
+            },
+            {
+                eyebrow: '다음 행동',
+                title: !newIssue.location
+                    ? '먼저 위치를 적어 주세요.'
+                    : !newIssue.description
+                        ? '무엇을 확인했고 왜 보완이 필요한지 적어 주세요.'
+                        : '담당자와 조치 요구를 함께 남겨 후속 조치를 바로 연결하세요.',
+                description: '지적사항은 평가 문장보다 보완 행동이 드러나는 문장으로 적을수록 현장 처리 속도가 빨라집니다.',
+            },
+        ];
+    }, [newIssue.actionRequired, newIssue.description, newIssue.image, newIssue.location, newIssue.riskLevel, newIssue.type]);
+
     return (
         <div className="space-y-6">
             <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-100">
@@ -246,6 +334,14 @@ const SiteIssueManagement: React.FC = () => {
                     </div>
                 </div>
                 <p className="text-slate-500">현장 순회 중 발견된 불안전 요소나 시정 조치가 필요한 사항을 기록하고 추적 관리합니다.</p>
+                <InterpretationCardGrid
+                    items={managementInterpretationCards}
+                    className="mt-4 grid-cols-1 xl:grid-cols-3"
+                    cardClassName="border-slate-200 bg-slate-50"
+                    eyebrowClassName="text-slate-500"
+                    titleClassName="text-slate-900"
+                    descriptionClassName="text-slate-600"
+                />
             </div>
 
             <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
@@ -253,8 +349,8 @@ const SiteIssueManagement: React.FC = () => {
                     <h3 className="text-lg font-bold text-slate-800">지적사항 목록 <span className="text-slate-500 font-normal text-sm ml-2">총 {filteredIssues.length}건</span></h3>
                     <div className="flex space-x-2">
                         <button onClick={() => setFilter('all')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${filter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>전체</button>
-                        <button onClick={() => setFilter('pending')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${filter === 'pending' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>조치 필요</button>
-                        <button onClick={() => setFilter('completed')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${filter === 'completed' ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>조치 완료</button>
+                        <button onClick={() => setFilter('pending')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${filter === 'pending' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{BRAND_STATUS_LABELS.actionNeeded}</button>
+                        <button onClick={() => setFilter('completed')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${filter === 'completed' ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{BRAND_STATUS_LABELS.actionCompleted}</button>
                     </div>
                 </div>
 
@@ -277,7 +373,7 @@ const SiteIssueManagement: React.FC = () => {
                                 <div className="flex justify-between items-start mb-2">
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
-                                            <span className={`px-2 py-0.5 text-xs font-bold rounded ${getStatusBadge(issue.status)}`}>{issue.status}</span>
+                                            <span className={`px-2 py-0.5 text-xs font-bold rounded ${getStatusBadge(issue.status)}`}>{getStatusLabel(issue.status)}</span>
                                             <span className={`px-2 py-0.5 text-xs font-bold rounded ${getRiskBadge(issue.riskLevel)}`}>위험도 {issue.riskLevel || 'Medium'}</span>
                                             <span className="text-xs text-slate-500 font-medium">{issue.date} {issue.time}</span>
                                         </div>
@@ -287,6 +383,34 @@ const SiteIssueManagement: React.FC = () => {
                                 </div>
                                 
                                 <p className="text-slate-700 font-medium mb-4 flex-1">{issue.description}</p>
+
+                                <div className="grid grid-cols-1 xl:grid-cols-3 gap-2 mb-4">
+                                    <div className={`rounded-xl border px-3 py-3 ${issue.status === '조치 완료' ? 'border-emerald-200 bg-emerald-50' : issue.status === '조치 중' ? 'border-sky-200 bg-sky-50' : 'border-rose-200 bg-rose-50'}`}>
+                                        <p className={`text-[10px] font-black uppercase tracking-[0.16em] ${issue.status === '조치 완료' ? 'text-emerald-700' : issue.status === '조치 중' ? 'text-sky-700' : 'text-rose-700'}`}>지금 상태</p>
+                                        <p className="mt-1 text-[11px] font-black text-slate-900">
+                                            {issue.status === '조치 완료'
+                                                ? '현장 보완이 마무리되어 종료 확인 단계입니다.'
+                                                : issue.status === '조치 중'
+                                                    ? '현재 보완이 진행 중이라 후속 확인이 필요한 상태입니다.'
+                                                    : '아직 검토와 담당자 연결이 더 필요한 상태입니다.'}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">판단 근거</p>
+                                        <p className="mt-1 text-[11px] font-bold text-slate-700">위험도 {issue.riskLevel || 'Medium'} · 담당자 {issue.responsiblePerson || '미지정'}</p>
+                                        <p className="mt-1 text-[11px] font-bold text-slate-600">{issue.actionRequired || '조치 요구 문구가 아직 정리되지 않았습니다.'}</p>
+                                    </div>
+                                    <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">다음 행동</p>
+                                        <p className="mt-1 text-[11px] font-bold text-slate-700">
+                                            {issue.status === '조치 완료'
+                                                ? '동일 유형이 반복되는지만 추적하면 됩니다.'
+                                                : issue.status === '조치 중'
+                                                    ? '조치 요구가 실제로 반영됐는지 완료 처리 전 한 번 더 확인하세요.'
+                                                    : '담당자 지정과 조치 시작을 먼저 연결해 현장 대기 시간을 줄이세요.'}
+                                        </p>
+                                    </div>
+                                </div>
                                 
                                 {issue.actionRequired && (
                                     <div className="bg-slate-50 p-3 rounded-md text-sm text-slate-600 mb-4 border border-slate-200">
@@ -301,12 +425,12 @@ const SiteIssueManagement: React.FC = () => {
                                     <div className="flex gap-2">
                                         {issue.status !== '조치 완료' && (
                                             <button onClick={() => updateStatus(issue.id, '조치 완료')} className="px-3 py-1.5 bg-green-600 text-white text-sm font-bold rounded hover:bg-green-700 transition-colors shadow-sm">
-                                                조치 완료 처리
+                                                {BRAND_STATUS_LABELS.actionCompleted} 처리
                                             </button>
                                         )}
                                         {issue.status === '검토 필요' && (
                                             <button onClick={() => updateStatus(issue.id, '조치 중')} className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 text-sm font-bold rounded hover:bg-slate-50 transition-colors shadow-sm">
-                                                조치 시작
+                                                {BRAND_STATUS_LABELS.actionInProgress} 시작
                                             </button>
                                         )}
                                     </div>
@@ -330,6 +454,14 @@ const SiteIssueManagement: React.FC = () => {
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
                     <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-fade-in-up">
                         <h3 className="text-xl font-bold text-slate-900 mb-4">새 지적사항 등록</h3>
+                        <InterpretationCardGrid
+                            items={draftInterpretationCards}
+                            className="mb-4 grid-cols-1"
+                            cardClassName="border-slate-200 bg-slate-50"
+                            eyebrowClassName="text-slate-500"
+                            titleClassName="text-slate-900"
+                            descriptionClassName="text-slate-600"
+                        />
                         <div className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">발견 일자</label>

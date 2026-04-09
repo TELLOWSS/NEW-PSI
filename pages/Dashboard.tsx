@@ -5,6 +5,7 @@ import { StatCard } from '../components/StatCard';
 import { SafetyActionCenter } from '../components/SafetyActionCenter';
 import { Tooltip } from '../components/shared/Tooltip';
 import { BrandPhilosophyLogo } from '../components/shared/BrandPhilosophyLogo';
+import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { PSI_APP_VERSION } from '../lib/appInfo';
 import type { SelectedTarget } from '../components/charts/TradeNationalityCrossChart';
 import {
@@ -375,6 +376,64 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const unassignedCount = dashboardData.unassignedRecordCount;
     const isUnassignedWarning = unassignedCount > 0;
 
+    const dashboardSummaryCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'dashboard-status',
+            eyebrow: '지금 상태',
+            title: `${stats.totalWorkers}명의 실무 근로자 흐름을 보고 있습니다.`,
+            description: selectedTeamOption
+                ? `${selectedTeamOption.label} 기준으로 대상을 좁혀 팀별 신호를 읽고 있습니다.`
+                : '전체 현장 기준으로 실무 근로자 안전 흐름을 한 화면에서 확인하고 있습니다.',
+            tone: 'border-indigo-200 bg-indigo-50/70',
+        },
+        {
+            key: 'dashboard-evidence',
+            eyebrow: '판단 근거',
+            title: `평균 ${stats.averageScore.toFixed(1)}점 · 고위험 ${stats.highRiskWorkers}명 · 점검 ${stats.totalChecks}건`,
+            description: '평균 점수, 고위험 인원, 점검 건수, 공종·국적·팀 비교가 함께 있어 어느 구간에서 보완이 필요한지 빠르게 읽을 수 있습니다.',
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'dashboard-action',
+            eyebrow: '다음 행동',
+            title: stats.highRiskWorkers > 0 ? '고위험 인원부터 분석·코칭 흐름으로 연결하세요.' : '현재 안정 흐름을 유지하며 취약 공종만 선별 확인하세요.',
+            description: stats.highRiskWorkers > 0
+                ? '예측 분석, OCR 분석, 리포트 생성으로 바로 연결해 현장 보호 조치를 끊기지 않게 이어갈 수 있습니다.'
+                : '공종·국적 교차 분석과 팀 비교를 통해 작은 이상 신호를 먼저 찾아 선제 보완할 수 있습니다.',
+            tone: stats.highRiskWorkers > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+        },
+    ], [selectedTeamOption, stats.averageScore, stats.highRiskWorkers, stats.totalChecks, stats.totalWorkers]);
+
+    const comparisonCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'comparison-status',
+            eyebrow: '지금 상태',
+            title: selectedTradeForComparison ? `${selectedTradeForComparison} 공종 비교를 보고 있습니다.` : '공종 또는 팀 비교 전 단계입니다.',
+            description: selectedTradeForComparison
+                ? `${selectedTradeTeamComparison.length}개 팀을 같은 공종 기준으로 비교하며${selectedTeamsForComparison.length > 0 ? `, 현재 ${selectedTeamsForComparison.length}개 팀을 직접 선택해 좁혀 보고 있습니다.` : ' 전체 팀 흐름을 먼저 보고 있습니다.'}`
+                : '취약 공종 바로가기나 팀 비교 바로가기에서 대상을 고르면 상세 해석이 활성화됩니다.',
+            tone: selectedTradeForComparison ? 'border-indigo-200 bg-indigo-50/70' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'comparison-evidence',
+            eyebrow: '판단 근거',
+            title: '공종, 국적, 팀장 기준 분리가 비교의 기준입니다.',
+            description: hasNationalityDetail && selectedTarget
+                ? `${selectedTarget.trade} · ${selectedTarget.nationality} 세부 기준이 열려 있어 통합 흐름과 세부 흐름을 번갈아 읽을 수 있습니다.`
+                : '팀 비교는 전체 국적 통합 기준으로 유지되어, 동일 공종 내 팀 편차를 안정적으로 읽을 수 있습니다.',
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'comparison-action',
+            eyebrow: '다음 행동',
+            title: weakestTeam ? `${weakestTeam.team} 등 취약 팀부터 보완 우선순위를 잡으세요.` : '먼저 취약 공종 또는 팀을 선택하세요.',
+            description: weakestTeam
+                ? `가장 취약한 팀의 평균 ${weakestTeam.avgScore.toFixed(1)}점과 고위험 ${weakestTeam.riskCount}명을 기준으로 코칭·점검·보고 흐름을 연결할 수 있습니다.`
+                : '차트에서 작업조를 고르면 레이더와 개인별 트렌드가 이어져 다음 보호 행동을 구체화할 수 있습니다.',
+            tone: weakestTeam ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+        },
+    ], [hasNationalityDetail, selectedTarget, selectedTeamsForComparison.length, selectedTradeForComparison, selectedTradeTeamComparison.length, weakestTeam]);
+
     const handleNavigateToUnassignedRecords = () => {
         const params = new URLSearchParams(window.location.search);
         params.set('filter', 'unassigned');
@@ -529,6 +588,11 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 </div>
             </div>
 
+            <InterpretationCardGrid
+                items={dashboardSummaryCards}
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
+
             <div className="bg-indigo-50 border-l-4 border-indigo-400 p-3 sm:p-4 rounded-r-lg flex items-start sm:items-center justify-between gap-2 sm:gap-4">
                 <div className="flex items-start sm:items-center gap-2">
                     <svg className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-500 shrink-0 mt-0.5 sm:mt-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -653,6 +717,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     공종 × 국적 교차 안전 숙련도 분석 섹션 (아래)
             ═══════════════════════════════════════════════════════ */}
             <div className="space-y-4 sm:space-y-6">
+                <InterpretationCardGrid
+                    items={comparisonCards}
+                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                />
                 {/* 섹션 헤더 + 팀별 드롭다운 */}
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 px-1">
                     <div className="flex items-center gap-3 flex-1">

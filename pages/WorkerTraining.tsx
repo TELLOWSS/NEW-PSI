@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { isSupabasePermissionError, supabase } from '../lib/supabaseClient';
+import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
+import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 
 interface WorkerTrainingProps {
     sessionId: string;
@@ -359,7 +361,7 @@ const UI_TEXT: Record<UiLocale, {
         missingNameAlert: '이름을 입력해 주세요.',
         missingSignatureAlert: '전자서명을 먼저 입력해 주세요.',
         submitSuccess: '제출 완료! 교육 이수 서명이 저장되었습니다.',
-        submitFail: '제출 확인 필요',
+        submitFail: `제출 ${BRAND_STATUS_LABELS.attention}`,
         mobileOnlyTitle: '근로자 전용 모바일 페이지 안내',
         mobileOnlyDescription: '이 화면은 근로자 전용 모바일 서명 페이지입니다. 현장에 부착된 QR코드를 스마트폰으로 스캔하여 접속해 주세요.',
         loading: '불러오는 중...',
@@ -819,6 +821,82 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
         return typeof current === 'string' && current.trim().length > 0;
     }, [normalizedTextMap, effectiveLangKey]);
 
+    const trainingInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
+        return [
+            {
+                eyebrow: '지금 상태',
+                title: submitReady
+                    ? '안내 확인, 체크, 서명이 모두 준비되어 제출할 수 있습니다.'
+                    : '아직 제출 전 마지막 확인 단계가 남아 있습니다.',
+                description: submitReady
+                    ? '이제 제출 버튼을 눌러 위험성평가 이해 및 준수 확약을 기록으로 남기면 됩니다.'
+                    : '근로자 화면은 단순 입력보다, 현재 어느 단계가 막혀 있는지 먼저 읽고 바로 다음 행동으로 이어지도록 설계되어 있습니다.',
+            },
+            {
+                eyebrow: '판단 근거',
+                title: `${statusText.reading} ${hasReviewedGuidance ? statusText.done : statusText.required} · ${statusText.checklist} ${completedChecklistCount}/3 · ${statusText.signature} ${hasSignature ? statusText.done : statusText.required}`,
+                description: `${audioMatchesSelectedLanguage ? ux.audioMatched : ux.audioFallback} / ${textMatchesSelectedLanguage ? ux.textMatched : ux.textFallback}`,
+            },
+            {
+                eyebrow: '다음 행동',
+                title: !workerName.trim()
+                    ? '이름을 먼저 입력하세요.'
+                    : !hasReviewedGuidance
+                        ? '안내 문구를 끝까지 확인하세요.'
+                        : !isChecklistComplete
+                            ? '이해 확인 항목 3개를 모두 체크하세요.'
+                            : !hasSignature
+                                ? '서명칸 중앙에 서명하면 제출 준비가 완료됩니다.'
+                                : '이제 제출 버튼을 눌러 교육 확약을 완료하세요.',
+                description: !submitReady
+                    ? '화면 하단 고정 바와 상단 단계 버튼이 같은 기준으로 동작해, 어디를 먼저 봐야 하는지 바로 알 수 있습니다.'
+                    : '제출 후에는 관리자에게 완료 화면만 보여주면 됩니다.',
+            },
+        ];
+    }, [
+        audioMatchesSelectedLanguage,
+        completedChecklistCount,
+        hasReviewedGuidance,
+        hasSignature,
+        isChecklistComplete,
+        statusText.checklist,
+        statusText.done,
+        statusText.reading,
+        statusText.required,
+        statusText.signature,
+        submitReady,
+        textMatchesSelectedLanguage,
+        ux.audioFallback,
+        ux.audioMatched,
+        ux.textFallback,
+        ux.textMatched,
+        workerName,
+    ]);
+
+    const submittedInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
+        if (!submitted) return [];
+
+        return [
+            {
+                eyebrow: '지금 상태',
+                title: '전자서명이 정상 저장되어 제출이 완료되었습니다.',
+                description: '중복 제출은 자동 차단되므로, 같은 근로자가 다시 제출하지 않아도 됩니다.',
+            },
+            {
+                eyebrow: '판단 근거',
+                title: `${submittedSnapshot?.workerName || summaryText.notEntered} · ${LANGUAGE_LABELS[submittedSnapshot?.languageCode || effectiveLangKey] || submittedSnapshot?.languageCode || effectiveLangKey}`,
+                description: submittedAtLabel
+                    ? `${successText.submittedAt}: ${submittedAtLabel}`
+                    : '제출 시간 기록이 저장되면 관리자 확인 근거로 바로 활용할 수 있습니다.',
+            },
+            {
+                eyebrow: '다음 행동',
+                title: successText.showManager,
+                description: successText.safeClose,
+            },
+        ];
+    }, [effectiveLangKey, submitted, submittedAtLabel, submittedSnapshot, successText.safeClose, successText.showManager, successText.submittedAt, summaryText.notEntered]);
+
     useEffect(() => {
         const syncSignatureWidth = () => {
             const width = signatureWrapRef.current?.clientWidth || 700;
@@ -1159,6 +1237,15 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                         <p className="mt-2 text-sm font-bold text-slate-600">{successText.description}</p>
                     </div>
 
+                    <InterpretationCardGrid
+                        items={submittedInterpretationCards}
+                        className="mt-5 grid-cols-1"
+                        cardClassName="border-emerald-100 bg-emerald-50/60"
+                        eyebrowClassName="text-emerald-700"
+                        titleClassName="text-slate-900"
+                        descriptionClassName="text-slate-600"
+                    />
+
                     <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                             <p className="text-[11px] font-black text-slate-500">{successText.savedWorker}</p>
@@ -1201,6 +1288,15 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                         {t.stayOnPageHint}
                     </p>
                 )}
+
+                <InterpretationCardGrid
+                    items={trainingInterpretationCards}
+                    className="mt-4 grid-cols-1"
+                    cardClassName="border-slate-200 bg-slate-50"
+                    eyebrowClassName="text-slate-500"
+                    titleClassName="text-slate-900"
+                    descriptionClassName="text-slate-600"
+                />
 
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <button

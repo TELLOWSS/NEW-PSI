@@ -2,6 +2,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { AppSettings, PsiFeedbackMetadata, PsiFeedbackPayload, PsiFeedbackType } from '../types';
 import { PSI_APP_VERSION, PSI_CURRENT_RELEASE } from '../lib/appInfo';
+import { BRAND_STATUS_LABELS, BRAND_ACTION_LABELS } from '../utils/brandLabels';
+import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 
 type OutboxItem = {
     id: string;
@@ -117,6 +119,72 @@ const Feedback: React.FC = () => {
             return null;
         }
     }, []);
+
+    const feedbackInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
+        const hasWebhook = Boolean(feedbackChannel?.webhookUrl?.trim());
+        const hasDraft = Boolean(formData.name.trim() || formData.message.trim());
+
+        return [
+            {
+                eyebrow: '지금 상태',
+                title: hasWebhook
+                    ? '현장 의견은 실시간 전송과 로컬 보관을 함께 고려하는 상태입니다.'
+                    : '현재는 시뮬레이션 모드라 실제 전송 대신 제출 흐름 확인에 집중하는 상태입니다.',
+                description: hasWebhook
+                    ? 'Webhook이 연결되어 있어 즉시 전달을 우선 시도하고, 실패하면 Outbox에 남겨 현장 의견이 유실되지 않도록 보호합니다.'
+                    : '운영 채널이 비어 있어도 입력 흐름을 먼저 검증할 수 있지만, 실제 전달을 위해서는 설정 탭 연결이 필요합니다.',
+            },
+            {
+                eyebrow: '판단 근거',
+                title: `현재 ${outboxItems.length}건이 Outbox에 남아 있고 입력 초안은 ${hasDraft ? '작성 중' : '비어 있음'}입니다.`,
+                description: outboxItems.length > 0
+                    ? `전송 확인이 더 필요한 ${outboxItems.length}건이 보관되어 있어, 의견 수집 자체보다 재전송 복구가 더 우선인 상태입니다.`
+                    : '아직 보관 중인 실패 건이 없어 새 의견 수집에 바로 집중할 수 있습니다.',
+            },
+            {
+                eyebrow: '다음 행동',
+                title: outboxItems.length > 0
+                    ? '먼저 Outbox를 정리한 뒤 새 의견을 받으면 현장 신호가 섞이지 않습니다.'
+                    : '피드백 유형을 고르고, 현장 맥락이 드러나게 이름·공종·상황을 함께 적어 주세요.',
+                description: outboxItems.length > 0
+                    ? '보관함 재전송이 끝나면 어떤 의견이 실제 반영 대기 중인지 더 명확하게 판단할 수 있습니다.'
+                    : '구체적인 현장 맥락이 함께 들어오면 개발·운영·법무 어느 팀이 먼저 봐야 하는지 더 빨리 나눌 수 있습니다.',
+            },
+        ];
+    }, [feedbackChannel, formData.message, formData.name, outboxItems.length]);
+
+    const outboxInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
+        const topItem = outboxItems[0];
+        return [
+            {
+                eyebrow: '지금 상태',
+                title: outboxItems.length > 0
+                    ? `${outboxItems.length}건이 아직 전달 확인을 기다리고 있습니다.`
+                    : '현재는 전달 확인이 필요한 보관 건이 없습니다.',
+                description: outboxItems.length > 0
+                    ? '실시간 전송이 멈췄더라도 현장 의견 자체는 보관되어 있어, 나중에 다시 보내 복구할 수 있습니다.'
+                    : '의견 전달 경로가 비교적 안정적이라 새 피드백을 받아도 누락 위험이 낮습니다.',
+            },
+            {
+                eyebrow: '판단 근거',
+                title: topItem
+                    ? `가장 최근 보관 건은 ${topItem.payload.type} 유형이며 재전송 ${topItem.retryCount || 0}회 기록이 있습니다.`
+                    : '보관 중인 실패 이력이나 최근 오류 메시지가 없습니다.',
+                description: topItem?.lastError
+                    ? `최근 안내: ${topItem.lastError}`
+                    : '오류 메시지가 없으면 네트워크 단절보다는 초기 설정 여부를 먼저 확인하는 편이 빠릅니다.',
+            },
+            {
+                eyebrow: '다음 행동',
+                title: outboxItems.length > 0
+                    ? `${BRAND_ACTION_LABELS.recheck}를 실행해 전달 가능한 건부터 먼저 복구하세요.`
+                    : '새 현장 의견 수집과 유형 분류를 그대로 이어가면 됩니다.',
+                description: outboxItems.length > 0
+                    ? '재전송 후 즉시 삭제되므로, 보관함 수가 줄어드는지 보면 운영 복구 상태를 바로 알 수 있습니다.'
+                    : '보관함이 비어 있는 상태를 유지하면 피드백 채널 신뢰를 현장에 더 명확히 보여줄 수 있습니다.',
+            },
+        ];
+    }, [outboxItems]);
 
     const readOutbox = (): OutboxItem[] => {
         try {
@@ -462,6 +530,15 @@ const Feedback: React.FC = () => {
                             <h3 className="text-2xl font-black text-slate-900">현장 목소리 보내기</h3>
                             <p className="text-sm text-slate-400 mt-2 font-bold">어떤 의견이라도 경청하겠습니다.</p>
                         </div>
+
+                        <InterpretationCardGrid
+                            items={feedbackInterpretationCards}
+                            className="mb-6 grid-cols-1"
+                            cardClassName="border-slate-200 bg-slate-50"
+                            eyebrowClassName="text-slate-500"
+                            titleClassName="text-slate-900"
+                            descriptionClassName="text-slate-600"
+                        />
                         
                         <form onSubmit={handleSubmit} className="space-y-5">
                             <div>
@@ -581,20 +658,29 @@ const Feedback: React.FC = () => {
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-100 border border-rose-200 mb-2">
                             <span className="text-rose-600 text-xs font-black">⚠️ Outbox Warning</span>
                         </div>
-                        <h3 className="text-2xl font-black text-rose-800">피드백 확인 필요 보관함 (Outbox)</h3>
-                        <p className="text-sm font-bold text-rose-700 mt-1">확인 필요 건 {outboxItems.length}건 · 성공 재전송 시 즉시 삭제됩니다.</p>
+                        <h3 className="text-2xl font-black text-rose-800">피드백 {BRAND_STATUS_LABELS.attention} 보관함 (Outbox)</h3>
+                        <p className="text-sm font-bold text-rose-700 mt-1">{BRAND_STATUS_LABELS.attention} 건 {outboxItems.length}건 · 성공 재전송 시 즉시 삭제됩니다.</p>
                     </div>
                     <button
                         onClick={handleRetryAll}
                         disabled={isRetryingAll || outboxItems.length === 0}
                         className={`w-full md:w-auto min-w-[320px] py-4 px-6 rounded-2xl text-base font-black shadow-xl transition-all ${isRetryingAll || outboxItems.length === 0 ? 'bg-rose-100 text-rose-300 cursor-not-allowed' : 'bg-rose-600 text-white hover:bg-rose-700'}`}
                     >
-                        {isRetryingAll ? '🔄 확인 필요 건 일괄 다시 보내는 중...' : '🔄 확인 필요 건 일괄 다시 보내기'}
+                        {isRetryingAll ? `🔄 ${BRAND_STATUS_LABELS.attention} 건 일괄 ${BRAND_ACTION_LABELS.recheck} 중...` : `🔄 ${BRAND_STATUS_LABELS.attention} 건 일괄 ${BRAND_ACTION_LABELS.recheck}`}
                     </button>
                 </div>
 
+                <InterpretationCardGrid
+                    items={outboxInterpretationCards}
+                    className="mb-5 grid-cols-1 xl:grid-cols-3"
+                    cardClassName="border-rose-200 bg-white/80"
+                    eyebrowClassName="text-rose-700"
+                    titleClassName="text-slate-900"
+                    descriptionClassName="text-slate-600"
+                />
+
                 {outboxItems.length === 0 ? (
-                    <p className="text-sm text-rose-500 font-bold">현재 보관 중인 확인 필요 건이 없습니다.</p>
+                    <p className="text-sm text-rose-500 font-bold">현재 보관 중인 {BRAND_STATUS_LABELS.attention} 건이 없습니다.</p>
                 ) : (
                     <div className="space-y-3 max-h-64 overflow-y-auto custom-scrollbar pr-1">
                         {outboxItems.slice(0, 30).map((item) => (

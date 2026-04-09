@@ -1,8 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { AppSettings } from '../types';
 import { getIsPaidApiMode, setIsPaidApiMode } from '../utils/apiModeUtils';
 import { PSI_APP_VERSION, PSI_SYSTEM_NAME } from '../lib/appInfo';
+import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 
 const TRAINING_LANGUAGE_OPTIONS = [
     { code: 'ko-KR', label: '한국어 (ko-KR)' },
@@ -424,6 +425,78 @@ const Settings: React.FC = () => {
         });
     };
 
+    const settingsSummaryCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'settings-status',
+            eyebrow: '지금 상태',
+            title: `${settings.siteName || '현장명 미입력'} 기준 시스템 구성을 조정 중입니다.`,
+            description: `현재 ${isPaidApiMode ? '유료 API 모드' : '무료 API 모드'}이며 공종 ${jobFieldInput.split(',').filter((s) => s.trim()).length}개, 기본 교육 언어 ${normalizeTrainingLanguagePreset(settings.trainingLanguagePreset).length}개가 설정되어 있습니다.`,
+            tone: 'border-indigo-200 bg-indigo-50/70',
+        },
+        {
+            key: 'settings-evidence',
+            eyebrow: '판단 근거',
+            title: 'API, 현장 정보, 가중치, 컷오프, 배치 크기, 언어 세트가 운영 기준입니다.',
+            description: '설정 화면은 단순 입력 폼이 아니라 현장 판단 기준을 고정하는 곳이므로, 저장 전 현재 기준이 어떤 운영 흐름을 만드는지 함께 읽을 수 있게 구성했습니다.',
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'settings-action',
+            eyebrow: '다음 행동',
+            title: weightSum >= 0.95 && weightSum <= 1.05 ? '기준 확인 후 저장 및 적용으로 마감하세요.' : '가중치 합계와 핵심 기준을 먼저 다시 확인하세요.',
+            description: '설정 저장 시 즉시 시스템 전반에 반영되므로, 현장 정보와 평가 기준이 실제 운영 언어와 맞는지 마지막으로 점검하는 것이 중요합니다.',
+            tone: weightSum >= 0.95 && weightSum <= 1.05 ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80',
+        },
+    ], [isPaidApiMode, jobFieldInput, settings.siteName, settings.trainingLanguagePreset, weightSum]);
+
+    const apiInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'api-status',
+            eyebrow: '지금 상태',
+            title: isPaidApiMode ? '대규모 고속 처리 모드가 준비되어 있습니다.' : '기본 무료 API 모드로 운영 중입니다.',
+            description: `${freeApiKey ? '무료 API 키가 입력됨' : '무료 API 키 미입력'} · ${paidApiKey ? '유료 API 키가 입력됨' : '유료 API 키 미입력'} 상태입니다.`,
+            tone: isPaidApiMode ? 'border-rose-200 bg-rose-50/80' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'api-evidence',
+            eyebrow: '판단 근거',
+            title: 'API 키와 관리자 PIN이 처리 권한의 기준입니다.',
+            description: '유료 모드는 PIN 확인을 거쳐야 켜지도록 구성해 무분별한 비용 사용 대신 운영 책임이 남도록 만들었습니다.',
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'api-action',
+            eyebrow: '다음 행동',
+            title: freeApiKey || paidApiKey ? '운영 모드에 맞는 키를 유지하세요.' : '먼저 사용할 API 키를 입력하세요.',
+            description: '현장 규모와 처리량에 맞춰 무료/유료 모드를 선택하면 이후 OCR, 리포트, 대량 분석 흐름이 안정적으로 이어집니다.',
+            tone: freeApiKey || paidApiKey ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80',
+        },
+    ], [freeApiKey, isPaidApiMode, paidApiKey]);
+
+    const policyInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'policy-status',
+            eyebrow: '지금 상태',
+            title: `현재 승인 정책은 ${settings.approvalPolicy?.strictRoleGate ? '엄격 기준' : '유연 기준'}입니다.`,
+            description: `안전 등급 기준은 고급 ${normalizedAdvancedThreshold}점 이상, 중급 ${normalizedIntermediateThreshold}점 이상으로 설정되어 있습니다.`,
+            tone: settings.approvalPolicy?.strictRoleGate ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'policy-evidence',
+            eyebrow: '판단 근거',
+            title: '가중치와 컷오프가 해석 기준을 만듭니다.',
+            description: `현재 w1~w5 합계는 ${weightSum.toFixed(2)}이며, 배치 크기는 ${settings.batchSplitSize ?? 50}건 기준입니다. 이 값들이 점수 해석과 대량 처리 체감에 직접 영향을 줍니다.`,
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'policy-action',
+            eyebrow: '다음 행동',
+            title: '현장 운영 언어와 평가 기준이 맞는지 마지막으로 확인하세요.',
+            description: '엄격 차단, 점수 컷오프, OCR 배치 크기는 실제 현장 보호 흐름을 바꾸므로, 저장 전 관리자와 현장 리듬에 맞는지 보는 것이 좋습니다.',
+            tone: 'border-indigo-200 bg-indigo-50/70',
+        },
+    ], [normalizedAdvancedThreshold, normalizedIntermediateThreshold, settings.approvalPolicy?.strictRoleGate, settings.batchSplitSize, weightSum]);
+
     return (
         <div className="space-y-6 sm:space-y-8 animate-fade-in-up pb-10 sm:pb-12">
             <div className="bg-slate-900 rounded-3xl sm:rounded-[30px] p-5 sm:p-8 md:p-10 text-white shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
@@ -444,11 +517,21 @@ const Settings: React.FC = () => {
                 </button>
             </div>
 
+            <InterpretationCardGrid
+                items={settingsSummaryCards}
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
+
             {showGuide && <SettingsGuide onClose={() => setShowGuide(false)} />}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-8">
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100">
                     <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">1단계: Google Gemini API 연결</h3>
+                    <InterpretationCardGrid
+                        items={apiInterpretationCards}
+                        className="grid grid-cols-1 gap-3 mb-5"
+                        cardClassName="rounded-2xl border p-4"
+                    />
                     <label className="block text-sm font-bold text-slate-600 mb-2">무료 API 키</label>
                     <div className="relative mb-4">
                         <input
@@ -527,6 +610,11 @@ const Settings: React.FC = () => {
 
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-violet-200 lg:col-span-2">
                     <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">개인 안전역량 가중치 설정</h3>
+                    <InterpretationCardGrid
+                        items={policyInterpretationCards}
+                        className="grid grid-cols-1 xl:grid-cols-3 gap-3 mb-5"
+                        cardClassName="rounded-2xl border p-4"
+                    />
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                         <div><label className="block text-xs font-bold text-slate-500 mb-1">심리 지표(w1)</label><input type="number" step="0.01" value={settings.competencyWeights?.psychological ?? 0.2} onChange={(e) => updateWeights({ psychological: Number(e.target.value) })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-sm" /></div>
                         <div><label className="block text-xs font-bold text-slate-500 mb-1">업무 이해도(w2)</label><input type="number" step="0.01" value={settings.competencyWeights?.jobUnderstanding ?? 0.22} onChange={(e) => updateWeights({ jobUnderstanding: Number(e.target.value) })} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-sm" /></div>

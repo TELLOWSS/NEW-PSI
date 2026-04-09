@@ -15,6 +15,7 @@ import type { WorkerRecord } from '../types';
 import { postAdminJson } from '../utils/adminApiClient';
 import { isAdminAuthenticated } from '../utils/adminGuard';
 import { BRAND_STATUS_LABELS, TRAFFIC_LIGHT_BRAND_LABELS, VIOLATION_BRAND_LABELS } from '../utils/brandLabels';
+import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { compressImage } from '../utils/imageCompression';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -202,12 +203,12 @@ function saveViolations(violations: SiteViolation[]) {
 
 function reasonCodeToKo(code: string): string {
     const map: Record<string, string> = {
-        EDUCATION_INCOMPLETE: '교육 확인 필요',
-        COACHING_MISSING: '코칭 확인 필요',
+        EDUCATION_INCOMPLETE: `교육 ${BRAND_STATUS_LABELS.attention}`,
+        COACHING_MISSING: `코칭 ${BRAND_STATUS_LABELS.attention}`,
         REPEAT_VIOLATION: '반복 위반',
         TIMELINE_MISMATCH: '타임라인 추가 확인',
         DOCUMENT_INSUFFICIENT: '문서 점수 보완 필요',
-        FOLLOWUP_PENDING: '사후 조치 확인 필요',
+        FOLLOWUP_PENDING: `사후 조치 ${BRAND_STATUS_LABELS.attention}`,
     };
     return map[code] || code;
 }
@@ -298,6 +299,63 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
 
     const nonCompliantCount = items.filter(it => it.status === 'non-compliant').length;
     const partialCount = items.filter(it => it.status === 'partial').length;
+    const latestSession = sessions[0];
+
+    const riskCheckInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'risk-status',
+            eyebrow: '지금 상태',
+            title: selectedField ? `${selectedField} 점검 흐름을 정리 중입니다.` : '공종 선택 전 단계입니다.',
+            description: selectedField
+                ? `현재 체크리스트 ${items.length}개 중 미이행 ${nonCompliantCount}건, 부분이행 ${partialCount}건이 확인되고 있습니다.`
+                : '공종을 먼저 선택하면 현장에 맞는 이행 항목을 바로 불러와 빠르게 점검을 시작할 수 있습니다.',
+            tone: selectedField ? 'border-indigo-200 bg-indigo-50/70' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'risk-evidence',
+            eyebrow: '판단 근거',
+            title: items.length > 0 ? '버튼형 상태 입력으로 점검 근거가 쌓입니다.' : '기본 프리셋이 공종별 점검 기준이 됩니다.',
+            description: items.length > 0
+                ? '이행·부분이행·미이행을 같은 높이의 버튼으로 정리해 현장 판단을 빠르게 남기고, 필요한 경우 사유 메모를 바로 이어서 기록합니다.'
+                : '등록된 공종과 근로자 데이터에서 공통 기준을 모아 점검 시작 전부터 판단 기준을 흔들리지 않게 유지합니다.',
+            tone: 'border-slate-200 bg-white',
+        },
+        {
+            key: 'risk-action',
+            eyebrow: '다음 행동',
+            title: nonCompliantCount > 0 ? '미이행 항목부터 먼저 보완하세요.' : '사진 첨부 후 기록을 저장하면 됩니다.',
+            description: nonCompliantCount > 0
+                ? '미이행 사유를 짧게 적고 현장 사진을 남기면 이후 조치 우선순위를 팀 단위로 빠르게 공유할 수 있습니다.'
+                : '점검 결과를 저장하면 우측 기록 패널에서 최근 이력과 함께 비교하며 후속 점검 흐름을 이어갈 수 있습니다.',
+            tone: nonCompliantCount > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-emerald-200 bg-emerald-50/80',
+        },
+    ], [items.length, nonCompliantCount, partialCount, selectedField]);
+
+    const riskHistoryInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'history-status',
+            eyebrow: '지금 상태',
+            title: sessions.length > 0 ? `최근 이행점검 ${sessions.length}건이 누적되어 있습니다.` : '아직 저장된 이행점검 기록이 없습니다.',
+            description: latestSession
+                ? `${latestSession.jobField}${latestSession.teamLeader ? ` · ${latestSession.teamLeader}` : ''} 점검이 가장 최근 기록이며, 현재 입력과 이전 기록을 나란히 비교할 수 있습니다.`
+                : '첫 기록을 저장하면 우측 패널에서 최근 점검 흐름과 미이행 항목을 함께 추적할 수 있습니다.',
+            tone: 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'history-evidence',
+            eyebrow: '판단 근거',
+            title: '최근 10건 기준으로 이행 편차를 빠르게 읽습니다.',
+            description: '이행·부분이행·미이행 건수를 동시에 보여줘 특정 공종이나 팀에서 반복되는 보완 포인트를 즉시 확인할 수 있습니다.',
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'history-action',
+            eyebrow: '다음 행동',
+            title: '반복 미이행 항목을 다음 점검 우선순위로 넘기세요.',
+            description: '최근 기록에서 자주 나온 미이행 사유를 다음 TBM, 코칭, 현장 지적 등록 흐름과 연결하면 보호 중심의 후속 조치가 더 빨라집니다.',
+            tone: 'border-amber-200 bg-amber-50/80',
+        },
+    ], [latestSession, sessions.length]);
 
     return (
         <div className="space-y-5 xl:space-y-0 xl:grid xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)] 2xl:grid-cols-[minmax(0,1.2fr)_420px] xl:gap-6 xl:items-start">
@@ -344,6 +402,11 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
                     </div>
                 </div>
             </div>
+
+            <InterpretationCardGrid
+                items={riskCheckInterpretationCards}
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
 
             {/* 체크리스트 */}
             {items.length > 0 && (
@@ -426,6 +489,11 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
                             <p className={`${SECTION_SUBTEXT_CLASS} mt-1`}>최근 등록 내역을 우측에 고정해 현재 입력과 이력을 동시에 확인할 수 있습니다.</p>
                         </div>
                     </div>
+                    <InterpretationCardGrid
+                        items={riskHistoryInterpretationCards}
+                        className="grid grid-cols-1 gap-3"
+                        cardClassName="rounded-2xl border p-4"
+                    />
                     <div className="space-y-3.5">
                         {sessions.slice(0, 10).map(s => {
                             const nc = s.items.filter(it => it.status === 'non-compliant').length;
@@ -497,6 +565,7 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
 
     const trades = useMemo(() => [...new Set(workers.map(w => w.trade).filter(Boolean))] as string[], [workers]);
     const teams  = useMemo(() => [...new Set(workers.map(w => w.team).filter(Boolean))] as string[], [workers]);
+    const selectedWorkers = useMemo(() => workers.filter(w => selected.has(w.id)), [workers, selected]);
 
     const filtered = useMemo(() => workers.filter(w => {
         const matchSearch = !search || w.name.includes(search) || (w.team||'').includes(search) || (w.trade||'').includes(search);
@@ -504,6 +573,62 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
         const matchTeam   = filterTeam  === '전체' || w.team  === filterTeam;
         return matchSearch && matchTrade && matchTeam;
     }), [workers, search, filterTrade, filterTeam]);
+
+    const behaviorInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'behavior-status',
+            eyebrow: '지금 상태',
+            title: selected.size > 0 ? `${selected.size}명을 관찰 대상으로 묶어두었습니다.` : '관찰 대상 선택 전 단계입니다.',
+            description: selected.size > 0
+                ? `${selectedWorkers.slice(0, 2).map(worker => worker.name).join(', ')}${selectedWorkers.length > 2 ? ` 외 ${selectedWorkers.length - 2}명` : ''} 기준으로 동일 상황을 함께 기록할 수 있습니다.`
+                : '좌측 목록에서 대상 근로자를 고르면 동일한 행동·조치 판단을 한 번에 연결할 수 있습니다.',
+            tone: selected.size > 0 ? 'border-indigo-200 bg-indigo-50/70' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'behavior-evidence',
+            eyebrow: '판단 근거',
+            title: behavior ? `${behavior} 상황을 중심으로 증빙을 정리합니다.` : '행동 유형과 메모가 판단 근거가 됩니다.',
+            description: behavior
+                ? `${severity} 수준으로 분류하고 ${photo ? '사진과 ' : ''}증빙 메모를 함께 남겨 현장 상황을 설명 중심으로 기록할 수 있습니다.`
+                : '유형, 심각도, 사진, 메모를 같은 흐름으로 배치해 지적보다 해석이 먼저 보이도록 구성했습니다.',
+            tone: 'border-slate-200 bg-white',
+        },
+        {
+            key: 'behavior-action',
+            eyebrow: '다음 행동',
+            title: coaching ? (actionType ? `${actionType} 조치까지 함께 등록합니다.` : '코칭 조치 유형을 선택하면 등록이 완성됩니다.') : '관찰만 먼저 남기는 모드입니다.',
+            description: coaching
+                ? '재교육, 현장코칭, 작업중지 등 조치 유형과 사후 결과를 함께 적어 반복 위험을 즉시 줄이는 흐름으로 연결합니다.'
+                : '필요 시 관찰만 먼저 저장한 뒤 현장 확인 후 별도 코칭 조치를 이어서 추가할 수 있습니다.',
+            tone: coaching ? 'border-rose-200 bg-rose-50/70' : 'border-emerald-200 bg-emerald-50/70',
+        },
+    ], [actionType, behavior, coaching, photo, selected.size, selectedWorkers, severity]);
+
+    const coachingInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'coaching-status',
+            eyebrow: '지금 상태',
+            title: coaching ? '관찰과 코칭을 한 흐름에서 마감할 수 있습니다.' : '코칭 동시 등록이 꺼져 있습니다.',
+            description: coaching
+                ? '현장 상황을 본 직후 조치 유형과 사후 결과를 연결해 기록 단절을 줄입니다.'
+                : '관찰 기록만 먼저 남기고 실제 확인 후 필요한 조치를 다음 단계에서 추가할 수 있습니다.',
+            tone: 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'coaching-evidence',
+            eyebrow: '판단 근거',
+            title: followup ? `${followup} 기준으로 사후 상태를 관리합니다.` : '사후 결과가 재발 여부 판단의 기준입니다.',
+            description: '조치 유형, 코치 이름, 메모를 함께 적어 단순 등록이 아니라 실제 보완 여부를 추적할 수 있게 했습니다.',
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'coaching-action',
+            eyebrow: '다음 행동',
+            title: coaching && !actionType ? '조치 유형을 먼저 선택하세요.' : '등록 전 마지막으로 대상과 조치 연결을 확인하세요.',
+            description: '관찰 대상 수와 조치 유형이 맞는지 확인한 뒤 통합 등록을 실행하면 월별 무결성 평가에도 바로 반영됩니다.',
+            tone: coaching && !actionType ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+        },
+    ], [actionType, coaching, followup]);
 
     const toggle = (id: string) => setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
     const toggleAll = () => setSelected(prev => prev.size === filtered.length ? new Set() : new Set(filtered.map(w => w.id)));
@@ -546,7 +671,7 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
                 const data = await postAdminJson<{ ok: boolean; inserted_observations?: number; inserted_coaching?: number }>(
                     '/api/admin/safety-management',
                     { action: 'record-safety-closure-loop', payload: { records } },
-                    { fallbackMessage: '관찰·코칭 등록 확인 필요' }
+                    { fallbackMessage: `관찰·코칭 등록 ${BRAND_STATUS_LABELS.attention}` }
                 );
                 const obs = Number(data.inserted_observations || 0);
                 const c   = Number(data.inserted_coaching || 0);
@@ -559,7 +684,7 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
             if (photoRef.current) photoRef.current.value = '';
             setActionType(null); setActionDetail('');
         } catch (e: any) {
-            setResult({ ok: false, message: e.message || '등록 확인 필요' });
+            setResult({ ok: false, message: e.message || `등록 ${BRAND_STATUS_LABELS.attention}` });
         } finally {
             setSubmitting(false);
         }
@@ -609,6 +734,14 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
                             </label>
                         ))}
                 </div>
+            </div>
+
+            <div className="mt-5">
+                <InterpretationCardGrid
+                    items={behaviorInterpretationCards}
+                    className="grid grid-cols-1 gap-3"
+                    cardClassName="rounded-2xl border p-4"
+                />
             </div>
 
             </div>{/* ── end 좌: 근로자 선택 ── */}
@@ -685,6 +818,11 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
                         {coaching ? 'ON' : 'OFF'}
                     </button>
                 </div>
+                <InterpretationCardGrid
+                    items={coachingInterpretationCards}
+                    className="grid grid-cols-1 xl:grid-cols-3 gap-3"
+                    cardClassName="rounded-2xl border p-4"
+                />
                 {coaching && (
                     <>
                         <div>
@@ -807,20 +945,78 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
 
     const openCount = violations.filter(v => v.status === 'open').length;
     const inProgressCount = violations.filter(v => v.status === 'in-progress').length;
+    const resolvedCount = violations.filter(v => v.status === 'resolved').length;
+    const latestViolation = violations[0];
+
+    const violationInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'violation-status',
+            eyebrow: '지금 상태',
+            title: violations.length > 0 ? `${violations.length}건의 지적 흐름을 관리 중입니다.` : '아직 등록된 지적사항이 없습니다.',
+            description: latestViolation
+                ? `최근 등록 건은 ${latestViolation.category} 분야이며 현재 ${VIOLATION_STATUS_META[latestViolation.status].label} 상태입니다.`
+                : '자체 점검, 원도급사, 외부감찰 지적을 같은 구조로 모아 현장 보호 우선순위를 정리할 수 있습니다.',
+            tone: violations.length > 0 ? 'border-rose-200 bg-rose-50/60' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'violation-evidence',
+            eyebrow: '판단 근거',
+            title: '출처·심각도·기한이 판단의 기준입니다.',
+            description: `조치 필요 ${openCount}건, 조치 중 ${inProgressCount}건, 완료 ${resolvedCount}건을 함께 보여줘 어느 영역에서 병목이 생기는지 빠르게 읽을 수 있습니다.`,
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'violation-action',
+            eyebrow: '다음 행동',
+            title: openCount > 0 ? '열린 지적부터 책임 팀과 기한을 먼저 맞추세요.' : '새 지적 등록 시 책임 팀과 기한을 함께 남기면 됩니다.',
+            description: '등록 후에는 각 항목 아래의 상태·근거·다음 행동 블록을 기준으로 조치 메모를 이어가면 현장 커뮤니케이션이 더 단순해집니다.',
+            tone: openCount > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+        },
+    ], [inProgressCount, latestViolation, openCount, resolvedCount, violations.length]);
+
+    const violationFormInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'violation-form-status',
+            eyebrow: '지금 상태',
+            title: showForm ? '지적 등록을 입력 중입니다.' : '등록 폼은 필요할 때만 열립니다.',
+            description: '모바일과 PC 모두 같은 입력 순서를 유지해 출처에서 기한까지 판단 흐름이 흔들리지 않도록 구성했습니다.',
+            tone: 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'violation-form-evidence',
+            eyebrow: '판단 근거',
+            title: category ? `${category} 분야로 지적을 분류합니다.` : '분야와 심각도가 조치 우선순위를 만듭니다.',
+            description: description.trim()
+                ? '설명, 사진, 책임 팀을 함께 남기면 나중에 다시 해석하지 않아도 바로 조치 흐름을 이어갈 수 있습니다.'
+                : '지적 내용을 구체적으로 남길수록 이후 조치 상태와 재확인 근거가 명확해집니다.',
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'violation-form-action',
+            eyebrow: '다음 행동',
+            title: category && description.trim() ? '등록 버튼으로 조치 흐름을 시작할 수 있습니다.' : '분야와 내용을 먼저 채워주세요.',
+            description: '필요하면 감찰 기관, 사진, 책임 팀을 추가한 뒤 등록하면 목록에서 즉시 상태 관리가 가능합니다.',
+            tone: category && description.trim() ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80',
+        },
+    ], [category, description, showForm]);
 
     return (
         <div className="space-y-5 xl:space-y-0 xl:grid xl:grid-cols-[minmax(0,1fr)_420px] 2xl:grid-cols-[minmax(0,1.08fr)_460px] xl:gap-6 xl:items-start">
             <div className="space-y-5">
+            <InterpretationCardGrid
+                items={violationInterpretationCards}
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
             {/* 요약 바 */}
             {violations.length > 0 && (
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-center">
                         <div className="text-3xl font-black text-rose-600">{openCount}</div>
-                        <div className="mt-1 text-xs font-bold text-rose-700">조치 필요</div>
+                        <div className="mt-1 text-xs font-bold text-rose-700">{BRAND_STATUS_LABELS.actionNeeded}</div>
                     </div>
                     <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-center">
                         <div className="text-3xl font-black text-amber-600">{inProgressCount}</div>
-                        <div className="mt-1 text-xs font-bold text-amber-700">조치 진행중</div>
+                        <div className="mt-1 text-xs font-bold text-amber-700">{BRAND_STATUS_LABELS.actionInProgress}</div>
                     </div>
                     <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-center">
                         <div className="text-3xl font-black text-emerald-600">{violations.filter(v => v.status === 'resolved').length}</div>
@@ -840,6 +1036,11 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
             {/* 등록 폼 */}
             {showForm && (
                 <div className={`${PANEL_CLASS} p-4 sm:p-5 space-y-4`}>
+                    <InterpretationCardGrid
+                        items={violationFormInterpretationCards}
+                        className="grid grid-cols-1 xl:grid-cols-3 gap-3"
+                        cardClassName="rounded-2xl border p-4"
+                    />
                     {/* 출처 */}
                     <div>
                         <label className={`${FIELD_LABEL_CLASS} font-black text-slate-700`}>지적 출처</label>
@@ -975,6 +1176,29 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                                 <p className="text-sm text-slate-600">{v.issueDate}{v.dueDate ? ` → 기한: ${v.dueDate}` : ''}{v.responsibleTeam ? ` · ${v.responsibleTeam}` : ''}</p>
                                 <p className="text-base font-semibold leading-relaxed text-slate-700">{v.description}</p>
                                 {v.photo && <img src={`data:image/jpeg;base64,${v.photo}`} alt="지적" className="w-20 h-20 object-cover rounded-lg border border-slate-200" />}
+                                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">지금 상태</p>
+                                        <p className="mt-2 text-sm font-black text-slate-900">{stMeta.label}</p>
+                                        <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-600">
+                                            {isOverdue ? '기한이 지나 우선 조치가 필요한 상태입니다.' : v.status === 'resolved' ? '조치 완료 상태로 기록이 정리되고 있습니다.' : '현장 확인과 후속 조치를 이어가야 하는 단계입니다.'}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-2xl border border-slate-200 bg-white px-3.5 py-3">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">판단 근거</p>
+                                        <p className="mt-2 text-sm font-black text-slate-900">{v.category} · {v.severity}</p>
+                                        <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-600">
+                                            {v.source === 'external' && v.externalAuthority ? `${v.externalAuthority} 지적이며 ` : ''}{v.responsibleTeam ? `${v.responsibleTeam} 팀이 대응 대상으로 지정되어 있습니다.` : '책임 팀 지정 전 상태입니다.'}
+                                        </p>
+                                    </div>
+                                    <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-3.5 py-3">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-700">다음 행동</p>
+                                        <p className="mt-2 text-sm font-black text-slate-900">상태 변경과 조치 메모를 이어서 남기세요.</p>
+                                        <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-700">
+                                            {v.status === 'resolved' ? '필요하면 조치 내용을 짧게 남겨 후속 확인 근거를 보완하세요.' : '아래 상태 버튼으로 진행 상황을 갱신하고, 완료 시 조치 메모를 기록하면 됩니다.'}
+                                        </p>
+                                    </div>
+                                </div>
                                 {/* 조치 상태 변경 */}
                                 <div className="flex flex-wrap gap-1.5 pt-3 border-t border-slate-100">
                                     {(['open', 'in-progress', 'resolved'] as ViolationStatus[]).map(s => (
@@ -1011,6 +1235,12 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                     </div>
 
                     <p className={SECTION_SUBTEXT_CLASS}>출처, 심각도, 조치 기한을 같은 간격 규칙으로 정리해 빠른 입력 시 시선 이동을 줄였습니다.</p>
+
+                    <InterpretationCardGrid
+                        items={violationFormInterpretationCards}
+                        className="grid grid-cols-1 gap-3"
+                        cardClassName="rounded-2xl border p-4"
+                    />
 
                     <div>
                         <label className={`${FIELD_LABEL_CLASS} font-black text-slate-700`}>지적 출처</label>
@@ -1146,7 +1376,7 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
             const data = await postAdminJson<{ ok: boolean; data?: { results: any[] } }>(
                 '/api/admin/safety-management',
                 { action: 'evaluate-worker-integrity', payload: { worker_ids: workers.map(w => w.id), assessment_month: assessmentMonth } },
-                    { fallbackMessage: '무결성 판정 API 호출 확인 필요' }
+                    { fallbackMessage: `무결성 판정 API 호출 ${BRAND_STATUS_LABELS.attention}` }
             );
             const nameMap = Object.fromEntries(workers.map(w => [w.id, w.label]));
             const rows: IntegrityRow[] = (data.data?.results || []).map((r: any) => ({
@@ -1167,6 +1397,32 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
     }, [assessmentMonth, workers]);
 
     const summary = { green: reviews.filter(r => r.traffic_light === 'green').length, yellow: reviews.filter(r => r.traffic_light === 'yellow').length, red: reviews.filter(r => r.traffic_light === 'red').length };
+
+    const reviewInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'review-status',
+            eyebrow: '지금 상태',
+            title: reviews.length > 0 ? `${reviews.length}명의 행동 무결성 판정이 정리되어 있습니다.` : '자동 판정 실행 전 상태입니다.',
+            description: reviews.length > 0
+                ? `확정 ${summary.green}명, 추가 확인 ${summary.yellow}명, 조치 필요 ${summary.red}명으로 월별 보호 우선순위를 빠르게 볼 수 있습니다.`
+                : '좌측 이행 현황과 행동 데이터를 함께 읽어 근로자별 보호 우선순위를 자동으로 정리하는 화면입니다.',
+            tone: reviews.length > 0 ? 'border-indigo-200 bg-indigo-50/70' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'review-evidence',
+            eyebrow: '판단 근거',
+            title: '점검 이행률, 열린 지적, 행동 기록이 함께 반영됩니다.',
+            description: `현재 위험성평가 ${localStats.totalSessions}건, 열린 지적 ${localStats.openViolations}건, 중대 지적 ${localStats.criticalViolations}건이 종합 판단의 바탕이 됩니다.`,
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'review-action',
+            eyebrow: '다음 행동',
+            title: reviews.length > 0 ? '노란색·빨간색 대상부터 코칭과 보완을 연결하세요.' : '판정 실행 후 추가 확인 대상을 먼저 살펴보세요.',
+            description: '사유 코드를 그대로 두지 말고 관찰·코칭, 지적사항, 다음 점검 계획과 연결해 실제 현장 보완으로 이어지게 하는 것이 핵심입니다.',
+            tone: reviews.length > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+        },
+    ], [localStats.criticalViolations, localStats.openViolations, localStats.totalSessions, reviews.length, summary.green, summary.red, summary.yellow]);
 
     return (
         <div className="space-y-5 xl:space-y-0 xl:grid xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[420px_minmax(0,1fr)] xl:gap-6 xl:items-start">
@@ -1215,6 +1471,11 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
                     </button>
                 </div>
 
+                <InterpretationCardGrid
+                    items={reviewInterpretationCards}
+                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                />
+
                 {error && <div className="mb-3 rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-800">❌ {error}</div>}
 
                 {reviews.length > 0 && (
@@ -1233,8 +1494,8 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
                         </div>
                         <div className="mb-4 flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-medium text-slate-700">
                             <span className="rounded-full bg-white px-2.5 py-1">🟢 확정 = 우선 확인 완료</span>
-                            <span className="rounded-full bg-white px-2.5 py-1">🟡 {TRAFFIC_LIGHT_BRAND_LABELS.yellow} = 보완 검토 필요</span>
-                            <span className="rounded-full bg-white px-2.5 py-1">🔴 {TRAFFIC_LIGHT_BRAND_LABELS.red} = 즉시 조치 필요</span>
+                            <span className="rounded-full bg-white px-2.5 py-1">🟡 {TRAFFIC_LIGHT_BRAND_LABELS.yellow} = {BRAND_STATUS_LABELS.supplementaryReview}</span>
+                            <span className="rounded-full bg-white px-2.5 py-1">🔴 {TRAFFIC_LIGHT_BRAND_LABELS.red} = {BRAND_STATUS_LABELS.actionNeeded}</span>
                         </div>
                         <div className="overflow-x-auto rounded-2xl border border-slate-200">
                             <table className="w-full min-w-[760px] table-fixed text-sm">
@@ -1249,7 +1510,7 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
                                 <tbody>
                                     {reviews.map((row, idx) => {
                                         const cfg = tlConfig(row.traffic_light);
-                                        const statusLabel = row.traffic_light === 'green' ? '우선 확인 완료' : row.traffic_light === 'yellow' ? '보완 검토 필요' : '즉시 조치 필요';
+                                        const statusLabel = row.traffic_light === 'green' ? '우선 확인 완료' : row.traffic_light === 'yellow' ? BRAND_STATUS_LABELS.supplementaryReview : BRAND_STATUS_LABELS.actionNeeded;
                                         return (
                                             <tr key={row.worker_id} className={`align-top border-b border-slate-100 last:border-b-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`}>
                                                 <td className="px-5 py-4 text-sm font-semibold leading-7 text-slate-900">{row.worker_name}</td>
@@ -1307,6 +1568,39 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
     const [activeTab, setActiveTab] = useState<ActiveTab>('risk-check');
     const [assessmentMonth, setAssessmentMonth] = useState(getCurrentMonth());
 
+    const hubSummaryCards: InterpretationCardItem[] = useMemo(() => {
+        const riskSessions = loadRiskCheckSessions();
+        const violations = loadViolations();
+        const openViolations = violations.filter(v => v.status === 'open').length;
+        const recentRisk = riskSessions[0];
+
+        return [
+            {
+                key: 'hub-status',
+                eyebrow: '지금 상태',
+                title: `${workerRecords.length}건의 근로자 기록을 기준으로 현장 안전 흐름을 보고 있습니다.`,
+                description: recentRisk
+                    ? `최근 이행점검은 ${recentRisk.jobField}${recentRisk.teamLeader ? ` · ${recentRisk.teamLeader}` : ''} 기준으로 저장되어 있으며, 탭별 조치 흐름을 같은 구조로 이어갈 수 있습니다.`
+                    : '아직 이행점검 기록이 없다면 위험성평가 이행점검 탭부터 시작해 현장 기준을 먼저 세우는 것이 좋습니다.',
+                tone: 'border-indigo-200 bg-indigo-50/70',
+            },
+            {
+                key: 'hub-evidence',
+                eyebrow: '판단 근거',
+                title: '점검, 관찰·코칭, 지적사항, 종합판정을 한 화면 체계로 묶었습니다.',
+                description: `현재 열린 지적 ${openViolations}건이 있으며, 각 탭은 상태보다 해석이 먼저 보이도록 '지금 상태 · 판단 근거 · 다음 행동' 구조를 공유합니다.`,
+                tone: 'border-white/80 bg-white',
+            },
+            {
+                key: 'hub-action',
+                eyebrow: '다음 행동',
+                title: activeTab === 'review' ? '종합판정 결과를 실제 보완 흐름과 연결하세요.' : '현재 탭에서 확인한 신호를 다음 탭 조치로 넘기세요.',
+                description: '이행점검에서 찾은 미이행은 관찰·코칭으로, 반복 지적은 종합판정의 우선 확인 대상으로 연결하면 PSI가 감시 도구가 아니라 보호 파트너처럼 작동합니다.',
+                tone: activeTab === 'review' ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+            },
+        ];
+    }, [activeTab, workerRecords.length]);
+
     const workerOptions: WorkerOption[] = useMemo(() => {
         const seen = new Set<string>();
         return [...workerRecords]
@@ -1351,6 +1645,11 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
                     </div>
                 </div>
             </div>
+
+            <InterpretationCardGrid
+                items={hubSummaryCards}
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
 
             {/* 탭 네비게이션 */}
             <div className="flex gap-2 overflow-x-auto rounded-2xl bg-slate-100/90 p-2 xl:grid xl:grid-cols-4 xl:overflow-visible">

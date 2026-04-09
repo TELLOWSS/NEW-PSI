@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import type { AppSettings } from '../types';
 import { supabase } from '../lib/supabaseClient';
+import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
+import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 
 type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
 const LINK_HISTORY_STORAGE_KEY = 'psi_training_link_history';
@@ -123,7 +125,7 @@ const UI_TEXT: Record<UiLocale, {
         partialSuccess: '생성 완료(부분 성공): 일부 언어는 음성 생성 확인이 더 필요해 텍스트 안내로 대체됩니다.',
         parseFail: '서버 JSON 응답을 확인하는 중 문제가 있어 다시 확인이 필요합니다.',
         emptyResponse: '서버가 비어있는 응답을 반환했습니다.',
-        createFail: '세션 생성 확인 필요',
+        createFail: `세션 생성 ${BRAND_STATUS_LABELS.attention}`,
         errorPrefix: '안내',
         recentTitle: '최근 테스트 세션',
         recentEmpty: '표시할 세션이 없습니다.',
@@ -146,14 +148,14 @@ const UI_TEXT: Record<UiLocale, {
         shareTitle: '공유 텍스트',
         directAccessHint: 'QR 접속이 어려운 근로자에게는 아래 링크/공유 텍스트를 메신저로 직접 전송하거나 관리자 휴대폰 브라우저에 링크를 직접 입력해 접속시켜 주세요.',
         failedLangTitle: '음성 미생성 언어 (텍스트 대체)',
-        failedBadge: '일부 음성 확인 필요',
+        failedBadge: `일부 음성 ${BRAND_STATUS_LABELS.attention}`,
         attemptLabel: '시도 코드',
         linkExpiryLabel: '링크 만료 시각',
         linkExpiredBadge: '만료됨',
         reissueLink: '링크 재발급',
         reissuing: '재발급 중...',
         reissueDone: '링크를 재발급했습니다.',
-        reissueFail: '링크 재발급 확인 필요',
+        reissueFail: `링크 재발급 ${BRAND_STATUS_LABELS.attention}`,
         historyTitle: '링크 생성/재발급 이력',
         historyEmpty: '아직 기록이 없습니다.',
         historyCreate: '초기 생성',
@@ -542,6 +544,106 @@ const AdminTraining: React.FC = () => {
         ].join('\n')
         : '';
 
+    const recentSessionInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
+        const sessionsWithMissingAudio = recentSessions.filter((session) => Object.values(session.audio_urls || {}).some((url) => !url)).length;
+
+        return [
+            {
+                eyebrow: '지금 상태',
+                title: `최근 테스트 세션 ${recentSessions.length}건 중 화면에 즉시 불러올 수 있는 흐름이 준비돼 있습니다.`,
+                description: recentSessions.length > 0
+                    ? '최근 세션을 다시 불러오면 새로 QR을 만들지 않아도 현재 운영 상태를 빠르게 이어서 확인할 수 있습니다.'
+                    : '아직 최근 세션이 없어, 먼저 테스트 세션을 생성해 운영 흐름을 시작해야 합니다.',
+            },
+            {
+                eyebrow: '판단 근거',
+                title: sessionsWithMissingAudio > 0
+                    ? `${sessionsWithMissingAudio}건은 일부 언어 음성 확인이 더 필요합니다.`
+                    : '최근 세션에서는 음성 누락 신호가 크지 않습니다.',
+                description: sessionsWithMissingAudio > 0
+                    ? '음성 누락 세션은 텍스트 대체로 운영은 가능하지만, 현장 전달 품질을 위해 재확인 우선순위를 두는 편이 안전합니다.'
+                    : '최근 생성 세션은 다국어 안내 연결 상태가 비교적 안정적이어서 현장 재사용 부담이 낮습니다.',
+            },
+            {
+                eyebrow: '다음 행동',
+                title: recentSessions.length > 0
+                    ? '가장 최근 세션을 불러와 QR·음성·확약 지표를 함께 점검하세요.'
+                    : '한국어 원문과 대상 언어를 먼저 정한 뒤 첫 세션을 생성하세요.',
+                description: '세션 재사용 여부를 빠르게 판단하면 같은 교육 공지를 반복 생성하는 시간을 줄이고, 현장 배포 일관성을 유지할 수 있습니다.',
+            },
+        ];
+    }, [recentSessions]);
+
+    const awarenessInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
+        if (!currentSessionId) {
+            return [
+                {
+                    eyebrow: '지금 상태',
+                    title: '현재 확약 상태를 읽을 세션이 아직 선택되지 않았습니다.',
+                    description: '최근 세션을 먼저 불러오면 제출·확약 현황과 QR 배포 상태를 같은 흐름 안에서 확인할 수 있습니다.',
+                },
+            ];
+        }
+
+        if (awarenessStats) {
+            return [
+                {
+                    eyebrow: '지금 상태',
+                    title: `${awarenessStats.submittedWorkers}명 중 ${awarenessStats.confirmedWorkers}명이 이해·확약을 마쳤습니다.`,
+                    description: awarenessStats.unconfirmedWorkers > 0
+                        ? `${awarenessStats.unconfirmedWorkers}명은 아직 확인이 끝나지 않아 현장 후속 안내가 필요한 상태입니다.`
+                        : '현재 세션에서는 미확약 인원이 없어 후속 추적 필요도가 낮습니다.',
+                },
+                {
+                    eyebrow: '판단 근거',
+                    title: `확약률은 ${awarenessStats.confirmationRate}%이고, ${awarenessStats.nationalityCount}개 국적이 참여했습니다.`,
+                    description: awarenessStats.ackDataSource === 'training_acknowledgements'
+                        ? '상세 확약 테이블 기준으로 계산되어 실제 응답 근거를 직접 추적할 수 있습니다.'
+                        : '제출 게이트 기준으로 계산되어 현장 제출 여부 중심으로 빠르게 상태를 읽을 수 있습니다.',
+                },
+                {
+                    eyebrow: '다음 행동',
+                    title: awarenessStats.unconfirmedWorkers > 0
+                        ? '미확약 인원을 다시 안내 대상에 포함해 QR 재접속 또는 직접 안내를 진행하세요.'
+                        : '현재 세션은 유지하되, 링크 만료 전 재교육 필요 여부만 확인하면 됩니다.',
+                    description: '확약률만 보는 대신 미확약 인원과 데이터 근거를 함께 보면, 추가 안내가 필요한 현장을 더 정확히 좁힐 수 있습니다.',
+                },
+            ];
+        }
+
+        return [];
+    }, [awarenessStats, currentSessionId]);
+
+    const qrInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
+        if (!mobileUrl) return [];
+
+        const uploadedAudioCount = selectedLanguages.filter((code) => Boolean(sessionAudioUrls?.[code])).length;
+        const pendingAudioCount = Math.max(0, selectedLanguages.length - uploadedAudioCount);
+        const isExpired = Boolean(linkExpiresAt && Date.now() > linkExpiresAt);
+
+        return [
+            {
+                eyebrow: '지금 상태',
+                title: isExpired ? '현재 QR 링크는 만료되어 재발급 판단이 필요합니다.' : '현재 QR 링크는 현장 배포에 바로 사용할 수 있습니다.',
+                description: isExpired
+                    ? '만료된 링크는 스캔은 되더라도 접속이 끊길 수 있어, 재발급 후 다시 공유하는 편이 안전합니다.'
+                    : '근로자 화면 진입 경로가 준비되어 있어, 교육 현장에서 즉시 스캔 안내를 시작할 수 있습니다.',
+            },
+            {
+                eyebrow: '판단 근거',
+                title: `선택 언어 ${selectedLanguages.length}개 중 ${uploadedAudioCount}개는 음성 연결이 확인됐습니다.`,
+                description: pendingAudioCount > 0
+                    ? `${pendingAudioCount}개 언어는 아직 업로드가 필요하거나 텍스트 대체 상태이므로, 대상 국적 비중이 높은 언어부터 먼저 보완하는 편이 좋습니다.`
+                    : '현재 선택 언어는 모두 음성 연결이 확인되어 현장 전달력이 비교적 안정적입니다.',
+            },
+            {
+                eyebrow: '다음 행동',
+                title: isExpired ? '링크를 재발급하고 다시 공유한 뒤 음성 누락 언어를 함께 점검하세요.' : 'QR 대형 화면과 직접 링크 공유 중 현장 상황에 맞는 전달 방식을 선택하세요.',
+                description: '스캔이 어려운 현장에서는 직접 링크 전송이 더 빠를 수 있고, 집체 교육에서는 대형 QR이 더 효과적입니다.',
+            },
+        ];
+    }, [linkExpiresAt, mobileUrl, selectedLanguages, sessionAudioUrls]);
+
     useEffect(() => {
         if (!isQrExpanded) return;
 
@@ -575,7 +677,7 @@ const AdminTraining: React.FC = () => {
         }
 
         if (!response.ok || !data?.ok) {
-            throw new Error(data?.message || data?.error || `링크 재발급 확인 필요 (HTTP ${response.status})`);
+            throw new Error(data?.message || data?.error || `링크 재발급 ${BRAND_STATUS_LABELS.attention} (HTTP ${response.status})`);
         }
 
         return {
@@ -615,7 +717,7 @@ const AdminTraining: React.FC = () => {
             }
 
             if (!response.ok || !data?.ok) {
-                throw new Error(data?.message || `통계 조회 확인 필요 (HTTP ${response.status})`);
+                throw new Error(data?.message || `통계 조회 ${BRAND_STATUS_LABELS.attention} (HTTP ${response.status})`);
             }
 
             setAwarenessStats({
@@ -799,7 +901,7 @@ const AdminTraining: React.FC = () => {
         return new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve(String(reader.result || ''));
-            reader.onerror = () => reject(new Error(`${file.name} 읽기 확인 필요`));
+            reader.onerror = () => reject(new Error(`${file.name} 읽기 ${BRAND_STATUS_LABELS.attention}`));
             reader.readAsDataURL(file);
         });
     };
@@ -856,7 +958,7 @@ const AdminTraining: React.FC = () => {
             }
 
             if (!response.ok || !data?.ok) {
-                throw new Error(data?.message || `음성 업로드 확인 필요 (HTTP ${response.status})`);
+                throw new Error(data?.message || `음성 업로드 ${BRAND_STATUS_LABELS.attention} (HTTP ${response.status})`);
             }
 
             const nextAudioUrls = data?.audioUrls && typeof data.audioUrls === 'object' ? data.audioUrls : {};
@@ -913,7 +1015,7 @@ const AdminTraining: React.FC = () => {
             }
 
             if (!response.ok) {
-                const serverMessage = data?.message || data?.error || `요청 확인 필요 (HTTP ${response.status})`;
+                const serverMessage = data?.message || data?.error || `요청 ${BRAND_STATUS_LABELS.attention} (HTTP ${response.status})`;
                 throw new Error(serverMessage);
             }
 
@@ -1067,7 +1169,7 @@ const AdminTraining: React.FC = () => {
             }
 
             if (!response.ok || !data?.ok) {
-                throw new Error(data?.message || data?.error || `세션 삭제 확인 필요 (HTTP ${response.status})`);
+                throw new Error(data?.message || data?.error || `세션 삭제 ${BRAND_STATUS_LABELS.attention} (HTTP ${response.status})`);
             }
 
             if (sessionIdToDelete === currentSessionId) {
@@ -1109,7 +1211,7 @@ const AdminTraining: React.FC = () => {
                     </div>
                     <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
                         <p className="text-[12px] font-black text-amber-800">안되는 언어 대응</p>
-                        <p className="mt-1 text-[11px] font-bold text-amber-700">몽골어 등 일부 언어는 생성 대상에 포함되어 있어도 외부 음성 생성 상태에 따라 추가 확인이 필요할 수 있습니다. 이 경우 해당 언어는 텍스트 안내로 자동 대체하고, 필요 시 가장 가까운 공용 언어(예: 한국어/영어/러시아어) 또는 현장 통역 지원을 함께 운영하세요.</p>
+                                                <p className="mt-1 text-[11px] font-bold text-amber-700">몽골어 등 일부 언어는 생성 대상에 포함되어 있어도 외부 음성 생성 상태에 따라 추가 확인 안내가 필요할 수 있습니다. 이 경우 해당 언어는 텍스트 안내로 자동 대체하고, 필요 시 가장 가까운 공용 언어(예: 한국어/영어/러시아어) 또는 현장 통역 지원을 함께 운영하세요.</p>
                     </div>
                 </div>
 
@@ -1196,6 +1298,14 @@ const AdminTraining: React.FC = () => {
 
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
                 <h3 className="text-lg font-black text-slate-900">{t.recentTitle}</h3>
+                <InterpretationCardGrid
+                    items={recentSessionInterpretationCards}
+                    className="mt-4 grid-cols-1 xl:grid-cols-3"
+                    cardClassName="border-slate-200 bg-slate-50"
+                    eyebrowClassName="text-slate-500"
+                    titleClassName="text-slate-900"
+                    descriptionClassName="text-slate-600"
+                />
                 {recentSessions.length === 0 ? (
                     <p className="mt-3 text-sm font-bold text-slate-500">{t.recentEmpty}</p>
                 ) : (
@@ -1239,6 +1349,16 @@ const AdminTraining: React.FC = () => {
             <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
                 <h3 className="text-lg font-black text-slate-900">{t.awarenessTitle}</h3>
                 <p className="mt-1 text-xs font-bold text-slate-500">{t.awarenessSubtitle}</p>
+                {awarenessInterpretationCards.length > 0 && (
+                    <InterpretationCardGrid
+                        items={awarenessInterpretationCards}
+                        className="mt-4 grid-cols-1 xl:grid-cols-3"
+                        cardClassName="border-emerald-100 bg-emerald-50/50"
+                        eyebrowClassName="text-emerald-700"
+                        titleClassName="text-slate-900"
+                        descriptionClassName="text-slate-600"
+                    />
+                )}
 
                 {!currentSessionId ? (
                     <p className="mt-3 text-sm font-bold text-slate-500">{t.recentEmpty}</p>
@@ -1298,6 +1418,14 @@ const AdminTraining: React.FC = () => {
                             {t.qrExpand}
                         </button>
                     </div>
+                    <InterpretationCardGrid
+                        items={qrInterpretationCards}
+                        className="mt-4 grid-cols-1 xl:grid-cols-3"
+                        cardClassName="border-indigo-100 bg-indigo-50/50"
+                        eyebrowClassName="text-indigo-700"
+                        titleClassName="text-slate-900"
+                        descriptionClassName="text-slate-600"
+                    />
                     {currentSessionId && <p className="text-[11px] font-bold text-slate-500 mt-1">세션 ID: {currentSessionId}</p>}
                     {linkExpiresAt && (
                         <div className="mt-2 flex flex-wrap items-center gap-2">

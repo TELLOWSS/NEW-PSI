@@ -4,6 +4,8 @@ import type { WorkerRecord, SafetyCheckRecord } from '../types';
 import { compressImage } from '../utils/imageCompression';
 import { postAdminJson } from '../utils/adminApiClient';
 import { extractMessage } from '../utils/errorUtils';
+import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
+import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 
 interface SafetyChecksProps {
     workerRecords: WorkerRecord[];
@@ -60,6 +62,76 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
         [workerOptions, selectedWorkerId]
     );
 
+    const recentCheckSummary = useMemo(() => {
+        const unsafeActionCount = checkRecords.filter((record) => record.type === 'unsafe_action').length;
+        const unsafeConditionCount = checkRecords.filter((record) => record.type === 'unsafe_condition').length;
+        const withImageCount = checkRecords.filter((record) => Boolean(record.image)).length;
+        const latestRecord = checkRecords[0] || null;
+
+        return {
+            unsafeActionCount,
+            unsafeConditionCount,
+            withImageCount,
+            latestRecord,
+        };
+    }, [checkRecords]);
+
+    const formInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
+        return [
+            {
+                eyebrow: '지금 상태',
+                title: selectedWorker
+                    ? `${selectedWorker.name}에 대한 점검 기록을 바로 남길 수 있습니다.`
+                    : '아직 점검 대상을 고르지 않아 기록 연결이 시작되지 않았습니다.',
+                description: selectedWorker
+                    ? '점검 기록은 근로자 기준으로 연결되어 이후 보완 조치와 현장 추적 근거로 이어집니다.'
+                    : '근로자를 먼저 선택하면 누구의 어떤 위험 신호인지 흐름이 분명해집니다.',
+            },
+            {
+                eyebrow: '판단 근거',
+                title: `${type === 'unsafe_action' ? '불안전한 행동' : '불안전한 상태'} 기준으로 ${riskType ? '위험 요인이 입력됨' : '위험 요인 입력이 필요함'} 상태입니다.`,
+                description: attachedImage
+                    ? '현장 사진이 함께 첨부되어 관리자 판단과 후속 조치 설명 근거가 더 분명해집니다.'
+                    : '사진이 없어도 등록은 가능하지만, 현장 근거를 남기면 이후 확인 속도가 더 빨라집니다.',
+            },
+            {
+                eyebrow: '다음 행동',
+                title: !selectedWorkerId
+                    ? '근로자를 먼저 선택하세요.'
+                    : !riskType.trim()
+                        ? '위험 요인을 짧게라도 먼저 적어 주세요.'
+                        : '이제 기록을 등록하고 필요하면 사진 근거를 함께 남기세요.',
+                description: '점검 기록은 지적보다 보완을 위한 근거여야 하므로, 무엇을 확인했고 무엇을 보완해야 하는지 드러나게 적는 것이 좋습니다.',
+            },
+        ];
+    }, [attachedImage, riskType, selectedWorker, selectedWorkerId, type]);
+
+    const recordInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
+        return [
+            {
+                eyebrow: '지금 상태',
+                title: `전체 점검 기록 ${checkRecords.length}건이 누적되어 있습니다.`,
+                description: checkRecords.length > 0
+                    ? '이미 남겨진 기록을 보면 현장에서 반복되는 신호가 행동 중심인지 상태 중심인지 빠르게 읽을 수 있습니다.'
+                    : '아직 점검 기록이 없어 현장 신호를 추적할 기준 데이터가 부족한 상태입니다.',
+            },
+            {
+                eyebrow: '판단 근거',
+                title: `행동 ${recentCheckSummary.unsafeActionCount}건 · 상태 ${recentCheckSummary.unsafeConditionCount}건 · 사진 근거 ${recentCheckSummary.withImageCount}건`,
+                description: recentCheckSummary.latestRecord
+                    ? `가장 최근 기록은 ${recentCheckSummary.latestRecord.workerName} / ${recentCheckSummary.latestRecord.reason}로 남아 있습니다.`
+                    : '아직 최근 기록이 없어 어떤 유형의 위험이 반복되는지 판단 근거가 충분하지 않습니다.',
+            },
+            {
+                eyebrow: '다음 행동',
+                title: checkRecords.length > 0
+                    ? '반복되는 위험 요인을 먼저 보고 동일 유형이 누적되는지 확인하세요.'
+                    : '첫 점검 기록부터 사진과 상세 설명을 함께 남겨 기준 품질을 맞추세요.',
+                description: '행동과 상태 기록을 함께 쌓아야 현장 보완이 사람 문제인지 환경 문제인지 더 정확히 나눌 수 있습니다.',
+            },
+        ];
+    }, [checkRecords.length, recentCheckSummary]);
+
     const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -70,7 +142,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
             setAttachedImage(compressedBase64);
         } catch (error) {
             console.error('Safety check image compression failed:', error);
-            alert('사진 처리 중 추가 확인이 필요합니다. 다시 확인해 주세요.');
+            alert('사진 처리 중 추가 확인 안내가 필요합니다. 다시 확인해 주세요.');
         } finally {
             setIsCompressingImage(false);
         }
@@ -108,7 +180,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                         },
                     ],
                 },
-            }, { fallbackMessage: '점검 통합 등록 확인 필요' });
+            }, { fallbackMessage: `점검 통합 등록 ${BRAND_STATUS_LABELS.attention}` });
 
             onAddCheck({ workerName: selectedWorker.name, date, type, reason: riskType, details, image: attachedImage || undefined });
             setSubmitStatus({ ok: true, message: '통합 액션으로 점검 기록이 등록되었습니다.' });
@@ -123,7 +195,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
             }
         } catch (error) {
             const message = extractMessage(error);
-            setSubmitStatus({ ok: false, message: message || '점검 등록 확인 필요' });
+            setSubmitStatus({ ok: false, message: message || `점검 등록 ${BRAND_STATUS_LABELS.attention}` });
         } finally {
             setIsSubmitting(false);
         }
@@ -138,6 +210,14 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                     </svg>
                     새 점검 기록 추가
                 </h3>
+                <InterpretationCardGrid
+                    items={formInterpretationCards}
+                    className="mb-4 grid-cols-1 xl:grid-cols-3"
+                    cardClassName="border-slate-200 bg-slate-50"
+                    eyebrowClassName="text-slate-500"
+                    titleClassName="text-slate-900"
+                    descriptionClassName="text-slate-600"
+                />
                 <form onSubmit={handleSubmit} className="space-y-4 mt-4 p-4 border border-slate-200 rounded-lg">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div>
@@ -165,7 +245,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                     </div>
                     <div>
                         <label htmlFor="details" className="block text-sm font-medium text-slate-700">상세 내용</label>
-                        <textarea id="details" value={details} onChange={e => setDetails(e.target.value)} placeholder="예: 안전고리 착용 확인 필요" rows={3} className="mt-1 block w-full border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" />
+                        <textarea id="details" value={details} onChange={e => setDetails(e.target.value)} placeholder={`예: 안전고리 착용 ${BRAND_STATUS_LABELS.supplementaryReview}`} rows={3} className="mt-1 block w-full border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500" />
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">사진 첨부</label>
@@ -217,6 +297,14 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
             </div>
             <div className="bg-white p-6 rounded-lg shadow-sm">
                 <h3 className="text-lg font-semibold mb-4">전체 점검 기록</h3>
+                <InterpretationCardGrid
+                    items={recordInterpretationCards}
+                    className="mb-4 grid-cols-1 xl:grid-cols-3"
+                    cardClassName="border-indigo-100 bg-indigo-50/50"
+                    eyebrowClassName="text-indigo-700"
+                    titleClassName="text-slate-900"
+                    descriptionClassName="text-slate-600"
+                />
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left text-slate-500">
                          <thead className="text-xs text-slate-700 uppercase bg-slate-50">

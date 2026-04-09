@@ -4,6 +4,7 @@ import type { WorkerRecord } from '../types';
 import { isAdminAuthenticated } from '../utils/adminGuard';
 import { postAdminJson } from '../utils/adminApiClient';
 import { extractMessage } from '../utils/errorUtils';
+import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 
 // 관리 직군 필터링 함수
 const isManagementRole = (field: string) => 
@@ -1012,6 +1013,106 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
         };
     }, [sortedCustomJobActionRates]);
 
+    const predictiveSummaryCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'predictive-status',
+            eyebrow: '지금 상태',
+            title: `${summary.highRiskCount}명의 우선 개입 대상과 ${executionPlans.length}건의 실행 계획을 보고 있습니다.`,
+            description: riskInsights.length > 0
+                ? `현재 가장 반복되는 위험 테마는 ${summary.topRiskLabel}이며, 최근 급락군 ${summary.rapidDropCount}명을 함께 추적하고 있습니다.`
+                : '예측 분석을 위한 실무 근로자 데이터가 충분하지 않아 우선 개입 대상 산정이 제한됩니다.',
+            tone: riskInsights.length > 0 ? 'border-indigo-200 bg-indigo-50/70' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'predictive-evidence',
+            eyebrow: '판단 근거',
+            title: '점수 추세, 반복 취약, 현재 점수, 자가 위험수준이 함께 반영됩니다.',
+            description: '예측 위험점수는 단일 점수 대신 최근 변화와 반복 신호를 함께 읽어 누가 먼저 보호 개입이 필요한지 설명 중심으로 정리합니다.',
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'predictive-action',
+            eyebrow: '다음 행동',
+            title: summary.highRiskCount > 0 ? '고위험군부터 실행 계획과 TBM 안건으로 연결하세요.' : '반복 위험테마를 다음 달 예방 안건으로 정리하세요.',
+            description: '우선 개입 대상, 온톨로지 맵, 실행 계획, 공종별 조치율을 같은 흐름으로 연결해 감시가 아니라 선제 보호 동선이 되도록 구성했습니다.',
+            tone: summary.highRiskCount > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+        },
+    ], [executionPlans.length, riskInsights.length, summary.highRiskCount, summary.rapidDropCount, summary.topRiskLabel]);
+
+    const ontologyInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'ontology-status',
+            eyebrow: '지금 상태',
+            title: graphData.nodes.length > 0 ? `${graphData.nodes.length}개 노드로 위험 연결 구조를 시각화했습니다.` : '온톨로지 맵 생성 전 단계입니다.',
+            description: graphData.nodes.length > 0
+                ? `상위 위험 근로자 ${Math.min(riskInsights.length, 10)}명을 중심으로 근로자·공종·위험요인·예방대책 관계를 묶어 보여줍니다.`
+                : '상위 위험 근로자 데이터가 쌓이면 관계 구조를 자동으로 시각화해 반복 위험의 맥락을 읽을 수 있습니다.',
+            tone: graphData.nodes.length > 0 ? 'border-indigo-200 bg-indigo-50/70' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'ontology-evidence',
+            eyebrow: '판단 근거',
+            title: '선의 굵기와 노드 분류가 연관성의 근거입니다.',
+            description: '반복 위험이 많은 근로자일수록 더 강한 연결로 표시되어, 어떤 예방대책을 먼저 전파해야 하는지 시각적으로 빠르게 파악할 수 있습니다.',
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'ontology-action',
+            eyebrow: '다음 행동',
+            title: '위험요인에서 예방대책 노드까지 이어서 읽으세요.',
+            description: '지도형 그래프는 설명 자료이기도 하므로 회의 중에는 취약 근로자를 지적하기보다 어떤 보호 조치를 먼저 전파할지 논의하는 데 활용할 수 있습니다.',
+            tone: 'border-amber-200 bg-amber-50/80',
+        },
+    ], [graphData.nodes.length, riskInsights.length]);
+
+    const executionInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'execution-status',
+            eyebrow: '지금 상태',
+            title: `${executionCompletionRate}% 완료율로 실행 계획을 추적 중입니다.`,
+            description: `미착수 ${statusSummary['not-started']}건, 진행중 ${statusSummary['in-progress']}건, 완료 ${statusSummary.completed}건으로 현재 실행 흐름을 읽을 수 있습니다.`,
+            tone: executionCompletionRate >= 70 ? 'border-emerald-200 bg-emerald-50/80' : executionCompletionRate >= 40 ? 'border-amber-200 bg-amber-50/80' : 'border-rose-200 bg-rose-50/80',
+        },
+        {
+            key: 'execution-evidence',
+            eyebrow: '판단 근거',
+            title: executionPlanFilter === 'urgent' ? '긴급·고 우선안만 선별 중입니다.' : '필터 기준에 따라 실행 상태를 보고 있습니다.',
+            description: `현재 필터 조건에서 ${filteredExecutionPlans.length}건이 보이며, 최근 변경 이력과 담당자 정보로 조치 신뢰도를 함께 확인할 수 있습니다.`,
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'execution-action',
+            eyebrow: '다음 행동',
+            title: filteredExecutionPlans.length > 0 ? '미착수 또는 진행중 계획부터 갱신하세요.' : '필터를 바꿔 다른 실행 계획을 확인하세요.',
+            description: '누가·무엇을·언제 구조를 유지해 현장 책임자와 팀장이 같은 언어로 후속 조치를 이어갈 수 있도록 했습니다.',
+            tone: filteredExecutionPlans.length > 0 ? 'border-indigo-200 bg-indigo-50/70' : 'border-slate-200 bg-slate-50',
+        },
+    ], [executionCompletionRate, executionPlanFilter, filteredExecutionPlans.length, statusSummary]);
+
+    const jobRateInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'jobrate-status',
+            eyebrow: '지금 상태',
+            title: `${jobActionRateSummary.averageRate}% 평균 조치율을 보고 있습니다.`,
+            description: `조치율 0% 공종(또는 팀) ${jobActionRateSummary.zeroRateCount}곳이 우선 확인 대상으로 올라와 있습니다.`,
+            tone: jobActionRateSummary.zeroRateCount > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+        },
+        {
+            key: 'jobrate-evidence',
+            eyebrow: '판단 근거',
+            title: '완료 · 진행중 · 미착수 분포가 조치율의 기준입니다.',
+            description: '형틀 공종은 팀 단위로 세분화해 같은 공종 안에서도 어느 팀에서 조치가 막히는지 더 세밀하게 읽을 수 있습니다.',
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'jobrate-action',
+            eyebrow: '다음 행동',
+            title: jobActionRateSummary.focusLabels.length > 0 ? '우선 확인 공종부터 팀장과 후속 일정을 맞추세요.' : '실행 계획이 쌓이면 공종별 조치율도 함께 살아납니다.',
+            description: '낮은 조치율 공종을 그대로 두지 말고 TBM 안건, 현장 지적, 추가 코칭 흐름과 연결해 실제 현장 보완으로 이어가야 합니다.',
+            tone: 'border-indigo-200 bg-indigo-50/70',
+        },
+    ], [jobActionRateSummary]);
+
     const setPlanStatus = (planKey: string, status: PlanStatus) => {
         const nowIso = new Date().toISOString();
 
@@ -1248,6 +1349,11 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                 </div>
             </div>
 
+            <InterpretationCardGrid
+                items={predictiveSummaryCards}
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-sm">
                     <p className="text-[11px] font-black text-rose-600">고위험군 (RiskScore ≥ 70)</p>
@@ -1268,6 +1374,10 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                     <h3 className="text-base sm:text-lg font-black text-slate-900">우선 개입 대상 TOP 5</h3>
                     <span className="text-[11px] font-black text-slate-500">기본 3건만 우선 표시</span>
                 </div>
+                <InterpretationCardGrid
+                    items={executionInterpretationCards}
+                    cardClassName="rounded-2xl border p-4"
+                />
                 {riskInsights.length === 0 ? (
                     <p className="text-sm font-bold text-slate-400">예측 분석을 위한 데이터가 부족합니다.</p>
                 ) : (
@@ -1306,6 +1416,12 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
                 {/* Left: Ontology Graph (Visual Evidence) */}
                 <div className="lg:col-span-2 bg-slate-900 p-4 sm:p-6 rounded-2xl sm:rounded-[30px] shadow-xl border border-slate-800 flex flex-col">
+                    <div className="mb-4">
+                        <InterpretationCardGrid
+                            items={ontologyInterpretationCards}
+                            cardClassName="rounded-2xl border p-4"
+                        />
+                    </div>
                     <div className="mb-6 rounded-2xl border border-slate-700 bg-slate-800/40 p-3 sm:p-4">
                         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                             <div className="min-w-0">
@@ -1486,6 +1602,10 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                                 </div>
                             </div>
                         </div>
+                        <InterpretationCardGrid
+                            items={executionInterpretationCards}
+                            cardClassName="rounded-2xl border p-4"
+                        />
                         <div className="mb-3 grid grid-cols-3 gap-2">
                             <div className="rounded-xl border border-slate-200 bg-slate-50 p-2 text-center">
                                 <p className="text-[10px] font-black text-slate-500">미착수</p>
@@ -1650,6 +1770,10 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                                 </div>
                             </div>
                         </div>
+                        <InterpretationCardGrid
+                            items={jobRateInterpretationCards}
+                            cardClassName="rounded-2xl border p-4"
+                        />
                         {jobActionRateSummary.focusLabels.length > 0 && (
                             <div className="mb-3 rounded-2xl border border-amber-100 bg-amber-50 p-3">
                                 <p className="text-[10px] font-black text-amber-700">우선 확인 공종</p>

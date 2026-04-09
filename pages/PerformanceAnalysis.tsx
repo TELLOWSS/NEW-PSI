@@ -4,6 +4,7 @@ import type { WorkerRecord } from '../types';
 import { MonthlyTrendChart } from '../components/charts/MonthlyTrendChart';
 import { FieldRadarChart } from '../components/charts/FieldRadarChart';
 import { SafetyGradeTrendChart } from '../components/charts/SafetyGradeTrendChart';
+import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 
 interface PerformanceAnalysisProps {
     workerRecords: WorkerRecord[];
@@ -119,6 +120,56 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
         return 'bg-rose-500 text-white shadow-rose-300/50';
     };
 
+    const performanceSummaryCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'performance-status',
+            eyebrow: '지금 상태',
+            title: `${filteredBaseRecords.length.toLocaleString()}건의 실무 근로자 성과 흐름을 분석 중입니다.`,
+            description: `${timeRange} 기준으로 관리 직군을 제외한 실무 기록만 모아 변동성과 성장 흐름을 읽고 있습니다.`,
+            tone: 'border-indigo-200 bg-indigo-50/70',
+        },
+        {
+            key: 'performance-evidence',
+            eyebrow: '판단 근거',
+            title: `평균 ${kpiData?.currentAvg.toFixed(1) || '-'}점 · 변동성 ${kpiData?.volatility.toFixed(1) || '-'} · 최우수 ${kpiData?.topField.field || '-'}`,
+            description: '평균 점수, 일관성, 공종별 편차, 등급 분포, 위험 키워드를 함께 봐야 단순 점수보다 실제 현장 안정도를 더 정확히 읽을 수 있습니다.',
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'performance-action',
+            eyebrow: '다음 행동',
+            title: compareMode === 'team' ? '팀 간 편차가 큰 구간부터 보완하세요.' : '공종 간 차이가 큰 영역부터 확인하세요.',
+            description: '성과가 낮은 공종이나 팀을 찾았다면 보고서, 교육, 코칭 흐름과 연결해 왜 점수가 흔들리는지 설명 중심으로 보완할 수 있습니다.',
+            tone: compareMode === 'team' ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+        },
+    ], [compareMode, filteredBaseRecords.length, kpiData, timeRange]);
+
+    const chartInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'chart-status',
+            eyebrow: '지금 상태',
+            title: '시계열, 레이더, 히트맵, 등급 분포를 함께 읽는 구조입니다.',
+            description: '한 차트만 보면 놓치는 흔들림을 여러 관점에서 동시에 확인하도록 배치했습니다.',
+            tone: 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'chart-evidence',
+            eyebrow: '판단 근거',
+            title: riskKeywords.length > 0 ? `${riskKeywords[0][0]} 등 주요 위험 키워드가 반복됩니다.` : '아직 위험 키워드 데이터가 충분하지 않습니다.',
+            description: safetyHabitRanking.length > 0
+                ? `상위 안전 습관 근로자 ${safetyHabitRanking.length}명과 반복 키워드를 함께 보면 좋은 사례와 보완 대상이 동시에 보입니다.`
+                : '기복 없는 실천 사례가 충분히 쌓이면 상위 안전 습관자와 반복 위험 키워드를 함께 비교할 수 있습니다.',
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'chart-action',
+            eyebrow: '다음 행동',
+            title: '좋은 습관은 확산하고 반복 위험은 선제 보완하세요.',
+            description: '최우수 성과 공종과 상위 안전 실무자의 패턴을 교육·코칭 메시지로 전환하면 보호 중심 운영이 더 쉬워집니다.',
+            tone: 'border-amber-200 bg-amber-50/80',
+        },
+    ], [riskKeywords, safetyHabitRanking.length]);
+
     return (
         <div className="space-y-8 pb-10">
             <div className="relative bg-white p-8 rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
@@ -148,6 +199,11 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                     </div>
                 </div>
             </div>
+
+            <InterpretationCardGrid
+                items={performanceSummaryCards}
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100 flex flex-col justify-between group hover:-translate-y-1 transition-transform duration-300">
@@ -209,6 +265,12 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-3">
+                    <InterpretationCardGrid
+                        items={chartInterpretationCards}
+                        cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                    />
+                </div>
                 <div className="lg:col-span-2 bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
                     <div className="flex items-center justify-between mb-8">
                         <div>

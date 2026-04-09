@@ -89,9 +89,9 @@ export const BestPracticeSyncBadge: React.FC<BestPracticeSyncBadgeProps> = ({ st
                     <p className="mt-1 text-[11px] text-slate-500">{state.message || lastText}</p>
 
                     <div className="mt-3 border-t border-slate-100 pt-3">
-                        <p className="text-[11px] font-black text-slate-700">최근 확인 필요 원인 (최대 5건)</p>
+                        <p className="text-[11px] font-black text-slate-700">최근 {BRAND_STATUS_LABELS.attention} 원인 (최대 5건)</p>
                         {failureLogs.length === 0 ? (
-                            <p className="mt-2 text-[11px] text-slate-500">확인 필요 이력이 없습니다.</p>
+                            <p className="mt-2 text-[11px] text-slate-500">{BRAND_STATUS_LABELS.attention} 이력이 없습니다.</p>
                         ) : (
                             <ul className="mt-2 space-y-2 max-h-48 overflow-y-auto">
                                 {failureLogs.map((entry, index) => (

@@ -12,6 +12,7 @@ import { BRAND_ACTION_LABELS, BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { MasterTemplateList, type MasterTemplate } from '../components/shared/MasterTemplateList';
 import { MasterAssignment, type MasterAssignmentItem, type MasterGroup } from '../components/shared/MasterAssignment';
 import { CollapsibleSection } from '../components/shared/CollapsibleSection';
+import { InterpretationCardGrid } from '../components/shared/InterpretationCardGrid';
 import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
 
 const buildMasterDataLoadErrorMessage = (rawMessage?: string) => {
@@ -494,9 +495,9 @@ const getRecordSortModeLabel = (mode: RecordSortMode): string => {
         case 'score-desc':
             return '점수 높은순';
         case 'failed-first':
-            return '우선 확인 필요순';
+            return `우선 ${BRAND_STATUS_LABELS.attention}순`;
         case 'error-type':
-            return '확인 필요 유형순';
+            return `${BRAND_STATUS_LABELS.attention} 유형순`;
         default:
             return '최근 수정순';
     }
@@ -1484,6 +1485,74 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         };
     }, [reasonQaPreviewRecords]);
 
+    const adminActivityInsightCards = useMemo(() => {
+        const latestActivity = recentAdminActivities[0];
+
+        return [
+            {
+                key: 'state',
+                eyebrow: '지금 상태',
+                title: latestActivity
+                    ? `${latestActivity.type} 흐름이 최근에도 이어졌습니다`
+                    : '최근 운영 조치 흐름이 비어 있습니다',
+                description: latestActivity
+                    ? `${latestActivity.name} · ${latestActivity.jobField} 기록 기준으로 최근 운영 판단이 남아 있습니다.`
+                    : '최근 24시간 내 기록된 수정·검토·재분석 이력이 없습니다.',
+                tone: 'border-slate-200 bg-white',
+            },
+            {
+                key: 'evidence',
+                eyebrow: '판단 근거',
+                title: `수정 ${recentAdminActivitySummary.corrections} · 승인 ${recentAdminActivitySummary.approvals} · 재분석 ${recentAdminActivitySummary.reassessments}`,
+                description: '운영 이력은 현장 판단이 어디에 집중됐는지 보여주는 근거입니다. 한쪽만 과도하면 병목을 의심해야 합니다.',
+                tone: 'border-indigo-200 bg-indigo-50',
+            },
+            {
+                key: 'action',
+                eyebrow: '다음 행동',
+                title: '최근 조치와 QA 보완 대상을 함께 보세요',
+                description: '운영 조치 요약은 단순 기록보다, 어떤 기록을 먼저 다시 열어야 하는지 정하는 출발점으로 쓰는 편이 좋습니다.',
+                tone: 'border-emerald-200 bg-emerald-50',
+            },
+        ];
+    }, [recentAdminActivities, recentAdminActivitySummary]);
+
+    const reasonQaInsightCards = useMemo(() => {
+        const totalAttention = reasonQaSummary.missingDecision + reasonQaSummary.weakDecision + reasonQaSummary.weakCorrection;
+
+        return [
+            {
+                key: 'state',
+                eyebrow: '지금 상태',
+                title: totalAttention > 0
+                    ? `사유 QA 보완 ${totalAttention}건이 남아 있습니다`
+                    : '사유 품질은 비교적 안정적입니다',
+                description: totalAttention > 0
+                    ? '승인/검토/수정 사유가 짧거나 비어 있으면 추적성과 보호 판단 신뢰도가 함께 떨어집니다.'
+                    : '사유 누락과 약한 문구가 적어 QA 흐름이 안정적으로 유지되고 있습니다.',
+                tone: totalAttention > 0 ? 'border-rose-200 bg-rose-50' : 'border-emerald-200 bg-emerald-50',
+            },
+            {
+                key: 'evidence',
+                eyebrow: '판단 근거',
+                title: `사유 없음 ${reasonQaSummary.missingDecision} · 승인 보강 ${reasonQaSummary.weakDecision} · 수정 보강 ${reasonQaSummary.weakCorrection}`,
+                description: '사유 품질은 단순 문장 길이가 아니라 검토 근거, 확인 범위, 반영 내용이 남았는지로 판단합니다.',
+                tone: 'border-amber-200 bg-amber-50',
+            },
+            {
+                key: 'action',
+                eyebrow: '다음 행동',
+                title: reasonInputPrompt
+                    ? `${reasonInputPrompt.name} 기록부터 보강하세요`
+                    : '보강 대상부터 순서대로 확인하세요',
+                description: reasonInputPrompt
+                    ? `${reasonInputPrompt.focus} 권장 입력 예시를 바로 참고해 현장 맥락이 남는 문장으로 바꾸면 됩니다.`
+                    : '누락 사유를 먼저 채우고, 그다음 약한 승인/수정 사유를 보강하는 순서가 효율적입니다.',
+                tone: 'border-indigo-200 bg-indigo-50',
+            },
+        ];
+    }, [reasonInputPrompt, reasonQaSummary]);
+
     const lowConfidenceCount = useMemo(() => {
         return existingRecords.filter(r => typeof r.ocrConfidence === 'number' && r.ocrConfidence < 0.7).length;
     }, [existingRecords]);
@@ -1506,6 +1575,68 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             .sort((a, b) => b[1] - a[1])
             .slice(0, 4);
     }, [failedRecords]);
+
+    const heroInterpretationCards = useMemo(() => {
+        const topFailedType = failedTypeSummary[0];
+        const topRetryGuide = retryActionGuides[0];
+        const reviewAttentionCount = reasonQaSummary.missingDecision + reasonQaSummary.weakDecision + reasonQaSummary.weakCorrection;
+
+        return [
+            failedRecords.length > 0
+                ? {
+                    key: 'current-state',
+                    eyebrow: '현재 상태',
+                    title: `${BRAND_STATUS_LABELS.attentionPending} ${failedRecords.length}건이 우선입니다`,
+                    description: topFailedType
+                        ? `${topFailedType[0]} 유형이 가장 많이 확인되어 우선 점검 흐름을 먼저 여는 것이 좋습니다.`
+                        : `재분석이 멈춘 기록을 먼저 정리해 관리자 판단 부담을 줄이는 단계입니다.`,
+                    tone: 'border-rose-400/20 bg-rose-500/10 text-rose-100',
+                }
+                : {
+                    key: 'current-state',
+                    eyebrow: '현재 상태',
+                    title: '급한 OCR 보완 건은 안정적입니다',
+                    description: lowConfidenceCount > 0
+                        ? `다만 저신뢰 기록 ${lowConfidenceCount}건은 현장 설명을 조금 더 보강하면 정확도가 올라갑니다.`
+                        : `즉시 다시 볼 OCR 보완 건은 많지 않아 유지 점검 중심으로 운영할 수 있습니다.`,
+                    tone: 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100',
+                },
+            reviewAttentionCount > 0
+                ? {
+                    key: 'evidence',
+                    eyebrow: '판단 근거',
+                    title: `검토 사유 보강 ${reviewAttentionCount}건이 남아 있습니다`,
+                    description: `승인/검토 사유 없음 ${reasonQaSummary.missingDecision}건, 승인 사유 보강 ${reasonQaSummary.weakDecision}건, 수정 사유 보강 ${reasonQaSummary.weakCorrection}건을 함께 정리해야 추적성이 유지됩니다.`,
+                    tone: 'border-amber-400/20 bg-amber-500/10 text-amber-100',
+                }
+                : {
+                    key: 'evidence',
+                    eyebrow: '판단 근거',
+                    title: topRetryGuide
+                        ? `${topRetryGuide.label} 원인이 가장 많이 남아 있습니다`
+                        : '현재 근거 정합성은 안정적으로 유지되고 있습니다',
+                    description: topRetryGuide
+                        ? topRetryGuide.action
+                        : '승인/검토 사유 보강 대상이 적어 관리자 확인 흐름이 비교적 매끄럽습니다.',
+                    tone: 'border-indigo-400/20 bg-indigo-500/10 text-indigo-100',
+                },
+            {
+                key: 'next-action',
+                eyebrow: '다음 행동',
+                title: failedRecords.length > 0
+                    ? `${BRAND_ACTION_LABELS.smartReanalyze} → 관리자 정상분류 순으로 진행하세요`
+                    : secondPassTargets.length > 0
+                        ? `수정 반영 재평가 ${secondPassTargets.length}건을 이어서 확인하세요`
+                        : '현재는 유지 점검과 백업 정리 단계입니다',
+                description: failedRecords.length > 0
+                    ? `${BRAND_STATUS_LABELS.attentionPending} 건은 자동 재분석으로 먼저 줄이고, 남는 건만 관리자 기준으로 정상분류하면 운영 피로가 낮아집니다.`
+                    : secondPassTargets.length > 0
+                        ? `OCR 성공 기록 중 관리자 수정 이력이 반영된 대상을 다시 계산해 해석 품질을 끌어올릴 수 있습니다.`
+                        : '새 업로드, 요약 내보내기, 백업 정리를 중심으로 안정 운영을 유지하면 됩니다.',
+                tone: 'border-cyan-400/20 bg-cyan-500/10 text-cyan-100',
+            },
+        ];
+    }, [failedRecords.length, failedTypeSummary, lowConfidenceCount, reasonQaSummary, retryActionGuides, secondPassTargets.length]);
 
     const failedTypeGroups = useMemo(() => {
         const grouped = failedRecords.reduce<Record<OcrErrorType, WorkerRecord[]>>((acc, record) => {
@@ -1531,6 +1662,80 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 records,
             }));
     }, [failedRecords]);
+
+    const failedQuickDecisionCards = useMemo(() => {
+        const topGroup = failedTypeGroups[0];
+        const topRetryGuide = retryActionGuides[0];
+        const primaryErrorType = primaryFailedRecord ? getOcrErrorTypeFromRecord(primaryFailedRecord) : null;
+
+        return [
+            {
+                key: 'state',
+                eyebrow: '지금 상태',
+                title: primaryFailedRecord
+                    ? `${primaryFailedRecord.name || '미상'} 기록부터 확인하면 흐름이 풀립니다`
+                    : `${BRAND_STATUS_LABELS.attentionPending} 기록을 먼저 줄여야 합니다`,
+                description: primaryErrorType
+                    ? getOcrErrorGuideMessage(primaryErrorType)
+                    : '대표 기록이 없으면 유형별 묶음부터 순서대로 확인하는 편이 안정적입니다.',
+                tone: 'border-rose-200 bg-rose-50',
+            },
+            {
+                key: 'evidence',
+                eyebrow: '판단 근거',
+                title: topGroup
+                    ? `${topGroup.label} 유형이 ${topGroup.count}건으로 가장 많습니다`
+                    : '실패 유형이 아직 정리되지 않았습니다',
+                description: topRetryGuide
+                    ? topRetryGuide.action
+                    : '유형별 체크리스트와 사전검증 사유를 함께 보면 관리자 판단 속도가 빨라집니다.',
+                tone: 'border-amber-200 bg-amber-50',
+            },
+            {
+                key: 'action',
+                eyebrow: '다음 행동',
+                title: `${BRAND_ACTION_LABELS.smartReanalyze} 후 관리자 판단으로 넘기세요`,
+                description: '자동으로 다시 읽을 수 있는 건 먼저 줄이고, 끝까지 남는 기록만 상세 검증으로 보내면 운영 피로가 낮아집니다.',
+                tone: 'border-emerald-200 bg-emerald-50',
+            },
+        ];
+    }, [failedTypeGroups, primaryFailedRecord, retryActionGuides]);
+
+    const filteredInterpretationCards = useMemo(() => {
+        const filteredFailedCount = filteredRecords.filter((record) => isFailedRecord(record)).length;
+        const filteredFinalizedCount = filteredRecords.filter((record) => getReviewTrustState(record) === 'FINALIZED').length;
+        const filteredPendingCount = filteredRecords.filter((record) => getReviewTrustState(record) === 'PENDING').length;
+
+        return [
+            {
+                key: 'state',
+                eyebrow: '지금 상태',
+                title: `현재 화면에 ${filteredRecords.length}건이 정리되어 있습니다`,
+                description: filteredFailedCount > 0
+                    ? `${BRAND_STATUS_LABELS.attentionPending} ${filteredFailedCount}건이 함께 보여 우선 확인 대상을 바로 가를 수 있습니다.`
+                    : '즉시 보완이 필요한 OCR 기록은 많지 않아 검토와 후속 정리에 집중할 수 있습니다.',
+                tone: filteredFailedCount > 0 ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-white',
+            },
+            {
+                key: 'evidence',
+                eyebrow: '판단 근거',
+                title: `재검토 대기 ${filteredPendingCount} · 최종확정 ${filteredFinalizedCount}`,
+                description: `현재 정렬은 ${getRecordSortModeLabel(recordSortMode)} 기준입니다. 필터와 정렬 조합이 곧 운영 우선순위를 결정합니다.`,
+                tone: 'border-indigo-200 bg-indigo-50',
+            },
+            {
+                key: 'action',
+                eyebrow: '다음 행동',
+                title: secondPassTargets.length > 0
+                    ? `2차 재평가 ${secondPassTargets.length}건을 이어서 볼 수 있습니다`
+                    : '현재 화면 기준으로는 유지 점검이 우선입니다',
+                description: secondPassTargets.length > 0
+                    ? '필터된 결과 안에서 관리자 수정 이력이 있는 대상을 다시 계산해 해석 품질을 끌어올릴 수 있습니다.'
+                    : '조건에 맞는 재평가 대상이 적다면 검색·정렬을 바꿔 다른 보호 신호를 먼저 드러내는 편이 좋습니다.',
+                tone: 'border-emerald-200 bg-emerald-50',
+            },
+        ];
+    }, [filteredRecords, recordSortMode, secondPassTargets.length, getReviewTrustState]);
 
     const failureProcessingStats = useMemo(() => {
         const resolvedCounts = existingRecords.reduce<Record<string, number>>((acc, record) => {
@@ -1579,7 +1784,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             `- 성공률: ${retrySuccessRate}%`,
             `- 총 대상: ${retryDiagnostics?.total || 0}건`,
             `- 성공: ${retryDiagnostics?.success || 0}건`,
-            `- 추가 확인: ${retryDiagnostics?.fail || 0}건`,
+            `- ${BRAND_STATUS_LABELS.attentionPending}: ${retryDiagnostics?.fail || 0}건`,
             `- 사전 확인 필요: ${retryDiagnostics?.preflightFail || 0}건`,
             `- 처리 확인 필요: ${retryDiagnostics?.processingFail || 0}건`,
             `- 라우트 확인 필요: ${retryDiagnostics?.serverRouteFail || 0}건`,
@@ -1596,14 +1801,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 ]
                 : []),
             '',
-            '[확인 필요 유형별 처리 완료율]',
+            `[${BRAND_STATUS_LABELS.attention} 유형별 처리 완료율]`,
             ...(failureProcessingStats.length > 0
                 ? failureProcessingStats.map((item) => `- ${item.label}: 완료율 ${item.rate}% (잔여 ${item.openCount} / 처리 ${item.resolvedCount} / 총계 ${item.total})`)
                 : ['- 집계 대상 없음']),
             ...(failedTypeGroups.length > 0
                 ? [
                     '',
-                    '[확인 필요 유형별 체크리스트]',
+                    `[${BRAND_STATUS_LABELS.attention} 유형별 체크리스트]`,
                     ...failedTypeGroups.map((group) => `- ${group.label}: ${getFailureChecklistSummary(group.type)}`),
                 ]
                 : []),
@@ -2076,7 +2281,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         // Final Failure after retries
                         const errorRecord: WorkerRecord = {
                             ...record,
-                            aiInsights: "⛔ 반복적인 API 오류로 추가 확인이 필요합니다. 다시 확인해 주세요.",
+                            aiInsights: `⛔ 반복적인 API 오류로 ${BRAND_STATUS_LABELS.attention} 안내가 필요합니다. 다시 확인해 주세요.`,
                             ocrErrorType: 'UNKNOWN',
                             ocrErrorMessage: '반복적인 API 오류',
                             secondPassStatus: 'NEEDED',
@@ -2139,12 +2344,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             const reasonsReport = `\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 폴백 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}`;
             
             if (stopped) {
-                alert(`${modeLabel} 분석이 중단되었습니다.\n(완료: ${successCount}, 추가 확인: ${failCount})${reasonsReport}`);
+                alert(`${modeLabel} 분석이 중단되었습니다.\n(완료: ${successCount}, ${BRAND_STATUS_LABELS.attentionPending}: ${failCount})${reasonsReport}`);
             } else {
                 if (forceReanalyze) {
-                    alert(`${modeLabel} ${title} 완료.\n\n✅ 완료: ${successCount}\n⚠ 추가 확인: ${failCount}${reasonsReport}\n\n※ Preflight 검증 스킵 모드로 실행되었습니다.\n※ 추가 확인 건은 '${BRAND_ACTION_LABELS.directReanalyze}' 또는 '${BRAND_ACTION_LABELS.smartReanalyze}' 버튼으로 ${BRAND_ACTION_LABELS.recheck}할 수 있습니다.`);
+                    alert(`${modeLabel} ${title} 완료.\n\n✅ 완료: ${successCount}\n⚠ ${BRAND_STATUS_LABELS.attentionPending}: ${failCount}${reasonsReport}\n\n※ Preflight 검증 스킵 모드로 실행되었습니다.\n※ ${BRAND_STATUS_LABELS.attentionPending} 건은 '${BRAND_ACTION_LABELS.directReanalyze}' 또는 '${BRAND_ACTION_LABELS.smartReanalyze}' 버튼으로 ${BRAND_ACTION_LABELS.recheck}할 수 있습니다.`);
                 } else {
-                    alert(`${title} 완료.\n완료: ${successCount}\n추가 확인: ${failCount}${reasonsReport}\n\n* 추가 확인 건은 '${BRAND_STATUS_LABELS.attentionHold} 건 재분석' 버튼으로 ${BRAND_ACTION_LABELS.recheck}할 수 있습니다.`);
+                    alert(`${title} 완료.\n완료: ${successCount}\n${BRAND_STATUS_LABELS.attentionPending}: ${failCount}${reasonsReport}\n\n* ${BRAND_STATUS_LABELS.attentionPending} 건은 '${BRAND_STATUS_LABELS.attentionHold} 건 재분석' 버튼으로 ${BRAND_ACTION_LABELS.recheck}할 수 있습니다.`);
                 }
             }
         }
@@ -2479,7 +2684,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         if (isRateLimitError(eMsg)) {
                             console.warn(`Rate limit hit on file ${files[i].name}`);
                             setQuotaExhausted(60);
-                            const failMessage = '⛔ API 할당량이 가득 차 추가 확인이 필요합니다. 잠시 후 다시 확인해 주세요.';
+                            const failMessage = `⛔ API 할당량이 가득 차 ${BRAND_STATUS_LABELS.attention} 안내가 필요합니다. 잠시 후 다시 확인해 주세요.`;
                             results.push(createFileAnalysisErrorRecord(files[i], failMessage, 'UNKNOWN'));
                             const next = incrementApiCallCount('fail');
                             setDailyCounter(next);
@@ -2696,15 +2901,24 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 </h3>
                                 <p className="text-slate-300 font-medium max-w-3xl leading-relaxed">
                                     PC 화면에서는 <span className="text-indigo-300 font-bold">핵심 현황 → 긴급 조치 → 상세 운영</span> 순으로 바로 판단할 수 있어야 합니다.
-                                    추가 확인 건, 저신뢰 기록, 재분석 가능 건을 먼저 보고 필요한 조치만 우측에서 바로 실행하도록 구조를 정리했습니다.
+                                    {BRAND_STATUS_LABELS.attentionPending} 건, 저신뢰 기록, 재분석 가능 건을 먼저 보고 필요한 조치만 우측에서 바로 실행하도록 구조를 정리했습니다.
                                 </p>
                             </div>
                             <div className="flex flex-wrap gap-2 text-[11px] font-black">
                                 <span className="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-slate-100">재분석 가능 {secondPassTargets.length}건</span>
-                                <span className="px-3 py-1.5 rounded-full bg-rose-500/15 border border-rose-400/20 text-rose-200">추가 확인/대기 {failedRecords.length}건</span>
+                                <span className="px-3 py-1.5 rounded-full bg-rose-500/15 border border-rose-400/20 text-rose-200">{BRAND_STATUS_LABELS.attentionPending} {failedRecords.length}건</span>
                                 <span className="px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/20 text-amber-200">저신뢰 {lowConfidenceCount}건</span>
                             </div>
                         </div>
+
+                        <InterpretationCardGrid
+                            items={heroInterpretationCards}
+                            className="mt-6 grid grid-cols-1 xl:grid-cols-3 gap-3"
+                            cardClassName="rounded-2xl border px-4 py-4"
+                            eyebrowClassName="text-[10px] font-black uppercase tracking-[0.18em] opacity-80"
+                            titleClassName="mt-2 text-base font-black text-white"
+                            descriptionClassName="mt-2 text-[12px] font-semibold leading-relaxed text-white/80"
+                        />
 
                         <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
                             <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
@@ -2713,7 +2927,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <p className="mt-1 text-[11px] font-bold text-slate-400">현재 OCR 운영 대상</p>
                             </div>
                             <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-4">
-                                <p className="text-[10px] text-rose-300 font-black uppercase tracking-widest">추가 확인/대기</p>
+                                <p className="text-[10px] text-rose-300 font-black uppercase tracking-widest">{BRAND_STATUS_LABELS.attentionPending}</p>
                                 <p className={`mt-2 text-2xl font-black ${failedRecords.length > 0 ? 'text-rose-300' : 'text-slate-400'}`}>{failedRecords.length}</p>
                                 <p className="mt-1 text-[11px] font-bold text-rose-200/80">우선 확인 권장</p>
                             </div>
@@ -2744,7 +2958,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                         <div className="mt-4 space-y-3">
                             <div className="rounded-2xl border border-rose-400/15 bg-black/10 p-3">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-rose-300">추가 확인 대응</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-rose-300">{BRAND_STATUS_LABELS.attention} 대응</p>
                                 <div className="mt-3 grid grid-cols-1 gap-2.5">
                         {/* Retry Button */}
                         {failedRecords.length > 0 && !isAnalyzing && (
@@ -2753,7 +2967,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 className="w-full px-5 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all border border-rose-500 flex items-center justify-center gap-2 group"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                                추가 확인/대기 건 스마트 재분석 ({failedRecords.length})
+                                {BRAND_STATUS_LABELS.attentionPending} 건 {BRAND_ACTION_LABELS.smartReanalyze} ({failedRecords.length})
                             </button>
                         )}
                         
@@ -2762,10 +2976,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <button 
                                 onClick={handleForceReanalyze}
                                 className="w-full px-5 py-3 bg-red-700 hover:bg-red-800 rounded-2xl font-black text-sm shadow-xl transition-all border border-red-600 flex items-center justify-center gap-2 group"
-                                title="Preflight 검증을 우회하고 모든 추가 확인/대기 건을 직접 API로 재분석합니다"
+                                title={`Preflight 검증을 우회하고 모든 ${BRAND_STATUS_LABELS.attentionPending} 건을 직접 API로 재분석합니다`}
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                직접 재분석 (검증 스킵)
+                                {BRAND_ACTION_LABELS.directReanalyze} (검증 스킵)
                             </button>
                         )}
 
@@ -2773,7 +2987,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <button
                                 onClick={handleAdminNormalizeFailedBatch}
                                 className="w-full px-5 py-3 bg-amber-600 hover:bg-amber-700 rounded-2xl font-black text-sm shadow-xl transition-all border border-amber-500 flex items-center justify-center gap-2 group"
-                                title="다시 확인이 어려운 추가 확인/대기 건을 관리자 검토 기준으로 일괄 정상분류합니다"
+                                title={`${BRAND_ACTION_LABELS.recheck}이 어려운 ${BRAND_STATUS_LABELS.attentionPending} 건을 관리자 검토 기준으로 일괄 정상분류합니다`}
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
                                 관리자 일괄 정상분류 ({failedRecords.length})
@@ -2963,9 +3177,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 <div className="bg-white border border-rose-100 rounded-3xl p-5 sm:p-6 shadow-lg">
                     <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                         <div>
-                            <p className="text-xs font-black text-rose-600 uppercase tracking-widest">확인 필요 레코드 퀵뷰</p>
-                            <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-1">우선 확인이 필요한 OCR 추가 확인/대기 기록</h4>
-                            <p className="text-sm font-bold text-slate-500 mt-2">상위 {failedPreviewRecords.length}건을 바로 확인하고 다시 확인·상세검증·정상분류를 빠르게 실행할 수 있습니다.</p>
+                            <p className="text-xs font-black text-rose-600 uppercase tracking-widest">{BRAND_STATUS_LABELS.attention} 레코드 해석 뷰</p>
+                            <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-1">우선 보호 조치가 필요한 OCR 신호</h4>
+                            <p className="text-sm font-bold text-slate-500 mt-2">상위 {failedPreviewRecords.length}건을 상태·근거·다음 행동 순서로 정리해, 무엇부터 다시 읽고 무엇을 관리자 판단으로 넘길지 바로 결정할 수 있게 했습니다.</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {failedTypeSummary.map(([label, count]) => (
@@ -2975,6 +3189,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             ))}
                         </div>
                     </div>
+
+                    <InterpretationCardGrid items={failedQuickDecisionCards} className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3" />
 
                     {failedTypeGroups.length > 0 && !isAnalyzing && (
                         <div className="mt-4 flex flex-wrap gap-2">
@@ -3000,15 +3216,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     )}
 
                     <CollapsibleSection
-                        title="확인 필요 상세 조치"
+                        title={`${BRAND_STATUS_LABELS.attention} 상세 조치`}
                         isOpen={showFailedQuickActions}
                         onToggle={() => setShowFailedQuickActions((prev) => !prev)}
-                        summary={<span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-black text-rose-700">확인 필요 {failedRecords.length}건 · 유형 {failedTypeGroups.length}개</span>}
+                        summary={<span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-black text-rose-700">{BRAND_STATUS_LABELS.attention} {failedRecords.length}건 · 유형 {failedTypeGroups.length}개</span>}
                     >
                     {failureProcessingStats.length > 0 && (
                         <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                             <div className="flex items-center justify-between gap-2">
-                                <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">확인 필요 유형별 처리 완료율</p>
+                                <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">{BRAND_STATUS_LABELS.attention} 유형별 처리 완료율</p>
                                 <span className="text-[10px] font-bold text-slate-500">현재 잔여 + 처리 이력 기준</span>
                             </div>
                             <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-2">
@@ -3035,7 +3251,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     {failedTypeGroups.length > 0 && (
                         <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
                             <div className="flex items-center justify-between gap-2">
-                                <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">확인 필요 유형별 담당자 체크리스트</p>
+                                <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">{BRAND_STATUS_LABELS.attention} 유형별 담당자 체크리스트</p>
                                 <span className="text-[10px] font-bold text-slate-500">유형별 우선 점검 순서</span>
                             </div>
                             <div className="mt-3 grid grid-cols-1 xl:grid-cols-2 gap-3">
@@ -3081,6 +3297,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             const guideMessage = getOcrErrorGuideMessage(errorType);
                             const preflightReason = getPreflightFailureReason(record);
                             const hasImage = hasRetryableOriginalImage(record.originalImage) || hasRetryableOriginalImage(record.profileImage);
+                            const actionGuide = preflightReason
+                                ? '사전확인 항목을 먼저 보완한 뒤 다시 읽기를 실행하세요.'
+                                : hasImage
+                                    ? '원문 다시 읽기를 먼저 시도하고, 남으면 상세 검증으로 넘기세요.'
+                                    : '이미지 근거가 부족해 관리자 판단 또는 재촬영 안내가 우선입니다.';
 
                             return (
                                 <div key={record.id} className="rounded-2xl border border-rose-100 bg-rose-50/50 p-4">
@@ -3093,17 +3314,28 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             {getOcrErrorTypeKoreanLabel(errorType)}
                                         </span>
                                     </div>
-                                    <p className="mt-3 text-[11px] font-semibold text-rose-700 leading-snug">{guideMessage}</p>
-                                    {preflightReason && (
-                                        <p className="mt-1 text-[11px] font-black text-amber-700 leading-snug">사전검증: {preflightReason}</p>
-                                    )}
+                                    <div className="mt-3 grid grid-cols-1 gap-2">
+                                        <div className="rounded-xl border border-white bg-white px-3 py-3">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">지금 상태</p>
+                                            <p className="mt-1 text-[12px] font-black text-slate-900">{getOcrErrorTypeKoreanLabel(errorType)} 신호가 남아 있습니다</p>
+                                            <p className="mt-1 text-[11px] font-semibold text-slate-600 leading-snug">{guideMessage}</p>
+                                        </div>
+                                        <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-3">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">판단 근거</p>
+                                            <p className="mt-1 text-[11px] font-semibold text-amber-800 leading-snug">{preflightReason ? `사전검증: ${preflightReason}` : '사전검증 경고는 없지만 원문/배치/필기 품질을 다시 확인할 필요가 있습니다.'}</p>
+                                        </div>
+                                        <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-3">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600">다음 행동</p>
+                                            <p className="mt-1 text-[11px] font-semibold text-emerald-800 leading-snug">{actionGuide}</p>
+                                        </div>
+                                    </div>
                                     <div className="mt-3 flex flex-wrap gap-2">
                                         <button
                                             type="button"
                                             onClick={() => onViewDetails(record)}
                                             className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-indigo-600 text-xs font-black hover:bg-indigo-50"
                                         >
-                                            상세검증
+                                            상세 판단 열기
                                         </button>
                                         {hasImage && !isAnalyzing && (
                                             <button
@@ -3111,7 +3343,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 onClick={() => runBatchAnalysis([record], '개별 재분석')}
                                                 className="px-3 py-2 rounded-xl bg-rose-100 text-rose-700 text-xs font-black hover:bg-rose-200"
                                             >
-                                                다시 확인
+                                                원문 다시 읽기
                                             </button>
                                         )}
                                         {!isAnalyzing && (
@@ -3120,7 +3352,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 onClick={() => handleAdminNormalizeFailedRecord(record)}
                                                 className="px-3 py-2 rounded-xl bg-amber-100 text-amber-700 text-xs font-black hover:bg-amber-200"
                                             >
-                                                관리자 정상분류
+                                                관리자 판단으로 유지
                                             </button>
                                         )}
                                     </div>
@@ -3140,8 +3372,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-100 flex flex-col gap-5 no-print">
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                        <h4 className="text-base sm:text-lg font-black text-slate-900">검색 및 필터링</h4>
-                        <p className="mt-1 text-xs sm:text-sm font-semibold text-slate-500">검색·필터·재분석 대상을 한 번에 정리할 수 있게 재구성했습니다.</p>
+                        <h4 className="text-base sm:text-lg font-black text-slate-900">운영 탐색 및 우선순위 정리</h4>
+                        <p className="mt-1 text-xs sm:text-sm font-semibold text-slate-500">검색·필터·정렬을 통해 지금 봐야 할 보호 신호와 재평가 대상을 한 번에 정리합니다.</p>
                         <div className="relative w-full mt-4 max-w-2xl">
                             <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={2}/></svg>
                             <input type="text" placeholder="근로자명 · 공종 · 국적 · 팀장으로 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold" />
@@ -3157,7 +3389,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <p className="mt-1 text-lg font-black text-emerald-700">{secondPassTargets.length}</p>
                         </div>
                         <div className="rounded-2xl bg-rose-50 border border-rose-200 px-3 py-2">
-                            <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest">추가 확인/대기</p>
+                            <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest">{BRAND_STATUS_LABELS.attentionPending}</p>
                             <p className="mt-1 text-lg font-black text-rose-700">{filteredRecords.filter(r => isFailedRecord(r)).length}</p>
                         </div>
                         <div className="rounded-2xl bg-violet-50 border border-violet-200 px-3 py-2">
@@ -3167,6 +3399,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
                 </div>
 
+                <InterpretationCardGrid items={filteredInterpretationCards} />
+
                 {recentAdminActivities.length > 0 && (
                     <CollapsibleSection
                         title="최근 24시간 운영 조치 요약"
@@ -3175,6 +3409,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         summary={<span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-700">수정 {recentAdminActivitySummary.corrections} · 승인 {recentAdminActivitySummary.approvals} · 재분석 {recentAdminActivitySummary.reassessments}</span>}
                     >
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                        <InterpretationCardGrid items={adminActivityInsightCards} className="grid grid-cols-1 xl:grid-cols-3 gap-3 mb-4" />
                         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                             <div>
                                 <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em]">관리자 조치 이력</p>
@@ -3199,7 +3434,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             {activity.type}
                                         </span>
                                     </div>
-                                    <p className="mt-2 text-[11px] font-semibold text-slate-600 leading-snug whitespace-pre-wrap break-words">{activity.summary}</p>
+                                    <div className="mt-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">판단 근거</p>
+                                        <p className="mt-1 text-[11px] font-semibold text-slate-600 leading-snug whitespace-pre-wrap break-words">{activity.summary}</p>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -3209,6 +3447,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                 {reasonQaPreviewRecords.length > 0 && (
                     <div className="rounded-2xl border border-rose-200 bg-gradient-to-r from-rose-50 via-amber-50 to-white px-4 py-4 shadow-sm">
+                        <InterpretationCardGrid items={reasonQaInsightCards} className="grid grid-cols-1 xl:grid-cols-3 gap-3 mb-4" />
                         <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
                             <div>
                                 <p className="text-[11px] font-black text-rose-600 uppercase tracking-[0.2em]">운영 보완 필요</p>
@@ -3324,13 +3563,27 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         </div>
                                     </div>
                                     <div className="mt-2 space-y-2 text-[11px]">
+                                        <div className="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2">
+                                            <p className="font-black text-rose-600 uppercase tracking-[0.18em]">지금 상태</p>
+                                            <p className="mt-1 font-semibold text-rose-800 leading-snug whitespace-pre-wrap break-words">
+                                                {record.missingDecisionReason
+                                                    ? '승인/검토 사유가 비어 있습니다.'
+                                                    : record.weakDecisionReason
+                                                        ? '승인/검토 사유가 너무 짧거나 일반적입니다.'
+                                                        : '수정 사유가 충분히 남지 않았습니다.'}
+                                            </p>
+                                        </div>
                                         <div className="rounded-lg bg-slate-50 px-3 py-2">
-                                            <p className="font-black text-slate-500">승인/검토 사유</p>
+                                            <p className="font-black text-slate-500">판단 근거 · 승인/검토 사유</p>
                                             <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{record.decisionReason || '사유 없음'}</p>
                                         </div>
                                         <div className="rounded-lg bg-slate-50 px-3 py-2">
-                                            <p className="font-black text-slate-500">최근 수정 사유</p>
+                                            <p className="font-black text-slate-500">판단 근거 · 최근 수정 사유</p>
                                             <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{record.correctionReason || '수정 사유 없음'}</p>
+                                        </div>
+                                        <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2">
+                                            <p className="font-black text-emerald-600 uppercase tracking-[0.18em]">다음 행동</p>
+                                            <p className="mt-1 font-semibold text-emerald-800 leading-snug">상세 화면에서 검토 근거, 확인 범위, 반영 내용을 한 문장 이상으로 남겨 QA 잔여를 줄이세요.</p>
                                         </div>
                                     </div>
                                     <div className="mt-3 flex flex-wrap gap-2">
@@ -3339,7 +3592,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             onClick={() => handleViewRecordById(record.id)}
                                             className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-indigo-600 text-xs font-black hover:bg-indigo-50"
                                         >
-                                            상세검증 이동
+                                            상세 판단 이동
                                         </button>
                                         {record.missingDecisionReason && (
                                             <button
@@ -3416,7 +3669,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as 'all' | 'success' | 'failed')} className="mt-2 w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
                                     <option value="all">전체</option>
                                     <option value="success">성공</option>
-                                    <option value="failed">확인 필요/대기</option>
+                                    <option value="failed">{BRAND_STATUS_LABELS.attentionPending}</option>
                                 </select>
                             </div>
                             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
@@ -3440,7 +3693,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         }}
                                         className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
                                     />
-                                    확인 필요/대기만 보기 기본값
+                                    {BRAND_STATUS_LABELS.attentionPending}만 보기 기본값
                                 </label>
                                 <button onClick={resetFilters} className="mt-3 w-full px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-black text-sm hover:bg-slate-50 transition-all">
                                     필터 초기화
@@ -3453,8 +3706,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 w-full sm:w-auto">
                                     <button type="button" onClick={() => setRecordSortMode('recent-correction')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'recent-correction' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>최근 수정순</button>
                                     <button type="button" onClick={() => setRecordSortMode('score-desc')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'score-desc' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>점수 높은순</button>
-                                    <button type="button" onClick={() => setRecordSortMode('failed-first')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'failed-first' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>우선 확인 필요</button>
-                                    <button type="button" onClick={() => setRecordSortMode('error-type')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'error-type' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>확인 필요 유형순</button>
+                                    <button type="button" onClick={() => setRecordSortMode('failed-first')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'failed-first' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>우선 {BRAND_STATUS_LABELS.attention}</button>
+                                    <button type="button" onClick={() => setRecordSortMode('error-type')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'error-type' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>{BRAND_STATUS_LABELS.attention} 유형순</button>
                                 </div>
                             </div>
                             <p className="mt-2 text-[11px] font-bold text-slate-500">현재 정렬: {getRecordSortModeLabel(recordSortMode)}</p>
@@ -3469,8 +3722,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </p>
                         <ul className="mt-4 space-y-2 text-[12px] font-bold text-slate-600">
                             <li>• 적용 대상: {secondPassTargets.length}건</li>
-                            <li>• 자동 제외: OCR 확인 필요/대기, 원문 텍스트 없음{secondPassEditedOnly ? ', 관리자 수정이력 없음' : ''}</li>
-                            <li>• 확인 필요 건 재처리: 스마트 재분석 / 직접 재분석 사용</li>
+                            <li>• 자동 제외: OCR {BRAND_STATUS_LABELS.attentionPending}, 원문 텍스트 없음{secondPassEditedOnly ? ', 관리자 수정이력 없음' : ''}</li>
+                            <li>• {BRAND_STATUS_LABELS.attention} 건 재처리: {BRAND_ACTION_LABELS.smartReanalyze} / {BRAND_ACTION_LABELS.directReanalyze} 사용</li>
                         </ul>
                         <label className="mt-4 flex items-center gap-2 text-xs font-black text-violet-700">
                             <input
@@ -3579,19 +3832,19 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         <p className="mt-1 text-lg font-black text-emerald-700">{retryDiagnostics.success}</p>
                                     </div>
                                     <div className="rounded-xl bg-white border border-rose-100 px-2 py-2">
-                                        <p className="text-[10px] font-black text-rose-400 uppercase">실패</p>
+                                        <p className="text-[10px] font-black text-rose-400 uppercase">{BRAND_STATUS_LABELS.attention}</p>
                                         <p className="mt-1 text-lg font-black text-rose-700">{retryDiagnostics.fail}</p>
                                     </div>
                                     <div className="rounded-xl bg-white border border-amber-100 px-2 py-2">
-                                        <p className="text-[10px] font-black text-amber-500 uppercase">사전 실패</p>
+                                        <p className="text-[10px] font-black text-amber-500 uppercase">사전 확인 필요</p>
                                         <p className="mt-1 text-lg font-black text-amber-700">{retryDiagnostics.preflightFail}</p>
                                     </div>
                                 </div>
                                 <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-bold text-slate-600">
                                     <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">서버 성공: <span className="text-slate-900">{retryDiagnostics.serverSuccess}</span></div>
                                     <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">브라우저 폴백: <span className="text-slate-900">{retryDiagnostics.clientFallbackSuccess}</span></div>
-                                    <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">처리 실패: <span className="text-slate-900">{retryDiagnostics.processingFail}</span></div>
-                                    <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">라우트 실패: <span className="text-slate-900">{retryDiagnostics.serverRouteFail}</span></div>
+                                    <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">처리 확인 필요: <span className="text-slate-900">{retryDiagnostics.processingFail}</span></div>
+                                    <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">라우트 확인 필요: <span className="text-slate-900">{retryDiagnostics.serverRouteFail}</span></div>
                                 </div>
                                 <CollapsibleSection
                                     title="재분석 상세 비교"
@@ -3601,8 +3854,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 >
                                 <div className="mt-3 rounded-2xl border border-white/70 bg-white/70 p-3">
                                     <div className="flex items-center justify-between gap-2">
-                                        <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">확인 필요 대응 가이드</p>
-                                        <span className="text-[10px] font-bold text-slate-500">확인 필요 유형 기준</span>
+                                        <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">{BRAND_STATUS_LABELS.attention} 대응 가이드</p>
+                                        <span className="text-[10px] font-bold text-slate-500">{BRAND_STATUS_LABELS.attention} 유형 기준</span>
                                     </div>
                                     <div className="mt-2 space-y-2">
                                         {retryActionGuides.length > 0 ? retryActionGuides.map((guide) => (
@@ -3617,7 +3870,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 <p className="mt-1 text-[11px] font-semibold text-slate-600 leading-snug">{guide.action}</p>
                                             </div>
                                         )) : (
-                                            <p className="text-[11px] font-bold text-emerald-700">현재 집계 기준으로 별도 추가 확인 대응이 필요한 항목이 없습니다.</p>
+                                            <p className="text-[11px] font-bold text-emerald-700">현재 집계 기준으로 별도 {BRAND_STATUS_LABELS.attention} 대응이 필요한 항목이 없습니다.</p>
                                         )}
                                     </div>
                                 </div>
@@ -3888,6 +4141,24 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
                         const rowGuideMobile = rowErrorType ? getOcrErrorMobileLabel(rowErrorType) : '';
                         const preflightReason = failed ? getPreflightFailureReason(r) : null;
+                        const reviewTrustState = getReviewTrustState(r);
+                        const rowStatusSummary = failed
+                            ? `${getOcrErrorTypeKoreanLabel(rowErrorType || 'UNKNOWN')} 신호가 남아 있습니다.`
+                            : reviewTrustState === 'PENDING'
+                                ? '관리자 재검토가 남아 있는 상태입니다.'
+                                : reviewTrustState === 'FINALIZED'
+                                    ? '보호 판단이 확정된 상태입니다.'
+                                    : '현재 기록은 기본 흐름 안에서 유지되고 있습니다.';
+                        const rowEvidenceSummary = preflightReason
+                            || latestCorrectionReason
+                            || (typeof r.ocrConfidence === 'number' ? `OCR 신뢰도 ${(r.ocrConfidence * 100).toFixed(0)}% 기준으로 확인 중입니다.` : '최근 수정 및 OCR 근거를 함께 확인할 수 있습니다.');
+                        const rowNextAction = failed
+                            ? hasImage
+                                ? '원문 다시 읽기를 먼저 시도하고, 남으면 상세 판단으로 넘기세요.'
+                                : '이미지 근거가 부족해 재촬영 안내 또는 관리자 판단으로 유지가 우선입니다.'
+                            : secondPassEligibility.eligible
+                                ? '필요 시 2차 재평가로 해석 품질을 더 끌어올릴 수 있습니다.'
+                                : '현재 조건에서는 유지 점검과 리포트 확인이 우선입니다.';
 
                         return (
                             <div key={r.id} className={`rounded-2xl border p-3 bg-white ${failed ? 'border-rose-200 bg-rose-50/40' : recentlyCorrected ? 'border-violet-200 bg-violet-50/30' : 'border-slate-200'}`}>
@@ -3944,14 +4215,29 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     </div>
                                 )}
 
+                                <div className="mt-3 grid grid-cols-1 gap-2 text-[11px]">
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                        <p className="font-black text-slate-400 uppercase tracking-[0.18em]">지금 상태</p>
+                                        <p className="mt-1 font-semibold text-slate-700 leading-snug">{rowStatusSummary}</p>
+                                    </div>
+                                    <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
+                                        <p className="font-black text-amber-600 uppercase tracking-[0.18em]">판단 근거</p>
+                                        <p className="mt-1 font-semibold text-amber-800 leading-snug whitespace-pre-wrap break-words">{rowEvidenceSummary}</p>
+                                    </div>
+                                    <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
+                                        <p className="font-black text-emerald-600 uppercase tracking-[0.18em]">다음 행동</p>
+                                        <p className="mt-1 font-semibold text-emerald-800 leading-snug">{rowNextAction}</p>
+                                    </div>
+                                </div>
+
                                 <div className="mt-3 grid grid-cols-2 gap-2">
-                                    <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-3 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl">상세검증</button>
-                                    <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-3 py-2 bg-slate-900 text-white font-black text-xs rounded-xl">리포트</button>
+                                    <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-3 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl">상세 판단</button>
+                                    <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-3 py-2 bg-slate-900 text-white font-black text-xs rounded-xl">보호 리포트</button>
                                     {failed && !isAnalyzing && hasImage && (
-                                        <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className="col-span-2 px-3 py-2 bg-rose-100 text-rose-600 font-bold text-xs rounded-xl">다시 확인</button>
+                                        <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className="col-span-2 px-3 py-2 bg-rose-100 text-rose-600 font-bold text-xs rounded-xl">원문 다시 읽기</button>
                                     )}
                                     {failed && !isAnalyzing && (
-                                        <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="col-span-2 px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl" title="추가 확인이 필요한 건을 관리자 검토 후 정상 흐름으로 전환">관리자 확인 후 정상분류</button>
+                                        <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="col-span-2 px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl" title={`${BRAND_STATUS_LABELS.attention} 안내가 필요한 건을 관리자 검토 후 정상 흐름으로 전환`}>관리자 판단으로 유지</button>
                                     )}
                                     <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="col-span-2 px-3 py-2 bg-slate-100 text-slate-500 font-bold text-xs rounded-xl">삭제</button>
                                 </div>
@@ -3990,6 +4276,24 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const rowGuideSummary = rowErrorType ? getOcrErrorGuideSummary(rowErrorType) : '';
                                 const rowGuideMobile = rowErrorType ? getOcrErrorMobileLabel(rowErrorType) : '';
                                 const preflightReason = failed ? getPreflightFailureReason(r) : null;
+                                const reviewTrustState = getReviewTrustState(r);
+                                const rowStatusSummary = failed
+                                    ? `${getOcrErrorTypeKoreanLabel(rowErrorType || 'UNKNOWN')} 신호가 남아 있습니다.`
+                                    : reviewTrustState === 'PENDING'
+                                        ? '관리자 재검토가 남아 있는 상태입니다.'
+                                        : reviewTrustState === 'FINALIZED'
+                                            ? '보호 판단이 확정된 상태입니다.'
+                                            : '현재 기록은 기본 흐름 안에서 유지되고 있습니다.';
+                                const rowEvidenceSummary = preflightReason
+                                    || latestCorrectionReason
+                                    || (typeof r.ocrConfidence === 'number' ? `OCR 신뢰도 ${(r.ocrConfidence * 100).toFixed(0)}% 기준으로 확인 중입니다.` : '최근 수정 및 OCR 근거를 함께 확인할 수 있습니다.');
+                                const rowNextAction = failed
+                                    ? hasImage
+                                        ? '원문 다시 읽기 후 남는 건을 상세 판단으로 넘기세요.'
+                                        : '재촬영 안내 또는 관리자 판단으로 유지가 우선입니다.'
+                                    : secondPassEligibility.eligible
+                                        ? '필요 시 2차 재평가로 해석 품질을 더 끌어올릴 수 있습니다.'
+                                        : '현재 조건에서는 유지 점검과 리포트 확인이 우선입니다.';
                                 
                                 return (
                                     <tr key={r.id} className={`hover:bg-indigo-50/30 transition-colors group ${isManager ? 'bg-slate-50/50 opacity-80' : ''} ${failed ? 'bg-rose-50/50' : recentlyCorrected ? 'bg-violet-50/40' : ''}`}>
@@ -4039,7 +4343,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                         수정사유 보강 필요
                                                     </span>
                                                 )}
-                                                {failed && <span className="text-[9px] text-rose-500 font-bold">⚠️ 추가 확인 필요</span>}
+                                                {failed && <span className="text-[9px] text-rose-500 font-bold">⚠️ 추가 확인 안내</span>}
                                                 {failed && rowErrorType && (
                                                     <span className="mt-1 inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-100 text-rose-700 border border-rose-200">
                                                         {getOcrErrorTypeKoreanLabel(rowErrorType)}
@@ -4065,6 +4369,20 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                         사전검증: {preflightReason}
                                                     </span>
                                                 )}
+                                                <div className="mt-2 grid grid-cols-1 gap-1.5 text-[10px] font-semibold">
+                                                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-slate-700">
+                                                        <span className="block text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">지금 상태</span>
+                                                        <span className="mt-0.5 block leading-snug">{rowStatusSummary}</span>
+                                                    </div>
+                                                    <div className="rounded-lg border border-amber-100 bg-amber-50 px-2 py-2 text-amber-800">
+                                                        <span className="block text-[9px] font-black uppercase tracking-[0.16em] text-amber-600">판단 근거</span>
+                                                        <span className="mt-0.5 block leading-snug whitespace-pre-wrap break-words">{rowEvidenceSummary}</span>
+                                                    </div>
+                                                    <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-2 py-2 text-emerald-800">
+                                                        <span className="block text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600">다음 행동</span>
+                                                        <span className="mt-0.5 block leading-snug">{rowNextAction}</span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </td>
                                         <td className="px-4 sm:px-8 py-5 text-slate-500 font-bold">{r.jobField}</td>
@@ -4103,16 +4421,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             <div className="flex justify-end gap-2">
                                                 {failed && !isAnalyzing && hasImage && (
                                                     <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className="px-3 py-2 bg-rose-100 text-rose-600 font-bold text-xs rounded-xl hover:bg-rose-200 transition-all">
-                                                        다시 확인
+                                                        원문 다시 읽기
                                                     </button>
                                                 )}
                                                 {failed && !isAnalyzing && (
                                                     <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl hover:bg-amber-200 transition-all" title="다시 확인이 어려운 건을 관리자 확인 후 정상 분류">
-                                                        관리자 정상분류
+                                                        관리자 판단으로 유지
                                                     </button>
                                                 )}
-                                                <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-4 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">상세검증 바로가기</button>
-                                                <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-4 py-2 bg-slate-900 text-white font-black text-xs rounded-xl hover:bg-black transition-all shadow-sm">리포트 바로가기</button>
+                                                <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-4 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">상세 판단 바로가기</button>
+                                                <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-4 py-2 bg-slate-900 text-white font-black text-xs rounded-xl hover:bg-black transition-all shadow-sm">보호 리포트 바로가기</button>
                                                 <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="p-2 bg-slate-100 text-slate-400 hover:bg-rose-500 hover:text-white rounded-xl transition-all" title="삭제">
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                 </button>

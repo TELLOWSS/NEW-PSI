@@ -1,7 +1,9 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { WorkerRecord, AppSettings, ScoreAdjustmentReasonCode, ScoreAdjustmentEntry } from '../../types';
+import { BRAND_STATUS_LABELS } from '../../utils/brandLabels';
 import { CircularProgress } from '../shared/CircularProgress';
+import { InterpretationCardGrid } from '../shared/InterpretationCardGrid';
 import { updateAnalysisBasedOnEdits } from '../../services/geminiService';
 import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
 import { deriveCompetencyProfile, enforceSafetyLevel, getApprovalBlockers } from '../../utils/evidenceUtils';
@@ -23,12 +25,26 @@ const normalizeScore = (value: number, maxScore: number) => {
     return Math.max(0, Math.min(maxScore, Math.round(value)));
 };
 
+const truncateText = (value?: string, maxLength = 120) => {
+    const normalized = (value || '').replace(/\s+/g, ' ').trim();
+    if (!normalized) return '';
+    return normalized.length > maxLength ? `${normalized.slice(0, maxLength).trim()}…` : normalized;
+};
+
 const metricToneClass: Record<MetricTone, { badge: string; bar: string; panel: string; text: string; track: string }> = {
     slate: { badge: 'bg-slate-100 text-slate-700', bar: 'bg-slate-700', panel: 'bg-slate-50 border-slate-200', text: 'text-slate-700', track: 'bg-slate-200' },
     indigo: { badge: 'bg-indigo-100 text-indigo-700', bar: 'bg-indigo-600', panel: 'bg-indigo-50 border-indigo-200', text: 'text-indigo-700', track: 'bg-indigo-100' },
     emerald: { badge: 'bg-emerald-100 text-emerald-700', bar: 'bg-emerald-600', panel: 'bg-emerald-50 border-emerald-200', text: 'text-emerald-700', track: 'bg-emerald-100' },
     amber: { badge: 'bg-amber-100 text-amber-700', bar: 'bg-amber-500', panel: 'bg-amber-50 border-amber-200', text: 'text-amber-700', track: 'bg-amber-100' },
     rose: { badge: 'bg-rose-100 text-rose-700', bar: 'bg-rose-500', panel: 'bg-rose-50 border-rose-200', text: 'text-rose-700', track: 'bg-rose-100' },
+};
+
+const ocrErrorGuide: Record<NonNullable<WorkerRecord['ocrErrorType']>, string> = {
+    QUALITY: '이미지 품질 흔들림이 있어 원본 대조가 먼저 필요합니다.',
+    RESOLUTION: '해상도 저하 가능성이 있어 문서 재확인이 우선입니다.',
+    HANDWRITING: '필기 해석 난도가 높아 원문-번역 대조가 중요합니다.',
+    LAYOUT: '서식 배치 영향으로 항목 매칭을 다시 봐야 합니다.',
+    UNKNOWN: '자동 분류가 어려워 관리자 판단 근거가 더 중요합니다.',
 };
 
 const CompetencyMetricCard: React.FC<CompetencyMetricCardProps> = ({
@@ -431,7 +447,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                         stage: 'reassessment',
                         timestamp: new Date().toISOString(),
                         actor: 'manager',
-                        note: '2차 재가공 확인 필요: AI가 갱신 결과를 반환하지 않음',
+                        note: `2차 재가공 ${BRAND_STATUS_LABELS.attention}: AI가 갱신 결과를 반환하지 않음`,
                     }
                 ]
             };
@@ -445,7 +461,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                         stage: 'reassessment',
                         timestamp: new Date().toISOString(),
                         actor: 'manager',
-                        note: `2차 재가공 확인 필요: ${errorMessage}`,
+                        note: `2차 재가공 ${BRAND_STATUS_LABELS.attention}: ${errorMessage}`,
                     }
                 ]
             };
@@ -712,7 +728,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                             } catch (error) {
                                 console.error('프로필 사진 자동 저장 실패:', error);
                                 setHasChanges(true);
-                                setPhotoQueueNotice('자동 저장에 추가 확인이 필요합니다. 상단 1차 저장 버튼으로 저장해 주세요.');
+                                setPhotoQueueNotice('자동 저장에 추가 확인 안내가 필요합니다. 상단 1차 저장 버튼으로 저장해 주세요.');
                             } finally {
                                 setIsPhotoAutoSaving(false);
                             }
@@ -746,6 +762,138 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const reassessmentEmpty = isKorean ? '재평가 이력이 없습니다.' : 'No reassessment history.';
     const reassessmentTag = isKorean ? '[재평가]' : '[reassessment]';
     const reassessmentTrail = (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-10).reverse();
+    const latestApprovalEntry = (record.approvalHistory || []).slice(-1)[0];
+    const latestScoreAdjustment = (record.scoreAdjustmentHistory || []).slice(-1)[0];
+    const approvalSnapshot = approvalComment.trim() || record.reviewReason || record.adminComment || '';
+    const sourcePreviewPanels = useMemo(() => {
+        const originalPreview = truncateText(record.fullText, 150) || 'OCR 원문이 아직 정리되지 않았습니다.';
+        const translatedPreview = truncateText(record.koreanTranslation || record.aiInsights, 150) || 'AI 해석이 아직 정리되지 않았습니다.';
+        const managerPreview = truncateText(approvalSnapshot, 150)
+            || (hasCriticalReviewEdits
+                ? '수정된 항목이 있어 검토 근거를 남겨야 합니다.'
+                : '아직 관리자 판단 메모가 없습니다. 승인 전 근거를 남겨주세요.');
+
+        return [
+            {
+                key: 'original',
+                eyebrow: '원문 신호',
+                title: 'OCR 원문',
+                body: originalPreview,
+                tone: 'border-slate-200 bg-slate-50 text-slate-700',
+            },
+            {
+                key: 'translation',
+                eyebrow: 'AI 해석',
+                title: '한국어 판단 초안',
+                body: translatedPreview,
+                tone: 'border-indigo-200 bg-indigo-50 text-indigo-700',
+            },
+            {
+                key: 'manager',
+                eyebrow: '관리자 판단',
+                title: '검토 메모',
+                body: managerPreview,
+                tone: hasCriticalReviewEdits || pendingApprovalAction === 'rejected'
+                    ? 'border-amber-200 bg-amber-50 text-amber-700'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-700',
+            },
+        ];
+    }, [approvalSnapshot, hasCriticalReviewEdits, pendingApprovalAction, record.aiInsights, record.fullText, record.koreanTranslation]);
+    const reviewDecisionCards = useMemo(() => {
+        const confidenceLabel = typeof record.ocrConfidence === 'number' ? `${(record.ocrConfidence * 100).toFixed(0)}%` : '확인 필요';
+        const integrityLabel = typeof record.integrityScore === 'number' ? `${record.integrityScore}점` : '확인 필요';
+        const changedFieldCount = hasCriticalReviewEdits
+            ? ['safetyScore', 'fullText', 'koreanTranslation', 'aiInsights', 'handwrittenAnswers'].filter((field) => JSON.stringify(initialRecord[field as keyof WorkerRecord]) !== JSON.stringify(record[field as keyof WorkerRecord])).length
+            : 0;
+
+        let stateTitle = '최종 판단 전 확인 단계';
+        let stateDescription = '원문, AI 해석, 관리자 메모를 맞춰보며 승인 여부를 결정할 시점입니다.';
+        let stateTone = 'border-slate-200 bg-white';
+
+        if (record.reviewStatus === 'REJECTED') {
+            stateTitle = '보완 요청이 열린 상태';
+            stateDescription = truncateText(record.reviewReason, 100) || '재촬영 또는 재작성 안내가 기록되어 있습니다.';
+            stateTone = 'border-rose-200 bg-rose-50';
+        } else if (isFinalizedRecord) {
+            stateTitle = '보호 판단이 확정된 상태';
+            stateDescription = truncateText(record.approvalReason, 100) || '검토와 2차 가공이 반영된 확정 기록입니다.';
+            stateTone = 'border-emerald-200 bg-emerald-50';
+        } else if (hasChanges) {
+            stateTitle = '수정 반영 대기 상태';
+            stateDescription = `${changedFieldCount || 1}개 핵심 항목이 조정되어 1차 저장 또는 승인 근거 입력이 필요합니다.`;
+            stateTone = 'border-amber-200 bg-amber-50';
+        }
+
+        const evidenceParts = [
+            `OCR 신뢰도 ${confidenceLabel}`,
+            `무결성 ${integrityLabel}`,
+            record.ocrErrorType ? ocrErrorGuide[record.ocrErrorType] : '자동 판독 경고는 없지만 원문-번역 일치를 확인해야 합니다.',
+        ];
+        if (latestScoreAdjustment) {
+            evidenceParts.push(`최근 점수 조정: ${latestScoreAdjustment.previousScore}→${latestScoreAdjustment.nextScore}`);
+        }
+
+        let nextActionTitle = '승인 준비 진행';
+        let nextActionDescription = showReviewCommentField
+            ? '검토 근거를 남기고 최종 승인을 진행하면 2차 가공이 이어집니다.'
+            : 'AI 해석과 수기 답변을 빠르게 대조한 뒤 승인 또는 보완 요청을 선택하세요.';
+        let nextActionTone = 'border-indigo-200 bg-indigo-50';
+
+        if (pendingApprovalAction === 'rejected' || record.reviewStatus === 'REJECTED') {
+            nextActionTitle = '보완 요청 구체화';
+            nextActionDescription = '어떤 부분을 다시 촬영·재작성해야 하는지 코멘트에 남겨 현장이 바로 움직일 수 있게 해주세요.';
+            nextActionTone = 'border-rose-200 bg-rose-50';
+        } else if (isFinalizedRecord) {
+            nextActionTitle = '후속 공유 단계';
+            nextActionDescription = '확정된 내용을 리포트와 증빙 패키지로 연결해 현장 보호 조치를 이어가면 됩니다.';
+            nextActionTone = 'border-emerald-200 bg-emerald-50';
+        } else if (hasCriticalReviewEdits && approvalComment.trim().length === 0) {
+            nextActionTitle = '검토 근거 입력 우선';
+            nextActionDescription = '수정된 항목이 있으므로 왜 바꿨는지 먼저 남겨야 승인 흐름이 매끄럽습니다.';
+            nextActionTone = 'border-amber-200 bg-amber-50';
+        }
+
+        return [
+            {
+                key: 'state',
+                eyebrow: '지금 상태',
+                title: stateTitle,
+                description: stateDescription,
+                tone: stateTone,
+            },
+            {
+                key: 'evidence',
+                eyebrow: '판단 근거',
+                title: '무엇을 보고 판단할지',
+                description: evidenceParts.join(' · '),
+                tone: 'border-slate-200 bg-slate-50',
+            },
+            {
+                key: 'next-action',
+                eyebrow: '다음 행동',
+                title: nextActionTitle,
+                description: nextActionDescription,
+                tone: nextActionTone,
+            },
+        ];
+    }, [approvalComment, hasChanges, hasCriticalReviewEdits, initialRecord, isFinalizedRecord, latestScoreAdjustment, pendingApprovalAction, record, showReviewCommentField]);
+    const reviewMetaChips = useMemo(() => {
+        return [
+            { key: 'review', label: '검토 상태', value: record.reviewStatus || 'PENDING' },
+            { key: 'approval', label: '승인 상태', value: record.approvalStatus || 'PENDING' },
+            { key: 'history', label: '최근 승인', value: latestApprovalEntry ? `${latestApprovalEntry.status} · ${new Date(latestApprovalEntry.timestamp).toLocaleDateString('ko-KR')}` : '이력 없음' },
+        ];
+    }, [latestApprovalEntry, record.approvalStatus, record.reviewStatus]);
+    const answerComparisonSummary = useMemo(() => {
+        const total = record.handwrittenAnswers.length;
+        const translated = record.handwrittenAnswers.filter((answer) => answer.koreanTranslation.trim().length > 0).length;
+        const originalReady = record.handwrittenAnswers.filter((answer) => answer.answerText.trim().length > 0).length;
+        return {
+            total,
+            translated,
+            originalReady,
+        };
+    }, [record.handwrittenAnswers]);
     
     // Icon Display
     const isLeader = (record.role === 'leader') || (record.name === record.teamLeader);
@@ -843,6 +991,41 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                 </div>
                             )}
 
+                            <InterpretationCardGrid
+                                items={reviewDecisionCards}
+                                className="grid grid-cols-1 xl:grid-cols-3 gap-3"
+                                cardClassName="rounded-3xl border p-5 shadow-sm"
+                                titleClassName="mt-2 text-base font-black text-slate-900"
+                                descriptionClassName="mt-2 text-sm font-semibold leading-relaxed text-slate-600"
+                            />
+
+                            <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-500">3초 판단 구조</p>
+                                        <h3 className="mt-2 text-lg font-black text-slate-900">원문 → AI 해석 → 관리자 판단을 한 번에 봅니다.</h3>
+                                        <p className="mt-2 text-sm font-semibold text-slate-600">감점이나 승인보다 먼저, 무엇이 읽혔고 어떻게 해석됐으며 현장에서 어떤 보완이 필요한지 빠르게 파악하도록 정리했습니다.</p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {reviewMetaChips.map((chip) => (
+                                            <div key={chip.key} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{chip.label}</p>
+                                                <p className="mt-1 text-xs font-black text-slate-700">{chip.value}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                <div className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3">
+                                    {sourcePreviewPanels.map((panel) => (
+                                        <div key={panel.key} className={`rounded-2xl border p-4 ${panel.tone}`}>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">{panel.eyebrow}</p>
+                                            <h4 className="mt-2 text-sm font-black">{panel.title}</h4>
+                                            <p className="mt-2 text-sm font-semibold leading-relaxed whitespace-pre-wrap">{panel.body}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
                             <div className="lg:hidden bg-white border border-slate-200 rounded-2xl p-2 grid grid-cols-3 gap-2 sticky top-0 z-10 shadow-sm">
                                 <button
                                     onClick={handleSave}
@@ -856,13 +1039,13 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                     disabled={isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0)}
                                     className={`px-2 py-2 rounded-xl text-[11px] font-black transition-colors ${isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0) ? 'bg-slate-100 text-slate-400' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'}`}
                                 >
-                                    최종 승인(수정)
+                                    보호 판단 확정
                                 </button>
                                 <button
                                     onClick={handleOpenReportClick}
                                     className="px-2 py-2 rounded-xl text-[11px] font-black bg-slate-900 text-white"
                                 >
-                                    3차 리포트
+                                    보호 리포트
                                 </button>
                             </div>
                             
@@ -898,8 +1081,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         </div>
                                     )}
                                     {photoQueueNotice && (
-                                        <div className={`mt-3 rounded-2xl border px-3 py-3 ${photoQueueNotice.includes('확인 필요') ? 'border-rose-200 bg-rose-50' : 'border-indigo-200 bg-indigo-50'}`}>
-                                            <p className={`text-[11px] font-black ${photoQueueNotice.includes('확인 필요') ? 'text-rose-700' : 'text-indigo-700'}`}>{photoQueueNotice}</p>
+                                        <div className={`mt-3 rounded-2xl border px-3 py-3 ${photoQueueNotice.includes(BRAND_STATUS_LABELS.attention) ? 'border-rose-200 bg-rose-50' : 'border-indigo-200 bg-indigo-50'}`}>
+                                            <p className={`text-[11px] font-black ${photoQueueNotice.includes(BRAND_STATUS_LABELS.attention) ? 'text-rose-700' : 'text-indigo-700'}`}>{photoQueueNotice}</p>
                                         </div>
                                     )}
                                     {!hasProfileImage && (
@@ -1071,7 +1254,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                             <div className="flex gap-2 p-1.5 bg-slate-200 rounded-2xl shrink-0">
                                 {['info', 'analysis', 'qna'].map(t => (
                                     <button key={t} onClick={() => setActiveTab(t as 'info' | 'analysis' | 'qna')} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${activeTab === t ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                                        {t === 'info' ? '성과지표' : t === 'analysis' ? 'AI 인사이트' : '수기 답변'}
+                                        {t === 'info' ? '판단 요약' : t === 'analysis' ? 'AI 해석' : '원문 비교'}
                                     </button>
                                 ))}
                             </div>
@@ -1079,15 +1262,44 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                             <div className="min-h-[300px]">
                                 {activeTab === 'info' && (
                                     <div className="space-y-4">
+                                        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm">
+                                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                                <div>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.24em]">판단 체크포인트</p>
+                                                    <h4 className="mt-2 text-sm font-black text-slate-900">승인 전에 꼭 맞춰볼 세 가지</h4>
+                                                </div>
+                                                <div className="text-xs font-bold text-slate-500">
+                                                    {latestScoreAdjustment
+                                                        ? `최근 점수 조정 ${latestScoreAdjustment.previousScore} → ${latestScoreAdjustment.nextScore}`
+                                                        : '최근 점수 조정 이력 없음'}
+                                                </div>
+                                            </div>
+                                            <div className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3">
+                                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">원문 확인</p>
+                                                    <p className="mt-2 text-sm font-semibold text-slate-700 leading-relaxed">질문별 수기 답변과 OCR 원문이 실제 현장 문맥과 맞는지 먼저 확인합니다.</p>
+                                                </div>
+                                                <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">해석 확인</p>
+                                                    <p className="mt-2 text-sm font-semibold text-indigo-700 leading-relaxed">AI 해석과 점수 근거가 과도하게 단정적이지 않은지, 보완 방향이 충분히 설명되는지 봅니다.</p>
+                                                </div>
+                                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">행동 결정</p>
+                                                    <p className="mt-2 text-sm font-semibold text-emerald-700 leading-relaxed">수정 저장, 승인, 보완 요청 중 무엇이 현장 보호에 가장 빠른지 결정합니다.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
                                         <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200 flex items-center justify-between group">
                                             <div>
-                                                <p className="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[3px]">SAFETY SCORE</p>
+                                                <p className="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[3px]">CURRENT JUDGMENT LEVEL</p>
                                                 <input 
                                                     type="number" 
                                                     value={record.safetyScore} 
                                                     onChange={(e) => handleChange('safetyScore', parseInt(e.target.value) || 0)}
                                                     className="text-8xl font-black text-slate-900 w-48 focus:outline-none bg-transparent"
                                                 />
+                                                <p className="text-sm text-slate-700 font-black mt-2">안전 수준: {record.safetyLevel}</p>
                                                 <p className="text-xs text-slate-500 font-bold mt-2">
                                                     OCR 신뢰도: {typeof record.ocrConfidence === 'number' ? `${(record.ocrConfidence * 100).toFixed(0)}%` : 'N/A'}
                                                 </p>
@@ -1188,7 +1400,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         </div>
 
                                         <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm">
-                                            <h4 className="text-sm font-black text-slate-800 mb-4">승인/검토 처리 (S350)</h4>
+                                            <h4 className="text-sm font-black text-slate-800 mb-4">관리자 판단 및 보호 조치 결정</h4>
                                             {!strictRoleGate && (
                                                 <div className="mb-3">
                                                     <label className="block text-[11px] font-black text-slate-500 mb-1">승인권자 기준</label>
@@ -1222,19 +1434,19 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 </>
                                             ) : (
                                                 <div className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-500">
-                                                    점수/분석/판독 결과를 수정하거나 반려를 선택하면 사유(Comment) 입력창이 활성화됩니다.
+                                                    점수·해석·원문 판독을 수정하거나 보완 요청을 선택하면 판단 근거 입력창이 열립니다.
                                                 </div>
                                             )}
                                             {(hasCriticalReviewEdits || pendingApprovalAction === 'rejected') && (
                                                 <p className="mt-2 text-[11px] font-black text-rose-600">
-                                                    수정 또는 반려 처리 시 사유(Comment) 입력은 필수입니다.
+                                                    수정 또는 보완 요청 처리 시 판단 근거 입력은 필수입니다.
                                                 </p>
                                             )}
                                             {showReviewCommentField && hasWeakApprovalReason && (
                                                 <div className="mt-2 rounded-xl bg-rose-50 border border-rose-200 px-3 py-2">
                                                     <p className="text-[11px] font-black text-rose-700">강한 경고</p>
                                                     <p className="mt-1 text-[11px] font-semibold text-rose-700 leading-relaxed">
-                                                        승인/반려 사유가 짧거나 일반적입니다. 검토 근거, 확인 범위, 반영 내용을 포함하지 않으면 QA 점검 대상으로 남습니다.
+                                                        판단 근거가 짧거나 일반적입니다. 검토 근거, 확인 범위, 반영 내용을 포함하지 않으면 QA 점검 대상으로 남습니다.
                                                     </p>
                                                 </div>
                                             )}
@@ -1244,14 +1456,14 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                     disabled={isUpdatingAnalysis}
                                                     className={`w-full sm:w-auto px-4 py-2 rounded-xl text-sm font-black ${isUpdatingAnalysis ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-rose-100 text-rose-700 hover:bg-rose-200'}`}
                                                 >
-                                                    반려(재촬영/재작성 요망)
+                                                    보완 요청(재촬영/재작성 안내)
                                                 </button>
                                                 <button
                                                     onClick={() => { void handleApprove('approved'); }}
                                                     disabled={isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0)}
                                                     className={`w-full sm:w-auto px-4 py-2 rounded-xl text-sm font-black ${isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0) ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
                                                 >
-                                                    최종 승인(수정)
+                                                    최종 승인(보호 판단 확정)
                                                 </button>
                                             </div>
                                             <div className="mt-3 text-xs text-slate-500 font-bold">누적 승인 이력: {(record.approvalHistory || []).length}건</div>
@@ -1288,53 +1500,99 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                 )}
 
                                 {activeTab === 'analysis' && (
-                                    <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm h-full min-h-[300px]">
-                                        <div className="mb-4">
-                                            <p className="text-xs text-slate-400 font-bold mb-1">KOREAN</p>
-                                            <textarea 
-                                                value={record.aiInsights} 
-                                                onChange={(e) => handleChange('aiInsights', e.target.value)}
-                                                className="w-full min-h-[120px] text-base text-slate-700 leading-relaxed border-none focus:ring-0 resize-none bg-slate-50 rounded-xl p-4 font-medium"
-                                                placeholder="AI 분석 인사이트를 확인하거나 수정하세요."
-                                            />
+                                    <div className="space-y-4 h-full min-h-[300px]">
+                                        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-500">AI 해석 검토</p>
+                                            <h4 className="mt-2 text-sm font-black text-slate-900">AI가 읽은 의미와 현장에 전달할 설명을 함께 점검합니다.</h4>
+                                            <div className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3">
+                                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">AI 초안</p>
+                                                    <p className="mt-2 text-sm font-semibold text-slate-700 leading-relaxed">AI 해석이 과도하게 평가적이지 않고, 실제 보완 방향을 설명하는지 확인합니다.</p>
+                                                </div>
+                                                <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">현장 전달</p>
+                                                    <p className="mt-2 text-sm font-semibold text-indigo-700 leading-relaxed">한국어 해석과 모국어 해석이 같은 보호 메시지를 전달하는지 비교합니다.</p>
+                                                </div>
+                                                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500">관리자 확인</p>
+                                                    <p className="mt-2 text-sm font-semibold text-amber-700 leading-relaxed">국적 변경 후 갱신된 번역이 실제 작업자 안내 문구로 바로 써도 되는지 검수합니다.</p>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-xs text-indigo-400 font-bold mb-1 flex items-center gap-1">
-                                                NATIVE ({record.nationality})
-                                                <span className="text-[10px] text-slate-400 font-normal">* 국적 변경 후 'AI 분석 갱신' 클릭 시 자동 번역됨</span>
-                                            </p>
-                                            <textarea 
-                                                value={record.aiInsights_native} 
-                                                onChange={(e) => handleChange('aiInsights_native', e.target.value)}
-                                                className="w-full min-h-[120px] text-base text-slate-600 leading-relaxed border-none focus:ring-0 resize-none bg-indigo-50/50 rounded-xl p-4 font-medium"
-                                                placeholder="모국어 번역 내용입니다."
-                                            />
+                                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm h-full">
+                                                <p className="text-xs text-slate-400 font-bold mb-1 uppercase tracking-[0.18em]">KOREAN INTERPRETATION</p>
+                                                <textarea 
+                                                    value={record.aiInsights} 
+                                                    onChange={(e) => handleChange('aiInsights', e.target.value)}
+                                                    className="w-full min-h-[220px] text-base text-slate-700 leading-relaxed border-none focus:ring-0 resize-none bg-slate-50 rounded-xl p-4 font-medium"
+                                                    placeholder="AI가 읽은 의미와 보완 방향을 관리자 관점에서 정리하세요."
+                                                />
+                                            </div>
+                                            <div className="bg-white p-6 rounded-3xl border border-indigo-200 shadow-sm h-full">
+                                                <p className="text-xs text-indigo-400 font-bold mb-1 flex items-center gap-1 uppercase tracking-[0.18em]">
+                                                    NATIVE SUPPORT ({record.nationality})
+                                                    <span className="text-[10px] text-slate-400 font-normal normal-case">* 국적 변경 후 'AI 분석 갱신' 클릭 시 자동 번역됨</span>
+                                                </p>
+                                                <textarea 
+                                                    value={record.aiInsights_native} 
+                                                    onChange={(e) => handleChange('aiInsights_native', e.target.value)}
+                                                    className="w-full min-h-[220px] text-base text-slate-600 leading-relaxed border-none focus:ring-0 resize-none bg-indigo-50/50 rounded-xl p-4 font-medium"
+                                                    placeholder="작업자에게 바로 전달할 모국어 보호 안내를 확인하거나 수정하세요."
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 )}
 
                                 {activeTab === 'qna' && (
                                     <div className="space-y-4 pb-4">
+                                        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm">
+                                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                                <div>
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-500">원문 비교 검수</p>
+                                                    <h4 className="mt-2 text-sm font-black text-slate-900">질문별로 원문 신호와 관리자 해석을 나란히 점검합니다.</h4>
+                                                </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">전체 문항</p>
+                                                        <p className="mt-1 text-xs font-black text-slate-700">{answerComparisonSummary.total}개</p>
+                                                    </div>
+                                                    <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-3 py-2">
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-400">원문 확보</p>
+                                                        <p className="mt-1 text-xs font-black text-indigo-700">{answerComparisonSummary.originalReady}개</p>
+                                                    </div>
+                                                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500">해석 확보</p>
+                                                        <p className="mt-1 text-xs font-black text-emerald-700">{answerComparisonSummary.translated}개</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                         {record.handwrittenAnswers.map((ans, idx) => (
                                             <div key={idx} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                                                 <div className="flex items-center gap-2 mb-4">
-                                                    <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-widest">Question {ans.questionNumber}</span>
+                                                    <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-widest">문항 {ans.questionNumber}</span>
                                                 </div>
-                                                <div className="space-y-4">
-                                                    <div className="bg-slate-50 p-4 rounded-xl">
-                                                        <p className="text-xs text-slate-400 font-bold uppercase mb-1">OCR Original</p>
+                                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                                        <p className="text-xs text-slate-400 font-bold uppercase mb-1 tracking-[0.18em]">원문 신호</p>
+                                                        <p className="text-[11px] text-slate-500 font-semibold mb-2">작업자가 실제로 남긴 표현인지 확인합니다.</p>
                                                         <textarea
                                                             value={ans.answerText}
                                                             onChange={(e) => handleAnswerChange(idx, 'answerText', e.target.value)}
-                                                            className="w-full min-h-[90px] text-sm text-slate-600 bg-white border border-slate-200 rounded-lg p-3 font-medium"
+                                                            className="w-full min-h-[110px] text-sm text-slate-600 bg-white border border-slate-200 rounded-lg p-3 font-medium"
+                                                            placeholder="OCR 원문을 확인하거나 수정하세요."
                                                         />
                                                     </div>
-                                                    <div>
-                                                        <p className="text-xs text-indigo-400 font-bold uppercase mb-1">Translation</p>
+                                                    <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                                                        <p className="text-xs text-indigo-400 font-bold uppercase mb-1 tracking-[0.18em]">관리자 해석</p>
+                                                        <p className="text-[11px] text-indigo-500 font-semibold mb-2">원문 의미가 한국어 검토 문맥과 맞는지 점검합니다.</p>
                                                         <textarea
                                                             value={ans.koreanTranslation}
                                                             onChange={(e) => handleAnswerChange(idx, 'koreanTranslation', e.target.value)}
-                                                            className="w-full min-h-[90px] text-sm text-slate-700 bg-indigo-50 border border-indigo-100 rounded-lg p-3 font-bold"
+                                                            className="w-full min-h-[110px] text-sm text-slate-700 bg-white border border-indigo-100 rounded-lg p-3 font-bold"
+                                                            placeholder="관리자 검토용 한국어 해석을 확인하거나 수정하세요."
                                                         />
                                                     </div>
                                                 </div>
@@ -1354,12 +1612,12 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                     className={`text-xs font-black flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${isReanalyzing ? 'bg-slate-100 text-slate-400' : 'text-slate-500 hover:bg-slate-100'}`}
                                 >
                                     <svg className={`w-4 h-4 ${isReanalyzing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeWidth={2.5}/></svg>
-                                    이미지 전체 재분석 (OCR)
+                                    원문 전체 다시 읽기 (OCR)
                                 </button>
                                 <button onClick={handleExportEvidenceCsv} className="text-xs font-black px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all">증빙 CSV</button>
                                 <button onClick={handleExportEvidencePdf} className="text-xs font-black px-4 py-2 rounded-xl bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-all">증빙 패키지 PDF</button>
                             </div>
-                            <button onClick={handleOpenReportClick} className="px-10 py-4 bg-slate-900 text-white rounded-2xl text-sm font-black shadow-2xl hover:bg-black transition-all transform hover:-translate-y-1">3차 안전 리포트 보기</button>
+                            <button onClick={handleOpenReportClick} className="px-10 py-4 bg-slate-900 text-white rounded-2xl text-sm font-black shadow-2xl hover:bg-black transition-all transform hover:-translate-y-1">보호 리포트 보기</button>
                         </div>
                     </div>
                 </div>

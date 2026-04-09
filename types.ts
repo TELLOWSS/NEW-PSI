@@ -4,7 +4,6 @@ export type Page =
     'ocr-analysis' | 
     'worker-management' | 
     'predictive-analysis' |
-    export type IntegrityStatus = '확정' | '검증보류' | '재교육필요' | '관리자검토' | '2차재가공필요';
     'safety-checks' |
     'site-issue-management' |
     'reports' |
@@ -72,8 +71,6 @@ export type PsiFeedbackType =
     | '모바일UX'
     | '특허법무'
     | '운영';
-        /** 2차 재가공 상태: '필요', '진행중', '완료' */
-        secondPassStatus?: 'NEEDED' | 'IN_PROGRESS' | 'DONE';
 
 export interface PsiFeedbackPayload {
     id: string;
@@ -244,6 +241,8 @@ export interface WorkerRecord {
     reviewStatus?: 'APPROVED' | 'REJECTED' | 'PENDING';
     adminComment?: string;
     reviewReason?: string;
+    /** 2차 재가공 상태: 필요 / 진행중 / 완료 */
+    secondPassStatus?: 'NEEDED' | 'IN_PROGRESS' | 'DONE';
 }
 
 export interface HighRiskWorker {
@@ -313,7 +312,7 @@ export type CoachingActionType = '재교육' | '현장코칭' | '작업중지' |
 export type CoachingFollowupResult = '개선됨' | '재발' | '확인중';
 
 /** 월별 무결성 판정 상태 */
-export type IntegrityStatus = '확정' | '검증보류' | '재교육필요' | '관리자검토';
+export type IntegrityStatus = '확정' | '검증보류' | '재교육필요' | '관리자검토' | '2차재가공필요';
 
 /** 무결성 판정 사유 코드 */
 export type IntegrityReasonCode =

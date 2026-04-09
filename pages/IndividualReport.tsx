@@ -1,9 +1,10 @@
 
-import React, { Suspense, lazy, useRef, useState, useEffect } from 'react';
+import React, { Suspense, lazy, useRef, useState, useEffect, useMemo } from 'react';
 import type { WorkerRecord } from '../types';
 import { generateReportUrl } from '../utils/qrUtils';
 import { postAdminJson } from '../utils/adminApiClient';
 import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
+import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { ReportGenerationProgress } from '../components/shared/ReportGenerationProgress';
 import { ensureFileSaver, ensureHtml2Canvas, ensureJsPdfConstructor, ensureJsZip } from '../utils/externalScripts';
 import { canvasToBlob, captureReportCanvases, saveCanvasesAsA4Pdf } from '../utils/pdfCapture';
@@ -105,6 +106,87 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
     const reassessmentTrail = (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-5).reverse();
     const messageWorkerKey = String(record.worker_uuid || record.workerUuid || record.employeeId || `${record.name}_${record.teamLeader || '미지정'}`).trim();
     const isGenerating = isGeneratingPdf || isGeneratingImage || isSendingMessage;
+    const generationInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'individual-status',
+            eyebrow: '지금 상태',
+            title: `${record.name}님의 개별 리포트를 확인 중입니다.`,
+            description: isGenerating
+                ? `${generationProgress.action === 'message' ? '문자 발송' : generationProgress.action === 'image' ? '이미지 생성' : 'PDF 생성'} 흐름이 진행 중이며 현재 ${generationProgress.phaseLabel} 단계입니다.`
+                : '공유, 문자 발송, 이미지 저장, PDF 발급을 한 화면에서 이어서 수행할 수 있습니다.',
+            tone: isGenerating ? 'border-indigo-200 bg-indigo-50/70' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'individual-evidence',
+            eyebrow: '판단 근거',
+            title: `안전점수 ${record.safetyScore || '-'}점 · 등급 ${record.safetyLevel || '-'}`,
+            description: `${record.jobField || '미분류'}${record.teamLeader ? ` · ${record.teamLeader}` : ''} 기준 기록과 이력 데이터를 현재 리포트 템플릿에 함께 반영합니다.`,
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'individual-action',
+            eyebrow: '다음 행동',
+            title: isQrScanMode ? '핵심 확인 후 필요한 안내만 빠르게 전달하세요.' : '리포트 확인 후 공유 또는 발송 방식으로 연결하세요.',
+            description: isQrScanMode
+                ? 'QR 현장 조회 모드에서는 핵심 6개 지표와 재평가 이력을 먼저 보고 즉시 설명이 필요한 부분만 전달할 수 있습니다.'
+                : '자동문자, 문자공유, 이미지 저장, PDF 발급 중 현장 상황에 맞는 전달 방식을 선택하면 됩니다.',
+            tone: isQrScanMode ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+        },
+    ], [generationProgress.action, generationProgress.phaseLabel, isGenerating, isQrScanMode, record.jobField, record.name, record.safetyLevel, record.safetyScore, record.teamLeader]);
+
+    const messageInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'message-status',
+            eyebrow: '지금 상태',
+            title: messagePhoneNumber ? `${formatPhoneForDisplay(messagePhoneNumber)} 번호로 발송 준비 중입니다.` : '수신 번호 입력이 필요합니다.',
+            description: lastMessageHistory
+                ? `최근 발송 이력이 있어 같은 근로자 리포트에서 번호와 흐름을 이어서 확인할 수 있습니다.`
+                : '처음 발송하는 경우에도 번호와 메모를 저장해 다음 리포트에서 바로 이어집니다.',
+            tone: messagePhoneNumber ? 'border-indigo-200 bg-indigo-50/70' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'message-evidence',
+            eyebrow: '판단 근거',
+            title: '전화번호, 본문 메모, 서버 로그가 발송 기준입니다.',
+            description: serverMessageLogs.length > 0
+                ? `최근 서버 로그 ${serverMessageLogs.length}건이 있어 성공·실패 여부를 바로 확인할 수 있습니다.`
+                : '서버 발송 로그가 없으면 현재 입력한 번호와 메모가 가장 중요한 판단 근거가 됩니다.',
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'message-action',
+            eyebrow: '다음 행동',
+            title: normalizePhoneInput(messagePhoneNumber).length >= 10 ? '자동 문자 발송으로 리포트를 전달할 수 있습니다.' : '전화번호를 먼저 정확히 입력하세요.',
+            description: '발송 후에는 서버 로그와 최근 발송 이력에서 실제 전달 여부를 다시 확인하며 후속 설명을 이어갈 수 있습니다.',
+            tone: normalizePhoneInput(messagePhoneNumber).length >= 10 ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80',
+        },
+    ], [lastMessageHistory, messagePhoneNumber, serverMessageLogs.length]);
+
+    const qrInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'qr-status',
+            eyebrow: '지금 상태',
+            title: 'QR 현장 조회용 핵심 정보가 열려 있습니다.',
+            description: '성명, 사번, QR ID, 등급·점수, 무결성, OCR 신뢰도를 작은 화면에서도 빠르게 읽을 수 있도록 묶었습니다.',
+            tone: 'border-indigo-200 bg-indigo-50/70',
+        },
+        {
+            key: 'qr-evidence',
+            eyebrow: '판단 근거',
+            title: '재평가 이력과 채점 근거가 즉시 판단 기준이 됩니다.',
+            description: reassessmentTrail.length > 0
+                ? `최근 재평가 이력 ${reassessmentTrail.length}건이 있어 현장 설명 시 이전 보완 흐름까지 함께 볼 수 있습니다.`
+                : '재평가 이력이 없더라도 현재 점수와 AI 채점 근거를 기준으로 간단한 설명을 바로 이어갈 수 있습니다.',
+            tone: 'border-white/80 bg-white',
+        },
+        {
+            key: 'qr-action',
+            eyebrow: '다음 행동',
+            title: '핵심 6을 먼저 설명한 뒤 필요 시 전체 리포트로 확장하세요.',
+            description: '현장에서는 모든 내용을 다 읽기보다 지금 위험 신호와 다음 행동을 짧게 전달하는 것이 더 중요합니다.',
+            tone: 'border-amber-200 bg-amber-50/80',
+        },
+    ], [reassessmentTrail.length]);
 
     const normalizePhoneInput = (value: string) => value.replace(/\D/g, '').slice(0, 11);
     const formatPhoneForDisplay = (value: string) => {
@@ -662,6 +744,13 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                 </div>
             </div>
 
+            <div className="w-full max-w-[210mm]">
+                <InterpretationCardGrid
+                    items={generationInterpretationCards}
+                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                />
+            </div>
+
             {generationProgress.status !== 'idle' && (
                 <ReportGenerationProgress
                     status={generationProgress.status === 'running' ? 'running' : generationProgress.status === 'success' ? 'success' : 'error'}
@@ -685,6 +774,11 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                         </div>
                         <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
                             <div className="space-y-3">
+                                <InterpretationCardGrid
+                                    items={messageInterpretationCards}
+                                    className="grid grid-cols-1 xl:grid-cols-3 gap-3"
+                                    cardClassName="rounded-2xl border p-4"
+                                />
                                 <label className="block">
                                     <span className="text-[11px] font-black text-slate-600">수신 전화번호</span>
                                     <input
@@ -774,6 +868,16 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             {isQrScanMode && (
                 <div className="w-full max-w-[210mm] md:hidden sticky top-20 z-40 bg-white border border-indigo-200 rounded-2xl shadow-sm p-3">
                     <h4 className="text-xs font-black text-indigo-700 mb-2">QR 스캔 현장 조회 (핵심 6)</h4>
+                    <div className="mb-3">
+                        <InterpretationCardGrid
+                            items={qrInterpretationCards}
+                            className="grid grid-cols-1 gap-3"
+                            cardClassName="rounded-2xl border p-3"
+                            eyebrowClassName="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500"
+                            titleClassName="mt-2 text-xs font-black text-slate-900"
+                            descriptionClassName="mt-2 text-[11px] font-semibold text-slate-600 leading-relaxed"
+                        />
+                    </div>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">성명</span><div className="font-black text-slate-800 truncate">{record.name || '-'}</div></div>
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">사번</span><div className="font-black text-slate-800 truncate">{record.employeeId || '-'}</div></div>
