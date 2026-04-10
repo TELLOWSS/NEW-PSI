@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { ActionButton } from './shared/ActionButton';
 
 type AuthKeyType = 'phone' | 'birthDate' | 'passport';
 
@@ -160,14 +161,16 @@ export const AuthGateway: React.FC<AuthGatewayProps> = ({
                 <p className="mt-2 text-[11px] font-bold text-slate-500">※ 등록된 정보와 정확히 일치해야 교육 화면에 진입할 수 있습니다.</p>
             </div>
 
-            <button
+            <ActionButton
                 type="button"
                 onClick={handleSubmit}
                 disabled={!canSubmit}
-                className="w-full py-3 rounded-xl bg-indigo-600 text-white font-black hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                variant="indigoSolid"
+                fullWidth
+                className="py-3 font-black disabled:cursor-not-allowed"
             >
                 {submitting ? '확인 중...' : '본인 확인 후 교육 시작'}
-            </button>
+            </ActionButton>
 
             {errorMessage && <p className="text-sm font-bold text-rose-700">{errorMessage}</p>}
         </div>

@@ -13,6 +13,10 @@ import {
     type TradeNationalityGroupData,
     type WorkerTrendData,
 } from '../../utils/dashboardDataTransformer';
+import { ActionButton } from '../shared/ActionButton';
+import { EmptyStatePanel } from '../shared/EmptyStatePanel';
+import { StatusBadge } from '../shared/StatusBadge';
+import { SummaryMetricGrid } from '../shared/SummaryMetricGrid';
 
 interface Props {
     targetGroup: TradeNationalityGroupData | null;
@@ -75,6 +79,32 @@ const TrendModal: React.FC<TrendModalProps> = ({ worker, onClose }) => {
     const last = worker.trend[worker.trend.length - 1]?.score ?? 0;
     const delta = last - first;
     const avg = parseFloat((worker.trend.reduce((s, t) => s + t.score, 0) / worker.trend.length).toFixed(1));
+    const modalSummaryItems = [
+        {
+            key: 'latest',
+            label: '최신 점수',
+            value: `${last}점`,
+            tone: 'bg-white',
+            labelClassName: 'text-[10px] sm:text-xs text-slate-500',
+            valueClassName: 'text-lg sm:text-2xl font-black',
+        },
+        {
+            key: 'average',
+            label: '6개월 평균',
+            value: `${avg}점`,
+            tone: 'bg-white',
+            labelClassName: 'text-[10px] sm:text-xs text-slate-500',
+            valueClassName: 'text-lg sm:text-2xl font-black',
+        },
+        {
+            key: 'delta',
+            label: '변화',
+            value: `${delta >= 0 ? '+' : ''}${delta}점`,
+            tone: 'bg-white',
+            labelClassName: 'text-[10px] sm:text-xs text-slate-500',
+            valueClassName: 'text-lg sm:text-2xl font-black',
+        },
+    ];
 
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
@@ -109,31 +139,37 @@ const TrendModal: React.FC<TrendModalProps> = ({ worker, onClose }) => {
                     </button>
                 </div>
 
-                <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100">
-                    {[
-                        { label: '최신 점수', value: `${last}점`, color: SCORE_COLOR(last) },
-                        { label: '6개월 평균', value: `${avg}점`, color: SCORE_COLOR(avg) },
-                        {
-                            label: '변화',
-                            value: `${delta >= 0 ? '+' : ''}${delta}점`,
-                            color: delta >= 0 ? '#10b981' : '#ef4444',
-                        },
-                    ].map(summary => (
-                        <div key={summary.label} className="p-3 sm:p-4 text-center">
-                            <p className="text-[10px] sm:text-xs text-slate-500 mb-1">{summary.label}</p>
-                            <p className="text-lg sm:text-2xl font-black" style={{ color: summary.color }}>
-                                {summary.value}
-                            </p>
-                        </div>
-                    ))}
-                </div>
+                <SummaryMetricGrid
+                    items={modalSummaryItems.map((item) => ({
+                        ...item,
+                        value: (
+                            <span
+                                style={{
+                                    color: item.key === 'delta'
+                                        ? (delta >= 0 ? '#10b981' : '#ef4444')
+                                        : item.key === 'average'
+                                            ? SCORE_COLOR(avg)
+                                            : SCORE_COLOR(last),
+                                }}
+                            >
+                                {item.value}
+                            </span>
+                        ),
+                    }))}
+                    className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100"
+                    cardClassName="p-3 text-center sm:p-4 border-0 rounded-none"
+                />
 
                 <div className="p-4 sm:p-6">
                     {worker.trend.length < 2 ? (
-                        <div className="h-[220px] flex flex-col items-center justify-center text-center text-slate-400">
-                            <p className="font-semibold text-sm">추이 분석을 위한 기록이 부족합니다.</p>
-                            <p className="text-xs mt-1">최소 2건 이상 평가가 쌓이면 선형 추이가 표시됩니다.</p>
-                        </div>
+                        <EmptyStatePanel
+                            title="추이 분석을 위한 기록이 부족합니다."
+                            description="최소 2건 이상 평가가 쌓이면 선형 추이가 표시됩니다."
+                            variant="slate"
+                            className="flex h-[220px] flex-col items-center justify-center text-center"
+                            titleClassName="text-sm font-semibold text-slate-400"
+                            descriptionClassName="mt-1 text-xs text-slate-400"
+                        />
                     ) : (
                         <>
                             <ResponsiveContainer width="100%" height={220}>
@@ -254,6 +290,40 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
     const riskCount = filteredWorkers.filter(worker => worker.latestScore < 60).length;
     const cautionCount = filteredWorkers.filter(worker => worker.latestScore >= 60 && worker.latestScore < 75).length;
     const goodCount = filteredWorkers.filter(worker => worker.latestScore >= 75).length;
+    const summaryItems = [
+        {
+            key: 'total',
+            label: '대상 인원',
+            value: `${filteredWorkers.length}명`,
+            tone: 'bg-slate-50 border-slate-100',
+            labelClassName: 'text-[10px] uppercase tracking-wide font-bold text-slate-400',
+            valueClassName: 'mt-1 text-lg font-black text-slate-800',
+        },
+        {
+            key: 'risk',
+            label: '고위험',
+            value: `${riskCount}명`,
+            tone: 'bg-rose-50 border-rose-100',
+            labelClassName: 'text-[10px] uppercase tracking-wide font-bold text-rose-400',
+            valueClassName: 'mt-1 text-lg font-black text-rose-600',
+        },
+        {
+            key: 'caution',
+            label: '주의',
+            value: `${cautionCount}명`,
+            tone: 'bg-amber-50 border-amber-100',
+            labelClassName: 'text-[10px] uppercase tracking-wide font-bold text-amber-500',
+            valueClassName: 'mt-1 text-lg font-black text-amber-600',
+        },
+        {
+            key: 'good',
+            label: '양호',
+            value: `${goodCount}명`,
+            tone: 'bg-emerald-50 border-emerald-100',
+            labelClassName: 'text-[10px] uppercase tracking-wide font-bold text-emerald-500',
+            valueClassName: 'mt-1 text-lg font-black text-emerald-600',
+        },
+    ];
 
     const quickFilters: Array<{ key: TrendFilter; label: string; count: number }> = [
         { key: 'all', label: '전체', count: searchFilteredWorkers.length },
@@ -274,33 +344,20 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold whitespace-nowrap">
+                    <StatusBadge variant="violetSoft" className="rounded-lg px-3 py-1.5 text-xs whitespace-nowrap">
                         {targetGroup.trade} · {targetGroup.nationality}
-                    </span>
+                    </StatusBadge>
                     <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
                         그룹 평균: <strong>{latestAvg}점</strong>
                     </span>
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mb-4">
-                <div className="rounded-xl bg-slate-50 border border-slate-100 p-3">
-                    <p className="text-[10px] uppercase tracking-wide font-bold text-slate-400">대상 인원</p>
-                    <p className="mt-1 text-lg font-black text-slate-800">{filteredWorkers.length}명</p>
-                </div>
-                <div className="rounded-xl bg-red-50 border border-red-100 p-3">
-                    <p className="text-[10px] uppercase tracking-wide font-bold text-red-400">고위험</p>
-                    <p className="mt-1 text-lg font-black text-red-600">{riskCount}명</p>
-                </div>
-                <div className="rounded-xl bg-amber-50 border border-amber-100 p-3">
-                    <p className="text-[10px] uppercase tracking-wide font-bold text-amber-500">주의</p>
-                    <p className="mt-1 text-lg font-black text-amber-600">{cautionCount}명</p>
-                </div>
-                <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3">
-                    <p className="text-[10px] uppercase tracking-wide font-bold text-emerald-500">양호</p>
-                    <p className="mt-1 text-lg font-black text-emerald-600">{goodCount}명</p>
-                </div>
-            </div>
+            <SummaryMetricGrid
+                items={summaryItems}
+                className="mb-4 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4"
+                cardClassName="rounded-xl border p-3"
+            />
 
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4">
                 <div className="relative w-full lg:max-w-sm">
@@ -321,44 +378,48 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
                     />
                 </div>
                 <div className="flex flex-wrap items-center gap-2 justify-between lg:justify-end text-xs">
-                    <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-semibold">
+                    <StatusBadge variant="slateSoft" className="rounded-lg px-2.5 py-1 text-xs font-semibold">
                         {safeCurrentPage}/{totalPages} 페이지
-                    </span>
-                    <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-600 font-semibold">
+                    </StatusBadge>
+                    <StatusBadge variant="sky" className="rounded-lg px-2.5 py-1 text-xs font-semibold">
                         페이지당 {PAGE_SIZE}명
-                    </span>
+                    </StatusBadge>
                 </div>
             </div>
 
             <div className="flex gap-2 overflow-x-auto pb-1 mb-4">
                 {quickFilters.map(filter => (
-                    <button
+                    <ActionButton
                         key={filter.key}
                         type="button"
                         onClick={() => {
                             setActiveFilter(filter.key);
                             setCurrentPage(1);
                         }}
-                        className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${
-                            activeFilter === filter.key
-                                ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-                                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-                        }`}
+                        variant={activeFilter === filter.key ? 'indigo' : 'slate'}
+                        className="shrink-0 px-3 py-2 text-xs font-bold"
                     >
                         {filter.label} <span className="ml-1">{filter.count}</span>
-                    </button>
+                    </ActionButton>
                 ))}
             </div>
 
             {workers.length === 0 ? (
-                <div className="flex items-center justify-center h-32 text-slate-400 text-sm">
-                    해당 그룹의 개인 데이터가 없습니다.
-                </div>
+                <EmptyStatePanel
+                    title="해당 그룹의 개인 데이터가 없습니다."
+                    variant="slate"
+                    className="flex h-32 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 px-4 py-8"
+                    titleClassName="text-sm font-semibold text-slate-400"
+                />
             ) : filteredWorkers.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-32 text-slate-400 text-sm text-center">
-                    <p className="font-semibold">검색 결과가 없습니다.</p>
-                    <p className="text-xs mt-1">다른 이름 또는 공종 키워드로 다시 검색해 주세요.</p>
-                </div>
+                <EmptyStatePanel
+                    title="검색 결과가 없습니다."
+                    description="다른 이름 또는 공종 키워드로 다시 검색해 주세요."
+                    variant="slate"
+                    className="flex h-32 flex-col items-center justify-center rounded-xl border border-slate-100 bg-slate-50 px-4 py-8 text-center"
+                    titleClassName="text-sm font-semibold text-slate-400"
+                    descriptionClassName="mt-1 text-xs text-slate-400"
+                />
             ) : (
                 <>
                     <div className="hidden md:block overflow-x-auto">
@@ -408,9 +469,9 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
                                                 </span>
                                             </td>
                                             <td className="py-2.5">
-                                                <button className="text-[10px] sm:text-xs text-indigo-500 hover:text-indigo-700 font-bold px-2 py-1 rounded-lg hover:bg-indigo-50 transition-colors">
+                                                <ActionButton variant="indigo" className="px-2 py-1 text-[10px] sm:text-xs">
                                                     차트 보기
-                                                </button>
+                                                </ActionButton>
                                             </td>
                                         </tr>
                                     );
@@ -479,22 +540,24 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
                             {filteredWorkers.length}명 중 <span className="font-bold text-slate-700">{pagedWorkers.length}명</span> 표시
                         </p>
                         <div className="flex items-center gap-2">
-                            <button
+                            <ActionButton
                                 type="button"
                                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                                 disabled={safeCurrentPage === 1}
-                                className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+                                variant="slate"
+                                className="px-3 py-2 text-xs font-bold disabled:cursor-not-allowed"
                             >
                                 이전
-                            </button>
-                            <button
+                            </ActionButton>
+                            <ActionButton
                                 type="button"
                                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                                 disabled={safeCurrentPage === totalPages}
-                                className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+                                variant="slate"
+                                className="px-3 py-2 text-xs font-bold disabled:cursor-not-allowed"
                             >
                                 다음
-                            </button>
+                            </ActionButton>
                         </div>
                     </div>
                 </>

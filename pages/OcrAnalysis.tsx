@@ -12,7 +12,14 @@ import { BRAND_ACTION_LABELS, BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { MasterTemplateList, type MasterTemplate } from '../components/shared/MasterTemplateList';
 import { MasterAssignment, type MasterAssignmentItem, type MasterGroup } from '../components/shared/MasterAssignment';
 import { CollapsibleSection } from '../components/shared/CollapsibleSection';
+import { ControlPanelCard } from '../components/shared/ControlPanelCard';
+import { ActionButton } from '../components/shared/ActionButton';
+import { EmptyStatePanel } from '../components/shared/EmptyStatePanel';
 import { InterpretationCardGrid } from '../components/shared/InterpretationCardGrid';
+import { OperationalPreviewCard } from '../components/shared/OperationalPreviewCard';
+import { SectionPanelCard } from '../components/shared/SectionPanelCard';
+import { StatusBadge } from '../components/shared/StatusBadge';
+import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { StatusEvidenceActionPanel } from '../components/shared/StatusEvidenceActionPanel';
 import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
 
@@ -2921,46 +2928,75 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             descriptionClassName="mt-2 text-[12px] font-semibold leading-relaxed text-white/80"
                         />
 
-                        <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
-                            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-                                <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">총 기록수</p>
-                                <p className="mt-2 text-2xl font-black text-indigo-300">{existingRecords.length}</p>
-                                <p className="mt-1 text-[11px] font-bold text-slate-400">현재 OCR 운영 대상</p>
-                            </div>
-                            <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-4">
-                                <p className="text-[10px] text-rose-300 font-black uppercase tracking-widest">{BRAND_STATUS_LABELS.attentionPending}</p>
-                                <p className={`mt-2 text-2xl font-black ${failedRecords.length > 0 ? 'text-rose-300' : 'text-slate-400'}`}>{failedRecords.length}</p>
-                                <p className="mt-1 text-[11px] font-bold text-rose-200/80">우선 확인 권장</p>
-                            </div>
-                            <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-4">
-                                <p className="text-[10px] text-amber-300 font-black uppercase tracking-widest">신뢰도 미달</p>
-                                <p className={`mt-2 text-2xl font-black ${lowConfidenceCount > 0 ? 'text-amber-300' : 'text-slate-400'}`}>{lowConfidenceCount}</p>
-                                <p className="mt-1 text-[11px] font-bold text-amber-200/80">70% 미만 재검토</p>
-                            </div>
-                            <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-4">
-                                <div className="flex items-start justify-between gap-2">
-                                    <div>
-                                        <p className="text-[10px] text-emerald-300 font-black uppercase tracking-widest">오늘 API 호출</p>
-                                        <p className={`mt-2 text-2xl font-black ${dailyCounter.count > 800 ? 'text-rose-300' : dailyCounter.count > 400 ? 'text-amber-300' : 'text-emerald-300'}`}>{dailyCounter.count}</p>
-                                    </div>
-                                    <button onClick={() => { resetApiCallCount(); setDailyCounter(getApiCallState()); }} className="text-[10px] text-slate-300 hover:text-white underline" title="오늘 카운터 초기화">초기화</button>
-                                </div>
-                                <p className="mt-1 text-[11px] font-bold text-slate-300">✓{dailyCounter.successCount} · ✗{dailyCounter.failCount}</p>
-                            </div>
-                        </div>
+                        <SummaryMetricGrid
+                            className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4"
+                            cardClassName="rounded-2xl border px-4 py-4"
+                            items={[
+                                {
+                                    key: 'overview-total-records',
+                                    label: '총 기록수',
+                                    value: existingRecords.length,
+                                    helper: '현재 OCR 운영 대상',
+                                    tone: 'border-white/10 bg-white/5',
+                                    labelClassName: 'text-[10px] font-black uppercase tracking-widest text-slate-500',
+                                    valueClassName: 'mt-2 text-2xl font-black text-indigo-300',
+                                    helperClassName: 'mt-1 text-[11px] font-bold text-slate-400',
+                                },
+                                {
+                                    key: 'overview-attention-pending',
+                                    label: BRAND_STATUS_LABELS.attentionPending,
+                                    value: failedRecords.length,
+                                    helper: '우선 확인 권장',
+                                    tone: 'border-rose-400/20 bg-rose-500/10',
+                                    labelClassName: 'text-[10px] font-black uppercase tracking-widest text-rose-300',
+                                    valueClassName: `mt-2 text-2xl font-black ${failedRecords.length > 0 ? 'text-rose-300' : 'text-slate-400'}`,
+                                    helperClassName: 'mt-1 text-[11px] font-bold text-rose-200/80',
+                                },
+                                {
+                                    key: 'overview-low-confidence',
+                                    label: '신뢰도 미달',
+                                    value: lowConfidenceCount,
+                                    helper: '70% 미만 재검토',
+                                    tone: 'border-amber-400/20 bg-amber-500/10',
+                                    labelClassName: 'text-[10px] font-black uppercase tracking-widest text-amber-300',
+                                    valueClassName: `mt-2 text-2xl font-black ${lowConfidenceCount > 0 ? 'text-amber-300' : 'text-slate-400'}`,
+                                    helperClassName: 'mt-1 text-[11px] font-bold text-amber-200/80',
+                                },
+                                {
+                                    key: 'overview-api-count',
+                                    label: '오늘 API 호출',
+                                    value: dailyCounter.count,
+                                    helper: (
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span>✓{dailyCounter.successCount} · ✗{dailyCounter.failCount}</span>
+                                            <button onClick={() => { resetApiCallCount(); setDailyCounter(getApiCallState()); }} className="text-[10px] text-slate-300 underline hover:text-white" title="오늘 카운터 초기화">초기화</button>
+                                        </div>
+                                    ),
+                                    tone: 'border-emerald-400/20 bg-emerald-500/10',
+                                    labelClassName: 'text-[10px] font-black uppercase tracking-widest text-emerald-300',
+                                    valueClassName: `mt-2 text-2xl font-black ${dailyCounter.count > 800 ? 'text-rose-300' : dailyCounter.count > 400 ? 'text-amber-300' : 'text-emerald-300'}`,
+                                    helperClassName: 'mt-1 text-[11px] font-bold text-slate-300',
+                                },
+                            ]}
+                        />
                     </div>
 
-                    <div className="rounded-3xl border border-white/10 bg-white/5 p-4 sm:p-5 backdrop-blur-sm">
-                        <div>
-                            <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">빠른 실행</p>
-                            <h4 className="mt-2 text-lg font-black text-white">긴급 조치와 백업을 우측에 분리</h4>
-                            <p className="mt-1 text-[12px] font-semibold text-slate-400">PC에서는 버튼이 가로로 흩어지기보다 목적별로 묶여야 판단이 빠릅니다.</p>
-                        </div>
-
-                        <div className="mt-4 space-y-3">
-                            <div className="rounded-2xl border border-rose-400/15 bg-black/10 p-3">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-rose-300">{BRAND_STATUS_LABELS.attention} 대응</p>
-                                <div className="mt-3 grid grid-cols-1 gap-2.5">
+                    <SectionPanelCard
+                        variant="glassDark"
+                        eyebrow="빠른 실행"
+                        title="긴급 조치와 백업을 우측에 분리"
+                        description="PC에서는 버튼이 가로로 흩어지기보다 목적별로 묶여야 판단이 빠릅니다."
+                        eyebrowClassName="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400"
+                        titleClassName="mt-2 text-lg font-black text-white"
+                        descriptionClassName="mt-1 text-[12px] font-semibold text-slate-400"
+                        bodyClassName="mt-4 space-y-3"
+                    >
+                            <SectionPanelCard
+                                variant="roseDarkSoft"
+                                title={`${BRAND_STATUS_LABELS.attention} 대응`}
+                                titleClassName="text-[10px] font-black uppercase tracking-widest text-rose-300"
+                                bodyClassName="mt-3 grid grid-cols-1 gap-2.5"
+                            >
                         {/* Retry Button */}
                         {failedRecords.length > 0 && !isAnalyzing && (
                             <button 
@@ -2994,12 +3030,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 관리자 일괄 정상분류 ({failedRecords.length})
                             </button>
                         )}
-                                </div>
-                            </div>
+                            </SectionPanelCard>
 
-                            <div className="rounded-2xl border border-emerald-400/15 bg-black/10 p-3">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-300">운영 · 백업</p>
-                                <div className="mt-3 grid grid-cols-1 gap-2.5">
+                            <SectionPanelCard
+                                variant="emeraldDarkSoft"
+                                title="운영 · 백업"
+                                titleClassName="text-[10px] font-black uppercase tracking-widest text-emerald-300"
+                                bodyClassName="mt-3 grid grid-cols-1 gap-2.5"
+                            >
                         
                         {recordsWithImages.length > 0 && !isAnalyzing && (
                             <button 
@@ -3020,10 +3058,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         <button onClick={handleExportReanalysisSummary} className="w-full px-5 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 내보내기</button>
                         <button onClick={handleExport} className="w-full px-5 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-2xl font-black text-sm shadow-xl transition-all">백업 내보내기</button>
                         <button onClick={onDeleteAll} className="w-full px-5 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all">전체 삭제</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                            </SectionPanelCard>
+                    </SectionPanelCard>
                 </div>
 
                 {/* Progress Bar with Cooldown Indicator */}
@@ -3062,28 +3098,52 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                 {retryDiagnostics && (
                     <div className="mt-6 pt-5 border-t border-white/10 animate-fade-in">
-                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-3">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-emerald-300">서버 성공</p>
-                                <p className="mt-1 text-2xl font-black text-emerald-200">{retryDiagnostics.serverSuccess}</p>
-                            </div>
-                            <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-cyan-300">폴백 성공</p>
-                                <p className="mt-1 text-2xl font-black text-cyan-200">{retryDiagnostics.clientFallbackSuccess}</p>
-                            </div>
-                            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-3">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-amber-300">사전 검증 실패</p>
-                                <p className="mt-1 text-2xl font-black text-amber-200">{retryDiagnostics.preflightFail}</p>
-                            </div>
-                            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-rose-300">OCR 처리 실패</p>
-                                <p className="mt-1 text-2xl font-black text-rose-200">{retryDiagnostics.processingFail}</p>
-                            </div>
-                            <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-3">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-violet-300">서버 라우트 실패</p>
-                                <p className="mt-1 text-2xl font-black text-violet-200">{retryDiagnostics.serverRouteFail}</p>
-                            </div>
-                        </div>
+                        <SummaryMetricGrid
+                            className="grid grid-cols-2 gap-3 lg:grid-cols-5"
+                            cardClassName="rounded-2xl border p-3"
+                            items={[
+                                {
+                                    key: 'retry-server-success',
+                                    label: '서버 성공',
+                                    value: retryDiagnostics.serverSuccess,
+                                    tone: 'border-emerald-500/20 bg-emerald-500/10',
+                                    labelClassName: 'text-[10px] font-black uppercase tracking-widest text-emerald-300',
+                                    valueClassName: 'mt-1 text-2xl font-black text-emerald-200',
+                                },
+                                {
+                                    key: 'retry-fallback-success',
+                                    label: '폴백 성공',
+                                    value: retryDiagnostics.clientFallbackSuccess,
+                                    tone: 'border-cyan-500/20 bg-cyan-500/10',
+                                    labelClassName: 'text-[10px] font-black uppercase tracking-widest text-cyan-300',
+                                    valueClassName: 'mt-1 text-2xl font-black text-cyan-200',
+                                },
+                                {
+                                    key: 'retry-preflight-fail',
+                                    label: '사전 검증 실패',
+                                    value: retryDiagnostics.preflightFail,
+                                    tone: 'border-amber-500/20 bg-amber-500/10',
+                                    labelClassName: 'text-[10px] font-black uppercase tracking-widest text-amber-300',
+                                    valueClassName: 'mt-1 text-2xl font-black text-amber-200',
+                                },
+                                {
+                                    key: 'retry-processing-fail',
+                                    label: 'OCR 처리 실패',
+                                    value: retryDiagnostics.processingFail,
+                                    tone: 'border-rose-500/20 bg-rose-500/10',
+                                    labelClassName: 'text-[10px] font-black uppercase tracking-widest text-rose-300',
+                                    valueClassName: 'mt-1 text-2xl font-black text-rose-200',
+                                },
+                                {
+                                    key: 'retry-server-route-fail',
+                                    label: '서버 라우트 실패',
+                                    value: retryDiagnostics.serverRouteFail,
+                                    tone: 'border-violet-500/20 bg-violet-500/10',
+                                    labelClassName: 'text-[10px] font-black uppercase tracking-widest text-violet-300',
+                                    valueClassName: 'mt-1 text-2xl font-black text-violet-200',
+                                },
+                            ]}
+                        />
                         <p className="mt-3 text-[11px] font-bold text-slate-400">
                             마지막 재분석 집계 · 총 {retryDiagnostics.total}건 / 성공 {retryDiagnostics.success}건 / 실패 {retryDiagnostics.fail}건
                         </p>
@@ -3223,12 +3283,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         summary={<span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-black text-rose-700">{BRAND_STATUS_LABELS.attention} {failedRecords.length}건 · 유형 {failedTypeGroups.length}개</span>}
                     >
                     {failureProcessingStats.length > 0 && (
-                        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                            <div className="flex items-center justify-between gap-2">
-                                <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">{BRAND_STATUS_LABELS.attention} 유형별 처리 완료율</p>
-                                <span className="text-[10px] font-bold text-slate-500">현재 잔여 + 처리 이력 기준</span>
-                            </div>
-                            <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-2">
+                        <SectionPanelCard
+                            className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                            title={`${BRAND_STATUS_LABELS.attention} 유형별 처리 완료율`}
+                            description="현재 잔여 + 처리 이력 기준"
+                            titleClassName="text-[11px] font-black text-slate-700 uppercase tracking-wider"
+                            descriptionClassName="text-[10px] font-bold text-slate-500"
+                            headerClassName="flex items-center justify-between gap-2"
+                            bodyClassName="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-2"
+                        >
                                 {failureProcessingStats.map((item) => (
                                     <div key={item.label} className="rounded-xl border border-white bg-white px-3 py-3">
                                         <div className="flex items-center justify-between gap-2">
@@ -3245,51 +3308,58 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         </div>
                                     </div>
                                 ))}
-                            </div>
-                        </div>
+                        </SectionPanelCard>
                     )}
 
                     {failedTypeGroups.length > 0 && (
-                        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
-                            <div className="flex items-center justify-between gap-2">
-                                <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">{BRAND_STATUS_LABELS.attention} 유형별 담당자 체크리스트</p>
-                                <span className="text-[10px] font-bold text-slate-500">유형별 우선 점검 순서</span>
-                            </div>
-                            <div className="mt-3 grid grid-cols-1 xl:grid-cols-2 gap-3">
+                        <SectionPanelCard
+                            className="mt-4 rounded-2xl border border-slate-200 bg-white p-3"
+                            title={`${BRAND_STATUS_LABELS.attention} 유형별 담당자 체크리스트`}
+                            description="유형별 우선 점검 순서"
+                            titleClassName="text-[11px] font-black text-slate-700 uppercase tracking-wider"
+                            descriptionClassName="text-[10px] font-bold text-slate-500"
+                            headerClassName="flex items-center justify-between gap-2"
+                            bodyClassName="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2"
+                        >
                                 {failedTypeGroups.map((group) => (
-                                    <div key={group.type} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <p className="text-sm font-black text-slate-900">{group.label}</p>
-                                            <span className="text-[10px] font-black text-slate-600">{group.count}건 잔여</span>
-                                        </div>
-                                        <ul className="mt-2 space-y-1.5 text-[11px] font-semibold text-slate-600">
-                                            {getFailureChecklist(group.type).map((item, index) => (
-                                                <li key={`${group.type}-${index}`} className="flex items-start gap-2">
-                                                    <span className="mt-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-slate-900 text-[9px] font-black text-white">{index + 1}</span>
-                                                    <span>{item}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                        <div className="mt-3 flex flex-wrap gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => setRecordSortMode('error-type')}
-                                                className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-black hover:bg-slate-100"
-                                            >
-                                                유형순 정렬
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => runBatchAnalysis(group.records, `${group.label} 일괄 재분석`)}
-                                                className="px-3 py-2 rounded-xl bg-rose-100 text-rose-700 text-xs font-black hover:bg-rose-200"
-                                            >
-                                                재분석 실행
-                                            </button>
-                                        </div>
-                                    </div>
+                                    <OperationalPreviewCard
+                                        key={group.type}
+                                        variant="slateSoft"
+                                        title={group.label}
+                                        badge={<span className="text-[10px] font-black text-slate-600">{group.count}건 잔여</span>}
+                                        body={(
+                                            <ul className="space-y-1.5 text-[11px] font-semibold text-slate-600">
+                                                {getFailureChecklist(group.type).map((item, index) => (
+                                                    <li key={`${group.type}-${index}`} className="flex items-start gap-2">
+                                                        <span className="mt-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-slate-900 text-[9px] font-black text-white">{index + 1}</span>
+                                                        <span>{item}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        )}
+                                        actions={(
+                                            <>
+                                                <ActionButton
+                                                    variant="slate"
+                                                    onClick={() => setRecordSortMode('error-type')}
+                                                >
+                                                    유형순 정렬
+                                                </ActionButton>
+                                                <ActionButton
+                                                    variant="roseSoft"
+                                                    onClick={() => runBatchAnalysis(group.records, `${group.label} 일괄 재분석`)}
+                                                    className="border-0"
+                                                >
+                                                    재분석 실행
+                                                </ActionButton>
+                                            </>
+                                        )}
+                                        titleClassName="text-sm font-black text-slate-900"
+                                        bodyClassName="mt-2"
+                                        actionsClassName="mt-3 flex flex-wrap gap-2"
+                                    />
                                 ))}
-                            </div>
-                        </div>
+                        </SectionPanelCard>
                     )}
 
                     <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-3">
@@ -3305,76 +3375,80 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     : '이미지 근거가 부족해 관리자 판단 또는 재촬영 안내가 우선입니다.';
 
                             return (
-                                <div key={record.id} className="rounded-2xl border border-rose-100 bg-rose-50/50 p-4">
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-black text-slate-900 truncate">{record.name || '이름 없음'}</p>
-                                            <p className="mt-1 text-[11px] font-bold text-slate-500 truncate">{record.jobField || '공종 미지정'} · 팀장 {record.teamLeader || '미지정'}</p>
-                                        </div>
-                                        <span className="shrink-0 px-2 py-1 rounded-full bg-white border border-rose-200 text-[10px] font-black text-rose-700">
-                                            {getOcrErrorTypeKoreanLabel(errorType)}
-                                        </span>
-                                    </div>
-                                    <StatusEvidenceActionPanel
-                                        className="mt-3 grid grid-cols-1 gap-2"
-                                        cardClassName="rounded-xl border px-3 py-3"
-                                        titleClassName="mt-1 text-[12px] font-black text-slate-900"
-                                        descriptionClassName="mt-1 text-[11px] font-semibold leading-snug text-slate-600"
-                                        items={[
-                                            {
-                                                key: `${record.id}-status`,
-                                                eyebrow: '지금 상태',
-                                                title: `${getOcrErrorTypeKoreanLabel(errorType)} 신호가 남아 있습니다`,
-                                                description: guideMessage,
-                                                tone: 'border-white bg-white',
-                                                eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
-                                            },
-                                            {
-                                                key: `${record.id}-evidence`,
-                                                eyebrow: '판단 근거',
-                                                title: preflightReason ? `사전검증: ${preflightReason}` : '사전검증 경고는 없지만 원문/배치/필기 품질을 다시 확인할 필요가 있습니다.',
-                                                tone: 'border-amber-100 bg-amber-50',
-                                                eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-600',
-                                                description: undefined,
-                                            },
-                                            {
-                                                key: `${record.id}-action`,
-                                                eyebrow: '다음 행동',
-                                                title: actionGuide,
-                                                tone: 'border-emerald-100 bg-emerald-50',
-                                                eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600',
-                                                description: undefined,
-                                            },
-                                        ]}
-                                    />
-                                    <div className="mt-3 flex flex-wrap gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => onViewDetails(record)}
-                                            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-indigo-600 text-xs font-black hover:bg-indigo-50"
-                                        >
-                                            상세 판단 열기
-                                        </button>
-                                        {hasImage && !isAnalyzing && (
-                                            <button
-                                                type="button"
-                                                onClick={() => runBatchAnalysis([record], '개별 재분석')}
-                                                className="px-3 py-2 rounded-xl bg-rose-100 text-rose-700 text-xs font-black hover:bg-rose-200"
+                                <OperationalPreviewCard
+                                    key={record.id}
+                                    variant="roseSoft"
+                                    title={record.name || '이름 없음'}
+                                    subtitle={`${record.jobField || '공종 미지정'} · 팀장 ${record.teamLeader || '미지정'}`}
+                                    badge={<StatusBadge variant="rose" className="shrink-0 px-2 py-1">{getOcrErrorTypeKoreanLabel(errorType)}</StatusBadge>}
+                                    body={(
+                                        <StatusEvidenceActionPanel
+                                            className="grid grid-cols-1 gap-2"
+                                            cardClassName="rounded-xl border px-3 py-3"
+                                            titleClassName="mt-1 text-[12px] font-black text-slate-900"
+                                            descriptionClassName="mt-1 text-[11px] font-semibold leading-snug text-slate-600"
+                                            items={[
+                                                {
+                                                    key: `${record.id}-status`,
+                                                    eyebrow: '지금 상태',
+                                                    title: `${getOcrErrorTypeKoreanLabel(errorType)} 신호가 남아 있습니다`,
+                                                    description: guideMessage,
+                                                    tone: 'border-white bg-white',
+                                                    eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
+                                                },
+                                                {
+                                                    key: `${record.id}-evidence`,
+                                                    eyebrow: '판단 근거',
+                                                    title: preflightReason ? `사전검증: ${preflightReason}` : '사전검증 경고는 없지만 원문/배치/필기 품질을 다시 확인할 필요가 있습니다.',
+                                                    tone: 'border-amber-100 bg-amber-50',
+                                                    eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-600',
+                                                    description: undefined,
+                                                },
+                                                {
+                                                    key: `${record.id}-action`,
+                                                    eyebrow: '다음 행동',
+                                                    title: actionGuide,
+                                                    tone: 'border-emerald-100 bg-emerald-50',
+                                                    eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600',
+                                                    description: undefined,
+                                                },
+                                            ]}
+                                        />
+                                    )}
+                                    actions={(
+                                        <>
+                                            <ActionButton
+                                                variant="slate"
+                                                onClick={() => onViewDetails(record)}
+                                                className="text-indigo-600 hover:bg-indigo-50"
                                             >
-                                                원문 다시 읽기
-                                            </button>
-                                        )}
-                                        {!isAnalyzing && (
-                                            <button
-                                                type="button"
-                                                onClick={() => handleAdminNormalizeFailedRecord(record)}
-                                                className="px-3 py-2 rounded-xl bg-amber-100 text-amber-700 text-xs font-black hover:bg-amber-200"
-                                            >
-                                                관리자 판단으로 유지
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
+                                                상세 판단 열기
+                                            </ActionButton>
+                                            {hasImage && !isAnalyzing && (
+                                                <ActionButton
+                                                    variant="roseSoft"
+                                                    onClick={() => runBatchAnalysis([record], '개별 재분석')}
+                                                    className="border-0"
+                                                >
+                                                    원문 다시 읽기
+                                                </ActionButton>
+                                            )}
+                                            {!isAnalyzing && (
+                                                <ActionButton
+                                                    variant="amberSoft"
+                                                    onClick={() => handleAdminNormalizeFailedRecord(record)}
+                                                    className="border-0"
+                                                >
+                                                    관리자 판단으로 유지
+                                                </ActionButton>
+                                            )}
+                                        </>
+                                    )}
+                                    titleClassName="text-sm font-black text-slate-900 truncate"
+                                    subtitleClassName="mt-1 text-[11px] font-bold text-slate-500 truncate"
+                                    bodyClassName="mt-3"
+                                    actionsClassName="mt-3 flex flex-wrap gap-2"
+                                />
                             );
                         })}
                     </div>
@@ -3426,54 +3500,66 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         onToggle={() => setShowAdminActivityPanel((prev) => !prev)}
                         summary={<span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-700">수정 {recentAdminActivitySummary.corrections} · 승인 {recentAdminActivitySummary.approvals} · 재분석 {recentAdminActivitySummary.reassessments}</span>}
                     >
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                        <InterpretationCardGrid items={adminActivityInsightCards} className="grid grid-cols-1 xl:grid-cols-3 gap-3 mb-4" />
-                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                            <div>
-                                <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.2em]">관리자 조치 이력</p>
-                                <h5 className="mt-2 text-base font-black text-slate-900">최근 24시간 운영 조치 요약</h5>
-                                <p className="mt-1 text-[12px] font-semibold text-slate-500">수정, 승인/반려, 2차 재분석 이력을 한 번에 확인할 수 있습니다.</p>
-                            </div>
+                    <SectionPanelCard
+                        className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                        eyebrow="관리자 조치 이력"
+                        title="최근 24시간 운영 조치 요약"
+                        description="수정, 승인/반려, 2차 재분석 이력을 한 번에 확인할 수 있습니다."
+                        headerAction={(
                             <div className="flex flex-wrap gap-2 text-[11px] font-black">
-                                <span className="px-3 py-1.5 rounded-full bg-violet-100 text-violet-700">수정 {recentAdminActivitySummary.corrections}</span>
-                                <span className="px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-700">검토/승인 {recentAdminActivitySummary.approvals}</span>
-                                <span className="px-3 py-1.5 rounded-full bg-indigo-100 text-indigo-700">재분석 {recentAdminActivitySummary.reassessments}</span>
+                                <span className="rounded-full bg-violet-100 px-3 py-1.5 text-violet-700">수정 {recentAdminActivitySummary.corrections}</span>
+                                <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-emerald-700">검토/승인 {recentAdminActivitySummary.approvals}</span>
+                                <span className="rounded-full bg-indigo-100 px-3 py-1.5 text-indigo-700">재분석 {recentAdminActivitySummary.reassessments}</span>
                             </div>
-                        </div>
-                        <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-3">
+                        )}
+                        headerClassName="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"
+                        eyebrowClassName="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500"
+                        titleClassName="mt-2 text-base font-black text-slate-900"
+                        descriptionClassName="mt-1 text-[12px] font-semibold text-slate-500"
+                        bodyClassName="mt-4"
+                    >
+                        <InterpretationCardGrid items={adminActivityInsightCards} className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-3" />
+                        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                             {recentAdminActivities.map((activity) => (
-                                <div key={activity.key} className="rounded-xl border border-white bg-white px-3 py-3 shadow-sm">
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-black text-slate-900 truncate">{activity.name}</p>
-                                            <p className="mt-0.5 text-[11px] font-bold text-slate-500 truncate">{activity.jobField} · {activity.timestampLabel || '시각 없음'}</p>
-                                        </div>
-                                        <span className={`shrink-0 px-2 py-1 rounded-full text-[10px] font-black ${activity.type === '수정' ? 'bg-violet-100 text-violet-700' : activity.type === '재분석' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                            {activity.type}
-                                        </span>
-                                    </div>
-                                    <div className="mt-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">판단 근거</p>
-                                        <p className="mt-1 text-[11px] font-semibold text-slate-600 leading-snug whitespace-pre-wrap break-words">{activity.summary}</p>
-                                    </div>
-                                </div>
+                                <OperationalPreviewCard
+                                    key={activity.key}
+                                    variant="whiteElevated"
+                                    title={activity.name}
+                                    subtitle={`${activity.jobField} · ${activity.timestampLabel || '시각 없음'}`}
+                                    badge={<span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black ${activity.type === '수정' ? 'bg-violet-100 text-violet-700' : activity.type === '재분석' ? 'bg-indigo-100 text-indigo-700' : 'bg-emerald-100 text-emerald-700'}`}>{activity.type}</span>}
+                                    body={(
+                                        <StatusEvidenceActionPanel
+                                            className="grid grid-cols-1 gap-2"
+                                            cardClassName="rounded-xl border px-3 py-3"
+                                            titleClassName="mt-1 text-[11px] font-semibold leading-snug text-slate-600 whitespace-pre-wrap break-words"
+                                            items={[
+                                                {
+                                                    key: `${activity.key}-summary`,
+                                                    eyebrow: '판단 근거',
+                                                    title: activity.summary,
+                                                    tone: 'border-slate-100 bg-slate-50',
+                                                    eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
+                                                },
+                                            ]}
+                                        />
+                                    )}
+                                    titleClassName="truncate text-sm font-black text-slate-900"
+                                    subtitleClassName="mt-0.5 truncate text-[11px] font-bold text-slate-500"
+                                    bodyClassName="mt-2"
+                                />
                             ))}
                         </div>
-                    </div>
+                    </SectionPanelCard>
                     </CollapsibleSection>
                 )}
 
                 {reasonQaPreviewRecords.length > 0 && (
-                    <div className="rounded-2xl border border-rose-200 bg-gradient-to-r from-rose-50 via-amber-50 to-white px-4 py-4 shadow-sm">
-                        <InterpretationCardGrid items={reasonQaInsightCards} className="grid grid-cols-1 xl:grid-cols-3 gap-3 mb-4" />
-                        <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-4">
-                            <div>
-                                <p className="text-[11px] font-black text-rose-600 uppercase tracking-[0.2em]">운영 보완 필요</p>
-                                <h5 className="mt-2 text-base font-black text-slate-900">승인/검토 사유가 미흡한 기록이 남아 있습니다.</h5>
-                                <p className="mt-1 text-[12px] font-semibold text-slate-600 leading-relaxed">
-                                    사유 없음 {reasonQaSummary.missingDecision}건, 승인사유 보강 필요 {reasonQaSummary.weakDecision}건, 수정사유 보강 필요 {reasonQaSummary.weakCorrection}건을 우선 점검해 주세요.
-                                </p>
-                            </div>
+                    <SectionPanelCard
+                        variant="roseGradient"
+                        eyebrow="운영 보완 필요"
+                        title="승인/검토 사유가 미흡한 기록이 남아 있습니다."
+                        description={`사유 없음 ${reasonQaSummary.missingDecision}건, 승인사유 보강 필요 ${reasonQaSummary.weakDecision}건, 수정사유 보강 필요 ${reasonQaSummary.weakCorrection}건을 우선 점검해 주세요.`}
+                        headerAction={(
                             <div className="flex flex-wrap gap-2">
                                 {reasonQaPreviewRecords.find((record) => record.missingDecisionReason) && (
                                     <button
@@ -3482,7 +3568,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             setFilterReason('missing-reason');
                                             handleViewRecordById(reasonQaPreviewRecords.find((record) => record.missingDecisionReason)?.id || '');
                                         }}
-                                        className="px-3 py-2 rounded-xl bg-rose-600 text-white text-xs font-black hover:bg-rose-700"
+                                        className="rounded-xl bg-rose-600 px-3 py-2 text-xs font-black text-white hover:bg-rose-700"
                                     >
                                         사유 없음 바로 확인
                                     </button>
@@ -3494,7 +3580,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             setFilterReason('weak-reason');
                                             handleViewRecordById(reasonQaPreviewRecords.find((record) => record.weakDecisionReason)?.id || '');
                                         }}
-                                        className="px-3 py-2 rounded-xl bg-amber-500 text-white text-xs font-black hover:bg-amber-600"
+                                        className="rounded-xl bg-amber-500 px-3 py-2 text-xs font-black text-white hover:bg-amber-600"
                                     >
                                         승인사유 보강 이동
                                     </button>
@@ -3503,47 +3589,57 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     <button
                                         type="button"
                                         onClick={() => handleViewRecordById(reasonQaPreviewRecords.find((record) => record.weakCorrection)?.id || '')}
-                                        className="px-3 py-2 rounded-xl bg-violet-600 text-white text-xs font-black hover:bg-violet-700"
+                                        className="rounded-xl bg-violet-600 px-3 py-2 text-xs font-black text-white hover:bg-violet-700"
                                     >
                                         수정사유 보강 이동
                                     </button>
                                 )}
                             </div>
-                        </div>
+                        )}
+                        headerClassName="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between"
+                        eyebrowClassName="text-[11px] font-black uppercase tracking-[0.2em] text-rose-600"
+                        titleClassName="mt-2 text-base font-black text-slate-900"
+                        descriptionClassName="mt-1 text-[12px] font-semibold leading-relaxed text-slate-600"
+                        bodyClassName="mt-4"
+                    >
+                        <InterpretationCardGrid items={reasonQaInsightCards} className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-3" />
                         {reasonInputPrompt && (
-                            <div className="mt-4 rounded-2xl border border-white bg-white/80 px-4 py-3">
-                                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
-                                    <div>
-                                        <p className="text-[11px] font-black text-rose-600 uppercase tracking-wider">사유 입력 가이드</p>
-                                        <p className="mt-1 text-sm font-black text-slate-900">{reasonInputPrompt.name} · {reasonInputPrompt.focus}</p>
-                                        <p className="mt-2 text-[12px] font-semibold text-slate-600 leading-relaxed">
-                                            짧은 문구 대신 검토 근거, 확인 범위, 반영 내용을 포함해 남기면 추적성과 QA 품질이 좋아집니다.
-                                        </p>
-                                        <div className="mt-3 rounded-xl bg-slate-50 px-3 py-3">
-                                            <p className="text-[11px] font-black text-slate-500">권장 입력 예시</p>
-                                            <p className="mt-1 text-[12px] font-semibold text-slate-700 leading-relaxed whitespace-pre-wrap break-words">{reasonInputPrompt.sample}</p>
-                                        </div>
-                                    </div>
+                            <SectionPanelCard
+                                variant="whiteSoft"
+                                eyebrow="사유 입력 가이드"
+                                title={`${reasonInputPrompt.name} · ${reasonInputPrompt.focus}`}
+                                description="짧은 문구 대신 검토 근거, 확인 범위, 반영 내용을 포함해 남기면 추적성과 QA 품질이 좋아집니다."
+                                headerAction={(
                                     <div className="flex flex-wrap gap-2">
                                         <button
                                             type="button"
                                             onClick={() => handleViewRecordById(reasonInputPrompt.id)}
-                                            className="px-3 py-2 rounded-xl bg-slate-900 text-white text-xs font-black hover:bg-black"
+                                            className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-black text-white hover:bg-black"
                                         >
                                             해당 기록 바로 열기
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setFilterReason(reasonQaSummary.missingDecision > 0 ? 'missing-reason' : 'weak-reason')}
-                                            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-black hover:bg-slate-50"
+                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
                                         >
                                             관련 항목만 보기
                                         </button>
                                     </div>
+                                )}
+                                headerClassName="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"
+                                eyebrowClassName="text-[11px] font-black uppercase tracking-wider text-rose-600"
+                                titleClassName="mt-1 text-sm font-black text-slate-900"
+                                descriptionClassName="mt-2 text-[12px] font-semibold leading-relaxed text-slate-600"
+                                bodyClassName="mt-3"
+                            >
+                                <div className="rounded-xl bg-slate-50 px-3 py-3">
+                                    <p className="text-[11px] font-black text-slate-500">권장 입력 예시</p>
+                                    <p className="mt-1 whitespace-pre-wrap break-words text-[12px] font-semibold leading-relaxed text-slate-700">{reasonInputPrompt.sample}</p>
                                 </div>
-                            </div>
+                            </SectionPanelCard>
                         )}
-                    </div>
+                    </SectionPanelCard>
                 )}
 
                 {reasonQaPreviewRecords.length > 0 && (
@@ -3553,39 +3649,48 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         onToggle={() => setShowReasonQaDetailPanel((prev) => !prev)}
                         summary={<span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-black text-amber-700">사유 없음 {reasonQaSummary.missingDecision} · 보강 필요 {reasonQaSummary.weakDecision + reasonQaSummary.weakCorrection}</span>}
                     >
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-4">
-                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                            <div>
-                                <p className="text-[11px] font-black text-amber-600 uppercase tracking-[0.2em]">사유 품질 QA</p>
-                                <h5 className="mt-2 text-base font-black text-slate-900">보강이 필요한 승인/수정 사유</h5>
-                                <p className="mt-1 text-[12px] font-semibold text-slate-600">사유 누락, 너무 짧은 승인/검토 문구, 약한 수정 사유를 한 번에 점검합니다.</p>
+                    <SectionPanelCard
+                        variant="amber"
+                        title={(
+                            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                <div>
+                                    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-600">사유 품질 QA</p>
+                                    <h5 className="mt-2 text-base font-black text-slate-900">보강이 필요한 승인/수정 사유</h5>
+                                </div>
+                                <div className="flex flex-wrap gap-2 text-[11px] font-black">
+                                    <button type="button" onClick={() => setFilterReason('missing-reason')} className="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-amber-700 hover:bg-amber-100">사유 없음 {reasonQaSummary.missingDecision}</button>
+                                    <button type="button" onClick={() => setFilterReason('weak-reason')} className="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-amber-700 hover:bg-amber-100">사유 보강 필요 {reasonQaSummary.weakDecision}</button>
+                                    <span className="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-amber-700">수정 사유 보강 {reasonQaSummary.weakCorrection}</span>
+                                </div>
                             </div>
-                            <div className="flex flex-wrap gap-2 text-[11px] font-black">
-                                <button type="button" onClick={() => setFilterReason('missing-reason')} className="px-3 py-1.5 rounded-full bg-white border border-amber-200 text-amber-700 hover:bg-amber-100">사유 없음 {reasonQaSummary.missingDecision}</button>
-                                <button type="button" onClick={() => setFilterReason('weak-reason')} className="px-3 py-1.5 rounded-full bg-white border border-amber-200 text-amber-700 hover:bg-amber-100">사유 보강 필요 {reasonQaSummary.weakDecision}</button>
-                                <span className="px-3 py-1.5 rounded-full bg-white border border-amber-200 text-amber-700">수정 사유 보강 {reasonQaSummary.weakCorrection}</span>
-                            </div>
-                        </div>
-                        <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-3">
+                        )}
+                        description="사유 누락, 너무 짧은 승인/검토 문구, 약한 수정 사유를 한 번에 점검합니다."
+                        titleClassName="text-inherit"
+                        descriptionClassName="mt-1 text-[12px] font-semibold text-slate-600"
+                        bodyClassName="mt-4"
+                    >
+                        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                             {reasonQaPreviewRecords.map((record) => (
-                                <div key={record.id} className="rounded-xl border border-white bg-white px-3 py-3 shadow-sm">
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-black text-slate-900 truncate">{record.name}</p>
-                                            <p className="mt-0.5 text-[11px] font-bold text-slate-500 truncate">{record.jobField}</p>
-                                        </div>
+                                <OperationalPreviewCard
+                                    key={record.id}
+                                    variant="whiteElevated"
+                                    title={record.name}
+                                    subtitle={record.jobField}
+                                    badge={(
                                         <div className="flex flex-wrap justify-end gap-1">
-                                            {record.missingDecisionReason && <span className="px-2 py-1 rounded-full bg-rose-100 text-rose-700 text-[10px] font-black">사유 없음</span>}
-                                            {record.weakDecisionReason && <span className="px-2 py-1 rounded-full bg-amber-100 text-amber-700 text-[10px] font-black">승인사유 약함</span>}
-                                            {record.weakCorrection && <span className="px-2 py-1 rounded-full bg-violet-100 text-violet-700 text-[10px] font-black">수정사유 약함</span>}
+                                            {record.missingDecisionReason && <span className="rounded-full bg-rose-100 px-2 py-1 text-[10px] font-black text-rose-700">사유 없음</span>}
+                                            {record.weakDecisionReason && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black text-amber-700">승인사유 약함</span>}
+                                            {record.weakCorrection && <span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-black text-violet-700">수정사유 약함</span>}
                                         </div>
-                                    </div>
-                                    <StatusEvidenceActionPanel
-                                        className="mt-2 space-y-2 text-[11px]"
-                                        cardClassName="rounded-lg px-3 py-2"
-                                        titleClassName="mt-1 font-semibold leading-snug whitespace-pre-wrap break-words text-slate-700"
-                                        descriptionClassName="mt-1 font-semibold leading-snug whitespace-pre-wrap break-words text-slate-700"
-                                        items={[
+                                    )}
+                                    body={(
+                                        <>
+                                            <StatusEvidenceActionPanel
+                                                className="space-y-2 text-[11px]"
+                                                cardClassName="rounded-lg px-3 py-2"
+                                                titleClassName="mt-1 font-semibold leading-snug whitespace-pre-wrap break-words text-slate-700"
+                                                descriptionClassName="mt-1 font-semibold leading-snug whitespace-pre-wrap break-words text-slate-700"
+                                                items={[
                                             {
                                                 key: `${record.id}-qa-status`,
                                                 eyebrow: '지금 상태',
@@ -3623,38 +3728,43 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 description: undefined,
                                             },
                                         ]}
-                                    />
-                                    <div className="mt-3 flex flex-wrap gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => handleViewRecordById(record.id)}
-                                            className="px-3 py-2 rounded-xl bg-white border border-slate-200 text-indigo-600 text-xs font-black hover:bg-indigo-50"
-                                        >
-                                            상세 판단 이동
-                                        </button>
-                                        {record.missingDecisionReason && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setFilterReason('missing-reason')}
-                                                className="px-3 py-2 rounded-xl bg-rose-100 text-rose-700 text-xs font-black hover:bg-rose-200"
-                                            >
-                                                사유 없음만 보기
-                                            </button>
-                                        )}
-                                        {record.weakDecisionReason && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setFilterReason('weak-reason')}
-                                                className="px-3 py-2 rounded-xl bg-amber-100 text-amber-700 text-xs font-black hover:bg-amber-200"
-                                            >
-                                                사유 보강 필요만 보기
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
+                                            />
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleViewRecordById(record.id)}
+                                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-indigo-600 hover:bg-indigo-50"
+                                                >
+                                                    상세 판단 이동
+                                                </button>
+                                                {record.missingDecisionReason && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFilterReason('missing-reason')}
+                                                        className="rounded-xl bg-rose-100 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-200"
+                                                    >
+                                                        사유 없음만 보기
+                                                    </button>
+                                                )}
+                                                {record.weakDecisionReason && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setFilterReason('weak-reason')}
+                                                        className="rounded-xl bg-amber-100 px-3 py-2 text-xs font-black text-amber-700 hover:bg-amber-200"
+                                                    >
+                                                        사유 보강 필요만 보기
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </>
+                                    )}
+                                    titleClassName="truncate text-sm font-black text-slate-900"
+                                    subtitleClassName="mt-0.5 truncate text-[11px] font-bold text-slate-500"
+                                    bodyClassName="mt-2"
+                                />
                             ))}
                         </div>
-                    </div>
+                    </SectionPanelCard>
                     </CollapsibleSection>
                 )}
 
@@ -3667,59 +3777,53 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-4 items-start">
                     <div className="space-y-3">
                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">공종</label>
-                                <select value={filterField} onChange={(e) => setFilterField(e.target.value)} className="mt-2 w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
+                            <ControlPanelCard label="공종">
+                                <select value={filterField} onChange={(e) => setFilterField(e.target.value)} className="w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
                                     <option value="all">전체</option>
                                     {jobFields.map(field => (
                                         <option key={field} value={field}>{field}</option>
                                     ))}
                                 </select>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">팀장</label>
-                                <select value={filterLeader} onChange={(e) => setFilterLeader(e.target.value)} className="mt-2 w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
+                            </ControlPanelCard>
+                            <ControlPanelCard label="팀장">
+                                <select value={filterLeader} onChange={(e) => setFilterLeader(e.target.value)} className="w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
                                     <option value="all">전체</option>
                                     {teamLeaders.map(leader => (
                                         <option key={leader} value={leader}>{leader}</option>
                                     ))}
                                 </select>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">신뢰 상태</label>
-                                <select value={filterTrust} onChange={(e) => setFilterTrust(e.target.value as 'all' | 'pending' | 'finalized')} className="mt-2 w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
+                            </ControlPanelCard>
+                            <ControlPanelCard label="신뢰 상태">
+                                <select value={filterTrust} onChange={(e) => setFilterTrust(e.target.value as 'all' | 'pending' | 'finalized')} className="w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
                                     <option value="all">전체</option>
                                     <option value="pending">재검토 대기</option>
                                     <option value="finalized">최종확정</option>
                                 </select>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">등급</label>
-                                <select value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)} className="mt-2 w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
+                            </ControlPanelCard>
+                            <ControlPanelCard label="등급">
+                                <select value={filterLevel} onChange={(e) => setFilterLevel(e.target.value)} className="w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
                                     <option value="all">전체</option>
                                     <option value="고급">고급</option>
                                     <option value="중급">중급</option>
                                     <option value="초급">초급</option>
                                 </select>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">OCR 결과</label>
-                                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as 'all' | 'success' | 'failed')} className="mt-2 w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
+                            </ControlPanelCard>
+                            <ControlPanelCard label="OCR 결과">
+                                <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as 'all' | 'success' | 'failed')} className="w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
                                     <option value="all">전체</option>
                                     <option value="success">성공</option>
                                     <option value="failed">{BRAND_STATUS_LABELS.attentionPending}</option>
                                 </select>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">승인/검토 사유</label>
-                                <select value={filterReason} onChange={(e) => setFilterReason(e.target.value as 'all' | 'has-reason' | 'missing-reason' | 'weak-reason')} className="mt-2 w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
+                            </ControlPanelCard>
+                            <ControlPanelCard label="승인/검토 사유">
+                                <select value={filterReason} onChange={(e) => setFilterReason(e.target.value as 'all' | 'has-reason' | 'missing-reason' | 'weak-reason')} className="w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
                                     <option value="all">전체</option>
                                     <option value="has-reason">사유 있음</option>
                                     <option value="missing-reason">사유 없음</option>
                                     <option value="weak-reason">사유 보강 필요</option>
                                 </select>
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 flex flex-col justify-between">
+                            </ControlPanelCard>
+                            <ControlPanelCard className="rounded-2xl border border-slate-200 bg-white px-3 py-3" contentClassName="flex h-full flex-col justify-between">
                                 <label className="flex items-center gap-2 text-xs font-bold text-slate-600">
                                     <input
                                         type="checkbox"
@@ -3736,11 +3840,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <button onClick={resetFilters} className="mt-3 w-full px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-black text-sm hover:bg-slate-50 transition-all">
                                     필터 초기화
                                 </button>
-                            </div>
+                            </ControlPanelCard>
                         </div>
-                        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                        <ControlPanelCard label="정렬" className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-wider">정렬</label>
                                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 w-full sm:w-auto">
                                     <button type="button" onClick={() => setRecordSortMode('recent-correction')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'recent-correction' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>최근 수정순</button>
                                     <button type="button" onClick={() => setRecordSortMode('score-desc')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'score-desc' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>점수 높은순</button>
@@ -3749,16 +3852,20 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 </div>
                             </div>
                             <p className="mt-2 text-[11px] font-bold text-slate-500">현재 정렬: {getRecordSortModeLabel(recordSortMode)}</p>
-                        </div>
+                        </ControlPanelCard>
                     </div>
 
-                    <div className="rounded-3xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-4 sm:p-5 shadow-sm">
-                        <p className="text-[11px] font-black text-violet-500 uppercase tracking-[0.2em]">2차 AI 재분석</p>
-                        <h5 className="mt-2 text-lg font-black text-slate-900">관리자 수정본 기준 재평가</h5>
-                        <p className="mt-2 text-sm font-semibold text-slate-600 leading-relaxed">
-                            현재 필터 기준으로 OCR 성공 기록만 선별해 점수, 등급, 강점/약점, AI 인사이트를 다시 계산합니다.
-                        </p>
-                        <ul className="mt-4 space-y-2 text-[12px] font-bold text-slate-600">
+                    <SectionPanelCard
+                        className="rounded-3xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-4 shadow-sm sm:p-5"
+                        eyebrow="2차 AI 재분석"
+                        title="관리자 수정본 기준 재평가"
+                        description="현재 필터 기준으로 OCR 성공 기록만 선별해 점수, 등급, 강점/약점, AI 인사이트를 다시 계산합니다."
+                        eyebrowClassName="text-[11px] font-black uppercase tracking-[0.2em] text-violet-500"
+                        titleClassName="mt-2 text-lg font-black text-slate-900"
+                        descriptionClassName="mt-2 text-sm font-semibold leading-relaxed text-slate-600"
+                        bodyClassName="mt-4"
+                    >
+                        <ul className="space-y-2 text-[12px] font-bold text-slate-600">
                             <li>• 적용 대상: {secondPassTargets.length}건</li>
                             <li>• 자동 제외: OCR {BRAND_STATUS_LABELS.attentionPending}, 원문 텍스트 없음{secondPassEditedOnly ? ', 관리자 수정이력 없음' : ''}</li>
                             <li>• {BRAND_STATUS_LABELS.attention} 건 재처리: {BRAND_ACTION_LABELS.smartReanalyze} / {BRAND_ACTION_LABELS.directReanalyze} 사용</li>
@@ -3826,76 +3933,145 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 )}
                             </div>
                         )}
-                        <div className="mt-4 rounded-2xl border border-violet-200 bg-white/80 p-3">
-                            <div className="flex items-center justify-between gap-2">
-                                <p className="text-[11px] font-black text-violet-600 uppercase tracking-wider">대상 미리보기</p>
-                                <span className="text-[11px] font-bold text-slate-500">상위 {secondPassPreviewRecords.length}건</span>
-                            </div>
-                            <div className="mt-3 space-y-2">
-                                {secondPassPreviewRecords.length > 0 ? secondPassPreviewRecords.map((record) => (
-                                    <div key={record.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                                        <div className="flex items-center justify-between gap-2">
-                                            <p className="text-sm font-black text-slate-900 truncate">{record.name || '이름 없음'}</p>
-                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${getSafetyLevelClass(record.safetyLevel)}`}>{record.safetyScore}점</span>
-                                        </div>
-                                        <p className="mt-1 text-[11px] font-bold text-slate-500 truncate">{record.jobField} · 팀장 {record.teamLeader || '미지정'}</p>
-                                        {getLatestCorrectionPreview(record) && (
-                                            <p className="mt-1 text-[10px] font-black text-violet-700 leading-snug truncate">최근 수정: {getLatestCorrectionPreview(record)}</p>
-                                        )}
-                                        {getLatestCorrectionReason(record) && (
-                                            <p className="mt-1 text-[10px] font-semibold text-slate-600 leading-snug whitespace-pre-wrap break-words">사유 전문: {getLatestCorrectionReason(record)}</p>
-                                        )}
-                                    </div>
-                                )) : (
-                                    <p className="text-[11px] font-bold text-slate-500">조건에 맞는 2차 재분석 대상이 없습니다.</p>
-                                )}
-                            </div>
-                        </div>
+                        <SectionPanelCard
+                            className="mt-4 rounded-2xl border border-violet-200 bg-white/80 p-3"
+                            title="대상 미리보기"
+                            description={`상위 ${secondPassPreviewRecords.length}건`}
+                            titleClassName="text-[11px] font-black text-violet-600 uppercase tracking-wider"
+                            descriptionClassName="text-[11px] font-bold text-slate-500"
+                            headerClassName="flex items-center justify-between gap-2"
+                            bodyClassName="mt-3 space-y-2"
+                        >
+                            {secondPassPreviewRecords.length > 0 ? secondPassPreviewRecords.map((record) => (
+                                <OperationalPreviewCard
+                                    key={record.id}
+                                    variant="whiteCompact"
+                                    title={<p className="truncate">{record.name || '이름 없음'}</p>}
+                                    subtitle={<p className="truncate">{record.jobField} · 팀장 {record.teamLeader || '미지정'}</p>}
+                                    titleClassName="text-sm font-black text-slate-900"
+                                    subtitleClassName="mt-1 text-[11px] font-bold text-slate-500"
+                                    badge={<span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${getSafetyLevelClass(record.safetyLevel)}`}>{record.safetyScore}점</span>}
+                                    body={getLatestCorrectionPreview(record) ? (
+                                        <p className="text-[10px] font-black text-violet-700 leading-snug truncate">최근 수정: {getLatestCorrectionPreview(record)}</p>
+                                    ) : null}
+                                    footer={getLatestCorrectionReason(record) ? <span className="whitespace-pre-wrap break-words">사유 전문: {getLatestCorrectionReason(record)}</span> : null}
+                                    footerClassName="mt-1 text-[10px] font-semibold text-slate-600 leading-snug"
+                                    bodyClassName="mt-1"
+                                />
+                            )) : (
+                                <EmptyStatePanel
+                                    variant="slate"
+                                    className="rounded-xl px-3 py-6"
+                                    title="조건에 맞는 2차 재분석 대상이 없습니다."
+                                    titleClassName="text-[11px] font-bold text-slate-500"
+                                />
+                            )}
+                        </SectionPanelCard>
                         {retryDiagnostics && (
-                            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3">
-                                <div className="flex items-center justify-between gap-2">
-                                    <p className="text-[11px] font-black text-emerald-700 uppercase tracking-wider">최근 재분석 결과</p>
-                                    <span className="text-[11px] font-black text-emerald-700">성공률 {retrySuccessRate}%</span>
-                                </div>
+                            <SectionPanelCard
+                                variant="emerald"
+                                className="mt-4"
+                                title="최근 재분석 결과"
+                                description={`성공률 ${retrySuccessRate}%`}
+                                titleClassName="text-[11px] font-black text-emerald-700 uppercase tracking-wider"
+                                descriptionClassName="text-[11px] font-black text-emerald-700"
+                                headerClassName="flex items-center justify-between gap-2"
+                                bodyClassName="mt-0"
+                            >
                                 {retryLastUpdatedLabel && (
                                     <p className="mt-1 text-[11px] font-bold text-emerald-800/80">마지막 집계: {retryLastUpdatedLabel}</p>
                                 )}
-                                <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                                    <div className="rounded-xl bg-white border border-emerald-100 px-2 py-2">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase">총 대상</p>
-                                        <p className="mt-1 text-lg font-black text-slate-900">{retryDiagnostics.total}</p>
-                                    </div>
-                                    <div className="rounded-xl bg-white border border-emerald-100 px-2 py-2">
-                                        <p className="text-[10px] font-black text-emerald-500 uppercase">성공</p>
-                                        <p className="mt-1 text-lg font-black text-emerald-700">{retryDiagnostics.success}</p>
-                                    </div>
-                                    <div className="rounded-xl bg-white border border-rose-100 px-2 py-2">
-                                        <p className="text-[10px] font-black text-rose-400 uppercase">{BRAND_STATUS_LABELS.attention}</p>
-                                        <p className="mt-1 text-lg font-black text-rose-700">{retryDiagnostics.fail}</p>
-                                    </div>
-                                    <div className="rounded-xl bg-white border border-amber-100 px-2 py-2">
-                                        <p className="text-[10px] font-black text-amber-500 uppercase">사전 확인 필요</p>
-                                        <p className="mt-1 text-lg font-black text-amber-700">{retryDiagnostics.preflightFail}</p>
-                                    </div>
-                                </div>
-                                <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-bold text-slate-600">
-                                    <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">서버 성공: <span className="text-slate-900">{retryDiagnostics.serverSuccess}</span></div>
-                                    <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">브라우저 폴백: <span className="text-slate-900">{retryDiagnostics.clientFallbackSuccess}</span></div>
-                                    <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">처리 확인 필요: <span className="text-slate-900">{retryDiagnostics.processingFail}</span></div>
-                                    <div className="rounded-xl bg-white/80 border border-slate-200 px-3 py-2">라우트 확인 필요: <span className="text-slate-900">{retryDiagnostics.serverRouteFail}</span></div>
-                                </div>
+                                <SummaryMetricGrid
+                                    className="mt-3 grid grid-cols-2 gap-2 text-center sm:grid-cols-4"
+                                    cardClassName="rounded-xl bg-white px-2 py-2"
+                                    items={[
+                                        {
+                                            key: 'retry-total',
+                                            label: '총 대상',
+                                            value: retryDiagnostics.total,
+                                            tone: 'border border-emerald-100',
+                                            valueClassName: 'mt-1 text-lg font-black text-slate-900',
+                                        },
+                                        {
+                                            key: 'retry-success',
+                                            label: '성공',
+                                            value: retryDiagnostics.success,
+                                            tone: 'border border-emerald-100',
+                                            labelClassName: 'text-[10px] font-black text-emerald-500 uppercase',
+                                            valueClassName: 'mt-1 text-lg font-black text-emerald-700',
+                                        },
+                                        {
+                                            key: 'retry-fail',
+                                            label: BRAND_STATUS_LABELS.attention,
+                                            value: retryDiagnostics.fail,
+                                            tone: 'border border-rose-100',
+                                            labelClassName: 'text-[10px] font-black text-rose-400 uppercase',
+                                            valueClassName: 'mt-1 text-lg font-black text-rose-700',
+                                        },
+                                        {
+                                            key: 'retry-preflight-fail',
+                                            label: '사전 확인 필요',
+                                            value: retryDiagnostics.preflightFail,
+                                            tone: 'border border-amber-100',
+                                            labelClassName: 'text-[10px] font-black text-amber-500 uppercase',
+                                            valueClassName: 'mt-1 text-lg font-black text-amber-700',
+                                        },
+                                    ]}
+                                />
+                                <SummaryMetricGrid
+                                    className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"
+                                    cardClassName="rounded-xl bg-white/80 border border-slate-200 px-3 py-2"
+                                    items={[
+                                        {
+                                            key: 'retry-server-success',
+                                            label: '서버 성공',
+                                            value: retryDiagnostics.serverSuccess,
+                                            tone: '',
+                                            labelClassName: 'text-[11px] font-bold text-slate-600',
+                                            valueClassName: 'mt-0.5 text-sm font-black text-slate-900',
+                                        },
+                                        {
+                                            key: 'retry-browser-fallback',
+                                            label: '브라우저 폴백',
+                                            value: retryDiagnostics.clientFallbackSuccess,
+                                            tone: '',
+                                            labelClassName: 'text-[11px] font-bold text-slate-600',
+                                            valueClassName: 'mt-0.5 text-sm font-black text-slate-900',
+                                        },
+                                        {
+                                            key: 'retry-processing-fail',
+                                            label: '처리 확인 필요',
+                                            value: retryDiagnostics.processingFail,
+                                            tone: '',
+                                            labelClassName: 'text-[11px] font-bold text-slate-600',
+                                            valueClassName: 'mt-0.5 text-sm font-black text-slate-900',
+                                        },
+                                        {
+                                            key: 'retry-route-fail',
+                                            label: '라우트 확인 필요',
+                                            value: retryDiagnostics.serverRouteFail,
+                                            tone: '',
+                                            labelClassName: 'text-[11px] font-bold text-slate-600',
+                                            valueClassName: 'mt-0.5 text-sm font-black text-slate-900',
+                                        },
+                                    ]}
+                                />
                                 <CollapsibleSection
                                     title="재분석 상세 비교"
                                     isOpen={showRetryDetailPanel}
                                     onToggle={() => setShowRetryDetailPanel((prev) => !prev)}
                                     summary={<span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-black text-emerald-700">점수변화 {recentReassessmentImpact.length} · 인사이트 {recentInsightComparisons.length} · 텍스트 {recentTextComparisons.length}</span>}
                                 >
-                                <div className="mt-3 rounded-2xl border border-white/70 bg-white/70 p-3">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <p className="text-[11px] font-black text-slate-700 uppercase tracking-wider">{BRAND_STATUS_LABELS.attention} 대응 가이드</p>
-                                        <span className="text-[10px] font-bold text-slate-500">{BRAND_STATUS_LABELS.attention} 유형 기준</span>
-                                    </div>
-                                    <div className="mt-2 space-y-2">
+                                    <SectionPanelCard
+                                        variant="whiteSoft"
+                                        className="mt-3 border-white/70 bg-white/70 p-3"
+                                        title={`${BRAND_STATUS_LABELS.attention} 대응 가이드`}
+                                        description={`${BRAND_STATUS_LABELS.attention} 유형 기준`}
+                                        titleClassName="text-[11px] font-black text-slate-700 uppercase tracking-wider"
+                                        descriptionClassName="text-[10px] font-bold text-slate-500"
+                                        headerClassName="flex items-center justify-between gap-2"
+                                        bodyClassName="mt-2 space-y-2"
+                                    >
                                         {retryActionGuides.length > 0 ? retryActionGuides.map((guide) => (
                                             <div
                                                 key={guide.key}
@@ -3908,27 +4084,27 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 <p className="mt-1 text-[11px] font-semibold text-slate-600 leading-snug">{guide.action}</p>
                                             </div>
                                         )) : (
-                                            <p className="text-[11px] font-bold text-emerald-700">현재 집계 기준으로 별도 {BRAND_STATUS_LABELS.attention} 대응이 필요한 항목이 없습니다.</p>
+                                            <EmptyStatePanel
+                                                variant="emerald"
+                                                className="rounded-xl px-3 py-6"
+                                                title={`현재 집계 기준으로 별도 ${BRAND_STATUS_LABELS.attention} 대응이 필요한 항목이 없습니다.`}
+                                            />
                                         )}
-                                    </div>
-                                </div>
-                                {recentReassessmentImpact.length > 0 && (
-                                    <div className="mt-3 rounded-2xl border border-indigo-100 bg-white/80 p-3">
-                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                            <div>
-                                                <p className="text-[11px] font-black text-indigo-700 uppercase tracking-wider">재분석 점수 변화</p>
-                                                <p className="mt-1 text-[11px] font-bold text-slate-500">최근 재분석된 기록의 점수/등급 변화를 빠르게 확인합니다.</p>
-                                            </div>
-                                            <div className="flex flex-wrap gap-2 text-[10px] font-black">
-                                                <span className="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">상승 {recentReassessmentDeltaSummary.up}</span>
-                                                <span className="px-2 py-1 rounded-full bg-rose-100 text-rose-700">하락 {recentReassessmentDeltaSummary.down}</span>
-                                                <span className="px-2 py-1 rounded-full bg-slate-100 text-slate-600">유지 {recentReassessmentDeltaSummary.same}</span>
-                                            </div>
-                                        </div>
-                                        <div className="mt-3 space-y-2">
+                                    </SectionPanelCard>
+                                    {recentReassessmentImpact.length > 0 && (
+                                        <SectionPanelCard
+                                            variant="indigoSoft"
+                                            className="mt-3"
+                                            title="재분석 점수 변화"
+                                            description={`최근 ${recentReassessmentImpact.length}건`}
+                                            titleClassName="text-[11px] font-black text-indigo-700 uppercase tracking-wider"
+                                            descriptionClassName="text-[10px] font-black text-indigo-700"
+                                            headerClassName="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                                            bodyClassName="mt-3 space-y-2"
+                                        >
                                             {recentReassessmentImpact.map((item) => (
                                                 <div key={item.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                                         <div className="min-w-0">
                                                             <p className="text-sm font-black text-slate-900 truncate">{item.name}</p>
                                                             <p className="mt-0.5 text-[11px] font-bold text-slate-500 truncate">{item.jobField} · {item.timestampLabel || '시각 없음'}</p>
@@ -3937,7 +4113,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                             {item.delta > 0 ? `+${item.delta}` : item.delta}
                                                         </span>
                                                     </div>
-                                                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-bold">
+                                                    <div className="mt-2 grid grid-cols-1 gap-2 lg:grid-cols-2 text-[11px] font-semibold">
                                                         <div className="rounded-lg bg-slate-50 px-3 py-2 text-slate-600">점수: <span className="text-slate-900">{item.previousScore} → {item.nextScore}</span></div>
                                                         <div className="rounded-lg bg-slate-50 px-3 py-2 text-slate-600">등급: <span className="text-slate-900">{item.previousLevel || '-'} → {item.nextLevel || '-'}</span></div>
                                                     </div>
@@ -3948,26 +4124,28 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                     )}
                                                 </div>
                                             ))}
-                                        </div>
-                                    </div>
-                                )}
+                                        </SectionPanelCard>
+                                    )}
                                 {recentInsightComparisons.length > 0 && (
-                                    <div className="mt-3 rounded-2xl border border-cyan-100 bg-white/80 p-3">
-                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                            <div>
-                                                <p className="text-[11px] font-black text-cyan-700 uppercase tracking-wider">AI 인사이트 전후 비교</p>
-                                                <p className="mt-1 text-[11px] font-bold text-slate-500">최근 수정/재분석에서 바뀐 인사이트 문구를 전후로 비교합니다.</p>
-                                            </div>
-                                            <span className="text-[10px] font-black text-cyan-700">최근 {recentInsightComparisons.length}건</span>
-                                        </div>
-                                        <div className="mt-3 space-y-2">
+                                    <SectionPanelCard
+                                        variant="cyanSoft"
+                                        className="mt-3"
+                                        title="AI 인사이트 전후 비교"
+                                        description={`최근 ${recentInsightComparisons.length}건`}
+                                        titleClassName="text-[11px] font-black text-cyan-700 uppercase tracking-wider"
+                                        descriptionClassName="text-[10px] font-black text-cyan-700"
+                                        headerClassName="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                                        bodyClassName="mt-3 space-y-2"
+                                    >
                                             {recentInsightComparisons.map((item) => (
-                                                <div key={item.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                                        <div className="min-w-0">
-                                                            <p className="text-sm font-black text-slate-900 truncate">{item.name}</p>
-                                                            <p className="mt-0.5 text-[11px] font-bold text-slate-500 truncate">{item.jobField} · {item.timestampLabel || '시각 없음'}</p>
-                                                        </div>
+                                                <OperationalPreviewCard
+                                                    key={item.id}
+                                                    variant="whiteCompact"
+                                                    title={item.name}
+                                                    subtitle={`${item.jobField} · ${item.timestampLabel || '시각 없음'}`}
+                                                    titleClassName="text-sm font-black text-slate-900"
+                                                    subtitleClassName="mt-0.5 truncate text-[11px] font-bold text-slate-500"
+                                                    actions={(
                                                         <button
                                                             type="button"
                                                             onClick={() => handleViewRecordById(item.id)}
@@ -3975,44 +4153,45 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                         >
                                                             상세검증 이동
                                                         </button>
-                                                    </div>
-                                                    <div className="mt-2 grid grid-cols-1 lg:grid-cols-2 gap-2 text-[11px]">
-                                                        <div className="rounded-lg bg-rose-50 px-3 py-2">
-                                                            <p className="font-black text-rose-700">변경 전</p>
-                                                            <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{item.beforeInsight || '기존 인사이트 없음'}</p>
-                                                        </div>
-                                                        <div className="rounded-lg bg-emerald-50 px-3 py-2">
-                                                            <p className="font-black text-emerald-700">변경 후</p>
-                                                            <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{item.afterInsight || '변경 후 인사이트 없음'}</p>
-                                                        </div>
-                                                    </div>
-                                                    {item.reason && (
-                                                        <div className="mt-2 rounded-lg bg-cyan-50 px-3 py-2 text-[11px] font-semibold text-cyan-800 leading-snug whitespace-pre-wrap break-words">
-                                                            변경 사유: {item.reason}
+                                                    )}
+                                                    body={(
+                                                        <div className="grid grid-cols-1 gap-2 text-[11px] lg:grid-cols-2">
+                                                            <div className="rounded-lg bg-rose-50 px-3 py-2">
+                                                                <p className="font-black text-rose-700">변경 전</p>
+                                                                <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{item.beforeInsight || '기존 인사이트 없음'}</p>
+                                                            </div>
+                                                            <div className="rounded-lg bg-emerald-50 px-3 py-2">
+                                                                <p className="font-black text-emerald-700">변경 후</p>
+                                                                <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{item.afterInsight || '변경 후 인사이트 없음'}</p>
+                                                            </div>
                                                         </div>
                                                     )}
-                                                </div>
+                                                    footer={item.reason ? <span className="whitespace-pre-wrap break-words">변경 사유: {item.reason}</span> : null}
+                                                    footerClassName="mt-2 rounded-lg bg-cyan-50 px-3 py-2 text-[11px] font-semibold text-cyan-800 leading-snug"
+                                                />
                                             ))}
-                                        </div>
-                                    </div>
+                                    </SectionPanelCard>
                                 )}
                                 {recentContentComparisons.length > 0 && (
-                                    <div className="mt-3 rounded-2xl border border-fuchsia-100 bg-white/80 p-3">
-                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                            <div>
-                                                <p className="text-[11px] font-black text-fuchsia-700 uppercase tracking-wider">강점/약점·근거 비교</p>
-                                                <p className="mt-1 text-[11px] font-bold text-slate-500">최근 수정/재분석에서 바뀐 핵심 평가 내용을 전후로 비교합니다.</p>
-                                            </div>
-                                            <span className="text-[10px] font-black text-fuchsia-700">최근 {recentContentComparisons.length}건</span>
-                                        </div>
-                                        <div className="mt-3 space-y-2">
+                                    <SectionPanelCard
+                                        variant="fuchsiaSoft"
+                                        className="mt-3"
+                                        title="강점/약점·근거 비교"
+                                        description={`최근 ${recentContentComparisons.length}건`}
+                                        titleClassName="text-[11px] font-black text-fuchsia-700 uppercase tracking-wider"
+                                        descriptionClassName="text-[10px] font-black text-fuchsia-700"
+                                        headerClassName="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                                        bodyClassName="mt-3 space-y-2"
+                                    >
                                             {recentContentComparisons.map((item) => (
-                                                <div key={item.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                                        <div className="min-w-0">
-                                                            <p className="text-sm font-black text-slate-900 truncate">{item.name}</p>
-                                                            <p className="mt-0.5 text-[11px] font-bold text-slate-500 truncate">{item.jobField} · {item.timestampLabel || '시각 없음'}</p>
-                                                        </div>
+                                                <OperationalPreviewCard
+                                                    key={item.id}
+                                                    variant="whiteCompact"
+                                                    title={item.name}
+                                                    subtitle={`${item.jobField} · ${item.timestampLabel || '시각 없음'}`}
+                                                    titleClassName="text-sm font-black text-slate-900"
+                                                    subtitleClassName="mt-0.5 truncate text-[11px] font-bold text-slate-500"
+                                                    actions={(
                                                         <button
                                                             type="button"
                                                             onClick={() => handleViewRecordById(item.id)}
@@ -4020,51 +4199,52 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                         >
                                                             상세검증 이동
                                                         </button>
-                                                    </div>
-                                                    <div className="mt-2 space-y-2">
-                                                        {item.changes.map((change) => (
-                                                            <div key={change.field} className="rounded-lg bg-fuchsia-50/60 px-3 py-2 text-[11px]">
-                                                                <p className="font-black text-fuchsia-700">{change.label}</p>
-                                                                <div className="mt-1 grid grid-cols-1 lg:grid-cols-2 gap-2">
-                                                                    <div className="rounded-lg bg-white px-3 py-2">
-                                                                        <p className="font-black text-rose-700">변경 전</p>
-                                                                        <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{change.before}</p>
-                                                                    </div>
-                                                                    <div className="rounded-lg bg-white px-3 py-2">
-                                                                        <p className="font-black text-emerald-700">변경 후</p>
-                                                                        <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{change.after}</p>
+                                                    )}
+                                                    body={(
+                                                        <div className="space-y-2">
+                                                            {item.changes.map((change) => (
+                                                                <div key={change.field} className="rounded-lg bg-fuchsia-50/60 px-3 py-2 text-[11px]">
+                                                                    <p className="font-black text-fuchsia-700">{change.label}</p>
+                                                                    <div className="mt-1 grid grid-cols-1 gap-2 lg:grid-cols-2">
+                                                                        <div className="rounded-lg bg-white px-3 py-2">
+                                                                            <p className="font-black text-rose-700">변경 전</p>
+                                                                            <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{change.before}</p>
+                                                                        </div>
+                                                                        <div className="rounded-lg bg-white px-3 py-2">
+                                                                            <p className="font-black text-emerald-700">변경 후</p>
+                                                                            <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{change.after}</p>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                    {item.reason && (
-                                                        <div className="mt-2 rounded-lg bg-fuchsia-50 px-3 py-2 text-[11px] font-semibold text-fuchsia-800 leading-snug whitespace-pre-wrap break-words">
-                                                            변경 사유: {item.reason}
+                                                            ))}
                                                         </div>
                                                     )}
-                                                </div>
+                                                    footer={item.reason ? <span className="whitespace-pre-wrap break-words">변경 사유: {item.reason}</span> : null}
+                                                    footerClassName="mt-2 rounded-lg bg-fuchsia-50 px-3 py-2 text-[11px] font-semibold text-fuchsia-800 leading-snug"
+                                                />
                                             ))}
-                                        </div>
-                                    </div>
+                                    </SectionPanelCard>
                                 )}
                                 {recentTextComparisons.length > 0 && (
-                                    <div className="mt-3 rounded-2xl border border-sky-100 bg-white/80 p-3">
-                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                            <div>
-                                                <p className="text-[11px] font-black text-sky-700 uppercase tracking-wider">OCR 원문/번역 비교</p>
-                                                <p className="mt-1 text-[11px] font-bold text-slate-500">최근 수정으로 달라진 OCR 원문과 한글 번역을 전후 비교합니다.</p>
-                                            </div>
-                                            <span className="text-[10px] font-black text-sky-700">최근 {recentTextComparisons.length}건</span>
-                                        </div>
-                                        <div className="mt-3 space-y-2">
+                                    <SectionPanelCard
+                                        variant="skySoft"
+                                        className="mt-3"
+                                        title="OCR 원문/번역 비교"
+                                        description={`최근 ${recentTextComparisons.length}건`}
+                                        titleClassName="text-[11px] font-black text-sky-700 uppercase tracking-wider"
+                                        descriptionClassName="text-[10px] font-black text-sky-700"
+                                        headerClassName="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                                        bodyClassName="mt-3 space-y-2"
+                                    >
                                             {recentTextComparisons.map((item) => (
-                                                <div key={item.id} className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                                                        <div className="min-w-0">
-                                                            <p className="text-sm font-black text-slate-900 truncate">{item.name}</p>
-                                                            <p className="mt-0.5 text-[11px] font-bold text-slate-500 truncate">{item.jobField} · {item.timestampLabel || '시각 없음'}</p>
-                                                        </div>
+                                                <OperationalPreviewCard
+                                                    key={item.id}
+                                                    variant="whiteCompact"
+                                                    title={item.name}
+                                                    subtitle={`${item.jobField} · ${item.timestampLabel || '시각 없음'}`}
+                                                    titleClassName="text-sm font-black text-slate-900"
+                                                    subtitleClassName="mt-0.5 truncate text-[11px] font-bold text-slate-500"
+                                                    actions={(
                                                         <button
                                                             type="button"
                                                             onClick={() => handleViewRecordById(item.id)}
@@ -4072,36 +4252,34 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                         >
                                                             상세검증 이동
                                                         </button>
-                                                    </div>
-                                                    <div className="mt-2 space-y-2">
-                                                        {item.changes.map((change) => (
-                                                            <div key={change.field} className="rounded-lg bg-sky-50/60 px-3 py-2 text-[11px]">
-                                                                <p className="font-black text-sky-700">{change.label}</p>
-                                                                <div className="mt-1 grid grid-cols-1 lg:grid-cols-2 gap-2">
-                                                                    <div className="rounded-lg bg-white px-3 py-2">
-                                                                        <p className="font-black text-rose-700">변경 전</p>
-                                                                        <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{change.before}</p>
-                                                                    </div>
-                                                                    <div className="rounded-lg bg-white px-3 py-2">
-                                                                        <p className="font-black text-emerald-700">변경 후</p>
-                                                                        <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{change.after}</p>
+                                                    )}
+                                                    body={(
+                                                        <div className="space-y-2">
+                                                            {item.changes.map((change) => (
+                                                                <div key={change.field} className="rounded-lg bg-sky-50/60 px-3 py-2 text-[11px]">
+                                                                    <p className="font-black text-sky-700">{change.label}</p>
+                                                                    <div className="mt-1 grid grid-cols-1 gap-2 lg:grid-cols-2">
+                                                                        <div className="rounded-lg bg-white px-3 py-2">
+                                                                            <p className="font-black text-rose-700">변경 전</p>
+                                                                            <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{change.before}</p>
+                                                                        </div>
+                                                                        <div className="rounded-lg bg-white px-3 py-2">
+                                                                            <p className="font-black text-emerald-700">변경 후</p>
+                                                                            <p className="mt-1 font-semibold text-slate-700 leading-snug whitespace-pre-wrap break-words">{change.after}</p>
+                                                                        </div>
                                                                     </div>
                                                                 </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                    {item.reason && (
-                                                        <div className="mt-2 rounded-lg bg-sky-50 px-3 py-2 text-[11px] font-semibold text-sky-800 leading-snug whitespace-pre-wrap break-words">
-                                                            변경 사유: {item.reason}
+                                                            ))}
                                                         </div>
                                                     )}
-                                                </div>
+                                                    footer={item.reason ? <span className="whitespace-pre-wrap break-words">변경 사유: {item.reason}</span> : null}
+                                                    footerClassName="mt-2 rounded-lg bg-sky-50 px-3 py-2 text-[11px] font-semibold text-sky-800 leading-snug"
+                                                />
                                             ))}
-                                        </div>
-                                    </div>
+                                    </SectionPanelCard>
                                 )}
                                 </CollapsibleSection>
-                            </div>
+                            </SectionPanelCard>
                         )}
                         <button onClick={handleBatchTextAnalysis} 
                             disabled={isAnalyzing || secondPassTargets.length === 0}
@@ -4110,7 +4288,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                             관리자 수정 반영 2차 AI 재분석
                         </button>
-                    </div>
+                    </SectionPanelCard>
                 </div>
                 </CollapsibleSection>
             </div>
@@ -4425,20 +4603,34 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                         사전검증: {preflightReason}
                                                     </span>
                                                 )}
-                                                <div className="mt-2 grid grid-cols-1 gap-1.5 text-[10px] font-semibold">
-                                                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-slate-700">
-                                                        <span className="block text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">지금 상태</span>
-                                                        <span className="mt-0.5 block leading-snug">{rowStatusSummary}</span>
-                                                    </div>
-                                                    <div className="rounded-lg border border-amber-100 bg-amber-50 px-2 py-2 text-amber-800">
-                                                        <span className="block text-[9px] font-black uppercase tracking-[0.16em] text-amber-600">판단 근거</span>
-                                                        <span className="mt-0.5 block leading-snug whitespace-pre-wrap break-words">{rowEvidenceSummary}</span>
-                                                    </div>
-                                                    <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-2 py-2 text-emerald-800">
-                                                        <span className="block text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600">다음 행동</span>
-                                                        <span className="mt-0.5 block leading-snug">{rowNextAction}</span>
-                                                    </div>
-                                                </div>
+                                                <StatusEvidenceActionPanel
+                                                    className="mt-2 grid grid-cols-1 gap-1.5 text-[10px] font-semibold"
+                                                    cardClassName="rounded-lg border px-2 py-2"
+                                                    titleClassName="mt-0.5 block text-[10px] font-semibold leading-snug"
+                                                    items={[
+                                                        {
+                                                            key: `${r.id}-row-status`,
+                                                            eyebrow: '지금 상태',
+                                                            title: rowStatusSummary,
+                                                            tone: 'border-slate-200 bg-slate-50 text-slate-700',
+                                                            eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-slate-400',
+                                                        },
+                                                        {
+                                                            key: `${r.id}-row-evidence`,
+                                                            eyebrow: '판단 근거',
+                                                            title: <span className="whitespace-pre-wrap break-words">{rowEvidenceSummary}</span>,
+                                                            tone: 'border-amber-100 bg-amber-50 text-amber-800',
+                                                            eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-amber-600',
+                                                        },
+                                                        {
+                                                            key: `${r.id}-row-action`,
+                                                            eyebrow: '다음 행동',
+                                                            title: rowNextAction,
+                                                            tone: 'border-emerald-100 bg-emerald-50 text-emerald-800',
+                                                            eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600',
+                                                        },
+                                                    ]}
+                                                />
                                             </div>
                                         </td>
                                         <td className="px-4 sm:px-8 py-5 text-slate-500 font-bold">{r.jobField}</td>

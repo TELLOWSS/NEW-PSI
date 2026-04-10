@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ActionButton } from './shared/ActionButton';
 
 interface AdminLockScreenProps {
     onUnlock: (password: string) => void;
@@ -31,13 +32,15 @@ export const AdminLockScreen: React.FC<AdminLockScreenProps> = ({
                         autoFocus
                         className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-300"
                     />
-                    <button
+                    <ActionButton
                         type="submit"
                         disabled={isSubmitting}
-                        className="w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-black text-white hover:bg-indigo-700 disabled:opacity-60"
+                        variant="indigoSolid"
+                        fullWidth
+                        className="px-4 py-3 text-sm font-black"
                     >
                         관리자 모드 진입
-                    </button>
+                    </ActionButton>
                 </form>
                 {errorMessage && (
                     <p className="mt-3 text-center text-xs font-bold text-rose-600">{errorMessage}</p>

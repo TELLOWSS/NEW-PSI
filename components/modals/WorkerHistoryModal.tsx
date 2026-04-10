@@ -1,6 +1,12 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import type { WorkerRecord } from '../../types';
+import { ActionButton } from '../shared/ActionButton';
+import { EmptyStatePanel } from '../shared/EmptyStatePanel';
+import { OperationalPreviewCard } from '../shared/OperationalPreviewCard';
+import { SectionPanelCard } from '../shared/SectionPanelCard';
+import { StatusBadge, type StatusBadgeVariant } from '../shared/StatusBadge';
+import { SummaryMetricGrid } from '../shared/SummaryMetricGrid';
 
 const normalizeIdentityText = (value: unknown): string => typeof value === 'string' ? value.trim().toUpperCase() : '';
 
@@ -37,10 +43,32 @@ interface WorkerHistoryModalProps {
 
 const getSafetyLevelClass = (level: '초급' | '중급' | '고급') => {
     switch (level) {
-        case '고급': return { text: 'text-green-800', border: 'border-green-500' };
-        case '중급': return { text: 'text-yellow-800', border: 'border-yellow-500' };
-        case '초급': return { text: 'text-red-800', border: 'border-red-500' };
-        default: return { text: 'text-slate-800', border: 'border-slate-500' };
+        case '고급': return { text: 'text-green-800', border: 'border-green-500', badgeVariant: 'emeraldSoft' as StatusBadgeVariant };
+        case '중급': return { text: 'text-yellow-800', border: 'border-yellow-500', badgeVariant: 'amberSoft' as StatusBadgeVariant };
+        case '초급': return { text: 'text-red-800', border: 'border-red-500', badgeVariant: 'roseSoft' as StatusBadgeVariant };
+        default: return { text: 'text-slate-800', border: 'border-slate-500', badgeVariant: 'slateSoft' as StatusBadgeVariant };
+    }
+};
+
+const getRoleBadgeVariant = (role?: WorkerRecord['role']): StatusBadgeVariant => {
+    switch (role) {
+        case 'leader':
+            return 'amberSoft';
+        case 'sub_leader':
+            return 'violetSoft';
+        default:
+            return 'slateSoft';
+    }
+};
+
+const getRoleLabel = (role?: WorkerRecord['role']): string => {
+    switch (role) {
+        case 'leader':
+            return '팀장/소장';
+        case 'sub_leader':
+            return '부팀장/반장';
+        default:
+            return '일반 팀원';
     }
 };
 
@@ -84,6 +112,8 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
         onUpdateRecord(editableRecord);
         alert("수정되었습니다.");
     }
+
+    const selectedSafetyTone = getSafetyLevelClass(selectedRecord.safetyLevel);
     
     return (
         <div className="fixed inset-0 bg-black bg-opacity-60 z-40 flex justify-center items-end sm:items-center p-2 sm:p-4" onClick={onClose}>
@@ -104,61 +134,129 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                 <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
                     {/* Left Panel: History List */}
                     <aside className="w-full md:w-1/3 border-b md:border-b-0 md:border-r border-slate-200 overflow-y-auto p-2 space-y-2 max-h-[34vh] md:max-h-none">
-                        {workerHistory.length === 0 && <p className="text-center text-slate-400 p-4">이전 기록이 없습니다.</p>}
+                        {workerHistory.length === 0 && (
+                            <EmptyStatePanel
+                                title="이전 기록이 없습니다."
+                                description="선택한 근로자의 누적 이력이 아직 연결되지 않았습니다."
+                                className="px-4 py-6"
+                            />
+                        )}
                         {workerHistory.map(record => (
                             <button 
                                 key={record.id} 
                                 onClick={() => handleRecordSelect(record)}
-                                className={`w-full text-left p-3 rounded-lg flex items-center justify-between transition-colors ${record.id === selectedRecord.id ? 'bg-blue-100 shadow' : 'hover:bg-slate-100'}`}
+                                className="w-full text-left"
                             >
-                                <div className="flex items-center space-x-3">
-                                    <div className="flex-shrink-0 h-10 w-10 rounded-md bg-slate-200 flex items-center justify-center">
-                                        {record.originalImage ? (
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                                            </svg>
-                                        ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8v10a2 2 0 002 2h12a2 2 0 002-2V8m-6 4l-3-3m0 0l-3 3m3-3v11" />
-                                            </svg>
-                                        )}
-                                    </div>
-                                    <div>
-                                        <p className={`font-semibold ${record.id === selectedRecord.id ? 'text-blue-700' : 'text-slate-700'}`}>{record.date}</p>
-                                        <p className="text-xs text-slate-500">{record.jobField}</p>
-                                    </div>
-                                </div>
-                                <div className={`text-lg font-bold ${getSafetyLevelClass(record.safetyLevel).text}`}>{record.safetyScore}점</div>
+                                <OperationalPreviewCard
+                                    variant="interactiveSlate"
+                                    leading={
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-md bg-slate-200">
+                                            {record.originalImage ? (
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-500" viewBox="0 0 20 20" fill="currentColor">
+                                                    <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                                                </svg>
+                                            ) : (
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8v10a2 2 0 002 2h12a2 2 0 002-2V8m-6 4l-3-3m0 0l-3 3m3-3v11" />
+                                                </svg>
+                                            )}
+                                        </div>
+                                    }
+                                    title={record.date}
+                                    subtitle={record.jobField}
+                                    badge={<StatusBadge variant={getSafetyLevelClass(record.safetyLevel).badgeVariant}>{record.safetyLevel}</StatusBadge>}
+                                    body={<div className={`text-lg font-bold ${getSafetyLevelClass(record.safetyLevel).text}`}>{record.safetyScore}점</div>}
+                                    className={record.id === selectedRecord.id ? 'border-blue-300 bg-blue-50' : ''}
+                                    titleClassName={`text-sm font-semibold ${record.id === selectedRecord.id ? 'text-blue-700' : 'text-slate-700'}`}
+                                    subtitleClassName="mt-1 text-xs font-medium text-slate-500"
+                                    bodyClassName="mt-2"
+                                />
                             </button>
                         ))}
                     </aside>
 
                     {/* Right Panel: Record Details */}
                     <main className="w-full md:w-2/3 overflow-y-auto p-4 sm:p-6 space-y-5 sm:space-y-6">
-                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
-                             <div>
-                                <p className="text-sm text-slate-500">기록 ID: {selectedRecord.id.substring(0,10)}...</p>
-                                <h3 className="text-xl sm:text-2xl font-bold text-slate-800 mt-1">{selectedRecord.date}</h3>
+                        <SectionPanelCard
+                            variant="whiteSoft"
+                            eyebrow="선택 기록 요약"
+                            title={selectedRecord.date}
+                            description={`기록 ID: ${selectedRecord.id.substring(0, 10)}...`}
+                            className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm"
+                            headerClassName="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+                            titleClassName="mt-1 text-xl sm:text-2xl font-bold text-slate-800"
+                            descriptionClassName="text-sm text-slate-500"
+                            headerAction={
+                                <div className="text-left sm:text-right">
+                                    <p className={`text-3xl sm:text-4xl font-bold ${selectedSafetyTone.text}`}>{selectedRecord.safetyScore}점</p>
+                                    {scoreDifference !== null && (
+                                        <div className="mt-2">
+                                            <StatusBadge variant={scoreDifference >= 0 ? 'emeraldSoft' : 'roseSoft'} className="text-[11px]">
+                                                {scoreDifference >= 0 ? '▲' : '▼'} {Math.abs(scoreDifference).toFixed(1)} · 이전 {previousScore}점
+                                            </StatusBadge>
+                                        </div>
+                                    )}
+                                </div>
+                            }
+                            bodyClassName="mt-4"
+                        >
+                            <div className="flex flex-wrap items-center gap-2">
+                                <StatusBadge variant={selectedSafetyTone.badgeVariant}>{selectedRecord.safetyLevel}</StatusBadge>
+                                <StatusBadge variant={getRoleBadgeVariant(editableRecord.role)}>{getRoleLabel(editableRecord.role)}</StatusBadge>
+                                {editableRecord.isTranslator && <StatusBadge variant="sky">통역</StatusBadge>}
+                                {editableRecord.isSignalman && <StatusBadge variant="emeraldSoft">신호수</StatusBadge>}
                             </div>
-                            <div className="text-left sm:text-right">
-                                <p className={`text-3xl sm:text-4xl font-bold ${getSafetyLevelClass(selectedRecord.safetyLevel).text}`}>{selectedRecord.safetyScore}점</p>
-                                {scoreDifference !== null && (
-                                     <p className={`text-sm font-semibold ${scoreDifference >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                        {scoreDifference >= 0 ? '▲' : '▼'} {Math.abs(scoreDifference).toFixed(1)} (이전 {previousScore}점)
-                                    </p>
-                                )}
-                            </div>
-                        </div>
+                            <SummaryMetricGrid
+                                className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3"
+                                cardClassName="rounded-2xl border px-4 py-3"
+                                items={[
+                                    {
+                                        key: 'safety',
+                                        label: '현재 수준',
+                                        value: selectedRecord.safetyLevel,
+                                        helper: `${selectedRecord.safetyScore}점`,
+                                        tone: 'border-slate-200 bg-slate-50',
+                                        valueClassName: `mt-1 text-lg font-black ${selectedSafetyTone.text}`,
+                                    },
+                                    {
+                                        key: 'role',
+                                        label: '역할',
+                                        value: getRoleLabel(editableRecord.role),
+                                        helper: editableRecord.teamLeader || '팀장 미지정',
+                                        tone: 'border-indigo-200 bg-indigo-50',
+                                        valueClassName: 'mt-1 text-lg font-black text-indigo-700',
+                                        helperClassName: 'mt-1 text-xs font-bold text-indigo-500',
+                                    },
+                                    {
+                                        key: 'job',
+                                        label: '공종/국적',
+                                        value: editableRecord.jobField,
+                                        helper: editableRecord.nationality,
+                                        tone: 'border-emerald-200 bg-emerald-50',
+                                        valueClassName: 'mt-1 text-lg font-black text-emerald-700',
+                                        helperClassName: 'mt-1 text-xs font-bold text-emerald-600',
+                                    },
+                                ]}
+                            />
+                        </SectionPanelCard>
 
-                        <button onClick={() => onViewDetails(selectedRecord)} className="w-full text-center py-2 px-4 bg-white border border-slate-300 rounded-md text-sm font-semibold text-blue-600 hover:bg-slate-50">
+                        <ActionButton onClick={() => onViewDetails(selectedRecord)} variant="indigo" fullWidth className="justify-center rounded-md px-4 py-2 text-sm font-semibold">
                             상세 보기
-                        </button>
+                        </ActionButton>
                         
                         {/* Editable sections */}
                         <div className="space-y-4">
-                            <div>
-                                <h4 className="font-semibold text-slate-700 mb-2">기본 정보 (수정 가능)</h4>
-                                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 text-sm bg-white p-4 rounded-lg border border-slate-200">
+                            <SectionPanelCard
+                                variant="whiteSoft"
+                                eyebrow="기본 정보"
+                                title="기본 정보 (수정 가능)"
+                                description="이름, 공종, 국적, 팀장, 역할과 특수 임무를 함께 조정합니다."
+                                className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm"
+                                titleClassName="mt-1 text-sm font-semibold text-slate-700"
+                                descriptionClassName="mt-1 text-[11px] font-medium text-slate-500"
+                                bodyClassName="mt-4"
+                            >
+                                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 text-sm">
                                     <div className="sm:col-span-4">
                                         <span className="block font-medium text-slate-500 text-xs mb-1">이름</span>
                                         <input type="text" value={editableRecord.name} onChange={e => handleFieldChange('name', e.target.value)} className="w-full border-b border-slate-300 focus:outline-none focus:border-blue-500 bg-transparent text-slate-800 font-semibold py-1" />
@@ -205,10 +303,18 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                             <div>
-                                <h4 className="font-semibold text-slate-700 mb-2">AI 분석 결과 (수정 가능)</h4>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm bg-white p-4 rounded-lg border border-slate-200">
+                            </SectionPanelCard>
+                            <SectionPanelCard
+                                variant="whiteSoft"
+                                eyebrow="AI 분석 결과"
+                                title="AI 분석 결과 (수정 가능)"
+                                description="안전 점수와 안전 수준을 조정합니다."
+                                className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm"
+                                titleClassName="mt-1 text-sm font-semibold text-slate-700"
+                                descriptionClassName="mt-1 text-[11px] font-medium text-slate-500"
+                                bodyClassName="mt-4"
+                            >
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                                     <div>
                                         <label className="font-medium text-slate-500">안전 점수</label>
                                         <input type="number" value={editableRecord.safetyScore} onChange={e => handleFieldChange('safetyScore', parseInt(e.target.value))} className="mt-1 w-full border-slate-300 rounded-md shadow-sm text-sm" />
@@ -222,21 +328,33 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                                          </select>
                                     </div>
                                 </div>
-                            </div>
-                             <div>
-                                <h4 className="font-semibold text-slate-700 mb-2">종합 인사이트</h4>
-                                 <div className="text-sm text-slate-600 bg-white p-4 rounded-lg border border-slate-200">
+                            </SectionPanelCard>
+                            <SectionPanelCard
+                                variant="whiteSoft"
+                                eyebrow="종합 인사이트"
+                                title="종합 인사이트"
+                                description="한국어 해석과 모국어 해석을 함께 확인합니다."
+                                className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm"
+                                titleClassName="mt-1 text-sm font-semibold text-slate-700"
+                                descriptionClassName="mt-1 text-[11px] font-medium text-slate-500"
+                                bodyClassName="mt-4"
+                            >
+                                 <div className="text-sm text-slate-600">
                                     <p className="mb-2">{editableRecord.aiInsights}</p>
                                     <hr className="border-slate-100 my-2"/>
                                     <p className="text-slate-500">{editableRecord.aiInsights_native}</p>
                                  </div>
-                            </div>
+                            </SectionPanelCard>
                         </div>
                     </main>
                 </div>
                 <footer className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end p-4 border-t border-slate-200 bg-slate-100 shrink-0 gap-2 sm:gap-3">
-                    <button onClick={handleSave} className="w-full sm:w-auto px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700">저장</button>
-                    <button onClick={() => { onClose(); onDeleteRecord(selectedRecord.id); }} className="w-full sm:w-auto px-5 py-2 text-sm font-semibold text-red-700 bg-red-100 rounded-lg hover:bg-red-200">이 기록 삭제</button>
+                    <ActionButton onClick={handleSave} variant="indigoSolid" fullWidth className="sm:w-auto px-5 py-2 text-sm font-semibold">
+                        저장
+                    </ActionButton>
+                    <ActionButton onClick={() => { onClose(); onDeleteRecord(selectedRecord.id); }} variant="roseSoft" fullWidth className="sm:w-auto px-5 py-2 text-sm font-semibold">
+                        이 기록 삭제
+                    </ActionButton>
                 </footer>
             </div>
         </div>

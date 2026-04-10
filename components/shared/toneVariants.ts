@@ -1,0 +1,173 @@
+export type NoticeToneVariant = 'white' | 'slate' | 'amber' | 'indigo' | 'sky' | 'emerald' | 'rose' | 'glassDark';
+
+export type EmptyStateToneVariant = 'slate' | 'white' | 'emerald';
+
+export type SectionPanelToneVariant = 'slate' | 'whiteSoft' | 'amber' | 'emerald' | 'roseGradient' | 'indigo' | 'sky' | 'indigoSoft' | 'cyanSoft' | 'fuchsiaSoft' | 'skySoft' | 'roseDarkSoft' | 'emeraldDarkSoft' | 'glassDark' | 'indigoGradientSoft';
+
+export type OperationalPreviewToneVariant = 'whiteElevated' | 'whiteCompact' | 'amberElevated' | 'interactiveSlate' | 'roseSoft' | 'slateSoft' | 'emeraldSoftCompact' | 'roseSoftCompact';
+
+export const NOTICE_CALLOUT_TONE_STYLES: Record<NoticeToneVariant, {
+    container: string;
+    eyebrow: string;
+    title: string;
+    description: string;
+    actionWrapper: string;
+}> = {
+    white: {
+        container: 'border-slate-200 bg-white text-slate-700',
+        eyebrow: 'text-slate-500',
+        title: 'text-slate-900',
+        description: 'text-slate-600',
+        actionWrapper: 'shrink-0',
+    },
+    slate: {
+        container: 'border-slate-200 bg-slate-50 text-slate-600',
+        eyebrow: 'text-slate-500',
+        title: 'text-slate-700',
+        description: 'text-slate-500',
+        actionWrapper: 'shrink-0',
+    },
+    amber: {
+        container: 'border-amber-200 bg-amber-50 text-amber-800',
+        eyebrow: 'text-amber-700',
+        title: 'text-amber-800',
+        description: 'text-amber-700',
+        actionWrapper: 'shrink-0',
+    },
+    indigo: {
+        container: 'border-indigo-200 bg-indigo-50 text-indigo-800',
+        eyebrow: 'text-indigo-700',
+        title: 'text-indigo-900',
+        description: 'text-indigo-700',
+        actionWrapper: 'shrink-0',
+    },
+    sky: {
+        container: 'border-sky-200 bg-sky-50 text-sky-800',
+        eyebrow: 'text-sky-700',
+        title: 'text-sky-900',
+        description: 'text-sky-700',
+        actionWrapper: 'shrink-0',
+    },
+    emerald: {
+        container: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+        eyebrow: 'text-emerald-700',
+        title: 'text-emerald-900',
+        description: 'text-emerald-700',
+        actionWrapper: 'shrink-0',
+    },
+    rose: {
+        container: 'border-rose-200 bg-rose-50 text-rose-700',
+        eyebrow: 'text-rose-700',
+        title: 'text-rose-700',
+        description: 'text-rose-600',
+        actionWrapper: 'shrink-0',
+    },
+    glassDark: {
+        container: 'border-white/10 bg-slate-900 text-white',
+        eyebrow: 'text-slate-300',
+        title: 'text-white',
+        description: 'text-slate-100',
+        actionWrapper: 'shrink-0',
+    },
+};
+
+export const EMPTY_STATE_TONE_STYLES: Record<EmptyStateToneVariant, {
+    container: string;
+    title: string;
+    description: string;
+}> = {
+    slate: {
+        container: 'rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-center',
+        title: 'text-xs font-bold text-slate-500',
+        description: 'mt-1 text-[11px] font-bold text-slate-400',
+    },
+    white: {
+        container: 'rounded-2xl border border-dashed border-slate-200 bg-white text-center',
+        title: 'text-xs font-bold text-slate-500',
+        description: 'mt-1 text-[11px] font-bold text-slate-400',
+    },
+    emerald: {
+        container: 'rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/60 text-center',
+        title: 'text-[11px] font-bold text-emerald-700',
+        description: 'mt-1 text-[11px] font-bold text-emerald-600',
+    },
+};
+
+export const SECTION_PANEL_TONE_STYLES: Record<SectionPanelToneVariant, {
+    container: string;
+}> = {
+    slate: {
+        container: 'rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4',
+    },
+    whiteSoft: {
+        container: 'rounded-2xl border border-white bg-white/80 px-4 py-3',
+    },
+    amber: {
+        container: 'rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-4',
+    },
+    emerald: {
+        container: 'rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3',
+    },
+    roseGradient: {
+        container: 'rounded-2xl border border-rose-200 bg-gradient-to-r from-rose-50 via-amber-50 to-white px-4 py-4 shadow-sm',
+    },
+    indigo: {
+        container: 'rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4',
+    },
+    sky: {
+        container: 'rounded-2xl border border-sky-200 bg-sky-50 px-4 py-4',
+    },
+    indigoSoft: {
+        container: 'rounded-2xl border border-indigo-100 bg-white/80 p-3',
+    },
+    cyanSoft: {
+        container: 'rounded-2xl border border-cyan-100 bg-white/80 p-3',
+    },
+    fuchsiaSoft: {
+        container: 'rounded-2xl border border-fuchsia-100 bg-white/80 p-3',
+    },
+    skySoft: {
+        container: 'rounded-2xl border border-sky-100 bg-white/80 p-3',
+    },
+    roseDarkSoft: {
+        container: 'rounded-2xl border border-rose-400/15 bg-black/10 p-3',
+    },
+    emeraldDarkSoft: {
+        container: 'rounded-2xl border border-emerald-400/15 bg-black/10 p-3',
+    },
+    glassDark: {
+        container: 'rounded-3xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm sm:p-5',
+    },
+    indigoGradientSoft: {
+        container: 'rounded-[24px] border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-slate-50 p-4 sm:p-5',
+    },
+};
+
+export const OPERATIONAL_PREVIEW_TONE_STYLES: Record<OperationalPreviewToneVariant, {
+    container: string;
+}> = {
+    whiteElevated: {
+        container: 'rounded-xl border border-white bg-white px-3 py-3 shadow-sm',
+    },
+    whiteCompact: {
+        container: 'rounded-xl border border-slate-200 bg-white px-3 py-2',
+    },
+    amberElevated: {
+        container: 'rounded-2xl border border-amber-200 bg-white px-4 py-4 shadow-sm',
+    },
+    interactiveSlate: {
+        container: 'rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition-colors hover:border-indigo-300 hover:bg-indigo-50',
+    },
+    roseSoft: {
+        container: 'rounded-2xl border border-rose-100 bg-rose-50/50 p-4',
+    },
+    slateSoft: {
+        container: 'rounded-xl border border-slate-200 bg-slate-50 px-3 py-3',
+    },
+    emeraldSoftCompact: {
+        container: 'rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3',
+    },
+    roseSoftCompact: {
+        container: 'rounded-xl border border-rose-200 bg-rose-50 px-3 py-3',
+    },
+};

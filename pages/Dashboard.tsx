@@ -37,6 +37,46 @@ type DashboardTeamOption = {
     avgScore: number;
 };
 
+type DashboardAudience = 'worker' | 'manager' | 'executive';
+
+type DashboardStatCardConfig = {
+    key: string;
+    title: string;
+    value: string;
+    iconType: 'users' | 'chart' | 'warning' | 'check';
+    page: Page;
+};
+
+type DashboardQuickActionConfig = {
+    key: string;
+    label: string;
+    page: Page;
+    variant: 'ghost' | 'solid';
+    icon: React.ReactNode;
+};
+
+type DashboardInsightTab = 'chart' | 'team' | 'worker';
+
+type DashboardInsightTabConfig = {
+    key: DashboardInsightTab;
+    label: string;
+};
+
+const DASHBOARD_AUDIENCE_META: Record<DashboardAudience, { label: string; description: string }> = {
+    worker: {
+        label: '근로자 관점',
+        description: '의미와 다음 행동 중심으로 읽습니다.',
+    },
+    manager: {
+        label: '관리자 관점',
+        description: '근거와 우선순위 중심으로 읽습니다.',
+    },
+    executive: {
+        label: '경영진 관점',
+        description: '추세와 리스크 중심으로 읽습니다.',
+    },
+};
+
 // 관리 직군 여부 확인 함수
 const isManagementRole = (field: string) => 
     /관리|팀장|부장|과장|기사|공무|소장/.test(field);
@@ -156,11 +196,31 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
     const [selectedTarget, setSelectedTarget] = useState<SelectedTarget | null>(null);
     const [selectedTradeForComparison, setSelectedTradeForComparison] = useState<string | null>(null);
-    const [mobileInsightTab, setMobileInsightTab] = useState<'chart' | 'team' | 'worker'>('chart');
+    const [mobileInsightTab, setMobileInsightTab] = useState<DashboardInsightTab>('chart');
     const [teamComparisonSort, setTeamComparisonSort] = useState<'score-asc' | 'score-desc' | 'risk-desc' | 'workers-desc'>('score-asc');
     const [detailViewMode, setDetailViewMode] = useState<'integrated' | 'nationality'>('integrated');
     const [teamViewFilter, setTeamViewFilter] = useState<'all' | 'top3' | 'risk-only'>('all');
     const [selectedTeamsForComparison, setSelectedTeamsForComparison] = useState<string[]>([]);
+    const [audienceView, setAudienceView] = useState<DashboardAudience>('manager');
+
+    useEffect(() => {
+        try {
+            const savedAudience = window.localStorage.getItem('psi_dashboard_audience');
+            if (savedAudience === 'worker' || savedAudience === 'manager' || savedAudience === 'executive') {
+                setAudienceView(savedAudience);
+            }
+        } catch {
+            setAudienceView('manager');
+        }
+    }, []);
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem('psi_dashboard_audience', audienceView);
+        } catch {
+            // ignore localStorage write failures
+        }
+    }, [audienceView]);
 
     const resetComparisonState = () => {
         setSelectedTeam('ALL');
@@ -172,7 +232,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         setSelectedTeamsForComparison([]);
     };
 
-    const openTradeIntegratedAnalysis = (trade: string, nextTab: 'chart' | 'team' | 'worker' = 'team') => {
+    const openTradeIntegratedAnalysis = (trade: string, nextTab: DashboardInsightTab = 'team') => {
         setSelectedTarget({ trade, nationality: ALL_NATIONALITY_LABEL });
         setSelectedTradeForComparison(trade);
         setMobileInsightTab(nextTab);
@@ -376,63 +436,499 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const unassignedCount = dashboardData.unassignedRecordCount;
     const isUnassignedWarning = unassignedCount > 0;
 
-    const dashboardSummaryCards: InterpretationCardItem[] = useMemo(() => [
-        {
-            key: 'dashboard-status',
-            eyebrow: '지금 상태',
-            title: `${stats.totalWorkers}명의 실무 근로자 흐름을 보고 있습니다.`,
-            description: selectedTeamOption
-                ? `${selectedTeamOption.label} 기준으로 대상을 좁혀 팀별 신호를 읽고 있습니다.`
-                : '전체 현장 기준으로 실무 근로자 안전 흐름을 한 화면에서 확인하고 있습니다.',
-            tone: 'border-indigo-200 bg-indigo-50/70',
-        },
-        {
-            key: 'dashboard-evidence',
-            eyebrow: '판단 근거',
-            title: `평균 ${stats.averageScore.toFixed(1)}점 · 고위험 ${stats.highRiskWorkers}명 · 점검 ${stats.totalChecks}건`,
-            description: '평균 점수, 고위험 인원, 점검 건수, 공종·국적·팀 비교가 함께 있어 어느 구간에서 보완이 필요한지 빠르게 읽을 수 있습니다.',
-            tone: 'border-white/80 bg-white',
-        },
-        {
-            key: 'dashboard-action',
-            eyebrow: '다음 행동',
-            title: stats.highRiskWorkers > 0 ? '고위험 인원부터 분석·코칭 흐름으로 연결하세요.' : '현재 안정 흐름을 유지하며 취약 공종만 선별 확인하세요.',
-            description: stats.highRiskWorkers > 0
-                ? '예측 분석, OCR 분석, 리포트 생성으로 바로 연결해 현장 보호 조치를 끊기지 않게 이어갈 수 있습니다.'
-                : '공종·국적 교차 분석과 팀 비교를 통해 작은 이상 신호를 먼저 찾아 선제 보완할 수 있습니다.',
-            tone: stats.highRiskWorkers > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
-        },
-    ], [selectedTeamOption, stats.averageScore, stats.highRiskWorkers, stats.totalChecks, stats.totalWorkers]);
+    const dashboardSummaryCards: InterpretationCardItem[] = useMemo(() => {
+        const teamDescription = selectedTeamOption
+            ? `${selectedTeamOption.label} 기준으로 대상을 좁혀 팀별 신호를 읽고 있습니다.`
+            : '전체 현장 기준으로 실무 근로자 안전 흐름을 한 화면에서 확인하고 있습니다.';
 
-    const comparisonCards: InterpretationCardItem[] = useMemo(() => [
-        {
-            key: 'comparison-status',
-            eyebrow: '지금 상태',
-            title: selectedTradeForComparison ? `${selectedTradeForComparison} 공종 비교를 보고 있습니다.` : '공종 또는 팀 비교 전 단계입니다.',
-            description: selectedTradeForComparison
-                ? `${selectedTradeTeamComparison.length}개 팀을 같은 공종 기준으로 비교하며${selectedTeamsForComparison.length > 0 ? `, 현재 ${selectedTeamsForComparison.length}개 팀을 직접 선택해 좁혀 보고 있습니다.` : ' 전체 팀 흐름을 먼저 보고 있습니다.'}`
-                : '취약 공종 바로가기나 팀 비교 바로가기에서 대상을 고르면 상세 해석이 활성화됩니다.',
-            tone: selectedTradeForComparison ? 'border-indigo-200 bg-indigo-50/70' : 'border-slate-200 bg-slate-50',
-        },
-        {
-            key: 'comparison-evidence',
-            eyebrow: '판단 근거',
-            title: '공종, 국적, 팀장 기준 분리가 비교의 기준입니다.',
-            description: hasNationalityDetail && selectedTarget
-                ? `${selectedTarget.trade} · ${selectedTarget.nationality} 세부 기준이 열려 있어 통합 흐름과 세부 흐름을 번갈아 읽을 수 있습니다.`
-                : '팀 비교는 전체 국적 통합 기준으로 유지되어, 동일 공종 내 팀 편차를 안정적으로 읽을 수 있습니다.',
-            tone: 'border-white/80 bg-white',
-        },
-        {
-            key: 'comparison-action',
-            eyebrow: '다음 행동',
-            title: weakestTeam ? `${weakestTeam.team} 등 취약 팀부터 보완 우선순위를 잡으세요.` : '먼저 취약 공종 또는 팀을 선택하세요.',
-            description: weakestTeam
-                ? `가장 취약한 팀의 평균 ${weakestTeam.avgScore.toFixed(1)}점과 고위험 ${weakestTeam.riskCount}명을 기준으로 코칭·점검·보고 흐름을 연결할 수 있습니다.`
-                : '차트에서 작업조를 고르면 레이더와 개인별 트렌드가 이어져 다음 보호 행동을 구체화할 수 있습니다.',
-            tone: weakestTeam ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
-        },
-    ], [hasNationalityDetail, selectedTarget, selectedTeamsForComparison.length, selectedTradeForComparison, selectedTradeTeamComparison.length, weakestTeam]);
+        if (audienceView === 'worker') {
+            return [
+                {
+                    key: 'dashboard-status',
+                    eyebrow: '지금 내 현장',
+                    title: `${stats.totalWorkers}명의 실무 근로자 흐름을 보고 있습니다.`,
+                    description: teamDescription,
+                    tone: 'border-indigo-200 bg-indigo-50/70',
+                },
+                {
+                    key: 'dashboard-evidence',
+                    eyebrow: '무엇을 보면 되나',
+                    title: `평균 ${stats.averageScore.toFixed(1)}점 · 보호 필요 ${stats.highRiskWorkers}명`,
+                    description: '점수와 위험 인원은 누가 추가 확인이 필요한지 알려주는 신호입니다. 공종·팀 비교까지 함께 보면 내 작업조의 위치를 더 쉽게 이해할 수 있습니다.',
+                    tone: 'border-white/80 bg-white',
+                },
+                {
+                    key: 'dashboard-action',
+                    eyebrow: '다음 행동',
+                    title: stats.highRiskWorkers > 0 ? '보호가 필요한 구간부터 코칭과 재확인을 시작하세요.' : '현재 안정 흐름을 유지하며 작은 이상 신호만 먼저 확인하세요.',
+                    description: stats.highRiskWorkers > 0
+                        ? 'OCR 분석과 예측 분석으로 연결하면 어떤 항목을 먼저 보완해야 하는지 바로 이어서 볼 수 있습니다.'
+                        : '공종·국적 교차 분석으로 유사 작업군의 신호를 가볍게 확인해 선제 보완을 준비할 수 있습니다.',
+                    tone: stats.highRiskWorkers > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+                },
+            ];
+        }
+
+        if (audienceView === 'executive') {
+            return [
+                {
+                    key: 'dashboard-status',
+                    eyebrow: '리스크 현황',
+                    title: `${stats.totalWorkers}명 기준 현장 안전 흐름을 추적 중입니다.`,
+                    description: selectedTeamOption
+                        ? `${selectedTeamOption.label} 팀 구간을 별도로 좁혀 리스크 편차를 보고 있습니다.`
+                        : '전체 현장 관점에서 실무 인력의 리스크 흐름을 집계하고 있습니다.',
+                    tone: 'border-indigo-200 bg-indigo-50/70',
+                },
+                {
+                    key: 'dashboard-evidence',
+                    eyebrow: '핵심 지표',
+                    title: `평균 ${stats.averageScore.toFixed(1)}점 · 고위험 ${stats.highRiskWorkers}명 · 점검 ${stats.totalChecks}건`,
+                    description: '평균 점수, 고위험 인원, 점검 건수는 현재 현장의 리스크 수준과 이행 상태를 보여주는 운영 지표입니다.',
+                    tone: 'border-white/80 bg-white',
+                },
+                {
+                    key: 'dashboard-action',
+                    eyebrow: '의사결정 포인트',
+                    title: stats.highRiskWorkers > 0 ? '취약 공종과 고위험 인원 중심으로 보호 자원 배분을 검토하세요.' : '안정 구간을 유지하면서 취약 팀만 선별 관리하세요.',
+                    description: stats.highRiskWorkers > 0
+                        ? '팀 비교와 공종 비교를 함께 보면 어느 구간에 교육·점검 자원을 먼저 투입해야 하는지 빠르게 정리할 수 있습니다.'
+                        : '안정 흐름일수록 팀 편차와 식별 불가 데이터를 함께 봐야 잠재 리스크를 놓치지 않습니다.',
+                    tone: stats.highRiskWorkers > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+                },
+            ];
+        }
+
+        return [
+            {
+                key: 'dashboard-status',
+                eyebrow: '지금 상태',
+                title: `${stats.totalWorkers}명의 실무 근로자 흐름을 보고 있습니다.`,
+                description: teamDescription,
+                tone: 'border-indigo-200 bg-indigo-50/70',
+            },
+            {
+                key: 'dashboard-evidence',
+                eyebrow: '판단 근거',
+                title: `평균 ${stats.averageScore.toFixed(1)}점 · 고위험 ${stats.highRiskWorkers}명 · 점검 ${stats.totalChecks}건`,
+                description: '평균 점수, 고위험 인원, 점검 건수, 공종·국적·팀 비교가 함께 있어 어느 구간에서 보완이 필요한지 빠르게 읽을 수 있습니다.',
+                tone: 'border-white/80 bg-white',
+            },
+            {
+                key: 'dashboard-action',
+                eyebrow: '다음 행동',
+                title: stats.highRiskWorkers > 0 ? '고위험 인원부터 분석·코칭 흐름으로 연결하세요.' : '현재 안정 흐름을 유지하며 취약 공종만 선별 확인하세요.',
+                description: stats.highRiskWorkers > 0
+                    ? '예측 분석, OCR 분석, 리포트 생성으로 바로 연결해 현장 보호 조치를 끊기지 않게 이어갈 수 있습니다.'
+                    : '공종·국적 교차 분석과 팀 비교를 통해 작은 이상 신호를 먼저 찾아 선제 보완할 수 있습니다.',
+                tone: stats.highRiskWorkers > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+            },
+        ];
+    }, [audienceView, selectedTeamOption, stats.averageScore, stats.highRiskWorkers, stats.totalChecks, stats.totalWorkers]);
+
+    const audienceInsightMessage = useMemo(() => {
+        if (audienceView === 'worker') {
+            return stats.highRiskWorkers > 0
+                ? `현재 ${stats.highRiskWorkers}명의 보호 우선 대상이 보입니다. 누구를 먼저 코칭하고 다시 확인할지 순서를 잡아주세요.`
+                : '전반적으로 안정 흐름입니다. 지금 상태를 유지하면서 작은 이상 신호만 먼저 확인하면 됩니다.';
+        }
+        if (audienceView === 'executive') {
+            return stats.highRiskWorkers > 0
+                ? `현재 ${stats.highRiskWorkers}명의 고위험 인원이 감지되었습니다. 취약 공종과 팀 편차를 함께 보며 보호 자원 배분이 필요합니다.`
+                : '전반적으로 안정 흐름입니다. 취약 팀과 식별 불가 데이터만 선별 관리하면 현재 수준을 유지할 수 있습니다.';
+        }
+        return stats.highRiskWorkers > 0
+            ? `현재 ${stats.highRiskWorkers}명의 고위험 근로자가 감지되었습니다. 즉시 교육 및 점검이 필요합니다.`
+            : '모든 근로자가 안전 기준을 충족하고 있습니다. 현재 상태를 유지하세요.';
+    }, [audienceView, stats.highRiskWorkers]);
+
+    const overviewStatCards = useMemo<DashboardStatCardConfig[]>(() => {
+        if (audienceView === 'worker') {
+            return [
+                {
+                    key: 'risk-priority',
+                    title: '보호 필요 인원',
+                    value: `${stats.highRiskWorkers}명`,
+                    iconType: 'warning',
+                    page: 'predictive-analysis',
+                },
+                {
+                    key: 'avg-score',
+                    title: '실무 평균 안전 점수',
+                    value: `${stats.averageScore.toFixed(1)}점`,
+                    iconType: 'chart',
+                    page: 'performance-analysis',
+                },
+                {
+                    key: 'workers',
+                    title: '현장 실무 근로자',
+                    value: `${stats.totalWorkers}명`,
+                    iconType: 'users',
+                    page: 'worker-management',
+                },
+                {
+                    key: 'checks',
+                    title: '안전 이행 점검',
+                    value: `${stats.totalChecks}건`,
+                    iconType: 'check',
+                    page: 'safety-checks',
+                },
+            ];
+        }
+
+        if (audienceView === 'executive') {
+            return [
+                {
+                    key: 'risk-priority',
+                    title: '고위험 근로자',
+                    value: `${stats.highRiskWorkers}명`,
+                    iconType: 'warning',
+                    page: 'predictive-analysis',
+                },
+                {
+                    key: 'checks',
+                    title: '안전 이행 점검',
+                    value: `${stats.totalChecks}건`,
+                    iconType: 'check',
+                    page: 'safety-checks',
+                },
+                {
+                    key: 'avg-score',
+                    title: '실무 평균 안전 점수',
+                    value: `${stats.averageScore.toFixed(1)}점`,
+                    iconType: 'chart',
+                    page: 'performance-analysis',
+                },
+                {
+                    key: 'workers',
+                    title: '현장 실무 근로자',
+                    value: `${stats.totalWorkers}명`,
+                    iconType: 'users',
+                    page: 'worker-management',
+                },
+            ];
+        }
+
+        return [
+            {
+                key: 'workers',
+                title: '현장 실무 근로자',
+                value: `${stats.totalWorkers}명`,
+                iconType: 'users',
+                page: 'worker-management',
+            },
+            {
+                key: 'avg-score',
+                title: '실무 평균 안전 점수',
+                value: `${stats.averageScore.toFixed(1)}점`,
+                iconType: 'chart',
+                page: 'performance-analysis',
+            },
+            {
+                key: 'risk-priority',
+                title: '고위험 근로자',
+                value: `${stats.highRiskWorkers}명`,
+                iconType: 'warning',
+                page: 'predictive-analysis',
+            },
+            {
+                key: 'checks',
+                title: '안전 이행 점검',
+                value: `${stats.totalChecks}건`,
+                iconType: 'check',
+                page: 'safety-checks',
+            },
+        ];
+    }, [audienceView, stats.averageScore, stats.highRiskWorkers, stats.totalChecks, stats.totalWorkers]);
+
+    const quickActions = useMemo<DashboardQuickActionConfig[]>(() => {
+        if (audienceView === 'worker') {
+            return [
+                {
+                    key: 'predictive',
+                    label: '보호 우선순위 보기',
+                    page: 'predictive-analysis',
+                    variant: 'ghost',
+                    icon: <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" /></svg>,
+                },
+                {
+                    key: 'worker-management',
+                    label: '작업조 흐름 확인',
+                    page: 'worker-management',
+                    variant: 'solid',
+                    icon: <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+                },
+            ];
+        }
+
+        if (audienceView === 'executive') {
+            return [
+                {
+                    key: 'performance',
+                    label: '추세 분석 보기',
+                    page: 'performance-analysis',
+                    variant: 'ghost',
+                    icon: <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
+                },
+                {
+                    key: 'reports',
+                    label: '리포트 생성',
+                    page: 'reports',
+                    variant: 'solid',
+                    icon: <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+                },
+            ];
+        }
+
+        return [
+            {
+                key: 'ocr-analysis',
+                label: '신규 분석',
+                page: 'ocr-analysis',
+                variant: 'ghost',
+                icon: <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>,
+            },
+            {
+                key: 'reports',
+                label: '리포트 생성',
+                page: 'reports',
+                variant: 'solid',
+                icon: <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+            },
+        ];
+    }, [audienceView]);
+
+    const comparisonCards: InterpretationCardItem[] = useMemo(() => {
+        const sharedStatusDescription = selectedTradeForComparison
+            ? `${selectedTradeTeamComparison.length}개 팀을 같은 공종 기준으로 비교하며${selectedTeamsForComparison.length > 0 ? `, 현재 ${selectedTeamsForComparison.length}개 팀을 직접 선택해 좁혀 보고 있습니다.` : ' 전체 팀 흐름을 먼저 보고 있습니다.'}`
+            : '취약 공종 바로가기나 팀 비교 바로가기에서 대상을 고르면 상세 해석이 활성화됩니다.';
+
+        if (audienceView === 'worker') {
+            return [
+                {
+                    key: 'comparison-status',
+                    eyebrow: '지금 비교 중',
+                    title: selectedTradeForComparison ? `${selectedTradeForComparison} 유사 작업조 흐름을 보고 있습니다.` : '유사 작업조 비교 전 단계입니다.',
+                    description: sharedStatusDescription,
+                    tone: selectedTradeForComparison ? 'border-indigo-200 bg-indigo-50/70' : 'border-slate-200 bg-slate-50',
+                },
+                {
+                    key: 'comparison-evidence',
+                    eyebrow: '무엇을 보면 되나',
+                    title: '공종과 팀장 기준이 유사 작업 흐름 비교의 기준입니다.',
+                    description: hasNationalityDetail && selectedTarget
+                        ? `${selectedTarget.trade} · ${selectedTarget.nationality} 세부 기준이 열려 있어 같은 작업군 안의 세부 차이도 함께 볼 수 있습니다.`
+                        : '팀 비교는 전체 국적 통합 기준으로 유지되어, 같은 공종 안에서 어느 작업조가 더 보호가 필요한지 빠르게 읽을 수 있습니다.',
+                    tone: 'border-white/80 bg-white',
+                },
+                {
+                    key: 'comparison-action',
+                    eyebrow: '다음 행동',
+                    title: weakestTeam ? `${weakestTeam.team} 등 보호가 더 필요한 팀부터 확인하세요.` : '먼저 취약 공종 또는 팀을 선택하세요.',
+                    description: weakestTeam
+                        ? `평균 ${weakestTeam.avgScore.toFixed(1)}점과 고위험 ${weakestTeam.riskCount}명을 기준으로 어떤 작업조에 코칭이 먼저 필요한지 이어서 확인할 수 있습니다.`
+                        : '차트에서 작업조를 고르면 레이더와 개인 추이로 바로 이어져 보완 순서를 구체화할 수 있습니다.',
+                    tone: weakestTeam ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+                },
+            ];
+        }
+
+        if (audienceView === 'executive') {
+            return [
+                {
+                    key: 'comparison-status',
+                    eyebrow: '비교 현황',
+                    title: selectedTradeForComparison ? `${selectedTradeForComparison} 공종 리스크 편차를 보고 있습니다.` : '공종 또는 팀 비교 전 단계입니다.',
+                    description: sharedStatusDescription,
+                    tone: selectedTradeForComparison ? 'border-indigo-200 bg-indigo-50/70' : 'border-slate-200 bg-slate-50',
+                },
+                {
+                    key: 'comparison-evidence',
+                    eyebrow: '경영 근거',
+                    title: '공종, 국적, 팀장 기준 분리가 리스크 분배 판단의 기준입니다.',
+                    description: hasNationalityDetail && selectedTarget
+                        ? `${selectedTarget.trade} · ${selectedTarget.nationality} 세부 기준이 열려 있어 통합 흐름과 세부 리스크를 번갈아 읽을 수 있습니다.`
+                        : '팀 비교는 전체 국적 통합 기준으로 유지되어, 동일 공종 내 팀 편차를 안정적으로 읽을 수 있습니다.',
+                    tone: 'border-white/80 bg-white',
+                },
+                {
+                    key: 'comparison-action',
+                    eyebrow: '의사결정 포인트',
+                    title: weakestTeam ? `${weakestTeam.team} 등 취약 팀부터 자원 배분 우선순위를 잡으세요.` : '먼저 취약 공종 또는 팀을 선택하세요.',
+                    description: weakestTeam
+                        ? `가장 취약한 팀의 평균 ${weakestTeam.avgScore.toFixed(1)}점과 고위험 ${weakestTeam.riskCount}명을 기준으로 교육·점검·보고 자원 배분 순서를 정할 수 있습니다.`
+                        : '차트에서 작업조를 고르면 레이더와 개인별 트렌드가 이어져 다음 보호 행동을 구체화할 수 있습니다.',
+                    tone: weakestTeam ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+                },
+            ];
+        }
+
+        return [
+            {
+                key: 'comparison-status',
+                eyebrow: '지금 상태',
+                title: selectedTradeForComparison ? `${selectedTradeForComparison} 공종 비교를 보고 있습니다.` : '공종 또는 팀 비교 전 단계입니다.',
+                description: sharedStatusDescription,
+                tone: selectedTradeForComparison ? 'border-indigo-200 bg-indigo-50/70' : 'border-slate-200 bg-slate-50',
+            },
+            {
+                key: 'comparison-evidence',
+                eyebrow: '판단 근거',
+                title: '공종, 국적, 팀장 기준 분리가 비교의 기준입니다.',
+                description: hasNationalityDetail && selectedTarget
+                    ? `${selectedTarget.trade} · ${selectedTarget.nationality} 세부 기준이 열려 있어 통합 흐름과 세부 흐름을 번갈아 읽을 수 있습니다.`
+                    : '팀 비교는 전체 국적 통합 기준으로 유지되어, 동일 공종 내 팀 편차를 안정적으로 읽을 수 있습니다.',
+                tone: 'border-white/80 bg-white',
+            },
+            {
+                key: 'comparison-action',
+                eyebrow: '다음 행동',
+                title: weakestTeam ? `${weakestTeam.team} 등 취약 팀부터 보완 우선순위를 잡으세요.` : '먼저 취약 공종 또는 팀을 선택하세요.',
+                description: weakestTeam
+                    ? `가장 취약한 팀의 평균 ${weakestTeam.avgScore.toFixed(1)}점과 고위험 ${weakestTeam.riskCount}명을 기준으로 코칭·점검·보고 흐름을 연결할 수 있습니다.`
+                    : '차트에서 작업조를 고르면 레이더와 개인별 트렌드가 이어져 다음 보호 행동을 구체화할 수 있습니다.',
+                tone: weakestTeam ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+            },
+        ];
+    }, [audienceView, hasNationalityDetail, selectedTarget, selectedTeamsForComparison.length, selectedTradeForComparison, selectedTradeTeamComparison.length, weakestTeam]);
+
+    const operationalFocusCards: InterpretationCardItem[] = useMemo(() => {
+        if (audienceView === 'worker') {
+            return [
+                {
+                    key: 'operational-focus-status',
+                    eyebrow: '지금 먼저 볼 곳',
+                    title: '행동 센터와 개인 추이를 먼저 보면 보호 순서를 빠르게 잡을 수 있습니다.',
+                    description: '아래 패널은 위험 신호가 큰 작업군, 자주 반복되는 취약 분야, 최근 점검 흐름을 연결해서 보여줍니다.',
+                    tone: 'border-indigo-200 bg-indigo-50/70',
+                },
+                {
+                    key: 'operational-focus-evidence',
+                    eyebrow: '판단 기준',
+                    title: '취약 분야와 점검 흐름은 지금 무엇을 보완해야 하는지 알려주는 근거입니다.',
+                    description: '특정 공종의 국적 분포와 최근 2주 점검 흐름을 함께 보면 같은 작업군 안의 반복 신호를 더 쉽게 읽을 수 있습니다.',
+                    tone: 'border-white/80 bg-white',
+                },
+            ];
+        }
+
+        if (audienceView === 'executive') {
+            return [
+                {
+                    key: 'operational-focus-status',
+                    eyebrow: '운영 개요',
+                    title: '분포와 취약 영역을 먼저 보면 자원 배분 우선순위를 빠르게 정리할 수 있습니다.',
+                    description: '아래 섹션은 국적 분포, 반복 취약 분야, 최근 점검 동향, 보호 우선 작업군을 한 흐름으로 묶어 보여줍니다.',
+                    tone: 'border-indigo-200 bg-indigo-50/70',
+                },
+                {
+                    key: 'operational-focus-action',
+                    eyebrow: '의사결정 포인트',
+                    title: '취약 공종과 점검 공백이 겹치는 구간부터 교육·점검 자원을 배분하세요.',
+                    description: '리스크 분포를 먼저 보고, 행동 센터에서 실제 보호 우선순위를 확인하면 보고와 실행 흐름을 분리하지 않고 이어갈 수 있습니다.',
+                    tone: 'border-amber-200 bg-amber-50/80',
+                },
+            ];
+        }
+
+        return [
+            {
+                key: 'operational-focus-status',
+                eyebrow: '운영 해석',
+                title: '행동 센터와 분포 차트를 함께 보면 지금 보호가 필요한 구간을 빠르게 읽을 수 있습니다.',
+                description: '국적 분포, 주요 취약 분야, 점검 동향, 행동 센터를 나란히 보며 현장 상태를 운영 관점으로 정리할 수 있습니다.',
+                tone: 'border-indigo-200 bg-indigo-50/70',
+            },
+            {
+                key: 'operational-focus-action',
+                eyebrow: '다음 행동',
+                title: '취약 신호가 반복되는 공종부터 코칭·점검·보고를 연결하세요.',
+                description: '행동 센터에서 우선 대상을 고르고, 아래 비교 섹션으로 내려가 같은 공종 안의 팀 편차를 이어서 확인할 수 있습니다.',
+                tone: 'border-white/80 bg-white',
+            },
+        ];
+    }, [audienceView]);
+
+    const mobileInsightTabs = useMemo<DashboardInsightTabConfig[]>(() => {
+        if (audienceView === 'worker') {
+            return [
+                { key: 'chart', label: '차트' },
+                { key: 'worker', label: '개인추이' },
+                { key: 'team', label: '팀비교' },
+            ];
+        }
+
+        if (audienceView === 'executive') {
+            return [
+                { key: 'chart', label: '리스크차트' },
+                { key: 'team', label: '팀편차' },
+                { key: 'worker', label: '개인추이' },
+            ];
+        }
+
+        return [
+            { key: 'chart', label: '차트' },
+            { key: 'team', label: '팀비교' },
+            { key: 'worker', label: '개인추이' },
+        ];
+    }, [audienceView]);
+
+    const comparisonSectionMeta = useMemo(() => {
+        if (audienceView === 'worker') {
+            return {
+                title: '공종 × 작업조 보호 흐름 해석',
+                description: '작업조를 고르면 같은 공종 안에서 어디를 먼저 확인해야 하는지 순서대로 읽을 수 있습니다.',
+                tradeQuickAccessTitle: '보호 우선 공종 바로가기',
+                tradeQuickAccessDescription: '평균점수가 낮은 공종부터 선택해 같은 작업군의 보호 순서를 바로 확인할 수 있습니다.',
+                tradeQuickAccessBadge: '보호 필요 공종 우선',
+                teamQuickAccessTitle: '작업조 비교 바로가기',
+                teamQuickAccessDescription: '같은 팀장명이라도 공종이 다르면 별도 작업조로 분리합니다. 예: 김철수팀 (형틀), 김철수팀 (콘크리트비계)',
+                teamQuickAccessBadge: '공종 포함 작업조 기준',
+                teamComparisonDescription: '팀 비교는 같은 공종 안에서 어느 작업조를 먼저 코칭해야 하는지 읽기 위한 통합 기준입니다.',
+                teamSortDescription: '취약 작업조부터 우수 작업조까지 순서를 바꿔 보며 보호 우선순위를 정리할 수 있습니다.',
+                detailModeDescription: '작업조 비교는 통합 기준으로 유지하고, 필요할 때만 국적 세부 흐름으로 내려갑니다.',
+                emptyRadarTitle: '위 그래프에서 확인할 작업조를 선택하세요',
+                emptyRadarDescription: '막대는 공종·국적 기준, 작업조 비교와 공종 칩은 전체 국적 통합 기준입니다.',
+                emptyWorkerTrend: '작업조를 선택하면 개인별 추이 목록이 열려 누구를 먼저 다시 확인할지 이어서 볼 수 있습니다.',
+            };
+        }
+
+        if (audienceView === 'executive') {
+            return {
+                title: '공종 × 팀 리스크 편차 분석',
+                description: '공종별 리스크 분포와 팀 편차를 묶어 읽으며 자원 배분 우선순위를 정리합니다.',
+                tradeQuickAccessTitle: '리스크 우선 공종',
+                tradeQuickAccessDescription: '평균점수가 낮은 공종부터 열어 어느 구간의 리스크 편차가 큰지 바로 확인할 수 있습니다.',
+                tradeQuickAccessBadge: '자원 배분 우선 노출',
+                teamQuickAccessTitle: '팀 편차 바로가기',
+                teamQuickAccessDescription: '같은 팀장명이라도 공종이 다르면 별도 팀으로 분리합니다. 예: 김철수팀 (형틀), 김철수팀 (콘크리트비계)',
+                teamQuickAccessBadge: '공종 포함 팀명 기준',
+                teamComparisonDescription: '팀 비교는 항상 전체 국적 통합 기준으로 계산되어 동일 공종 내 편차를 안정적으로 읽을 수 있습니다.',
+                teamSortDescription: '정렬 기준에 따라 취약 팀부터 우수 팀까지 빠르게 비교하며 보고 우선순위를 정할 수 있습니다.',
+                detailModeDescription: '팀 비교는 통합 기준을 유지하고, 필요 시에만 국적 세부 분석으로 내려가 원인을 구분합니다.',
+                emptyRadarTitle: '위 그래프에서 리스크를 확인할 공종 또는 팀을 선택하세요',
+                emptyRadarDescription: '막대는 공종·국적 기준, 팀 비교와 공종 칩은 전체 국적 통합 기준입니다.',
+                emptyWorkerTrend: '대상을 선택하면 개인별 추이가 열려 특정 팀 안의 반복 리스크를 세부 확인할 수 있습니다.',
+            };
+        }
+
+        return {
+            title: '공종 × 국적 교차 안전 숙련도 분석',
+            description: '팀별로 보기: 아래에서 팀을 선택하면 해당 팀의 데이터만 표시됩니다.',
+            tradeQuickAccessTitle: '주요 공종 바로가기',
+            tradeQuickAccessDescription: '평균점수가 낮은 공종부터 바로 팀 비교로 진입할 수 있습니다.',
+            tradeQuickAccessBadge: '취약 공종 우선 노출',
+            teamQuickAccessTitle: '팀 비교 바로가기',
+            teamQuickAccessDescription: '같은 팀장명이라도 공종이 다르면 별도 팀으로 분리합니다. 예: 김철수팀 (형틀), 김철수팀 (콘크리트비계)',
+            teamQuickAccessBadge: '공종 포함 팀명 기준',
+            teamComparisonDescription: '팀 비교는 항상 전체 국적 통합 기준으로 계산됩니다. 팀 내부의 다양한 국적은 분리하지 않습니다.',
+            teamSortDescription: '정렬 기준에 따라 취약 팀부터 우수 팀까지 빠르게 비교할 수 있습니다.',
+            detailModeDescription: '팀 비교는 통합 기준으로 유지하고, 하단 상세만 필요 시 국적 세부 분석으로 전환합니다.',
+            emptyRadarTitle: '위 그래프에서 분석할 작업조를 클릭하세요',
+            emptyRadarDescription: '막대는 공종·국적 기준, 팀 비교와 공종 칩은 전체 국적 통합 기준입니다.',
+            emptyWorkerTrend: '작업조를 선택하면 개인별 트렌드 목록이 활성화됩니다.',
+        };
+    }, [audienceView]);
 
     const handleNavigateToUnassignedRecords = () => {
         const params = new URLSearchParams(window.location.search);
@@ -507,6 +1003,29 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         </div>
                     )}
 
+                    <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-200">역할별 보기</p>
+                            <p className="mt-1 text-xs font-medium text-slate-200">{DASHBOARD_AUDIENCE_META[audienceView].description}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {(Object.keys(DASHBOARD_AUDIENCE_META) as DashboardAudience[]).map((audience) => (
+                                <button
+                                    key={audience}
+                                    type="button"
+                                    onClick={() => setAudienceView(audience)}
+                                    className={`rounded-xl px-3 py-2 text-xs font-black transition-colors ${
+                                        audienceView === audience
+                                            ? 'bg-white text-slate-900'
+                                            : 'bg-white/10 text-slate-100 hover:bg-white/20'
+                                    }`}
+                                >
+                                    {DASHBOARD_AUDIENCE_META[audience].label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
                     {/* Main Content Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
                         {/* Real-time Safety Score */}
@@ -567,22 +1086,26 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 <div className="flex-1 min-w-0">
                                     <p className="text-[10px] sm:text-xs font-bold text-indigo-200 mb-1 uppercase tracking-wide">AI 인사이트</p>
                                     <p className="text-xs sm:text-sm text-white font-medium leading-relaxed">
-                                        {stats.highRiskWorkers > 0 
-                                            ? `현재 ${stats.highRiskWorkers}명의 고위험 근로자가 감지되었습니다. 즉시 교육 및 점검이 필요합니다.`
-                                            : '모든 근로자가 안전 기준을 충족하고 있습니다. 현재 상태를 유지하세요.'}
+                                        {audienceInsightMessage}
                                     </p>
                                 </div>
                             </div>
                         </div>
                         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full lg:w-auto">
-                            <button onClick={() => setCurrentPage('ocr-analysis')} className="px-4 sm:px-5 py-2.5 sm:py-3 bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md rounded-lg sm:rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 hover:scale-105 active:scale-95">
-                                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                                신규 분석
-                            </button>
-                            <button onClick={() => setCurrentPage('reports')} className="px-4 sm:px-5 py-2.5 sm:py-3 bg-white text-slate-900 rounded-lg sm:rounded-xl font-bold text-xs sm:text-sm shadow-lg hover:bg-slate-50 transition-all flex items-center justify-center gap-2 hover:scale-105 active:scale-95">
-                                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                리포트 생성
-                            </button>
+                            {quickActions.map((action) => (
+                                <button
+                                    key={action.key}
+                                    onClick={() => setCurrentPage(action.page)}
+                                    className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 hover:scale-105 active:scale-95 ${
+                                        action.variant === 'solid'
+                                            ? 'bg-white text-slate-900 shadow-lg hover:bg-slate-50'
+                                            : 'bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white'
+                                    }`}
+                                >
+                                    {action.icon}
+                                    {action.label}
+                                </button>
+                            ))}
                         </div>
                     </div>
                 </div>
@@ -597,79 +1120,72 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 <div className="flex items-start sm:items-center gap-2">
                     <svg className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-500 shrink-0 mt-0.5 sm:mt-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                     <p className="text-xs sm:text-sm text-indigo-700 font-bold">
-                        [데이터 안내] 2026년 기준 실무 근로자 중심 분석 모드 활성
+                        [데이터 안내] 2026년 기준 실무 근로자 중심 분석 모드 활성 · 현재 {DASHBOARD_AUDIENCE_META[audienceView].label}
                     </p>
                 </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-                <StatCard 
-                    title="현장 실무 근로자" 
-                    value={`${stats.totalWorkers}명`} 
-                    iconType="users" 
-                    onClick={() => setCurrentPage('worker-management')}
-                />
-                <StatCard 
-                    title="실무 평균 안전 점수" 
-                    value={`${stats.averageScore.toFixed(1)}점`} 
-                    iconType="chart" 
-                    onClick={() => setCurrentPage('performance-analysis')}
-                />
-                 <StatCard 
-                    title="고위험 근로자" 
-                    value={`${stats.highRiskWorkers}명`} 
-                    iconType="warning"
-                    onClick={() => setCurrentPage('predictive-analysis')}
-                />
-                <StatCard 
-                    title="안전 이행 점검" 
-                    value={`${stats.totalChecks}건`} 
-                    iconType="check"
-                    onClick={() => setCurrentPage('safety-checks')}
-                />
+                {overviewStatCards.map((card) => (
+                    <StatCard
+                        key={card.key}
+                        title={card.title}
+                        value={card.value}
+                        iconType={card.iconType}
+                        onClick={() => setCurrentPage(card.page)}
+                    />
+                ))}
             </div>
 
-            <button
-                type="button"
-                onClick={handleNavigateToUnassignedRecords}
-                className={`w-full rounded-xl sm:rounded-2xl border px-4 sm:px-5 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-left transition-colors ${
-                isUnassignedWarning
-                    ? 'bg-amber-50 border-amber-300 hover:bg-amber-100 cursor-pointer'
-                    : 'bg-slate-50 border-slate-200 hover:bg-slate-100 cursor-pointer'
-            }`}
-            >
-                <div className="flex items-start sm:items-center gap-2.5">
-                    <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                        isUnassignedWarning ? 'bg-amber-100 text-amber-600' : 'bg-slate-200 text-slate-500'
-                    }`}>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" />
-                        </svg>
+            {audienceView !== 'worker' && (
+                <button
+                    type="button"
+                    onClick={handleNavigateToUnassignedRecords}
+                    className={`w-full rounded-xl sm:rounded-2xl border px-4 sm:px-5 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-left transition-colors ${
+                    isUnassignedWarning
+                        ? 'bg-amber-50 border-amber-300 hover:bg-amber-100 cursor-pointer'
+                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100 cursor-pointer'
+                }`}
+                >
+                    <div className="flex items-start sm:items-center gap-2.5">
+                        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                            isUnassignedWarning ? 'bg-amber-100 text-amber-600' : 'bg-slate-200 text-slate-500'
+                        }`}>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <p className={`text-sm font-black ${isUnassignedWarning ? 'text-amber-800' : 'text-slate-700'}`}>
+                                식별 불가 데이터 (Unassigned Records)
+                            </p>
+                            <p className={`text-xs font-medium ${isUnassignedWarning ? 'text-amber-700' : 'text-slate-500'}`}>
+                                고유 식별자(worker_uuid/employeeId/qrId) 미매핑 레코드는 개인 이력 분석에서 제외됩니다.
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <p className={`text-sm font-black ${isUnassignedWarning ? 'text-amber-800' : 'text-slate-700'}`}>
-                            식별 불가 데이터 (Unassigned Records)
-                        </p>
-                        <p className={`text-xs font-medium ${isUnassignedWarning ? 'text-amber-700' : 'text-slate-500'}`}>
-                            고유 식별자(worker_uuid/employeeId/qrId) 미매핑 레코드는 개인 이력 분석에서 제외됩니다.
-                        </p>
+                    <div className="flex items-end gap-1 sm:gap-1.5">
+                        <span className={`text-2xl sm:text-3xl font-black ${isUnassignedWarning ? 'text-amber-700' : 'text-slate-500'}`}>
+                            {unassignedCount}
+                        </span>
+                        <span className={`text-sm font-bold pb-0.5 ${isUnassignedWarning ? 'text-amber-600' : 'text-slate-500'}`}>건</span>
                     </div>
-                </div>
-                <div className="flex items-end gap-1 sm:gap-1.5">
-                    <span className={`text-2xl sm:text-3xl font-black ${isUnassignedWarning ? 'text-amber-700' : 'text-slate-500'}`}>
-                        {unassignedCount}
-                    </span>
-                    <span className={`text-sm font-bold pb-0.5 ${isUnassignedWarning ? 'text-amber-600' : 'text-slate-500'}`}>건</span>
-                </div>
-            </button>
+                </button>
+            )}
+
+            <InterpretationCardGrid
+                items={operationalFocusCards}
+                className="grid grid-cols-1 xl:grid-cols-2 gap-3"
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
-                <div className="lg:col-span-2">
+                <div className={`lg:col-span-2 ${audienceView === 'executive' ? 'lg:order-2' : 'lg:order-1'}`}>
                     <div className="h-full rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300">
                         <SafetyActionCenter workerRecords={workerOnlyRecords} />
                     </div>
                 </div>
-                <div className="bg-white p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 flex flex-col">
+                <div className={`bg-white p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 flex flex-col ${audienceView === 'executive' ? 'lg:order-1' : 'lg:order-2'}`}>
                     <h3 className="text-base sm:text-lg font-bold mb-4 sm:mb-6 text-slate-800">국적별 근로자 현황</h3>
                     <div className="flex-1 min-h-[200px]">
                         <DeferredSection fallback={<ChartSkeleton minHeight="200px" />} rootMargin="160px">
@@ -682,7 +1198,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
-                <div className="bg-white p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100">
+                <div className={`bg-white p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 ${audienceView === 'executive' ? 'md:order-2' : 'md:order-1'}`}>
                     <div className="flex items-center justify-between mb-4 sm:mb-6">
                         <h3 className="text-base sm:text-lg font-bold text-slate-800">근로자 주요 취약 분야</h3>
                          <Tooltip text="관리 직군을 제외한 실무 근로자 데이터에서 추출된 주요 취약점입니다.">
@@ -700,7 +1216,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         </DeferredSection>
                     </div>
                 </div>
-                 <div className="bg-white p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100">
+                 <div className={`bg-white p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 ${audienceView === 'executive' ? 'md:order-1' : 'md:order-2'}`}>
                     <h3 className="text-base sm:text-lg font-bold mb-4 sm:mb-6 text-slate-800">최근 2주간 안전 점검 동향</h3>
                     <div className="h-64">
                         <DeferredSection fallback={<ChartSkeleton minHeight="16rem" />} rootMargin="160px">
@@ -727,10 +1243,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         <div className="w-1 h-6 bg-indigo-500 rounded-full" />
                         <div>
                             <h2 className="text-base sm:text-lg font-black text-slate-800">
-                                공종 × 국적 교차 안전 숙련도 분석
+                                {comparisonSectionMeta.title}
                             </h2>
                             <p className="text-xs text-slate-500 mt-0.5">
-                                팀별로 보기: 아래에서 팀을 선택하면 해당 팀의 데이터만 표시됩니다.
+                                {comparisonSectionMeta.description}
                             </p>
                         </div>
                     </div>
@@ -751,15 +1267,11 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 </div>
 
                 <div className="md:hidden flex gap-2 overflow-x-auto pb-1">
-                    {[
-                        { key: 'chart', label: '차트' },
-                        { key: 'team', label: '팀비교' },
-                        { key: 'worker', label: '개인추이' },
-                    ].map(tab => (
+                    {mobileInsightTabs.map(tab => (
                         <button
                             key={tab.key}
                             type="button"
-                            onClick={() => setMobileInsightTab(tab.key as 'chart' | 'team' | 'worker')}
+                            onClick={() => setMobileInsightTab(tab.key)}
                             className={`shrink-0 rounded-xl px-3 py-2 text-xs font-bold border transition-colors ${
                                 mobileInsightTab === tab.key
                                     ? 'bg-slate-900 text-white border-slate-900'
@@ -775,11 +1287,11 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 sm:p-4">
                         <div className="flex items-center justify-between gap-3 mb-3">
                             <div>
-                                <p className="text-xs font-black text-slate-700">주요 공종 바로가기</p>
-                                <p className="text-[11px] text-slate-500">평균점수가 낮은 공종부터 바로 팀 비교로 진입할 수 있습니다.</p>
+                                <p className="text-xs font-black text-slate-700">{comparisonSectionMeta.tradeQuickAccessTitle}</p>
+                                <p className="text-[11px] text-slate-500">{comparisonSectionMeta.tradeQuickAccessDescription}</p>
                             </div>
                             <span className="hidden sm:inline-flex px-2.5 py-1 rounded-lg bg-red-50 text-red-600 text-[11px] font-bold">
-                                취약 공종 우선 노출
+                                {comparisonSectionMeta.tradeQuickAccessBadge}
                             </span>
                         </div>
                         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -809,11 +1321,11 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 sm:p-4">
                         <div className="flex items-center justify-between gap-3 mb-3">
                             <div>
-                                <p className="text-xs font-black text-slate-700">팀 비교 바로가기</p>
-                                <p className="text-[11px] text-slate-500">같은 팀장명이라도 공종이 다르면 별도 팀으로 분리합니다. 예: 김철수팀 (형틀), 김철수팀 (콘크리트비계)</p>
+                                <p className="text-xs font-black text-slate-700">{comparisonSectionMeta.teamQuickAccessTitle}</p>
+                                <p className="text-[11px] text-slate-500">{comparisonSectionMeta.teamQuickAccessDescription}</p>
                             </div>
                             <span className="hidden sm:inline-flex px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-600 text-[11px] font-bold">
-                                공종 포함 팀명 기준
+                                {comparisonSectionMeta.teamQuickAccessBadge}
                             </span>
                         </div>
                         <div className="flex gap-2 overflow-x-auto pb-1">
@@ -873,7 +1385,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     {selectedTradeForComparison} 팀 대 팀 비교
                                 </h3>
                                 <p className="text-xs text-slate-500 mt-0.5">
-                                    팀 비교는 항상 전체 국적 통합 기준으로 계산됩니다. 팀 내부의 다양한 국적은 분리하지 않습니다.
+                                    {comparisonSectionMeta.teamComparisonDescription}
                                 </p>
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
@@ -901,7 +1413,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         </div>
 
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <p className="text-[11px] text-slate-500">정렬 기준에 따라 취약 팀부터 우수 팀까지 빠르게 비교할 수 있습니다.</p>
+                            <p className="text-[11px] text-slate-500">{comparisonSectionMeta.teamSortDescription}</p>
                             <div className="flex flex-wrap gap-2">
                                 {[
                                     { key: 'score-asc', label: '취약팀순' },
@@ -997,7 +1509,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                 <div>
                                     <p className="text-xs font-black text-slate-700">상세 분석 기준</p>
-                                    <p className="text-[11px] text-slate-500 mt-1">팀 비교는 통합 기준으로 유지하고, 하단 상세만 필요 시 국적 세부 분석으로 전환합니다.</p>
+                                    <p className="text-[11px] text-slate-500 mt-1">{comparisonSectionMeta.detailModeDescription}</p>
                                 </div>
                                 <div className="flex flex-wrap gap-2">
                                     <button
@@ -1181,8 +1693,8 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             <svg className="w-8 h-8 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5" />
                             </svg>
-                            <p className="text-sm font-bold text-indigo-400">위 그래프에서 분석할 작업조를 클릭하세요</p>
-                            <p className="text-xs text-slate-400">막대는 공종·국적 기준, 팀 비교와 공종 칩은 전체 국적 통합 기준입니다.</p>
+                            <p className="text-sm font-bold text-indigo-400">{comparisonSectionMeta.emptyRadarTitle}</p>
+                            <p className="text-xs text-slate-400">{comparisonSectionMeta.emptyRadarDescription}</p>
                         </div>
                     )}
                 </div>
@@ -1199,7 +1711,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         </DeferredSection>
                     ) : (
                         <div className="bg-white rounded-2xl shadow-lg border border-dashed border-slate-200 p-6 flex items-center justify-center min-h-[100px]">
-                            <p className="text-xs text-slate-400 font-medium">작업조를 선택하면 개인별 트렌드 목록이 활성화됩니다.</p>
+                            <p className="text-xs text-slate-400 font-medium">{comparisonSectionMeta.emptyWorkerTrend}</p>
                         </div>
                     )}
                 </div>

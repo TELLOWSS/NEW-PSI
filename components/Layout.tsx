@@ -5,6 +5,7 @@ import { Footer } from './Footer';
 import type { Page } from '../types';
 import { API_MODE_CHANGED_EVENT, getIsPaidApiMode } from '../utils/apiModeUtils';
 import { BestPracticeSyncBadge } from './shared/BestPracticeSyncBadge';
+import { StatusBadge } from './shared/StatusBadge';
 import {
     BEST_PRACTICE_SYNC_STATUS_EVENT,
     getBestPracticeSyncFailureLogs,
@@ -159,22 +160,22 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                        }
                                    }}
                                >
-                                   <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-bold text-sky-700">
+                                   <StatusBadge variant="sky" className="gap-1 text-xs font-bold">
                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l7 4v5c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V7l7-4z" />
                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
                                        </svg>
                                        <span className="hidden md:inline">Pat. Pending</span>
-                                   </span>
+                                   </StatusBadge>
                                    <div className="pointer-events-none absolute left-0 top-full z-30 mt-2 max-w-[min(260px,calc(100vw-2rem))] rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-medium text-white opacity-0 shadow-lg transition-all duration-200 group-hover/patent:translate-y-0 group-hover/patent:opacity-100 group-focus-within/patent:translate-y-0 group-focus-within/patent:opacity-100 translate-y-1 sm:left-1/2 sm:w-max sm:max-w-none sm:-translate-x-1/2">
                                        특허출원 제10-2026-0039151호 (발명자: 박성훈)
                                    </div>
                                </div>
                            </div>
-                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] sm:text-xs font-black ${isPaidApiMode ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                           <StatusBadge variant={isPaidApiMode ? 'roseSoft' : 'emeraldSoft'} className="px-2 py-1 text-[10px] sm:text-xs">
                                <span className="sm:hidden">{isPaidApiMode ? '유료' : '무료'}</span>
                                <span className="hidden sm:inline">{isPaidApiMode ? '유료 API' : '무료 API'}</span>
-                           </span>
+                           </StatusBadge>
                            <BestPracticeSyncBadge state={bestPracticeSyncState} failureLogs={bestPracticeFailureLogs} />
                        </div>
                     </div>

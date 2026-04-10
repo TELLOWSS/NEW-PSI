@@ -1,15 +1,23 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { flushSync } from 'react-dom';
-import type { WorkerRecord } from '../types';
 import { ReportTemplate } from '../components/ReportTemplate';
 import { generateReportUrl } from '../utils/qrUtils';
 import { extractMessage } from '../utils/errorUtils';
 import { postAdminJson } from '../utils/adminApiClient';
 import { ensureHtml2Canvas, ensureQRCodeJs } from '../utils/externalScripts';
 import { BRAND_ACTION_LABELS, BRAND_STATUS_LABELS } from '../utils/brandLabels';
+import { ActionButton } from '../components/shared/ActionButton';
+import { ControlPanelCard } from '../components/shared/ControlPanelCard';
+import { EmptyStatePanel } from '../components/shared/EmptyStatePanel';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
+import { NoticeCallout } from '../components/shared/NoticeCallout';
+import { OperationalPreviewCard } from '../components/shared/OperationalPreviewCard';
+import { SectionPanelCard } from '../components/shared/SectionPanelCard';
+import { StatusBadge } from '../components/shared/StatusBadge';
 import { StatusEvidenceActionPanel } from '../components/shared/StatusEvidenceActionPanel';
+import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
+import { TableStateRow } from '../components/shared/TableStateRow';
 import { canvasToBlob, captureReportCanvases } from '../utils/pdfCapture';
 import { getWindowProp } from '../utils/windowUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
@@ -3646,9 +3654,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 </div>
                             ))}
                             {pagedWorkers.length === 0 && (
-                                <div className="bg-white w-[210mm] min-h-[297mm] shadow-2xl print:shadow-none flex items-center justify-center text-slate-400 font-bold">
-                                    출력할 근로자 데이터가 없습니다.
-                                </div>
+                                <EmptyStatePanel
+                                    variant="white"
+                                    className="flex min-h-[297mm] w-[210mm] items-center justify-center bg-white text-center shadow-2xl print:shadow-none"
+                                    title="출력할 근로자 데이터가 없습니다."
+                                    titleClassName="text-sm font-bold text-slate-400"
+                                />
                             )}
                         </div>
                     ) : (
@@ -3662,10 +3673,13 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     }
                                 </div>
                             ) : (
-                                <div className="text-slate-400 font-bold text-center">
-                                    <p className="text-lg mb-2">표시할 데이터가 없습니다</p>
-                                    <p className="text-xs">근로자 목록을 다시 확인해주세요</p>
-                                </div>
+                                <EmptyStatePanel
+                                    variant="slate"
+                                    title="표시할 데이터가 없습니다"
+                                    description="근로자 목록을 다시 확인해주세요"
+                                    titleClassName="mb-2 text-lg font-bold text-slate-400"
+                                    descriptionClassName="text-xs font-bold text-slate-400"
+                                />
                             )}
                             <div className="mt-20 text-slate-400 font-bold text-sm no-print animate-pulse">
                                 * 확대된 미리보기 화면입니다. 인쇄 시에는 원본 크기로 출력됩니다.
@@ -3853,16 +3867,19 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             {/* Controls */}
             <div className="bg-white p-6 rounded-[30px] shadow-xl border border-slate-100 flex flex-col gap-4 items-stretch no-print">
                 {isUnassignedFilterActive && (
-                    <div className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                        <p className="text-sm font-black text-amber-800">⚠️ 식별 불가 데이터 필터링 중</p>
-                        <button
-                            type="button"
-                            onClick={clearUnassignedFilter}
-                            className="inline-flex items-center justify-center rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-black text-amber-800 hover:bg-amber-100"
-                        >
-                            Clear Filter
-                        </button>
-                    </div>
+                    <NoticeCallout
+                        variant="amber"
+                        title="⚠️ 식별 불가 데이터 필터링 중"
+                        action={(
+                            <button
+                                type="button"
+                                onClick={clearUnassignedFilter}
+                                className="inline-flex items-center justify-center rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-black text-amber-800 hover:bg-amber-100"
+                            >
+                                Clear Filter
+                            </button>
+                        )}
+                    />
                 )}
                 <input
                     ref={bulkFileInputRef}
@@ -3893,12 +3910,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     </button>
                 </div>
 
-                <div className="w-full rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
-                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                        <div>
-                            <p className="text-sm font-black text-indigo-900">사진 등록 최적 작업 모드</p>
-                            <p className="mt-1 text-[11px] font-bold text-indigo-700">가장 효율적인 방식은 먼저 사진 미등록자만 좁혀서, 상세 보기에서 프로필 사진만 빠르게 연속 등록한 뒤 발급하는 순서다.</p>
-                        </div>
+                <SectionPanelCard
+                    variant="indigo"
+                    className="w-full"
+                    title="사진 등록 최적 작업 모드"
+                    description="가장 효율적인 방식은 먼저 사진 미등록자만 좁혀서, 상세 보기에서 프로필 사진만 빠르게 연속 등록한 뒤 발급하는 순서다."
+                    headerAction={(
                         <div className="flex flex-wrap gap-2">
                             <button
                                 type="button"
@@ -3915,8 +3932,13 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 전체 보기
                             </button>
                         </div>
-                    </div>
-                    <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
+                    )}
+                    headerClassName="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between"
+                    titleClassName="text-sm font-black text-indigo-900"
+                    descriptionClassName="mt-1 text-[11px] font-bold text-indigo-700"
+                    bodyClassName="mt-3"
+                >
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                         <div className="rounded-xl bg-white border border-indigo-100 px-3 py-3">
                             <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">STEP 1</p>
                             <p className="mt-1 text-xs font-black text-slate-900">사진 미등록자만 필터</p>
@@ -3933,12 +3955,17 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             <p className="mt-1 text-[11px] font-bold text-slate-500">얼굴 기반 본인 확인이 가능해져 현장 신뢰감이 크게 올라감</p>
                         </div>
                     </div>
-                </div>
+                </SectionPanelCard>
 
-                <div className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <p className="text-sm font-black text-slate-800">프로그램에서 근로자 직접 등록</p>
-                    <p className="mt-1 text-[11px] font-bold text-slate-500">엑셀 없이 1명씩 바로 등록할 수 있습니다. (공종: 관리 포함)</p>
-                    <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-2">
+                <SectionPanelCard
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                    title="프로그램에서 근로자 직접 등록"
+                    description="엑셀 없이 1명씩 바로 등록할 수 있습니다. (공종: 관리 포함)"
+                    titleClassName="text-sm font-black text-slate-800"
+                    descriptionClassName="mt-1 text-[11px] font-bold text-slate-500"
+                    bodyClassName="mt-3"
+                >
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
                         <input
                             type="text"
                             value={manualWorkerForm.name}
@@ -4006,7 +4033,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         {isManualRegistering ? '프로그램 등록 처리 중...' : '프로그램에서 1명 등록'}
                     </button>
                     <p className="mt-2 text-[11px] font-bold text-slate-500">동일 이름·공종·팀 기준에서 전화번호/생년월일/여권번호가 같으면 새 행을 만들지 않고 기존 등록자 유지 또는 보완 업데이트로 처리합니다.</p>
-                </div>
+                </SectionPanelCard>
 
                 {bulkUploadMessage && (
                     <div className={`w-full rounded-2xl px-4 py-3 text-sm font-bold border ${bulkUploadMessage.startsWith('✅') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
@@ -4098,30 +4125,35 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     </div>
                 </div>
                 {filteredRecords.length > 0 && filteredReliabilitySummary.trustedCount === 0 && (
-                    <div className="w-full rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
-                        <p className="text-sm font-black">현재 필터 결과에는 검증 통과 데이터가 없습니다.</p>
-                        <p className="text-xs font-bold mt-1">지금 인쇄하면 예외 출력 모드로 진행됩니다. 가능하면 OCR 재분석 후 출력하세요.</p>
-                    </div>
+                    <NoticeCallout
+                        variant="amber"
+                        title="현재 필터 결과에는 검증 통과 데이터가 없습니다."
+                        description="지금 인쇄하면 예외 출력 모드로 진행됩니다. 가능하면 OCR 재분석 후 출력하세요."
+                        bodyClassName="block"
+                    />
                 )}
                 {filteredPhotoSummary.missingCount > 0 && (
-                    <div className="w-full rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-indigo-800">
-                        <p className="text-sm font-black">가장 좋은 방식은 스티커와 사원증 모두 근로자 사진을 같이 넣는 것입니다.</p>
-                        <p className="text-xs font-bold mt-1">현재 필터 기준으로 {filteredPhotoSummary.missingCount}명은 증명사진이 없어 기본 아이콘으로 출력됩니다. 카드 클릭 → 상세 보기 → 상단 `증명사진(프로필) 등록`에서 업로드 후 저장하면 가장 빠르게 정리됩니다.</p>
-                    </div>
+                    <NoticeCallout
+                        variant="indigo"
+                        title="가장 좋은 방식은 스티커와 사원증 모두 근로자 사진을 같이 넣는 것입니다."
+                        description={`현재 필터 기준으로 ${filteredPhotoSummary.missingCount}명은 증명사진이 없어 기본 아이콘으로 출력됩니다. 카드 클릭 → 상세 보기 → 상단 증명사진(프로필) 등록에서 업로드 후 저장하면 가장 빠르게 정리됩니다.`}
+                        bodyClassName="block"
+                    />
                 )}
                 {filteredPhotoSummary.linkedCount > 0 && (
-                    <div className="w-full rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sky-800">
-                        <p className="text-sm font-black">공통 프로필 연계 사진이 자동 유지되고 있습니다.</p>
-                        <p className="text-xs font-bold mt-1">현재 필터 기준 {filteredPhotoSummary.linkedCount}명은 같은 근로자의 월별 기록끼리 사진과 식별자가 자동 연계되는 상태입니다. 이후 신규 월 기록도 같은 기준으로 이어집니다.</p>
-                    </div>
+                    <NoticeCallout
+                        variant="sky"
+                        title="공통 프로필 연계 사진이 자동 유지되고 있습니다."
+                        description={`현재 필터 기준 ${filteredPhotoSummary.linkedCount}명은 같은 근로자의 월별 기록끼리 사진과 식별자가 자동 연계되는 상태입니다. 이후 신규 월 기록도 같은 기준으로 이어집니다.`}
+                        bodyClassName="block"
+                    />
                 )}
                 {missingPhotoQueue.length > 0 && (
-                    <div className="w-full rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm">
-                        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                            <div>
-                                <p className="text-sm font-black text-slate-900">사진 미등록자 빠른 등록 큐</p>
-                                <p className="mt-1 text-[11px] font-bold text-slate-500">실제 등록자는 아래 순서대로 열어서 사진만 연속 업로드하면 된다. 현재 화면 기준 상위 {missingPhotoQueue.length}명만 우선 노출된다.</p>
-                            </div>
+                    <SectionPanelCard
+                        className="w-full rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-sm"
+                        title="사진 미등록자 빠른 등록 큐"
+                        description={`실제 등록자는 아래 순서대로 열어서 사진만 연속 업로드하면 된다. 현재 화면 기준 상위 ${missingPhotoQueue.length}명만 우선 노출된다.`}
+                        headerAction={(
                             <div className="flex flex-wrap gap-2">
                                 <button
                                     type="button"
@@ -4138,35 +4170,39 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     첫 대상 바로 열기
                                 </button>
                             </div>
-                        </div>
-                        <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        )}
+                        headerClassName="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between"
+                        titleClassName="text-sm font-black text-slate-900"
+                        descriptionClassName="mt-1 text-[11px] font-bold text-slate-500"
+                        bodyClassName="mt-4"
+                    >
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                             {missingPhotoQueue.map((worker, index) => (
                                 <button
                                     key={worker.id}
                                     type="button"
                                     onClick={() => openPhotoRegistration(worker)}
-                                    className="w-full text-left rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+                                    className="w-full text-left"
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-2xl bg-slate-200 text-slate-500 flex items-center justify-center font-black shrink-0">
-                                            {index + 1}
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                                <p className="text-sm font-black text-slate-900 truncate">{worker.name}</p>
-                                                <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[10px] font-black border border-amber-200">📷 사진 필요</span>
-                                            </div>
-                                            <p className="mt-1 text-[11px] font-bold text-slate-500 truncate">{worker.jobField} · {worker.teamLeader || '미지정'} · {worker.nationality || '국적 미상'}</p>
-                                        </div>
-                                        <div className="shrink-0 text-[11px] font-black text-indigo-600">상세 열기</div>
-                                    </div>
+                                    <OperationalPreviewCard
+                                        variant="interactiveSlate"
+                                        leading={<div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-200 font-black text-slate-500">{index + 1}</div>}
+                                        title={worker.name}
+                                        subtitle={`${worker.jobField} · ${worker.teamLeader || '미지정'} · ${worker.nationality || '국적 미상'}`}
+                                        badge={<StatusBadge variant="amberSoft">📷 사진 필요</StatusBadge>}
+                                        footer="상세 열기"
+                                        contentClassName="min-w-0"
+                                        titleClassName="truncate text-sm font-black text-slate-900"
+                                        subtitleClassName="mt-1 text-[11px] font-bold text-slate-500 truncate"
+                                        footerClassName="mt-2 text-[11px] font-black text-indigo-600"
+                                    />
                                 </button>
                             ))}
                         </div>
                         {filteredPhotoSummary.missingCount > missingPhotoQueue.length && (
                             <p className="mt-3 text-[11px] font-bold text-slate-500">나머지 {filteredPhotoSummary.missingCount - missingPhotoQueue.length}명도 아래 목록에서 같은 방식으로 계속 등록하면 된다.</p>
                         )}
-                    </div>
+                    </SectionPanelCard>
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 w-full">
                     <button
@@ -4336,20 +4372,36 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         </button>
                     </div>
                 </div>
-                <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                        <p className="text-[10px] font-black text-slate-500">현재 표시 등록자</p>
-                        <p className="mt-1 text-lg font-black text-slate-900">{registeredWorkers.length}명</p>
-                    </div>
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
-                        <p className="text-[10px] font-black text-amber-600">완전 동일 중복</p>
-                        <p className="mt-1 text-lg font-black text-amber-900">{registeredWorkerListMeta.hiddenExactDuplicateCount}건</p>
-                    </div>
-                    <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-3">
-                        <p className="text-[10px] font-black text-indigo-600">중복 후보 그룹</p>
-                        <p className="mt-1 text-lg font-black text-indigo-900">{registeredWorkerDuplicateSummary.duplicateGroupCount}그룹</p>
-                    </div>
-                </div>
+                <SummaryMetricGrid
+                    className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3"
+                    cardClassName="rounded-xl border px-3 py-3"
+                    items={[
+                        {
+                            key: 'registered-workers-visible',
+                            label: '현재 표시 등록자',
+                            value: `${registeredWorkers.length}명`,
+                            tone: 'border-slate-200 bg-slate-50',
+                            labelClassName: 'text-[10px] font-black text-slate-500',
+                            valueClassName: 'mt-1 text-lg font-black text-slate-900',
+                        },
+                        {
+                            key: 'registered-workers-hidden-duplicates',
+                            label: '완전 동일 중복',
+                            value: `${registeredWorkerListMeta.hiddenExactDuplicateCount}건`,
+                            tone: 'border-amber-200 bg-amber-50',
+                            labelClassName: 'text-[10px] font-black text-amber-600',
+                            valueClassName: 'mt-1 text-lg font-black text-amber-900',
+                        },
+                        {
+                            key: 'registered-workers-duplicate-groups',
+                            label: '중복 후보 그룹',
+                            value: `${registeredWorkerDuplicateSummary.duplicateGroupCount}그룹`,
+                            tone: 'border-indigo-200 bg-indigo-50',
+                            labelClassName: 'text-[10px] font-black text-indigo-600',
+                            valueClassName: 'mt-1 text-lg font-black text-indigo-900',
+                        },
+                    ]}
+                />
                 <InterpretationCardGrid
                     items={registeredWorkerInterpretationCards}
                     className="mt-3 grid-cols-1 xl:grid-cols-3"
@@ -4364,65 +4416,82 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     </p>
                 )}
                 {deletedWorkerUndo && (
-                    <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
-                        <p className="text-xs font-bold text-amber-800">{deletedWorkerUndo.displayLabel || '근로자'} 삭제됨</p>
-                        <button
-                            type="button"
-                            onClick={() => void handleUndoDeleteRegisteredWorker()}
-                            className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-black text-amber-700 hover:bg-amber-100"
-                        >
-                            실행 취소
-                        </button>
-                    </div>
+                    <NoticeCallout
+                        variant="amber"
+                        className="mt-3 rounded-xl px-3 py-2"
+                        title={`${deletedWorkerUndo.displayLabel || '근로자'} 삭제됨`}
+                        action={(
+                            <button
+                                type="button"
+                                onClick={() => void handleUndoDeleteRegisteredWorker()}
+                                className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-black text-amber-700 hover:bg-amber-100"
+                            >
+                                실행 취소
+                            </button>
+                        )}
+                        titleClassName="text-xs font-bold text-amber-800"
+                        bodyClassName="flex items-center gap-2"
+                        actionWrapperClassName="shrink-0"
+                    />
                 )}
 
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
-                    <input
-                        type="text"
-                        value={registeredWorkerSearchTerm}
-                        onChange={(event) => setRegisteredWorkerSearchTerm(event.target.value)}
-                        placeholder="이름/전화/생년월일/여권번호 검색"
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white"
-                    />
-                    <select
-                        value={registeredWorkerJobFilter}
-                        onChange={(event) => setRegisteredWorkerJobFilter(event.target.value)}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white"
-                    >
-                        {registeredWorkerJobOptions.map((option) => (
-                            <option key={option} value={option}>{`공종: ${option}`}</option>
-                        ))}
-                    </select>
-                    <select
-                        value={registeredWorkerTeamFilter}
-                        onChange={(event) => setRegisteredWorkerTeamFilter(event.target.value)}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white"
-                    >
-                        {registeredWorkerTeamOptions.map((option) => (
-                            <option key={option} value={option}>{`팀명: ${option}`}</option>
-                        ))}
-                    </select>
-                    <select
-                        value={registeredWorkerMissingFilter}
-                        onChange={(event) => setRegisteredWorkerMissingFilter(event.target.value as 'all' | 'missing-any' | 'missing-phone' | 'missing-birth' | 'missing-passport')}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white"
-                    >
-                        <option value="all">누락 필터: 전체</option>
-                        <option value="missing-any">누락 필터: 하나라도 누락</option>
-                        <option value="missing-phone">누락 필터: 전화번호 누락</option>
-                        <option value="missing-birth">누락 필터: 생년월일 누락</option>
-                        <option value="missing-passport">누락 필터: 여권번호 누락</option>
-                    </select>
-                    <select
-                        value={registeredWorkerDuplicateFilter}
-                        onChange={(event) => setRegisteredWorkerDuplicateFilter(event.target.value as RegisteredWorkerDuplicateFilter)}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white"
-                    >
-                        <option value="all">중복 필터: 전체</option>
-                        <option value="duplicates">중복 필터: 중복 후보만</option>
-                        <option value="suggested-delete">중복 필터: 삭제 권장만</option>
-                        <option value="exact-duplicates">중복 필터: 완전 동일 중복만</option>
-                    </select>
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                    <ControlPanelCard className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" contentClassName="">
+                        <input
+                            type="text"
+                            value={registeredWorkerSearchTerm}
+                            onChange={(event) => setRegisteredWorkerSearchTerm(event.target.value)}
+                            placeholder="이름/전화/생년월일/여권번호 검색"
+                            className="w-full text-sm font-bold text-slate-800 bg-transparent focus:bg-white focus:border-indigo-500 rounded-lg px-0 py-0 border-0 outline-none"
+                        />
+                    </ControlPanelCard>
+                    <ControlPanelCard className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" contentClassName="">
+                        <select
+                            value={registeredWorkerJobFilter}
+                            onChange={(event) => setRegisteredWorkerJobFilter(event.target.value)}
+                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white border-0 px-0 py-0"
+                        >
+                            {registeredWorkerJobOptions.map((option) => (
+                                <option key={option} value={option}>{`공종: ${option}`}</option>
+                            ))}
+                        </select>
+                    </ControlPanelCard>
+                    <ControlPanelCard className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" contentClassName="">
+                        <select
+                            value={registeredWorkerTeamFilter}
+                            onChange={(event) => setRegisteredWorkerTeamFilter(event.target.value)}
+                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white border-0 px-0 py-0"
+                        >
+                            {registeredWorkerTeamOptions.map((option) => (
+                                <option key={option} value={option}>{`팀명: ${option}`}</option>
+                            ))}
+                        </select>
+                    </ControlPanelCard>
+                    <ControlPanelCard className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" contentClassName="">
+                        <select
+                            value={registeredWorkerMissingFilter}
+                            onChange={(event) => setRegisteredWorkerMissingFilter(event.target.value as 'all' | 'missing-any' | 'missing-phone' | 'missing-birth' | 'missing-passport')}
+                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white border-0 px-0 py-0"
+                        >
+                            <option value="all">누락 필터: 전체</option>
+                            <option value="missing-any">누락 필터: 하나라도 누락</option>
+                            <option value="missing-phone">누락 필터: 전화번호 누락</option>
+                            <option value="missing-birth">누락 필터: 생년월일 누락</option>
+                            <option value="missing-passport">누락 필터: 여권번호 누락</option>
+                        </select>
+                    </ControlPanelCard>
+                    <ControlPanelCard className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" contentClassName="">
+                        <select
+                            value={registeredWorkerDuplicateFilter}
+                            onChange={(event) => setRegisteredWorkerDuplicateFilter(event.target.value as RegisteredWorkerDuplicateFilter)}
+                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white border-0 px-0 py-0"
+                        >
+                            <option value="all">중복 필터: 전체</option>
+                            <option value="duplicates">중복 필터: 중복 후보만</option>
+                            <option value="suggested-delete">중복 필터: 삭제 권장만</option>
+                            <option value="exact-duplicates">중복 필터: 완전 동일 중복만</option>
+                        </select>
+                    </ControlPanelCard>
                 </div>
                 <p className="mt-2 text-[11px] font-bold text-slate-500">
                     등록 {registeredWorkers.length}명 · 필터 결과 {visibleRegisteredWorkers.length}명 · 중복 후보 {registeredWorkerDuplicateSummary.duplicateWorkerCount}명 · 삭제 권장 {registeredWorkerDuplicateSummary.autoDeleteIds.length}명 · 완전 동일 중복 {registeredWorkerExactDuplicateSummary.exactDuplicateIds.length}명
@@ -4474,80 +4543,108 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     </div>
                 </div>
                 {registeredWorkerDuplicateGroupPreview.length > 0 && (
-                    <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-4">
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <div>
-                                <p className="text-[11px] font-black text-amber-700 uppercase tracking-[0.18em]">DUPLICATE PREVIEW</p>
-                                <p className="mt-1 text-sm font-black text-slate-900">중복 그룹 미리보기</p>
-                                <p className="mt-1 text-[11px] font-bold text-slate-600">각 그룹의 보존 후보와 삭제 권장 대상을 바로 확인할 수 있습니다.</p>
-                            </div>
-                            <span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-black text-amber-700">표시 {Math.min(registeredWorkerDuplicateGroupPreview.length, 8)} / 전체 {registeredWorkerDuplicateGroupPreview.length}그룹</span>
-                        </div>
-                        <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-3">
+                    <SectionPanelCard
+                        className="mt-3 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-4"
+                        eyebrow="DUPLICATE PREVIEW"
+                        title="중복 그룹 미리보기"
+                        description="각 그룹의 보존 후보와 삭제 권장 대상을 바로 확인할 수 있습니다."
+                        headerAction={<span className="rounded-full border border-amber-200 bg-white px-3 py-1 text-[11px] font-black text-amber-700">표시 {Math.min(registeredWorkerDuplicateGroupPreview.length, 8)} / 전체 {registeredWorkerDuplicateGroupPreview.length}그룹</span>}
+                        headerClassName="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
+                        eyebrowClassName="text-[11px] font-black uppercase tracking-[0.18em] text-amber-700"
+                        titleClassName="mt-1 text-sm font-black text-slate-900"
+                        descriptionClassName="mt-1 text-[11px] font-bold text-slate-600"
+                        bodyClassName="mt-4"
+                    >
+                        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                             {registeredWorkerDuplicateGroupPreview.slice(0, 8).map((group) => (
-                                <div key={group.key} className="rounded-2xl border border-amber-200 bg-white px-4 py-4 shadow-sm">
-                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <div>
-                                            <p className="text-xs font-black text-amber-700">{group.label}</p>
-                                            <p className="mt-1 text-sm font-black text-slate-900">{group.keeper?.name || '이름 미상'} · 그룹 {group.members.length}명</p>
-                                        </div>
-                                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black text-slate-700">보존 1명 / 삭제 권장 {group.duplicateMembers.length}명</span>
-                                    </div>
+                                <OperationalPreviewCard
+                                    key={group.key}
+                                    variant="amberElevated"
+                                    eyebrow={group.label}
+                                    title={`${group.keeper?.name || '이름 미상'} · 그룹 ${group.members.length}명`}
+                                    badge={<StatusBadge variant="slateSoft" className="px-2.5 py-1">보존 1명 / 삭제 권장 {group.duplicateMembers.length}명</StatusBadge>}
+                                    eyebrowClassName="text-xs font-black text-amber-700"
+                                    titleClassName="mt-1 text-sm font-black text-slate-900"
+                                    body={(
+                                        <>
+                                            {group.keeper && (
+                                                <OperationalPreviewCard
+                                                    variant="emeraldSoftCompact"
+                                                    eyebrow="보존 후보"
+                                                    title={group.keeper.name}
+                                                    subtitle={`${group.keeper.job_field || '미분류'} · ${group.keeper.team_name || '미지정'}`}
+                                                    body={<p className="text-[11px] font-bold text-emerald-800">{formatPhoneForDisplay(group.keeper.phone_number) || '전화 미등록'} · {formatBirthDateForDisplay(group.keeper.birth_date) || '생년월일 미등록'}</p>}
+                                                    eyebrowClassName="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700"
+                                                    titleClassName="mt-1 text-sm font-black text-emerald-900"
+                                                    subtitleClassName="mt-1 text-[11px] font-bold text-emerald-800"
+                                                    bodyClassName="mt-1"
+                                                />
+                                            )}
 
-                                    {group.keeper && (
-                                        <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3">
-                                            <p className="text-[10px] font-black text-emerald-700 uppercase tracking-[0.16em]">보존 후보</p>
-                                            <p className="mt-1 text-sm font-black text-emerald-900">{group.keeper.name}</p>
-                                            <p className="mt-1 text-[11px] font-bold text-emerald-800">
-                                                {group.keeper.job_field || '미분류'} · {group.keeper.team_name || '미지정'} · {formatPhoneForDisplay(group.keeper.phone_number) || '전화 미등록'} · {formatBirthDateForDisplay(group.keeper.birth_date) || '생년월일 미등록'}
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    <div className="mt-3 space-y-2">
-                                        {group.duplicateMembers.map((member) => (
-                                            <div key={member.id} className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-3">
-                                                <div className="flex items-start justify-between gap-2">
-                                                    <div className="min-w-0">
-                                                        <p className="text-sm font-black text-rose-800 truncate">{member.name}</p>
-                                                        <p className="mt-1 text-[11px] font-bold text-rose-700 truncate">{member.job_field || '미분류'} · {member.team_name || '미지정'}</p>
-                                                        <p className="mt-1 text-[11px] font-bold text-slate-600">{formatPhoneForDisplay(member.phone_number) || '전화 미등록'} · {formatBirthDateForDisplay(member.birth_date) || '생년월일 미등록'}</p>
-                                                    </div>
-                                                    <label className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-2 py-1 text-[10px] font-black text-rose-700">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedBulkMessageWorkerIds.includes(member.id)}
-                                                            onChange={() => toggleBulkMessageWorkerSelection(member.id)}
-                                                            className="h-3.5 w-3.5 rounded border-rose-300 text-rose-600 focus:ring-rose-500"
-                                                        />
-                                                        삭제 선택
-                                                    </label>
-                                                </div>
+                                            <div className="mt-3 space-y-2">
+                                                {group.duplicateMembers.map((member) => (
+                                                    <OperationalPreviewCard
+                                                        key={member.id}
+                                                        variant="roseSoftCompact"
+                                                        title={member.name}
+                                                        subtitle={`${member.job_field || '미분류'} · ${member.team_name || '미지정'}`}
+                                                        badge={(
+                                                            <label className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-white px-2 py-1 text-[10px] font-black text-rose-700">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedBulkMessageWorkerIds.includes(member.id)}
+                                                                    onChange={() => toggleBulkMessageWorkerSelection(member.id)}
+                                                                    className="h-3.5 w-3.5 rounded border-rose-300 text-rose-600 focus:ring-rose-500"
+                                                                />
+                                                                삭제 선택
+                                                            </label>
+                                                        )}
+                                                        body={<p className="text-[11px] font-bold text-slate-600">{formatPhoneForDisplay(member.phone_number) || '전화 미등록'} · {formatBirthDateForDisplay(member.birth_date) || '생년월일 미등록'}</p>}
+                                                        titleClassName="truncate text-sm font-black text-rose-800"
+                                                        subtitleClassName="mt-1 truncate text-[11px] font-bold text-rose-700"
+                                                        bodyClassName="mt-1"
+                                                    />
+                                                ))}
                                             </div>
-                                        ))}
-                                    </div>
-                                </div>
+                                        </>
+                                    )}
+                                    titleClassName="text-inherit"
+                                    bodyClassName="mt-3"
+                                />
                             ))}
                         </div>
-                    </div>
+                    </SectionPanelCard>
                 )}
-                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                    <p className="text-[11px] font-black text-emerald-700 uppercase tracking-[0.18em]">PHONE LINK</p>
-                    <p className="mt-1 text-xs font-bold text-emerald-900">등록 근로자 관리자 센터의 전화번호는 개인 리포트 문자 발송 화면과 연동됩니다.</p>
-                    <p className="mt-1 text-[11px] font-bold text-emerald-700">관리자 센터에서 번호를 수정하면 개인별 리포트 문자 발송 시 해당 번호를 우선 불러오고, 개인 리포트에서 발송한 번호도 다시 등록 근로자 데이터에 저장됩니다.</p>
-                </div>
+                <NoticeCallout
+                    variant="emerald"
+                    className="mt-3 rounded-2xl px-4 py-3"
+                    eyebrow="PHONE LINK"
+                    title="등록 근로자 관리자 센터의 전화번호는 개인 리포트 문자 발송 화면과 연동됩니다."
+                    description="관리자 센터에서 번호를 수정하면 개인별 리포트 문자 발송 시 해당 번호를 우선 불러오고, 개인 리포트에서 발송한 번호도 다시 등록 근로자 데이터에 저장됩니다."
+                    titleClassName="mt-1 text-xs font-bold text-emerald-900"
+                    descriptionClassName="mt-1 text-[11px] font-bold text-emerald-700"
+                    bodyClassName="block"
+                />
 
                 {registeredWorkerAdminTab === 'message-history' && (
-                    <div className="mt-4 rounded-[24px] border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-slate-50 p-4 sm:p-5">
+                    <SectionPanelCard variant="indigoGradientSoft" className="mt-4" bodyClassName="">
                         {reportMessageDashboardError && (
-                            <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-700">
-                                운영 집계 요약 조회 오류: {reportMessageDashboardError}
-                            </div>
+                            <NoticeCallout
+                                variant="rose"
+                                className="mb-4 rounded-2xl px-4 py-3"
+                                title={`운영 집계 요약 조회 오류: ${reportMessageDashboardError}`}
+                                titleClassName="text-xs font-bold"
+                                bodyClassName="block"
+                            />
                         )}
                         {isReportMessageDashboardLoading && !reportMessageDashboardSummary && (
-                            <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 text-xs font-bold text-slate-500">
-                                운영 집계 요약을 불러오는 중입니다.
-                            </div>
+                            <NoticeCallout
+                                variant="white"
+                                className="mb-4 rounded-2xl px-4 py-4"
+                                title="운영 집계 요약을 불러오는 중입니다."
+                                titleClassName="text-xs font-bold text-slate-500"
+                                bodyClassName="block"
+                            />
                         )}
                         {reportMessageDashboardSummary?.schemaReady && (
                             <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
@@ -4607,51 +4704,90 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     descriptionClassName="text-slate-600"
                                 />
 
-                                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
-                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-slate-500">{getRangeFilterLabel(dashboardRangeFilter)} 총 발송</p>
-                                        <p className="mt-1 text-2xl font-black text-slate-900">{reportMessageDashboardSummary.overview.totalCount}</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-emerald-600">{getRangeFilterLabel(dashboardRangeFilter)} 성공</p>
-                                        <p className="mt-1 text-2xl font-black text-emerald-900">{reportMessageDashboardSummary.overview.successCount}</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-rose-600">{getRangeFilterLabel(dashboardRangeFilter)} {BRAND_STATUS_LABELS.attention}</p>
-                                        <p className="mt-1 text-2xl font-black text-rose-900">{reportMessageDashboardSummary.overview.failedCount}</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-amber-600">{getRangeFilterLabel(dashboardRangeFilter)} 성공률</p>
-                                        <p className="mt-1 text-2xl font-black text-amber-900">{reportMessageDashboardSummary.overview.successRate}%</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-indigo-600">최다 팀</p>
-                                        <p className="mt-1 text-sm font-black text-indigo-900 truncate">{reportMessageDashboardSummary.overview.topTeam}</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-violet-600">주요 {BRAND_STATUS_LABELS.attention} 원인</p>
-                                        <p className="mt-1 text-sm font-black text-violet-900 truncate">{reportMessageDashboardSummary.overview.topFailureCategory}</p>
-                                    </div>
-                                </div>
-                                <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
-                                    <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-sky-700">개별 발송 누계</p>
-                                        <p className="mt-1 text-lg font-black text-sky-900">{reportMessageDashboardSummary.overview.individualCount}건</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-violet-700">일괄 발송 누계</p>
-                                        <p className="mt-1 text-lg font-black text-violet-900">{reportMessageDashboardSummary.overview.bulkCount}건</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-amber-700">{BRAND_ACTION_LABELS.retryCandidate}</p>
-                                        <p className="mt-1 text-lg font-black text-amber-900">{reportMessageDashboardSummary.overview.retryCandidateCount}건</p>
-                                    </div>
-                                </div>
+                                <SummaryMetricGrid
+                                    className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6"
+                                    items={[
+                                        {
+                                            key: 'dashboard-total',
+                                            label: `${getRangeFilterLabel(dashboardRangeFilter)} 총 발송`,
+                                            value: reportMessageDashboardSummary.overview.totalCount,
+                                            tone: 'border-slate-200 bg-slate-50',
+                                            labelClassName: 'text-[10px] font-black text-slate-500',
+                                        },
+                                        {
+                                            key: 'dashboard-success',
+                                            label: `${getRangeFilterLabel(dashboardRangeFilter)} 성공`,
+                                            value: reportMessageDashboardSummary.overview.successCount,
+                                            tone: 'border-emerald-100 bg-emerald-50',
+                                            labelClassName: 'text-[10px] font-black text-emerald-600',
+                                            valueClassName: 'mt-1 text-2xl font-black text-emerald-900',
+                                        },
+                                        {
+                                            key: 'dashboard-failed',
+                                            label: `${getRangeFilterLabel(dashboardRangeFilter)} ${BRAND_STATUS_LABELS.attention}`,
+                                            value: reportMessageDashboardSummary.overview.failedCount,
+                                            tone: 'border-rose-100 bg-rose-50',
+                                            labelClassName: 'text-[10px] font-black text-rose-600',
+                                            valueClassName: 'mt-1 text-2xl font-black text-rose-900',
+                                        },
+                                        {
+                                            key: 'dashboard-success-rate',
+                                            label: `${getRangeFilterLabel(dashboardRangeFilter)} 성공률`,
+                                            value: `${reportMessageDashboardSummary.overview.successRate}%`,
+                                            tone: 'border-amber-100 bg-amber-50',
+                                            labelClassName: 'text-[10px] font-black text-amber-600',
+                                            valueClassName: 'mt-1 text-2xl font-black text-amber-900',
+                                        },
+                                        {
+                                            key: 'dashboard-top-team',
+                                            label: '최다 팀',
+                                            value: reportMessageDashboardSummary.overview.topTeam,
+                                            tone: 'border-indigo-100 bg-indigo-50',
+                                            labelClassName: 'text-[10px] font-black text-indigo-600',
+                                            valueClassName: 'mt-1 text-sm font-black text-indigo-900 truncate',
+                                        },
+                                        {
+                                            key: 'dashboard-top-failure',
+                                            label: `주요 ${BRAND_STATUS_LABELS.attention} 원인`,
+                                            value: reportMessageDashboardSummary.overview.topFailureCategory,
+                                            tone: 'border-violet-100 bg-violet-50',
+                                            labelClassName: 'text-[10px] font-black text-violet-600',
+                                            valueClassName: 'mt-1 text-sm font-black text-violet-900 truncate',
+                                        },
+                                    ]}
+                                />
+                                <SummaryMetricGrid
+                                    className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3"
+                                    items={[
+                                        {
+                                            key: 'dashboard-individual-count',
+                                            label: '개별 발송 누계',
+                                            value: `${reportMessageDashboardSummary.overview.individualCount}건`,
+                                            tone: 'border-sky-100 bg-sky-50',
+                                            labelClassName: 'text-[10px] font-black text-sky-700',
+                                            valueClassName: 'mt-1 text-lg font-black text-sky-900',
+                                        },
+                                        {
+                                            key: 'dashboard-bulk-count',
+                                            label: '일괄 발송 누계',
+                                            value: `${reportMessageDashboardSummary.overview.bulkCount}건`,
+                                            tone: 'border-violet-100 bg-violet-50',
+                                            labelClassName: 'text-[10px] font-black text-violet-700',
+                                            valueClassName: 'mt-1 text-lg font-black text-violet-900',
+                                        },
+                                        {
+                                            key: 'dashboard-retry-count',
+                                            label: BRAND_ACTION_LABELS.retryCandidate,
+                                            value: `${reportMessageDashboardSummary.overview.retryCandidateCount}건`,
+                                            tone: 'border-amber-100 bg-amber-50',
+                                            labelClassName: 'text-[10px] font-black text-amber-700',
+                                            valueClassName: 'mt-1 text-lg font-black text-amber-900',
+                                        },
+                                    ]}
+                                />
 
                                 <div className="mt-4 grid grid-cols-1 xl:grid-cols-4 gap-4">
-                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                                        <p className="text-xs font-black text-slate-800">월별 집계 뷰</p>
-                                        <div className="mt-4 h-[220px]">
+                                    <SectionPanelCard title="월별 집계 뷰" bodyClassName="mt-4 h-[220px]">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart data={reportMessageDashboardSummary.monthlyRows} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
                                                     <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
@@ -4662,11 +4798,8 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     <Bar dataKey="failed_count" fill="#F43F5E" radius={[8, 8, 0, 0]} />
                                                 </BarChart>
                                             </ResponsiveContainer>
-                                        </div>
-                                    </div>
-                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                                        <p className="text-xs font-black text-slate-800">팀별 집계 뷰</p>
-                                        <div className="mt-4 h-[220px]">
+                                    </SectionPanelCard>
+                                    <SectionPanelCard title="팀별 집계 뷰" bodyClassName="mt-4 h-[220px]">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart data={reportMessageDashboardSummary.teamRows} layout="vertical" margin={{ top: 8, right: 18, left: 18, bottom: 0 }}>
                                                     <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
@@ -4676,11 +4809,8 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     <Bar dataKey="success_rate" fill="#6366F1" radius={[0, 8, 8, 0]} />
                                                 </BarChart>
                                             </ResponsiveContainer>
-                                        </div>
-                                    </div>
-                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                                        <p className="text-xs font-black text-slate-800">{BRAND_STATUS_LABELS.attention} 사유 집계 뷰</p>
-                                        <div className="mt-4 h-[220px]">
+                                    </SectionPanelCard>
+                                    <SectionPanelCard title={`${BRAND_STATUS_LABELS.attention} 사유 집계 뷰`} bodyClassName="mt-4 h-[220px]">
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart data={reportMessageDashboardSummary.failureRows} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                                                     <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
@@ -4690,22 +4820,34 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     <Bar dataKey="failure_count" fill="#F97316" radius={[8, 8, 0, 0]} />
                                                 </BarChart>
                                             </ResponsiveContainer>
-                                        </div>
-                                    </div>
-                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                                        <p className="text-xs font-black text-slate-800">{BRAND_ACTION_LABELS.retryQueue}</p>
-                                        <p className="mt-1 text-[11px] font-bold text-slate-500">현재 최신 상태가 {BRAND_STATUS_LABELS.attention}인 대상만 우선 점수순으로 표시합니다.</p>
-                                        <div className="mt-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3">
-                                            <p className="text-[10px] font-black text-sky-700">QUICK RETRY</p>
-                                            <p className="mt-1 text-[11px] font-bold text-slate-600">전화번호·등록 근로자·리포트 원본이 모두 확인된 {BRAND_STATUS_LABELS.attention} 대상만 골라 일괄 발송 선택 목록으로 바로 보냅니다.</p>
-                                            <button
-                                                type="button"
-                                                onClick={selectRetryQueueActionableWorkers}
-                                                className="mt-2 inline-flex items-center rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-[10px] font-black text-sky-700 hover:bg-sky-100"
-                                            >
-                                                {BRAND_ACTION_LABELS.recheck} 대상 일괄 선택
-                                            </button>
-                                        </div>
+                                    </SectionPanelCard>
+                                    <SectionPanelCard
+                                        className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                                        title={BRAND_ACTION_LABELS.retryQueue}
+                                        description={`현재 최신 상태가 ${BRAND_STATUS_LABELS.attention}인 대상만 우선 점수순으로 표시합니다.`}
+                                        titleClassName="text-xs font-black text-slate-800"
+                                        descriptionClassName="mt-1 text-[11px] font-bold text-slate-500"
+                                        bodyClassName="mt-3"
+                                    >
+                                        <NoticeCallout
+                                            variant="sky"
+                                            className="rounded-xl px-3 py-3"
+                                            eyebrow="QUICK RETRY"
+                                            title={`전화번호·등록 근로자·리포트 원본이 모두 확인된 ${BRAND_STATUS_LABELS.attention} 대상만 골라 일괄 발송 선택 목록으로 바로 보냅니다.`}
+                                            action={(
+                                                <button
+                                                    type="button"
+                                                    onClick={selectRetryQueueActionableWorkers}
+                                                    className="inline-flex items-center rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-[10px] font-black text-sky-700 hover:bg-sky-100"
+                                                >
+                                                    {BRAND_ACTION_LABELS.recheck} 대상 일괄 선택
+                                                </button>
+                                            )}
+                                            eyebrowClassName="text-[10px] font-black text-sky-700"
+                                            titleClassName="mt-1 text-[11px] font-bold text-slate-600"
+                                            bodyClassName="flex flex-col gap-2"
+                                            actionWrapperClassName="shrink-0"
+                                        />
                                         <div className="mt-3 flex flex-wrap gap-2">
                                             <button
                                                 type="button"
@@ -4737,113 +4879,123 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 const actionable = blockers.length === 0;
 
                                                 return (
-                                                <div key={row.retry_key} className={`rounded-2xl border px-3 py-3 ${actionable ? 'border-emerald-200 bg-emerald-50/40' : 'border-amber-200 bg-white'}`}>
-                                                    <div className="flex items-start justify-between gap-2">
-                                                        <div className="min-w-0">
-                                                            <p className="text-sm font-black text-slate-900 truncate">{row.worker_name || '근로자 미상'}</p>
-                                                            <p className="mt-1 text-[11px] font-bold text-slate-500 truncate">{row.team_name || '미지정'} · {formatPhoneForDisplay(row.phone_number) || '전화 미등록'}</p>
-                                                        </div>
+                                                <OperationalPreviewCard
+                                                    key={row.retry_key}
+                                                    className={`rounded-2xl border px-3 py-3 ${actionable ? 'border-emerald-200 bg-emerald-50/40' : 'border-amber-200 bg-white'}`}
+                                                    title={row.worker_name || '근로자 미상'}
+                                                    subtitle={`${row.team_name || '미지정'} · ${formatPhoneForDisplay(row.phone_number) || '전화 미등록'}`}
+                                                    titleClassName="text-sm font-black text-slate-900"
+                                                    subtitleClassName="mt-1 truncate text-[11px] font-bold text-slate-500"
+                                                    badge={(
                                                         <div className="flex flex-col items-end gap-1">
-                                                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${actionable ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                                                            <StatusBadge variant={actionable ? 'emeraldSoft' : 'amber'}>
                                                                 {actionable ? '즉시 재확인 가능' : '선행 확인 필요'}
-                                                            </span>
-                                                            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black text-slate-700">우선순위 {row.priority_score}</span>
+                                                            </StatusBadge>
+                                                            <StatusBadge variant="slateSoft">우선순위 {row.priority_score}</StatusBadge>
                                                         </div>
-                                                    </div>
-                                                    <StatusEvidenceActionPanel
-                                                        className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3"
-                                                        cardClassName="rounded-xl border px-3 py-3"
-                                                        titleClassName="mt-1 text-[11px] font-black text-slate-900"
-                                                        descriptionClassName="mt-1 text-[10px] font-bold text-slate-500"
-                                                        items={[
-                                                            {
-                                                                key: `${row.retry_key}-status`,
-                                                                eyebrow: '지금 상태',
-                                                                title: actionable ? '등록 정보와 리포트 원본이 연결돼 바로 다시 보낼 수 있습니다.' : `재발송 전에 ${blockers.length}가지 확인이 더 필요합니다.`,
-                                                                description: `${row.failure_category} · ${formatMessageLogDateTime(row.failed_at)}`,
-                                                                tone: actionable ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50',
-                                                                eyebrowClassName: `text-[10px] font-black uppercase tracking-[0.16em] ${actionable ? 'text-emerald-700' : 'text-rose-700'}`,
-                                                            },
-                                                            {
-                                                                key: `${row.retry_key}-evidence`,
-                                                                eyebrow: '판단 근거',
-                                                                title: <span className="break-words">{row.message || row.provider || '-'}</span>,
-                                                                tone: 'border-slate-200 bg-slate-50',
-                                                                eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-slate-500',
-                                                                content: (
-                                                                    <div className="mt-2 flex flex-wrap gap-1.5">
-                                                                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${matchedWorker ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
-                                                                            {matchedWorker ? '등록 근로자 연결됨' : '등록 근로자 매칭 없음'}
-                                                                        </span>
-                                                                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${matchedRecord ? 'border-sky-200 bg-sky-50 text-sky-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
-                                                                            {matchedRecord ? '리포트 원본 확인됨' : '리포트 원본 없음'}
-                                                                        </span>
-                                                                    </div>
-                                                                ),
-                                                            },
-                                                            {
-                                                                key: `${row.retry_key}-action`,
-                                                                eyebrow: '다음 행동',
-                                                                title: actionable ? '이력 확인 후 즉시 재발송 대상으로 묶거나 원본 리포트를 열어 최종 판단하세요.' : '차단 원인을 먼저 풀어야 동일 실패를 반복하지 않습니다.',
-                                                                tone: 'border-indigo-200 bg-indigo-50',
-                                                                eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700',
-                                                                content: blockers.length > 0 ? (
-                                                                    <div className="mt-2 flex flex-wrap gap-1.5">
-                                                                        {blockers.map((blocker) => (
-                                                                            <span key={`${row.retry_key}-${blocker}`} className="inline-flex items-center rounded-full border border-rose-200 bg-white px-2 py-0.5 text-[10px] font-black text-rose-700">
-                                                                                {blocker}
-                                                                            </span>
-                                                                        ))}
-                                                                    </div>
-                                                                ) : null,
-                                                            },
-                                                        ]}
-                                                    />
-                                                    {blockers.length > 0 && (
-                                                        <p className="mt-2 text-[10px] font-bold text-rose-600">차단 원인을 해결한 뒤 다시 보낼 대상을 선택하는 것이 안전합니다.</p>
                                                     )}
-                                                    <div className="mt-3 flex flex-wrap gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleInspectRetryQueueRow(row)}
-                                                            disabled={!matchedWorker}
-                                                            className="inline-flex items-center rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
-                                                        >
-                                                            이력 열기
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleOpenRetryQueueReport(row)}
-                                                            disabled={!matchedRecord}
-                                                            className="inline-flex items-center rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-black text-sky-700 hover:bg-sky-100 disabled:opacity-60"
-                                                        >
-                                                            리포트 열기
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleEditRetryQueueWorker(row)}
-                                                            disabled={!matchedWorker}
-                                                            className="inline-flex items-center rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700 hover:bg-amber-100 disabled:opacity-60"
-                                                        >
-                                                            근로자 수정
-                                                        </button>
-                                                    </div>
-                                                </div>
+                                                    body={(
+                                                        <>
+                                                            <StatusEvidenceActionPanel
+                                                                className="grid grid-cols-1 gap-2 md:grid-cols-3"
+                                                                cardClassName="rounded-xl border px-3 py-3"
+                                                                titleClassName="mt-1 text-[11px] font-black text-slate-900"
+                                                                descriptionClassName="mt-1 text-[10px] font-bold text-slate-500"
+                                                                items={[
+                                                                    {
+                                                                        key: `${row.retry_key}-status`,
+                                                                        eyebrow: '지금 상태',
+                                                                        title: actionable ? '등록 정보와 리포트 원본이 연결돼 바로 다시 보낼 수 있습니다.' : `재발송 전에 ${blockers.length}가지 확인이 더 필요합니다.`,
+                                                                        description: `${row.failure_category} · ${formatMessageLogDateTime(row.failed_at)}`,
+                                                                        tone: actionable ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50',
+                                                                        eyebrowClassName: `text-[10px] font-black uppercase tracking-[0.16em] ${actionable ? 'text-emerald-700' : 'text-rose-700'}`,
+                                                                    },
+                                                                    {
+                                                                        key: `${row.retry_key}-evidence`,
+                                                                        eyebrow: '판단 근거',
+                                                                        title: <span className="break-words">{row.message || row.provider || '-'}</span>,
+                                                                        tone: 'border-slate-200 bg-slate-50',
+                                                                        eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-slate-500',
+                                                                        content: (
+                                                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${matchedWorker ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+                                                                                    {matchedWorker ? '등록 근로자 연결됨' : '등록 근로자 매칭 없음'}
+                                                                                </span>
+                                                                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${matchedRecord ? 'border-sky-200 bg-sky-50 text-sky-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+                                                                                    {matchedRecord ? '리포트 원본 확인됨' : '리포트 원본 없음'}
+                                                                                </span>
+                                                                            </div>
+                                                                        ),
+                                                                    },
+                                                                    {
+                                                                        key: `${row.retry_key}-action`,
+                                                                        eyebrow: '다음 행동',
+                                                                        title: actionable ? '이력 확인 후 즉시 재발송 대상으로 묶거나 원본 리포트를 열어 최종 판단하세요.' : '차단 원인을 먼저 풀어야 동일 실패를 반복하지 않습니다.',
+                                                                        tone: 'border-indigo-200 bg-indigo-50',
+                                                                        eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700',
+                                                                        content: blockers.length > 0 ? (
+                                                                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                                                                {blockers.map((blocker) => (
+                                                                                    <StatusBadge key={`${row.retry_key}-${blocker}`} variant="rose">{blocker}</StatusBadge>
+                                                                                ))}
+                                                                            </div>
+                                                                        ) : null,
+                                                                    },
+                                                                ]}
+                                                            />
+                                                            {blockers.length > 0 && (
+                                                                <p className="mt-2 text-[10px] font-bold text-rose-600">차단 원인을 해결한 뒤 다시 보낼 대상을 선택하는 것이 안전합니다.</p>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                    actions={(
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleInspectRetryQueueRow(row)}
+                                                                disabled={!matchedWorker}
+                                                                className="inline-flex items-center rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+                                                            >
+                                                                이력 열기
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenRetryQueueReport(row)}
+                                                                disabled={!matchedRecord}
+                                                                className="inline-flex items-center rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-black text-sky-700 hover:bg-sky-100 disabled:opacity-60"
+                                                            >
+                                                                리포트 열기
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleEditRetryQueueWorker(row)}
+                                                                disabled={!matchedWorker}
+                                                                className="inline-flex items-center rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+                                                            >
+                                                                근로자 수정
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                />
                                                 );
                                             }) : (
-                                                <div className="rounded-xl border border-dashed border-slate-200 bg-white px-4 py-8 text-center text-xs font-bold text-slate-500">
-                                                    현재 필터 조건에 맞는 {BRAND_ACTION_LABELS.retryCandidate}가 없습니다.
-                                                </div>
+                                                <EmptyStatePanel
+                                                    variant="white"
+                                                    className="rounded-xl px-4 py-8"
+                                                    title={`현재 필터 조건에 맞는 ${BRAND_ACTION_LABELS.retryCandidate}가 없습니다.`}
+                                                    titleClassName="text-xs font-bold text-slate-500"
+                                                />
                                             )}
                                         </div>
-                                    </div>
+                                    </SectionPanelCard>
                                 </div>
                                 {reportMessageDashboardSummary.sendModeRows.length > 0 && (
                                     <div className="mt-4 grid grid-cols-1 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-4">
-                                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                                            <p className="text-xs font-black text-slate-800">발송 방식 집계 뷰</p>
-                                            <p className="mt-1 text-[11px] font-bold text-slate-500">개별 발송과 선택 근로자 일괄 발송의 운영 비중 및 성공/{BRAND_STATUS_LABELS.attention}를 비교합니다.</p>
-                                            <div className="mt-4 h-[240px]">
+                                        <SectionPanelCard
+                                            title="발송 방식 집계 뷰"
+                                            description={`개별 발송과 선택 근로자 일괄 발송의 운영 비중 및 성공/${BRAND_STATUS_LABELS.attention}를 비교합니다.`}
+                                            bodyClassName="mt-4 h-[240px]"
+                                        >
                                                 <ResponsiveContainer width="100%" height="100%">
                                                     <BarChart
                                                         data={reportMessageDashboardSummary.sendModeRows.map((row) => ({
@@ -4862,34 +5014,51 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                         <Bar dataKey="failed_count" fill="#8B5CF6" radius={[8, 8, 0, 0]} />
                                                     </BarChart>
                                                 </ResponsiveContainer>
-                                            </div>
-                                        </div>
+                                        </SectionPanelCard>
                                         <div className="grid grid-cols-1 gap-4">
                                             {reportMessageDashboardSummary.sendModeRows.map((row) => (
-                                                <div key={row.send_mode} className={`rounded-2xl border px-4 py-4 ${row.send_mode === 'BULK' ? 'border-violet-200 bg-violet-50' : 'border-sky-200 bg-sky-50'}`}>
-                                                    <div className="flex items-center justify-between gap-3">
-                                                        <div>
-                                                            <p className={`text-[10px] font-black ${row.send_mode === 'BULK' ? 'text-violet-700' : 'text-sky-700'}`}>{row.send_mode === 'BULK' ? 'BULK MODE' : 'INDIVIDUAL MODE'}</p>
-                                                            <p className="mt-1 text-lg font-black text-slate-900">{row.send_mode === 'BULK' ? '선택 근로자 일괄 발송' : '개별 리포트 발송'}</p>
-                                                        </div>
-                                                        <span className={`rounded-full px-3 py-1 text-[10px] font-black ${row.send_mode === 'BULK' ? 'bg-violet-100 text-violet-700' : 'bg-sky-100 text-sky-700'}`}>{row.total_count}건</span>
-                                                    </div>
-                                                    <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-                                                        <div className="rounded-xl bg-white/80 px-3 py-2">
-                                                            <p className="text-[10px] font-black text-slate-500">성공</p>
-                                                            <p className="mt-1 text-base font-black text-emerald-700">{row.success_count}</p>
-                                                        </div>
-                                                        <div className="rounded-xl bg-white/80 px-3 py-2">
-                                                            <p className="text-[10px] font-black text-slate-500">{BRAND_STATUS_LABELS.attention}</p>
-                                                            <p className="mt-1 text-base font-black text-rose-700">{row.failed_count}</p>
-                                                        </div>
-                                                        <div className="rounded-xl bg-white/80 px-3 py-2">
-                                                            <p className="text-[10px] font-black text-slate-500">성공률</p>
-                                                            <p className="mt-1 text-base font-black text-slate-900">{row.success_rate}%</p>
-                                                        </div>
-                                                    </div>
-                                                    <p className="mt-3 text-[11px] font-bold text-slate-500">최근 발송: {formatMessageLogDateTime(row.last_sent_at)}</p>
-                                                </div>
+                                                <OperationalPreviewCard
+                                                    key={row.send_mode}
+                                                    className={`rounded-2xl border px-4 py-4 ${row.send_mode === 'BULK' ? 'border-violet-200 bg-violet-50' : 'border-sky-200 bg-sky-50'}`}
+                                                    title={row.send_mode === 'BULK' ? '선택 근로자 일괄 발송' : '개별 리포트 발송'}
+                                                    subtitle={<p className={`text-[10px] font-black ${row.send_mode === 'BULK' ? 'text-violet-700' : 'text-sky-700'}`}>{row.send_mode === 'BULK' ? 'BULK MODE' : 'INDIVIDUAL MODE'}</p>}
+                                                    titleClassName="mt-1 text-lg font-black text-slate-900"
+                                                    subtitleClassName="text-[10px] font-black"
+                                                    badge={<span className={`rounded-full px-3 py-1 text-[10px] font-black ${row.send_mode === 'BULK' ? 'bg-violet-100 text-violet-700' : 'bg-sky-100 text-sky-700'}`}>{row.total_count}건</span>}
+                                                    body={(
+                                                        <SummaryMetricGrid
+                                                            className="grid grid-cols-3 gap-2 text-center"
+                                                            cardClassName="rounded-xl bg-white/80 px-3 py-2"
+                                                            items={[
+                                                                {
+                                                                    key: `${row.send_mode}-success`,
+                                                                    label: '성공',
+                                                                    value: row.success_count,
+                                                                    tone: '',
+                                                                    labelClassName: 'text-[10px] font-black text-slate-500',
+                                                                    valueClassName: 'mt-1 text-base font-black text-emerald-700',
+                                                                },
+                                                                {
+                                                                    key: `${row.send_mode}-failed`,
+                                                                    label: BRAND_STATUS_LABELS.attention,
+                                                                    value: row.failed_count,
+                                                                    tone: '',
+                                                                    labelClassName: 'text-[10px] font-black text-slate-500',
+                                                                    valueClassName: 'mt-1 text-base font-black text-rose-700',
+                                                                },
+                                                                {
+                                                                    key: `${row.send_mode}-rate`,
+                                                                    label: '성공률',
+                                                                    value: `${row.success_rate}%`,
+                                                                    tone: '',
+                                                                    labelClassName: 'text-[10px] font-black text-slate-500',
+                                                                    valueClassName: 'mt-1 text-base font-black text-slate-900',
+                                                                },
+                                                            ]}
+                                                        />
+                                                    )}
+                                                    footer={`최근 발송: ${formatMessageLogDateTime(row.last_sent_at)}`}
+                                                />
                                             ))}
                                         </div>
                                     </div>
@@ -4897,36 +5066,60 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             </div>
                         )}
                         {reportMessageDashboardSummary && !reportMessageDashboardSummary.schemaReady && (
-                            <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
-                                <p className="font-black">운영 집계 뷰가 아직 준비되지 않았습니다.</p>
-                                <p className="mt-1 text-xs font-bold">최신 [supabase_report_message_logs_migration.sql](supabase_report_message_logs_migration.sql)를 실행하면 월별/팀별/실패사유/발송방식 대시보드가 활성화됩니다.</p>
-                            </div>
+                            <NoticeCallout
+                                className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-800"
+                                title="운영 집계 뷰가 아직 준비되지 않았습니다."
+                                description="최신 supabase_report_message_logs_migration.sql를 실행하면 월별/팀별/실패사유/발송방식 대시보드가 활성화됩니다."
+                                titleClassName="text-sm font-black"
+                                descriptionClassName="mt-1 text-xs font-bold"
+                                bodyClassName="block"
+                            />
                         )}
                         <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-4">
                             <div className="rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm">
-                                <div className="rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3">
-                                    <p className="text-xs font-black text-indigo-900">Vercel 무료버전 API 절약 모드</p>
-                                    <p className="mt-1 text-[11px] font-bold text-indigo-700">이 탭은 선택한 근로자 1명만 조회하고, 조회 결과를 5분간 캐시하여 불필요한 서버 호출을 줄입니다.</p>
-                                </div>
-                                <div className="mt-3 grid grid-cols-2 gap-2">
-                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                        <p className="text-[10px] font-black text-slate-500">세션 API 호출</p>
-                                        <p className="mt-1 text-lg font-black text-slate-900">{messageLogSessionApiCount}</p>
-                                    </div>
-                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
-                                        <p className="text-[10px] font-black text-slate-500">캐시된 근로자</p>
-                                        <p className="mt-1 text-lg font-black text-slate-900">{Object.keys(messageLogCache).length}</p>
-                                    </div>
-                                </div>
+                                <NoticeCallout
+                                    variant="indigo"
+                                    className="rounded-2xl px-4 py-3"
+                                    title="Vercel 무료버전 API 절약 모드"
+                                    description="이 탭은 선택한 근로자 1명만 조회하고, 조회 결과를 5분간 캐시하여 불필요한 서버 호출을 줄입니다."
+                                    titleClassName="text-xs font-black text-indigo-900"
+                                    descriptionClassName="mt-1 text-[11px] font-bold text-indigo-700"
+                                    bodyClassName="block"
+                                />
+                                <SummaryMetricGrid
+                                    className="mt-3 grid grid-cols-2 gap-2"
+                                    cardClassName="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
+                                    items={[
+                                        {
+                                            key: 'message-api-session-count',
+                                            label: '세션 API 호출',
+                                            value: messageLogSessionApiCount,
+                                            tone: '',
+                                            labelClassName: 'text-[10px] font-black text-slate-500',
+                                            valueClassName: 'mt-1 text-lg font-black text-slate-900',
+                                        },
+                                        {
+                                            key: 'message-api-cache-workers',
+                                            label: '캐시된 근로자',
+                                            value: Object.keys(messageLogCache).length,
+                                            tone: '',
+                                            labelClassName: 'text-[10px] font-black text-slate-500',
+                                            valueClassName: 'mt-1 text-lg font-black text-slate-900',
+                                        },
+                                    ]}
+                                />
                                 <p className="mt-2 text-[11px] font-bold text-slate-500">
                                     최근 실조회: {messageLogLastFetchedAt ? formatMessageLogDateTime(messageLogLastFetchedAt) : '아직 없음'}
                                 </p>
 
                                 <div className="mt-4 max-h-[560px] overflow-y-auto pr-1 space-y-2">
                                     {filteredRegisteredWorkers.length === 0 ? (
-                                        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-xs font-bold text-slate-500">
-                                            현재 검색 조건에 맞는 근로자가 없습니다.
-                                        </div>
+                                        <EmptyStatePanel
+                                            variant="slate"
+                                            className="rounded-2xl px-4 py-6"
+                                            title="현재 검색 조건에 맞는 근로자가 없습니다."
+                                            titleClassName="text-xs font-bold text-slate-500"
+                                        />
                                     ) : filteredRegisteredWorkers.map((worker) => {
                                         const cachedEntry = messageLogCache[worker.id];
                                         const lastLog = cachedEntry?.rows?.[0];
@@ -4942,19 +5135,18 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 }}
                                                 className={`w-full rounded-2xl border px-4 py-3 text-left transition-colors ${isActive ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-200 bg-white hover:border-indigo-200 hover:bg-slate-50'}`}
                                             >
-                                                <div className="flex items-start justify-between gap-2">
-                                                    <div className="min-w-0">
-                                                        <p className="text-sm font-black text-slate-900 truncate">{worker.name || '이름 미상'}</p>
-                                                        <p className="mt-1 text-[11px] font-bold text-slate-500 truncate">{worker.job_field || '미분류'} · {worker.team_name || '미지정'}</p>
-                                                    </div>
-                                                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black border ${cachedEntry ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
-                                                        {cachedEntry ? '캐시됨' : '미조회'}
-                                                    </span>
-                                                </div>
-                                                <div className="mt-2 text-[11px] font-bold text-slate-500">
-                                                    <p>전화: {formatPhoneForDisplay(worker.phone_number) || '미등록'}</p>
-                                                    <p className="mt-1 truncate">최근 발송: {lastLog ? `${formatMessageLogDateTime(lastLog.created_at)} · ${lastLog.status}` : '기록 없음'}</p>
-                                                </div>
+                                                <OperationalPreviewCard
+                                                    className="p-0 border-0 bg-transparent"
+                                                    title={<p className="truncate">{worker.name || '이름 미상'}</p>}
+                                                    subtitle={<p className="truncate">{worker.job_field || '미분류'} · {worker.team_name || '미지정'}</p>}
+                                                    titleClassName="text-sm font-black text-slate-900"
+                                                    subtitleClassName="mt-1 text-[11px] font-bold text-slate-500"
+                                                    badge={<span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black border ${cachedEntry ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>{cachedEntry ? '캐시됨' : '미조회'}</span>}
+                                                    body={<p>전화: {formatPhoneForDisplay(worker.phone_number) || '미등록'}</p>}
+                                                    footer={<span className="truncate block">최근 발송: {lastLog ? `${formatMessageLogDateTime(lastLog.created_at)} · ${lastLog.status}` : '기록 없음'}</span>}
+                                                    bodyClassName="mt-2 text-[11px] font-bold text-slate-500"
+                                                    footerClassName="mt-1 text-[11px] font-bold text-slate-500"
+                                                />
                                             </button>
                                         );
                                     })}
@@ -4971,114 +5163,136 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         </p>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <button
-                                            type="button"
+                                        <ActionButton
+                                            variant="sky"
                                             onClick={openSelectedWorkerReport}
                                             disabled={!selectedMessageHistoryLatestRecord}
-                                            className="inline-flex items-center justify-center rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-black text-sky-700 hover:bg-sky-100 disabled:opacity-60"
                                         >
                                             최신 리포트 열기
-                                        </button>
-                                        <button
-                                            type="button"
+                                        </ActionButton>
+                                        <ActionButton
+                                            variant="emerald"
                                             onClick={() => void downloadMessageHistoryExcel()}
                                             disabled={!selectedMessageHistoryWorker || filteredMessageHistoryRows.length === 0}
-                                            className="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
                                         >
                                             Excel 다운로드
-                                        </button>
-                                        <button
-                                            type="button"
+                                        </ActionButton>
+                                        <ActionButton
+                                            variant="emeraldSoft"
                                             onClick={downloadMessageHistoryCsv}
                                             disabled={!selectedMessageHistoryWorker || filteredMessageHistoryRows.length === 0}
-                                            className="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
                                         >
                                             CSV 다운로드
-                                        </button>
-                                        <button
-                                            type="button"
+                                        </ActionButton>
+                                        <ActionButton
+                                            variant="slate"
                                             onClick={downloadMessageHistoryJson}
                                             disabled={!selectedMessageHistoryWorker || filteredMessageHistoryRows.length === 0}
-                                            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-60"
                                         >
                                             JSON 다운로드
-                                        </button>
-                                        <button
-                                            type="button"
+                                        </ActionButton>
+                                        <ActionButton
+                                            variant="indigo"
                                             onClick={() => selectedMessageHistoryWorker && void fetchWorkerMessageHistory(selectedMessageHistoryWorker, { force: true })}
                                             disabled={!selectedMessageHistoryWorker || isMessageLogLoading}
-                                            className="inline-flex items-center justify-center rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
                                         >
                                             {isMessageLogLoading ? '조회 중...' : '선택 근로자 이력 새로고침'}
-                                        </button>
+                                        </ActionButton>
                                     </div>
                                 </div>
 
-                                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-                                    <input
-                                        type="text"
-                                        value={messageHistorySearchTerm}
-                                        onChange={(event) => setMessageHistorySearchTerm(event.target.value)}
-                                        placeholder="메모/상태/전화번호 검색"
-                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white"
-                                    />
-                                    <select
-                                        value={messageHistoryRangeFilter}
-                                        onChange={(event) => applyMessageOpsRangeFilter(event.target.value as MessageHistoryRangeFilter)}
-                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white"
-                                    >
-                                        <option value="7d">최근 7일</option>
-                                        <option value="30d">최근 30일</option>
-                                        <option value="90d">최근 90일</option>
-                                        <option value="all">전체 기간</option>
-                                    </select>
-                                    <select
-                                        value={messageHistoryStatusFilter}
-                                        onChange={(event) => setMessageHistoryStatusFilter(event.target.value as MessageHistoryStatusFilter)}
-                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white"
-                                    >
-                                        <option value="all">상태: 전체</option>
-                                        <option value="success">상태: 성공만</option>
-                                        <option value="fail">상태: {BRAND_STATUS_LABELS.attentionHold}만</option>
-                                    </select>
-                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                        <p className="text-[10px] font-black text-slate-500">표시 중</p>
-                                        <p className="mt-1 text-sm font-black text-slate-900">{filteredMessageHistoryRows.length}건 / 원본 {selectedMessageHistoryRows.length}건</p>
-                                    </div>
+                                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+                                    <ControlPanelCard className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" contentClassName="">
+                                        <input
+                                            type="text"
+                                            value={messageHistorySearchTerm}
+                                            onChange={(event) => setMessageHistorySearchTerm(event.target.value)}
+                                            placeholder="메모/상태/전화번호 검색"
+                                            className="w-full text-sm font-bold text-slate-800 bg-transparent focus:bg-white focus:border-indigo-500 rounded-lg px-0 py-0 border-0 outline-none"
+                                        />
+                                    </ControlPanelCard>
+                                    <ControlPanelCard className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" contentClassName="">
+                                        <select
+                                            value={messageHistoryRangeFilter}
+                                            onChange={(event) => applyMessageOpsRangeFilter(event.target.value as MessageHistoryRangeFilter)}
+                                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white border-0 px-0 py-0"
+                                        >
+                                            <option value="7d">최근 7일</option>
+                                            <option value="30d">최근 30일</option>
+                                            <option value="90d">최근 90일</option>
+                                            <option value="all">전체 기간</option>
+                                        </select>
+                                    </ControlPanelCard>
+                                    <ControlPanelCard className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" contentClassName="">
+                                        <select
+                                            value={messageHistoryStatusFilter}
+                                            onChange={(event) => setMessageHistoryStatusFilter(event.target.value as MessageHistoryStatusFilter)}
+                                            className="w-full rounded-lg bg-transparent text-sm font-bold text-slate-800 focus:border-indigo-500 focus:bg-white border-0 px-0 py-0"
+                                        >
+                                            <option value="all">상태: 전체</option>
+                                            <option value="success">상태: 성공만</option>
+                                            <option value="fail">상태: {BRAND_STATUS_LABELS.attentionHold}만</option>
+                                        </select>
+                                    </ControlPanelCard>
+                                    <ControlPanelCard label="표시 중" className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" labelClassName="text-[10px] font-black text-slate-500" contentClassName="mt-1">
+                                        <p className="text-sm font-black text-slate-900">{filteredMessageHistoryRows.length}건 / 원본 {selectedMessageHistoryRows.length}건</p>
+                                    </ControlPanelCard>
                                 </div>
 
-                                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
-                                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-[0.18em]">SUCCESS</p>
-                                        <p className="mt-1 text-2xl font-black text-emerald-900">{selectedMessageHistorySummary.successCount}</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-rose-600 uppercase tracking-[0.18em]">CHECK / HOLD</p>
-                                        <p className="mt-1 text-2xl font-black text-rose-900">{selectedMessageHistorySummary.failureCount}</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-sky-600 uppercase tracking-[0.18em]">SENT PAGES</p>
-                                        <p className="mt-1 text-2xl font-black text-sky-900">{selectedMessageHistorySummary.sentPageCount}</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-amber-600 uppercase tracking-[0.18em]">SUCCESS RATE</p>
-                                        <p className="mt-1 text-2xl font-black text-amber-900">{selectedMessageHistorySummary.successRate}%</p>
-                                    </div>
-                                    <div className="rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3">
-                                        <p className="text-[10px] font-black text-violet-600 uppercase tracking-[0.18em]">TOP PROVIDER</p>
-                                        <p className="mt-1 text-base font-black text-violet-900 truncate">{selectedMessageHistorySummary.topProviderLabel}</p>
-                                        <p className="mt-1 text-xs font-bold text-violet-700">{selectedMessageHistorySummary.topProviderCount}건</p>
-                                    </div>
-                                </div>
+                                <SummaryMetricGrid
+                                    className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5"
+                                    items={[
+                                        {
+                                            key: 'message-history-success',
+                                            label: 'SUCCESS',
+                                            value: selectedMessageHistorySummary.successCount,
+                                            tone: 'border-emerald-100 bg-emerald-50',
+                                            labelClassName: 'text-[10px] font-black text-emerald-600 uppercase tracking-[0.18em]',
+                                            valueClassName: 'mt-1 text-2xl font-black text-emerald-900',
+                                        },
+                                        {
+                                            key: 'message-history-failure',
+                                            label: 'CHECK / HOLD',
+                                            value: selectedMessageHistorySummary.failureCount,
+                                            tone: 'border-rose-100 bg-rose-50',
+                                            labelClassName: 'text-[10px] font-black text-rose-600 uppercase tracking-[0.18em]',
+                                            valueClassName: 'mt-1 text-2xl font-black text-rose-900',
+                                        },
+                                        {
+                                            key: 'message-history-pages',
+                                            label: 'SENT PAGES',
+                                            value: selectedMessageHistorySummary.sentPageCount,
+                                            tone: 'border-sky-100 bg-sky-50',
+                                            labelClassName: 'text-[10px] font-black text-sky-600 uppercase tracking-[0.18em]',
+                                            valueClassName: 'mt-1 text-2xl font-black text-sky-900',
+                                        },
+                                        {
+                                            key: 'message-history-success-rate',
+                                            label: 'SUCCESS RATE',
+                                            value: `${selectedMessageHistorySummary.successRate}%`,
+                                            tone: 'border-amber-100 bg-amber-50',
+                                            labelClassName: 'text-[10px] font-black text-amber-600 uppercase tracking-[0.18em]',
+                                            valueClassName: 'mt-1 text-2xl font-black text-amber-900',
+                                        },
+                                        {
+                                            key: 'message-history-provider',
+                                            label: 'TOP PROVIDER',
+                                            value: selectedMessageHistorySummary.topProviderLabel,
+                                            helper: `${selectedMessageHistorySummary.topProviderCount}건`,
+                                            tone: 'border-violet-100 bg-violet-50',
+                                            labelClassName: 'text-[10px] font-black text-violet-600 uppercase tracking-[0.18em]',
+                                            valueClassName: 'mt-1 text-base font-black text-violet-900 truncate',
+                                            helperClassName: 'mt-1 text-xs font-bold text-violet-700',
+                                        },
+                                    ]}
+                                />
                                 {messageHistoryMonthlyTrend.length > 0 && (
-                                    <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div>
-                                                <p className="text-xs font-black text-slate-800">월별 발송 추이</p>
-                                                <p className="mt-1 text-[11px] font-bold text-slate-500">현재 필터 기준 최근 최대 6개월의 성공/{BRAND_STATUS_LABELS.attention} 건수를 표시합니다.</p>
-                                            </div>
-                                        </div>
-                                        <div className="mt-4 h-[240px]">
+                                    <SectionPanelCard
+                                        className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                                        title="월별 발송 추이"
+                                        description={`현재 필터 기준 최근 최대 6개월의 성공/${BRAND_STATUS_LABELS.attention} 건수를 표시합니다.`}
+                                        bodyClassName="mt-4 h-[240px]"
+                                    >
                                             <ResponsiveContainer width="100%" height="100%">
                                                 <BarChart data={messageHistoryMonthlyTrend} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
                                                     <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
@@ -5093,16 +5307,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     <Bar dataKey="fail" name="fail" fill="#F43F5E" radius={[8, 8, 0, 0]} />
                                                 </BarChart>
                                             </ResponsiveContainer>
-                                        </div>
-                                    </div>
+                                    </SectionPanelCard>
                                 )}
                                 {(cachedTeamSuccessTrend.length > 0 || failureReasonData.length > 0) && (
                                     <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-4">
-                                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                                            <div>
-                                                <p className="text-xs font-black text-slate-800">팀별 성공률 비교</p>
-                                                <p className="mt-1 text-[11px] font-bold text-slate-500">현재 캐시에 적재된 팀 기준으로 최근 기간 성공률을 비교합니다.</p>
-                                            </div>
+                                        <SectionPanelCard
+                                            title="팀별 성공률 비교"
+                                            description="현재 캐시에 적재된 팀 기준으로 최근 기간 성공률을 비교합니다."
+                                        >
                                             {cachedTeamSuccessTrend.length > 0 ? (
                                                 <div className="mt-4 h-[240px]">
                                                     <ResponsiveContainer width="100%" height="100%">
@@ -5120,13 +5332,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     아직 팀 비교가 가능한 캐시 데이터가 부족합니다.
                                                 </div>
                                             )}
-                                        </div>
+                                        </SectionPanelCard>
 
-                                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                                            <div>
-                                                <p className="text-xs font-black text-slate-800">{BRAND_STATUS_LABELS.attention} 사유 분류</p>
-                                                <p className="mt-1 text-[11px] font-bold text-slate-500">{BRAND_STATUS_LABELS.attentionHold} 메시지 문구를 기준으로 주요 원인을 자동 분류합니다.</p>
-                                            </div>
+                                        <SectionPanelCard
+                                            title={`${BRAND_STATUS_LABELS.attention} 사유 분류`}
+                                            description={`${BRAND_STATUS_LABELS.attentionHold} 메시지 문구를 기준으로 주요 원인을 자동 분류합니다.`}
+                                        >
                                             {failureReasonData.length > 0 ? (
                                                 <div className="mt-4 h-[240px]">
                                                     <ResponsiveContainer width="100%" height="100%">
@@ -5144,28 +5355,37 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     현재 필터에서는 {BRAND_STATUS_LABELS.attentionHold} 로그가 없어 사유 분류가 비어 있습니다.
                                                 </div>
                                             )}
-                                        </div>
+                                        </SectionPanelCard>
                                     </div>
                                 )}
                                 {failurePriorityActions.length > 0 && (
-                                    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4">
-                                        <div>
-                                            <p className="text-xs font-black text-amber-900">재발송 우선순위 가이드</p>
-                                            <p className="mt-1 text-[11px] font-bold text-amber-700">{BRAND_STATUS_LABELS.attention} 빈도가 높은 원인부터 현장 대응 우선순위를 안내합니다.</p>
-                                        </div>
-                                        <div className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3">
+                                    <SectionPanelCard
+                                        className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4"
+                                        title="재발송 우선순위 가이드"
+                                        description={`${BRAND_STATUS_LABELS.attention} 빈도가 높은 원인부터 현장 대응 우선순위를 안내합니다.`}
+                                        titleClassName="text-xs font-black text-amber-900"
+                                        descriptionClassName="mt-1 text-[11px] font-bold text-amber-700"
+                                        bodyClassName="mt-4"
+                                    >
+                                        <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
                                             {failurePriorityActions.map((item) => (
-                                                <div key={item.reason} className="rounded-2xl border border-amber-200 bg-white px-4 py-4 shadow-sm">
-                                                    <div className="flex items-center justify-between gap-2">
-                                                        <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-800">우선 {item.rank}</span>
-                                                        <span className="text-[11px] font-black text-amber-700">{item.count}건</span>
-                                                    </div>
-                                                    <p className="mt-3 text-sm font-black text-slate-900">{item.reason}</p>
-                                                    <p className="mt-2 text-[11px] font-bold text-slate-600 break-words">{item.action}</p>
-                                                </div>
+                                                <OperationalPreviewCard
+                                                    key={item.reason}
+                                                    className="rounded-2xl border border-amber-200 bg-white px-4 py-4 shadow-sm"
+                                                    title={item.reason}
+                                                    badge={(
+                                                        <div className="flex items-center gap-2">
+                                                            <StatusBadge variant="amberSoft">우선 {item.rank}</StatusBadge>
+                                                            <span className="text-[11px] font-black text-amber-700">{item.count}건</span>
+                                                        </div>
+                                                    )}
+                                                    footer={item.action}
+                                                    titleClassName="text-sm font-black text-slate-900"
+                                                    footerClassName="mt-2 break-words text-[11px] font-bold text-slate-600"
+                                                />
                                             ))}
                                         </div>
-                                    </div>
+                                    </SectionPanelCard>
                                 )}
                                 {selectedMessageHistoryLogEntry && (
                                     <p className="mt-3 text-[11px] font-bold text-slate-500">
@@ -5173,28 +5393,44 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     </p>
                                 )}
                                 {selectedMessageHistoryWorker && !selectedMessageHistoryLatestRecord && (
-                                    <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">
-                                        현재 근로자와 연결된 최신 리포트 원본을 찾지 못했습니다. 문자 이력은 확인 가능하지만 상세 리포트 바로 열기는 비활성화됩니다.
-                                    </div>
+                                    <NoticeCallout
+                                        variant="amber"
+                                        className="mt-3 rounded-2xl px-4 py-3"
+                                        title="현재 근로자와 연결된 최신 리포트 원본을 찾지 못했습니다."
+                                        description="문자 이력은 확인 가능하지만 상세 리포트 바로 열기는 비활성화됩니다."
+                                        titleClassName="text-xs font-bold"
+                                        descriptionClassName="mt-1 text-xs font-bold"
+                                        bodyClassName="block"
+                                    />
                                 )}
 
                                 {messageLogError && (
-                                    <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-bold text-rose-700">
-                                        문자 발송 이력 조회 오류: {messageLogError}
-                                    </div>
+                                    <NoticeCallout
+                                        variant="rose"
+                                        className="mt-4 rounded-2xl px-4 py-3"
+                                        title={`문자 발송 이력 조회 오류: ${messageLogError}`}
+                                        titleClassName="text-xs font-bold"
+                                        bodyClassName="block"
+                                    />
                                 )}
 
                                 {!selectedMessageHistoryWorker && (
-                                    <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm font-bold text-slate-500">
-                                        좌측에서 근로자를 선택하면 개인별 문자 발송 이력이 표시됩니다.
-                                    </div>
+                                    <EmptyStatePanel
+                                        variant="slate"
+                                        className="mt-4 rounded-2xl px-4 py-10"
+                                        title="좌측에서 근로자를 선택하면 개인별 문자 발송 이력이 표시됩니다."
+                                        titleClassName="text-sm font-bold text-slate-500"
+                                    />
                                 )}
 
                                 {selectedMessageHistoryWorker && selectedMessageHistoryLogEntry && !selectedMessageHistoryLogEntry.schemaReady && (
-                                    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
-                                        <p className="font-black">문자 발송 로그 스키마가 아직 준비되지 않았습니다.</p>
-                                        <p className="mt-1 text-xs font-bold">Supabase SQL Editor에서 `supabase_report_message_logs_migration.sql`을 먼저 실행하면 관리자 이력 탭이 즉시 활성화됩니다.</p>
-                                    </div>
+                                    <NoticeCallout
+                                        variant="amber"
+                                        className="mt-4 rounded-2xl px-4 py-4"
+                                        title="문자 발송 로그 스키마가 아직 준비되지 않았습니다."
+                                        description="Supabase SQL Editor에서 supabase_report_message_logs_migration.sql을 먼저 실행하면 관리자 이력 탭이 즉시 활성화됩니다."
+                                        bodyClassName="block"
+                                    />
                                 )}
 
                                 {selectedMessageHistoryWorker && (!selectedMessageHistoryLogEntry || selectedMessageHistoryLogEntry.schemaReady) && (
@@ -5212,19 +5448,11 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             </thead>
                                             <tbody>
                                                 {isMessageLogLoading && !selectedMessageHistoryLogEntry && (
-                                                    <tr>
-                                                        <td colSpan={6} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
-                                                            문자 발송 이력을 불러오는 중입니다.
-                                                        </td>
-                                                    </tr>
+                                                    <TableStateRow colSpan={6} message="문자 발송 이력을 불러오는 중입니다." />
                                                 )}
 
                                                 {!isMessageLogLoading && selectedMessageHistoryLogEntry && filteredMessageHistoryRows.length === 0 && (
-                                                    <tr>
-                                                        <td colSpan={6} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
-                                                            현재 필터 조건에 맞는 문자 발송 이력이 없습니다.
-                                                        </td>
-                                                    </tr>
+                                                    <TableStateRow colSpan={6} message="현재 필터 조건에 맞는 문자 발송 이력이 없습니다." />
                                                 )}
 
                                                 {filteredMessageHistoryRows.map((row) => (
@@ -5279,24 +5507,32 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 )}
                             </div>
                         </div>
-                    </div>
+                    </SectionPanelCard>
                 )}
 
                 {registeredWorkerAdminTab === 'list' && (
                 <>
-                <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-4">
-                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                        <div>
-                            <p className="text-[11px] font-black text-sky-700 uppercase tracking-[0.18em]">BULK REPORT MESSAGE</p>
-                            <p className="mt-1 text-sm font-black text-slate-900">선택 근로자 리포트 일괄 문자 발송</p>
-                            <p className="mt-1 text-[11px] font-bold text-slate-600">선택한 등록 근로자의 저장된 전화번호를 그대로 사용해 최신 개인 리포트를 순차 발송합니다.</p>
+                <SectionPanelCard
+                    variant="sky"
+                    className="mt-4"
+                    title={(
+                        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                            <div>
+                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-sky-700">BULK REPORT MESSAGE</p>
+                                <p className="mt-1 text-sm font-black text-slate-900">선택 근로자 리포트 일괄 문자 발송</p>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
+                                <span className="rounded-full border border-sky-200 bg-white px-3 py-1 text-sky-700">선택 {selectedBulkMessageWorkerIds.length}명</span>
+                                <span className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-emerald-700">발송 가능 {selectedBulkMessageWorkers.filter((worker) => normalizePhone(worker.phone_number).length >= 10 && findLatestRecordForRegisteredWorker(worker)).length}명</span>
+                            </div>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2 text-[11px] font-black">
-                            <span className="rounded-full border border-sky-200 bg-white px-3 py-1 text-sky-700">선택 {selectedBulkMessageWorkerIds.length}명</span>
-                            <span className="rounded-full border border-emerald-200 bg-white px-3 py-1 text-emerald-700">발송 가능 {selectedBulkMessageWorkers.filter((worker) => normalizePhone(worker.phone_number).length >= 10 && findLatestRecordForRegisteredWorker(worker)).length}명</span>
-                        </div>
-                    </div>
-                    <div className="mt-3 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_auto] gap-3 items-start">
+                    )}
+                    description="선택한 등록 근로자의 저장된 전화번호를 그대로 사용해 최신 개인 리포트를 순차 발송합니다."
+                    titleClassName="text-inherit"
+                    descriptionClassName="mt-1 text-[11px] font-bold text-slate-600"
+                    bodyClassName="mt-3"
+                >
+                    <div className="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
                         <textarea
                             value={bulkMessageNote}
                             onChange={(event) => setBulkMessageNote(event.target.value.slice(0, 180))}
@@ -5375,7 +5611,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             {bulkMessageStatus}
                         </p>
                     )}
-                </div>
+                </SectionPanelCard>
                 <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
                     <table className="min-w-full text-sm">
                         <thead className="bg-slate-50">
@@ -5410,35 +5646,19 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         </thead>
                         <tbody>
                             {isRegisteredWorkersLoading && (
-                                <tr>
-                                    <td colSpan={8} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
-                                        등록 근로자 목록을 불러오는 중입니다.
-                                    </td>
-                                </tr>
+                                <TableStateRow colSpan={8} message="등록 근로자 목록을 불러오는 중입니다." />
                             )}
 
                             {!isRegisteredWorkersLoading && registeredWorkersError && (
-                                <tr>
-                                    <td colSpan={8} className="px-4 py-6 text-center text-xs font-bold text-rose-600">
-                                        목록 조회 오류: {registeredWorkersError}
-                                    </td>
-                                </tr>
+                                <TableStateRow colSpan={8} message={`목록 조회 오류: ${registeredWorkersError}`} className="px-4 py-6 text-center text-xs font-bold text-rose-600" />
                             )}
 
                             {!isRegisteredWorkersLoading && !registeredWorkersError && registeredWorkers.length === 0 && (
-                                <tr>
-                                    <td colSpan={8} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
-                                        등록된 근로자 데이터가 없습니다.
-                                    </td>
-                                </tr>
+                                <TableStateRow colSpan={8} message="등록된 근로자 데이터가 없습니다." />
                             )}
 
                             {!isRegisteredWorkersLoading && !registeredWorkersError && registeredWorkers.length > 0 && visibleRegisteredWorkers.length === 0 && (
-                                <tr>
-                                    <td colSpan={8} className="px-4 py-6 text-center text-xs font-bold text-slate-500">
-                                        검색/필터 조건에 맞는 근로자가 없습니다.
-                                    </td>
-                                </tr>
+                                <TableStateRow colSpan={8} message="검색/필터 조건에 맞는 근로자가 없습니다." />
                             )}
 
                             {!isRegisteredWorkersLoading && !registeredWorkersError && visibleRegisteredWorkers.map((worker) => {

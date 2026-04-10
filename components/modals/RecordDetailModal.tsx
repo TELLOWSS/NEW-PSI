@@ -2,8 +2,16 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { WorkerRecord, AppSettings, ScoreAdjustmentReasonCode, ScoreAdjustmentEntry } from '../../types';
 import { BRAND_STATUS_LABELS } from '../../utils/brandLabels';
+import { ActionButton } from '../shared/ActionButton';
 import { CircularProgress } from '../shared/CircularProgress';
 import { InterpretationCardGrid } from '../shared/InterpretationCardGrid';
+import { NextActionChecklist } from '../shared/NextActionChecklist';
+import { NoticeCallout } from '../shared/NoticeCallout';
+import { OperationalPreviewCard } from '../shared/OperationalPreviewCard';
+import { SectionPanelCard } from '../shared/SectionPanelCard';
+import { StatusBadge } from '../shared/StatusBadge';
+import { SummaryMetricGrid } from '../shared/SummaryMetricGrid';
+import { WhyThisResultPanel } from '../shared/WhyThisResultPanel';
 import { updateAnalysisBasedOnEdits } from '../../services/geminiService';
 import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
 import { deriveCompetencyProfile, enforceSafetyLevel, getApprovalBlockers } from '../../utils/evidenceUtils';
@@ -39,6 +47,14 @@ const metricToneClass: Record<MetricTone, { badge: string; bar: string; panel: s
     rose: { badge: 'bg-rose-100 text-rose-700', bar: 'bg-rose-500', panel: 'bg-rose-50 border-rose-200', text: 'text-rose-700', track: 'bg-rose-100' },
 };
 
+const metricToneBadgeVariant: Record<MetricTone, React.ComponentProps<typeof StatusBadge>['variant']> = {
+    slate: 'slateSoft',
+    indigo: 'violetSoft',
+    emerald: 'emeraldSoft',
+    amber: 'amberSoft',
+    rose: 'roseSoft',
+};
+
 const ocrErrorGuide: Record<NonNullable<WorkerRecord['ocrErrorType']>, string> = {
     QUALITY: '이미지 품질 흔들림이 있어 원본 대조가 먼저 필요합니다.',
     RESOLUTION: '해상도 저하 가능성이 있어 문서 재확인이 우선입니다.',
@@ -66,9 +82,9 @@ const CompetencyMetricCard: React.FC<CompetencyMetricCardProps> = ({
                     <p className="text-[11px] font-black text-slate-800">{label}</p>
                     <p className="mt-1 text-[11px] font-medium text-slate-500 leading-relaxed">{subtitle}</p>
                 </div>
-                <div className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-black ${toneClass.badge}`}>
+                <StatusBadge variant={metricToneBadgeVariant[tone]} className={`shrink-0 border-0 px-2.5 py-1 text-xs ${toneClass.badge}`}>
                     {penalty ? `-${safeScore}` : `${safeScore}점`}
-                </div>
+                </StatusBadge>
             </div>
             <div className={`mt-3 h-2.5 overflow-hidden rounded-full ${toneClass.track}`}>
                 <div className={`h-full rounded-full ${toneClass.bar}`} style={{ width: `${progress}%` }} />
@@ -932,20 +948,23 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     <div className="w-full lg:w-[50%] bg-slate-900 overflow-y-auto custom-scrollbar relative border-r border-slate-800 p-4 sm:p-8 flex flex-col items-center">
                         <div className="sticky top-0 left-0 z-10 mb-4 sm:mb-6 w-full flex justify-between items-center gap-2 sm:gap-4">
                             <div className="flex flex-col items-start min-w-0 flex-1">
-                                    <span className="bg-black/60 text-white text-[10px] font-black px-3 sm:px-4 py-1.5 rounded-full border border-white/10 backdrop-blur-md uppercase tracking-widest mb-1">위험성 평가표 원본</span>
+                                <StatusBadge variant="glassDark" className="mb-1 px-3 sm:px-4 py-1.5 uppercase tracking-widest">
+                                    위험성 평가표 원본
+                                </StatusBadge>
                                 {record.filename && (
-                                    <span className="text-xs text-slate-400 font-bold bg-slate-800/80 px-3 py-1.5 rounded border border-slate-700 max-w-full truncate" title={record.filename}>
+                                    <StatusBadge variant="slateDarkSoft" className="max-w-full rounded px-3 py-1.5 text-xs" title={record.filename}>
                                         📄 {record.filename}
-                                    </span>
+                                    </StatusBadge>
                                 )}
                             </div>
-                            <button 
+                            <ActionButton
                                 onClick={() => docInputRef.current?.click()}
-                                className="bg-white/10 hover:bg-white/20 text-white text-[10px] font-bold px-3 py-1.5 rounded-full backdrop-blur-md border border-white/20 transition-all flex items-center gap-2 shrink-0"
+                                variant="glassDark"
+                                className="shrink-0 px-3 py-1.5 text-[10px] font-bold"
                             >
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                                 {hasOriginalImage ? '문서 교체' : '문서 등록'}
-                            </button>
+                            </ActionButton>
                             <input type="file" ref={docInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'original')} />
                         </div>
                         
@@ -961,12 +980,13 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                             <div className="flex-1 flex flex-col items-center justify-center text-slate-600">
                                 <svg className="w-20 h-20 mb-4 opacity-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                                 <p className="font-black text-lg opacity-30 tracking-tight">원본 이미지가 없습니다.</p>
-                                <button 
+                                <ActionButton
                                     onClick={() => docInputRef.current?.click()}
-                                    className="mt-6 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-all flex items-center gap-2"
+                                    variant="indigoSolid"
+                                    className="mt-6 px-6 py-3 font-bold shadow-lg"
                                 >
                                     문서 이미지 업로드
-                                </button>
+                                </ActionButton>
                             </div>
                         )}
                     </div>
@@ -974,21 +994,45 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     {/* RIGHT: PROFILE & INFO EDIT AREA */}
                     <div className="w-full lg:w-[50%] flex flex-col bg-slate-50 overflow-hidden">
                         <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-5 sm:space-y-8 custom-scrollbar">
-                            <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4">
-                                <h4 className="text-sm font-black text-indigo-800 mb-2">모바일 작업 순서 안내</h4>
-                                <p className="text-xs text-indigo-700 font-bold leading-relaxed">
-                                    1) 근로자 정보 수정 → 2) 상단 <span className="underline">1차 저장</span> → 3) 하단 승인영역 코멘트 작성 → 4) <span className="underline">최종 승인</span>(2차 가공 자동 실행) → 5) 안전 리포트 보기
-                                </p>
-                            </div>
+                            <SectionPanelCard
+                                variant="indigo"
+                                eyebrow="모바일 작업 순서 안내"
+                                title="저장 → 판단 근거 → 보호 판단 확정 흐름을 빠르게 이어갑니다."
+                                description="현장 검수자가 가장 적은 클릭으로 보호 판단을 마칠 수 있게 정리했습니다."
+                                className="rounded-3xl px-5 py-5 shadow-sm"
+                                titleClassName="mt-2 text-sm font-black text-indigo-900"
+                                descriptionClassName="mt-2 text-xs font-bold leading-relaxed text-indigo-700"
+                                bodyClassName="mt-4"
+                            >
+                                <NextActionChecklist
+                                    title="권장 순서"
+                                    className="mt-0 border-t-0 pt-0"
+                                    titleClassName="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500"
+                                    listClassName="space-y-1.5 text-xs font-bold leading-relaxed text-indigo-800"
+                                    itemClassName="flex items-start gap-2"
+                                    bulletClassName="mt-[2px] text-indigo-500"
+                                    items={[
+                                        { key: 'step-1', content: '근로자 정보와 원문/해석 내용을 먼저 수정합니다.' },
+                                        { key: 'step-2', content: '상단 1차 저장으로 수정본을 고정합니다.' },
+                                        { key: 'step-3', content: '하단 승인영역에 검토 근거를 남깁니다.' },
+                                        { key: 'step-4', content: '최종 승인으로 2차 가공을 실행합니다.' },
+                                        { key: 'step-5', content: '보호 리포트로 연결해 현장 공유를 이어갑니다.' },
+                                    ]}
+                                />
+                            </SectionPanelCard>
 
                             {hasChanges && hasWeakSaveReason && (
-                                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-                                    <h4 className="text-sm font-black text-amber-800 mb-2">수정 사유 보강 권장</h4>
-                                    <p className="text-xs text-amber-700 font-bold leading-relaxed">
-                                        1차 저장 전에 하단 승인영역 코멘트에 수정 이유를 6자 이상 남겨주세요. 저장은 가능하지만,
-                                        사유가 짧으면 OCR 화면에서 <span className="underline">수정사유 보강 필요</span> 배지로 표시됩니다.
-                                    </p>
-                                </div>
+                                <NoticeCallout
+                                    variant="amber"
+                                    eyebrow="수정 사유 보강 권장"
+                                    title="1차 저장 전에 하단 승인영역 코멘트에 수정 이유를 6자 이상 남겨주세요."
+                                    description={<><span>저장은 가능하지만, 사유가 짧으면 OCR 화면에서 </span><span className="underline">수정사유 보강 필요</span><span> 배지로 표시됩니다.</span></>}
+                                    className="w-full rounded-3xl border px-5 py-4 shadow-sm"
+                                    bodyClassName="block"
+                                    eyebrowClassName="text-[11px] font-black uppercase tracking-[0.2em] text-amber-700"
+                                    titleClassName="mt-2 text-sm font-black text-amber-800"
+                                    descriptionClassName="mt-2 text-xs font-bold leading-relaxed text-amber-700"
+                                />
                             )}
 
                             <InterpretationCardGrid
@@ -1006,14 +1050,22 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         <h3 className="mt-2 text-lg font-black text-slate-900">원문 → AI 해석 → 관리자 판단을 한 번에 봅니다.</h3>
                                         <p className="mt-2 text-sm font-semibold text-slate-600">감점이나 승인보다 먼저, 무엇이 읽혔고 어떻게 해석됐으며 현장에서 어떤 보완이 필요한지 빠르게 파악하도록 정리했습니다.</p>
                                     </div>
-                                    <div className="flex flex-wrap gap-2">
-                                        {reviewMetaChips.map((chip) => (
-                                            <div key={chip.key} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{chip.label}</p>
-                                                <p className="mt-1 text-xs font-black text-slate-700">{chip.value}</p>
-                                            </div>
-                                        ))}
-                                    </div>
+                                    <SummaryMetricGrid
+                                        className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+                                        cardClassName="rounded-2xl border px-3 py-2"
+                                        items={reviewMetaChips.map((chip) => ({
+                                            key: chip.key,
+                                            label: chip.label,
+                                            value: chip.value,
+                                            tone: chip.key === 'history' ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50',
+                                            labelClassName: chip.key === 'history'
+                                                ? 'text-[10px] font-black uppercase tracking-[0.18em] text-indigo-400'
+                                                : 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
+                                            valueClassName: chip.key === 'history'
+                                                ? 'mt-1 text-xs font-black text-indigo-700'
+                                                : 'mt-1 text-xs font-black text-slate-700',
+                                        }))}
+                                    />
                                 </div>
                                 <div className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3">
                                     {sourcePreviewPanels.map((panel) => (
@@ -1027,84 +1079,116 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                             </div>
 
                             <div className="lg:hidden bg-white border border-slate-200 rounded-2xl p-2 grid grid-cols-3 gap-2 sticky top-0 z-10 shadow-sm">
-                                <button
+                                <ActionButton
+                                    variant={hasChanges ? 'indigoSolid' : 'slateSoft'}
                                     onClick={handleSave}
                                     disabled={!hasChanges}
-                                    className={`px-2 py-2 rounded-xl text-[11px] font-black transition-colors ${hasChanges ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}
+                                    className="px-2 py-2 text-[11px] border-0"
                                 >
                                     1차 저장
-                                </button>
-                                <button
+                                </ActionButton>
+                                <ActionButton
+                                    variant={isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0) ? 'slateSoft' : 'emeraldSoft'}
                                     onClick={() => { void handleApprove('approved'); }}
                                     disabled={isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0)}
-                                    className={`px-2 py-2 rounded-xl text-[11px] font-black transition-colors ${isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0) ? 'bg-slate-100 text-slate-400' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'}`}
+                                    className="px-2 py-2 text-[11px] border-0"
                                 >
                                     보호 판단 확정
-                                </button>
-                                <button
+                                </ActionButton>
+                                <ActionButton
+                                    variant="slateSolid"
                                     onClick={handleOpenReportClick}
-                                    className="px-2 py-2 rounded-xl text-[11px] font-black bg-slate-900 text-white"
+                                    className="px-2 py-2 text-[11px] border-0"
                                 >
                                     보호 리포트
-                                </button>
+                                </ActionButton>
                             </div>
                             
                             {/* 1. Profile Photo Section (NEW) */}
-                            <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex items-center gap-6">
-                                <div className="relative group shrink-0">
-                                    <div className="w-24 h-24 rounded-2xl overflow-hidden bg-slate-100 border-2 border-slate-200 shadow-inner flex items-center justify-center relative">
-                                        {hasProfileImage ? (
-                                            <img src={record.profileImage} className="w-full h-full object-cover" alt="Profile" />
-                                        ) : (
-                                            <svg className="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                            <SectionPanelCard
+                                variant="whiteSoft"
+                                eyebrow="프로필 자산"
+                                title="증명사진(프로필) 등록"
+                                description={<><span>사원증(ID Card) 및 개인 리포트의 프로필 영역에 사용되며, 문서 이미지와 별도로 관리됩니다.</span></>}
+                                className="rounded-3xl border border-slate-200 bg-white px-6 py-6 shadow-sm"
+                                titleClassName="mt-1 text-lg font-black text-slate-900"
+                                descriptionClassName="mt-1 text-xs font-medium leading-relaxed text-slate-500"
+                                bodyClassName="mt-0"
+                            >
+                                <div className="flex items-center gap-6">
+                                    <div className="relative group shrink-0">
+                                        <div className="w-24 h-24 rounded-2xl overflow-hidden bg-slate-100 border-2 border-slate-200 shadow-inner flex items-center justify-center relative">
+                                            {hasProfileImage ? (
+                                                <img src={record.profileImage} className="w-full h-full object-cover" alt="Profile" />
+                                            ) : (
+                                                <svg className="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                            )}
+                                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                            </div>
+                                            <input type="file" ref={profileInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'profile')} />
+                                            <button onClick={() => profileInputRef.current?.click()} className="absolute inset-0 w-full h-full cursor-pointer"></button>
+                                        </div>
+                                        <div className="absolute -bottom-2 -right-2 bg-indigo-600 text-white p-1.5 rounded-full shadow border-2 border-white pointer-events-none">
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1">
+                                        {isPhotoQueueMode && (
+                                            <NoticeCallout
+                                                variant="emerald"
+                                                eyebrow="가장 빠른 등록 방식"
+                                                title="사진 업로드 시 자동 저장과 다음 대상 이동을 함께 진행합니다."
+                                                description="다음 대상이 있으면 자동으로 이어지고, 마지막 대상이면 목록으로 돌아갑니다. 필요하면 상단에서 바로 다음 대상을 수동으로 열 수도 있습니다."
+                                                className="mt-3 w-full rounded-2xl border px-3 py-3"
+                                                bodyClassName="block"
+                                                eyebrowClassName="text-[11px] font-black text-emerald-800"
+                                                titleClassName="mt-1 text-[11px] font-black text-emerald-800"
+                                                descriptionClassName="mt-1 text-[11px] font-bold leading-relaxed text-emerald-700"
+                                            />
                                         )}
-                                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                        </div>
-                                        <input type="file" ref={profileInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'profile')} />
-                                        <button onClick={() => profileInputRef.current?.click()} className="absolute inset-0 w-full h-full cursor-pointer"></button>
-                                    </div>
-                                    <div className="absolute -bottom-2 -right-2 bg-indigo-600 text-white p-1.5 rounded-full shadow border-2 border-white pointer-events-none">
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                        {photoQueueNotice && (
+                                            <NoticeCallout
+                                                variant={photoQueueNotice.includes(BRAND_STATUS_LABELS.attention) ? 'rose' : 'indigo'}
+                                                eyebrow={photoQueueNotice.includes(BRAND_STATUS_LABELS.attention) ? '추가 확인 안내' : '자동 진행 상태'}
+                                                title={photoQueueNotice}
+                                                className="mt-3 w-full rounded-2xl border px-3 py-3"
+                                                bodyClassName="block"
+                                                eyebrowClassName={photoQueueNotice.includes(BRAND_STATUS_LABELS.attention)
+                                                    ? 'text-[11px] font-black text-rose-700'
+                                                    : 'text-[11px] font-black text-indigo-700'}
+                                                titleClassName={photoQueueNotice.includes(BRAND_STATUS_LABELS.attention)
+                                                    ? 'mt-1 text-[11px] font-black text-rose-700'
+                                                    : 'mt-1 text-[11px] font-black text-indigo-700'}
+                                            />
+                                        )}
+                                        {!hasProfileImage && (
+                                            <button onClick={() => profileInputRef.current?.click()} className="mt-3 text-xs font-bold text-indigo-600 hover:underline">
+                                                + 사진 업로드하기
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
-                                <div className="flex-1">
-                                    <h3 className="text-lg font-black text-slate-900 mb-1">증명사진(프로필) 등록</h3>
-                                    <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                                        이곳에 등록된 사진은 <strong>사원증(ID Card)</strong> 및 <strong>개인 리포트</strong>의 프로필 영역에 사용됩니다. 
-                                        문서 이미지와 별도로 관리됩니다.
-                                    </p>
-                                    {isPhotoQueueMode && (
-                                        <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-3">
-                                            <p className="text-[11px] font-black text-emerald-800">가장 빠른 등록 방식</p>
-                                            <p className="mt-1 text-[11px] font-bold text-emerald-700">사진 업로드 시 자동 저장되며, 다음 대상이 있으면 자동으로 이어지고 마지막 대상이면 자동으로 목록으로 돌아갑니다. 필요하면 상단에서 바로 다음 대상을 수동으로 열 수도 있습니다.</p>
-                                        </div>
-                                    )}
-                                    {photoQueueNotice && (
-                                        <div className={`mt-3 rounded-2xl border px-3 py-3 ${photoQueueNotice.includes(BRAND_STATUS_LABELS.attention) ? 'border-rose-200 bg-rose-50' : 'border-indigo-200 bg-indigo-50'}`}>
-                                            <p className={`text-[11px] font-black ${photoQueueNotice.includes(BRAND_STATUS_LABELS.attention) ? 'text-rose-700' : 'text-indigo-700'}`}>{photoQueueNotice}</p>
-                                        </div>
-                                    )}
-                                    {!hasProfileImage && (
-                                        <button onClick={() => profileInputRef.current?.click()} className="mt-3 text-xs font-bold text-indigo-600 hover:underline">
-                                            + 사진 업로드하기
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
+                            </SectionPanelCard>
 
-                            <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h3 className="text-xs font-black text-indigo-600 flex items-center gap-3 uppercase tracking-widest">
-                                        <span className="p-1.5 bg-indigo-50 rounded-lg">
+                            <SectionPanelCard
+                                variant="whiteSoft"
+                                eyebrow="근로자 정보 편집"
+                                title={(
+                                    <span className="flex items-center gap-3 text-indigo-600">
+                                        <span className="rounded-lg bg-indigo-50 p-1.5">
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                         </span>
                                         근로자 기본 정보 수정
-                                    </h3>
-                                    <button 
-                                        onClick={handleReflectChanges} 
+                                    </span>
+                                )}
+                                description="기본 정보, 역할, 특수 임무를 한 번에 조정하고 필요하면 관리자 검수 갱신을 이어갑니다."
+                                headerAction={
+                                    <ActionButton
+                                        onClick={handleReflectChanges}
                                         disabled={isUpdatingAnalysis || isFinalizedRecord}
-                                        className="text-[10px] font-bold bg-violet-100 text-violet-700 px-3 py-1.5 rounded-lg hover:bg-violet-200 transition-colors flex items-center gap-1"
+                                        variant={isUpdatingAnalysis || isFinalizedRecord ? 'slateSoft' : 'indigo'}
+                                        className="px-3 py-1.5 text-[10px] border-0"
                                     >
                                         {isUpdatingAnalysis ? (
                                             <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -1112,9 +1196,13 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                                         )}
                                         관리자 검수 및 수정사항 반영 갱신
-                                    </button>
-                                </div>
-
+                                    </ActionButton>
+                                }
+                                className="rounded-3xl border border-slate-200 bg-white px-8 py-8 shadow-sm"
+                                titleClassName="mt-0 text-xs font-black uppercase tracking-widest"
+                                descriptionClassName="mt-2 text-[11px] font-bold text-slate-500"
+                                bodyClassName="mt-6"
+                            >
                                 <div className="space-y-6">
                                     <div className="flex gap-4">
                                         <div className="flex-1">
@@ -1249,7 +1337,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         </div>
                                     </div>
                                 </div>
-                            </div>
+                            </SectionPanelCard>
 
                             <div className="flex gap-2 p-1.5 bg-slate-200 rounded-2xl shrink-0">
                                 {['info', 'analysis', 'qna'].map(t => (
@@ -1262,37 +1350,62 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                             <div className="min-h-[300px]">
                                 {activeTab === 'info' && (
                                     <div className="space-y-4">
-                                        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm">
-                                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                                                <div>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.24em]">판단 체크포인트</p>
-                                                    <h4 className="mt-2 text-sm font-black text-slate-900">승인 전에 꼭 맞춰볼 세 가지</h4>
-                                                </div>
-                                                <div className="text-xs font-bold text-slate-500">
+                                        <WhyThisResultPanel
+                                            title="승인 전에 꼭 맞춰볼 세 가지"
+                                            badge={
+                                                <StatusBadge variant="slateSoft" className="px-3 py-1.5 text-[11px] font-black">
                                                     {latestScoreAdjustment
                                                         ? `최근 점수 조정 ${latestScoreAdjustment.previousScore} → ${latestScoreAdjustment.nextScore}`
                                                         : '최근 점수 조정 이력 없음'}
-                                                </div>
-                                            </div>
-                                            <div className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3">
-                                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">원문 확인</p>
-                                                    <p className="mt-2 text-sm font-semibold text-slate-700 leading-relaxed">질문별 수기 답변과 OCR 원문이 실제 현장 문맥과 맞는지 먼저 확인합니다.</p>
-                                                </div>
-                                                <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
-                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">해석 확인</p>
-                                                    <p className="mt-2 text-sm font-semibold text-indigo-700 leading-relaxed">AI 해석과 점수 근거가 과도하게 단정적이지 않은지, 보완 방향이 충분히 설명되는지 봅니다.</p>
-                                                </div>
-                                                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">행동 결정</p>
-                                                    <p className="mt-2 text-sm font-semibold text-emerald-700 leading-relaxed">수정 저장, 승인, 보완 요청 중 무엇이 현장 보호에 가장 빠른지 결정합니다.</p>
-                                                </div>
-                                            </div>
-                                        </div>
+                                                </StatusBadge>
+                                            }
+                                            entries={[
+                                                {
+                                                    key: 'source',
+                                                    content: (
+                                                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">원문 확인</p>
+                                                            <p className="mt-2 text-sm font-semibold text-slate-700 leading-relaxed">질문별 수기 답변과 OCR 원문이 실제 현장 문맥과 맞는지 먼저 확인합니다.</p>
+                                                        </div>
+                                                    ),
+                                                },
+                                                {
+                                                    key: 'interpretation',
+                                                    content: (
+                                                        <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">해석 확인</p>
+                                                            <p className="mt-2 text-sm font-semibold text-indigo-700 leading-relaxed">AI 해석과 점수 근거가 과도하게 단정적이지 않은지, 보완 방향이 충분히 설명되는지 봅니다.</p>
+                                                        </div>
+                                                    ),
+                                                },
+                                                {
+                                                    key: 'action',
+                                                    content: (
+                                                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">행동 결정</p>
+                                                            <p className="mt-2 text-sm font-semibold text-emerald-700 leading-relaxed">수정 저장, 승인, 보완 요청 중 무엇이 현장 보호에 가장 빠른지 결정합니다.</p>
+                                                        </div>
+                                                    ),
+                                                },
+                                            ]}
+                                            className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm"
+                                            headerClassName="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"
+                                            titleClassName="text-sm font-black text-slate-900"
+                                            listClassName="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3"
+                                        />
 
-                                        <div className="bg-white p-10 rounded-3xl shadow-sm border border-slate-200 flex items-center justify-between group">
+                                        <SectionPanelCard
+                                            variant="whiteSoft"
+                                            eyebrow="CURRENT JUDGMENT LEVEL"
+                                            title="현재 보호 판단 수준을 수치와 근거로 함께 확인합니다."
+                                            description="점수 조정이 실제 등급, OCR 신뢰도, 무결성 판단에 어떤 영향을 주는지 바로 볼 수 있습니다."
+                                            className="rounded-3xl border border-slate-200 bg-white px-10 py-10 shadow-sm"
+                                            titleClassName="mt-1 text-sm font-black text-slate-900"
+                                            descriptionClassName="mt-2 text-xs font-bold text-slate-500"
+                                            bodyClassName="mt-4"
+                                        >
+                                        <div className="flex items-center justify-between group">
                                             <div>
-                                                <p className="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-[3px]">CURRENT JUDGMENT LEVEL</p>
                                                 <input 
                                                     type="number" 
                                                     value={record.safetyScore} 
@@ -1318,10 +1431,21 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             </div>
                                             <CircularProgress score={record.safetyScore} level={record.safetyLevel} />
                                         </div>
+                                        </SectionPanelCard>
 
-                                        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm">
-                                            <h4 className="text-sm font-black text-slate-800 mb-4">개인 안전역량 세부지표</h4>
-                                            <p className="text-[11px] font-bold text-slate-500 mb-4">
+                                        <SectionPanelCard
+                                            variant="whiteSoft"
+                                            eyebrow="역량 세부지표"
+                                            title="개인 안전역량 세부지표"
+                                            description={(
+                                                <span>채점 루브릭 안내: 숙련도(④)는 검증 가능한 실무 행동의 구체성, 개선이행도(⑤)는 실행 계획의 명확성(담당·시점·확인방법) 중심으로 평가됩니다.</span>
+                                            )}
+                                            className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6 sm:py-6"
+                                            titleClassName="mt-1 text-sm font-black text-slate-800"
+                                            descriptionClassName="mt-2 text-[11px] font-bold text-slate-500"
+                                            bodyClassName="mt-4"
+                                        >
+                                            <p className="hidden text-[11px] font-bold text-slate-500 mb-4">
                                                 채점 루브릭 안내: 숙련도(④)는 검증 가능한 실무 행동의 구체성, 개선이행도(⑤)는 실행 계획의 명확성(담당·시점·확인방법) 중심으로 평가됩니다.
                                             </p>
                                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -1337,12 +1461,20 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                     />
                                                 ))}
                                             </div>
-                                        </div>
+                                        </SectionPanelCard>
 
                                         {scoreDropNeedsIntegrityReason && (
-                                            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-rose-200 shadow-sm">
-                                                <h4 className="text-sm font-black text-rose-700 mb-2">점수 하향 무결성 검증 (필수)</h4>
-                                                <p className="text-xs text-slate-600 font-bold mb-3">점수 하향: {initialRecord.safetyScore} → {record.safetyScore} (총 {scoreDropAmount}점 하향)</p>
+                                            <SectionPanelCard
+                                                variant="whiteSoft"
+                                                eyebrow="무결성 검증"
+                                                title="점수 하향 무결성 검증 (필수)"
+                                                description={`점수 하향: ${initialRecord.safetyScore} → ${record.safetyScore} (총 ${scoreDropAmount}점 하향)`}
+                                                className="rounded-3xl border border-rose-200 bg-white px-5 py-5 shadow-sm sm:px-6 sm:py-6"
+                                                eyebrowClassName="text-[10px] font-black uppercase tracking-[0.18em] text-rose-500"
+                                                titleClassName="mt-1 text-sm font-black text-rose-700"
+                                                descriptionClassName="mt-2 text-xs font-bold text-slate-600"
+                                                bodyClassName="mt-3"
+                                            >
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                                     <select
                                                         value={scoreReasonCode}
@@ -1373,11 +1505,19 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                         ? `영향 지표: ${SCORE_REASON_OPTIONS.find((item) => item.code === scoreReasonCode)?.impact || '-'}`
                                                         : '영향 지표: 사유 코드를 선택하면 표시됩니다.'}
                                                 </div>
-                                            </div>
+                                            </SectionPanelCard>
                                         )}
 
-                                        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm">
-                                            <h4 className="text-sm font-black text-slate-800 mb-4">조치 이력 등록 (S165/S166)</h4>
+                                        <SectionPanelCard
+                                            variant="whiteSoft"
+                                            eyebrow="조치 로그"
+                                            title="조치 이력 등록 (S165/S166)"
+                                            description={`누적 조치 이력 ${(record.actionHistory || []).length}건`}
+                                            className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6 sm:py-6"
+                                            titleClassName="mt-1 text-sm font-black text-slate-800"
+                                            descriptionClassName="mt-2 text-xs font-bold text-slate-500"
+                                            bodyClassName="mt-4"
+                                        >
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                                 <select value={actionType} onChange={(e) => setActionType(e.target.value)} className="p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-sm">
                                                     <option value="재교육">재교육</option>
@@ -1394,13 +1534,22 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 />
                                             </div>
                                             <div className="mt-3 flex justify-end">
-                                                <button onClick={handleAddAction} className="w-full sm:w-auto px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-black hover:bg-indigo-700">조치 이력 추가</button>
+                                                <ActionButton onClick={handleAddAction} variant="indigoSolid" fullWidth className="sm:w-auto px-4 py-2 text-sm font-black">
+                                                    조치 이력 추가
+                                                </ActionButton>
                                             </div>
-                                            <div className="mt-3 text-xs text-slate-500 font-bold">누적 조치 이력: {(record.actionHistory || []).length}건</div>
-                                        </div>
+                                        </SectionPanelCard>
 
-                                        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm">
-                                            <h4 className="text-sm font-black text-slate-800 mb-4">관리자 판단 및 보호 조치 결정</h4>
+                                        <SectionPanelCard
+                                            variant="whiteSoft"
+                                            eyebrow="보호 조치 결정"
+                                            title="관리자 판단 및 보호 조치 결정"
+                                            description="승인권자 기준과 판단 근거를 남기고 최종 보호 판단을 확정합니다."
+                                            className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6 sm:py-6"
+                                            titleClassName="mt-1 text-sm font-black text-slate-800"
+                                            descriptionClassName="mt-2 text-xs font-bold text-slate-500"
+                                            bodyClassName="mt-4"
+                                        >
                                             {!strictRoleGate && (
                                                 <div className="mb-3">
                                                     <label className="block text-[11px] font-black text-slate-500 mb-1">승인권자 기준</label>
@@ -1415,9 +1564,13 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 </div>
                                             )}
                                             {strictRoleGate && (
-                                                <div className="mb-3 text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg p-2.5">
-                                                    시스템 정책상 안전관리자 엄격 승인 기준이 강제 적용됩니다.
-                                                </div>
+                                                <NoticeCallout
+                                                    variant="indigo"
+                                                    title="시스템 정책상 안전관리자 엄격 승인 기준이 강제 적용됩니다."
+                                                    className="mb-3 w-full rounded-lg border px-3 py-2.5"
+                                                    bodyClassName="block"
+                                                    titleClassName="text-xs font-bold text-indigo-600"
+                                                />
                                             )}
                                             {showReviewCommentField ? (
                                                 <>
@@ -1427,15 +1580,24 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                         placeholder="수정/반려 사유(Comment)를 입력하세요"
                                                         className={`w-full p-3 bg-slate-50 border rounded-xl font-medium min-h-[80px] ${hasWeakApprovalReason ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200'}`}
                                                     />
-                                                    <div className="mt-2 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
-                                                        <p className="text-[11px] font-black text-slate-500">권장 입력 예시</p>
-                                                        <p className="mt-1 text-[11px] font-semibold text-slate-700 leading-relaxed">{approvalReasonGuide}</p>
-                                                    </div>
+                                                    <NoticeCallout
+                                                        variant="slate"
+                                                        eyebrow="권장 입력 예시"
+                                                        title={approvalReasonGuide}
+                                                        className="mt-2 w-full rounded-xl border px-3 py-2"
+                                                        bodyClassName="block"
+                                                        eyebrowClassName="text-[11px] font-black text-slate-500"
+                                                        titleClassName="mt-1 text-[11px] font-semibold leading-relaxed text-slate-700"
+                                                    />
                                                 </>
                                             ) : (
-                                                <div className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-500">
-                                                    점수·해석·원문 판독을 수정하거나 보완 요청을 선택하면 판단 근거 입력창이 열립니다.
-                                                </div>
+                                                <NoticeCallout
+                                                    variant="slate"
+                                                    title="점수·해석·원문 판독을 수정하거나 보완 요청을 선택하면 판단 근거 입력창이 열립니다."
+                                                    className="w-full rounded-xl border px-3 py-3"
+                                                    bodyClassName="block"
+                                                    titleClassName="text-xs font-bold text-slate-500"
+                                                />
                                             )}
                                             {(hasCriticalReviewEdits || pendingApprovalAction === 'rejected') && (
                                                 <p className="mt-2 text-[11px] font-black text-rose-600">
@@ -1443,160 +1605,261 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 </p>
                                             )}
                                             {showReviewCommentField && hasWeakApprovalReason && (
-                                                <div className="mt-2 rounded-xl bg-rose-50 border border-rose-200 px-3 py-2">
-                                                    <p className="text-[11px] font-black text-rose-700">강한 경고</p>
-                                                    <p className="mt-1 text-[11px] font-semibold text-rose-700 leading-relaxed">
-                                                        판단 근거가 짧거나 일반적입니다. 검토 근거, 확인 범위, 반영 내용을 포함하지 않으면 QA 점검 대상으로 남습니다.
-                                                    </p>
-                                                </div>
+                                                <NoticeCallout
+                                                    variant="rose"
+                                                    eyebrow="강한 경고"
+                                                    title="판단 근거가 짧거나 일반적입니다."
+                                                    description="검토 근거, 확인 범위, 반영 내용을 포함하지 않으면 QA 점검 대상으로 남습니다."
+                                                    className="mt-2 w-full rounded-xl border px-3 py-2"
+                                                    bodyClassName="block"
+                                                    eyebrowClassName="text-[11px] font-black text-rose-700"
+                                                    titleClassName="mt-1 text-[11px] font-semibold leading-relaxed text-rose-700"
+                                                    descriptionClassName="mt-1 text-[11px] font-semibold leading-relaxed text-rose-700"
+                                                />
                                             )}
                                             <div className="mt-3 flex flex-col sm:flex-row gap-2 justify-end">
-                                                <button
+                                                <ActionButton
+                                                    variant={isUpdatingAnalysis ? 'slateSoft' : 'roseSoft'}
                                                     onClick={() => { void handleApprove('rejected'); }}
                                                     disabled={isUpdatingAnalysis}
-                                                    className={`w-full sm:w-auto px-4 py-2 rounded-xl text-sm font-black ${isUpdatingAnalysis ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-rose-100 text-rose-700 hover:bg-rose-200'}`}
+                                                    className="w-full sm:w-auto px-4 py-2 text-sm border-0"
                                                 >
                                                     보완 요청(재촬영/재작성 안내)
-                                                </button>
-                                                <button
+                                                </ActionButton>
+                                                <ActionButton
+                                                    variant={isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0) ? 'slateSoft' : 'emeraldSolid'}
                                                     onClick={() => { void handleApprove('approved'); }}
                                                     disabled={isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0)}
-                                                    className={`w-full sm:w-auto px-4 py-2 rounded-xl text-sm font-black ${isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0) ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
+                                                    className="w-full sm:w-auto px-4 py-2 text-sm border-0"
                                                 >
                                                     최종 승인(보호 판단 확정)
-                                                </button>
+                                                </ActionButton>
                                             </div>
                                             <div className="mt-3 text-xs text-slate-500 font-bold">누적 승인 이력: {(record.approvalHistory || []).length}건</div>
-                                        </div>
+                                        </SectionPanelCard>
 
-                                        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                                            <h4 className="text-sm font-black text-slate-800 mb-3">최근 감사 이력</h4>
-                                            <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
-                                                {(record.auditTrail || []).slice(-5).reverse().map((entry, idx) => (
-                                                    <div key={`${entry.timestamp}-${idx}`} className="text-xs bg-slate-50 border border-slate-200 rounded-lg p-2">
-                                                        <div className="font-black text-slate-700">[{entry.stage}] {entry.actor}</div>
-                                                        <div className="text-slate-500">{new Date(entry.timestamp).toLocaleString()}</div>
-                                                        {entry.note && <div className="text-slate-600 mt-1">{entry.note}</div>}
-                                                    </div>
-                                                ))}
-                                                {(record.auditTrail || []).length === 0 && <div className="text-xs text-slate-400">감사 이력이 없습니다.</div>}
-                                            </div>
+                                        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                                            <WhyThisResultPanel
+                                                title="최근 감사 이력"
+                                                badge={<StatusBadge variant="slateSoft" className="px-3 py-1.5 text-[11px] font-black">최근 5건</StatusBadge>}
+                                                entries={(record.auditTrail || []).slice(-5).reverse().map((entry, idx) => ({
+                                                    key: `${entry.timestamp}-${idx}`,
+                                                    content: (
+                                                        <div className="text-xs bg-slate-50 border border-slate-200 rounded-lg p-2">
+                                                            <div className="font-black text-slate-700">[{entry.stage}] {entry.actor}</div>
+                                                            <div className="text-slate-500">{new Date(entry.timestamp).toLocaleString()}</div>
+                                                            {entry.note ? <div className="mt-1 text-slate-600">{entry.note}</div> : null}
+                                                        </div>
+                                                    ),
+                                                }))}
+                                                emptyState="감사 이력이 없습니다."
+                                                className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm min-h-0"
+                                                titleClassName="text-sm font-black text-slate-800"
+                                                listClassName="mt-3 space-y-2 max-h-40 overflow-y-auto custom-scrollbar"
+                                                emptyStateClassName="text-xs font-bold text-slate-400"
+                                            />
 
-                                            <div className="mt-4 pt-4 border-t border-slate-200">
-                                                <h5 className="text-xs font-black text-violet-700 mb-2">{reassessmentTitle}</h5>
-                                                <div className="space-y-2 max-h-44 overflow-y-auto custom-scrollbar">
-                                                    {reassessmentTrail.map((entry, idx) => (
-                                                        <div key={`re-${entry.timestamp}-${idx}`} className="text-xs bg-violet-50 border border-violet-200 rounded-lg p-2">
+                                            <WhyThisResultPanel
+                                                title={reassessmentTitle}
+                                                badge={<StatusBadge variant="violetSoft" className="px-3 py-1.5 text-[11px] font-black">{reassessmentTrail.length}건</StatusBadge>}
+                                                entries={reassessmentTrail.map((entry, idx) => ({
+                                                    key: `re-${entry.timestamp}-${idx}`,
+                                                    content: (
+                                                        <div className="text-xs bg-violet-50 border border-violet-200 rounded-lg p-2">
                                                             <div className="font-black text-violet-800">{reassessmentTag} {entry.actor}</div>
                                                             <div className="text-violet-500">{new Date(entry.timestamp).toLocaleString(timelineLocale, timelineDateTimeOptions)}</div>
-                                                            {entry.note && <div className="text-violet-700 mt-1">{entry.note}</div>}
+                                                            {entry.note ? <div className="mt-1 text-violet-700">{entry.note}</div> : null}
                                                         </div>
-                                                    ))}
-                                                    {reassessmentTrail.length === 0 && <div className="text-xs text-slate-400">{reassessmentEmpty}</div>}
-                                                </div>
-                                            </div>
+                                                    ),
+                                                }))}
+                                                emptyState={reassessmentEmpty}
+                                                className="rounded-3xl border border-violet-200 bg-white p-6 shadow-sm min-h-0"
+                                                titleClassName="text-sm font-black text-violet-700"
+                                                listClassName="mt-3 space-y-2 max-h-44 overflow-y-auto custom-scrollbar"
+                                                emptyStateClassName="text-xs font-bold text-slate-400"
+                                            />
                                         </div>
                                     </div>
                                 )}
 
                                 {activeTab === 'analysis' && (
                                     <div className="space-y-4 h-full min-h-[300px]">
-                                        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm">
-                                            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-500">AI 해석 검토</p>
-                                            <h4 className="mt-2 text-sm font-black text-slate-900">AI가 읽은 의미와 현장에 전달할 설명을 함께 점검합니다.</h4>
-                                            <div className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3">
-                                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">AI 초안</p>
-                                                    <p className="mt-2 text-sm font-semibold text-slate-700 leading-relaxed">AI 해석이 과도하게 평가적이지 않고, 실제 보완 방향을 설명하는지 확인합니다.</p>
-                                                </div>
-                                                <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
-                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">현장 전달</p>
-                                                    <p className="mt-2 text-sm font-semibold text-indigo-700 leading-relaxed">한국어 해석과 모국어 해석이 같은 보호 메시지를 전달하는지 비교합니다.</p>
-                                                </div>
-                                                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500">관리자 확인</p>
-                                                    <p className="mt-2 text-sm font-semibold text-amber-700 leading-relaxed">국적 변경 후 갱신된 번역이 실제 작업자 안내 문구로 바로 써도 되는지 검수합니다.</p>
-                                                </div>
-                                            </div>
-                                        </div>
+                                        <WhyThisResultPanel
+                                            title="AI가 읽은 의미와 현장에 전달할 설명을 함께 점검합니다."
+                                            badge={<StatusBadge variant="violetSoft" className="px-3 py-1.5 text-[11px] font-black">AI 해석 검토</StatusBadge>}
+                                            entries={[
+                                                {
+                                                    key: 'draft',
+                                                    content: (
+                                                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">AI 초안</p>
+                                                            <p className="mt-2 text-sm font-semibold text-slate-700 leading-relaxed">AI 해석이 과도하게 평가적이지 않고, 실제 보완 방향을 설명하는지 확인합니다.</p>
+                                                        </div>
+                                                    ),
+                                                },
+                                                {
+                                                    key: 'delivery',
+                                                    content: (
+                                                        <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500">현장 전달</p>
+                                                            <p className="mt-2 text-sm font-semibold text-indigo-700 leading-relaxed">한국어 해석과 모국어 해석이 같은 보호 메시지를 전달하는지 비교합니다.</p>
+                                                        </div>
+                                                    ),
+                                                },
+                                                {
+                                                    key: 'manager-review',
+                                                    content: (
+                                                        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500">관리자 확인</p>
+                                                            <p className="mt-2 text-sm font-semibold text-amber-700 leading-relaxed">국적 변경 후 갱신된 번역이 실제 작업자 안내 문구로 바로 써도 되는지 검수합니다.</p>
+                                                        </div>
+                                                    ),
+                                                },
+                                            ]}
+                                            className="rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm"
+                                            headerClassName="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"
+                                            titleClassName="text-sm font-black text-slate-900"
+                                            listClassName="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3"
+                                        />
                                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                                            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm h-full">
-                                                <p className="text-xs text-slate-400 font-bold mb-1 uppercase tracking-[0.18em]">KOREAN INTERPRETATION</p>
+                                            <SectionPanelCard
+                                                variant="whiteSoft"
+                                                eyebrow="KOREAN INTERPRETATION"
+                                                title="관리자 관점의 한국어 보호 해석"
+                                                description="AI가 읽은 의미와 보완 방향을 관리자 검토 문장으로 정리합니다."
+                                                className="rounded-3xl border border-slate-200 bg-white px-6 py-6 shadow-sm h-full"
+                                                titleClassName="mt-1 text-sm font-black text-slate-900"
+                                                descriptionClassName="mt-2 text-[11px] font-bold text-slate-500"
+                                                bodyClassName="mt-4"
+                                            >
                                                 <textarea 
                                                     value={record.aiInsights} 
                                                     onChange={(e) => handleChange('aiInsights', e.target.value)}
                                                     className="w-full min-h-[220px] text-base text-slate-700 leading-relaxed border-none focus:ring-0 resize-none bg-slate-50 rounded-xl p-4 font-medium"
                                                     placeholder="AI가 읽은 의미와 보완 방향을 관리자 관점에서 정리하세요."
                                                 />
-                                            </div>
-                                            <div className="bg-white p-6 rounded-3xl border border-indigo-200 shadow-sm h-full">
-                                                <p className="text-xs text-indigo-400 font-bold mb-1 flex items-center gap-1 uppercase tracking-[0.18em]">
-                                                    NATIVE SUPPORT ({record.nationality})
-                                                    <span className="text-[10px] text-slate-400 font-normal normal-case">* 국적 변경 후 'AI 분석 갱신' 클릭 시 자동 번역됨</span>
-                                                </p>
+                                            </SectionPanelCard>
+                                            <SectionPanelCard
+                                                variant="indigo"
+                                                eyebrow={`NATIVE SUPPORT (${record.nationality})`}
+                                                title="작업자 전달용 모국어 보호 안내"
+                                                description="국적 변경 후 AI 분석 갱신을 실행하면 번역 초안이 자동으로 갱신됩니다."
+                                                className="rounded-3xl border border-indigo-200 bg-white px-6 py-6 shadow-sm h-full"
+                                                eyebrowClassName="text-xs font-bold uppercase tracking-[0.18em] text-indigo-400"
+                                                titleClassName="mt-1 text-sm font-black text-slate-900"
+                                                descriptionClassName="mt-2 text-[10px] font-normal text-slate-400"
+                                                bodyClassName="mt-4"
+                                            >
                                                 <textarea 
                                                     value={record.aiInsights_native} 
                                                     onChange={(e) => handleChange('aiInsights_native', e.target.value)}
                                                     className="w-full min-h-[220px] text-base text-slate-600 leading-relaxed border-none focus:ring-0 resize-none bg-indigo-50/50 rounded-xl p-4 font-medium"
                                                     placeholder="작업자에게 바로 전달할 모국어 보호 안내를 확인하거나 수정하세요."
                                                 />
-                                            </div>
+                                            </SectionPanelCard>
                                         </div>
                                     </div>
                                 )}
 
                                 {activeTab === 'qna' && (
                                     <div className="space-y-4 pb-4">
-                                        <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm">
-                                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                                                <div>
-                                                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-500">원문 비교 검수</p>
-                                                    <h4 className="mt-2 text-sm font-black text-slate-900">질문별로 원문 신호와 관리자 해석을 나란히 점검합니다.</h4>
-                                                </div>
-                                                <div className="flex flex-wrap gap-2">
-                                                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">전체 문항</p>
-                                                        <p className="mt-1 text-xs font-black text-slate-700">{answerComparisonSummary.total}개</p>
-                                                    </div>
-                                                    <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-3 py-2">
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-400">원문 확보</p>
-                                                        <p className="mt-1 text-xs font-black text-indigo-700">{answerComparisonSummary.originalReady}개</p>
-                                                    </div>
-                                                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2">
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500">해석 확보</p>
-                                                        <p className="mt-1 text-xs font-black text-emerald-700">{answerComparisonSummary.translated}개</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
+                                        <SectionPanelCard
+                                            variant="whiteSoft"
+                                            eyebrow="원문 비교 검수"
+                                            title="질문별로 원문 신호와 관리자 해석을 나란히 점검합니다."
+                                            className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6 sm:py-6"
+                                            headerClassName="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"
+                                            titleClassName="mt-2 text-sm font-black text-slate-900"
+                                            bodyClassName="mt-0"
+                                            headerAction={
+                                                <SummaryMetricGrid
+                                                    className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+                                                    cardClassName="rounded-2xl border px-3 py-2"
+                                                    items={[
+                                                        {
+                                                            key: 'total',
+                                                            label: '전체 문항',
+                                                            value: `${answerComparisonSummary.total}개`,
+                                                            tone: 'border-slate-200 bg-slate-50',
+                                                            labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
+                                                            valueClassName: 'mt-1 text-xs font-black text-slate-700',
+                                                        },
+                                                        {
+                                                            key: 'original-ready',
+                                                            label: '원문 확보',
+                                                            value: `${answerComparisonSummary.originalReady}개`,
+                                                            tone: 'border-indigo-200 bg-indigo-50',
+                                                            labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-indigo-400',
+                                                            valueClassName: 'mt-1 text-xs font-black text-indigo-700',
+                                                        },
+                                                        {
+                                                            key: 'translated-ready',
+                                                            label: '해석 확보',
+                                                            value: `${answerComparisonSummary.translated}개`,
+                                                            tone: 'border-emerald-200 bg-emerald-50',
+                                                            labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500',
+                                                            valueClassName: 'mt-1 text-xs font-black text-emerald-700',
+                                                        },
+                                                    ]}
+                                                />
+                                            }
+                                        >
+                                            <></>
+                                        </SectionPanelCard>
                                         {record.handwrittenAnswers.map((ans, idx) => (
-                                            <div key={idx} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                                                <div className="flex items-center gap-2 mb-4">
-                                                    <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full uppercase tracking-widest">문항 {ans.questionNumber}</span>
-                                                </div>
-                                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                                                        <p className="text-xs text-slate-400 font-bold uppercase mb-1 tracking-[0.18em]">원문 신호</p>
-                                                        <p className="text-[11px] text-slate-500 font-semibold mb-2">작업자가 실제로 남긴 표현인지 확인합니다.</p>
-                                                        <textarea
-                                                            value={ans.answerText}
-                                                            onChange={(e) => handleAnswerChange(idx, 'answerText', e.target.value)}
-                                                            className="w-full min-h-[110px] text-sm text-slate-600 bg-white border border-slate-200 rounded-lg p-3 font-medium"
-                                                            placeholder="OCR 원문을 확인하거나 수정하세요."
-                                                        />
+                                            <OperationalPreviewCard
+                                                key={idx}
+                                                variant="whiteElevated"
+                                                eyebrow="원문-해석 문항"
+                                                title={`문항 ${ans.questionNumber}`}
+                                                badge={
+                                                    <StatusBadge variant="violetSoft" className="px-3 py-1 uppercase tracking-widest">
+                                                        비교 검수
+                                                    </StatusBadge>
+                                                }
+                                                className="rounded-2xl border border-slate-200 p-6 shadow-sm"
+                                                titleClassName="mt-1 text-sm font-black text-slate-900"
+                                                bodyClassName="mt-4"
+                                                body={
+                                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                                        <SectionPanelCard
+                                                            variant="slate"
+                                                            eyebrow="원문 신호"
+                                                            title="작업자가 실제로 남긴 표현"
+                                                            description="OCR 원문이 현장 문맥과 맞는지 확인합니다."
+                                                            className="rounded-xl px-4 py-4"
+                                                            titleClassName="mt-1 text-xs font-black text-slate-700"
+                                                            descriptionClassName="mt-1 text-[11px] font-semibold text-slate-500"
+                                                            bodyClassName="mt-3"
+                                                        >
+                                                            <textarea
+                                                                value={ans.answerText}
+                                                                onChange={(e) => handleAnswerChange(idx, 'answerText', e.target.value)}
+                                                                className="w-full min-h-[110px] text-sm text-slate-600 bg-white border border-slate-200 rounded-lg p-3 font-medium"
+                                                                placeholder="OCR 원문을 확인하거나 수정하세요."
+                                                            />
+                                                        </SectionPanelCard>
+                                                        <SectionPanelCard
+                                                            variant="indigo"
+                                                            eyebrow="관리자 해석"
+                                                            title="한국어 검토 문맥 점검"
+                                                            description="원문 의미가 관리자 해석과 일치하는지 확인합니다."
+                                                            className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-4"
+                                                            eyebrowClassName="text-xs font-bold uppercase tracking-[0.18em] text-indigo-400"
+                                                            titleClassName="mt-1 text-xs font-black text-indigo-700"
+                                                            descriptionClassName="mt-1 text-[11px] font-semibold text-indigo-500"
+                                                            bodyClassName="mt-3"
+                                                        >
+                                                            <textarea
+                                                                value={ans.koreanTranslation}
+                                                                onChange={(e) => handleAnswerChange(idx, 'koreanTranslation', e.target.value)}
+                                                                className="w-full min-h-[110px] text-sm text-slate-700 bg-white border border-indigo-100 rounded-lg p-3 font-bold"
+                                                                placeholder="관리자 검토용 한국어 해석을 확인하거나 수정하세요."
+                                                            />
+                                                        </SectionPanelCard>
                                                     </div>
-                                                    <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                                                        <p className="text-xs text-indigo-400 font-bold uppercase mb-1 tracking-[0.18em]">관리자 해석</p>
-                                                        <p className="text-[11px] text-indigo-500 font-semibold mb-2">원문 의미가 한국어 검토 문맥과 맞는지 점검합니다.</p>
-                                                        <textarea
-                                                            value={ans.koreanTranslation}
-                                                            onChange={(e) => handleAnswerChange(idx, 'koreanTranslation', e.target.value)}
-                                                            className="w-full min-h-[110px] text-sm text-slate-700 bg-white border border-indigo-100 rounded-lg p-3 font-bold"
-                                                            placeholder="관리자 검토용 한국어 해석을 확인하거나 수정하세요."
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
+                                                }
+                                            />
                                         ))}
                                     </div>
                                 )}
@@ -1614,8 +1877,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                     <svg className={`w-4 h-4 ${isReanalyzing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeWidth={2.5}/></svg>
                                     원문 전체 다시 읽기 (OCR)
                                 </button>
-                                <button onClick={handleExportEvidenceCsv} className="text-xs font-black px-4 py-2 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all">증빙 CSV</button>
-                                <button onClick={handleExportEvidencePdf} className="text-xs font-black px-4 py-2 rounded-xl bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-all">증빙 패키지 PDF</button>
+                                <ActionButton variant="slateSoft" onClick={handleExportEvidenceCsv} className="px-4 py-2 border-0">증빙 CSV</ActionButton>
+                                <ActionButton variant="indigo" onClick={handleExportEvidencePdf} className="px-4 py-2 border-0 hover:bg-indigo-200">증빙 패키지 PDF</ActionButton>
                             </div>
                             <button onClick={handleOpenReportClick} className="px-10 py-4 bg-slate-900 text-white rounded-2xl text-sm font-black shadow-2xl hover:bg-black transition-all transform hover:-translate-y-1">보호 리포트 보기</button>
                         </div>

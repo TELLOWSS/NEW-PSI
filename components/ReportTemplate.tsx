@@ -5,6 +5,10 @@ import { IndividualRadarChart } from './charts/IndividualRadarChart';
 import { deriveCompetencyProfile } from '../utils/evidenceUtils';
 import { getSafetyLevelThresholds } from '../utils/safetyLevelUtils';
 import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
+import { NextActionChecklist } from './shared/NextActionChecklist';
+import { NoticeCallout } from './shared/NoticeCallout';
+import { StatusBadge } from './shared/StatusBadge';
+import { WhyThisResultPanel } from './shared/WhyThisResultPanel';
 import { PSI_APP_VERSION } from '../lib/appInfo';
 
 interface ReportTemplateProps {
@@ -923,17 +927,13 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     <p className="text-[8.5px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line" style={createLineClampStyle(6)}>
                                         <HighlightedText text={frontVerdictPrimaryText} />
                                     </p>
-                                    <div className="mt-1 pt-1 border-t border-slate-100 overflow-hidden">
-                                        <p className="text-[7px] font-black uppercase tracking-[0.14em] text-slate-400 mb-1">현장 실천 체크</p>
-                                        <ul className="space-y-1 text-[8px] text-slate-700 leading-[1.3]">
-                                            {frontImprovementEntries.slice(0, 2).map((entry, i) => (
-                                                <li key={`action-ko-${i}`} className="flex items-start gap-1">
-                                                    <span className="mt-[2px] text-violet-500">•</span>
-                                                    <span style={createLineClampStyle(2)}><HighlightedText text={entry.text} /></span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
+                                    <NextActionChecklist
+                                        title="현장 실천 체크"
+                                        items={frontImprovementEntries.slice(0, 2).map((entry, i) => ({
+                                            key: `action-ko-${i}`,
+                                            content: <span style={createLineClampStyle(2)}><HighlightedText text={entry.text} /></span>,
+                                        }))}
+                                    />
                                     {reassessmentTrail.length > 0 && (
                                         <div className="mt-1 pt-1 border-t border-slate-100 overflow-hidden">
                                             {reassessmentTrail.slice(0, 1).map((entry, i) => (
@@ -1035,17 +1035,13 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     <p className="text-[8.5px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line" style={createLineClampStyle(6)}>
                                         <HighlightedText text={frontVerdictPrimaryText} />
                                     </p>
-                                    <div className="mt-1 pt-1 border-t border-slate-100 overflow-hidden">
-                                        <p className="text-[7px] font-black uppercase tracking-[0.14em] text-slate-400 mb-1">Action checklist</p>
-                                        <ul className="space-y-1 text-[8px] text-slate-700 leading-[1.3]">
-                                            {frontImprovementEntries.slice(0, 2).map((entry, i) => (
-                                                <li key={`action-${i}`} className="flex items-start gap-1">
-                                                    <span className="mt-[2px] text-violet-500">•</span>
-                                                    <span style={createLineClampStyle(2)}><HighlightedText text={entry.nativeText || entry.text} /></span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
+                                    <NextActionChecklist
+                                        title="Action checklist"
+                                        items={frontImprovementEntries.slice(0, 2).map((entry, i) => ({
+                                            key: `action-${i}`,
+                                            content: <span style={createLineClampStyle(2)}><HighlightedText text={entry.nativeText || entry.text} /></span>,
+                                        }))}
+                                    />
                                     {reassessmentTrail.length > 0 && (
                                         <div className="mt-1 pt-1 border-t border-slate-100 overflow-hidden">
                                             {reassessmentTrail.slice(0, 1).map((entry, i) => (
@@ -1104,9 +1100,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                 <div className="relative z-10 px-[11mm] py-[9mm] flex h-full flex-col justify-between gap-2.5">
                     <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-200">
                         <div>
-                            <div className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[8px] font-black uppercase tracking-[0.24em] text-indigo-700">
+                            <StatusBadge variant="violetSoft" className="gap-2 px-3 py-1 text-[8px] uppercase tracking-[0.24em]">
                                 Official Appendix
-                            </div>
+                            </StatusBadge>
                             <h2 className="mt-2 text-[20px] font-serif font-black text-slate-900">Detailed Interpretation & Action Notes</h2>
                             <p className="mt-1 text-[10px] font-bold text-slate-500">줄임 표현된 핵심 문구의 상세 해설과 실행 지침을 정식 문서 형식으로 정리한 부록입니다.</p>
                         </div>
@@ -1119,24 +1115,26 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     </div>
 
                     <div className="grid grid-cols-12 auto-rows-fr gap-2.5 flex-1 min-h-0">
-                        <section className="col-span-7 rounded-[18px] border border-slate-200 bg-white/95 p-3.5 shadow-sm min-h-0">
-                            <div className="flex items-center justify-between gap-3">
-                                <h3 className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-700">Formal score reasoning</h3>
-                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[8px] font-black text-slate-500">검증용 상세 기술</span>
-                            </div>
-                            <div className="mt-3 space-y-1.5">
-                                {scoreReasonEntries.length > 0 ? scoreReasonEntries.slice(0, 3).map((entry, index) => (
-                                    <div key={`score-detail-${index}`} className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-                                        {!isKorean && entry.nativeText && <p className="text-[8.5px] font-bold leading-[1.5] text-slate-800">{entry.nativeText}</p>}
+                        <WhyThisResultPanel
+                            title="Formal score reasoning"
+                            badge={<StatusBadge variant="slateSoft" className="px-2.5 py-1 text-[8px]">검증용 상세 기술</StatusBadge>}
+                            entries={scoreReasonEntries.slice(0, 3).map((entry, index) => ({
+                                key: `score-detail-${index}`,
+                                content: (
+                                    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                                        {!isKorean && entry.nativeText ? <p className="text-[8.5px] font-bold leading-[1.5] text-slate-800">{entry.nativeText}</p> : null}
                                         <p className={`leading-[1.5] ${!isKorean && entry.nativeText ? 'mt-1 border-t border-slate-200 pt-1 text-[8px] text-slate-500' : 'text-[8.5px] text-slate-700'}`}>
-                                            {!isKorean && entry.nativeText && <span className="mr-1 text-[7px] font-black text-slate-300">[KO]</span>}
+                                            {!isKorean && entry.nativeText ? <span className="mr-1 text-[7px] font-black text-slate-300">[KO]</span> : null}
                                             <HighlightedText text={entry.text} />
                                         </p>
                                     </div>
-                                )) : (
-                                    <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-[9px] font-bold text-slate-400">상세 채점 근거 데이터가 아직 등록되지 않았습니다.</p>
-                                )}
-                            </div>
+                                ),
+                            }))}
+                            emptyState="상세 채점 근거 데이터가 아직 등록되지 않았습니다."
+                            className="col-span-7 rounded-[18px] border border-slate-200 bg-white/95 p-3.5 shadow-sm min-h-0"
+                            titleClassName="text-[11px] font-black uppercase tracking-[0.16em] text-slate-700"
+                            emptyStateClassName="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-[9px] font-bold text-slate-400"
+                        >
 
                             <div className="mt-2.5 rounded-[18px] border border-slate-200 bg-white px-3 py-3">
                                 <div className="flex items-center justify-between gap-2">
@@ -1188,84 +1186,110 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     </div>
                                 </div>
                             </div>
-                        </section>
+                        </WhyThisResultPanel>
 
-                        <section className="col-span-5 rounded-[18px] border border-amber-200 bg-[linear-gradient(180deg,rgba(255,251,235,0.98),rgba(255,247,237,0.96))] p-3.5 shadow-sm min-h-0">
-                            <div className="flex items-center justify-between gap-2">
-                                <h3 className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-900">Action coaching</h3>
-                                <span className="rounded-full bg-white/80 px-2.5 py-1 text-[8px] font-black text-amber-700">현장 실행 우선</span>
-                            </div>
-                            <div className="mt-3 space-y-1.5">
-                                {!isKorean && coachingNativeParagraphs.length > 0 && (
-                                    <div className="rounded-2xl border border-amber-200 bg-white/90 px-3 py-2.5 text-[8.5px] font-bold leading-[1.5] text-amber-950 shadow-sm space-y-1">
-                                        {coachingNativeParagraphs.slice(0, 3).map((paragraph, index) => <p key={`coaching-native-${index}`}>{paragraph}</p>)}
-                                    </div>
-                                )}
-                                <div className={`rounded-2xl px-3 py-2.5 leading-[1.5] space-y-1 ${!isKorean && coachingNativeParagraphs.length > 0 ? 'border border-amber-200 bg-amber-100/70 text-[8px] text-amber-900' : 'bg-white/90 text-[8.5px] text-amber-950 shadow-sm'}`}>
-                                    {!isKorean && coachingNativeParagraphs.length > 0 && <span className="mr-1 text-[7px] font-black text-amber-700">[KO]</span>}
-                                    {coachingKoParagraphs.slice(0, 3).map((paragraph, index) => <p key={`coaching-ko-${index}`}><HighlightedText text={paragraph} /></p>)}
-                                </div>
-                            </div>
+                        <WhyThisResultPanel
+                            title="Action coaching"
+                            badge={<StatusBadge variant="amberSoft" className="px-2.5 py-1 text-[8px] text-amber-700">현장 실행 우선</StatusBadge>}
+                            entries={(() => {
+                                const coachingEntries = [] as Array<{ key: string; content: React.ReactNode }>;
+                                if (!isKorean && coachingNativeParagraphs.length > 0) {
+                                    coachingEntries.push({
+                                        key: 'coaching-native',
+                                        content: (
+                                            <div className="rounded-2xl border border-amber-200 bg-white/90 px-3 py-2.5 text-[8.5px] font-bold leading-[1.5] text-amber-950 shadow-sm space-y-1">
+                                                {coachingNativeParagraphs.slice(0, 3).map((paragraph, index) => <p key={`coaching-native-${index}`}>{paragraph}</p>)}
+                                            </div>
+                                        ),
+                                    });
+                                }
+                                coachingEntries.push({
+                                    key: 'coaching-ko',
+                                    content: (
+                                        <div className={`rounded-2xl px-3 py-2.5 leading-[1.5] space-y-1 ${!isKorean && coachingNativeParagraphs.length > 0 ? 'border border-amber-200 bg-amber-100/70 text-[8px] text-amber-900' : 'bg-white/90 text-[8.5px] text-amber-950 shadow-sm'}`}>
+                                            {!isKorean && coachingNativeParagraphs.length > 0 ? <span className="mr-1 text-[7px] font-black text-amber-700">[KO]</span> : null}
+                                            {coachingKoParagraphs.slice(0, 3).map((paragraph, index) => <p key={`coaching-ko-${index}`}><HighlightedText text={paragraph} /></p>)}
+                                        </div>
+                                    ),
+                                });
+                                return coachingEntries;
+                            })()}
+                            className="col-span-5 rounded-[18px] border border-amber-200 bg-[linear-gradient(180deg,rgba(255,251,235,0.98),rgba(255,247,237,0.96))] p-3.5 shadow-sm min-h-0"
+                            titleClassName="text-[11px] font-black uppercase tracking-[0.16em] text-amber-900"
+                        >
 
-                            <div className="mt-2.5 rounded-[18px] border border-violet-200 bg-violet-50/90 px-3 py-3">
-                                <h4 className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-800">Reassessment timeline</h4>
-                                <div className="mt-2 space-y-1.5">
-                                    {reassessmentTrail.length > 0 ? reassessmentTrail.slice(-1).map((entry, index) => (
-                                        <div key={`appendix-trail-${entry.timestamp}-${index}`} className="rounded-xl border border-violet-100 bg-white/90 px-3 py-2">
+                            <WhyThisResultPanel
+                                title="Reassessment timeline"
+                                entries={reassessmentTrail.slice(-1).map((entry, index) => ({
+                                    key: `appendix-trail-${entry.timestamp}-${index}`,
+                                    content: (
+                                        <div className="rounded-xl border border-violet-100 bg-white/90 px-3 py-2">
                                             <p className="text-[8px] font-black text-violet-700">{reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)}</p>
                                             <p className="mt-0.5 text-[8.5px] leading-relaxed text-violet-900">{entry.note || reassessmentFallback}</p>
                                         </div>
-                                    )) : (
-                                        <p className="text-[8.5px] font-bold text-violet-500">재평가 이력 없음</p>
-                                    )}
-                                </div>
-                            </div>
+                                    ),
+                                }))}
+                                emptyState="재평가 이력 없음"
+                                className="mt-2.5 rounded-[18px] border border-violet-200 bg-violet-50/90 px-3 py-3"
+                                titleClassName="text-[10px] font-black uppercase tracking-[0.14em] text-violet-800"
+                                listClassName="mt-2 space-y-1.5"
+                                emptyStateClassName="text-[8.5px] font-bold text-violet-500"
+                            />
 
-                            <div className="mt-2.5 rounded-[18px] border border-slate-200 bg-slate-900 px-3 py-3 text-white shadow-sm">
-                                <p className="text-[8px] font-black uppercase tracking-[0.18em] text-slate-300">Authenticity note</p>
-                                <p className="mt-1 text-[8.5px] leading-relaxed text-slate-100">본 부록은 첫 페이지 요약 문구의 축약 해석을 보완하기 위한 정식 해설본이며, 현장 관리자 설명·면담·재교육 기록과 함께 보관할 수 있습니다.</p>
-                            </div>
-                        </section>
+                            <NoticeCallout
+                                variant="glassDark"
+                                eyebrow="Authenticity note"
+                                title="본 부록은 첫 페이지 요약 문구의 축약 해석을 보완하기 위한 정식 해설본입니다."
+                                description="현장 관리자 설명·면담·재교육 기록과 함께 보관할 수 있습니다."
+                                className="mt-2.5 rounded-[18px] border px-3 py-3 shadow-sm border-slate-200 bg-slate-900"
+                                bodyClassName="block"
+                                eyebrowClassName="text-[8px] font-black uppercase tracking-[0.18em] text-slate-300"
+                                titleClassName="mt-1 text-[8.5px] font-semibold leading-relaxed text-slate-100"
+                                descriptionClassName="mt-1 text-[8.5px] leading-relaxed text-slate-100"
+                            />
+                        </WhyThisResultPanel>
 
-                        <section className="col-span-6 rounded-[18px] border border-emerald-200 bg-emerald-50/80 p-3.5 shadow-sm min-h-0">
-                            <div className="flex items-center justify-between gap-2">
-                                <h3 className="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-900">Strength details</h3>
-                                <span className="text-[8px] font-black text-emerald-700">강점 상세 표현</span>
-                            </div>
-                            <div className="mt-3 space-y-1.5">
-                                {strengthEntries.length > 0 ? strengthEntries.slice(0, 3).map((entry, index) => (
-                                    <div key={`strength-detail-${index}`} className="rounded-2xl border border-emerald-100 bg-white/90 px-3 py-2.5 shadow-sm">
-                                        {!isKorean && entry.nativeText && <p className="text-[8.5px] font-bold leading-[1.5] text-emerald-950">{entry.nativeText}</p>}
+                        <WhyThisResultPanel
+                            title="Strength details"
+                            badge={<StatusBadge variant="emeraldSoft" className="px-2.5 py-1 text-[8px] text-emerald-700">강점 상세 표현</StatusBadge>}
+                            entries={strengthEntries.slice(0, 3).map((entry, index) => ({
+                                key: `strength-detail-${index}`,
+                                content: (
+                                    <div className="rounded-2xl border border-emerald-100 bg-white/90 px-3 py-2.5 shadow-sm">
+                                        {!isKorean && entry.nativeText ? <p className="text-[8.5px] font-bold leading-[1.5] text-emerald-950">{entry.nativeText}</p> : null}
                                         <p className={`leading-[1.5] ${!isKorean && entry.nativeText ? 'mt-1 border-t border-emerald-100 pt-1 text-[8px] text-emerald-900/80' : 'text-[8.5px] text-emerald-950'}`}>
-                                            {!isKorean && entry.nativeText && <span className="mr-1 text-[7px] font-black text-emerald-600">[KO]</span>}
+                                            {!isKorean && entry.nativeText ? <span className="mr-1 text-[7px] font-black text-emerald-600">[KO]</span> : null}
                                             <HighlightedText text={entry.text} />
                                         </p>
                                     </div>
-                                )) : (
-                                    <p className="rounded-2xl border border-dashed border-emerald-200 bg-white/80 px-3 py-3 text-[9px] font-bold text-emerald-500">강점 상세 데이터가 없습니다.</p>
-                                )}
-                            </div>
-                        </section>
+                                ),
+                            }))}
+                            emptyState="강점 상세 데이터가 없습니다."
+                            className="col-span-6 rounded-[18px] border border-emerald-200 bg-emerald-50/80 p-3.5 shadow-sm min-h-0"
+                            titleClassName="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-900"
+                            emptyStateClassName="rounded-2xl border border-dashed border-emerald-200 bg-white/80 px-3 py-3 text-[9px] font-bold text-emerald-500"
+                        />
 
-                        <section className="col-span-6 rounded-[18px] border border-rose-200 bg-rose-50/85 p-3.5 shadow-sm min-h-0">
-                            <div className="flex items-center justify-between gap-2">
-                                <h3 className="text-[11px] font-black uppercase tracking-[0.16em] text-rose-900">Focus area details</h3>
-                                <span className="text-[8px] font-black text-rose-700">중복 검증 후 정리</span>
-                            </div>
-                            <div className="mt-3 space-y-1.5">
-                                {improvementEntries.length > 0 ? improvementEntries.slice(0, 3).map((entry, index) => (
-                                    <div key={`improvement-detail-${index}`} className="rounded-2xl border border-rose-100 bg-white/90 px-3 py-2.5 shadow-sm">
-                                        {!isKorean && entry.nativeText && <p className="text-[8.5px] font-bold leading-[1.5] text-rose-950">{entry.nativeText}</p>}
+                        <WhyThisResultPanel
+                            title="Focus area details"
+                            badge={<StatusBadge variant="roseSoft" className="px-2.5 py-1 text-[8px] text-rose-700">중복 검증 후 정리</StatusBadge>}
+                            entries={improvementEntries.slice(0, 3).map((entry, index) => ({
+                                key: `improvement-detail-${index}`,
+                                content: (
+                                    <div className="rounded-2xl border border-rose-100 bg-white/90 px-3 py-2.5 shadow-sm">
+                                        {!isKorean && entry.nativeText ? <p className="text-[8.5px] font-bold leading-[1.5] text-rose-950">{entry.nativeText}</p> : null}
                                         <p className={`leading-[1.5] ${!isKorean && entry.nativeText ? 'mt-1 border-t border-rose-100 pt-1 text-[8px] text-rose-900/80' : 'text-[8.5px] text-rose-950'}`}>
-                                            {!isKorean && entry.nativeText && <span className="mr-1 text-[7px] font-black text-rose-600">[KO]</span>}
+                                            {!isKorean && entry.nativeText ? <span className="mr-1 text-[7px] font-black text-rose-600">[KO]</span> : null}
                                             <HighlightedText text={entry.text} />
                                         </p>
                                     </div>
-                                )) : (
-                                    <p className="rounded-2xl border border-dashed border-rose-200 bg-white/80 px-3 py-3 text-[9px] font-bold text-rose-500">개선 상세 데이터가 없습니다.</p>
-                                )}
-                            </div>
-                        </section>
+                                ),
+                            }))}
+                            emptyState="개선 상세 데이터가 없습니다."
+                            className="col-span-6 rounded-[18px] border border-rose-200 bg-rose-50/85 p-3.5 shadow-sm min-h-0"
+                            titleClassName="text-[11px] font-black uppercase tracking-[0.16em] text-rose-900"
+                            emptyStateClassName="rounded-2xl border border-dashed border-rose-200 bg-white/80 px-3 py-3 text-[9px] font-bold text-rose-500"
+                        />
                     </div>
 
                     <div className="pt-1.5 border-t border-slate-200 flex items-center justify-between gap-4">
