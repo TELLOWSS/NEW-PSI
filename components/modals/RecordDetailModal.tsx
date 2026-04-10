@@ -13,6 +13,7 @@ import { BRAND_STATUS_LABELS } from '../../utils/brandLabels';
 import { ActionButton } from '../shared/ActionButton';
 import { CircularProgress } from '../shared/CircularProgress';
 import { InterpretationCardGrid } from '../shared/InterpretationCardGrid';
+import { HarnessVersionDetailsPanel } from '../shared/HarnessVersionDetailsPanel';
 import { NextActionChecklist } from '../shared/NextActionChecklist';
 import { NoticeCallout } from '../shared/NoticeCallout';
 import { OperationalPreviewCard } from '../shared/OperationalPreviewCard';
@@ -21,8 +22,23 @@ import { StatusBadge } from '../shared/StatusBadge';
 import { SummaryMetricGrid } from '../shared/SummaryMetricGrid';
 import { WhyThisResultPanel } from '../shared/WhyThisResultPanel';
 import { updateAnalysisBasedOnEdits } from '../../services/geminiService';
-import { approveHarnessRecord, fetchHarnessWorkflowStatus, type HarnessWorkflowDiagnostics } from '../../services/harnessService';
+import {
+    approveHarnessRecord,
+    type HarnessWorkflowAnalyzerSummary,
+    fetchHarnessWorkflowStatus,
+    type HarnessWorkflowApproval,
+    type HarnessWorkflowApprovalDiff,
+    type HarnessWorkflowContextSnapshot,
+    type HarnessWorkflowDiagnostics,
+    type HarnessWorkflowEvaluatorSummary,
+    type HarnessWorkflowOverride,
+    type HarnessWorkflowPolicyVersion,
+    type HarnessWorkflowPromptVersion,
+    type HarnessWorkflowVersionDetails,
+    type HarnessWorkflowVersionChangeSummary,
+} from '../../services/harnessService';
 import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
+import { getHarnessVersionDescriptors } from '../../utils/harnessVersionCatalog';
 import { deriveCompetencyProfile, enforceSafetyLevel, getApprovalBlockers } from '../../utils/evidenceUtils';
 import { getSafetyLevelThresholds, getSafetyLevelFromScore } from '../../utils/safetyLevelUtils';
 
@@ -230,6 +246,54 @@ const getHarnessApprovalBadgeVariant = (state: HarnessApprovalState): React.Comp
     }
 };
 
+const buildHarnessTransitionGuidance = (options: {
+    message?: string;
+    workflowState?: HarnessWorkflowState;
+    approvalState?: HarnessApprovalState;
+}) => {
+    const message = String(options.message || '').trim();
+    const workflowState = options.workflowState || 'uploaded';
+    const approvalState = options.approvalState || 'NOT_REQUIRED';
+
+    if (message.includes('이미 승인 완료된 워크플로우')) {
+        return {
+            variant: 'emerald' as const,
+            title: '이미 승인 완료된 건입니다.',
+            description: '현재 기록은 완료 상태이므로 바로 재승인하실 수 없습니다. 수정 후 재검토 상태로 전환된 뒤 다시 승인 흐름을 진행해 주십시오.',
+        };
+    }
+
+    if (message.includes('재분석') || workflowState === 'second_pass_analyzing') {
+        return {
+            variant: 'amber' as const,
+            title: '재분석 또는 재검토 상태 확인이 필요합니다.',
+            description: '2차 재분석 중이거나 완료 확정 후 상태이므로, 먼저 현재 재분석 완료 여부와 재검토 전환 필요성을 확인해 주십시오.',
+        };
+    }
+
+    if (workflowState === 'manual_review_required') {
+        return {
+            variant: 'rose' as const,
+            title: '수동 검토 상태에서는 바로 완료하실 수 없습니다.',
+            description: '원문·번역·증빙을 먼저 보완하고 관리자 승인 대기 상태로 전환된 뒤 최종 승인을 진행해 주십시오.',
+        };
+    }
+
+    if (workflowState === 'awaiting_manager_approval' || approvalState === 'PENDING') {
+        return {
+            variant: 'indigo' as const,
+            title: '현재는 관리자 판단이 필요한 승인 대기 상태입니다.',
+            description: '코멘트와 증빙 체크리스트를 확인하신 뒤 승인 또는 보완 요청 중 하나를 선택해 주십시오.',
+        };
+    }
+
+    return {
+        variant: 'slate' as const,
+        title: '현재 하네스 상태 전이 조건을 먼저 확인해 주십시오.',
+        description: message || '워크플로우 상태, 승인 상태, 2차 재분석 상태가 현재 액션과 맞는지 먼저 확인이 필요합니다.',
+    };
+};
+
 const SCORE_REASON_OPTIONS: Array<{ code: ScoreAdjustmentReasonCode; label: string; impact: string }> = [
     { code: 'BEHAVIOR_NON_COMPLIANCE', label: '현장 지적(행동 위반)', impact: '개선이행도·숙련도 중심 감점' },
     { code: 'UNDERSTANDING_GAP', label: '수기 위험성평가 이해도 부족', impact: '위험성평가 이해도·업무이해도 중심 감점' },
@@ -275,6 +339,16 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const [harnessTimeline, setHarnessTimeline] = useState<Array<{ stage: string; timestamp: string; note: string; actor?: string }>>([]);
     const [isHarnessPersisted, setIsHarnessPersisted] = useState<boolean | null>(null);
     const [harnessDiagnostics, setHarnessDiagnostics] = useState<HarnessWorkflowDiagnostics | null>(null);
+    const [harnessOverrides, setHarnessOverrides] = useState<HarnessWorkflowOverride[]>([]);
+    const [harnessApprovals, setHarnessApprovals] = useState<HarnessWorkflowApproval[]>([]);
+    const [harnessContextSnapshot, setHarnessContextSnapshot] = useState<HarnessWorkflowContextSnapshot | null>(null);
+    const [harnessPromptVersion, setHarnessPromptVersion] = useState<HarnessWorkflowPromptVersion | null>(null);
+    const [harnessPolicyVersion, setHarnessPolicyVersion] = useState<HarnessWorkflowPolicyVersion | null>(null);
+    const [harnessVersionDetails, setHarnessVersionDetails] = useState<HarnessWorkflowVersionDetails>({ prompt: [], policy: [], rule: [] });
+    const [harnessVersionChangeSummary, setHarnessVersionChangeSummary] = useState<HarnessWorkflowVersionChangeSummary>({ prompt: [], policy: [], rule: [] });
+    const [harnessAnalyzerSummary, setHarnessAnalyzerSummary] = useState<HarnessWorkflowAnalyzerSummary>({ summary: null, confidence: null });
+    const [harnessEvaluatorSummary, setHarnessEvaluatorSummary] = useState<HarnessWorkflowEvaluatorSummary>({ evidenceSufficiency: null, requiresHumanApproval: null, flags: [] });
+    const [harnessLatestApprovalDiff, setHarnessLatestApprovalDiff] = useState<HarnessWorkflowApprovalDiff | null>(null);
     const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     const docInputRef = useRef<HTMLInputElement>(null); // For Document Image
@@ -329,6 +403,16 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             setHarnessStatusWarning(null);
             setIsHarnessPersisted(null);
             setHarnessDiagnostics(null);
+            setHarnessOverrides([]);
+            setHarnessApprovals([]);
+            setHarnessContextSnapshot(null);
+            setHarnessPromptVersion(null);
+            setHarnessPolicyVersion(null);
+            setHarnessVersionDetails({ prompt: [], policy: [], rule: [] });
+            setHarnessVersionChangeSummary({ prompt: [], policy: [], rule: [] });
+            setHarnessAnalyzerSummary({ summary: null, confidence: null });
+            setHarnessEvaluatorSummary({ evidenceSufficiency: null, requiresHumanApproval: null, flags: [] });
+            setHarnessLatestApprovalDiff(null);
             return;
         }
 
@@ -344,6 +428,16 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             setHarnessStatusWarning(response.persistence?.warning || null);
             setIsHarnessPersisted(typeof response.persistence?.persisted === 'boolean' ? response.persistence.persisted : null);
             setHarnessDiagnostics(response.diagnostics || null);
+            setHarnessOverrides(response.overrides || []);
+            setHarnessApprovals(response.approvals || []);
+            setHarnessContextSnapshot(response.contextSnapshot || null);
+            setHarnessPromptVersion(response.promptVersion || null);
+            setHarnessPolicyVersion(response.policyVersion || null);
+            setHarnessVersionDetails(response.versionDetails || { prompt: [], policy: [], rule: [] });
+            setHarnessVersionChangeSummary(response.versionChangeSummary || { prompt: [], policy: [], rule: [] });
+            setHarnessAnalyzerSummary(response.analyzerSummary || { summary: null, confidence: null });
+            setHarnessEvaluatorSummary(response.evaluatorSummary || { evidenceSufficiency: null, requiresHumanApproval: null, flags: [] });
+            setHarnessLatestApprovalDiff(response.latestApprovalDiff || null);
             setRecord((prev) => getConsistentRecord(withHarnessState(prev, {
                 workflowRunId: response.workflowRunId,
                 workflowState: response.workflowState,
@@ -356,6 +450,16 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             setHarnessStatusWarning(error instanceof Error ? error.message : '하네스 상태 조회에 추가 확인이 필요합니다.');
             setIsHarnessPersisted(false);
             setHarnessDiagnostics(null);
+            setHarnessOverrides([]);
+            setHarnessApprovals([]);
+            setHarnessContextSnapshot(null);
+            setHarnessPromptVersion(null);
+            setHarnessPolicyVersion(null);
+            setHarnessVersionDetails({ prompt: [], policy: [], rule: [] });
+            setHarnessVersionChangeSummary({ prompt: [], policy: [], rule: [] });
+            setHarnessAnalyzerSummary({ summary: null, confidence: null });
+            setHarnessEvaluatorSummary({ evidenceSufficiency: null, requiresHumanApproval: null, flags: [] });
+            setHarnessLatestApprovalDiff(null);
         } finally {
             setIsHarnessStatusLoading(false);
         }
@@ -370,8 +474,148 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 ? '원본 레코드 기준 조회'
                 : '실데이터 미발견';
 
-        return `${resolvedByLabel} · 이벤트 ${harnessDiagnostics.eventCount}건 · 승인 ${harnessDiagnostics.approvalCount}건 · 타임라인 ${harnessDiagnostics.timelineCount}건`;
+        return `${resolvedByLabel} · 이벤트 ${harnessDiagnostics.eventCount}건 · 승인 ${harnessDiagnostics.approvalCount}건 · 오버라이드 ${harnessDiagnostics.overrideCount}건 · 타임라인 ${harnessDiagnostics.timelineCount}건`;
     }, [harnessDiagnostics]);
+
+    const harnessTransitionGuidance = useMemo(() => buildHarnessTransitionGuidance({
+        workflowState: record.workflowState || inferHarnessWorkflowState(record),
+        approvalState: record.approvalState || inferHarnessApprovalState(record, record.workflowState || inferHarnessWorkflowState(record)),
+    }), [record]);
+
+    const harnessSnapshotMetrics = useMemo(() => {
+        const weather = harnessContextSnapshot?.weather || {};
+        const schedule = harnessContextSnapshot?.schedule || {};
+        const sensorEvents = Array.isArray(harnessContextSnapshot?.sensorEvents) ? harnessContextSnapshot?.sensorEvents : [];
+        const weatherLabel = [weather.condition, typeof weather.windSpeedMps === 'number' ? `${weather.windSpeedMps}m/s` : null, typeof weather.rainfallMm === 'number' ? `${weather.rainfallMm}mm` : null]
+            .filter(Boolean)
+            .join(' · ') || '기상 정보 없음';
+        const scheduleLabel = [schedule.taskName, Array.isArray(schedule.concurrentHighRiskTasks) && schedule.concurrentHighRiskTasks.length > 0 ? `${schedule.concurrentHighRiskTasks.length}개 동시작업` : null]
+            .filter(Boolean)
+            .join(' · ') || '작업 계획 정보 없음';
+
+        return [
+            {
+                key: 'prompt-version',
+                label: '프롬프트 버전',
+                value: harnessPromptVersion?.version || '미연결',
+                tone: harnessPromptVersion ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50',
+                labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-indigo-400',
+                valueClassName: 'mt-1 text-xs font-black text-indigo-700',
+            },
+            {
+                key: 'policy-version',
+                label: '정책 버전',
+                value: harnessPolicyVersion?.version || '미연결',
+                tone: harnessPolicyVersion ? 'border-violet-200 bg-violet-50' : 'border-slate-200 bg-slate-50',
+                labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-violet-400',
+                valueClassName: 'mt-1 text-xs font-black text-violet-700',
+            },
+            {
+                key: 'override-count',
+                label: '오버라이드',
+                value: `${harnessOverrides.length}건`,
+                tone: harnessOverrides.length > 0 ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50',
+                labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-500',
+                valueClassName: 'mt-1 text-xs font-black text-amber-700',
+            },
+            {
+                key: 'approval-count',
+                label: '승인 이력',
+                value: `${harnessApprovals.length}건`,
+                tone: harnessApprovals.length > 0 ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50',
+                labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-400',
+                valueClassName: 'mt-1 text-xs font-black text-emerald-700',
+            },
+            {
+                key: 'weather',
+                label: '기상 컨텍스트',
+                value: weatherLabel,
+                tone: 'border-slate-200 bg-slate-50',
+                labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
+                valueClassName: 'mt-1 text-xs font-black text-slate-700',
+            },
+            {
+                key: 'schedule',
+                label: '작업 계획',
+                value: scheduleLabel,
+                tone: 'border-slate-200 bg-slate-50',
+                labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
+                valueClassName: 'mt-1 text-xs font-black text-slate-700',
+            },
+            {
+                key: 'sensor-events',
+                label: '센서 이벤트',
+                value: `${sensorEvents.length}건`,
+                tone: sensorEvents.length > 0 ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-slate-50',
+                labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-rose-400',
+                valueClassName: 'mt-1 text-xs font-black text-rose-700',
+            },
+            {
+                key: 'ocr-quality',
+                label: 'OCR/품질',
+                value: `${typeof harnessContextSnapshot?.ocrConfidenceScore === 'number' ? `${Math.round(harnessContextSnapshot.ocrConfidenceScore * 100)}%` : 'N/A'} · ${typeof harnessContextSnapshot?.imageQualityScore === 'number' ? `${Math.round(harnessContextSnapshot.imageQualityScore * 100)}%` : 'N/A'}`,
+                tone: 'border-slate-200 bg-slate-50',
+                labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
+                valueClassName: 'mt-1 text-xs font-black text-slate-700',
+            },
+        ];
+    }, [harnessApprovals.length, harnessContextSnapshot, harnessOverrides.length, harnessPolicyVersion, harnessPromptVersion]);
+
+    const harnessVersionDescriptors = useMemo(() => {
+        if (harnessVersionDetails.prompt.length > 0 || harnessVersionDetails.policy.length > 0 || harnessVersionDetails.rule.length > 0) {
+            return harnessVersionDetails;
+        }
+
+        const ruleVersions = Array.from(new Set(harnessOverrides.map((override) => override.ruleVersion).filter(Boolean)));
+        return {
+            prompt: getHarnessVersionDescriptors([harnessPromptVersion?.version]),
+            policy: getHarnessVersionDescriptors([harnessPolicyVersion?.version]),
+            rule: getHarnessVersionDescriptors(ruleVersions),
+        };
+    }, [harnessOverrides, harnessPolicyVersion?.version, harnessPromptVersion?.version, harnessVersionDetails]);
+
+    const harnessVersionDescriptorRows = useMemo(() => {
+        return [
+            ...harnessVersionDescriptors.prompt,
+            ...harnessVersionDescriptors.policy,
+            ...harnessVersionDescriptors.rule,
+        ];
+    }, [harnessVersionDescriptors]);
+
+    const harnessEvidenceChecklistItems = useMemo(() => {
+        return [
+            {
+                key: 'workflow-run',
+                content: record.workflowRunId
+                    ? `워크플로우 런 ID가 연결되어 있습니다. (${record.workflowRunId})`
+                    : '워크플로우 런 ID가 아직 연결되지 않았습니다.',
+            },
+            {
+                key: 'evidence-hash',
+                content: record.evidenceHash
+                    ? '증빙 해시가 존재해 보고서 및 감사 패키지 연계가 가능합니다.'
+                    : '증빙 해시가 없어 감사 패키지 일관성 확인이 필요합니다.',
+            },
+            {
+                key: 'approval-comment',
+                content: approvalComment.trim().length > 0 || String(record.reviewReason || record.adminComment || '').trim().length > 0
+                    ? '승인 또는 검토 코멘트가 기록되어 있습니다.'
+                    : '승인 또는 검토 코멘트가 비어 있어 판단 근거 보강이 필요합니다.',
+            },
+            {
+                key: 'context-snapshot',
+                content: harnessContextSnapshot
+                    ? '컨텍스트 스냅샷이 저장되어 당시 기상, 작업계획, 센서 맥락을 복원할 수 있습니다.'
+                    : '컨텍스트 스냅샷이 없어 당시 현장 맥락 복원이 제한될 수 있습니다.',
+            },
+            {
+                key: 'override-review',
+                content: harnessOverrides.length > 0
+                    ? `가드레일 오버라이드 ${harnessOverrides.length}건이 있어 승인 전에 반드시 확인하셔야 합니다.`
+                    : '현재 저장된 가드레일 오버라이드는 없습니다.',
+            },
+        ];
+    }, [approvalComment, harnessContextSnapshot, harnessOverrides.length, record.adminComment, record.evidenceHash, record.reviewReason, record.workflowRunId]);
 
     useEffect(() => {
         void refreshHarnessStatus(record.workflowRunId);
@@ -774,8 +1018,27 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 currentDecision: inferHarnessRiskDecision(record),
             });
         } catch (error) {
+            const guidance = buildHarnessTransitionGuidance({
+                message: error instanceof Error ? error.message : '',
+                workflowState: record.workflowState || inferHarnessWorkflowState(record),
+                approvalState: record.approvalState || inferHarnessApprovalState(record, record.workflowState || inferHarnessWorkflowState(record)),
+            });
+            const nextRecord: WorkerRecord = {
+                ...record,
+                auditTrail: [
+                    ...(record.auditTrail || []),
+                    {
+                        stage: 'approval',
+                        timestamp: new Date().toISOString(),
+                        actor: effectiveApprover,
+                        note: `하네스 전이 거부: ${error instanceof Error ? error.message : '상태 전이 조건 불일치'}`,
+                    },
+                ],
+            };
+            setRecord(nextRecord);
+            await onUpdateRecord(nextRecord);
             setPendingApprovalAction(null);
-            alert(error instanceof Error ? error.message : '하네스 승인 연동에 실패했습니다. 잠시 후 다시 시도해주세요.');
+            alert(`${guidance.title}\n\n${guidance.description}`);
             return;
         }
 
@@ -889,10 +1152,19 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
     const handleReanalyzeClick = async () => {
         if(confirm("이미지를 다시 OCR로 분석하시겠습니까? (현재 수정사항은 사라질 수 있습니다)")) {
-            const updatedRecord = await onReanalyze(record);
-            if (updatedRecord) {
-                setRecord(getConsistentRecord(updatedRecord));
-                alert('이미지 재분석이 완료되었습니다.');
+            try {
+                const updatedRecord = await onReanalyze(record);
+                if (updatedRecord) {
+                    setRecord(getConsistentRecord(updatedRecord));
+                    alert('이미지 재분석이 완료되었습니다.');
+                }
+            } catch (error) {
+                const guidance = buildHarnessTransitionGuidance({
+                    message: error instanceof Error ? error.message : '',
+                    workflowState: record.workflowState || inferHarnessWorkflowState(record),
+                    approvalState: record.approvalState || inferHarnessApprovalState(record, record.workflowState || inferHarnessWorkflowState(record)),
+                });
+                alert(`${guidance.title}\n\n${guidance.description}`);
             }
         }
     };
@@ -1798,6 +2070,17 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                     titleClassName="text-xs font-bold text-indigo-600"
                                                 />
                                             )}
+                                            <NoticeCallout
+                                                variant={harnessTransitionGuidance.variant}
+                                                eyebrow="상태 전이 안내"
+                                                title={harnessTransitionGuidance.title}
+                                                description={harnessTransitionGuidance.description}
+                                                className="mb-3 w-full rounded-xl border px-3 py-2.5"
+                                                bodyClassName="block"
+                                                eyebrowClassName="text-[11px] font-black"
+                                                titleClassName="mt-1 text-xs font-bold"
+                                                descriptionClassName="mt-1 text-[11px] font-semibold leading-relaxed"
+                                            />
                                             <div className="mb-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                                     <div>
@@ -1985,6 +2268,236 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 emptyStateClassName="text-xs font-bold text-slate-400"
                                             />
                                         </div>
+
+                                        <SectionPanelCard
+                                            variant="whiteSoft"
+                                            eyebrow="HARNESS AUDIT SNAPSHOT"
+                                            title="오버라이드, 승인, 컨텍스트, 버전 스냅샷을 함께 확인합니다."
+                                            description="관리자 승인 전 어떤 규칙이 개입했고 당시 어떤 컨텍스트와 정책 버전이 적용됐는지 빠르게 읽을 수 있습니다."
+                                            className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6 sm:py-6"
+                                            titleClassName="mt-1 text-sm font-black text-slate-800"
+                                            descriptionClassName="mt-2 text-xs font-bold text-slate-500"
+                                            bodyClassName="mt-4"
+                                        >
+                                            <SummaryMetricGrid
+                                                className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4"
+                                                cardClassName="rounded-2xl border px-3 py-2"
+                                                items={harnessSnapshotMetrics}
+                                            />
+
+                                            <NextActionChecklist
+                                                title="승인 전 증빙 체크리스트"
+                                                className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                                                titleClassName="mb-2 text-[11px] font-black uppercase tracking-[0.2em] text-slate-500"
+                                                listClassName="space-y-2 text-xs font-bold leading-relaxed text-slate-700"
+                                                itemClassName="flex items-start gap-2"
+                                                bulletClassName="mt-[2px] text-indigo-500"
+                                                items={harnessEvidenceChecklistItems}
+                                            />
+
+                                            <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                                                <WhyThisResultPanel
+                                                    title="분석기/평가기 요약"
+                                                    badge={<StatusBadge variant={harnessAnalyzerSummary.summary || harnessEvaluatorSummary.flags.length > 0 ? 'violetSoft' : 'slateSoft'} className="px-3 py-1.5 text-[11px] font-black">요약</StatusBadge>}
+                                                    entries={[
+                                                        {
+                                                            key: 'analyzer-summary',
+                                                            content: (
+                                                                <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-xs">
+                                                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">Analyzer</p>
+                                                                    <p className="mt-1 font-semibold text-indigo-700">{harnessAnalyzerSummary.summary || '저장된 analyzer 요약이 없습니다.'}</p>
+                                                                    <p className="mt-1 text-indigo-500">신뢰도: {typeof harnessAnalyzerSummary.confidence === 'number' ? `${Math.round(harnessAnalyzerSummary.confidence * 100)}%` : '미기록'}</p>
+                                                                </div>
+                                                            ),
+                                                        },
+                                                        {
+                                                            key: 'evaluator-summary',
+                                                            content: (
+                                                                <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs">
+                                                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-500">Evaluator</p>
+                                                                    <p className="mt-1 font-semibold text-violet-700">증거 충분도: {typeof harnessEvaluatorSummary.evidenceSufficiency === 'number' ? `${harnessEvaluatorSummary.evidenceSufficiency}` : '미기록'}</p>
+                                                                    <p className="mt-1 text-violet-600">인간 승인 필요: {typeof harnessEvaluatorSummary.requiresHumanApproval === 'boolean' ? (harnessEvaluatorSummary.requiresHumanApproval ? '예' : '아니오') : '미기록'}</p>
+                                                                    <p className="mt-1 text-violet-600">플래그: {harnessEvaluatorSummary.flags.length > 0 ? harnessEvaluatorSummary.flags.join(' · ') : '없음'}</p>
+                                                                </div>
+                                                            ),
+                                                        },
+                                                    ]}
+                                                    className="rounded-3xl border border-violet-200 bg-white p-6 shadow-sm min-h-0"
+                                                    titleClassName="text-sm font-black text-violet-700"
+                                                    listClassName="mt-3 space-y-2"
+                                                    emptyStateClassName="text-xs font-bold text-slate-400"
+                                                />
+
+                                                <WhyThisResultPanel
+                                                    title="최신 승인 Diff"
+                                                    badge={<StatusBadge variant={harnessLatestApprovalDiff ? 'emeraldSoft' : 'slateSoft'} className="px-3 py-1.5 text-[11px] font-black">{harnessLatestApprovalDiff ? harnessLatestApprovalDiff.action : '미기록'}</StatusBadge>}
+                                                    entries={harnessLatestApprovalDiff ? [
+                                                        {
+                                                            key: 'approval-diff',
+                                                            content: (
+                                                                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs">
+                                                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500">Decision Diff</p>
+                                                                    <p className="mt-1 font-semibold text-emerald-700">위험 판단: {harnessLatestApprovalDiff.decisionBefore || 'N/A'} → {harnessLatestApprovalDiff.decisionAfter || 'N/A'}</p>
+                                                                    <p className="mt-1 text-emerald-600">워크플로우: {getHarnessWorkflowStateLabel(harnessLatestApprovalDiff.workflowStateAfter)}</p>
+                                                                    <p className="mt-1 text-emerald-600">승인 상태: {getHarnessApprovalStateLabel(harnessLatestApprovalDiff.approvalStateAfter)} · 2차 재분석: {harnessLatestApprovalDiff.secondPassStatusAfter}</p>
+                                                                    <p className="mt-1 text-emerald-600">매니저 승인 필요: {harnessLatestApprovalDiff.requiresManagerApprovalAfter ? '예' : '아니오'}</p>
+                                                                    <p className="mt-1 font-semibold text-emerald-700">코멘트: {harnessLatestApprovalDiff.comment || '없음'}</p>
+                                                                    <p className="mt-1 text-emerald-500">{new Date(harnessLatestApprovalDiff.updatedAt).toLocaleString(timelineLocale, timelineDateTimeOptions)}</p>
+                                                                </div>
+                                                            ),
+                                                        },
+                                                    ] : []}
+                                                    emptyState="저장된 승인 diff가 없습니다."
+                                                    className="rounded-3xl border border-emerald-200 bg-white p-6 shadow-sm min-h-0"
+                                                    titleClassName="text-sm font-black text-emerald-700"
+                                                    listClassName="mt-3 space-y-2"
+                                                    emptyStateClassName="text-xs font-bold text-slate-400"
+                                                />
+                                            </div>
+
+                                            <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
+                                                <WhyThisResultPanel
+                                                    title="가드레일 오버라이드 로그"
+                                                    badge={<StatusBadge variant={harnessOverrides.length > 0 ? 'amberSoft' : 'slateSoft'} className="px-3 py-1.5 text-[11px] font-black">{harnessOverrides.length}건</StatusBadge>}
+                                                    entries={harnessOverrides.map((override, idx) => ({
+                                                        key: `${override.ruleCode}-${override.createdAt}-${idx}`,
+                                                        content: (
+                                                            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs">
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <p className="font-black text-amber-800">{override.ruleCode}</p>
+                                                                    <StatusBadge variant="amberSoft">{override.severity}</StatusBadge>
+                                                                </div>
+                                                                <p className="mt-1 text-amber-600">룰 버전: {override.ruleVersion || '미지정'}</p>
+                                                                <p className="mt-1 font-semibold text-amber-700">{override.message}</p>
+                                                                <p className="mt-1 text-amber-600">{override.originalDecision || 'N/A'} → {override.overriddenDecision || 'N/A'}</p>
+                                                                <p className="mt-1 text-amber-500">{new Date(override.createdAt).toLocaleString(timelineLocale, timelineDateTimeOptions)}</p>
+                                                            </div>
+                                                        ),
+                                                    }))}
+                                                    emptyState="저장된 오버라이드 로그가 없습니다."
+                                                    className="rounded-3xl border border-amber-200 bg-white p-6 shadow-sm min-h-0"
+                                                    titleClassName="text-sm font-black text-amber-700"
+                                                    listClassName="mt-3 space-y-2 max-h-48 overflow-y-auto custom-scrollbar"
+                                                    emptyStateClassName="text-xs font-bold text-slate-400"
+                                                />
+
+                                                <WhyThisResultPanel
+                                                    title="인간 승인 이력"
+                                                    badge={<StatusBadge variant={harnessApprovals.length > 0 ? 'emeraldSoft' : 'slateSoft'} className="px-3 py-1.5 text-[11px] font-black">{harnessApprovals.length}건</StatusBadge>}
+                                                    entries={harnessApprovals.map((approval, idx) => ({
+                                                        key: `${approval.action}-${approval.createdAt}-${idx}`,
+                                                        content: (
+                                                            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs">
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <p className="font-black text-emerald-800">{approval.approverRole || approval.approverName || 'manager'}</p>
+                                                                    <StatusBadge variant="emeraldSoft">{approval.action}</StatusBadge>
+                                                                </div>
+                                                                <p className="mt-1 font-semibold text-emerald-700">{approval.comment || '코멘트 없음'}</p>
+                                                                <p className="mt-1 text-emerald-600">{approval.decisionBefore || 'N/A'} → {approval.decisionAfter || 'N/A'}</p>
+                                                                <p className="mt-1 text-emerald-500">{new Date(approval.createdAt).toLocaleString(timelineLocale, timelineDateTimeOptions)}</p>
+                                                            </div>
+                                                        ),
+                                                    }))}
+                                                    emptyState="저장된 승인 이력이 없습니다."
+                                                    className="rounded-3xl border border-emerald-200 bg-white p-6 shadow-sm min-h-0"
+                                                    titleClassName="text-sm font-black text-emerald-700"
+                                                    listClassName="mt-3 space-y-2 max-h-48 overflow-y-auto custom-scrollbar"
+                                                    emptyStateClassName="text-xs font-bold text-slate-400"
+                                                />
+
+                                                <WhyThisResultPanel
+                                                    title="컨텍스트/버전 스냅샷"
+                                                    badge={<StatusBadge variant={harnessPromptVersion || harnessPolicyVersion ? 'violetSoft' : 'slateSoft'} className="px-3 py-1.5 text-[11px] font-black">{harnessContextSnapshot ? '연결됨' : '없음'}</StatusBadge>}
+                                                    entries={[
+                                                        {
+                                                            key: 'prompt-version',
+                                                            content: <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs font-semibold text-violet-700">프롬프트 버전: {harnessPromptVersion?.version || '미연결'}</div>,
+                                                        },
+                                                        {
+                                                            key: 'policy-version',
+                                                            content: <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs font-semibold text-violet-700">정책 버전: {harnessPolicyVersion?.version || '미연결'}</div>,
+                                                        },
+                                                        {
+                                                            key: 'context-meta',
+                                                            content: <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-700">컨텍스트 시각: {harnessContextSnapshot ? new Date(harnessContextSnapshot.createdAt).toLocaleString(timelineLocale, timelineDateTimeOptions) : '없음'}</div>,
+                                                        },
+                                                    ]}
+                                                    emptyState="저장된 컨텍스트 스냅샷이 없습니다."
+                                                    className="rounded-3xl border border-violet-200 bg-white p-6 shadow-sm min-h-0"
+                                                    titleClassName="text-sm font-black text-violet-700"
+                                                    listClassName="mt-3 space-y-2"
+                                                    emptyStateClassName="text-xs font-bold text-slate-400"
+                                                />
+                                            </div>
+
+                                            <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
+                                                <HarnessVersionDetailsPanel
+                                                    title="Prompt 버전 설명"
+                                                    tone="prompt"
+                                                    descriptors={harnessVersionDescriptors.prompt}
+                                                    emptyMessage="현재 연결된 프롬프트 버전 설명이 없습니다."
+                                                />
+                                                <HarnessVersionDetailsPanel
+                                                    title="Policy 버전 설명"
+                                                    tone="policy"
+                                                    descriptors={harnessVersionDescriptors.policy}
+                                                    emptyMessage="현재 연결된 정책 버전 설명이 없습니다."
+                                                />
+                                                <HarnessVersionDetailsPanel
+                                                    title="Rule 버전 설명"
+                                                    tone="rule"
+                                                    descriptors={harnessVersionDescriptors.rule}
+                                                    emptyMessage="현재 연결된 룰 버전 설명이 없습니다."
+                                                />
+                                            </div>
+
+                                            <NoticeCallout
+                                                variant="indigo"
+                                                eyebrow="Version Diff Summary"
+                                                title="현재 하네스 스냅샷에는 버전 변경 포인트가 함께 연결되어 있습니다."
+                                                description={[
+                                                    harnessVersionChangeSummary.prompt[0],
+                                                    harnessVersionChangeSummary.policy[0],
+                                                    harnessVersionChangeSummary.rule[0],
+                                                ].filter(Boolean).join(' / ') || '저장된 버전 변경 요약이 아직 없습니다.'}
+                                                className="mt-4 rounded-2xl border px-4 py-3"
+                                                bodyClassName="block"
+                                                titleClassName="text-sm font-black"
+                                                descriptionClassName="mt-1 text-xs font-semibold leading-relaxed"
+                                            />
+
+                                            {harnessVersionDescriptorRows.length > 0 ? (
+                                                <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">버전 변경 포인트 표</p>
+                                                    <div className="mt-3 overflow-auto">
+                                                        <table className="w-full min-w-[720px] text-left text-[11px]">
+                                                            <thead className="text-slate-500">
+                                                                <tr>
+                                                                    <th className="py-2 pr-3">Category</th>
+                                                                    <th className="py-2 pr-3">Version</th>
+                                                                    <th className="py-2 pr-3">Previous</th>
+                                                                    <th className="py-2 pr-3">Released</th>
+                                                                    <th className="py-2 pr-3">Summary</th>
+                                                                    <th className="py-2 pr-3">Change Points</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="align-top text-slate-700">
+                                                                {harnessVersionDescriptorRows.map((descriptor) => (
+                                                                    <tr key={`${descriptor.category}-${descriptor.version}`} className="border-t border-slate-100">
+                                                                        <td className="py-2 pr-3 font-black uppercase">{descriptor.category}</td>
+                                                                        <td className="py-2 pr-3 font-black break-all">{descriptor.version}</td>
+                                                                        <td className="py-2 pr-3 break-all">{descriptor.previousVersion || '-'}</td>
+                                                                        <td className="py-2 pr-3">{descriptor.releasedAt}</td>
+                                                                        <td className="py-2 pr-3 leading-relaxed">{descriptor.summary}</td>
+                                                                        <td className="py-2 pr-3 leading-relaxed">{descriptor.changesFromPrevious?.join(' / ') || '-'}</td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            ) : null}
+                                        </SectionPanelCard>
                                     </div>
                                 )}
 

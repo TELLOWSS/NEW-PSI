@@ -94,6 +94,14 @@ export interface HarnessContextSnapshot {
     }>;
 }
 
+export interface HarnessPromptLayerSnapshot {
+    version: string;
+    systemInstruction: string[];
+    staticKnowledge: string[];
+    dynamicContext: string[];
+    assembledPrompt: string;
+}
+
 export interface HarnessAnalyzerOutput {
     summary: string;
     extractedHazards: string[];
@@ -109,6 +117,7 @@ export interface HarnessEvaluationOutput {
 
 export interface HarnessGuardrailOverride {
     ruleCode: string;
+    ruleVersion: string;
     severity: HarnessTriggerSeverity;
     message: string;
     originalDecision: HarnessRiskDecision;

@@ -3,6 +3,7 @@ import { buildHarnessAuditEvents } from '../../lib/server/harness/auditLogger.js
 import { buildHarnessContextSnapshot } from '../../lib/server/harness/contextAssembler.js';
 import { validateHarnessInput } from '../../lib/server/harness/inputValidators.js';
 import { getDefaultHarnessPolicy } from '../../lib/server/harness/policyRegistry.js';
+import { buildHarnessPromptSnapshot } from '../../lib/server/harness/promptLayers.js';
 import { buildHarnessDecision } from '../../lib/server/harness/router.js';
 import { evaluateHarnessRules } from '../../lib/server/harness/ruleEngine.js';
 import { buildDeterministicAnalyzerOutput } from '../../lib/server/harness/agents/analyzer.js';
@@ -24,6 +25,7 @@ export default async function handler(req: any, res: any) {
         const payload = (req.body || {}) as HarnessAnalyzeRequest;
         const validation = validateHarnessInput(payload);
         const context = buildHarnessContextSnapshot(payload);
+        const prompt = buildHarnessPromptSnapshot(payload, context);
         const analyzer = buildDeterministicAnalyzerOutput(payload, context);
         const analyzerValidation = validateAnalyzerOutput(analyzer);
 
@@ -64,6 +66,7 @@ export default async function handler(req: any, res: any) {
             validation,
             evaluator,
             context,
+            promptSnapshot: prompt,
             auditEvents,
             overrides,
         });
@@ -81,6 +84,7 @@ export default async function handler(req: any, res: any) {
                 decision: decisionResult,
                 overrides,
                 context,
+                prompt,
                 auditEvents,
             },
         });

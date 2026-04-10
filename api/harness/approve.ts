@@ -1,6 +1,7 @@
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
+import { fetchPersistedHarnessWorkflowStatus } from '../../lib/server/harness/persistence.js';
 import { persistHarnessApproval } from '../../lib/server/harness/persistence.js';
-import { buildHarnessApprovalDecision } from '../../lib/server/harness/router.js';
+import { buildHarnessApprovalDecision, HarnessTransitionError } from '../../lib/server/harness/router.js';
 import type { HarnessApprovalAction, HarnessRiskDecision } from '../../lib/server/harness/workflowTypes.js';
 
 export default async function handler(req: any, res: any) {
@@ -18,6 +19,7 @@ export default async function handler(req: any, res: any) {
         const approver = String(req.body?.approver || '').trim();
         const comment = String(req.body?.comment || '').trim();
         const currentDecision = String(req.body?.currentDecision || 'SUPPLEMENTARY_REVIEW').trim() as HarnessRiskDecision;
+        const sourceRecordId = String(req.body?.recordId || '').trim();
 
         if (!workflowRunId || !approver || !action) {
             return res.status(400).json({ ok: false, message: 'workflowRunId, approver, action 필수' });
@@ -27,14 +29,25 @@ export default async function handler(req: any, res: any) {
             return res.status(400).json({ ok: false, message: '지원하지 않는 승인 액션입니다.' });
         }
 
+        const currentWorkflow = await fetchPersistedHarnessWorkflowStatus(workflowRunId);
+
+        if (currentWorkflow.persisted && !currentWorkflow.found) {
+            return res.status(404).json({ ok: false, message: '해당 workflow run을 찾지 못했습니다. 승인 전에 저장 연결 상태를 먼저 확인해 주십시오.' });
+        }
+
+        const persistedWorkflow = currentWorkflow.data;
+
         const approvalDecision = buildHarnessApprovalDecision({
             action,
-            currentDecision,
+            currentDecision: persistedWorkflow?.riskDecision ?? currentDecision,
+            currentWorkflowState: persistedWorkflow?.workflowState,
+            currentApprovalState: persistedWorkflow?.approvalState,
+            currentSecondPassStatus: persistedWorkflow?.secondPassStatus,
         });
 
         const persistence = await persistHarnessApproval({
             workflowRunId,
-            sourceRecordId: String(req.body?.recordId || '').trim() || undefined,
+            sourceRecordId: sourceRecordId || undefined,
             approver,
             action,
             comment: comment || undefined,
@@ -54,6 +67,9 @@ export default async function handler(req: any, res: any) {
             },
         });
     } catch (error: any) {
+        if (error instanceof HarnessTransitionError) {
+            return res.status(error.statusCode || 400).json({ ok: false, message: error.message });
+        }
         return res.status(500).json({ ok: false, message: error?.message || 'Harness approve failed' });
     }
 }

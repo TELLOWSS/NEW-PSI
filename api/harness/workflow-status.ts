@@ -53,8 +53,35 @@ export default async function handler(req: any, res: any) {
                 sourceRecordId: null,
                 eventCount: 0,
                 approvalCount: 0,
+                overrideCount: 0,
                 timelineCount: 0,
             },
+            overrides: [],
+            approvals: [],
+            contextSnapshot: null,
+            promptVersion: null,
+            policyVersion: null,
+            analyzerSummary: {
+                summary: null,
+                confidence: null,
+            },
+            evaluatorSummary: {
+                evidenceSufficiency: null,
+                requiresHumanApproval: null,
+                flags: [],
+            },
+            latestApprovalDiff: null,
+            versionDetails: {
+                prompt: [],
+                policy: [],
+                rule: [],
+            },
+            versionChangeSummary: {
+                prompt: [],
+                policy: [],
+                rule: [],
+            },
+            decisionPayload: null,
             timeline: [
                 {
                     stage: 'uploaded',

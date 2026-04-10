@@ -31,6 +31,8 @@ export const HIGH_RISK_KEYWORD_GROUPS = {
 
 export const PROMPT_VERSION = 'psi-harness-prompt-2026-04-10';
 
+export const RULE_VERSION = 'psi-harness-rules-2026-04-11';
+
 export function getDefaultHarnessPolicy(): HarnessPolicySnapshot {
     return DEFAULT_HARNESS_POLICY;
 }

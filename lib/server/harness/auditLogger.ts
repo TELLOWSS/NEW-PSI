@@ -54,6 +54,7 @@ export function buildHarnessAuditEvents(options: {
             note: override.message,
             payload: {
                 ruleCode: override.ruleCode,
+                ruleVersion: override.ruleVersion,
                 severity: override.severity,
                 originalDecision: override.originalDecision,
                 overriddenDecision: override.overriddenDecision,

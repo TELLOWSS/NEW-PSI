@@ -383,6 +383,166 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         },
     ], [harnessDashboardSummary]);
 
+    const harnessOperationalInsights = useMemo(() => {
+        const uniqueWorkers = new Set(filteredWorkerRecords.map((record) => record.name));
+        const latestRecords = Array.from(uniqueWorkers).map((name) => {
+            return filteredWorkerRecords
+                .filter((record) => record.name === name)
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+        });
+
+        const tradeMap = latestRecords.reduce<Record<string, { approval: number; immediate: number; fallback: number }>>((acc, record) => {
+            const trade = String(record.jobField || '미지정 공종').trim() || '미지정 공종';
+            const workflowState = inferHarnessWorkflowState(record);
+            const riskDecision = inferHarnessRiskDecision(record);
+            const approvalState = inferHarnessApprovalState(record, workflowState);
+            const persistenceState = getHarnessPersistenceState(record);
+
+            if (!acc[trade]) {
+                acc[trade] = { approval: 0, immediate: 0, fallback: 0 };
+            }
+
+            if (approvalState === 'PENDING' || approvalState === 'REQUIRED') acc[trade].approval += 1;
+            if (riskDecision === 'IMMEDIATE_ATTENTION' || riskDecision === 'CRITICAL_STOP') acc[trade].immediate += 1;
+            if (persistenceState === 'fallback' || persistenceState === 'pending') acc[trade].fallback += 1;
+
+            return acc;
+        }, {});
+
+        const sortedTrades = Object.entries(tradeMap)
+            .map(([trade, stats]) => ({ trade, ...stats, totalSignal: stats.approval + stats.immediate + stats.fallback }))
+            .filter((item) => item.totalSignal > 0)
+            .sort((a, b) => b.totalSignal - a.totalSignal);
+
+        const topTrade = sortedTrades[0] || null;
+        const coverageRate = harnessDashboardSummary.total > 0
+            ? Math.round((harnessDashboardSummary.connected / harnessDashboardSummary.total) * 100)
+            : 0;
+
+        return [
+            {
+                key: 'dashboard-harness-coverage',
+                eyebrow: '운영 커버리지',
+                title: `현재 하네스 저장 연결률은 ${coverageRate}%입니다.`,
+                description: harnessDashboardSummary.pending > 0
+                    ? `저장 대기 ${harnessDashboardSummary.pending}명과 폴백 ${harnessDashboardSummary.fallback}명을 우선 정리하셔야 운영 추적이 안정됩니다.`
+                    : '현재 연결된 런 기준으로 승인 흐름과 보호 상태를 비교적 안정적으로 추적하실 수 있습니다.',
+                tone: coverageRate < 70 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+            },
+            {
+                key: 'dashboard-harness-trade',
+                eyebrow: '공종 우선순위',
+                title: topTrade
+                    ? `${topTrade.trade} 공종에서 보호 신호가 가장 많이 감지됩니다.`
+                    : '현재 공종별 하네스 경보 집중 구간은 크지 않습니다.',
+                description: topTrade
+                    ? `승인 ${topTrade.approval}건 · 즉시 보호 ${topTrade.immediate}건 · 저장 점검 ${topTrade.fallback}건 기준으로 우선순위를 정리하시면 됩니다.`
+                    : '현재는 승인 대기, 즉시 보호, 저장 폴백 신호가 특정 공종에 과도하게 몰리지 않았습니다.',
+                tone: topTrade ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
+            },
+            {
+                key: 'dashboard-harness-action',
+                eyebrow: '권장 액션',
+                title: harnessDashboardSummary.immediateAttention > 0
+                    ? '즉시 보호 대상부터 승인 대기열보다 먼저 정리하시는 편이 안전합니다.'
+                    : '즉시 중단 대상이 없다면 승인 백로그와 저장 연결부터 정리하시면 됩니다.',
+                description: harnessDashboardSummary.immediateAttention > 0
+                    ? '고위험 배지가 붙은 대상은 보고서 생성보다 현장 보호 조치와 관리자 판단을 먼저 이어가셔야 합니다.'
+                    : '현재는 설명 지연보다 승인 누락과 영속 저장 누락을 줄이는 쪽이 운영 효율에 더 직접적입니다.',
+                tone: harnessDashboardSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-indigo-200 bg-indigo-50/80',
+            },
+        ];
+    }, [filteredWorkerRecords, harnessDashboardSummary]);
+
+    const harnessAuditSummary = useMemo(() => {
+        const uniqueWorkers = new Set(filteredWorkerRecords.map((record) => record.name));
+        const latestRecords = Array.from(uniqueWorkers).map((name) => {
+            return filteredWorkerRecords
+                .filter((record) => record.name === name)
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+        });
+
+        return latestRecords.reduce((summary, record) => {
+            const latestAuditTrail = Array.isArray(record.auditTrail) ? record.auditTrail : [];
+            const hasHarnessAudit = latestAuditTrail.some((entry) => /하네스|Harness/i.test(String(entry.note || '')));
+            const hasTransitionBlock = latestAuditTrail.some((entry) => /하네스 전이 거부|승인 차단/i.test(String(entry.note || '')));
+            const hasApprovalAudit = latestAuditTrail.some((entry) => entry.stage === 'approval');
+            const hasValidationAudit = latestAuditTrail.some((entry) => entry.stage === 'validation');
+
+            if (hasHarnessAudit) summary.auditLinked += 1;
+            if (hasTransitionBlock) summary.transitionBlocked += 1;
+            if (hasApprovalAudit) summary.approvalAudited += 1;
+            if (hasValidationAudit) summary.validationAudited += 1;
+
+            summary.auditEvents += latestAuditTrail.length;
+            return summary;
+        }, {
+            auditLinked: 0,
+            transitionBlocked: 0,
+            approvalAudited: 0,
+            validationAudited: 0,
+            auditEvents: 0,
+        });
+    }, [filteredWorkerRecords]);
+
+    const harnessAuditMetrics = useMemo(() => [
+        {
+            key: 'dashboard-harness-audit-linked',
+            label: '감사 연결 대상',
+            value: `${harnessAuditSummary.auditLinked}명`,
+            helper: '하네스 관련 감사 메모가 남아 있는 최신 레코드 기준입니다.',
+            tone: harnessAuditSummary.auditLinked > 0 ? 'border-indigo-200 bg-indigo-50/80' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'dashboard-harness-transition-blocked',
+            label: '전이 차단 이력',
+            value: `${harnessAuditSummary.transitionBlocked}명`,
+            helper: '승인/재분석 시 상태 조건 불일치로 차단된 기록 수입니다.',
+            tone: harnessAuditSummary.transitionBlocked > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'dashboard-harness-approval-audit',
+            label: '승인 감사 기록',
+            value: `${harnessAuditSummary.approvalAudited}명`,
+            helper: '최신 레코드 기준 승인 stage 감사 로그가 존재하는 대상입니다.',
+            tone: harnessAuditSummary.approvalAudited > 0 ? 'border-emerald-200 bg-emerald-50/80' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'dashboard-harness-audit-events',
+            label: '누적 감사 이벤트',
+            value: `${harnessAuditSummary.auditEvents}건`,
+            helper: `validation ${harnessAuditSummary.validationAudited}명 · approval ${harnessAuditSummary.approvalAudited}명 기준`,
+            tone: harnessAuditSummary.auditEvents > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
+        },
+    ], [harnessAuditSummary]);
+
+    const harnessAuditInsights = useMemo(() => {
+        return [
+            {
+                key: 'dashboard-harness-audit-action',
+                eyebrow: '감사 우선순위',
+                title: harnessAuditSummary.transitionBlocked > 0
+                    ? `전이 차단 이력 ${harnessAuditSummary.transitionBlocked}명을 먼저 재검토하셔야 합니다.`
+                    : '전이 차단 이력은 크지 않으며 승인·저장 연결 점검을 우선하시면 됩니다.',
+                description: harnessAuditSummary.transitionBlocked > 0
+                    ? '상태 전이 거부는 증빙 누락, 승인 순서 오류, 완료 후 재분석 시도 가능성을 뜻하므로 관리자 QA 우선 대상입니다.'
+                    : '현재는 차단 이력보다 승인 백로그와 저장 연결 누락을 줄이는 쪽이 운영 효율에 더 직접적입니다.',
+                tone: harnessAuditSummary.transitionBlocked > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+            },
+            {
+                key: 'dashboard-harness-audit-coverage',
+                eyebrow: '감사 커버리지',
+                title: harnessAuditSummary.auditLinked > 0
+                    ? `최신 레코드 ${harnessAuditSummary.auditLinked}명에 하네스 감사 메모가 연결되어 있습니다.`
+                    : '아직 하네스 감사 메모가 충분히 누적되지 않았습니다.',
+                description: harnessAuditSummary.auditLinked > 0
+                    ? `승인 감사 ${harnessAuditSummary.approvalAudited}명, validation 감사 ${harnessAuditSummary.validationAudited}명을 함께 읽으면 운영 통제 설명이 쉬워집니다.`
+                    : '관리자 모달에서 승인/재분석/차단 흐름을 사용하면서 감사 로그 누적을 늘리셔야 대시보드 설명력이 커집니다.',
+                tone: harnessAuditSummary.auditLinked > 0 ? 'border-indigo-200 bg-indigo-50/80' : 'border-slate-200 bg-slate-50',
+            },
+        ];
+    }, [harnessAuditSummary]);
+
     const dashboardData = useMemo(() => {
         return transformDashboardData(filteredWorkerRecords);
     }, [filteredWorkerRecords]);
@@ -1228,6 +1388,22 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             <SummaryMetricGrid
                 items={harnessSummaryMetrics}
                 columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
+
+            <InterpretationCardGrid
+                items={harnessOperationalInsights}
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
+
+            <SummaryMetricGrid
+                items={harnessAuditMetrics}
+                columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
+
+            <InterpretationCardGrid
+                items={harnessAuditInsights}
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
             />
 

@@ -5,6 +5,7 @@ import type {
     HarnessRiskDecision,
     HarnessWorkflowState,
 } from '../lib/server/harness/workflowTypes.js';
+import type { HarnessVersionChangeSummaryBundle, HarnessVersionDetailsBundle, HarnessVersionDescriptor } from '../utils/harnessVersionCatalog';
 import { postAdminJson } from '../utils/adminApiClient';
 
 export interface HarnessGatewayDecision {
@@ -34,8 +35,81 @@ export interface HarnessWorkflowDiagnostics {
     sourceRecordId: string | null;
     eventCount: number;
     approvalCount: number;
+    overrideCount: number;
     timelineCount: number;
 }
+
+export interface HarnessWorkflowOverride {
+    ruleCode: string;
+    ruleVersion: string;
+    severity: string;
+    message: string;
+    triggerType: string | null;
+    triggerPayload: Record<string, unknown>;
+    originalDecision: string | null;
+    overriddenDecision: string | null;
+    createdAt: string;
+}
+
+export interface HarnessWorkflowApproval {
+    approverName: string | null;
+    approverRole: string | null;
+    action: string;
+    comment: string | null;
+    decisionBefore: string | null;
+    decisionAfter: string | null;
+    createdAt: string;
+}
+
+export interface HarnessWorkflowContextSnapshot {
+    createdAt: string;
+    weather: Record<string, unknown>;
+    schedule: Record<string, unknown>;
+    sensorEvents: Array<Record<string, unknown>>;
+    metadata: Record<string, unknown>;
+    ocrConfidenceScore: number | null;
+    imageQualityScore: number | null;
+}
+
+export interface HarnessWorkflowPromptVersion {
+    version: string;
+    systemInstruction: string;
+    promptLayers: Record<string, unknown>;
+    createdAt: string;
+}
+
+export interface HarnessWorkflowPolicyVersion {
+    version: string;
+    policy: Record<string, unknown>;
+    createdAt: string;
+}
+
+export interface HarnessWorkflowAnalyzerSummary {
+    summary: string | null;
+    confidence: number | null;
+}
+
+export interface HarnessWorkflowEvaluatorSummary {
+    evidenceSufficiency: number | null;
+    requiresHumanApproval: boolean | null;
+    flags: string[];
+}
+
+export interface HarnessWorkflowApprovalDiff {
+    action: string;
+    comment: string | null;
+    decisionBefore: string | null;
+    decisionAfter: string | null;
+    workflowStateAfter: HarnessWorkflowState;
+    approvalStateAfter: HarnessApprovalState;
+    secondPassStatusAfter: 'NEEDED' | 'IN_PROGRESS' | 'DONE';
+    requiresManagerApprovalAfter: boolean;
+    updatedAt: string;
+}
+
+export type HarnessWorkflowVersionDescriptor = HarnessVersionDescriptor;
+export type HarnessWorkflowVersionDetails = HarnessVersionDetailsBundle;
+export type HarnessWorkflowVersionChangeSummary = HarnessVersionChangeSummaryBundle;
 
 export interface HarnessPersistenceHealth {
     connected: boolean;
@@ -126,6 +200,17 @@ export async function fetchHarnessWorkflowStatus(workflowRunId: string) {
         riskDecision: HarnessRiskDecision;
         approvalState: HarnessApprovalState;
         secondPassStatus: 'NEEDED' | 'IN_PROGRESS' | 'DONE';
+        overrides: HarnessWorkflowOverride[];
+        approvals: HarnessWorkflowApproval[];
+        contextSnapshot: HarnessWorkflowContextSnapshot | null;
+        promptVersion: HarnessWorkflowPromptVersion | null;
+        policyVersion: HarnessWorkflowPolicyVersion | null;
+        analyzerSummary: HarnessWorkflowAnalyzerSummary;
+        evaluatorSummary: HarnessWorkflowEvaluatorSummary;
+        latestApprovalDiff: HarnessWorkflowApprovalDiff | null;
+        versionDetails: HarnessWorkflowVersionDetails;
+        versionChangeSummary: HarnessWorkflowVersionChangeSummary;
+        decisionPayload: Record<string, unknown> | null;
         timeline: Array<{ stage: string; timestamp: string; note: string; actor?: string }>;
     }>('harness.workflow-status', { workflowRunId });
 }

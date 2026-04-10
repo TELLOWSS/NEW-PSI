@@ -5,6 +5,7 @@ import { extractMessage } from '../utils/errorUtils';
 import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { NoticeCallout } from '../components/shared/NoticeCallout';
+import { HarnessVersionDetailsPanel } from '../components/shared/HarnessVersionDetailsPanel';
 import { ReportGenerationProgress } from '../components/shared/ReportGenerationProgress';
 import { StatusBadge } from '../components/shared/StatusBadge';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
@@ -12,8 +13,10 @@ import { createEvidencePackagePdfBlob } from '../utils/evidenceReportUtils';
 import { ensureFileSaver, ensureHtml2Canvas, ensureJsPdfConstructor, ensureJsZip } from '../utils/externalScripts';
 import { verifyEvidenceManifest, formatEvidenceVerificationSummary } from '../utils/evidenceVerificationUtils';
 import type { EvidenceManifest, EvidenceManifestVerificationResult } from '../utils/evidenceVerificationUtils';
+import { getHarnessVersionDescriptor, getHarnessVersionDescriptors, type HarnessVersionDetailsBundle } from '../utils/harnessVersionCatalog';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { buildPdfBlobFromCanvases, canvasToBlob, captureReportCanvases, getCanvasImageData, getCanvasPlacementOnA4, saveCanvasesAsA4Pdf } from '../utils/pdfCapture';
+import { fetchHarnessWorkflowStatus } from '../services/harnessService';
 
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
 
@@ -202,6 +205,11 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const [isVerifyingEvidence, setIsVerifyingEvidence] = useState(false);
     const [verificationResult, setVerificationResult] = useState<EvidenceManifestVerificationResult | null>(null);
     const [verificationSummary, setVerificationSummary] = useState('');
+    const [verificationManifestPreview, setVerificationManifestPreview] = useState<EvidenceManifest | null>(null);
+    const [verificationManifestPreviewError, setVerificationManifestPreviewError] = useState<string | null>(null);
+    const [previewWorkflowStatus, setPreviewWorkflowStatus] = useState<Awaited<ReturnType<typeof fetchHarnessWorkflowStatus>> | null>(null);
+    const [previewWorkflowStatusLoading, setPreviewWorkflowStatusLoading] = useState(false);
+    const [previewWorkflowStatusError, setPreviewWorkflowStatusError] = useState<string | null>(null);
 
     const bulkProgressPercent = useMemo(() => {
         if (!bulkProgress.total || bulkProgress.total <= 0) return 0;
@@ -425,6 +433,48 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         },
     ], [harnessSummary]);
 
+    const harnessReportOperationalCards: InterpretationCardItem[] = useMemo(() => {
+        const runCoverageRate = harnessSummary.total > 0
+            ? Math.round((harnessSummary.connected / harnessSummary.total) * 100)
+            : 0;
+
+        const backlogRate = harnessSummary.total > 0
+            ? Math.round((harnessSummary.approvalPending / harnessSummary.total) * 100)
+            : 0;
+
+        return [
+            {
+                key: 'report-harness-coverage',
+                eyebrow: '추적 커버리지',
+                title: `현재 보고 대상의 하네스 저장 연결률은 ${runCoverageRate}%입니다.`,
+                description: harnessSummary.pending > 0 || harnessSummary.fallback > 0
+                    ? `저장 대기 ${harnessSummary.pending}건과 폴백 ${harnessSummary.fallback}건은 감사 근거 패키지 생성 전 먼저 확인하셔야 합니다.`
+                    : '현재 대상은 대부분 workflow run과 연결되어 있어 보고서 근거 추적에 유리한 상태입니다.',
+                tone: runCoverageRate < 70 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+            },
+            {
+                key: 'report-harness-backlog',
+                eyebrow: '승인 백로그',
+                title: `현재 보고 대상 중 ${backlogRate}%가 추가 승인 또는 재확인이 필요합니다.`,
+                description: harnessSummary.approvalPending > 0
+                    ? `승인 대기 ${harnessSummary.approvalPending}건과 재확인 필요 ${harnessSummary.reviewNeeded}건을 함께 읽으시면 보고 설명 순서를 정하시기 쉽습니다.`
+                    : '현재 대상은 승인 백로그가 크지 않아 보고서 확정 흐름을 비교적 안정적으로 이어가실 수 있습니다.',
+                tone: harnessSummary.approvalPending > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
+            },
+            {
+                key: 'report-harness-action',
+                eyebrow: '권장 보고 순서',
+                title: harnessSummary.highRisk > 0
+                    ? '즉시 보호 대상 설명을 먼저 배치하시는 편이 안전합니다.'
+                    : '현재는 승인·영속 저장 상태 설명을 먼저 붙이시면 충분합니다.',
+                description: harnessSummary.highRisk > 0
+                    ? `즉시 보호 대상 ${harnessSummary.highRisk}건은 일반 성과 요약보다 앞서 근거·보호 조치와 함께 설명하시는 것이 적절합니다.`
+                    : '고위험 배지가 크지 않은 경우에는 저장 연결 상태와 승인 이력을 먼저 설명하셔도 운영 흐름에 무리가 없습니다.',
+                tone: harnessSummary.highRisk > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-indigo-200 bg-indigo-50/80',
+            },
+        ];
+    }, [harnessSummary]);
+
     const currentPreviewHarnessMeta = useMemo(() => {
         if (!currentPreviewRecord) return null;
 
@@ -440,6 +490,212 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             persistenceState,
         };
     }, [currentPreviewRecord]);
+
+    useEffect(() => {
+        let disposed = false;
+
+        const loadPreviewWorkflowStatus = async () => {
+            const lookupValue = String(currentPreviewRecord?.workflowRunId || currentPreviewRecord?.id || '').trim();
+            if (!lookupValue) {
+                setPreviewWorkflowStatus(null);
+                setPreviewWorkflowStatusError(null);
+                setPreviewWorkflowStatusLoading(false);
+                return;
+            }
+
+            setPreviewWorkflowStatusLoading(true);
+            setPreviewWorkflowStatusError(null);
+
+            try {
+                const response = await fetchHarnessWorkflowStatus(lookupValue);
+                if (!disposed) {
+                    setPreviewWorkflowStatus(response);
+                }
+            } catch (error) {
+                if (!disposed) {
+                    setPreviewWorkflowStatus(null);
+                    setPreviewWorkflowStatusError(extractMessage(error, '하네스 버전 정보를 불러오지 못했습니다.'));
+                }
+            } finally {
+                if (!disposed) {
+                    setPreviewWorkflowStatusLoading(false);
+                }
+            }
+        };
+
+        void loadPreviewWorkflowStatus();
+
+        return () => {
+            disposed = true;
+        };
+    }, [currentPreviewRecord?.id, currentPreviewRecord?.workflowRunId]);
+
+    useEffect(() => {
+        let disposed = false;
+
+        const loadManifestPreview = async () => {
+            if (!verificationManifestFile) {
+                setVerificationManifestPreview(null);
+                setVerificationManifestPreviewError(null);
+                return;
+            }
+
+            try {
+                const manifestText = await verificationManifestFile.text();
+                const manifest = JSON.parse(manifestText) as EvidenceManifest;
+                if (!manifest || !Array.isArray(manifest.files)) {
+                    throw new Error('manifest.json 형식이 올바르지 않습니다. files 배열이 필요합니다.');
+                }
+
+                if (!disposed) {
+                    setVerificationManifestPreview(manifest);
+                    setVerificationManifestPreviewError(null);
+                }
+            } catch (error) {
+                if (!disposed) {
+                    setVerificationManifestPreview(null);
+                    setVerificationManifestPreviewError(extractMessage(error, 'Manifest 미리보기를 불러오지 못했습니다.'));
+                }
+            }
+        };
+
+        void loadManifestPreview();
+
+        return () => {
+            disposed = true;
+        };
+    }, [verificationManifestFile]);
+
+    const currentPreviewHarnessVersions = useMemo(() => {
+        const ruleVersions = Array.from(new Set((previewWorkflowStatus?.overrides || []).map((override) => override.ruleVersion).filter(Boolean)));
+
+        return {
+            promptVersion: previewWorkflowStatus?.promptVersion?.version || '미연결',
+            policyVersion: previewWorkflowStatus?.policyVersion?.version || '미연결',
+            ruleVersion: ruleVersions.length > 0 ? ruleVersions.join(', ') : '미연결',
+        };
+    }, [previewWorkflowStatus]);
+
+    const currentPreviewVersionDetails: HarnessVersionDetailsBundle = useMemo(() => {
+        if (previewWorkflowStatus?.versionDetails) {
+            return previewWorkflowStatus.versionDetails;
+        }
+
+        return {
+            prompt: currentPreviewHarnessVersions.promptVersion !== '미연결' ? getHarnessVersionDescriptors([currentPreviewHarnessVersions.promptVersion]) : [],
+            policy: currentPreviewHarnessVersions.policyVersion !== '미연결' ? getHarnessVersionDescriptors([currentPreviewHarnessVersions.policyVersion]) : [],
+            rule: currentPreviewHarnessVersions.ruleVersion !== '미연결' ? getHarnessVersionDescriptors(currentPreviewHarnessVersions.ruleVersion.split(',').map((value) => value.trim())) : [],
+        };
+    }, [currentPreviewHarnessVersions.policyVersion, currentPreviewHarnessVersions.promptVersion, currentPreviewHarnessVersions.ruleVersion, previewWorkflowStatus?.versionDetails]);
+
+    const currentPreviewVersionChangeSummary = useMemo(() => {
+        return previewWorkflowStatus?.versionChangeSummary || {
+            prompt: [],
+            policy: [],
+            rule: [],
+        };
+    }, [previewWorkflowStatus?.versionChangeSummary]);
+
+    const currentPreviewApprovalNarrative = useMemo(() => {
+        const diff = previewWorkflowStatus?.latestApprovalDiff;
+        if (!diff) {
+            return {
+                title: '최신 승인 diff가 아직 저장되지 않았습니다.',
+                description: '현재는 승인 이력 건수와 상태 배지만 확인 가능하며, 상세 변경 설명은 이후 승인 액션부터 누적됩니다.',
+                tone: 'border-slate-200 bg-slate-50',
+            };
+        }
+
+        return {
+            title: `${diff.action} 이후 위험 판단은 ${diff.decisionBefore || 'N/A'} → ${diff.decisionAfter || 'N/A'}로 기록됐습니다.`,
+            description: `승인 상태는 ${getHarnessApprovalStateLabel(diff.approvalStateAfter)}이며 워크플로우는 ${getHarnessWorkflowStateLabel(diff.workflowStateAfter)}로 정리됐습니다.${diff.comment ? ` 코멘트: ${diff.comment}` : ''}`,
+            tone: diff.approvalStateAfter === 'APPROVED' ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80',
+        };
+    }, [previewWorkflowStatus]);
+
+    const currentPreviewAnalysisNarrative = useMemo(() => {
+        const analyzerSummary = previewWorkflowStatus?.analyzerSummary;
+        const evaluatorSummary = previewWorkflowStatus?.evaluatorSummary;
+        const flags = evaluatorSummary?.flags || [];
+
+        return {
+            analyzerTitle: analyzerSummary?.summary || '분석기 요약이 아직 저장되지 않았습니다.',
+            analyzerDescription: typeof analyzerSummary?.confidence === 'number'
+                ? `분석 신뢰도는 ${Math.round(analyzerSummary.confidence * 100)}%로 기록됐습니다.`
+                : '분석 신뢰도 수치가 아직 저장되지 않았습니다.',
+            evaluatorTitle: typeof evaluatorSummary?.evidenceSufficiency === 'number'
+                ? `평가기 증거 충분도는 ${evaluatorSummary.evidenceSufficiency}입니다.`
+                : '평가기 증거 충분도는 아직 저장되지 않았습니다.',
+            evaluatorDescription: `${typeof evaluatorSummary?.requiresHumanApproval === 'boolean' ? `인간 승인 필요: ${evaluatorSummary.requiresHumanApproval ? '예' : '아니오'}` : '인간 승인 필요 여부 미기록'}${flags.length > 0 ? ` · 플래그: ${flags.join(' · ')}` : ''}`,
+        };
+    }, [previewWorkflowStatus]);
+
+    const currentPreviewOverrideNarrative = useMemo(() => {
+        const overrides = previewWorkflowStatus?.overrides || [];
+        if (overrides.length === 0) {
+            return '현재 저장된 가드레일 오버라이드는 없습니다.';
+        }
+
+        return overrides
+            .slice(0, 2)
+            .map((override) => `${override.ruleCode}: ${override.message}`)
+            .join(' / ');
+    }, [previewWorkflowStatus]);
+
+    const verificationHarnessMetaSummary = useMemo(() => {
+        const manifest = verificationManifestPreview;
+        if (!manifest) {
+            return null;
+        }
+
+        const promptVersions = Array.from(new Set(manifest.files.map((entry) => entry.promptVersion).filter(Boolean))) as string[];
+        const policyVersions = Array.from(new Set(manifest.files.map((entry) => entry.policyVersion).filter(Boolean))) as string[];
+        const ruleVersions = Array.from(new Set(manifest.files.flatMap((entry) => entry.ruleVersions || []).filter(Boolean)));
+        const overrideCount = manifest.files.reduce((sum, entry) => sum + Number(entry.overrideCount || 0), 0);
+        const approvalCount = manifest.files.reduce((sum, entry) => sum + Number(entry.approvalCount || 0), 0);
+        const linkedRunCount = manifest.files.filter((entry) => String(entry.workflowRunId || '').trim().length > 0).length;
+        const versionChangeSummary = {
+            prompt: Array.from(new Set(manifest.files.flatMap((entry) => entry.versionChangeSummary?.prompt || []).filter(Boolean))),
+            policy: Array.from(new Set(manifest.files.flatMap((entry) => entry.versionChangeSummary?.policy || []).filter(Boolean))),
+            rule: Array.from(new Set(manifest.files.flatMap((entry) => entry.versionChangeSummary?.rule || []).filter(Boolean))),
+        };
+
+        return {
+            totalRecords: manifest.summary.totalRecords || manifest.files.length,
+            linkedRunCount,
+            promptVersions,
+            policyVersions,
+            ruleVersions,
+            overrideCount,
+            approvalCount,
+            harnessAuditSnapshotIncluded: Boolean(manifest.summary.harnessAuditSnapshotIncluded),
+            versionChangeSummary,
+        };
+    }, [verificationManifestPreview]);
+
+    const verificationHarnessVersionDetails = useMemo(() => {
+        if (!verificationHarnessMetaSummary) {
+            return {
+                prompt: [],
+                policy: [],
+                rule: [],
+            };
+        }
+
+        return {
+            prompt: getHarnessVersionDescriptors(verificationHarnessMetaSummary.promptVersions),
+            policy: getHarnessVersionDescriptors(verificationHarnessMetaSummary.policyVersions),
+            rule: getHarnessVersionDescriptors(verificationHarnessMetaSummary.ruleVersions),
+        };
+    }, [verificationHarnessMetaSummary]);
+
+    const verificationHarnessVersionRows = useMemo(() => {
+        return [
+            ...verificationHarnessVersionDetails.prompt,
+            ...verificationHarnessVersionDetails.policy,
+            ...verificationHarnessVersionDetails.rule,
+        ];
+    }, [verificationHarnessVersionDetails]);
 
     const reportSummaryCards: InterpretationCardItem[] = useMemo(() => [
         {
@@ -898,6 +1154,17 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 jsonFile: string;
                 jsonSha256: string;
                 evidenceHash: string;
+                workflowRunId?: string;
+                promptVersion?: string | null;
+                policyVersion?: string | null;
+                ruleVersions?: string[];
+                approvalCount?: number;
+                overrideCount?: number;
+                versionChangeSummary?: {
+                    prompt: string[];
+                    policy: string[];
+                    rule: string[];
+                };
             }> = [];
             const packageGeneratedAt = new Date().toISOString();
 
@@ -906,6 +1173,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 'recordId','name','employeeId','jobField','teamLeader','date','safetyScore','safetyLevel',
                 'ocrConfidence','integrityScore','matchMethod','signatureMatchScore',
                 'workflowRunId','workflowState','riskDecision','approvalState','harnessPersistenceState','harnessPersistenceWarning',
+                'promptVersion','policyVersion','overrideCount','approvalLogCount',
                 'correctionCount','actionCount','approvalCount','evidenceHash'
             ];
             const csvRows: string[] = [csvHeader.join(',')];
@@ -926,12 +1194,24 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 const pdfFileName = `${safeName}.pdf`;
                 const jsonFileName = `${safeName}.json`;
                 let pdfGenerated = false;
+                const workflowLookup = String(record.workflowRunId || record.id || '').trim();
+                let harnessAuditSnapshot: Awaited<ReturnType<typeof fetchHarnessWorkflowStatus>> | null = null;
 
                 const pdfBlob = await createEvidencePackagePdfBlob(record);
                 if (pdfBlob) {
                     pdfFolder.file(pdfFileName, pdfBlob);
                     pdfGenerated = true;
                 }
+
+                if (workflowLookup) {
+                    try {
+                        harnessAuditSnapshot = await fetchHarnessWorkflowStatus(workflowLookup);
+                    } catch {
+                        harnessAuditSnapshot = null;
+                    }
+                }
+
+                const harnessRuleVersions = Array.from(new Set((harnessAuditSnapshot?.overrides || []).map((override) => override.ruleVersion).filter(Boolean)));
 
                 const jsonPayload = {
                     packageMeta: {
@@ -943,6 +1223,27 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         dateRangeEnd: resolvedDateRange.endLabel,
                     },
                     record,
+                    harnessAuditSnapshot: harnessAuditSnapshot
+                        ? {
+                            workflowRunId: harnessAuditSnapshot.workflowRunId,
+                            workflowState: harnessAuditSnapshot.workflowState,
+                            riskDecision: harnessAuditSnapshot.riskDecision,
+                            approvalState: harnessAuditSnapshot.approvalState,
+                            secondPassStatus: harnessAuditSnapshot.secondPassStatus,
+                            diagnostics: harnessAuditSnapshot.diagnostics || null,
+                            promptVersion: harnessAuditSnapshot.promptVersion,
+                            policyVersion: harnessAuditSnapshot.policyVersion,
+                            analyzerSummary: harnessAuditSnapshot.analyzerSummary,
+                            evaluatorSummary: harnessAuditSnapshot.evaluatorSummary,
+                            latestApprovalDiff: harnessAuditSnapshot.latestApprovalDiff,
+                            versionDetails: harnessAuditSnapshot.versionDetails,
+                            versionChangeSummary: harnessAuditSnapshot.versionChangeSummary,
+                            overrides: harnessAuditSnapshot.overrides,
+                            approvals: harnessAuditSnapshot.approvals,
+                            contextSnapshot: harnessAuditSnapshot.contextSnapshot,
+                            timeline: harnessAuditSnapshot.timeline,
+                        }
+                        : null,
                 };
                 const jsonContent = JSON.stringify(jsonPayload, null, 2);
                 const jsonSha256 = await sha256Hex(jsonContent);
@@ -956,6 +1257,13 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     jsonFile: `json/${jsonFileName}`,
                     jsonSha256,
                     evidenceHash: record.evidenceHash || '',
+                    workflowRunId: harnessAuditSnapshot?.workflowRunId || record.workflowRunId || '',
+                    promptVersion: harnessAuditSnapshot?.promptVersion?.version || null,
+                    policyVersion: harnessAuditSnapshot?.policyVersion?.version || null,
+                    ruleVersions: harnessRuleVersions,
+                    approvalCount: harnessAuditSnapshot?.approvals?.length || 0,
+                    overrideCount: harnessAuditSnapshot?.overrides?.length || 0,
+                    versionChangeSummary: harnessAuditSnapshot?.versionChangeSummary || { prompt: [], policy: [], rule: [] },
                 });
 
                 const workflowState = inferHarnessWorkflowState(record);
@@ -985,6 +1293,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     approvalState,
                     persistenceState,
                     record.harnessPersistenceWarning || '',
+                    harnessAuditSnapshot?.promptVersion?.version || '',
+                    harnessAuditSnapshot?.policyVersion?.version || '',
+                    harnessAuditSnapshot?.overrides?.length || 0,
+                    harnessAuditSnapshot?.approvals?.length || 0,
                     (record.correctionHistory || []).length,
                     (record.actionHistory || []).length,
                     (record.approvalHistory || []).length,
@@ -997,6 +1309,29 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 .map((entry) => `${entry.jsonFile}:${entry.jsonSha256}`)
                 .join('\n');
             const packageJsonIndexSha256 = await sha256Hex(jsonHashIndexSource);
+            const promptVersionLines = Array.from(new Set(manifestEntries.map((entry) => entry.promptVersion).filter(Boolean))).map((version) => {
+                const descriptor = getHarnessVersionDescriptor(version);
+                return descriptor
+                    ? `- ${descriptor.version}: ${descriptor.summary}${descriptor.changesFromPrevious?.length ? ` | 변경: ${descriptor.changesFromPrevious[0]}` : ''}`
+                    : `- ${version}`;
+            });
+            const policyVersionLines = Array.from(new Set(manifestEntries.map((entry) => entry.policyVersion).filter(Boolean))).map((version) => {
+                const descriptor = getHarnessVersionDescriptor(version);
+                return descriptor
+                    ? `- ${descriptor.version}: ${descriptor.summary}${descriptor.changesFromPrevious?.length ? ` | 변경: ${descriptor.changesFromPrevious[0]}` : ''}`
+                    : `- ${version}`;
+            });
+            const ruleVersionLines = Array.from(new Set(manifestEntries.flatMap((entry) => entry.ruleVersions || []).filter(Boolean))).map((version) => {
+                const descriptor = getHarnessVersionDescriptor(version);
+                return descriptor
+                    ? `- ${descriptor.version}: ${descriptor.summary}${descriptor.changesFromPrevious?.length ? ` | 변경: ${descriptor.changesFromPrevious[0]}` : ''}`
+                    : `- ${version}`;
+            });
+            const versionChangeLines = [
+                ...Array.from(new Set(manifestEntries.flatMap((entry) => entry.versionChangeSummary?.prompt || []).filter(Boolean))).map((line) => `- Prompt: ${line}`),
+                ...Array.from(new Set(manifestEntries.flatMap((entry) => entry.versionChangeSummary?.policy || []).filter(Boolean))).map((line) => `- Policy: ${line}`),
+                ...Array.from(new Set(manifestEntries.flatMap((entry) => entry.versionChangeSummary?.rule || []).filter(Boolean))).map((line) => `- Rule: ${line}`),
+            ];
 
             const csvMetaLines = [
                 `# packageName=${folderName}`,
@@ -1018,9 +1353,19 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 `적용 시작일: ${resolvedDateRange.startLabel}`,
                 `적용 종료일: ${resolvedDateRange.endLabel}`,
                 '구성: pdf/, json/, evidence_index.csv, manifest.json',
+                'JSON 확장: record 외에 harnessAuditSnapshot(prompt/policy/analyzer/evaluator/override/approval/context/timeline)이 포함될 수 있습니다.',
                 '무결성 검증: manifest.json의 files[].jsonSha256 값과 json 파일 SHA-256 해시를 비교하세요.',
                 '패키지 요약 해시: manifest.summary.packageJsonIndexSha256 값으로 전체 JSON 집합의 일관성을 검증하세요.',
                 'CSV 메타: evidence_index.csv 상단 #packageJsonIndexSha256 값으로 동일 검증 가능합니다.',
+                '---',
+                'Prompt Versions',
+                ...(promptVersionLines.length > 0 ? promptVersionLines : ['- 포함된 프롬프트 버전 없음']),
+                'Policy Versions',
+                ...(policyVersionLines.length > 0 ? policyVersionLines : ['- 포함된 정책 버전 없음']),
+                'Rule Versions',
+                ...(ruleVersionLines.length > 0 ? ruleVersionLines : ['- 포함된 룰 버전 없음']),
+                'Version Change Summary',
+                ...(versionChangeLines.length > 0 ? versionChangeLines : ['- 포함된 버전 변경 요약 없음']),
                 'PowerShell 예시: Get-FileHash -Algorithm SHA256 .\\json\\파일명.json',
                 'OpenSSL 예시: openssl dgst -sha256 ./json/파일명.json'
             ].join('\n'));
@@ -1039,6 +1384,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     packageJsonIndexSha256,
                     packageJsonIndexSourceFormat: 'jsonPath:jsonSha256 per line',
                     csvIncludesMetaHeader: true,
+                    harnessAuditSnapshotIncluded: true,
                 },
                 files: manifestEntries,
             };
@@ -1454,6 +1800,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             className="block w-full text-xs text-slate-700 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-slate-100 file:text-slate-700 file:font-bold hover:file:bg-slate-200"
                         />
                         <p className="text-xs text-slate-400 mt-1">선택: {verificationManifestFile?.name || '없음'}</p>
+                        {verificationManifestPreviewError ? (
+                            <p className="mt-2 text-xs font-bold text-amber-700">{verificationManifestPreviewError}</p>
+                        ) : null}
                     </div>
 
                     <div>
@@ -1471,6 +1820,116 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         <p className="text-xs text-slate-400 mt-1">선택: {verificationJsonFiles.length}개</p>
                     </div>
                 </div>
+
+                {verificationHarnessMetaSummary && (
+                    <div className="space-y-3">
+                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
+                        <div className="rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">런 연결 범위</p>
+                            <p className="mt-1 text-sm font-black text-indigo-800">{verificationHarnessMetaSummary.linkedRunCount}/{verificationHarnessMetaSummary.totalRecords}건</p>
+                            <p className="mt-1 text-[11px] font-bold text-indigo-700">workflow run이 연결된 JSON 수입니다.</p>
+                        </div>
+                        <div className="rounded-xl border border-violet-200 bg-violet-50/80 px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-500">프롬프트/정책</p>
+                            <p className="mt-1 text-sm font-black text-violet-800">P {verificationHarnessMetaSummary.promptVersions.length} · Policy {verificationHarnessMetaSummary.policyVersions.length}</p>
+                            <p className="mt-1 text-[11px] font-bold text-violet-700 break-all">{verificationHarnessMetaSummary.promptVersions[0] || '미기록'} / {verificationHarnessMetaSummary.policyVersions[0] || '미기록'}</p>
+                        </div>
+                        <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">룰/오버라이드</p>
+                            <p className="mt-1 text-sm font-black text-amber-800">룰 버전 {verificationHarnessMetaSummary.ruleVersions.length}종 · 오버라이드 {verificationHarnessMetaSummary.overrideCount}건</p>
+                            <p className="mt-1 text-[11px] font-bold text-amber-700 break-all">{verificationHarnessMetaSummary.ruleVersions.slice(0, 2).join(', ') || '미기록'}</p>
+                        </div>
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500">승인/감사 스냅샷</p>
+                            <p className="mt-1 text-sm font-black text-emerald-800">승인 로그 {verificationHarnessMetaSummary.approvalCount}건</p>
+                            <p className="mt-1 text-[11px] font-bold text-emerald-700">하네스 스냅샷 포함: {verificationHarnessMetaSummary.harnessAuditSnapshotIncluded ? '예' : '아니오'}</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+                        {[
+                            {
+                                label: 'Prompt 변경 요약',
+                                tone: 'border-indigo-200 bg-indigo-50/80 text-indigo-800',
+                                lines: verificationHarnessMetaSummary.versionChangeSummary.prompt,
+                            },
+                            {
+                                label: 'Policy 변경 요약',
+                                tone: 'border-violet-200 bg-violet-50/80 text-violet-800',
+                                lines: verificationHarnessMetaSummary.versionChangeSummary.policy,
+                            },
+                            {
+                                label: 'Rule 변경 요약',
+                                tone: 'border-amber-200 bg-amber-50/80 text-amber-800',
+                                lines: verificationHarnessMetaSummary.versionChangeSummary.rule,
+                            },
+                        ].map((item) => (
+                            <div key={item.label} className={`rounded-xl border px-4 py-3 ${item.tone}`}>
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em]">{item.label}</p>
+                                <div className="mt-2 space-y-2 text-[11px] font-semibold leading-relaxed">
+                                    {item.lines.length > 0 ? item.lines.map((line, index) => (
+                                        <p key={`${item.label}-${index}`}>• {line}</p>
+                                    )) : <p>기록된 변경 요약이 없습니다.</p>}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+                        <HarnessVersionDetailsPanel
+                            title="Prompt 버전 목록"
+                            tone="prompt"
+                            descriptors={verificationHarnessVersionDetails.prompt}
+                        />
+                        <HarnessVersionDetailsPanel
+                            title="Policy 버전 목록"
+                            tone="policy"
+                            descriptors={verificationHarnessVersionDetails.policy}
+                        />
+                        <HarnessVersionDetailsPanel
+                            title="Rule 버전 목록"
+                            tone="rule"
+                            descriptors={verificationHarnessVersionDetails.rule}
+                        />
+                    </div>
+
+                    {verificationHarnessVersionRows.length > 0 ? (
+                        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">버전 변경 포인트 표</p>
+                            <div className="mt-3 overflow-auto">
+                                <table className="w-full min-w-[720px] text-left text-[11px]">
+                                    <thead className="text-slate-500">
+                                        <tr>
+                                            <th className="py-2 pr-3">Category</th>
+                                            <th className="py-2 pr-3">Version</th>
+                                            <th className="py-2 pr-3">Previous</th>
+                                            <th className="py-2 pr-3">Released</th>
+                                            <th className="py-2 pr-3">Summary</th>
+                                            <th className="py-2 pr-3">Change Points</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="align-top text-slate-700">
+                                        {verificationHarnessVersionRows.map((descriptor) => (
+                                            <tr key={`${descriptor.category}-${descriptor.version}`} className="border-t border-slate-100">
+                                                <td className="py-2 pr-3 font-black uppercase">{descriptor.category}</td>
+                                                <td className="py-2 pr-3 font-black break-all">{descriptor.version}</td>
+                                                <td className="py-2 pr-3 break-all">{descriptor.previousVersion || '-'}</td>
+                                                <td className="py-2 pr-3">{descriptor.releasedAt}</td>
+                                                <td className="py-2 pr-3 leading-relaxed">{descriptor.summary}</td>
+                                                <td className="py-2 pr-3 leading-relaxed">
+                                                    {descriptor.changesFromPrevious && descriptor.changesFromPrevious.length > 0
+                                                        ? descriptor.changesFromPrevious.join(' / ')
+                                                        : '-'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ) : null}
+                    </div>
+                )}
 
                 {verificationSummary && verificationResult && (
                     <div className={`rounded-xl border px-4 py-3 ${verificationResult.isValid ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
@@ -1576,6 +2035,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 items={viewInterpretationCards}
                                 cardClassName="rounded-2xl border p-4"
                             />
+                            <div className="mt-4">
+                                <InterpretationCardGrid
+                                    items={harnessReportOperationalCards}
+                                    cardClassName="rounded-2xl border p-4"
+                                />
+                            </div>
                         </div>
                         <div className="overflow-y-auto flex-1 p-0 custom-scrollbar">
                             <table className="w-full text-left text-sm">
@@ -1705,9 +2170,89 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                         <StatusBadge variant={getHarnessApprovalBadgeVariant(currentPreviewHarnessMeta.approvalState)} className="px-3 py-1.5 text-[11px] font-black">{getHarnessApprovalStateLabel(currentPreviewHarnessMeta.approvalState)}</StatusBadge>
                                         <StatusBadge variant={getHarnessPersistenceBadgeVariant(currentPreviewHarnessMeta.persistenceState)} className="px-3 py-1.5 text-[11px] font-black">{getHarnessPersistenceLabel(currentPreviewHarnessMeta.persistenceState)}</StatusBadge>
                                         {currentPreviewRecord.workflowRunId ? <StatusBadge variant="slateSoft" className="px-3 py-1.5 text-[11px] font-black">Run {currentPreviewRecord.workflowRunId}</StatusBadge> : null}
+                                        {currentPreviewRecord.evidenceHash ? <StatusBadge variant="violetSoft" className="px-3 py-1.5 text-[11px] font-black">Evidence Hash 연결</StatusBadge> : null}
                                     </div>
                                     {currentPreviewRecord.harnessPersistenceWarning ? (
                                         <p className="text-xs font-bold text-amber-700">{currentPreviewRecord.harnessPersistenceWarning}</p>
+                                    ) : null}
+                                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+                                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">승인 이력</p>
+                                            <p className="mt-1 text-xs font-black text-slate-700">{previewWorkflowStatus?.approvals?.length ?? (currentPreviewRecord.approvalHistory || []).length}건</p>
+                                        </div>
+                                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">감사 이벤트</p>
+                                            <p className="mt-1 text-xs font-black text-slate-700">{previewWorkflowStatus?.timeline?.length ?? (currentPreviewRecord.auditTrail || []).length}건</p>
+                                        </div>
+                                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">2차 재분석</p>
+                                            <p className="mt-1 text-xs font-black text-slate-700">{previewWorkflowStatus?.secondPassStatus || currentPreviewRecord.secondPassStatus || '미지정'}</p>
+                                        </div>
+                                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">증빙 해시</p>
+                                            <p className="mt-1 text-xs font-black text-slate-700 truncate">{currentPreviewRecord.evidenceHash || '없음'}</p>
+                                        </div>
+                                        <div className="rounded-xl border border-rose-200 bg-rose-50/70 px-3 py-2">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-500">오버라이드 로그</p>
+                                            <p className="mt-1 text-xs font-black text-slate-700">{previewWorkflowStatus?.overrides?.length ?? 0}건</p>
+                                        </div>
+                                        <div className="rounded-xl border border-violet-200 bg-violet-50/70 px-3 py-2">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-500">프롬프트 버전</p>
+                                            <p className="mt-1 text-xs font-black text-slate-700 break-all">{currentPreviewHarnessVersions.promptVersion}</p>
+                                        </div>
+                                        <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 px-3 py-2">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">정책 버전</p>
+                                            <p className="mt-1 text-xs font-black text-slate-700 break-all">{currentPreviewHarnessVersions.policyVersion}</p>
+                                        </div>
+                                        <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2 md:col-span-2 xl:col-span-2">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">룰 버전</p>
+                                            <p className="mt-1 text-xs font-black text-slate-700 break-all">{currentPreviewHarnessVersions.ruleVersion}</p>
+                                        </div>
+                                    </div>
+                                    {previewWorkflowStatusLoading ? (
+                                        <p className="text-[11px] font-bold text-slate-500">하네스 버전 스냅샷을 불러오는 중입니다.</p>
+                                    ) : null}
+                                    {previewWorkflowStatusError ? (
+                                        <p className="text-[11px] font-bold text-amber-700">{previewWorkflowStatusError}</p>
+                                    ) : null}
+                                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+                                        <NoticeCallout
+                                            variant={currentPreviewApprovalNarrative.tone.includes('emerald') ? 'emerald' : currentPreviewApprovalNarrative.tone.includes('amber') ? 'amber' : 'white'}
+                                            eyebrow="최신 승인 Diff"
+                                            title={currentPreviewApprovalNarrative.title}
+                                            description={currentPreviewApprovalNarrative.description}
+                                        />
+                                        <div className="rounded-2xl border border-indigo-200 bg-indigo-50/70 p-4">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">Analyzer / Evaluator</p>
+                                            <p className="mt-2 text-sm font-black text-indigo-800">{currentPreviewAnalysisNarrative.analyzerTitle}</p>
+                                            <p className="mt-1 text-xs font-bold leading-relaxed text-indigo-700">{currentPreviewAnalysisNarrative.analyzerDescription}</p>
+                                            <p className="mt-3 text-sm font-black text-violet-800">{currentPreviewAnalysisNarrative.evaluatorTitle}</p>
+                                            <p className="mt-1 text-xs font-bold leading-relaxed text-violet-700">{currentPreviewAnalysisNarrative.evaluatorDescription}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">Override Summary</p>
+                                            <p className="mt-2 text-sm font-black text-amber-800">{previewWorkflowStatus?.overrides?.length ? `${previewWorkflowStatus.overrides.length}건의 룰 개입이 저장됐습니다.` : '오버라이드 개입이 없는 흐름입니다.'}</p>
+                                            <p className="mt-1 text-xs font-bold leading-relaxed text-amber-700">{currentPreviewOverrideNarrative}</p>
+                                        </div>
+                                    </div>
+                                    {(currentPreviewVersionDetails.prompt.length > 0 || currentPreviewVersionDetails.policy.length > 0 || currentPreviewVersionDetails.rule.length > 0) ? (
+                                        <div className="space-y-3">
+                                            <NoticeCallout
+                                                variant="indigo"
+                                                eyebrow="Version Diff Summary"
+                                                title="현재 보고서에는 버전별 변경 포인트가 함께 연결되어 있습니다."
+                                                description={[
+                                                    currentPreviewVersionChangeSummary.prompt[0],
+                                                    currentPreviewVersionChangeSummary.policy[0],
+                                                    currentPreviewVersionChangeSummary.rule[0],
+                                                ].filter(Boolean).join(' / ') || '저장된 버전 변경 요약이 아직 없습니다.'}
+                                            />
+                                            <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+                                                <HarnessVersionDetailsPanel title="Prompt 버전 설명" tone="prompt" descriptors={currentPreviewVersionDetails.prompt} />
+                                                <HarnessVersionDetailsPanel title="Policy 버전 설명" tone="policy" descriptors={currentPreviewVersionDetails.policy} />
+                                                <HarnessVersionDetailsPanel title="Rule 버전 설명" tone="rule" descriptors={currentPreviewVersionDetails.rule} />
+                                            </div>
+                                        </div>
                                     ) : null}
                                 </div>
                             )}

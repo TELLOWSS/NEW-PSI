@@ -6,8 +6,12 @@ import type {
     HarnessContextSnapshot,
     HarnessDecisionResult,
     HarnessGuardrailOverride,
+    HarnessPolicySnapshot,
+    HarnessPromptLayerSnapshot,
     HarnessRiskDecision,
 } from './workflowTypes.js';
+import { getDefaultHarnessPolicy } from './policyRegistry.js';
+import { buildHarnessVersionChangeSummary, buildHarnessVersionDetailsBundle } from '../../../utils/harnessVersionCatalog.js';
 
 type SupabaseLike = ReturnType<typeof createClient>;
 
@@ -19,6 +23,10 @@ type WorkflowRunRow = {
     approval_state: HarnessDecisionResult['approvalState'];
     second_pass_status: HarnessDecisionResult['secondPassStatus'] | null;
     requires_manager_approval: boolean;
+    prompt_version_id?: string | null;
+    policy_version_id?: string | null;
+    latest_summary?: string | null;
+    latest_confidence?: number | null;
     latest_decision_payload?: Record<string, unknown> | null;
 };
 
@@ -82,7 +90,7 @@ async function findWorkflowRun(supabase: SupabaseLike, workflowRunIdOrSource: st
     if (isUuidLike(lookup)) {
         const { data, error } = await supabase
             .from('ai_workflow_runs')
-            .select('id, source_record_id, workflow_state, risk_decision, approval_state, second_pass_status, requires_manager_approval, latest_decision_payload')
+            .select('id, source_record_id, workflow_state, risk_decision, approval_state, second_pass_status, requires_manager_approval, prompt_version_id, policy_version_id, latest_summary, latest_confidence, latest_decision_payload')
             .eq('id', lookup)
             .maybeSingle();
 
@@ -92,7 +100,7 @@ async function findWorkflowRun(supabase: SupabaseLike, workflowRunIdOrSource: st
 
     const { data, error } = await supabase
         .from('ai_workflow_runs')
-        .select('id, source_record_id, workflow_state, risk_decision, approval_state, second_pass_status, requires_manager_approval, latest_decision_payload')
+        .select('id, source_record_id, workflow_state, risk_decision, approval_state, second_pass_status, requires_manager_approval, prompt_version_id, policy_version_id, latest_summary, latest_confidence, latest_decision_payload')
         .eq('source_record_id', lookup)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -114,7 +122,7 @@ async function findWorkflowRunWithResolution(
     if (isUuidLike(lookup)) {
         const { data, error } = await supabase
             .from('ai_workflow_runs')
-            .select('id, source_record_id, workflow_state, risk_decision, approval_state, second_pass_status, requires_manager_approval, latest_decision_payload')
+            .select('id, source_record_id, workflow_state, risk_decision, approval_state, second_pass_status, requires_manager_approval, prompt_version_id, policy_version_id, latest_summary, latest_confidence, latest_decision_payload')
             .eq('id', lookup)
             .maybeSingle();
 
@@ -126,7 +134,7 @@ async function findWorkflowRunWithResolution(
 
     const { data, error } = await supabase
         .from('ai_workflow_runs')
-        .select('id, source_record_id, workflow_state, risk_decision, approval_state, second_pass_status, requires_manager_approval, latest_decision_payload')
+        .select('id, source_record_id, workflow_state, risk_decision, approval_state, second_pass_status, requires_manager_approval, prompt_version_id, policy_version_id, latest_summary, latest_confidence, latest_decision_payload')
         .eq('source_record_id', lookup)
         .order('created_at', { ascending: false })
         .limit(1)
@@ -139,6 +147,54 @@ async function findWorkflowRunWithResolution(
     };
 }
 
+async function ensurePromptVersion(
+    supabase: SupabaseLike,
+    promptSnapshot: HarnessPromptLayerSnapshot,
+): Promise<string | null> {
+    const { data, error } = await supabase
+        .from('ai_prompt_versions')
+        .upsert({
+            prompt_version: promptSnapshot.version,
+            system_instruction: promptSnapshot.systemInstruction.join('\n'),
+            prompt_layers_json: {
+                systemInstruction: promptSnapshot.systemInstruction,
+                staticKnowledge: promptSnapshot.staticKnowledge,
+                dynamicContext: promptSnapshot.dynamicContext,
+                assembledPrompt: promptSnapshot.assembledPrompt,
+            },
+            created_by: 'psi-harness-api',
+        }, {
+            onConflict: 'prompt_version',
+        })
+        .select('id')
+        .limit(1)
+        .single();
+
+    if (error) throw error;
+    return String(data?.id || '').trim() || null;
+}
+
+async function ensurePolicyVersion(
+    supabase: SupabaseLike,
+    policySnapshot: HarnessPolicySnapshot,
+): Promise<string | null> {
+    const { data, error } = await supabase
+        .from('ai_policy_versions')
+        .upsert({
+            policy_version: policySnapshot.version,
+            policy_json: policySnapshot,
+            created_by: 'psi-harness-api',
+        }, {
+            onConflict: 'policy_version',
+        })
+        .select('id')
+        .limit(1)
+        .single();
+
+    if (error) throw error;
+    return String(data?.id || '').trim() || null;
+}
+
 export async function persistHarnessAnalysis(options: {
     workflowRunId?: string;
     payload: HarnessAnalyzeRequest;
@@ -147,17 +203,23 @@ export async function persistHarnessAnalysis(options: {
     validation?: Record<string, unknown>;
     evaluator?: Record<string, unknown>;
     context: HarnessContextSnapshot;
+    promptSnapshot?: HarnessPromptLayerSnapshot;
     auditEvents: HarnessAuditEvent[];
     overrides: HarnessGuardrailOverride[];
 }) {
     try {
         const supabase = getHarnessSupabaseClient();
         const existingRun = await findWorkflowRun(supabase, options.workflowRunId || String(options.payload.recordId || ''));
+        const promptVersionId = options.promptSnapshot
+            ? await ensurePromptVersion(supabase, options.promptSnapshot)
+            : null;
+        const policyVersionId = await ensurePolicyVersion(supabase, getDefaultHarnessPolicy());
         const decisionPayload = {
             payload: options.payload,
             validation: options.validation || null,
             evaluator: options.evaluator || null,
             decision: options.decision,
+            prompt: options.promptSnapshot || null,
         };
 
         const runRow = {
@@ -175,6 +237,8 @@ export async function persistHarnessAnalysis(options: {
                 ? Number(options.analyzer?.confidence)
                 : null,
             latest_decision_payload: decisionPayload,
+            prompt_version_id: promptVersionId,
+            policy_version_id: policyVersionId,
         };
 
         let workflowRunId = existingRun?.id || null;
@@ -214,6 +278,8 @@ export async function persistHarnessAnalysis(options: {
                 image_quality_score: Number.isFinite(options.payload.imageQualityScore)
                     ? Number(options.payload.imageQualityScore)
                     : null,
+                prompt_version_id: promptVersionId,
+                policy_version_id: policyVersionId,
             });
         if (contextError) throw contextError;
 
@@ -238,9 +304,11 @@ export async function persistHarnessAnalysis(options: {
                 .insert(options.overrides.map((override) => ({
                     workflow_run_id: workflowRunId,
                     rule_code: override.ruleCode,
+                    rule_version: override.ruleVersion,
                     severity: override.severity,
                     trigger_type: 'guardrail-rule',
                     trigger_payload_json: {
+                        ruleVersion: override.ruleVersion,
                         originalDecision: override.originalDecision,
                         overriddenDecision: override.overriddenDecision,
                     },
@@ -376,6 +444,7 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
                     sourceRecordId: null,
                     eventCount: 0,
                     approvalCount: 0,
+                    overrideCount: 0,
                     timelineCount: 0,
                 },
             };
@@ -390,10 +459,62 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
 
         const { data: approvals, error: approvalsError } = await supabase
             .from('ai_human_approvals')
-            .select('approver_name, approver_role, approval_action, approval_comment, created_at')
+            .select('approver_name, approver_role, approval_action, approval_comment, decision_before, decision_after, created_at')
             .eq('workflow_run_id', run.id)
             .order('created_at', { ascending: true });
         if (approvalsError) throw approvalsError;
+
+        const { data: overrides, error: overridesError } = await supabase
+            .from('ai_guardrail_overrides')
+            .select('rule_code, rule_version, severity, message, trigger_type, trigger_payload_json, original_decision, overridden_decision, created_at')
+            .eq('workflow_run_id', run.id)
+            .order('created_at', { ascending: true });
+        if (overridesError) throw overridesError;
+
+        const { data: contextRows, error: contextRowsError } = await supabase
+            .from('ai_context_snapshots')
+            .select('weather_json, schedule_json, sensor_events_json, metadata_json, ocr_confidence_score, image_quality_score, prompt_version_id, policy_version_id, created_at')
+            .eq('workflow_run_id', run.id)
+            .order('created_at', { ascending: false })
+            .limit(1);
+        if (contextRowsError) throw contextRowsError;
+
+        const latestContextRow = Array.isArray(contextRows) && contextRows.length > 0 ? contextRows[0] : null;
+        const promptVersionId = String(latestContextRow?.prompt_version_id || run.prompt_version_id || '').trim();
+        const policyVersionId = String(latestContextRow?.policy_version_id || run.policy_version_id || '').trim();
+
+        const [promptResult, policyResult] = await Promise.all([
+            promptVersionId
+                ? supabase
+                    .from('ai_prompt_versions')
+                    .select('prompt_version, system_instruction, prompt_layers_json, created_at')
+                    .eq('id', promptVersionId)
+                    .maybeSingle()
+                : Promise.resolve({ data: null, error: null } as any),
+            policyVersionId
+                ? supabase
+                    .from('ai_policy_versions')
+                    .select('policy_version, policy_json, created_at')
+                    .eq('id', policyVersionId)
+                    .maybeSingle()
+                : Promise.resolve({ data: null, error: null } as any),
+        ]);
+        if (promptResult?.error) throw promptResult.error;
+        if (policyResult?.error) throw policyResult.error;
+
+        const latestDecisionPayload = (run.latest_decision_payload || {}) as Record<string, any>;
+        const latestApproval = Array.isArray(approvals) && approvals.length > 0 ? approvals[approvals.length - 1] : null;
+        const evaluatorPayload = (latestDecisionPayload?.evaluator || {}) as Record<string, any>;
+        const approvalPayload = (latestDecisionPayload?.approval || {}) as Record<string, any>;
+        const resolvedPromptVersion = promptResult?.data?.prompt_version ? String(promptResult.data.prompt_version) : null;
+        const resolvedPolicyVersion = policyResult?.data?.policy_version ? String(policyResult.data.policy_version) : null;
+        const resolvedRuleVersions = Array.from(new Set((overrides || []).map((override: any) => String(override.rule_version || '').trim()).filter(Boolean)));
+        const versionDetails = buildHarnessVersionDetailsBundle({
+            promptVersions: [resolvedPromptVersion],
+            policyVersions: [resolvedPolicyVersion],
+            ruleVersions: resolvedRuleVersions,
+        });
+        const versionChangeSummary = buildHarnessVersionChangeSummary(versionDetails);
 
         const timeline = [
             ...(events || []).map((event: any) => ({
@@ -412,6 +533,7 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
 
         const eventCount = Array.isArray(events) ? events.length : 0;
         const approvalCount = Array.isArray(approvals) ? approvals.length : 0;
+        const overrideCount = Array.isArray(overrides) ? overrides.length : 0;
 
         return {
             found: true,
@@ -424,6 +546,7 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
                 sourceRecordId: run.source_record_id || null,
                 eventCount,
                 approvalCount,
+                overrideCount,
                 timelineCount: timeline.length,
             },
             data: {
@@ -432,6 +555,77 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
                 riskDecision: run.risk_decision,
                 approvalState: run.approval_state,
                 secondPassStatus: run.second_pass_status || 'IN_PROGRESS',
+                overrides: (overrides || []).map((override: any) => ({
+                    ruleCode: String(override.rule_code || ''),
+                    ruleVersion: String(override.rule_version || ''),
+                    severity: String(override.severity || 'warning'),
+                    message: String(override.message || ''),
+                    triggerType: override.trigger_type ? String(override.trigger_type) : null,
+                    triggerPayload: override.trigger_payload_json || {},
+                    originalDecision: override.original_decision ? String(override.original_decision) : null,
+                    overriddenDecision: override.overridden_decision ? String(override.overridden_decision) : null,
+                    createdAt: String(override.created_at || new Date().toISOString()),
+                })),
+                approvals: (approvals || []).map((approval: any) => ({
+                    approverName: approval.approver_name ? String(approval.approver_name) : null,
+                    approverRole: approval.approver_role ? String(approval.approver_role) : null,
+                    action: String(approval.approval_action || 'approve'),
+                    comment: approval.approval_comment ? String(approval.approval_comment) : null,
+                    decisionBefore: approval.decision_before ? String(approval.decision_before) : null,
+                    decisionAfter: approval.decision_after ? String(approval.decision_after) : null,
+                    createdAt: String(approval.created_at || new Date().toISOString()),
+                })),
+                contextSnapshot: latestContextRow
+                    ? {
+                        createdAt: String(latestContextRow.created_at || new Date().toISOString()),
+                        weather: latestContextRow.weather_json || {},
+                        schedule: latestContextRow.schedule_json || {},
+                        sensorEvents: latestContextRow.sensor_events_json || [],
+                        metadata: latestContextRow.metadata_json || {},
+                        ocrConfidenceScore: latestContextRow.ocr_confidence_score ?? null,
+                        imageQualityScore: latestContextRow.image_quality_score ?? null,
+                    }
+                    : null,
+                promptVersion: promptResult?.data
+                    ? {
+                        version: String(promptResult.data.prompt_version || ''),
+                        systemInstruction: String(promptResult.data.system_instruction || ''),
+                        promptLayers: promptResult.data.prompt_layers_json || {},
+                        createdAt: String(promptResult.data.created_at || new Date().toISOString()),
+                    }
+                    : null,
+                policyVersion: policyResult?.data
+                    ? {
+                        version: String(policyResult.data.policy_version || ''),
+                        policy: policyResult.data.policy_json || {},
+                        createdAt: String(policyResult.data.created_at || new Date().toISOString()),
+                    }
+                    : null,
+                analyzerSummary: {
+                    summary: run.latest_summary ? String(run.latest_summary) : null,
+                    confidence: typeof run.latest_confidence === 'number' ? run.latest_confidence : null,
+                },
+                evaluatorSummary: {
+                    evidenceSufficiency: typeof evaluatorPayload.evidenceSufficiency === 'number' ? evaluatorPayload.evidenceSufficiency : null,
+                    requiresHumanApproval: typeof evaluatorPayload.requiresHumanApproval === 'boolean' ? evaluatorPayload.requiresHumanApproval : null,
+                    flags: Array.isArray(evaluatorPayload.flags) ? evaluatorPayload.flags.map((flag: unknown) => String(flag)) : [],
+                },
+                latestApprovalDiff: latestApproval
+                    ? {
+                        action: String(latestApproval.approval_action || 'approve'),
+                        comment: latestApproval.approval_comment ? String(latestApproval.approval_comment) : null,
+                        decisionBefore: latestApproval.decision_before ? String(latestApproval.decision_before) : null,
+                        decisionAfter: latestApproval.decision_after ? String(latestApproval.decision_after) : null,
+                        workflowStateAfter: run.workflow_state,
+                        approvalStateAfter: run.approval_state,
+                        secondPassStatusAfter: run.second_pass_status || 'IN_PROGRESS',
+                        requiresManagerApprovalAfter: Boolean(run.requires_manager_approval),
+                        updatedAt: approvalPayload.updatedAt ? String(approvalPayload.updatedAt) : String(latestApproval.created_at || new Date().toISOString()),
+                    }
+                    : null,
+                versionDetails,
+                versionChangeSummary,
+                decisionPayload: latestDecisionPayload,
                 timeline,
             },
         };
@@ -449,6 +643,7 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
                     sourceRecordId: null,
                     eventCount: 0,
                     approvalCount: 0,
+                    overrideCount: 0,
                     timelineCount: 0,
                 },
             };

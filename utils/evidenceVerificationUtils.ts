@@ -6,6 +6,17 @@ export interface EvidenceManifestFileEntry {
     jsonFile: string;
     jsonSha256: string;
     evidenceHash: string;
+    workflowRunId?: string;
+    promptVersion?: string | null;
+    policyVersion?: string | null;
+    ruleVersions?: string[];
+    approvalCount?: number;
+    overrideCount?: number;
+    versionChangeSummary?: {
+        prompt: string[];
+        policy: string[];
+        rule: string[];
+    };
 }
 
 export interface EvidenceManifest {
@@ -22,6 +33,7 @@ export interface EvidenceManifest {
         packageJsonIndexSha256?: string;
         packageJsonIndexSourceFormat?: string;
         csvIncludesMetaHeader?: boolean;
+        harnessAuditSnapshotIncluded?: boolean;
     };
     files: EvidenceManifestFileEntry[];
 }
