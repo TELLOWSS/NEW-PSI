@@ -265,6 +265,139 @@ const getProfileLinkState = (record: WorkerRecord): 'linked' | 'manual' | 'missi
     return hasStableIdentity ? 'linked' : 'manual';
 };
 
+const inferHarnessWorkflowState = (record: Partial<WorkerRecord> | null | undefined): string => {
+    if (!record) return 'uploaded';
+    if (record.workflowState) return record.workflowState;
+    if (record.secondPassStatus === 'IN_PROGRESS') return 'second_pass_analyzing';
+    if (record.reviewStatus === 'PENDING' || record.approvalStatus === 'PENDING') return 'awaiting_manager_approval';
+    if (record.ocrErrorType || record.secondPassStatus === 'NEEDED') return 'manual_review_required';
+    if (record.secondPassStatus === 'DONE' || record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED') return 'completed';
+    return 'uploaded';
+};
+
+const inferHarnessRiskDecision = (record: Partial<WorkerRecord> | null | undefined): string => {
+    if (!record) return 'SAFE_TO_PROCEED';
+    if (record.riskDecision) return record.riskDecision;
+    if (record.ocrErrorType) return 'IMMEDIATE_ATTENTION';
+    if (record.secondPassStatus === 'NEEDED') return 'SUPPLEMENTARY_REVIEW';
+    return 'SAFE_TO_PROCEED';
+};
+
+const inferHarnessApprovalState = (record: Partial<WorkerRecord> | null | undefined, workflowState: string): string => {
+    if (!record) return 'NOT_REQUIRED';
+    if (record.approvalState) return record.approvalState;
+    if (record.reviewStatus === 'REJECTED') return 'REJECTED';
+    if (record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED') return 'APPROVED';
+    if (workflowState === 'manual_review_required' || workflowState === 'awaiting_manager_approval' || workflowState === 'second_pass_analyzing') return 'PENDING';
+    return 'NOT_REQUIRED';
+};
+
+type HarnessPersistenceState = 'connected' | 'fallback' | 'pending';
+
+const getHarnessPersistenceState = (record: Partial<WorkerRecord> | null | undefined): HarnessPersistenceState => {
+    if (!record) return 'pending';
+    if (String(record.harnessPersistenceWarning || '').trim()) return 'fallback';
+    if (String(record.workflowRunId || '').trim()) return 'connected';
+    return 'pending';
+};
+
+const getHarnessWorkflowStateLabel = (state: string): string => {
+    switch (state) {
+        case 'uploaded': return '업로드됨';
+        case 'ocr_validating': return 'OCR 검증 중';
+        case 'manual_review_required': return '수동 검토 필요';
+        case 'context_ready': return '컨텍스트 준비';
+        case 'first_pass_analyzing': return '1차 분석 중';
+        case 'evaluator_review': return '검증 중';
+        case 'awaiting_manager_approval': return '관리자 승인 대기';
+        case 'manager_revised': return '관리자 수정 완료';
+        case 'second_pass_analyzing': return '2차 재분석 중';
+        case 'completed': return '완료';
+        default: return '확인 필요';
+    }
+};
+
+const getHarnessRiskDecisionLabel = (decision: string): string => {
+    switch (decision) {
+        case 'SAFE_TO_PROCEED': return '진행 가능';
+        case 'SUPPLEMENTARY_REVIEW': return '보완 검토';
+        case 'IMMEDIATE_ATTENTION': return '즉시 확인 필요';
+        case 'CRITICAL_STOP': return '작업 중지 검토';
+        default: return '확인 필요';
+    }
+};
+
+const getHarnessApprovalStateLabel = (state: string): string => {
+    switch (state) {
+        case 'NOT_REQUIRED': return '승인 불필요';
+        case 'REQUIRED': return '승인 필요';
+        case 'PENDING': return '승인 대기';
+        case 'APPROVED': return '승인 완료';
+        case 'REJECTED': return '반려';
+        default: return '확인 필요';
+    }
+};
+
+const getHarnessPersistenceLabel = (state: HarnessPersistenceState): string => {
+    switch (state) {
+        case 'connected': return '저장 연결됨';
+        case 'fallback': return '폴백 동작중';
+        default: return '저장 대기';
+    }
+};
+
+const getHarnessWorkflowBadgeVariant = (state: string): React.ComponentProps<typeof StatusBadge>['variant'] => {
+    switch (state) {
+        case 'completed': return 'emeraldSoft';
+        case 'awaiting_manager_approval':
+        case 'second_pass_analyzing': return 'violetSoft';
+        case 'manual_review_required': return 'roseSoft';
+        default: return 'slateSoft';
+    }
+};
+
+const getHarnessRiskBadgeVariant = (decision: string): React.ComponentProps<typeof StatusBadge>['variant'] => {
+    switch (decision) {
+        case 'SAFE_TO_PROCEED': return 'emeraldSoft';
+        case 'SUPPLEMENTARY_REVIEW': return 'amberSoft';
+        case 'IMMEDIATE_ATTENTION':
+        case 'CRITICAL_STOP': return 'roseSoft';
+        default: return 'slateSoft';
+    }
+};
+
+const getHarnessApprovalBadgeVariant = (state: string): React.ComponentProps<typeof StatusBadge>['variant'] => {
+    switch (state) {
+        case 'APPROVED': return 'emeraldSoft';
+        case 'REJECTED': return 'roseSoft';
+        case 'PENDING':
+        case 'REQUIRED': return 'amberSoft';
+        default: return 'slateSoft';
+    }
+};
+
+const getHarnessPersistenceBadgeVariant = (state: HarnessPersistenceState): React.ComponentProps<typeof StatusBadge>['variant'] => {
+    switch (state) {
+        case 'connected': return 'emeraldSoft';
+        case 'fallback': return 'amberSoft';
+        default: return 'slateSoft';
+    }
+};
+
+const getHarnessMeta = (record: Partial<WorkerRecord> | null | undefined) => {
+    const workflowState = inferHarnessWorkflowState(record);
+    const riskDecision = inferHarnessRiskDecision(record);
+    const approvalState = inferHarnessApprovalState(record, workflowState);
+    const persistenceState = getHarnessPersistenceState(record);
+
+    return {
+        workflowState,
+        riskDecision,
+        approvalState,
+        persistenceState,
+    };
+};
+
 const toDisplayString = (value: unknown, fallback = ''): string => {
     if (typeof value === 'string') {
         const trimmed = value.trim();
@@ -1538,6 +1671,33 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         );
     }, [visibleRegisteredWorkers]);
 
+    const registeredWorkerHarnessSummary = useMemo(() => {
+        return visibleRegisteredWorkers.reduce(
+            (acc, worker) => {
+                const latestRecord = findLatestRecordForRegisteredWorker(worker);
+                if (!latestRecord) {
+                    acc.missingReport += 1;
+                    return acc;
+                }
+
+                const harnessMeta = getHarnessMeta(latestRecord);
+                acc.linkedReport += 1;
+                if (harnessMeta.persistenceState === 'connected') acc.connected += 1;
+                if (harnessMeta.persistenceState === 'fallback') acc.fallback += 1;
+                if (harnessMeta.persistenceState === 'pending') acc.pending += 1;
+                if (harnessMeta.workflowState === 'manual_review_required' || harnessMeta.workflowState === 'awaiting_manager_approval' || harnessMeta.workflowState === 'second_pass_analyzing') {
+                    acc.reviewNeeded += 1;
+                }
+                if (harnessMeta.riskDecision === 'IMMEDIATE_ATTENTION' || harnessMeta.riskDecision === 'CRITICAL_STOP') {
+                    acc.highRisk += 1;
+                }
+
+                return acc;
+            },
+            { linkedReport: 0, connected: 0, fallback: 0, pending: 0, reviewNeeded: 0, highRisk: 0, missingReport: 0 },
+        );
+    }, [findLatestRecordForRegisteredWorker, visibleRegisteredWorkers]);
+
     const registeredWorkerInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
         const missingAnyCount = visibleRegisteredWorkers.filter((worker) => {
             return (
@@ -1573,16 +1733,35 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         ? '중복 그룹 미리보기에서 보존 후보를 확인한 뒤 자동선택으로 정리하면 이후 문자 발송과 발급 이력이 한 사람 기준으로 정리됩니다.'
                         : '필터에서 누락 항목을 좁힌 뒤 등록 정보를 보완하면 문자 발송 이력과 보안 패스 발급 연결이 더 안정적으로 유지됩니다.',
             },
+            {
+                eyebrow: '하네스 보호 맥락',
+                title: `최신 리포트 연결 ${registeredWorkerHarnessSummary.linkedReport}명 중 ${registeredWorkerHarnessSummary.reviewNeeded}명은 추가 보호 판단이 필요합니다.`,
+                description:
+                    registeredWorkerHarnessSummary.fallback > 0
+                        ? `하네스 저장 폴백 ${registeredWorkerHarnessSummary.fallback}명, 저장 대기 ${registeredWorkerHarnessSummary.pending}명입니다. 등록 정보 정리와 함께 저장 연결 상태를 다시 확인해야 합니다.`
+                        : `즉시 보호 대상 ${registeredWorkerHarnessSummary.highRisk}명, 최신 리포트 미연결 ${registeredWorkerHarnessSummary.missingReport}명입니다.`,
+            },
         ];
     }, [
         registeredWorkerDuplicateSummary.autoDeleteIds.length,
         registeredWorkerDuplicateSummary.duplicateGroupCount,
         registeredWorkerDuplicateSummary.duplicateWorkerCount,
+        registeredWorkerHarnessSummary.fallback,
+        registeredWorkerHarnessSummary.highRisk,
+        registeredWorkerHarnessSummary.linkedReport,
+        registeredWorkerHarnessSummary.missingReport,
+        registeredWorkerHarnessSummary.pending,
+        registeredWorkerHarnessSummary.reviewNeeded,
         registeredWorkerMissingSummary.missingBirth,
         registeredWorkerMissingSummary.missingPassport,
         registeredWorkerMissingSummary.missingPhone,
         visibleRegisteredWorkers,
     ]);
+
+    const selectedMessageHistoryHarnessMeta = useMemo(() => {
+        if (!selectedMessageHistoryLatestRecord) return null;
+        return getHarnessMeta(selectedMessageHistoryLatestRecord);
+    }, [selectedMessageHistoryLatestRecord]);
 
     const messageDashboardInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
         if (!reportMessageDashboardSummary?.schemaReady) return [];
@@ -4373,7 +4552,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     </div>
                 </div>
                 <SummaryMetricGrid
-                    className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3"
+                    className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3 xl:grid-cols-5"
                     cardClassName="rounded-xl border px-3 py-3"
                     items={[
                         {
@@ -4400,8 +4579,37 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             labelClassName: 'text-[10px] font-black text-indigo-600',
                             valueClassName: 'mt-1 text-lg font-black text-indigo-900',
                         },
+                        {
+                            key: 'registered-workers-harness-connected',
+                            label: '하네스 저장 연결',
+                            value: `${registeredWorkerHarnessSummary.connected}명`,
+                            helper: `최신 리포트 연결 ${registeredWorkerHarnessSummary.linkedReport}명`,
+                            tone: 'border-emerald-200 bg-emerald-50',
+                            labelClassName: 'text-[10px] font-black text-emerald-600',
+                            valueClassName: 'mt-1 text-lg font-black text-emerald-900',
+                            helperClassName: 'mt-1 text-[11px] font-bold text-emerald-700',
+                        },
+                        {
+                            key: 'registered-workers-harness-attention',
+                            label: '보호 재확인',
+                            value: `${registeredWorkerHarnessSummary.reviewNeeded + registeredWorkerHarnessSummary.highRisk}명`,
+                            helper: `즉시 보호 ${registeredWorkerHarnessSummary.highRisk}명 · 폴백 ${registeredWorkerHarnessSummary.fallback}명`,
+                            tone: registeredWorkerHarnessSummary.highRisk > 0 ? 'border-rose-200 bg-rose-50' : 'border-violet-200 bg-violet-50',
+                            labelClassName: `text-[10px] font-black ${registeredWorkerHarnessSummary.highRisk > 0 ? 'text-rose-600' : 'text-violet-600'}`,
+                            valueClassName: `mt-1 text-lg font-black ${registeredWorkerHarnessSummary.highRisk > 0 ? 'text-rose-900' : 'text-violet-900'}`,
+                            helperClassName: `mt-1 text-[11px] font-bold ${registeredWorkerHarnessSummary.highRisk > 0 ? 'text-rose-700' : 'text-violet-700'}`,
+                        },
                     ]}
                 />
+                {registeredWorkerHarnessSummary.fallback > 0 && (
+                    <NoticeCallout
+                        variant="amber"
+                        className="mt-3 rounded-xl px-3 py-2"
+                        eyebrow="하네스 저장 상태"
+                        title={`현재 등록 근로자 범위에서 ${registeredWorkerHarnessSummary.fallback}명은 영속 저장 폴백 상태입니다.`}
+                        description="문자 발송과 리포트 연결은 유지되지만, workflow run 저장 여부를 다시 확인한 뒤 운영 판단을 이어가야 합니다."
+                    />
+                )}
                 <InterpretationCardGrid
                     items={registeredWorkerInterpretationCards}
                     className="mt-3 grid-cols-1 xl:grid-cols-3"
@@ -5404,6 +5612,30 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     />
                                 )}
 
+                                {selectedMessageHistoryLatestRecord && selectedMessageHistoryHarnessMeta && (
+                                    <div className="mt-3 space-y-3">
+                                        <NoticeCallout
+                                            variant={selectedMessageHistoryHarnessMeta.persistenceState === 'fallback' ? 'amber' : selectedMessageHistoryHarnessMeta.riskDecision === 'IMMEDIATE_ATTENTION' || selectedMessageHistoryHarnessMeta.riskDecision === 'CRITICAL_STOP' ? 'rose' : 'white'}
+                                            className="rounded-2xl px-4 py-3"
+                                            eyebrow="하네스 보호 맥락"
+                                            title={`${selectedMessageHistoryWorker?.name || '선택 근로자'}의 최신 리포트는 하네스 상태와 함께 추적됩니다.`}
+                                            description={selectedMessageHistoryLatestRecord.workflowRunId
+                                                ? `workflow run ${selectedMessageHistoryLatestRecord.workflowRunId} 기준으로 문자 발송 이력과 리포트 판단 근거를 함께 읽을 수 있습니다.`
+                                                : '아직 workflow run 연결 전 단계이므로 저장 연결 상태를 먼저 확인한 뒤 문자 발송 판단을 이어가세요.'}
+                                        />
+                                        <div className="flex flex-wrap gap-2">
+                                            <StatusBadge variant={getHarnessWorkflowBadgeVariant(selectedMessageHistoryHarnessMeta.workflowState)} className="px-3 py-1.5 text-[11px] font-black">{getHarnessWorkflowStateLabel(selectedMessageHistoryHarnessMeta.workflowState)}</StatusBadge>
+                                            <StatusBadge variant={getHarnessRiskBadgeVariant(selectedMessageHistoryHarnessMeta.riskDecision)} className="px-3 py-1.5 text-[11px] font-black">{getHarnessRiskDecisionLabel(selectedMessageHistoryHarnessMeta.riskDecision)}</StatusBadge>
+                                            <StatusBadge variant={getHarnessApprovalBadgeVariant(selectedMessageHistoryHarnessMeta.approvalState)} className="px-3 py-1.5 text-[11px] font-black">{getHarnessApprovalStateLabel(selectedMessageHistoryHarnessMeta.approvalState)}</StatusBadge>
+                                            <StatusBadge variant={getHarnessPersistenceBadgeVariant(selectedMessageHistoryHarnessMeta.persistenceState)} className="px-3 py-1.5 text-[11px] font-black">{getHarnessPersistenceLabel(selectedMessageHistoryHarnessMeta.persistenceState)}</StatusBadge>
+                                            {selectedMessageHistoryLatestRecord.workflowRunId ? <StatusBadge variant="slateSoft" className="px-3 py-1.5 text-[11px] font-black">Run {selectedMessageHistoryLatestRecord.workflowRunId}</StatusBadge> : null}
+                                        </div>
+                                        {selectedMessageHistoryLatestRecord.harnessPersistenceWarning ? (
+                                            <p className="text-xs font-bold text-amber-700">{selectedMessageHistoryLatestRecord.harnessPersistenceWarning}</p>
+                                        ) : null}
+                                    </div>
+                                )}
+
                                 {messageLogError && (
                                     <NoticeCallout
                                         variant="rose"
@@ -5664,6 +5896,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             {!isRegisteredWorkersLoading && !registeredWorkersError && visibleRegisteredWorkers.map((worker) => {
                                 const duplicateMeta = registeredWorkerDuplicateSummary.metaMap.get(worker.id);
                                 const latestRecord = findLatestRecordForRegisteredWorker(worker);
+                                const harnessMeta = latestRecord ? getHarnessMeta(latestRecord) : null;
                                 const hasMissingPhone = normalizePhone(worker.phone_number).length < 10;
                                 const hasMissingBirth = normalizeBirthDate(worker.birth_date).length < 6;
                                 const hasMissingPassport = normalizePassport(worker.passport_number).length < 6;
@@ -5682,6 +5915,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 const evidenceSummary = [
                                     latestRecord ? '최신 리포트 연결됨' : '최신 리포트 없음',
                                     missingLabels.length > 0 ? `누락 ${missingLabels.length}건` : '핵심 식별정보 확인됨',
+                                    harnessMeta ? getHarnessWorkflowStateLabel(harnessMeta.workflowState) : '하네스 상태 미연결',
                                     duplicateMeta
                                         ? Array.from(duplicateMeta.groupLabels).join(', ')
                                         : '중복 신호 없음',
@@ -5728,6 +5962,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                         <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-700">
                                                             정보 보완 {missingLabels.length}건
                                                         </span>
+                                                    )}
+                                                    {harnessMeta && (
+                                                        <>
+                                                            <StatusBadge variant={getHarnessWorkflowBadgeVariant(harnessMeta.workflowState)} className="px-2 py-0.5 text-[10px]">{getHarnessWorkflowStateLabel(harnessMeta.workflowState)}</StatusBadge>
+                                                            <StatusBadge variant={getHarnessPersistenceBadgeVariant(harnessMeta.persistenceState)} className="px-2 py-0.5 text-[10px]">{getHarnessPersistenceLabel(harnessMeta.persistenceState)}</StatusBadge>
+                                                        </>
                                                     )}
                                                 </div>
                                             </div>
@@ -5851,6 +6091,19 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-slate-500',
                                                     content: (
                                                         <div className="mt-2 flex flex-wrap gap-1.5">
+                                                            {harnessMeta && (
+                                                                <>
+                                                                    <StatusBadge variant={getHarnessWorkflowBadgeVariant(harnessMeta.workflowState)} className="px-2 py-0.5 text-[10px]">{getHarnessWorkflowStateLabel(harnessMeta.workflowState)}</StatusBadge>
+                                                                    <StatusBadge variant={getHarnessRiskBadgeVariant(harnessMeta.riskDecision)} className="px-2 py-0.5 text-[10px]">{getHarnessRiskDecisionLabel(harnessMeta.riskDecision)}</StatusBadge>
+                                                                    <StatusBadge variant={getHarnessApprovalBadgeVariant(harnessMeta.approvalState)} className="px-2 py-0.5 text-[10px]">{getHarnessApprovalStateLabel(harnessMeta.approvalState)}</StatusBadge>
+                                                                    <StatusBadge variant={getHarnessPersistenceBadgeVariant(harnessMeta.persistenceState)} className="px-2 py-0.5 text-[10px]">{getHarnessPersistenceLabel(harnessMeta.persistenceState)}</StatusBadge>
+                                                                    {latestRecord?.workflowRunId ? (
+                                                                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black text-slate-600">
+                                                                            Run {latestRecord.workflowRunId}
+                                                                        </span>
+                                                                    ) : null}
+                                                                </>
+                                                            )}
                                                             {duplicateMeta?.groupLabels.size ? Array.from(duplicateMeta.groupLabels).map((label) => (
                                                                 <span key={`${worker.id}-${label}`} className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-700">
                                                                     {label}
@@ -5870,6 +6123,11 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                                     {label}
                                                                 </span>
                                                             ))}
+                                                            {latestRecord?.harnessPersistenceWarning ? (
+                                                                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700">
+                                                                    {latestRecord.harnessPersistenceWarning}
+                                                                </span>
+                                                            ) : null}
                                                         </div>
                                                     ),
                                                 },

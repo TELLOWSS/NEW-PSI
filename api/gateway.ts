@@ -1,13 +1,21 @@
 import { randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../lib/server/adminAuthGuard.js';
+import handleHarnessAnalyze from './harness/analyze.js';
+import handleHarnessApprove from './harness/approve.js';
+import handleHarnessReanalyze from './harness/reanalyze.js';
+import handleHarnessWorkflowStatus from './harness/workflow-status.js';
 
 type GatewayAction =
     | 'training.check-access'
     | 'training.submit'
     | 'ocr.retry'
     | 'ocr.upsert-best-practice'
-    | 'worker.authenticate';
+    | 'worker.authenticate'
+    | 'harness.analyze'
+    | 'harness.approve'
+    | 'harness.reanalyze'
+    | 'harness.workflow-status';
 
 const TRAINING_ACCESS_BLOCK_THRESHOLD = 2;
 const EMBEDDING_MODEL = 'text-embedding-004';
@@ -898,6 +906,9 @@ const resolveAction = (req: any): GatewayAction | '' => {
     const fromQuery = String(req?.query?.action || '').trim();
     if (fromQuery) return fromQuery as GatewayAction;
 
+    const fromGatewayBody = String(req?.body?.gatewayAction || '').trim();
+    if (fromGatewayBody) return fromGatewayBody as GatewayAction;
+
     const fromBody = String(req?.body?.action || '').trim();
     if (fromBody) return fromBody as GatewayAction;
 
@@ -936,6 +947,14 @@ export default async function handler(req: any, res: any) {
                 return await handleOcrUpsertBestPractice(req, res);
             case 'worker.authenticate':
                 return await handleWorkerAuthenticate(req, res);
+            case 'harness.analyze':
+                return await handleHarnessAnalyze(req, res);
+            case 'harness.approve':
+                return await handleHarnessApprove(req, res);
+            case 'harness.reanalyze':
+                return await handleHarnessReanalyze(req, res);
+            case 'harness.workflow-status':
+                return await handleHarnessWorkflowStatus(req, res);
             default:
                 return res.status(400).json({ ok: false, message: `Unknown action: ${action}` });
         }

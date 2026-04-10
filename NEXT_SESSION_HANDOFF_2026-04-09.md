@@ -5,6 +5,7 @@
 - 특허 패키지 정렬 작업은 완료되었습니다.
 - 주요 페이지 단위의 해석 중심 UX 전개도 대부분 완료되었습니다.
 - 최근 작업은 **공통 컴포넌트 레이어 정리**에 집중했습니다.
+- 하네스 엔지니어링 관점의 Guardrails/HITL/상태 머신/감사 추적 전략 문서를 신규 작성했습니다.
 
 ## 2) 이번 세션에서 완료한 핵심 사항
 ### 공통 컴포넌트
@@ -118,6 +119,57 @@
     - role-aware 요약 카드와 인사이트 문구를 도입해 1차 view model 분리 기반을 마련
     - 역할별 통계 카드/빠른 실행/공종 비교 해설을 분기하고 근로자 관점에서 식별 불가 데이터 배너를 숨겨 노출 순서 차등화를 확장
     - 운영 포커스 카드, 하단 차트 배치 순서, 모바일 비교 탭/비교 안내 문구를 역할별로 다시 분기해 하단 분석 영역까지 role-aware 구조를 확장
+  - `types.ts`
+    - `workflowState` / `riskDecision` / `approvalState` 타입과 `WorkerRecord` 하네스 상태 필드를 추가
+  - `lib/server/harness/*`
+    - 입력 검증, 컨텍스트 스냅샷, 결정론적 룰 엔진, 상태 라우터, 감사 이벤트 생성, analyzer/evaluator 초안을 추가
+  - `api/harness/analyze.ts`
+    - 하네스 초기 진입점으로 검증 → 분석 → 가드레일 판정 → 감사 이벤트 응답 흐름을 추가
+  - `api/harness/approve.ts`, `api/harness/reanalyze.ts`, `api/harness/workflow-status.ts`
+    - 승인/2차 재분석/상태 조회용 하네스 API 초안을 추가
+  - `supabase_harness_workflow_migration.sql`
+    - 하네스 워크플로우/이벤트/오버라이드/컨텍스트 스냅샷/인간 승인/버전 스냅샷 테이블 마이그레이션 초안을 추가
+  - `pages/OcrAnalysis.tsx`
+    - 재분석/정상분류 시 `workflowState` / `riskDecision` / `approvalState`를 함께 갱신하도록 연결
+    - 실패 레코드 해석 뷰에 하네스 상태 요약과 레코드별 워크플로우/위험/승인 배지를 추가
+  - `api/gateway.ts`
+    - `harness.analyze` / `harness.approve` / `harness.reanalyze` / `harness.workflow-status` 라우팅을 추가
+    - 승인 액션과 게이트웨이 액션 충돌을 피하기 위해 `gatewayAction` 입력 경로를 지원
+  - `services/harnessService.ts`
+    - 하네스 분석/승인/재분석/상태 조회용 프론트엔드 게이트웨이 래퍼를 추가
+    - `postAdminJson`을 통해 관리자 인증 헤더를 공용 적용하도록 보강
+    - persistence 메타(`persisted`, `workflowRunId`, `warning`)를 함께 반환하도록 타입을 확장
+  - `components/modals/RecordDetailModal.tsx`
+    - 승인/반려 시 `approveHarnessRecord()`를 호출해 하네스 승인 게이트와 실제 검토 UI를 연결
+    - `recordId` / `workflowRunId` / `workflowState` / `riskDecision` / `approvalState` / `secondPassStatus`를 로컬 레코드 상태 및 감사 이력과 함께 동기화
+    - `fetchHarnessWorkflowStatus()`를 호출해 저장된 하네스 상태를 새로고침하고 승인 패널에서 즉시 배지/경고를 표시
+    - 감사 이력 영역에 하네스 상태 타임라인 패널을 추가해 workflow run 기준 이벤트 흐름을 직접 확인 가능하게 정리
+    - 타임라인 엔트리에 `actor` 메타를 표시하고, 승인 게이트 영역에 영속 저장 확인/폴백 배지와 `workflowRunId`를 함께 노출
+  - `pages/OcrAnalysis.tsx`
+    - 신규 파일 분석 성공 시 `analyzeHarnessRecord()`를 호출해 `workflowRunId` / 하네스 결정 상태를 즉시 기록에 반영
+    - OCR 재분석 성공/실패 시 `reanalyzeHarnessRecord()`를 호출해 `workflowRunId` / `workflowState` / `riskDecision` / `approvalState` / `secondPassStatus`를 실제 하네스 응답과 동기화
+    - 하네스 persistence 경고가 있을 경우 감사 이력에 `psi-harness` 메모를 남기고 UI 동작은 계속 유지
+    - 실패 레코드 요약/카드에 하네스 persistence 배지와 경고 문구를 노출해 저장 연결 여부를 현장에서 바로 확인 가능하게 정리
+  - `pages/Reports.tsx`
+    - 보고서 센터 상단에 하네스 커버리지 요약 수치(`저장 연결` / `폴백·대기` / `재확인 필요` / `즉시 보호 대상`)를 추가
+    - 생성 대상 목록과 상세 미리보기에서 워크플로우·위험·승인·저장 연결 배지, `workflowRunId`, persistence 경고를 함께 노출
+    - CSV 및 증빙 패키지 인덱스에 `workflowRunId` / `workflowState` / `riskDecision` / `approvalState` / persistence 상태 컬럼을 포함해 외부 검증 시에도 하네스 맥락을 유지
+  - `pages/WorkerManagement.tsx`
+    - 등록 근로자 관리자 센터 상단에 하네스 저장 연결/보호 재확인 요약 수치와 persistence 폴백 경고를 추가
+    - 등록 근로자 목록 카드와 중복 상태 패널에 워크플로우·위험·승인·저장 연결 배지, `workflowRunId`, persistence 경고를 함께 노출
+    - 선택 근로자 문자 발송 이력 상세에서도 최신 리포트의 하네스 보호 맥락을 배지와 안내문으로 바로 확인 가능하게 정리
+  - `App.tsx`
+    - `sanitizeRecords()`에서 `workflowRunId` / `workflowState` / `riskDecision` / `approvalState` / `harnessPersistenceWarning`을 명시적으로 정규화해 IndexedDB 로드·가져오기·추가 저장 경로의 하네스 필드 보존을 고정
+  - `utils/qrUtils.ts`
+    - QR 공유 스키마를 v6으로 확장해 `workflowRunId` / 하네스 상태 / persistence 경고를 축약 코드로 함께 인코딩·복원
+  - `types.ts`
+    - `WorkerRecord.harnessPersistenceWarning` 필드를 추가해 하네스 저장 경고를 레코드와 함께 전달
+  - `lib/server/harness/persistence.ts`
+    - `ai_workflow_runs` / `ai_workflow_events` / `ai_guardrail_overrides` / `ai_context_snapshots` / `ai_human_approvals` 저장/조회 공통 헬퍼를 추가
+    - 마이그레이션 미적용 또는 Supabase 환경변수 부재 시 하네스 API가 경고만 남기고 계속 동작하도록 안전 폴백 처리
+  - `api/harness/analyze.ts`, `api/harness/approve.ts`, `api/harness/reanalyze.ts`, `api/harness/workflow-status.ts`
+    - 하네스 결정과 이벤트를 Supabase persistence 레이어와 연결
+    - 상태 조회 시 저장된 이벤트/인간 승인 타임라인을 우선 응답하고, 미연결 환경에서는 기존 초안 응답으로 폴백
   - `components/Layout.tsx`
     - 상단 특허출원/유무료 API 상태 배지를 `StatusBadge` 기반으로 정리
   - `components/Sidebar.tsx`
@@ -177,6 +229,7 @@
 - `components/shared/EmptyStatePanel.tsx`
 - `components/shared/toneVariants.ts`
 - `components/modals/RecordDetailModal.tsx`
+- `pages/Reports.tsx`
 - `pages/WorkerManagement.tsx`
 - `pages/OcrAnalysis.tsx`
 - `pages/SiteIssueManagement.tsx`
@@ -195,15 +248,18 @@
 - `components/shared/EmptyStatePanel.tsx` → 오류 없음
 - `components/shared/toneVariants.ts` → 오류 없음
 - `components/modals/RecordDetailModal.tsx` → 오류 없음
+- `pages/Reports.tsx` → 오류 없음
 - `pages/WorkerManagement.tsx` → 오류 없음
 - `pages/OcrAnalysis.tsx` → 오류 없음
 - `pages/SiteIssueManagement.tsx` → 오류 없음
 - `pages/FieldSafetyComplianceHub.tsx` → 오류 없음
+- `App.tsx` → 오류 없음
+- `utils/qrUtils.ts` → 오류 없음
 
 ## 5) 다음 세션 시작 시 바로 이어갈 권장 작업
 우선순위 순서:
-1. `pages/Dashboard.tsx` 역할별 view model 분리 후보와 보호 중심 요약 순서 분석 시작
-2. `pages/Dashboard.tsx` 팀 비교/차트/하단 섹션(`SafetyActionCenter`, 국적/취약분야 차트)까지 역할별 배치 분기를 확장할지 점검
+1. 하네스 persistence 테이블 실환경 마이그레이션 적용 후 `fetchHarnessWorkflowStatus()` persisted 응답을 실제 데이터로 검증
+2. QR 공유 링크(v6) 생성 길이와 모바일 스캔 안정성을 실기기에서 확인
 3. 필요 시 재사용 컴포넌트 props 정리 및 세맨틱 토큰 연계
 4. 아직 남은 accent 계열 안내 박스/인라인 카드까지 shared tone preset으로 올릴지 점검
 5. 필요 시 새 handoff 문서 기준일 갱신 또는 후속 세션용 handoff 분리

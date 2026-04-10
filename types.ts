@@ -175,6 +175,31 @@ export interface AuditTrailEntry {
     note?: string;
 }
 
+export type HarnessWorkflowState =
+    | 'uploaded'
+    | 'ocr_validating'
+    | 'manual_review_required'
+    | 'context_ready'
+    | 'first_pass_analyzing'
+    | 'evaluator_review'
+    | 'awaiting_manager_approval'
+    | 'manager_revised'
+    | 'second_pass_analyzing'
+    | 'completed';
+
+export type HarnessRiskDecision =
+    | 'SAFE_TO_PROCEED'
+    | 'SUPPLEMENTARY_REVIEW'
+    | 'IMMEDIATE_ATTENTION'
+    | 'CRITICAL_STOP';
+
+export type HarnessApprovalState =
+    | 'NOT_REQUIRED'
+    | 'REQUIRED'
+    | 'PENDING'
+    | 'APPROVED'
+    | 'REJECTED';
+
 export interface WorkerRecord {
     id: string; // Unique ID for each record
     worker_uuid?: string;
@@ -243,6 +268,11 @@ export interface WorkerRecord {
     reviewReason?: string;
     /** 2차 재가공 상태: 필요 / 진행중 / 완료 */
     secondPassStatus?: 'NEEDED' | 'IN_PROGRESS' | 'DONE';
+    workflowRunId?: string;
+    workflowState?: HarnessWorkflowState;
+    riskDecision?: HarnessRiskDecision;
+    approvalState?: HarnessApprovalState;
+    harnessPersistenceWarning?: string;
 }
 
 export interface HighRiskWorker {

@@ -4,7 +4,7 @@ import { FileUpload } from '../components/FileUpload';
 import { Spinner } from '../components/Spinner';
 import { analyzeWorkerRiskAssessment, updateAnalysisBasedOnEdits, getQuotaState, setQuotaExhausted, clearQuotaState, isRateLimitError, validateImageFormat, isFormatCompatibleWithAI } from '../services/geminiService';
 import { extractMessage } from '../utils/errorUtils';
-import type { WorkerRecord, OcrErrorType, AppSettings } from '../types';
+import type { WorkerRecord, OcrErrorType, AppSettings, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState } from '../types';
 import { fileToBase64 } from '../utils/fileUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { getApiCallState, incrementApiCallCount, resetApiCallCount, type DailyCounterState } from '../utils/apiCounterUtils';
@@ -18,9 +18,10 @@ import { EmptyStatePanel } from '../components/shared/EmptyStatePanel';
 import { InterpretationCardGrid } from '../components/shared/InterpretationCardGrid';
 import { OperationalPreviewCard } from '../components/shared/OperationalPreviewCard';
 import { SectionPanelCard } from '../components/shared/SectionPanelCard';
-import { StatusBadge } from '../components/shared/StatusBadge';
+import { StatusBadge, type StatusBadgeVariant } from '../components/shared/StatusBadge';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { StatusEvidenceActionPanel } from '../components/shared/StatusEvidenceActionPanel';
+import { analyzeHarnessRecord, reanalyzeHarnessRecord } from '../services/harnessService';
 import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
 
 const buildMasterDataLoadErrorMessage = (rawMessage?: string) => {
@@ -123,6 +124,157 @@ const getOcrErrorTypeKoreanLabel = (errorType: OcrErrorType): string => {
             return '문서 구도';
         default:
             return '기타 오류';
+    }
+};
+
+const inferHarnessWorkflowState = (record: Partial<WorkerRecord>): HarnessWorkflowState => {
+    if (record.secondPassStatus === 'IN_PROGRESS') return 'second_pass_analyzing';
+    if (record.reviewStatus === 'PENDING' || record.approvalStatus === 'PENDING') return 'awaiting_manager_approval';
+    if (record.ocrErrorType || record.secondPassStatus === 'NEEDED') return 'manual_review_required';
+    if (record.secondPassStatus === 'DONE' || record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED') return 'completed';
+    return 'uploaded';
+};
+
+const inferHarnessRiskDecision = (record: Partial<WorkerRecord>): HarnessRiskDecision => {
+    if (record.ocrErrorType) return 'IMMEDIATE_ATTENTION';
+    if (record.secondPassStatus === 'NEEDED') return 'SUPPLEMENTARY_REVIEW';
+    return 'SAFE_TO_PROCEED';
+};
+
+const inferHarnessApprovalState = (record: Partial<WorkerRecord>, workflowState: HarnessWorkflowState): HarnessApprovalState => {
+    if (record.reviewStatus === 'REJECTED') return 'REJECTED';
+    if (record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED') return 'APPROVED';
+    if (workflowState === 'manual_review_required' || workflowState === 'awaiting_manager_approval' || workflowState === 'second_pass_analyzing') return 'PENDING';
+    return 'NOT_REQUIRED';
+};
+
+const withHarnessState = (record: WorkerRecord, patch: Partial<WorkerRecord>): WorkerRecord => {
+    const next = { ...record, ...patch };
+    const workflowState = patch.workflowState ?? inferHarnessWorkflowState(next);
+    const riskDecision = patch.riskDecision ?? inferHarnessRiskDecision(next);
+    const approvalState = patch.approvalState ?? inferHarnessApprovalState(next, workflowState);
+
+    return {
+        ...next,
+        workflowState,
+        riskDecision,
+        approvalState,
+    };
+};
+
+const buildHarnessPayloadFromRecord = (record: WorkerRecord, fileNameOverride?: string) => ({
+    recordId: record.id,
+    documentText: String(record.fullText || record.koreanTranslation || record.aiInsights || '').trim(),
+    ocrConfidence: typeof record.ocrConfidence === 'number' ? record.ocrConfidence : null,
+    jobType: String(record.jobField || '').trim() || undefined,
+    fileName: String(fileNameOverride || record.filename || record.name || '').trim() || undefined,
+    imageQualityScore: typeof record.integrityScore === 'number'
+        ? Math.max(0, Math.min(1, Number((record.integrityScore / 100).toFixed(4))))
+        : null,
+    metadata: {
+        recordDate: record.date,
+        name: record.name,
+        teamLeader: record.teamLeader,
+        language: record.language,
+        source: 'ocr-analysis',
+    },
+});
+
+type HarnessPersistenceState = 'connected' | 'fallback' | 'pending';
+
+const getHarnessPersistenceState = (record: Partial<WorkerRecord>): HarnessPersistenceState => {
+    if (String(record.harnessPersistenceWarning || '').trim()) return 'fallback';
+    if (String(record.workflowRunId || '').trim()) return 'connected';
+    return 'pending';
+};
+
+const getHarnessPersistenceLabel = (state: HarnessPersistenceState): string => {
+    switch (state) {
+        case 'connected': return '저장 연결됨';
+        case 'fallback': return '폴백 동작중';
+        default: return '저장 대기';
+    }
+};
+
+const getHarnessPersistenceBadgeVariant = (state: HarnessPersistenceState): StatusBadgeVariant => {
+    switch (state) {
+        case 'connected': return 'emeraldSoft';
+        case 'fallback': return 'amberSoft';
+        default: return 'slateSoft';
+    }
+};
+
+const getHarnessWorkflowStateLabel = (state: HarnessWorkflowState): string => {
+    switch (state) {
+        case 'uploaded': return '업로드됨';
+        case 'ocr_validating': return 'OCR 검증 중';
+        case 'manual_review_required': return '수동 검토 필요';
+        case 'context_ready': return '컨텍스트 준비';
+        case 'first_pass_analyzing': return '1차 분석 중';
+        case 'evaluator_review': return '검증 중';
+        case 'awaiting_manager_approval': return '관리자 승인 대기';
+        case 'manager_revised': return '관리자 수정 완료';
+        case 'second_pass_analyzing': return '2차 재분석 중';
+        case 'completed':
+        default:
+            return '확정 완료';
+    }
+};
+
+const getHarnessRiskDecisionLabel = (decision: HarnessRiskDecision): string => {
+    switch (decision) {
+        case 'SAFE_TO_PROCEED': return '진행 가능';
+        case 'SUPPLEMENTARY_REVIEW': return '추가 확인 필요';
+        case 'IMMEDIATE_ATTENTION': return '즉시 확인 필요';
+        case 'CRITICAL_STOP':
+        default:
+            return '작업 중지 검토';
+    }
+};
+
+const getHarnessApprovalStateLabel = (state: HarnessApprovalState): string => {
+    switch (state) {
+        case 'NOT_REQUIRED': return '승인 불필요';
+        case 'REQUIRED': return '승인 필요';
+        case 'PENDING': return '승인 대기';
+        case 'APPROVED': return '승인 완료';
+        case 'REJECTED':
+        default:
+            return '반려/재검토';
+    }
+};
+
+const getHarnessWorkflowBadgeVariant = (state: HarnessWorkflowState): StatusBadgeVariant => {
+    switch (state) {
+        case 'completed': return 'emeraldSoft';
+        case 'second_pass_analyzing': return 'sky';
+        case 'awaiting_manager_approval': return 'amberSoft';
+        case 'manual_review_required':
+        default:
+            return 'slateSoft';
+    }
+};
+
+const getHarnessRiskBadgeVariant = (decision: HarnessRiskDecision): StatusBadgeVariant => {
+    switch (decision) {
+        case 'SAFE_TO_PROCEED': return 'emeraldSoft';
+        case 'SUPPLEMENTARY_REVIEW': return 'amber';
+        case 'IMMEDIATE_ATTENTION': return 'rose';
+        case 'CRITICAL_STOP':
+        default:
+            return 'roseSoft';
+    }
+};
+
+const getHarnessApprovalBadgeVariant = (state: HarnessApprovalState): StatusBadgeVariant => {
+    switch (state) {
+        case 'APPROVED': return 'emerald';
+        case 'PENDING': return 'amberSoft';
+        case 'REJECTED': return 'roseSoft';
+        case 'REQUIRED': return 'amber';
+        case 'NOT_REQUIRED':
+        default:
+            return 'slateSoft';
     }
 };
 
@@ -693,6 +845,103 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [showReasonQaDetailPanel, setShowReasonQaDetailPanel] = useState(false);
     const [showRetryDetailPanel, setShowRetryDetailPanel] = useState(false);
     const [showFailedQuickActions, setShowFailedQuickActions] = useState(false);
+
+    const syncHarnessAnalyzeResult = useCallback(async (record: WorkerRecord, fileNameOverride?: string) => {
+        const fallbackPatch: Partial<WorkerRecord> = {
+            secondPassStatus: isFailedRecord(record) ? 'NEEDED' : 'DONE',
+            workflowState: isFailedRecord(record) ? 'manual_review_required' : 'completed',
+            riskDecision: isFailedRecord(record) ? 'IMMEDIATE_ATTENTION' : 'SAFE_TO_PROCEED',
+            approvalState: isFailedRecord(record) ? 'PENDING' : 'APPROVED',
+        };
+
+        try {
+            const harness = await analyzeHarnessRecord(buildHarnessPayloadFromRecord(record, fileNameOverride));
+            return withHarnessState(record, {
+                workflowRunId: harness.workflowRunId || record.workflowRunId,
+                workflowState: harness.decision.workflowState,
+                riskDecision: harness.decision.riskDecision,
+                approvalState: harness.decision.approvalState,
+                secondPassStatus: harness.decision.secondPassStatus,
+                harnessPersistenceWarning: harness.persistence?.warning || undefined,
+                auditTrail: harness.persistence?.warning
+                    ? [
+                        ...(record.auditTrail || []),
+                        {
+                            stage: 'validation',
+                            timestamp: new Date().toISOString(),
+                            actor: 'psi-harness',
+                            note: `Harness 분석 폴백: ${harness.persistence.warning}`,
+                        },
+                    ]
+                    : record.auditTrail,
+            });
+        } catch (error) {
+            return withHarnessState(record, {
+                ...fallbackPatch,
+                harnessPersistenceWarning: extractMessage(error),
+                auditTrail: [
+                    ...(record.auditTrail || []),
+                    {
+                        stage: 'validation',
+                        timestamp: new Date().toISOString(),
+                        actor: 'psi-harness',
+                        note: `Harness 분석 동기화 실패: ${extractMessage(error)}`,
+                    },
+                ],
+            });
+        }
+    }, []);
+
+    const syncHarnessReanalyzeResult = useCallback(async (record: WorkerRecord, sourceRecord: WorkerRecord) => {
+        const fallbackPatch: Partial<WorkerRecord> = {
+            secondPassStatus: isFailedRecord(record) ? 'NEEDED' : 'DONE',
+            workflowState: isFailedRecord(record) ? 'manual_review_required' : 'completed',
+            riskDecision: isFailedRecord(record) ? 'IMMEDIATE_ATTENTION' : 'SAFE_TO_PROCEED',
+            approvalState: isFailedRecord(record) ? 'PENDING' : 'APPROVED',
+        };
+
+        try {
+            const harness = await reanalyzeHarnessRecord({
+                ...buildHarnessPayloadFromRecord(record),
+                workflowRunId: sourceRecord.workflowRunId || sourceRecord.id,
+                revisedBy: 'manager',
+            });
+
+            return withHarnessState(record, {
+                workflowRunId: harness.workflowRunId || sourceRecord.workflowRunId || sourceRecord.id,
+                workflowState: harness.decision.workflowState,
+                riskDecision: harness.decision.riskDecision,
+                approvalState: harness.decision.approvalState,
+                secondPassStatus: harness.decision.secondPassStatus,
+                harnessPersistenceWarning: harness.persistence?.warning || undefined,
+                auditTrail: harness.persistence?.warning
+                    ? [
+                        ...(record.auditTrail || []),
+                        {
+                            stage: 'reassessment',
+                            timestamp: new Date().toISOString(),
+                            actor: 'psi-harness',
+                            note: `Harness 재분석 폴백: ${harness.persistence.warning}`,
+                        },
+                    ]
+                    : record.auditTrail,
+            });
+        } catch (error) {
+            return withHarnessState(record, {
+                ...fallbackPatch,
+                harnessPersistenceWarning: extractMessage(error),
+                auditTrail: [
+                    ...(record.auditTrail || []),
+                    {
+                        stage: 'reassessment',
+                        timestamp: new Date().toISOString(),
+                        actor: 'psi-harness',
+                        note: `Harness 재분석 동기화 실패: ${extractMessage(error)}`,
+                    },
+                ],
+            });
+        }
+    }, []);
 
     const fetchMasterGroups = useCallback(async () => {
         return supabase
@@ -1584,6 +1833,31 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             .slice(0, 4);
     }, [failedRecords]);
 
+    const failedHarnessSummary = useMemo(() => {
+        return failedRecords.reduce((acc, record) => {
+            const workflowState = inferHarnessWorkflowState(record);
+            const approvalState = inferHarnessApprovalState(record, workflowState);
+            const riskDecision = inferHarnessRiskDecision(record);
+            const persistenceState = getHarnessPersistenceState(record);
+
+            if (approvalState === 'PENDING') acc.pendingApprovalCount += 1;
+            if (workflowState === 'manual_review_required') acc.manualReviewCount += 1;
+            if (riskDecision === 'IMMEDIATE_ATTENTION' || riskDecision === 'CRITICAL_STOP') acc.immediateAttentionCount += 1;
+            if (persistenceState === 'connected') acc.connectedCount += 1;
+            if (persistenceState === 'fallback') acc.fallbackCount += 1;
+            if (persistenceState === 'pending') acc.pendingPersistenceCount += 1;
+
+            return acc;
+        }, {
+            pendingApprovalCount: 0,
+            manualReviewCount: 0,
+            immediateAttentionCount: 0,
+            connectedCount: 0,
+            fallbackCount: 0,
+            pendingPersistenceCount: 0,
+        });
+    }, [failedRecords]);
+
     const heroInterpretationCards = useMemo(() => {
         const topFailedType = failedTypeSummary[0];
         const topRetryGuide = retryActionGuides[0];
@@ -2011,19 +2285,27 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 setBatchProgress(p => ({ ...p, current: i + 1 }));
                 setProgress(`[${title}] ${record.name || '미상'} 처리 중...`);
                 // 2차 재가공 시작: 상태 IN_PROGRESS
-                onUpdateRecord({ ...record, secondPassStatus: 'IN_PROGRESS' });
+                onUpdateRecord(withHarnessState(record, {
+                    secondPassStatus: 'IN_PROGRESS',
+                    workflowState: 'second_pass_analyzing',
+                    riskDecision: 'SUPPLEMENTARY_REVIEW',
+                    approvalState: 'PENDING',
+                }));
                 try {
                     const retryImageSource = getBestRetryImageSource(record);
 
                     if (!retryImageSource) {
-                        const errorRecord: WorkerRecord = {
+                        const errorRecord: WorkerRecord = withHarnessState(record, {
                             ...record,
                             aiInsights: '❌ 원본/대체 이미지 데이터가 없어 재분석할 수 없습니다.',
                             ocrErrorType: 'LAYOUT',
                             ocrErrorMessage: '원본/대체 이미지 데이터 없음',
                             safetyScore: 0,
                             secondPassStatus: 'NEEDED',
-                        };
+                            workflowState: 'manual_review_required',
+                            riskDecision: 'IMMEDIATE_ATTENTION',
+                            approvalState: 'PENDING',
+                        });
                         onUpdateRecord(errorRecord);
                         failCount++;
                         preflightFailCount++;
@@ -2044,13 +2326,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     // 1. Data Integrity Check
                     if (!forceReanalyze && !hasRetryableOriginalImage(retryImageSource)) {
                         console.warn(`Skipping ${record.id}: Image loss.`);
-                        const errorRecord: WorkerRecord = {
+                        const errorRecord: WorkerRecord = withHarnessState(record, {
                             ...record,
                             aiInsights: "❌ 원본 이미지 데이터 소실 (분석 불가)",
                             ocrErrorType: 'LAYOUT',
                             ocrErrorMessage: '원본 이미지 데이터 소실',
                             safetyScore: 0,
-                        };
+                            secondPassStatus: 'NEEDED',
+                            workflowState: 'manual_review_required',
+                            riskDecision: 'IMMEDIATE_ATTENTION',
+                            approvalState: 'PENDING',
+                        });
                         onUpdateRecord(errorRecord);
                         failCount++;
                         preflightFailCount++;
@@ -2079,13 +2365,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     
                     if (!forceReanalyze && !formatValidation.isValid) {
                         console.warn(`Image format error for ${record.id}: ${formatValidation.error}`);
-                        const errorRecord: WorkerRecord = {
+                        const errorRecord: WorkerRecord = withHarnessState(record, {
                             ...record,
                             aiInsights: `❌ 이미지 형식 오류: ${formatValidation.error} (감지: ${formatValidation.detectedFormat})`,
                             ocrErrorType: classifyLegacyOcrErrorType(String(formatValidation.error || '')),
                             ocrErrorMessage: String(formatValidation.error || '이미지 형식 오류'),
                             safetyScore: 0,
-                        };
+                            secondPassStatus: 'NEEDED',
+                            workflowState: 'manual_review_required',
+                            riskDecision: 'IMMEDIATE_ATTENTION',
+                            approvalState: 'PENDING',
+                        });
                         onUpdateRecord(errorRecord);
                         failCount++;
                         preflightFailCount++;
@@ -2105,13 +2395,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     
                     if (!forceReanalyze && !formatValidation.supportedFormat) {
                         console.warn(`Unsupported format for ${record.id}: ${formatValidation.detectedFormat}`);
-                        const errorRecord: WorkerRecord = {
+                        const errorRecord: WorkerRecord = withHarnessState(record, {
                             ...record,
                             aiInsights: `⚠️ 지원하지 않는 이미지 형식: ${formatValidation.detectedFormat}`,
                             ocrErrorType: 'QUALITY',
                             ocrErrorMessage: `지원하지 않는 이미지 형식: ${formatValidation.detectedFormat}`,
                             safetyScore: 0,
-                        };
+                            secondPassStatus: 'NEEDED',
+                            workflowState: 'manual_review_required',
+                            riskDecision: 'SUPPLEMENTARY_REVIEW',
+                            approvalState: 'PENDING',
+                        });
                         onUpdateRecord(errorRecord);
                         failCount++;
                         preflightFailCount++;
@@ -2131,13 +2425,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     
                     if (!forceReanalyze && !isFormatCompatibleWithAI(formatValidation.detectedFormat)) {
                         console.warn(`Format not AI-compatible for ${record.id}: ${formatValidation.detectedFormat}`);
-                        const errorRecord: WorkerRecord = {
+                        const errorRecord: WorkerRecord = withHarnessState(record, {
                             ...record,
                             aiInsights: `⚠️ AI 분석 미지원 형식: ${formatValidation.detectedFormat}. JPEG, PNG, GIF, WebP, HEIC 형식만 지원됩니다.`,
                             ocrErrorType: 'QUALITY',
                             ocrErrorMessage: `AI 분석 미지원 형식: ${formatValidation.detectedFormat}`,
                             safetyScore: 0,
-                        };
+                            secondPassStatus: 'NEEDED',
+                            workflowState: 'manual_review_required',
+                            riskDecision: 'SUPPLEMENTARY_REVIEW',
+                            approvalState: 'PENDING',
+                        });
                         onUpdateRecord(errorRecord);
                         failCount++;
                         preflightFailCount++;
@@ -2230,7 +2528,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                     if (apiResult) {
                         const previousErrorLabel = isFailedRecord(record) ? getOcrErrorTypeKoreanLabel(getOcrErrorTypeFromRecord(record)) : '기타 오류';
-                        const updatedRecord: WorkerRecord = {
+                        const updatedRecord: WorkerRecord = withHarnessState(record, {
                             ...apiResult,
                             id: record.id, 
                             originalImage: record.originalImage || retryImageSource,
@@ -2249,10 +2547,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 },
                             ],
                             secondPassStatus: isFailedRecord(apiResult) ? 'NEEDED' : 'DONE',
-                        };
-                        onUpdateRecord(updatedRecord);
+                            workflowState: isFailedRecord(apiResult) ? 'manual_review_required' : 'completed',
+                            riskDecision: isFailedRecord(apiResult) ? 'IMMEDIATE_ATTENTION' : 'SAFE_TO_PROCEED',
+                            approvalState: isFailedRecord(apiResult) ? 'PENDING' : 'APPROVED',
+                        });
+                        const harnessSyncedRecord = await syncHarnessReanalyzeResult(updatedRecord, record);
+                        onUpdateRecord(harnessSyncedRecord);
 
-                        if (isFailedRecord(updatedRecord)) {
+                        if (isFailedRecord(harnessSyncedRecord)) {
                             failCount++;
                             processingFailCount++;
                             const next = incrementApiCallCount('fail');
@@ -2287,14 +2589,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                     } else {
                         // Final Failure after retries
-                        const errorRecord: WorkerRecord = {
+                        const errorRecord: WorkerRecord = withHarnessState(record, {
                             ...record,
                             aiInsights: `⛔ 반복적인 API 오류로 ${BRAND_STATUS_LABELS.attention} 안내가 필요합니다. 다시 확인해 주세요.`,
                             ocrErrorType: 'UNKNOWN',
                             ocrErrorMessage: '반복적인 API 오류',
                             secondPassStatus: 'NEEDED',
-                        };
-                        onUpdateRecord(errorRecord);
+                            workflowState: 'awaiting_manager_approval',
+                            riskDecision: 'IMMEDIATE_ATTENTION',
+                            approvalState: 'PENDING',
+                        });
+                        onUpdateRecord(await syncHarnessReanalyzeResult(errorRecord, record));
                         failCount++;
                         processingFailCount++;
                         setRetryDiagnostics({
@@ -2316,13 +2621,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     const errMsg = extractMessage(err);
                     if (errMsg === "STOPPED") { stopped = true; break; }
                     console.error("Batch Error:", err);
-                    const errorRecord: WorkerRecord = {
+                    const errorRecord: WorkerRecord = withHarnessState(record, {
                         ...record,
                         aiInsights: `⛔ 시스템 오류: ${errMsg}`,
                         ocrErrorType: classifyLegacyOcrErrorType(errMsg),
                         ocrErrorMessage: errMsg,
-                    };
-                    onUpdateRecord(errorRecord);
+                        secondPassStatus: 'NEEDED',
+                        workflowState: 'manual_review_required',
+                        riskDecision: 'IMMEDIATE_ATTENTION',
+                        approvalState: 'PENDING',
+                    });
+                    onUpdateRecord(await syncHarnessReanalyzeResult(errorRecord, record));
                     failCount++;
                     processingFailCount++;
                     setRetryDiagnostics({
@@ -2420,7 +2729,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         if (stopRef.current) { stopped = true; break; }
 
                         if (updatedAnalysis) {
-                            const mergedBase: WorkerRecord = {
+                            const mergedBase: WorkerRecord = withHarnessState(record, {
                                 ...record,
                                 ...updatedAnalysis,
                                 auditTrail: [
@@ -2433,7 +2742,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     }
                                 ],
                                 secondPassStatus: isFailedRecord({ ...record, ...updatedAnalysis }) ? 'NEEDED' : 'DONE',
-                            };
+                                workflowState: isFailedRecord({ ...record, ...updatedAnalysis }) ? 'awaiting_manager_approval' : 'completed',
+                                riskDecision: isFailedRecord({ ...record, ...updatedAnalysis }) ? 'SUPPLEMENTARY_REVIEW' : 'SAFE_TO_PROCEED',
+                                approvalState: isFailedRecord({ ...record, ...updatedAnalysis }) ? 'PENDING' : 'APPROVED',
+                            });
                             const mergedRecord: WorkerRecord = isFailedRecord(mergedBase)
                                 ? mergedBase
                                 : {
@@ -2444,7 +2756,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             onUpdateRecord(mergedRecord);
                             successCount++;
                         } else {
-                            onUpdateRecord({ ...record, secondPassStatus: 'NEEDED' });
+                            onUpdateRecord(withHarnessState(record, {
+                                secondPassStatus: 'NEEDED',
+                                workflowState: 'awaiting_manager_approval',
+                                riskDecision: 'SUPPLEMENTARY_REVIEW',
+                                approvalState: 'PENDING',
+                            }));
                             failCount++;
                         }
                         shouldExitRetry = true; // Successfully completed (success or intentional null)
@@ -2563,13 +2880,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             !insightsRaw ||
             /오류|실패|429|RESOURCE_EXHAUSTED|할당량|재시도 필요|이미지 데이터|소실/i.test(insightsRaw);
 
-        return {
+        return withHarnessState(record, {
             ...record,
             safetyScore: normalizedScore,
             safetyLevel: getSafetyLevelFromScore(normalizedScore),
             aiInsights: shouldReplaceInsights ? fallbackInsights : insightsRaw,
             ocrErrorType: undefined,
             ocrErrorMessage: undefined,
+            harnessPersistenceWarning: undefined,
+            secondPassStatus: 'DONE',
+            workflowState: 'completed',
+            riskDecision: 'SAFE_TO_PROCEED',
+            approvalState: 'APPROVED',
             auditTrail: [
                 ...(record.auditTrail || []),
                 {
@@ -2579,7 +2901,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     note: `관리자 수동 정상분류 처리 (${getOcrErrorTypeKoreanLabel(getOcrErrorTypeFromRecord(record))})`,
                 },
             ],
-        };
+        });
     };
 
     const handleAdminNormalizeFailedBatch = () => {
@@ -2679,7 +3001,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         if (stopRef.current) { stopped = true; break; }
 
                         if (res && res.length > 0) {
-                            results.push(res[0]);
+                            const syncedRecord = await syncHarnessAnalyzeResult(res[0], files[i].name);
+                            results.push(syncedRecord);
                             analyzed = true; // 성공 시 루프 종료
                         } else {
                             throw new Error("Empty result from AI");
@@ -3253,6 +3576,34 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                     <InterpretationCardGrid items={failedQuickDecisionCards} className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3" />
 
+                    <StatusEvidenceActionPanel
+                        className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3"
+                        cardClassName="rounded-2xl border px-4 py-4"
+                        items={[
+                            {
+                                key: 'failed-harness-status',
+                                eyebrow: '하네스 상태',
+                                title: `${failedHarnessSummary.pendingApprovalCount}건이 관리자 판단 또는 승인 대기입니다`,
+                                description: `실패 건 중 ${failedHarnessSummary.manualReviewCount}건은 수동 검토 흐름으로 묶여 있으며, ${failedHarnessSummary.immediateAttentionCount}건은 즉시 확인 우선 대상입니다. 저장 연결 ${failedHarnessSummary.connectedCount}건 · 폴백 ${failedHarnessSummary.fallbackCount}건 · 대기 ${failedHarnessSummary.pendingPersistenceCount}건입니다.`,
+                                tone: 'border-slate-200 bg-white',
+                            },
+                            {
+                                key: 'failed-harness-evidence',
+                                eyebrow: '판단 근거',
+                                title: 'OCR 실패와 저품질 입력은 자동 확정이 아니라 상태 잠금 대상으로 읽어야 합니다',
+                                description: '하네스 상태는 단순 오류 표식이 아니라, 어떤 건을 다시 읽고 어떤 건을 관리자 승인 대기로 넘길지 운영 순서를 알려주는 통제 신호입니다.',
+                                tone: 'border-amber-100 bg-amber-50',
+                            },
+                            {
+                                key: 'failed-harness-action',
+                                eyebrow: '다음 행동',
+                                title: '자동 재분석 → 수동 정상분류 → 승인/반려 기록 순으로 이어서 정리하세요',
+                                description: '남은 실패 건을 줄인 뒤에도 보완이 필요한 레코드는 승인 사유와 감사 이력을 남겨야 현장 책임 흐름이 끊기지 않습니다.',
+                                tone: 'border-emerald-100 bg-emerald-50',
+                            },
+                        ]}
+                    />
+
                     {failedTypeGroups.length > 0 && !isAnalyzing && (
                         <div className="mt-4 flex flex-wrap gap-2">
                             {failedTypeGroups.map((group) => (
@@ -3373,6 +3724,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 : hasImage
                                     ? '원문 다시 읽기를 먼저 시도하고, 남으면 상세 검증으로 넘기세요.'
                                     : '이미지 근거가 부족해 관리자 판단 또는 재촬영 안내가 우선입니다.';
+                            const workflowState = inferHarnessWorkflowState(record);
+                            const approvalState = inferHarnessApprovalState(record, workflowState);
+                            const riskDecision = inferHarnessRiskDecision(record);
+                            const persistenceState = getHarnessPersistenceState(record);
 
                             return (
                                 <OperationalPreviewCard
@@ -3380,7 +3735,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     variant="roseSoft"
                                     title={record.name || '이름 없음'}
                                     subtitle={`${record.jobField || '공종 미지정'} · 팀장 ${record.teamLeader || '미지정'}`}
-                                    badge={<StatusBadge variant="rose" className="shrink-0 px-2 py-1">{getOcrErrorTypeKoreanLabel(errorType)}</StatusBadge>}
+                                    badge={(
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                            <StatusBadge variant="rose" className="shrink-0 px-2 py-1">{getOcrErrorTypeKoreanLabel(errorType)}</StatusBadge>
+                                            <StatusBadge variant={getHarnessWorkflowBadgeVariant(workflowState)} className="shrink-0 px-2 py-1">{getHarnessWorkflowStateLabel(workflowState)}</StatusBadge>
+                                            <StatusBadge variant={getHarnessRiskBadgeVariant(riskDecision)} className="shrink-0 px-2 py-1">{getHarnessRiskDecisionLabel(riskDecision)}</StatusBadge>
+                                            <StatusBadge variant={getHarnessApprovalBadgeVariant(approvalState)} className="shrink-0 px-2 py-1">{getHarnessApprovalStateLabel(approvalState)}</StatusBadge>
+                                            <StatusBadge variant={getHarnessPersistenceBadgeVariant(persistenceState)} className="shrink-0 px-2 py-1">{getHarnessPersistenceLabel(persistenceState)}</StatusBadge>
+                                        </div>
+                                    )}
                                     body={(
                                         <StatusEvidenceActionPanel
                                             className="grid grid-cols-1 gap-2"
@@ -3402,7 +3765,21 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                     title: preflightReason ? `사전검증: ${preflightReason}` : '사전검증 경고는 없지만 원문/배치/필기 품질을 다시 확인할 필요가 있습니다.',
                                                     tone: 'border-amber-100 bg-amber-50',
                                                     eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-600',
-                                                    description: undefined,
+                                                    description: `${getHarnessWorkflowStateLabel(workflowState)} · ${getHarnessApprovalStateLabel(approvalState)} · ${getHarnessPersistenceLabel(persistenceState)}`,
+                                                    content: (
+                                                        <div className="mt-2 space-y-2">
+                                                            <div className="flex flex-wrap gap-1.5">
+                                                                <StatusBadge variant={getHarnessWorkflowBadgeVariant(workflowState)}>{getHarnessWorkflowStateLabel(workflowState)}</StatusBadge>
+                                                                <StatusBadge variant={getHarnessApprovalBadgeVariant(approvalState)}>{getHarnessApprovalStateLabel(approvalState)}</StatusBadge>
+                                                                <StatusBadge variant={getHarnessPersistenceBadgeVariant(persistenceState)}>{getHarnessPersistenceLabel(persistenceState)}</StatusBadge>
+                                                            </div>
+                                                            {record.harnessPersistenceWarning && (
+                                                                <p className="text-[11px] font-semibold leading-snug text-amber-700">
+                                                                    저장 경고: {record.harnessPersistenceWarning}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    ),
                                                 },
                                                 {
                                                     key: `${record.id}-action`,
@@ -3410,7 +3787,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                     title: actionGuide,
                                                     tone: 'border-emerald-100 bg-emerald-50',
                                                     eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600',
-                                                    description: undefined,
+                                                    description: `${getHarnessRiskDecisionLabel(riskDecision)} 기준으로 재분석 또는 관리자 정상분류를 선택하세요.`,
                                                 },
                                             ]}
                                         />

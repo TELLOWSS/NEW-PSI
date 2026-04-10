@@ -1,6 +1,14 @@
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import type { WorkerRecord, AppSettings, ScoreAdjustmentReasonCode, ScoreAdjustmentEntry } from '../../types';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import type {
+    WorkerRecord,
+    AppSettings,
+    ScoreAdjustmentReasonCode,
+    ScoreAdjustmentEntry,
+    HarnessApprovalState,
+    HarnessRiskDecision,
+    HarnessWorkflowState,
+} from '../../types';
 import { BRAND_STATUS_LABELS } from '../../utils/brandLabels';
 import { ActionButton } from '../shared/ActionButton';
 import { CircularProgress } from '../shared/CircularProgress';
@@ -13,6 +21,7 @@ import { StatusBadge } from '../shared/StatusBadge';
 import { SummaryMetricGrid } from '../shared/SummaryMetricGrid';
 import { WhyThisResultPanel } from '../shared/WhyThisResultPanel';
 import { updateAnalysisBasedOnEdits } from '../../services/geminiService';
+import { approveHarnessRecord, fetchHarnessWorkflowStatus } from '../../services/harnessService';
 import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
 import { deriveCompetencyProfile, enforceSafetyLevel, getApprovalBlockers } from '../../utils/evidenceUtils';
 import { getSafetyLevelThresholds, getSafetyLevelFromScore } from '../../utils/safetyLevelUtils';
@@ -118,6 +127,109 @@ const buildReassessmentAuditNote = (before: WorkerRecord, updated: Partial<Worke
     return `2차 재가공 실행 (${parts.join(' | ')})`;
 };
 
+const inferHarnessWorkflowState = (record: Partial<WorkerRecord>): HarnessWorkflowState => {
+    if (record.secondPassStatus === 'IN_PROGRESS') return 'second_pass_analyzing';
+    if (record.reviewStatus === 'PENDING' || record.approvalStatus === 'PENDING') return 'awaiting_manager_approval';
+    if (record.ocrErrorType || record.secondPassStatus === 'NEEDED') return 'manual_review_required';
+    if (record.secondPassStatus === 'DONE' || record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED') return 'completed';
+    return 'uploaded';
+};
+
+const inferHarnessRiskDecision = (record: Partial<WorkerRecord>): HarnessRiskDecision => {
+    if (record.riskDecision) return record.riskDecision;
+    if (record.ocrErrorType) return 'IMMEDIATE_ATTENTION';
+    if (record.secondPassStatus === 'NEEDED') return 'SUPPLEMENTARY_REVIEW';
+    return 'SAFE_TO_PROCEED';
+};
+
+const inferHarnessApprovalState = (record: Partial<WorkerRecord>, workflowState: HarnessWorkflowState): HarnessApprovalState => {
+    if (record.reviewStatus === 'REJECTED') return 'REJECTED';
+    if (record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED') return 'APPROVED';
+    if (workflowState === 'manual_review_required' || workflowState === 'awaiting_manager_approval' || workflowState === 'second_pass_analyzing') return 'PENDING';
+    return 'NOT_REQUIRED';
+};
+
+const withHarnessState = (record: WorkerRecord, patch: Partial<WorkerRecord>): WorkerRecord => {
+    const next = { ...record, ...patch };
+    const workflowState = patch.workflowState ?? inferHarnessWorkflowState(next);
+    const riskDecision = patch.riskDecision ?? inferHarnessRiskDecision(next);
+    const approvalState = patch.approvalState ?? inferHarnessApprovalState(next, workflowState);
+
+    return {
+        ...next,
+        workflowState,
+        riskDecision,
+        approvalState,
+    };
+};
+
+const getHarnessWorkflowStateLabel = (state: HarnessWorkflowState): string => {
+    switch (state) {
+        case 'uploaded': return '업로드됨';
+        case 'ocr_validating': return 'OCR 검증 중';
+        case 'manual_review_required': return '수동 검토 필요';
+        case 'context_ready': return '컨텍스트 준비';
+        case 'first_pass_analyzing': return '1차 분석 중';
+        case 'evaluator_review': return '검증 중';
+        case 'awaiting_manager_approval': return '관리자 승인 대기';
+        case 'manager_revised': return '관리자 수정 완료';
+        case 'second_pass_analyzing': return '2차 재분석 중';
+        case 'completed': return '완료';
+        default: return '확인 필요';
+    }
+};
+
+const getHarnessRiskDecisionLabel = (decision: HarnessRiskDecision): string => {
+    switch (decision) {
+        case 'SAFE_TO_PROCEED': return '진행 가능';
+        case 'SUPPLEMENTARY_REVIEW': return '보완 검토';
+        case 'IMMEDIATE_ATTENTION': return '즉시 확인 필요';
+        case 'CRITICAL_STOP': return '작업 중지 검토';
+        default: return '확인 필요';
+    }
+};
+
+const getHarnessApprovalStateLabel = (state: HarnessApprovalState): string => {
+    switch (state) {
+        case 'NOT_REQUIRED': return '승인 불필요';
+        case 'REQUIRED': return '승인 필요';
+        case 'PENDING': return '승인 대기';
+        case 'APPROVED': return '승인 완료';
+        case 'REJECTED': return '반려';
+        default: return '확인 필요';
+    }
+};
+
+const getHarnessWorkflowBadgeVariant = (state: HarnessWorkflowState): React.ComponentProps<typeof StatusBadge>['variant'] => {
+    switch (state) {
+        case 'completed': return 'emeraldSoft';
+        case 'awaiting_manager_approval':
+        case 'second_pass_analyzing': return 'violetSoft';
+        case 'manual_review_required': return 'roseSoft';
+        default: return 'slateSoft';
+    }
+};
+
+const getHarnessRiskBadgeVariant = (decision: HarnessRiskDecision): React.ComponentProps<typeof StatusBadge>['variant'] => {
+    switch (decision) {
+        case 'SAFE_TO_PROCEED': return 'emeraldSoft';
+        case 'SUPPLEMENTARY_REVIEW': return 'amberSoft';
+        case 'IMMEDIATE_ATTENTION':
+        case 'CRITICAL_STOP': return 'roseSoft';
+        default: return 'slateSoft';
+    }
+};
+
+const getHarnessApprovalBadgeVariant = (state: HarnessApprovalState): React.ComponentProps<typeof StatusBadge>['variant'] => {
+    switch (state) {
+        case 'APPROVED': return 'emeraldSoft';
+        case 'REJECTED': return 'roseSoft';
+        case 'PENDING':
+        case 'REQUIRED': return 'amberSoft';
+        default: return 'slateSoft';
+    }
+};
+
 const SCORE_REASON_OPTIONS: Array<{ code: ScoreAdjustmentReasonCode; label: string; impact: string }> = [
     { code: 'BEHAVIOR_NON_COMPLIANCE', label: '현장 지적(행동 위반)', impact: '개선이행도·숙련도 중심 감점' },
     { code: 'UNDERSTANDING_GAP', label: '수기 위험성평가 이해도 부족', impact: '위험성평가 이해도·업무이해도 중심 감점' },
@@ -158,6 +270,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const [scoreEvidenceSummary, setScoreEvidenceSummary] = useState('');
     const [isPhotoAutoSaving, setIsPhotoAutoSaving] = useState(false);
     const [photoQueueNotice, setPhotoQueueNotice] = useState<string | null>(null);
+    const [isHarnessStatusLoading, setIsHarnessStatusLoading] = useState(false);
+    const [harnessStatusWarning, setHarnessStatusWarning] = useState<string | null>(null);
+    const [harnessTimeline, setHarnessTimeline] = useState<Array<{ stage: string; timestamp: string; note: string; actor?: string }>>([]);
+    const [isHarnessPersisted, setIsHarnessPersisted] = useState<boolean | null>(null);
     const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     const docInputRef = useRef<HTMLInputElement>(null); // For Document Image
@@ -204,6 +320,46 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             setStrictRoleGate(false);
         }
     }, []);
+
+    const refreshHarnessStatus = useCallback(async (workflowRunId?: string) => {
+        const lookupId = String(workflowRunId || '').trim();
+        if (!lookupId) {
+            setHarnessTimeline([]);
+            setHarnessStatusWarning(null);
+            setIsHarnessPersisted(null);
+            return;
+        }
+
+        setIsHarnessStatusLoading(true);
+        try {
+            const response = await fetchHarnessWorkflowStatus(lookupId);
+            setHarnessTimeline((response.timeline || []).map((entry) => ({
+                stage: entry.stage,
+                timestamp: entry.timestamp,
+                note: entry.note,
+                actor: entry.actor,
+            })));
+            setHarnessStatusWarning(response.persistence?.warning || null);
+            setIsHarnessPersisted(typeof response.persistence?.persisted === 'boolean' ? response.persistence.persisted : null);
+            setRecord((prev) => getConsistentRecord(withHarnessState(prev, {
+                workflowRunId: response.workflowRunId,
+                workflowState: response.workflowState,
+                riskDecision: response.riskDecision,
+                approvalState: response.approvalState,
+                secondPassStatus: response.secondPassStatus,
+                harnessPersistenceWarning: response.persistence?.warning || undefined,
+            })));
+        } catch (error) {
+            setHarnessStatusWarning(error instanceof Error ? error.message : '하네스 상태 조회에 추가 확인이 필요합니다.');
+            setIsHarnessPersisted(false);
+        } finally {
+            setIsHarnessStatusLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        void refreshHarnessStatus(record.workflowRunId);
+    }, [record.workflowRunId, refreshHarnessStatus]);
 
     const handleChange = <K extends keyof WorkerRecord>(field: K, value: WorkerRecord[K]) => {
         setRecord(prev => getConsistentRecord({ ...prev, [field]: value } as WorkerRecord));
@@ -372,6 +528,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 reviewReason: trimmedComment || record.reviewReason,
                 reviewStatus: 'PENDING',
                 approvalStatus: 'PENDING',
+                approvalState: 'PENDING',
+                workflowState: 'awaiting_manager_approval',
+                secondPassStatus: 'NEEDED',
                 approvedBy: undefined,
                 approvedAt: undefined,
                 auditTrail: [
@@ -409,7 +568,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             }
             : nextRecordBase;
 
-        await persistRecordSilently(nextRecord);
+        await persistRecordSilently(withHarnessState(record, nextRecord));
         setScoreReasonCode('');
         setScoreReasonDetail('');
         setScoreEvidenceSummary('');
@@ -534,10 +693,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
     const handleApprove = async (status: 'approved' | 'rejected') => {
         setPendingApprovalAction(status);
+        const effectiveApprover = strictRoleGate ? 'safety-manager' : approverRole;
 
         if (status === 'approved') {
-            const effectiveRole = strictRoleGate ? 'safety-manager' : approverRole;
-            const blockers = getApprovalBlockers(record, effectiveRole);
+            const blockers = getApprovalBlockers(record, effectiveApprover);
             if (blockers.length > 0) {
                 const nextRecord: WorkerRecord = {
                     ...record,
@@ -546,14 +705,15 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                         {
                             stage: 'validation',
                             timestamp: new Date().toISOString(),
-                            actor: 'safety-manager',
+                            actor: effectiveApprover,
                             note: `승인 차단: ${blockers.join(' | ')}`,
                         }
                     ]
                 };
                 setRecord(nextRecord);
                 await onUpdateRecord(nextRecord);
-                alert(`승인을 진행할 수 없습니다.\n(검증 기준: ${effectiveRole === 'safety-manager' ? '안전관리자(엄격)' : '현장소장(기본)'})\n\n${blockers.map((item, idx) => `${idx + 1}. ${item}`).join('\n')}`);
+                setPendingApprovalAction(null);
+                alert(`승인을 진행할 수 없습니다.\n(검증 기준: ${effectiveApprover === 'safety-manager' ? '안전관리자(엄격)' : '현장소장(기본)'})\n\n${blockers.map((item, idx) => `${idx + 1}. ${item}`).join('\n')}`);
                 return;
             }
         }
@@ -561,6 +721,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         const trimmedComment = approvalComment.trim();
         const commentRequired = status === 'rejected' || hasCriticalReviewEdits;
         if (commentRequired && trimmedComment.length === 0) {
+            setPendingApprovalAction(null);
             alert(status === 'rejected'
                 ? '반려 사유(Comment)는 필수입니다.'
                 : '수정 사항이 있으므로 승인 사유(Comment)는 필수입니다.');
@@ -586,20 +747,42 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             return;
         }
 
+        let harnessDecision: Awaited<ReturnType<typeof approveHarnessRecord>>;
+        try {
+            harnessDecision = await approveHarnessRecord({
+                workflowRunId: record.workflowRunId || record.id,
+                recordId: record.id,
+                approver: effectiveApprover,
+                action: status === 'approved' ? 'approve' : 'reject',
+                comment: trimmedComment || undefined,
+                currentDecision: inferHarnessRiskDecision(record),
+            });
+        } catch (error) {
+            setPendingApprovalAction(null);
+            alert(error instanceof Error ? error.message : '하네스 승인 연동에 실패했습니다. 잠시 후 다시 시도해주세요.');
+            return;
+        }
+
         const nextRecordBase: WorkerRecord = {
             ...record,
+            workflowRunId: harnessDecision.workflowRunId,
+            workflowState: harnessDecision.workflowState,
+            riskDecision: harnessDecision.riskDecision,
+            approvalState: harnessDecision.approvalState,
+            secondPassStatus: harnessDecision.secondPassStatus,
+            harnessPersistenceWarning: harnessDecision.persistence?.warning || undefined,
             reviewStatus: status === 'approved' ? 'APPROVED' : 'REJECTED',
             adminComment: trimmedComment || undefined,
             reviewReason: trimmedComment || undefined,
             approvalStatus: status === 'approved' ? 'APPROVED' : 'PENDING',
-            approvedBy: status === 'approved' ? 'safety-manager' : record.approvedBy,
+            approvedBy: status === 'approved' ? effectiveApprover : record.approvedBy,
             approvedAt: status === 'approved' ? new Date().toISOString() : record.approvedAt,
             approvalReason: trimmedComment || record.approvalReason,
             approvalHistory: [
                 ...(record.approvalHistory || []),
                 {
                     timestamp: new Date().toISOString(),
-                    actor: 'safety-manager',
+                    actor: effectiveApprover,
                     status,
                     comment: trimmedComment || undefined,
                 }
@@ -609,15 +792,21 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 {
                     stage: 'approval',
                     timestamp: new Date().toISOString(),
-                    actor: 'safety-manager',
+                    actor: effectiveApprover,
                     note: status === 'approved'
                         ? `최종 승인${trimmedComment ? ` (${trimmedComment})` : ''}`
                         : `반려${trimmedComment ? ` (${trimmedComment})` : ''}`,
+                },
+                {
+                    stage: 'approval',
+                    timestamp: new Date().toISOString(),
+                    actor: effectiveApprover,
+                    note: `Harness 승인 게이트 동기화: ${harnessDecision.workflowState} · ${harnessDecision.approvalState} · ${harnessDecision.riskDecision}`,
                 }
             ]
         };
 
-        const nextRecord: WorkerRecord = getConsistentRecord(scoreAdjustmentEntry
+        const nextRecord: WorkerRecord = getConsistentRecord(withHarnessState(record, scoreAdjustmentEntry
             ? {
                 ...nextRecordBase,
                 scoreAdjustmentHistory: [
@@ -634,11 +823,12 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     }
                 ],
             }
-            : nextRecordBase);
+            : nextRecordBase));
 
         if (status === 'rejected') {
             setRecord(nextRecord);
             await onUpdateRecord(nextRecord);
+            void refreshHarnessStatus(nextRecord.workflowRunId);
             setScoreReasonCode('');
             setScoreReasonDetail('');
             setScoreEvidenceSummary('');
@@ -653,6 +843,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         const consistentFinalRecord = getConsistentRecord(finalApprovedRecord);
         setRecord(consistentFinalRecord);
         await onUpdateRecord(consistentFinalRecord);
+        void refreshHarnessStatus(consistentFinalRecord.workflowRunId);
         setScoreReasonCode('');
         setScoreReasonDetail('');
         setScoreEvidenceSummary('');
@@ -894,12 +1085,17 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         ];
     }, [approvalComment, hasChanges, hasCriticalReviewEdits, initialRecord, isFinalizedRecord, latestScoreAdjustment, pendingApprovalAction, record, showReviewCommentField]);
     const reviewMetaChips = useMemo(() => {
+        const workflowState = record.workflowState || inferHarnessWorkflowState(record);
+        const riskDecision = record.riskDecision || inferHarnessRiskDecision(record);
+
         return [
             { key: 'review', label: '검토 상태', value: record.reviewStatus || 'PENDING' },
-            { key: 'approval', label: '승인 상태', value: record.approvalStatus || 'PENDING' },
+            { key: 'approval', label: '승인 상태', value: getHarnessApprovalStateLabel(record.approvalState || inferHarnessApprovalState(record, workflowState)) },
+            { key: 'workflow', label: '하네스 상태', value: getHarnessWorkflowStateLabel(workflowState) },
+            { key: 'risk', label: '위험 결정', value: getHarnessRiskDecisionLabel(riskDecision) },
             { key: 'history', label: '최근 승인', value: latestApprovalEntry ? `${latestApprovalEntry.status} · ${new Date(latestApprovalEntry.timestamp).toLocaleDateString('ko-KR')}` : '이력 없음' },
         ];
-    }, [latestApprovalEntry, record.approvalStatus, record.reviewStatus]);
+    }, [latestApprovalEntry, record]);
     const answerComparisonSummary = useMemo(() => {
         const total = record.handwrittenAnswers.length;
         const translated = record.handwrittenAnswers.filter((answer) => answer.koreanTranslation.trim().length > 0).length;
@@ -1051,18 +1247,32 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         <p className="mt-2 text-sm font-semibold text-slate-600">감점이나 승인보다 먼저, 무엇이 읽혔고 어떻게 해석됐으며 현장에서 어떤 보완이 필요한지 빠르게 파악하도록 정리했습니다.</p>
                                     </div>
                                     <SummaryMetricGrid
-                                        className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+                                        className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5"
                                         cardClassName="rounded-2xl border px-3 py-2"
                                         items={reviewMetaChips.map((chip) => ({
                                             key: chip.key,
                                             label: chip.label,
                                             value: chip.value,
-                                            tone: chip.key === 'history' ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50',
+                                            tone: chip.key === 'history'
+                                                ? 'border-indigo-200 bg-indigo-50'
+                                                : chip.key === 'workflow'
+                                                    ? 'border-violet-200 bg-violet-50'
+                                                    : chip.key === 'risk'
+                                                        ? 'border-amber-200 bg-amber-50'
+                                                        : 'border-slate-200 bg-slate-50',
                                             labelClassName: chip.key === 'history'
                                                 ? 'text-[10px] font-black uppercase tracking-[0.18em] text-indigo-400'
+                                                : chip.key === 'workflow'
+                                                    ? 'text-[10px] font-black uppercase tracking-[0.18em] text-violet-400'
+                                                    : chip.key === 'risk'
+                                                        ? 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-500'
                                                 : 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
                                             valueClassName: chip.key === 'history'
                                                 ? 'mt-1 text-xs font-black text-indigo-700'
+                                                : chip.key === 'workflow'
+                                                    ? 'mt-1 text-xs font-black text-violet-700'
+                                                    : chip.key === 'risk'
+                                                        ? 'mt-1 text-xs font-black text-amber-700'
                                                 : 'mt-1 text-xs font-black text-slate-700',
                                         }))}
                                     />
@@ -1572,6 +1782,43 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                     titleClassName="text-xs font-bold text-indigo-600"
                                                 />
                                             )}
+                                            <div className="mb-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                    <div>
+                                                        <p className="text-[11px] font-black text-slate-500">하네스 승인 게이트</p>
+                                                        <div className="mt-2 flex flex-wrap gap-1.5">
+                                                            <StatusBadge variant={getHarnessWorkflowBadgeVariant(record.workflowState || inferHarnessWorkflowState(record))}>{getHarnessWorkflowStateLabel(record.workflowState || inferHarnessWorkflowState(record))}</StatusBadge>
+                                                            <StatusBadge variant={getHarnessRiskBadgeVariant(record.riskDecision || inferHarnessRiskDecision(record))}>{getHarnessRiskDecisionLabel(record.riskDecision || inferHarnessRiskDecision(record))}</StatusBadge>
+                                                            <StatusBadge variant={getHarnessApprovalBadgeVariant(record.approvalState || inferHarnessApprovalState(record, record.workflowState || inferHarnessWorkflowState(record)))}>{getHarnessApprovalStateLabel(record.approvalState || inferHarnessApprovalState(record, record.workflowState || inferHarnessWorkflowState(record)))}</StatusBadge>
+                                                            {record.workflowRunId ? <StatusBadge variant="slateSoft">런 ID 연결됨</StatusBadge> : <StatusBadge variant="amberSoft">런 ID 대기</StatusBadge>}
+                                                            {isHarnessPersisted === true && <StatusBadge variant="emeraldSoft">영속 저장 확인</StatusBadge>}
+                                                            {isHarnessPersisted === false && <StatusBadge variant="amberSoft">영속 저장 폴백</StatusBadge>}
+                                                        </div>
+                                                        {record.workflowRunId && (
+                                                            <p className="mt-2 text-[11px] font-semibold text-slate-500">workflowRunId: {record.workflowRunId}</p>
+                                                        )}
+                                                    </div>
+                                                    {record.workflowRunId && (
+                                                        <ActionButton
+                                                            variant="slateSoft"
+                                                            onClick={() => { void refreshHarnessStatus(record.workflowRunId); }}
+                                                            disabled={isHarnessStatusLoading}
+                                                            className="w-full sm:w-auto border-0 px-4 py-2 text-sm"
+                                                        >
+                                                            {isHarnessStatusLoading ? '하네스 상태 확인 중…' : '하네스 상태 새로고침'}
+                                                        </ActionButton>
+                                                    )}
+                                                </div>
+                                                {harnessStatusWarning && (
+                                                    <NoticeCallout
+                                                        variant="amber"
+                                                        title={harnessStatusWarning}
+                                                        className="mt-3 w-full rounded-xl border px-3 py-2"
+                                                        bodyClassName="block"
+                                                        titleClassName="text-[11px] font-semibold leading-relaxed text-amber-700"
+                                                    />
+                                                )}
+                                            </div>
                                             {showReviewCommentField ? (
                                                 <>
                                                     <textarea
@@ -1638,7 +1885,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             <div className="mt-3 text-xs text-slate-500 font-bold">누적 승인 이력: {(record.approvalHistory || []).length}건</div>
                                         </SectionPanelCard>
 
-                                        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                                        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
                                             <WhyThisResultPanel
                                                 title="최근 감사 이력"
                                                 badge={<StatusBadge variant="slateSoft" className="px-3 py-1.5 text-[11px] font-black">최근 5건</StatusBadge>}
@@ -1675,6 +1922,35 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 emptyState={reassessmentEmpty}
                                                 className="rounded-3xl border border-violet-200 bg-white p-6 shadow-sm min-h-0"
                                                 titleClassName="text-sm font-black text-violet-700"
+                                                listClassName="mt-3 space-y-2 max-h-44 overflow-y-auto custom-scrollbar"
+                                                emptyStateClassName="text-xs font-bold text-slate-400"
+                                            />
+
+                                            <WhyThisResultPanel
+                                                title="하네스 상태 타임라인"
+                                                badge={
+                                                    <StatusBadge variant={getHarnessWorkflowBadgeVariant(record.workflowState || inferHarnessWorkflowState(record))} className="px-3 py-1.5 text-[11px] font-black">
+                                                        {getHarnessWorkflowStateLabel(record.workflowState || inferHarnessWorkflowState(record))}
+                                                    </StatusBadge>
+                                                }
+                                                entries={harnessTimeline.map((entry, idx) => ({
+                                                    key: `harness-${entry.stage}-${entry.timestamp}-${idx}`,
+                                                    content: (
+                                                        <div className="text-xs bg-amber-50 border border-amber-200 rounded-lg p-2">
+                                                            <div className="flex items-center justify-between gap-2">
+                                                                <div className="font-black text-amber-800">[{entry.stage}]</div>
+                                                                {entry.actor ? <StatusBadge variant="amberSoft">{entry.actor}</StatusBadge> : null}
+                                                            </div>
+                                                            <div className="text-amber-600">{new Date(entry.timestamp).toLocaleString(timelineLocale, timelineDateTimeOptions)}</div>
+                                                            <div className="mt-1 text-amber-700">{entry.note}</div>
+                                                        </div>
+                                                    ),
+                                                }))}
+                                                emptyState={record.workflowRunId
+                                                    ? (isHarnessStatusLoading ? '하네스 타임라인을 불러오는 중입니다.' : '저장된 하네스 타임라인이 아직 없습니다.')
+                                                    : '워크플로우 런이 아직 연결되지 않았습니다.'}
+                                                className="rounded-3xl border border-amber-200 bg-white p-6 shadow-sm min-h-0"
+                                                titleClassName="text-sm font-black text-amber-700"
                                                 listClassName="mt-3 space-y-2 max-h-44 overflow-y-auto custom-scrollbar"
                                                 emptyStateClassName="text-xs font-bold text-slate-400"
                                             />

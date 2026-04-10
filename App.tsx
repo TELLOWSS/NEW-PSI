@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, Component, Suspense, l
 import { Layout } from './components/Layout';
 import { AdminLockScreen } from './components/AdminLockScreen';
 import { Spinner } from './components/Spinner';
-import type { WorkerRecord, SafetyCheckRecord, Page, ModalState, BriefingData, RiskForecastData } from './types';
+import type { WorkerRecord, SafetyCheckRecord, Page, ModalState, BriefingData, RiskForecastData, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState } from './types';
 import { WorkerHistoryModal } from './components/modals/WorkerHistoryModal';
 import { RecordDetailModal } from './components/modals/RecordDetailModal';
 import { restoreRecordFromUrl } from './utils/qrUtils';
@@ -439,6 +439,49 @@ const toSafetyLevelSafe = (value: unknown): WorkerRecord['safetyLevel'] => {
     return '초급';
 };
 
+const toWorkflowStateSafe = (value: unknown): HarnessWorkflowState | undefined => {
+    switch (value) {
+        case 'uploaded':
+        case 'ocr_validating':
+        case 'manual_review_required':
+        case 'context_ready':
+        case 'first_pass_analyzing':
+        case 'evaluator_review':
+        case 'awaiting_manager_approval':
+        case 'manager_revised':
+        case 'second_pass_analyzing':
+        case 'completed':
+            return value;
+        default:
+            return undefined;
+    }
+};
+
+const toRiskDecisionSafe = (value: unknown): HarnessRiskDecision | undefined => {
+    switch (value) {
+        case 'SAFE_TO_PROCEED':
+        case 'SUPPLEMENTARY_REVIEW':
+        case 'IMMEDIATE_ATTENTION':
+        case 'CRITICAL_STOP':
+            return value;
+        default:
+            return undefined;
+    }
+};
+
+const toApprovalStateSafe = (value: unknown): HarnessApprovalState | undefined => {
+    switch (value) {
+        case 'NOT_REQUIRED':
+        case 'REQUIRED':
+        case 'PENDING':
+        case 'APPROVED':
+        case 'REJECTED':
+            return value;
+        default:
+            return undefined;
+    }
+};
+
 const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
     return records
     .filter((rec): rec is Record<string, unknown> => typeof rec === 'object' && rec !== null)
@@ -506,6 +549,15 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
             approvedBy: toOptionalStringSafe(r.approvedBy),
             approvedAt: toOptionalStringSafe(r.approvedAt),
             approvalReason: toOptionalStringSafe(r.approvalReason),
+            reviewStatus: r.reviewStatus === 'APPROVED' || r.reviewStatus === 'REJECTED' || r.reviewStatus === 'PENDING' ? r.reviewStatus : undefined,
+            adminComment: toOptionalStringSafe(r.adminComment),
+            reviewReason: toOptionalStringSafe(r.reviewReason),
+            secondPassStatus: r.secondPassStatus === 'NEEDED' || r.secondPassStatus === 'IN_PROGRESS' || r.secondPassStatus === 'DONE' ? r.secondPassStatus : undefined,
+            workflowRunId: toOptionalStringSafe(r.workflowRunId),
+            workflowState: toWorkflowStateSafe(r.workflowState),
+            riskDecision: toRiskDecisionSafe(r.riskDecision),
+            approvalState: toApprovalStateSafe(r.approvalState),
+            harnessPersistenceWarning: toOptionalStringSafe(r.harnessPersistenceWarning),
         };
 
         const withIdentity = applyIdentityPolicy(baseRecord);

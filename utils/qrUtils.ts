@@ -1,6 +1,46 @@
 
 import type { WorkerRecord } from '../types';
 
+const WORKFLOW_STATE_TO_CODE: Record<string, string> = {
+    uploaded: 'UP',
+    ocr_validating: 'OV',
+    manual_review_required: 'MR',
+    context_ready: 'CR',
+    first_pass_analyzing: 'FPA',
+    evaluator_review: 'ER',
+    awaiting_manager_approval: 'AMA',
+    manager_revised: 'MGR',
+    second_pass_analyzing: 'SPA',
+    completed: 'CP',
+};
+
+const CODE_TO_WORKFLOW_STATE = Object.fromEntries(
+    Object.entries(WORKFLOW_STATE_TO_CODE).map(([key, value]) => [value, key]),
+) as Record<string, string>;
+
+const RISK_DECISION_TO_CODE: Record<string, string> = {
+    SAFE_TO_PROCEED: 'STP',
+    SUPPLEMENTARY_REVIEW: 'SUR',
+    IMMEDIATE_ATTENTION: 'IMA',
+    CRITICAL_STOP: 'CSP',
+};
+
+const CODE_TO_RISK_DECISION = Object.fromEntries(
+    Object.entries(RISK_DECISION_TO_CODE).map(([key, value]) => [value, key]),
+) as Record<string, string>;
+
+const APPROVAL_STATE_TO_CODE: Record<string, string> = {
+    NOT_REQUIRED: 'NOR',
+    REQUIRED: 'REQ',
+    PENDING: 'PND',
+    APPROVED: 'APV',
+    REJECTED: 'REJ',
+};
+
+const CODE_TO_APPROVAL_STATE = Object.fromEntries(
+    Object.entries(APPROVAL_STATE_TO_CODE).map(([key, value]) => [value, key]),
+) as Record<string, string>;
+
 /**
  * [QR 데이터 생성 유틸리티]
  * 
@@ -17,7 +57,7 @@ const minifyFull = (record: WorkerRecord) => {
     const safeJoin = (arr: unknown[], limit: number): string => safeArr(arr).slice(0, limit).map(safeStr).join('|');
 
     return [
-        5, // Schema Version (Updated)
+        6, // Schema Version (Updated)
         safeStr(record.name).substring(0, 15),
         safeStr(record.jobField).substring(0, 10),
         safeStr(record.date),
@@ -33,6 +73,11 @@ const minifyFull = (record: WorkerRecord) => {
         safeStr(record.qrId || "").substring(0, 20),
         Math.max(0, Math.min(100, Math.round(safeNum(record.integrityScore ?? 0)))),
         Math.max(0, Math.min(100, Math.round(safeNum((record.ocrConfidence ?? 0) * 100)))),
+        safeStr(record.workflowRunId || '').substring(0, 48),
+        WORKFLOW_STATE_TO_CODE[safeStr(record.workflowState || '')] || '',
+        RISK_DECISION_TO_CODE[safeStr(record.riskDecision || '')] || '',
+        APPROVAL_STATE_TO_CODE[safeStr(record.approvalState || '')] || '',
+        safeStr(record.harnessPersistenceWarning || '').substring(0, 80),
         // 이미지는 URL 용량 초과 원인이므로 절대 포함하지 않음
     ];
 };
@@ -84,6 +129,11 @@ export const restoreRecordFromUrl = (safeBase64: string): WorkerRecord | null =>
         const qrId = schemaVersion >= 5 ? String(safeGet(13, "")) : "";
         const integrityScore = schemaVersion >= 5 ? Number(safeGet(14, 0)) : undefined;
         const ocrConfidencePct = schemaVersion >= 5 ? Number(safeGet(15, 0)) : undefined;
+        const workflowRunId = schemaVersion >= 6 ? String(safeGet(16, '')) : '';
+        const workflowState = schemaVersion >= 6 ? CODE_TO_WORKFLOW_STATE[String(safeGet(17, ''))] : undefined;
+        const riskDecision = schemaVersion >= 6 ? CODE_TO_RISK_DECISION[String(safeGet(18, ''))] : undefined;
+        const approvalState = schemaVersion >= 6 ? CODE_TO_APPROVAL_STATE[String(safeGet(19, ''))] : undefined;
+        const harnessPersistenceWarning = schemaVersion >= 6 ? String(safeGet(20, '')) : '';
 
         // 복원 시 이미지는 없으므로 빈 값 처리 (공유 받은 사람은 텍스트만 확인 가능)
         return {
@@ -103,6 +153,11 @@ export const restoreRecordFromUrl = (safeBase64: string): WorkerRecord | null =>
             qrId: qrId || undefined,
             integrityScore: typeof integrityScore === 'number' && !Number.isNaN(integrityScore) ? integrityScore : undefined,
             ocrConfidence: typeof ocrConfidencePct === 'number' && !Number.isNaN(ocrConfidencePct) ? Math.max(0, Math.min(1, ocrConfidencePct / 100)) : undefined,
+            workflowRunId: workflowRunId || undefined,
+            workflowState: workflowState as WorkerRecord['workflowState'],
+            riskDecision: riskDecision as WorkerRecord['riskDecision'],
+            approvalState: approvalState as WorkerRecord['approvalState'],
+            harnessPersistenceWarning: harnessPersistenceWarning || undefined,
             
             // 필수 필드 기본값 채움
             aiInsights_native: "",

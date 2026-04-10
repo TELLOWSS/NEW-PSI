@@ -1,10 +1,13 @@
 
 import React, { Suspense, lazy, useState, useRef, useMemo, useEffect } from 'react';
-import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord } from '../types';
+import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState } from '../types';
 import { extractMessage } from '../utils/errorUtils';
 import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
+import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { ReportGenerationProgress } from '../components/shared/ReportGenerationProgress';
+import { StatusBadge } from '../components/shared/StatusBadge';
+import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { createEvidencePackagePdfBlob } from '../utils/evidenceReportUtils';
 import { ensureFileSaver, ensureHtml2Canvas, ensureJsPdfConstructor, ensureJsZip } from '../utils/externalScripts';
 import { verifyEvidenceManifest, formatEvidenceVerificationSummary } from '../utils/evidenceVerificationUtils';
@@ -26,6 +29,121 @@ const ReportTemplateFallback: React.FC<{ compact?: boolean }> = ({ compact = fal
         <div className="h-32 rounded-xl bg-slate-100" />
     </div>
 );
+
+const inferHarnessWorkflowState = (record: Partial<WorkerRecord>): HarnessWorkflowState => {
+    if (record.workflowState) return record.workflowState;
+    if (record.secondPassStatus === 'IN_PROGRESS') return 'second_pass_analyzing';
+    if (record.reviewStatus === 'PENDING' || record.approvalStatus === 'PENDING') return 'awaiting_manager_approval';
+    if (record.ocrErrorType || record.secondPassStatus === 'NEEDED') return 'manual_review_required';
+    if (record.secondPassStatus === 'DONE' || record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED') return 'completed';
+    return 'uploaded';
+};
+
+const inferHarnessRiskDecision = (record: Partial<WorkerRecord>): HarnessRiskDecision => {
+    if (record.riskDecision) return record.riskDecision;
+    if (record.ocrErrorType) return 'IMMEDIATE_ATTENTION';
+    if (record.secondPassStatus === 'NEEDED') return 'SUPPLEMENTARY_REVIEW';
+    return 'SAFE_TO_PROCEED';
+};
+
+const inferHarnessApprovalState = (record: Partial<WorkerRecord>, workflowState: HarnessWorkflowState): HarnessApprovalState => {
+    if (record.approvalState) return record.approvalState;
+    if (record.reviewStatus === 'REJECTED') return 'REJECTED';
+    if (record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED') return 'APPROVED';
+    if (workflowState === 'manual_review_required' || workflowState === 'awaiting_manager_approval' || workflowState === 'second_pass_analyzing') return 'PENDING';
+    return 'NOT_REQUIRED';
+};
+
+type HarnessPersistenceState = 'connected' | 'fallback' | 'pending';
+
+const getHarnessPersistenceState = (record: Partial<WorkerRecord>): HarnessPersistenceState => {
+    if (String(record.harnessPersistenceWarning || '').trim()) return 'fallback';
+    if (String(record.workflowRunId || '').trim()) return 'connected';
+    return 'pending';
+};
+
+const getHarnessPersistenceLabel = (state: HarnessPersistenceState): string => {
+    switch (state) {
+        case 'connected': return '저장 연결됨';
+        case 'fallback': return '폴백 동작중';
+        default: return '저장 대기';
+    }
+};
+
+const getHarnessWorkflowStateLabel = (state: HarnessWorkflowState): string => {
+    switch (state) {
+        case 'uploaded': return '업로드됨';
+        case 'ocr_validating': return 'OCR 검증 중';
+        case 'manual_review_required': return '수동 검토 필요';
+        case 'context_ready': return '컨텍스트 준비';
+        case 'first_pass_analyzing': return '1차 분석 중';
+        case 'evaluator_review': return '검증 중';
+        case 'awaiting_manager_approval': return '관리자 승인 대기';
+        case 'manager_revised': return '관리자 수정 완료';
+        case 'second_pass_analyzing': return '2차 재분석 중';
+        case 'completed': return '완료';
+        default: return '확인 필요';
+    }
+};
+
+const getHarnessRiskDecisionLabel = (decision: HarnessRiskDecision): string => {
+    switch (decision) {
+        case 'SAFE_TO_PROCEED': return '진행 가능';
+        case 'SUPPLEMENTARY_REVIEW': return '보완 검토';
+        case 'IMMEDIATE_ATTENTION': return '즉시 확인 필요';
+        case 'CRITICAL_STOP': return '작업 중지 검토';
+        default: return '확인 필요';
+    }
+};
+
+const getHarnessApprovalStateLabel = (state: HarnessApprovalState): string => {
+    switch (state) {
+        case 'NOT_REQUIRED': return '승인 불필요';
+        case 'REQUIRED': return '승인 필요';
+        case 'PENDING': return '승인 대기';
+        case 'APPROVED': return '승인 완료';
+        case 'REJECTED': return '반려';
+        default: return '확인 필요';
+    }
+};
+
+const getHarnessWorkflowBadgeVariant = (state: HarnessWorkflowState): React.ComponentProps<typeof StatusBadge>['variant'] => {
+    switch (state) {
+        case 'completed': return 'emeraldSoft';
+        case 'awaiting_manager_approval':
+        case 'second_pass_analyzing': return 'violetSoft';
+        case 'manual_review_required': return 'roseSoft';
+        default: return 'slateSoft';
+    }
+};
+
+const getHarnessRiskBadgeVariant = (decision: HarnessRiskDecision): React.ComponentProps<typeof StatusBadge>['variant'] => {
+    switch (decision) {
+        case 'SAFE_TO_PROCEED': return 'emeraldSoft';
+        case 'SUPPLEMENTARY_REVIEW': return 'amberSoft';
+        case 'IMMEDIATE_ATTENTION':
+        case 'CRITICAL_STOP': return 'roseSoft';
+        default: return 'slateSoft';
+    }
+};
+
+const getHarnessApprovalBadgeVariant = (state: HarnessApprovalState): React.ComponentProps<typeof StatusBadge>['variant'] => {
+    switch (state) {
+        case 'APPROVED': return 'emeraldSoft';
+        case 'REJECTED': return 'roseSoft';
+        case 'PENDING':
+        case 'REQUIRED': return 'amberSoft';
+        default: return 'slateSoft';
+    }
+};
+
+const getHarnessPersistenceBadgeVariant = (state: HarnessPersistenceState): React.ComponentProps<typeof StatusBadge>['variant'] => {
+    switch (state) {
+        case 'connected': return 'emeraldSoft';
+        case 'fallback': return 'amberSoft';
+        default: return 'slateSoft';
+    }
+};
 
 type ReportType = 'worker-report' | 'team-report';
 type GenMode = 'combined-pdf' | 'individual-pdf' | 'individual-img';
@@ -246,6 +364,83 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         );
     }, [currentPreviewRecord, scoredRecords]);
 
+    const harnessSummary = useMemo(() => {
+        return filteredRecords.reduce((summary, record) => {
+            const workflowState = inferHarnessWorkflowState(record);
+            const riskDecision = inferHarnessRiskDecision(record);
+            const approvalState = inferHarnessApprovalState(record, workflowState);
+            const persistenceState = getHarnessPersistenceState(record);
+
+            summary.total += 1;
+            if (record.workflowRunId) summary.runLinked += 1;
+            if (persistenceState === 'connected') summary.connected += 1;
+            if (persistenceState === 'fallback') summary.fallback += 1;
+            if (persistenceState === 'pending') summary.pending += 1;
+            if (workflowState === 'manual_review_required' || workflowState === 'awaiting_manager_approval' || workflowState === 'second_pass_analyzing') {
+                summary.reviewNeeded += 1;
+            }
+            if (approvalState === 'PENDING' || approvalState === 'REQUIRED') summary.approvalPending += 1;
+            if (riskDecision === 'IMMEDIATE_ATTENTION' || riskDecision === 'CRITICAL_STOP') summary.highRisk += 1;
+            return summary;
+        }, {
+            total: 0,
+            runLinked: 0,
+            connected: 0,
+            fallback: 0,
+            pending: 0,
+            reviewNeeded: 0,
+            approvalPending: 0,
+            highRisk: 0,
+        });
+    }, [filteredRecords]);
+
+    const harnessSummaryMetrics = useMemo(() => [
+        {
+            key: 'harness-connected',
+            label: '저장 연결',
+            value: `${harnessSummary.connected}건`,
+            helper: `${harnessSummary.runLinked}건이 workflow run과 연결되어 있습니다.`,
+            tone: 'border-emerald-200 bg-emerald-50/80',
+        },
+        {
+            key: 'harness-fallback',
+            label: '폴백/대기',
+            value: `${harnessSummary.fallback + harnessSummary.pending}건`,
+            helper: `폴백 ${harnessSummary.fallback}건 · 저장 대기 ${harnessSummary.pending}건`,
+            tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'harness-review',
+            label: '재확인 필요',
+            value: `${harnessSummary.reviewNeeded}건`,
+            helper: `승인 대기 ${harnessSummary.approvalPending}건을 포함합니다.`,
+            tone: harnessSummary.reviewNeeded > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'harness-risk',
+            label: '즉시 보호 대상',
+            value: `${harnessSummary.highRisk}건`,
+            helper: '보고서 우선 설명·보완 순서를 정할 때 먼저 읽어야 하는 대상입니다.',
+            tone: harnessSummary.highRisk > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-slate-200 bg-slate-50',
+        },
+    ], [harnessSummary]);
+
+    const currentPreviewHarnessMeta = useMemo(() => {
+        if (!currentPreviewRecord) return null;
+
+        const workflowState = inferHarnessWorkflowState(currentPreviewRecord);
+        const riskDecision = inferHarnessRiskDecision(currentPreviewRecord);
+        const approvalState = inferHarnessApprovalState(currentPreviewRecord, workflowState);
+        const persistenceState = getHarnessPersistenceState(currentPreviewRecord);
+
+        return {
+            workflowState,
+            riskDecision,
+            approvalState,
+            persistenceState,
+        };
+    }, [currentPreviewRecord]);
+
     const reportSummaryCards: InterpretationCardItem[] = useMemo(() => [
         {
             key: 'report-status',
@@ -272,7 +467,16 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 : '약점, 점수, 등급을 함께 비교해 어떤 근로자군부터 설명과 보호 조치를 연결할지 먼저 정리할 수 있습니다.',
             tone: viewMode === 'preview' ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80',
         },
-    ], [activeTab, dateFilterLabel, filterLevel, filteredRecords.length, selectedTeam, viewMode]);
+        {
+            key: 'report-harness',
+            eyebrow: '하네스 커버리지',
+            title: `${harnessSummary.connected}건은 저장 연결, ${harnessSummary.reviewNeeded}건은 추가 보호 판단이 필요합니다.`,
+            description: harnessSummary.fallback > 0
+                ? `현재 ${harnessSummary.fallback}건은 persistence 폴백 상태입니다. 보고서 해석은 유지되지만 저장 연결 상태를 함께 읽어야 합니다.`
+                : '보고서 대상마다 하네스 워크플로우·위험·승인 상태를 함께 읽을 수 있어 설명보다 보호 조치를 먼저 정리할 수 있습니다.',
+            tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-violet-200 bg-violet-50/80',
+        },
+    ], [activeTab, dateFilterLabel, filterLevel, filteredRecords.length, harnessSummary, selectedTeam, viewMode]);
 
     const filterInterpretationCards: InterpretationCardItem[] = useMemo(() => [
         {
@@ -700,7 +904,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             const csvHeader = [
                 'dateFilterPreset','dateRangeStart','dateRangeEnd',
                 'recordId','name','employeeId','jobField','teamLeader','date','safetyScore','safetyLevel',
-                'ocrConfidence','integrityScore','matchMethod','signatureMatchScore','correctionCount','actionCount','approvalCount','evidenceHash'
+                'ocrConfidence','integrityScore','matchMethod','signatureMatchScore',
+                'workflowRunId','workflowState','riskDecision','approvalState','harnessPersistenceState','harnessPersistenceWarning',
+                'correctionCount','actionCount','approvalCount','evidenceHash'
             ];
             const csvRows: string[] = [csvHeader.join(',')];
 
@@ -752,6 +958,11 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     evidenceHash: record.evidenceHash || '',
                 });
 
+                const workflowState = inferHarnessWorkflowState(record);
+                const riskDecision = inferHarnessRiskDecision(record);
+                const approvalState = inferHarnessApprovalState(record, workflowState);
+                const persistenceState = getHarnessPersistenceState(record);
+
                 const row = [
                     dateFilterLabel,
                     resolvedDateRange.startLabel,
@@ -768,6 +979,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     typeof record.integrityScore === 'number' ? record.integrityScore : '',
                     record.matchMethod || '',
                     typeof record.signatureMatchScore === 'number' ? record.signatureMatchScore.toFixed(3) : '',
+                    record.workflowRunId || '',
+                    workflowState,
+                    riskDecision,
+                    approvalState,
+                    persistenceState,
+                    record.harnessPersistenceWarning || '',
                     (record.correctionHistory || []).length,
                     (record.actionHistory || []).length,
                     (record.approvalHistory || []).length,
@@ -874,6 +1091,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             'integrityScore',
             'matchMethod',
             'signatureMatchScore',
+            'workflowRunId',
+            'workflowState',
+            'riskDecision',
+            'approvalState',
+            'harnessPersistenceState',
+            'harnessPersistenceWarning',
             'selfAssessedRiskLevel',
             'weakAreas',
             'correctionCount',
@@ -882,26 +1105,39 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             'evidenceHash'
         ];
 
-        const rows = filteredRecords.map((record) => [
-            record.id,
-            record.name,
-            record.employeeId || '',
-            record.jobField,
-            record.teamLeader || '미지정',
-            record.date,
-            record.safetyScore,
-            getSafetyLevelFromScore(Number(record.safetyScore)),
-            typeof record.ocrConfidence === 'number' ? record.ocrConfidence.toFixed(3) : '',
-            typeof record.integrityScore === 'number' ? record.integrityScore : '',
-            record.matchMethod || '',
-            typeof record.signatureMatchScore === 'number' ? record.signatureMatchScore.toFixed(3) : '',
-            record.selfAssessedRiskLevel,
-            (record.weakAreas || []).join('|'),
-            (record.correctionHistory || []).length,
-            (record.actionHistory || []).length,
-            (record.approvalHistory || []).length,
-            record.evidenceHash || '',
-        ]);
+        const rows = filteredRecords.map((record) => {
+            const workflowState = inferHarnessWorkflowState(record);
+            const riskDecision = inferHarnessRiskDecision(record);
+            const approvalState = inferHarnessApprovalState(record, workflowState);
+            const persistenceState = getHarnessPersistenceState(record);
+
+            return [
+                record.id,
+                record.name,
+                record.employeeId || '',
+                record.jobField,
+                record.teamLeader || '미지정',
+                record.date,
+                record.safetyScore,
+                getSafetyLevelFromScore(Number(record.safetyScore)),
+                typeof record.ocrConfidence === 'number' ? record.ocrConfidence.toFixed(3) : '',
+                typeof record.integrityScore === 'number' ? record.integrityScore : '',
+                record.matchMethod || '',
+                typeof record.signatureMatchScore === 'number' ? record.signatureMatchScore.toFixed(3) : '',
+                record.workflowRunId || '',
+                workflowState,
+                riskDecision,
+                approvalState,
+                persistenceState,
+                record.harnessPersistenceWarning || '',
+                record.selfAssessedRiskLevel,
+                (record.weakAreas || []).join('|'),
+                (record.correctionHistory || []).length,
+                (record.actionHistory || []).length,
+                (record.approvalHistory || []).length,
+                record.evidenceHash || '',
+            ];
+        });
 
         const csv = [header, ...rows].map((line) => line.map(escapeCsv).join(',')).join('\n');
         const bom = '\uFEFF';
@@ -973,6 +1209,22 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 items={reportSummaryCards}
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
             />
+
+            <div className="space-y-3">
+                <SummaryMetricGrid
+                    items={harnessSummaryMetrics}
+                    className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"
+                    cardClassName="rounded-2xl border px-4 py-3 shadow-sm shadow-slate-100"
+                />
+                {harnessSummary.fallback > 0 && (
+                    <NoticeCallout
+                        variant="amber"
+                        eyebrow="하네스 저장 상태"
+                        title={`현재 보고서 범위에서 ${harnessSummary.fallback}건이 영속 저장 폴백 상태입니다.`}
+                        description="보고서 해석과 증빙 JSON 내보내기는 계속 가능하지만, 저장 연결 여부를 함께 읽어 재확인 순서를 정해야 합니다."
+                    />
+                )}
+            </div>
 
             <div className="overflow-x-auto pb-2 -mb-2 shrink-0 no-print">
                 <div className="flex space-x-6 border-b border-slate-200 min-w-max">
@@ -1333,12 +1585,19 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                         <th className="px-6 py-3">직종 (Team)</th>
                                         <th className="px-6 py-3">안전점수</th>
                                         <th className="px-6 py-3">등급</th>
+                                        <th className="px-6 py-3">하네스 상태</th>
                                         <th className="px-6 py-3">주요 취약점</th>
                                         <th className="px-6 py-3 text-right">작업</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {filteredRecords.map((r, idx) => (
+                                    {filteredRecords.map((r, idx) => {
+                                        const workflowState = inferHarnessWorkflowState(r);
+                                        const riskDecision = inferHarnessRiskDecision(r);
+                                        const approvalState = inferHarnessApprovalState(r, workflowState);
+                                        const persistenceState = getHarnessPersistenceState(r);
+
+                                        return (
                                         <tr key={r.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => { setViewMode('preview'); setPreviewIndex(idx); }}>
                                             <td className="px-6 py-3 font-bold text-slate-800">{r.name}</td>
                                             <td className="px-6 py-3 text-slate-600">{r.jobField}</td>
@@ -1356,6 +1615,16 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                                     );
                                                 })()}
                                             </td>
+                                            <td className="px-6 py-3">
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    <StatusBadge variant={getHarnessWorkflowBadgeVariant(workflowState)} className="px-2 py-1">{getHarnessWorkflowStateLabel(workflowState)}</StatusBadge>
+                                                    <StatusBadge variant={getHarnessRiskBadgeVariant(riskDecision)} className="px-2 py-1">{getHarnessRiskDecisionLabel(riskDecision)}</StatusBadge>
+                                                    <StatusBadge variant={getHarnessApprovalBadgeVariant(approvalState)} className="px-2 py-1">{getHarnessApprovalStateLabel(approvalState)}</StatusBadge>
+                                                    <StatusBadge variant={getHarnessPersistenceBadgeVariant(persistenceState)} className="px-2 py-1">{getHarnessPersistenceLabel(persistenceState)}</StatusBadge>
+                                                </div>
+                                                {r.workflowRunId ? <p className="mt-1 text-[11px] font-bold text-slate-500">Run {r.workflowRunId}</p> : null}
+                                                {r.harnessPersistenceWarning ? <p className="mt-1 text-[11px] font-bold text-amber-700">{r.harnessPersistenceWarning}</p> : null}
+                                            </td>
                                             <td className="px-6 py-3 text-slate-500 truncate max-w-xs">{r.weakAreas.join(', ')}</td>
                                             <td className="px-6 py-3 text-right">
                                                 <button onClick={(e) => { e.stopPropagation(); setViewMode('preview'); setPreviewIndex(idx); }} className="text-xs font-bold text-indigo-600 hover:underline">
@@ -1363,7 +1632,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                                 </button>
                                             </td>
                                         </tr>
-                                    ))}
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -1395,6 +1665,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             </div>
                             
                             <div className="flex gap-2">
+                                {currentPreviewHarnessMeta && (
+                                    <div className="hidden xl:flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                        <StatusBadge variant={getHarnessWorkflowBadgeVariant(currentPreviewHarnessMeta.workflowState)} className="px-2 py-1">{getHarnessWorkflowStateLabel(currentPreviewHarnessMeta.workflowState)}</StatusBadge>
+                                        <StatusBadge variant={getHarnessRiskBadgeVariant(currentPreviewHarnessMeta.riskDecision)} className="px-2 py-1">{getHarnessRiskDecisionLabel(currentPreviewHarnessMeta.riskDecision)}</StatusBadge>
+                                        <StatusBadge variant={getHarnessApprovalBadgeVariant(currentPreviewHarnessMeta.approvalState)} className="px-2 py-1">{getHarnessApprovalStateLabel(currentPreviewHarnessMeta.approvalState)}</StatusBadge>
+                                        <StatusBadge variant={getHarnessPersistenceBadgeVariant(currentPreviewHarnessMeta.persistenceState)} className="px-2 py-1">{getHarnessPersistenceLabel(currentPreviewHarnessMeta.persistenceState)}</StatusBadge>
+                                    </div>
+                                )}
                                 <button 
                                     onClick={handleDownloadCurrent}
                                     disabled={hasCustomDateRangeError}
@@ -1411,6 +1689,28 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 items={viewInterpretationCards}
                                 cardClassName="rounded-2xl border p-4"
                             />
+                            {currentPreviewRecord && currentPreviewHarnessMeta && (
+                                <div className="mt-4 space-y-3">
+                                    <NoticeCallout
+                                        variant={currentPreviewHarnessMeta.persistenceState === 'fallback' ? 'amber' : currentPreviewHarnessMeta.riskDecision === 'IMMEDIATE_ATTENTION' || currentPreviewHarnessMeta.riskDecision === 'CRITICAL_STOP' ? 'rose' : 'white'}
+                                        eyebrow="하네스 보호 맥락"
+                                        title={`${currentPreviewRecord.name} 보고서는 하네스 판단 상태와 함께 읽을 수 있습니다.`}
+                                        description={currentPreviewRecord.workflowRunId
+                                            ? `workflow run ${currentPreviewRecord.workflowRunId} 기준으로 보고서 근거를 추적할 수 있습니다.`
+                                            : '아직 workflow run 연결 전 단계이므로 저장 연결 상태를 먼저 확인한 뒤 보고서 해석을 이어가세요.'}
+                                    />
+                                    <div className="flex flex-wrap gap-2">
+                                        <StatusBadge variant={getHarnessWorkflowBadgeVariant(currentPreviewHarnessMeta.workflowState)} className="px-3 py-1.5 text-[11px] font-black">{getHarnessWorkflowStateLabel(currentPreviewHarnessMeta.workflowState)}</StatusBadge>
+                                        <StatusBadge variant={getHarnessRiskBadgeVariant(currentPreviewHarnessMeta.riskDecision)} className="px-3 py-1.5 text-[11px] font-black">{getHarnessRiskDecisionLabel(currentPreviewHarnessMeta.riskDecision)}</StatusBadge>
+                                        <StatusBadge variant={getHarnessApprovalBadgeVariant(currentPreviewHarnessMeta.approvalState)} className="px-3 py-1.5 text-[11px] font-black">{getHarnessApprovalStateLabel(currentPreviewHarnessMeta.approvalState)}</StatusBadge>
+                                        <StatusBadge variant={getHarnessPersistenceBadgeVariant(currentPreviewHarnessMeta.persistenceState)} className="px-3 py-1.5 text-[11px] font-black">{getHarnessPersistenceLabel(currentPreviewHarnessMeta.persistenceState)}</StatusBadge>
+                                        {currentPreviewRecord.workflowRunId ? <StatusBadge variant="slateSoft" className="px-3 py-1.5 text-[11px] font-black">Run {currentPreviewRecord.workflowRunId}</StatusBadge> : null}
+                                    </div>
+                                    {currentPreviewRecord.harnessPersistenceWarning ? (
+                                        <p className="text-xs font-bold text-amber-700">{currentPreviewRecord.harnessPersistenceWarning}</p>
+                                    ) : null}
+                                </div>
+                            )}
                         </div>
 
                         {/* Preview Content Area */}
