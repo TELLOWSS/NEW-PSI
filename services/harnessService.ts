@@ -27,6 +27,33 @@ export interface HarnessPersistenceMeta {
     warning?: string | null;
 }
 
+export interface HarnessWorkflowDiagnostics {
+    lookupValue: string;
+    found: boolean;
+    resolvedBy: 'workflow_run_id' | 'source_record_id' | null;
+    sourceRecordId: string | null;
+    eventCount: number;
+    approvalCount: number;
+    timelineCount: number;
+}
+
+export interface HarnessPersistenceHealth {
+    connected: boolean;
+    envConfigured: boolean;
+    keyMode: 'service_role' | 'anon' | 'missing';
+    supabaseUrlConfigured: boolean;
+    tablesReady: boolean;
+    warning: string | null;
+    checkedAt: string;
+    counts: {
+        workflowRuns: number;
+        workflowEvents: number;
+        humanApprovals: number;
+        guardrailOverrides: number;
+        contextSnapshots: number;
+    };
+}
+
 async function postGateway<T>(gatewayAction: string, payload: Record<string, unknown>): Promise<T> {
     const json = await postAdminJson<{ ok: boolean; data?: T; message?: string }>(
         '/api/gateway',
@@ -94,10 +121,28 @@ export async function fetchHarnessWorkflowStatus(workflowRunId: string) {
     return postGateway<{
         workflowRunId: string;
         persistence?: HarnessPersistenceMeta;
+        diagnostics?: HarnessWorkflowDiagnostics;
         workflowState: HarnessWorkflowState;
         riskDecision: HarnessRiskDecision;
         approvalState: HarnessApprovalState;
         secondPassStatus: 'NEEDED' | 'IN_PROGRESS' | 'DONE';
         timeline: Array<{ stage: string; timestamp: string; note: string; actor?: string }>;
     }>('harness.workflow-status', { workflowRunId });
+}
+
+export async function fetchHarnessPersistenceHealth() {
+    const json = await postAdminJson<{ ok: boolean; data?: HarnessPersistenceHealth; message?: string }>(
+        '/api/harness/persistence-health',
+        {},
+        {
+            fallbackMessage: 'Harness persistence 상태 조회 실패',
+            method: 'GET',
+        } as any,
+    );
+
+    if (!json?.ok || !json.data) {
+        throw new Error(String(json?.message || 'Harness persistence 상태 조회 실패'));
+    }
+
+    return json.data;
 }

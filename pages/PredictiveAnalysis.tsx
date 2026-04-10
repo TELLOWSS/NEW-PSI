@@ -5,10 +5,91 @@ import { isAdminAuthenticated } from '../utils/adminGuard';
 import { postAdminJson } from '../utils/adminApiClient';
 import { extractMessage } from '../utils/errorUtils';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
+import { NoticeCallout } from '../components/shared/NoticeCallout';
+import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 
 // 관리 직군 필터링 함수
 const isManagementRole = (field: string) => 
     /관리|팀장|부장|과장|기사|공무|소장/.test(field);
+
+const getWorkerIdentityKey = (record: WorkerRecord): string => {
+    return String(
+        record.worker_uuid
+        || record.workerUuid
+        || record.employeeId
+        || record.qrId
+        || `${record.name || 'unknown'}::${record.teamLeader || '미지정'}::${record.jobField || '미분류'}`,
+    ).trim();
+};
+
+const inferHarnessWorkflowState = (record: Partial<WorkerRecord>): string => {
+    if (record.workflowState) return record.workflowState;
+    if (record.secondPassStatus === 'IN_PROGRESS') return 'second_pass_analyzing';
+    if (record.reviewStatus === 'PENDING' || record.approvalStatus === 'PENDING') return 'awaiting_manager_approval';
+    if (record.ocrErrorType || record.secondPassStatus === 'NEEDED') return 'manual_review_required';
+    if (record.secondPassStatus === 'DONE' || record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED') return 'completed';
+    return 'uploaded';
+};
+
+const inferHarnessRiskDecision = (record: Partial<WorkerRecord>): string => {
+    if (record.riskDecision) return record.riskDecision;
+    if (record.ocrErrorType) return 'IMMEDIATE_ATTENTION';
+    if (record.secondPassStatus === 'NEEDED') return 'SUPPLEMENTARY_REVIEW';
+    return 'SAFE_TO_PROCEED';
+};
+
+const inferHarnessApprovalState = (record: Partial<WorkerRecord>, workflowState: string): string => {
+    if (record.approvalState) return record.approvalState;
+    if (record.reviewStatus === 'REJECTED') return 'REJECTED';
+    if (record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED') return 'APPROVED';
+    if (workflowState === 'manual_review_required' || workflowState === 'awaiting_manager_approval' || workflowState === 'second_pass_analyzing') return 'PENDING';
+    return 'NOT_REQUIRED';
+};
+
+const getHarnessPersistenceState = (record: Partial<WorkerRecord>): 'connected' | 'fallback' | 'pending' => {
+    if (String(record.harnessPersistenceWarning || '').trim()) return 'fallback';
+    if (String(record.workflowRunId || '').trim()) return 'connected';
+    return 'pending';
+};
+
+const summarizeHarnessRecords = (records: WorkerRecord[]) => {
+    const latestRecords = Array.from(
+        records.reduce((map, record) => {
+            const key = getWorkerIdentityKey(record);
+            const current = map.get(key);
+            if (!current || new Date(record.date).getTime() >= new Date(current.date).getTime()) {
+                map.set(key, record);
+            }
+            return map;
+        }, new Map<string, WorkerRecord>()).values(),
+    );
+
+    return latestRecords.reduce((summary, record) => {
+        const workflowState = inferHarnessWorkflowState(record);
+        const riskDecision = inferHarnessRiskDecision(record);
+        const approvalState = inferHarnessApprovalState(record, workflowState);
+        const persistenceState = getHarnessPersistenceState(record);
+
+        summary.total += 1;
+        if (String(record.workflowRunId || '').trim()) summary.runLinked += 1;
+        if (persistenceState === 'connected') summary.connected += 1;
+        if (persistenceState === 'fallback') summary.fallback += 1;
+        if (persistenceState === 'pending') summary.pending += 1;
+        if (approvalState === 'PENDING' || approvalState === 'REQUIRED') summary.approvalBacklog += 1;
+        if (workflowState === 'manual_review_required' || workflowState === 'awaiting_manager_approval' || workflowState === 'second_pass_analyzing') summary.reviewNeeded += 1;
+        if (riskDecision === 'IMMEDIATE_ATTENTION' || riskDecision === 'CRITICAL_STOP') summary.immediateAttention += 1;
+        return summary;
+    }, {
+        total: 0,
+        runLinked: 0,
+        connected: 0,
+        fallback: 0,
+        pending: 0,
+        approvalBacklog: 0,
+        reviewNeeded: 0,
+        immediateAttention: 0,
+    });
+};
 
 // 온톨로지 노드 및 링크 타입 정의
 interface Node {
@@ -499,6 +580,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
     const sourceRecords = useMemo(() => 
         workerRecords.filter(r => !isManagementRole(r.jobField))
     , [workerRecords]);
+    const harnessSummary = useMemo(() => summarizeHarnessRecords(sourceRecords), [sourceRecords]);
 
     const [todayDate, setTodayDate] = useState('');
     const [nextMonth, setNextMonth] = useState('');
@@ -653,6 +735,45 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
             topRiskLabel,
         };
     }, [riskInsights]);
+
+    const harnessSummaryMetrics = useMemo(() => ([
+        {
+            key: 'predictive-harness-connected',
+            label: '저장 연결',
+            value: `${harnessSummary.connected}명`,
+            helper: `run 연결 ${harnessSummary.runLinked}명 / 전체 ${harnessSummary.total}명`,
+            tone: 'border-emerald-200 bg-emerald-50/80',
+            labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700',
+            helperClassName: 'mt-1 text-xs font-bold text-emerald-700',
+        },
+        {
+            key: 'predictive-harness-backlog',
+            label: '승인 백로그',
+            value: `${harnessSummary.approvalBacklog}명`,
+            helper: `재검토 필요 ${harnessSummary.reviewNeeded}명`,
+            tone: harnessSummary.approvalBacklog > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+            labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.approvalBacklog > 0 ? 'text-amber-700' : 'text-slate-500'}`,
+            helperClassName: `mt-1 text-xs font-bold ${harnessSummary.approvalBacklog > 0 ? 'text-amber-700' : 'text-slate-600'}`,
+        },
+        {
+            key: 'predictive-harness-attention',
+            label: '즉시 개입',
+            value: `${harnessSummary.immediateAttention}명`,
+            helper: '다음 달 계획보다 먼저 보호 조치 우선',
+            tone: harnessSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-indigo-200 bg-indigo-50/70',
+            labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.immediateAttention > 0 ? 'text-rose-700' : 'text-indigo-700'}`,
+            helperClassName: `mt-1 text-xs font-bold ${harnessSummary.immediateAttention > 0 ? 'text-rose-700' : 'text-indigo-700'}`,
+        },
+        {
+            key: 'predictive-harness-fallback',
+            label: '폴백·저장 대기',
+            value: `${harnessSummary.fallback + harnessSummary.pending}명`,
+            helper: `폴백 ${harnessSummary.fallback}명 · 대기 ${harnessSummary.pending}명`,
+            tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+            labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-500'}`,
+            helperClassName: `mt-1 text-xs font-bold ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-600'}`,
+        },
+    ]), [harnessSummary]);
 
     // 2. 온톨로지 데이터 구성 (Nodes & Links)
     const graphData = useMemo(() => {
@@ -1353,6 +1474,31 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                 items={predictiveSummaryCards}
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
             />
+
+            <SummaryMetricGrid
+                items={harnessSummaryMetrics}
+                className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
+
+            {(harnessSummary.immediateAttention > 0 || harnessSummary.approvalBacklog > 0 || harnessSummary.fallback > 0) && (
+                <NoticeCallout
+                    variant={harnessSummary.immediateAttention > 0 ? 'rose' : harnessSummary.fallback > 0 ? 'amber' : 'indigo'}
+                    eyebrow="Harness priority"
+                    title={harnessSummary.immediateAttention > 0
+                        ? `예측 계획보다 앞서 즉시 보호 대상 ${harnessSummary.immediateAttention}명을 먼저 닫아야 합니다.`
+                        : harnessSummary.fallback > 0
+                            ? `하네스 persistence 폴백 ${harnessSummary.fallback}명이 있어 실행 계획과 저장 연결 점검을 함께 봐야 합니다.`
+                            : `승인 백로그 ${harnessSummary.approvalBacklog}명이 남아 있어 다음 달 계획 전에 현재 승인 순서를 먼저 정리해야 합니다.`}
+                    description={harnessSummary.immediateAttention > 0
+                        ? '예측 대시보드는 미래 개입 우선순위를 정하는 곳이지만, 이미 위험이 확정된 인원은 관리자 승인·보완 흐름으로 먼저 연결해야 보호 공백을 줄일 수 있습니다.'
+                        : '계획 보드에서 하네스 저장·승인 상태를 함께 읽으면 실행 항목은 많아도 실제 보호 흐름이 끊긴 지점을 먼저 보완할 수 있습니다.'}
+                    className="rounded-2xl border px-4 py-3 shadow-sm"
+                    bodyClassName="block"
+                    titleClassName="text-sm font-black"
+                    descriptionClassName="mt-1 text-xs font-semibold leading-relaxed"
+                />
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-sm">

@@ -5,6 +5,8 @@ import { MonthlyTrendChart } from '../components/charts/MonthlyTrendChart';
 import { FieldRadarChart } from '../components/charts/FieldRadarChart';
 import { SafetyGradeTrendChart } from '../components/charts/SafetyGradeTrendChart';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
+import { NoticeCallout } from '../components/shared/NoticeCallout';
+import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 
 interface PerformanceAnalysisProps {
     workerRecords: WorkerRecord[];
@@ -13,6 +15,85 @@ interface PerformanceAnalysisProps {
 // 관리 직군 필터링 함수 (실무 공종인 '시스템', '할석' 등은 제외되지 않도록 유지)
 const isManagementRole = (field: string) => 
     /관리|팀장|부장|과장|기사|공무|소장/.test(field);
+
+const getWorkerIdentityKey = (record: WorkerRecord): string => {
+    return String(
+        record.worker_uuid
+        || record.workerUuid
+        || record.employeeId
+        || record.qrId
+        || `${record.name || 'unknown'}::${record.teamLeader || '미지정'}::${record.jobField || '미분류'}`,
+    ).trim();
+};
+
+const inferHarnessWorkflowState = (record: Partial<WorkerRecord>): string => {
+    if (record.workflowState) return record.workflowState;
+    if (record.secondPassStatus === 'IN_PROGRESS') return 'second_pass_analyzing';
+    if (record.reviewStatus === 'PENDING' || record.approvalStatus === 'PENDING') return 'awaiting_manager_approval';
+    if (record.ocrErrorType || record.secondPassStatus === 'NEEDED') return 'manual_review_required';
+    if (record.secondPassStatus === 'DONE' || record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED') return 'completed';
+    return 'uploaded';
+};
+
+const inferHarnessRiskDecision = (record: Partial<WorkerRecord>): string => {
+    if (record.riskDecision) return record.riskDecision;
+    if (record.ocrErrorType) return 'IMMEDIATE_ATTENTION';
+    if (record.secondPassStatus === 'NEEDED') return 'SUPPLEMENTARY_REVIEW';
+    return 'SAFE_TO_PROCEED';
+};
+
+const inferHarnessApprovalState = (record: Partial<WorkerRecord>, workflowState: string): string => {
+    if (record.approvalState) return record.approvalState;
+    if (record.reviewStatus === 'REJECTED') return 'REJECTED';
+    if (record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED') return 'APPROVED';
+    if (workflowState === 'manual_review_required' || workflowState === 'awaiting_manager_approval' || workflowState === 'second_pass_analyzing') return 'PENDING';
+    return 'NOT_REQUIRED';
+};
+
+const getHarnessPersistenceState = (record: Partial<WorkerRecord>): 'connected' | 'fallback' | 'pending' => {
+    if (String(record.harnessPersistenceWarning || '').trim()) return 'fallback';
+    if (String(record.workflowRunId || '').trim()) return 'connected';
+    return 'pending';
+};
+
+const summarizeHarnessRecords = (records: WorkerRecord[]) => {
+    const latestRecords = Array.from(
+        records.reduce((map, record) => {
+            const key = getWorkerIdentityKey(record);
+            const current = map.get(key);
+            if (!current || new Date(record.date).getTime() >= new Date(current.date).getTime()) {
+                map.set(key, record);
+            }
+            return map;
+        }, new Map<string, WorkerRecord>()).values(),
+    );
+
+    return latestRecords.reduce((summary, record) => {
+        const workflowState = inferHarnessWorkflowState(record);
+        const riskDecision = inferHarnessRiskDecision(record);
+        const approvalState = inferHarnessApprovalState(record, workflowState);
+        const persistenceState = getHarnessPersistenceState(record);
+
+        summary.total += 1;
+        if (String(record.workflowRunId || '').trim()) summary.runLinked += 1;
+        if (persistenceState === 'connected') summary.connected += 1;
+        if (persistenceState === 'fallback') summary.fallback += 1;
+        if (persistenceState === 'pending') summary.pending += 1;
+        if (approvalState === 'PENDING' || approvalState === 'REQUIRED') summary.approvalBacklog += 1;
+        if (workflowState === 'manual_review_required' || workflowState === 'awaiting_manager_approval' || workflowState === 'second_pass_analyzing') summary.reviewNeeded += 1;
+        if (riskDecision === 'IMMEDIATE_ATTENTION' || riskDecision === 'CRITICAL_STOP') summary.immediateAttention += 1;
+        return summary;
+    }, {
+        total: 0,
+        runLinked: 0,
+        connected: 0,
+        fallback: 0,
+        pending: 0,
+        approvalBacklog: 0,
+        reviewNeeded: 0,
+        immediateAttention: 0,
+    });
+};
 
 const calculateStandardDeviation = (scores: number[]) => {
     if (scores.length < 2) return 0;
@@ -29,6 +110,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
     const filteredBaseRecords = useMemo(() => 
         workerRecords.filter(r => !isManagementRole(r.jobField))
     , [workerRecords]);
+    const harnessSummary = useMemo(() => summarizeHarnessRecords(filteredBaseRecords), [filteredBaseRecords]);
 
     const kpiData = useMemo(() => {
         if (filteredBaseRecords.length === 0) return null;
@@ -170,6 +252,45 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
         },
     ], [riskKeywords, safetyHabitRanking.length]);
 
+    const harnessSummaryMetrics = useMemo(() => ([
+        {
+            key: 'performance-harness-connected',
+            label: '저장 연결',
+            value: `${harnessSummary.connected}명`,
+            helper: `run 연결 ${harnessSummary.runLinked}명 / 전체 ${harnessSummary.total}명`,
+            tone: 'border-emerald-200 bg-emerald-50/80',
+            labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700',
+            helperClassName: 'mt-1 text-xs font-bold text-emerald-700',
+        },
+        {
+            key: 'performance-harness-backlog',
+            label: '승인 백로그',
+            value: `${harnessSummary.approvalBacklog}명`,
+            helper: `재검토 필요 ${harnessSummary.reviewNeeded}명`,
+            tone: harnessSummary.approvalBacklog > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+            labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.approvalBacklog > 0 ? 'text-amber-700' : 'text-slate-500'}`,
+            helperClassName: `mt-1 text-xs font-bold ${harnessSummary.approvalBacklog > 0 ? 'text-amber-700' : 'text-slate-600'}`,
+        },
+        {
+            key: 'performance-harness-attention',
+            label: '즉시 보호',
+            value: `${harnessSummary.immediateAttention}명`,
+            helper: '성과 편차보다 먼저 닫아야 할 보호 대상',
+            tone: harnessSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-indigo-200 bg-indigo-50/70',
+            labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.immediateAttention > 0 ? 'text-rose-700' : 'text-indigo-700'}`,
+            helperClassName: `mt-1 text-xs font-bold ${harnessSummary.immediateAttention > 0 ? 'text-rose-700' : 'text-indigo-700'}`,
+        },
+        {
+            key: 'performance-harness-fallback',
+            label: '폴백·저장 대기',
+            value: `${harnessSummary.fallback + harnessSummary.pending}명`,
+            helper: `폴백 ${harnessSummary.fallback}명 · 대기 ${harnessSummary.pending}명`,
+            tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+            labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-500'}`,
+            helperClassName: `mt-1 text-xs font-bold ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-600'}`,
+        },
+    ]), [harnessSummary]);
+
     return (
         <div className="space-y-8 pb-10">
             <div className="relative bg-white p-8 rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
@@ -204,6 +325,29 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                 items={performanceSummaryCards}
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
             />
+
+            <SummaryMetricGrid
+                items={harnessSummaryMetrics}
+                className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
+
+            {(harnessSummary.immediateAttention > 0 || harnessSummary.approvalBacklog > 0 || harnessSummary.fallback > 0) && (
+                <NoticeCallout
+                    variant={harnessSummary.immediateAttention > 0 ? 'rose' : harnessSummary.fallback > 0 ? 'amber' : 'indigo'}
+                    eyebrow="Harness priority"
+                    title={harnessSummary.immediateAttention > 0
+                        ? `성과 해석 전에 즉시 보호 대상 ${harnessSummary.immediateAttention}명을 먼저 닫아야 합니다.`
+                        : harnessSummary.fallback > 0
+                            ? `하네스 persistence 폴백 ${harnessSummary.fallback}명이 있어 성과 데이터와 저장 연결 상태를 함께 확인해야 합니다.`
+                            : `승인 백로그 ${harnessSummary.approvalBacklog}명이 남아 있어 점수 비교 전에 관리자 검토 순서를 먼저 정리해야 합니다.`}
+                    description="성과 분석은 추세를 읽는 화면이지만, 현재 보호 흐름이 끊긴 인원이 있으면 평균과 변동성보다 먼저 하네스 승인·저장 상태를 확인해야 운영 판단이 어긋나지 않습니다."
+                    className="rounded-2xl border px-4 py-3 shadow-sm"
+                    bodyClassName="block"
+                    titleClassName="text-sm font-black"
+                    descriptionClassName="mt-1 text-xs font-semibold leading-relaxed"
+                />
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100 flex flex-col justify-between group hover:-translate-y-1 transition-transform duration-300">

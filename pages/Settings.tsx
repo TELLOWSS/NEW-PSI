@@ -1,9 +1,18 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import type { AppSettings } from '../types';
+import type { AppSettings, WorkerRecord } from '../types';
 import { getIsPaidApiMode, setIsPaidApiMode } from '../utils/apiModeUtils';
 import { PSI_APP_VERSION, PSI_SYSTEM_NAME } from '../lib/appInfo';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
+import { NoticeCallout } from '../components/shared/NoticeCallout';
+import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
+import { extractMessage } from '../utils/errorUtils';
+import {
+    fetchHarnessPersistenceHealth,
+    fetchHarnessWorkflowStatus,
+    type HarnessPersistenceHealth,
+    type HarnessWorkflowDiagnostics,
+} from '../services/harnessService';
 
 const TRAINING_LANGUAGE_OPTIONS = [
     { code: 'ko-KR', label: '한국어 (ko-KR)' },
@@ -56,6 +65,108 @@ const toFiniteOr = (value: unknown, fallback: number): number => {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
 };
+
+const isManagementRole = (field: string) => /관리|팀장|부장|과장|기사|공무|소장/.test(field);
+
+const getWorkerIdentityKey = (record: WorkerRecord): string => {
+    return String(
+        record.worker_uuid
+        || record.workerUuid
+        || record.employeeId
+        || record.qrId
+        || `${record.name || 'unknown'}::${record.teamLeader || '미지정'}::${record.jobField || '미분류'}`,
+    ).trim();
+};
+
+const inferHarnessWorkflowState = (record: Partial<WorkerRecord>): string => {
+    if (record.workflowState) return record.workflowState;
+    if (record.secondPassStatus === 'IN_PROGRESS') return 'second_pass_analyzing';
+    if (record.reviewStatus === 'PENDING' || record.approvalStatus === 'PENDING') return 'awaiting_manager_approval';
+    if (record.ocrErrorType || record.secondPassStatus === 'NEEDED') return 'manual_review_required';
+    if (record.secondPassStatus === 'DONE' || record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED') return 'completed';
+    return 'uploaded';
+};
+
+const inferHarnessRiskDecision = (record: Partial<WorkerRecord>): string => {
+    if (record.riskDecision) return record.riskDecision;
+    if (record.ocrErrorType) return 'IMMEDIATE_ATTENTION';
+    if (record.secondPassStatus === 'NEEDED') return 'SUPPLEMENTARY_REVIEW';
+    return 'SAFE_TO_PROCEED';
+};
+
+const inferHarnessApprovalState = (record: Partial<WorkerRecord>, workflowState: string): string => {
+    if (record.approvalState) return record.approvalState;
+    if (record.reviewStatus === 'REJECTED') return 'REJECTED';
+    if (record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED') return 'APPROVED';
+    if (workflowState === 'manual_review_required' || workflowState === 'awaiting_manager_approval' || workflowState === 'second_pass_analyzing') return 'PENDING';
+    return 'NOT_REQUIRED';
+};
+
+const getHarnessPersistenceState = (record: Partial<WorkerRecord>): 'connected' | 'fallback' | 'pending' => {
+    if (String(record.harnessPersistenceWarning || '').trim()) return 'fallback';
+    if (String(record.workflowRunId || '').trim()) return 'connected';
+    return 'pending';
+};
+
+const summarizeHarnessRecords = (records: WorkerRecord[]) => {
+    const latestRecords = Array.from(
+        records.reduce((map, record) => {
+            const key = getWorkerIdentityKey(record);
+            const current = map.get(key);
+            if (!current || new Date(record.date).getTime() >= new Date(current.date).getTime()) {
+                map.set(key, record);
+            }
+            return map;
+        }, new Map<string, WorkerRecord>()).values(),
+    );
+
+    return latestRecords.reduce((summary, record) => {
+        const workflowState = inferHarnessWorkflowState(record);
+        const riskDecision = inferHarnessRiskDecision(record);
+        const approvalState = inferHarnessApprovalState(record, workflowState);
+        const persistenceState = getHarnessPersistenceState(record);
+
+        summary.total += 1;
+        if (String(record.workflowRunId || '').trim()) summary.runLinked += 1;
+        if (persistenceState === 'connected') summary.connected += 1;
+        if (persistenceState === 'fallback') summary.fallback += 1;
+        if (persistenceState === 'pending') summary.pending += 1;
+        if (approvalState === 'PENDING' || approvalState === 'REQUIRED') summary.approvalBacklog += 1;
+        if (workflowState === 'manual_review_required' || workflowState === 'awaiting_manager_approval' || workflowState === 'second_pass_analyzing') summary.reviewNeeded += 1;
+        if (riskDecision === 'IMMEDIATE_ATTENTION' || riskDecision === 'CRITICAL_STOP') summary.immediateAttention += 1;
+        return summary;
+    }, {
+        total: 0,
+        runLinked: 0,
+        connected: 0,
+        fallback: 0,
+        pending: 0,
+        approvalBacklog: 0,
+        reviewNeeded: 0,
+        immediateAttention: 0,
+    });
+};
+
+type HarnessProbeResult = {
+    status: 'idle' | 'loading' | 'success' | 'error';
+    diagnostics?: HarnessWorkflowDiagnostics;
+    message?: string;
+    warning?: string | null;
+    workflowState?: string;
+    riskDecision?: string;
+    approvalState?: string;
+    checkedAt?: string;
+};
+
+type HarnessHealthState = {
+    status: 'idle' | 'loading' | 'success' | 'error';
+    data?: HarnessPersistenceHealth;
+    message?: string;
+};
+
+interface SettingsProps {
+    workerRecords?: WorkerRecord[];
+}
 
 // [Guide Component] CSS-based Infographics for Beginners
 const SettingsGuide: React.FC<{ onClose: () => void }> = ({ onClose }) => {
@@ -151,7 +262,7 @@ const SettingsGuide: React.FC<{ onClose: () => void }> = ({ onClose }) => {
     );
 };
 
-const Settings: React.FC = () => {
+const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     const [settings, setSettings] = useState<AppSettings>({
         siteName: '용인 푸르지오 원클러스터 2,3단지',
         siteManager: '정 용 현',
@@ -195,6 +306,29 @@ const Settings: React.FC = () => {
         nextVersion: string;
         weights: AppSettings['competencyWeights'];
     }>>([]);
+    const [harnessProbeResults, setHarnessProbeResults] = useState<Record<string, HarnessProbeResult>>({});
+    const [isHarnessProbeLoading, setIsHarnessProbeLoading] = useState(false);
+    const [harnessHealthState, setHarnessHealthState] = useState<HarnessHealthState>({ status: 'idle' });
+
+    const harnessSourceRecords = useMemo(() => workerRecords.filter((record) => !isManagementRole(record.jobField)), [workerRecords]);
+    const harnessSummary = useMemo(() => summarizeHarnessRecords(harnessSourceRecords), [harnessSourceRecords]);
+    const harnessCandidates = useMemo(() => {
+        const latestRecords = Array.from(
+            harnessSourceRecords.reduce((map, record) => {
+                const key = getWorkerIdentityKey(record);
+                const current = map.get(key);
+                if (!current || new Date(record.date).getTime() >= new Date(current.date).getTime()) {
+                    map.set(key, record);
+                }
+                return map;
+            }, new Map<string, WorkerRecord>()).values(),
+        );
+
+        return latestRecords
+            .filter((record) => String(record.workflowRunId || '').trim())
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            .slice(0, 5);
+    }, [harnessSourceRecords]);
 
     const normalizedAdvancedThreshold = Math.min(100, Math.max(0, Math.round(settings.safetyLevelThresholds?.advancedMin ?? 80)));
     const normalizedIntermediateThreshold = Math.min(
@@ -497,6 +631,118 @@ const Settings: React.FC = () => {
         },
     ], [normalizedAdvancedThreshold, normalizedIntermediateThreshold, settings.approvalPolicy?.strictRoleGate, settings.batchSplitSize, weightSum]);
 
+    const harnessSettingsMetrics = useMemo(() => ([
+        {
+            key: 'settings-harness-connected',
+            label: '저장 연결',
+            value: `${harnessSummary.connected}명`,
+            helper: `run 연결 ${harnessSummary.runLinked}명 / 전체 ${harnessSummary.total}명`,
+            tone: 'border-emerald-200 bg-emerald-50/80',
+            labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700',
+            helperClassName: 'mt-1 text-xs font-bold text-emerald-700',
+        },
+        {
+            key: 'settings-harness-backlog',
+            label: '승인 백로그',
+            value: `${harnessSummary.approvalBacklog}명`,
+            helper: `재검토 필요 ${harnessSummary.reviewNeeded}명`,
+            tone: harnessSummary.approvalBacklog > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+            labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.approvalBacklog > 0 ? 'text-amber-700' : 'text-slate-500'}`,
+            helperClassName: `mt-1 text-xs font-bold ${harnessSummary.approvalBacklog > 0 ? 'text-amber-700' : 'text-slate-600'}`,
+        },
+        {
+            key: 'settings-harness-attention',
+            label: '즉시 보호',
+            value: `${harnessSummary.immediateAttention}명`,
+            helper: '설정 저장 전 현재 보호 공백 우선 확인',
+            tone: harnessSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-indigo-200 bg-indigo-50/70',
+            labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.immediateAttention > 0 ? 'text-rose-700' : 'text-indigo-700'}`,
+            helperClassName: `mt-1 text-xs font-bold ${harnessSummary.immediateAttention > 0 ? 'text-rose-700' : 'text-indigo-700'}`,
+        },
+        {
+            key: 'settings-harness-fallback',
+            label: '폴백·저장 대기',
+            value: `${harnessSummary.fallback + harnessSummary.pending}명`,
+            helper: `폴백 ${harnessSummary.fallback}명 · 대기 ${harnessSummary.pending}명`,
+            tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+            labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-500'}`,
+            helperClassName: `mt-1 text-xs font-bold ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-600'}`,
+        },
+    ]), [harnessSummary]);
+
+    const harnessProbeSummary = useMemo(() => {
+        return Object.values(harnessProbeResults).reduce((acc, item) => {
+            if (item.status === 'success' && item.diagnostics) {
+                if (item.diagnostics.found && item.diagnostics.resolvedBy === 'workflow_run_id') acc.direct += 1;
+                if (item.diagnostics.found && item.diagnostics.resolvedBy === 'source_record_id') acc.sourceFallback += 1;
+                if (!item.diagnostics.found) acc.missing += 1;
+            }
+            if (item.warning) acc.warning += 1;
+            if (item.status === 'error') acc.error += 1;
+            return acc;
+        }, { direct: 0, sourceFallback: 0, missing: 0, warning: 0, error: 0 });
+    }, [harnessProbeResults]);
+
+    const handleRunHarnessHealthCheck = async () => {
+        setHarnessHealthState({ status: 'loading' });
+        try {
+            const data = await fetchHarnessPersistenceHealth();
+            setHarnessHealthState({ status: 'success', data });
+        } catch (error) {
+            setHarnessHealthState({
+                status: 'error',
+                message: extractMessage(error),
+            });
+        }
+    };
+
+    const handleRunHarnessProbe = async () => {
+        if (harnessCandidates.length === 0) return;
+        setIsHarnessProbeLoading(true);
+        setHarnessProbeResults((prev) => {
+            const next = { ...prev };
+            harnessCandidates.forEach((record) => {
+                const runId = String(record.workflowRunId || '').trim();
+                if (!runId) return;
+                next[runId] = { status: 'loading' };
+            });
+            return next;
+        });
+
+        const entries = await Promise.all(harnessCandidates.map(async (record) => {
+            const runId = String(record.workflowRunId || '').trim();
+            if (!runId) return null;
+            try {
+                const response = await fetchHarnessWorkflowStatus(runId);
+                return [runId, {
+                    status: 'success',
+                    diagnostics: response.diagnostics,
+                    warning: response.persistence?.warning || null,
+                    workflowState: response.workflowState,
+                    riskDecision: response.riskDecision,
+                    approvalState: response.approvalState,
+                    checkedAt: new Date().toISOString(),
+                } satisfies HarnessProbeResult] as const;
+            } catch (error) {
+                return [runId, {
+                    status: 'error',
+                    message: extractMessage(error),
+                    checkedAt: new Date().toISOString(),
+                } satisfies HarnessProbeResult] as const;
+            }
+        }));
+
+        setHarnessProbeResults((prev) => {
+            const next = { ...prev };
+            entries.forEach((entry) => {
+                if (!entry) return;
+                next[entry[0]] = entry[1];
+            });
+            return next;
+        });
+        setIsHarnessProbeLoading(false);
+    };
+
     return (
         <div className="space-y-6 sm:space-y-8 animate-fade-in-up pb-10 sm:pb-12">
             <div className="bg-slate-900 rounded-3xl sm:rounded-[30px] p-5 sm:p-8 md:p-10 text-white shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
@@ -521,6 +767,181 @@ const Settings: React.FC = () => {
                 items={settingsSummaryCards}
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
             />
+
+            <SummaryMetricGrid
+                items={harnessSettingsMetrics}
+                className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
+
+            {(harnessSummary.immediateAttention > 0 || harnessSummary.approvalBacklog > 0 || harnessSummary.fallback > 0) && (
+                <NoticeCallout
+                    variant={harnessSummary.immediateAttention > 0 ? 'rose' : harnessSummary.fallback > 0 ? 'amber' : 'indigo'}
+                    eyebrow="Harness priority"
+                    title={harnessSummary.immediateAttention > 0
+                        ? `설정 조정 전에 즉시 보호 대상 ${harnessSummary.immediateAttention}명을 먼저 확인해야 합니다.`
+                        : harnessSummary.fallback > 0
+                            ? `하네스 persistence 폴백 ${harnessSummary.fallback}명이 있어 운영 기준 변경 전 저장 연결 상태를 함께 점검해야 합니다.`
+                            : `승인 백로그 ${harnessSummary.approvalBacklog}명이 남아 있어 설정 변경과 함께 관리자 검토 순서를 먼저 정리해야 합니다.`}
+                    description="설정 화면은 정책 기준을 바꾸는 곳이므로, 현재 보호 흐름이 끊긴 레코드가 있는지 먼저 확인해야 운영 기준 변경이 현장 혼선을 만들지 않습니다."
+                    className="rounded-2xl border px-4 py-3 shadow-sm"
+                    bodyClassName="block"
+                    titleClassName="text-sm font-black"
+                    descriptionClassName="mt-1 text-xs font-semibold leading-relaxed"
+                />
+            )}
+
+            <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h3 className="text-base sm:text-lg font-black text-slate-900">하네스 persistence 환경 상태</h3>
+                            <p className="mt-1 text-xs sm:text-sm text-slate-500 leading-relaxed">
+                                Supabase 환경변수, 키 모드, 하네스 테이블 준비 상태와 현재 적재 건수를 한 번에 확인해 실환경 persisted 검증 전에 환경 문제를 먼저 분리합니다.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleRunHarnessHealthCheck}
+                            disabled={harnessHealthState.status === 'loading'}
+                            className={`px-4 py-2.5 rounded-2xl text-sm font-black transition-all ${harnessHealthState.status === 'loading' ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg'}`}
+                        >
+                            {harnessHealthState.status === 'loading' ? '환경 점검 중...' : '환경 상태 점검'}
+                        </button>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                        <div className={`rounded-2xl border px-4 py-3 ${harnessHealthState.data?.envConfigured ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80'}`}>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">환경변수</p>
+                            <p className="mt-1 text-xl font-black text-slate-900">{harnessHealthState.data?.envConfigured ? '준비됨' : '미구성'}</p>
+                        </div>
+                        <div className={`rounded-2xl border px-4 py-3 ${harnessHealthState.data?.keyMode === 'service_role' ? 'border-indigo-200 bg-indigo-50/70' : harnessHealthState.data?.keyMode === 'anon' ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50'}`}>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">키 모드</p>
+                            <p className="mt-1 text-xl font-black text-slate-900">{harnessHealthState.data?.keyMode === 'service_role' ? 'service_role' : harnessHealthState.data?.keyMode === 'anon' ? 'anon' : '-'}</p>
+                        </div>
+                        <div className={`rounded-2xl border px-4 py-3 ${harnessHealthState.data?.tablesReady ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80'}`}>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">테이블 준비</p>
+                            <p className="mt-1 text-xl font-black text-slate-900">{harnessHealthState.data?.tablesReady ? '완료' : '미확인'}</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">workflow runs</p>
+                            <p className="mt-1 text-xl font-black text-slate-900">{harnessHealthState.data?.counts.workflowRuns ?? 0}</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">events / approvals</p>
+                            <p className="mt-1 text-xl font-black text-slate-900">{`${harnessHealthState.data?.counts.workflowEvents ?? 0} / ${harnessHealthState.data?.counts.humanApprovals ?? 0}`}</p>
+                        </div>
+                    </div>
+
+                    {harnessHealthState.status === 'error' ? (
+                        <p className="mt-3 text-xs font-bold text-rose-700">{harnessHealthState.message}</p>
+                    ) : null}
+                    {harnessHealthState.data?.warning ? (
+                        <p className="mt-3 text-xs font-bold text-amber-700">{harnessHealthState.data.warning}</p>
+                    ) : null}
+                    {harnessHealthState.data?.checkedAt ? (
+                        <p className="mt-2 text-[11px] font-semibold text-slate-500">마지막 점검: {new Date(harnessHealthState.data.checkedAt).toLocaleString('ko-KR')}</p>
+                    ) : null}
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">하네스 persistence 진단 준비</h3>
+                        <p className="mt-1 text-xs sm:text-sm text-slate-500 leading-relaxed">
+                            최근 workflow run 연결 레코드를 기준으로 persisted 상태를 즉시 조회해 `직접 조회`, `원본 레코드 기준 조회`, `실데이터 미발견` 케이스를 설정 화면에서 바로 분류할 수 있습니다.
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={handleRunHarnessProbe}
+                        disabled={isHarnessProbeLoading || harnessCandidates.length === 0}
+                        className={`px-4 py-2.5 rounded-2xl text-sm font-black transition-all ${isHarnessProbeLoading || harnessCandidates.length === 0 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg'}`}
+                    >
+                        {isHarnessProbeLoading ? '진단 조회 중...' : '최근 workflow run 진단 새로고침'}
+                    </button>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">직접 조회</p>
+                        <p className="mt-1 text-2xl font-black text-slate-900">{harnessProbeSummary.direct}</p>
+                    </div>
+                    <div className="rounded-2xl border border-indigo-200 bg-indigo-50/70 px-4 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-700">원본 레코드 보정</p>
+                        <p className="mt-1 text-2xl font-black text-slate-900">{harnessProbeSummary.sourceFallback}</p>
+                    </div>
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">실데이터 미발견</p>
+                        <p className="mt-1 text-2xl font-black text-slate-900">{harnessProbeSummary.missing}</p>
+                    </div>
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">경고 포함</p>
+                        <p className="mt-1 text-2xl font-black text-slate-900">{harnessProbeSummary.warning}</p>
+                    </div>
+                    <div className="rounded-2xl border border-rose-200 bg-rose-50/80 px-4 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-700">조회 실패</p>
+                        <p className="mt-1 text-2xl font-black text-slate-900">{harnessProbeSummary.error}</p>
+                    </div>
+                </div>
+
+                {harnessCandidates.length === 0 ? (
+                    <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm font-semibold text-slate-500">
+                        아직 `workflowRunId`가 연결된 최신 레코드가 없어 실환경 persistence 진단 대상을 만들 수 없습니다. 먼저 OCR/리포트 흐름에서 하네스 run 연결을 생성해야 합니다.
+                    </div>
+                ) : (
+                    <div className="mt-4 space-y-3">
+                        {harnessCandidates.map((record) => {
+                            const runId = String(record.workflowRunId || '').trim();
+                            const result = harnessProbeResults[runId];
+                            const statusLabel = result?.status === 'loading'
+                                ? '조회 중'
+                                : result?.status === 'error'
+                                    ? '조회 실패'
+                                    : result?.diagnostics?.found
+                                        ? result.diagnostics.resolvedBy === 'source_record_id'
+                                            ? '원본 레코드 기준 조회'
+                                            : '직접 조회 성공'
+                                        : result?.status === 'success'
+                                            ? '실데이터 미발견'
+                                            : '검증 대기';
+                            const statusClassName = result?.status === 'loading'
+                                ? 'bg-slate-100 text-slate-600 border-slate-200'
+                                : result?.status === 'error'
+                                    ? 'bg-rose-100 text-rose-700 border-rose-200'
+                                    : result?.diagnostics?.found
+                                        ? result.diagnostics.resolvedBy === 'source_record_id'
+                                            ? 'bg-indigo-100 text-indigo-700 border-indigo-200'
+                                            : 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                        : result?.status === 'success'
+                                            ? 'bg-amber-100 text-amber-700 border-amber-200'
+                                            : 'bg-slate-100 text-slate-500 border-slate-200';
+
+                            return (
+                                <div key={runId} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                        <div>
+                                            <p className="text-sm font-black text-slate-900">{record.name} · {record.jobField || '미분류'}</p>
+                                            <p className="mt-1 text-xs font-semibold text-slate-500">{record.date} · 팀 {record.teamLeader || '미지정'} · Run {runId}</p>
+                                        </div>
+                                        <span className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-black ${statusClassName}`}>{statusLabel}</span>
+                                    </div>
+                                    <div className="mt-3 grid grid-cols-1 gap-2 text-xs font-semibold text-slate-600 sm:grid-cols-2 xl:grid-cols-4">
+                                        <div>workflow: <span className="font-black text-slate-800">{result?.workflowState || record.workflowState || inferHarnessWorkflowState(record)}</span></div>
+                                        <div>risk: <span className="font-black text-slate-800">{result?.riskDecision || record.riskDecision || inferHarnessRiskDecision(record)}</span></div>
+                                        <div>approval: <span className="font-black text-slate-800">{result?.approvalState || record.approvalState || inferHarnessApprovalState(record, inferHarnessWorkflowState(record))}</span></div>
+                                        <div>counts: <span className="font-black text-slate-800">E {result?.diagnostics?.eventCount ?? 0} · A {result?.diagnostics?.approvalCount ?? 0} · T {result?.diagnostics?.timelineCount ?? 0}</span></div>
+                                    </div>
+                                    {result?.message ? <p className="mt-2 text-xs font-bold text-rose-700">{result.message}</p> : null}
+                                    {result?.warning ? <p className="mt-2 text-xs font-bold text-amber-700">{result.warning}</p> : null}
+                                    {result?.diagnostics && !result.diagnostics.found ? (
+                                        <p className="mt-2 text-xs font-bold text-amber-700">저장 환경은 응답했지만 해당 run의 persisted 데이터는 아직 확인되지 않았습니다.</p>
+                                    ) : null}
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
 
             {showGuide && <SettingsGuide onClose={() => setShowGuide(false)} />}
 

@@ -3,6 +3,8 @@ import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'rea
 import type { WorkerRecord, SafetyCheckRecord, Page } from '../types';
 import { StatCard } from '../components/StatCard';
 import { SafetyActionCenter } from '../components/SafetyActionCenter';
+import { NoticeCallout } from '../components/shared/NoticeCallout';
+import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { Tooltip } from '../components/shared/Tooltip';
 import { BrandPhilosophyLogo } from '../components/shared/BrandPhilosophyLogo';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
@@ -82,6 +84,36 @@ const isManagementRole = (field: string) =>
     /관리|팀장|부장|과장|기사|공무|소장/.test(field);
 
 const getDashboardTeamKey = (trade: string, team: string) => `${trade}::${team}`;
+
+const inferHarnessWorkflowState = (record: Partial<WorkerRecord>) => {
+    if (record.workflowState) return record.workflowState;
+    if (record.secondPassStatus === 'IN_PROGRESS') return 'second_pass_analyzing';
+    if (record.reviewStatus === 'PENDING' || record.approvalStatus === 'PENDING') return 'awaiting_manager_approval';
+    if (record.ocrErrorType || record.secondPassStatus === 'NEEDED') return 'manual_review_required';
+    if (record.secondPassStatus === 'DONE' || record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED') return 'completed';
+    return 'uploaded';
+};
+
+const inferHarnessRiskDecision = (record: Partial<WorkerRecord>) => {
+    if (record.riskDecision) return record.riskDecision;
+    if (record.ocrErrorType) return 'IMMEDIATE_ATTENTION';
+    if (record.secondPassStatus === 'NEEDED') return 'SUPPLEMENTARY_REVIEW';
+    return 'SAFE_TO_PROCEED';
+};
+
+const inferHarnessApprovalState = (record: Partial<WorkerRecord>, workflowState: string) => {
+    if (record.approvalState) return record.approvalState;
+    if (record.reviewStatus === 'REJECTED') return 'REJECTED';
+    if (record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED') return 'APPROVED';
+    if (workflowState === 'manual_review_required' || workflowState === 'awaiting_manager_approval' || workflowState === 'second_pass_analyzing') return 'PENDING';
+    return 'NOT_REQUIRED';
+};
+
+const getHarnessPersistenceState = (record: Partial<WorkerRecord>): 'connected' | 'fallback' | 'pending' => {
+    if (String(record.harnessPersistenceWarning || '').trim()) return 'fallback';
+    if (String(record.workflowRunId || '').trim()) return 'connected';
+    return 'pending';
+};
 
 const ChartSkeleton: React.FC<{ minHeight?: string }> = ({ minHeight = '220px' }) => (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6 animate-pulse" style={{ minHeight }}>
@@ -284,6 +316,72 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         const totalChecks = safetyCheckRecords.length;
         return { totalWorkers, averageScore, highRiskWorkers, totalChecks };
     }, [filteredWorkerRecords, safetyCheckRecords]);
+
+    const harnessDashboardSummary = useMemo(() => {
+        const uniqueWorkers = new Set(filteredWorkerRecords.map((record) => record.name));
+        const latestRecords = Array.from(uniqueWorkers).map((name) => {
+            return filteredWorkerRecords
+                .filter((record) => record.name === name)
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+        });
+
+        return latestRecords.reduce((summary, record) => {
+            const workflowState = inferHarnessWorkflowState(record);
+            const riskDecision = inferHarnessRiskDecision(record);
+            const approvalState = inferHarnessApprovalState(record, workflowState);
+            const persistenceState = getHarnessPersistenceState(record);
+
+            summary.total += 1;
+            if (String(record.workflowRunId || '').trim()) summary.runLinked += 1;
+            if (persistenceState === 'connected') summary.connected += 1;
+            if (persistenceState === 'fallback') summary.fallback += 1;
+            if (persistenceState === 'pending') summary.pending += 1;
+            if (approvalState === 'PENDING' || approvalState === 'REQUIRED') summary.approvalBacklog += 1;
+            if (workflowState === 'manual_review_required' || workflowState === 'awaiting_manager_approval' || workflowState === 'second_pass_analyzing') summary.reviewNeeded += 1;
+            if (riskDecision === 'IMMEDIATE_ATTENTION' || riskDecision === 'CRITICAL_STOP') summary.immediateAttention += 1;
+            return summary;
+        }, {
+            total: 0,
+            runLinked: 0,
+            connected: 0,
+            fallback: 0,
+            pending: 0,
+            approvalBacklog: 0,
+            reviewNeeded: 0,
+            immediateAttention: 0,
+        });
+    }, [filteredWorkerRecords]);
+
+    const harnessSummaryMetrics = useMemo(() => [
+        {
+            key: 'dashboard-harness-connected',
+            label: '하네스 저장 연결',
+            value: `${harnessDashboardSummary.connected}명`,
+            helper: `${harnessDashboardSummary.runLinked}명이 workflow run과 연결되어 있습니다.`,
+            tone: 'border-emerald-200 bg-emerald-50/80',
+        },
+        {
+            key: 'dashboard-harness-approval',
+            label: '승인 백로그',
+            value: `${harnessDashboardSummary.approvalBacklog}명`,
+            helper: `재확인 필요 ${harnessDashboardSummary.reviewNeeded}명을 포함합니다.`,
+            tone: harnessDashboardSummary.approvalBacklog > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'dashboard-harness-risk',
+            label: '즉시 보호 대상',
+            value: `${harnessDashboardSummary.immediateAttention}명`,
+            helper: '위험 배지 기준으로 우선 보호 조치를 시작할 대상입니다.',
+            tone: harnessDashboardSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-slate-200 bg-slate-50',
+        },
+        {
+            key: 'dashboard-harness-fallback',
+            label: '폴백/저장 대기',
+            value: `${harnessDashboardSummary.fallback + harnessDashboardSummary.pending}명`,
+            helper: `폴백 ${harnessDashboardSummary.fallback}명 · 저장 대기 ${harnessDashboardSummary.pending}명`,
+            tone: harnessDashboardSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+        },
+    ], [harnessDashboardSummary]);
 
     const dashboardData = useMemo(() => {
         return transformDashboardData(filteredWorkerRecords);
@@ -523,8 +621,19 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     : '공종·국적 교차 분석과 팀 비교를 통해 작은 이상 신호를 먼저 찾아 선제 보완할 수 있습니다.',
                 tone: stats.highRiskWorkers > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
             },
+            {
+                key: 'dashboard-harness',
+                eyebrow: '하네스 백로그',
+                title: `${harnessDashboardSummary.approvalBacklog}명 승인 대기 · ${harnessDashboardSummary.immediateAttention}명 즉시 보호 대상`,
+                description: harnessDashboardSummary.fallback > 0
+                    ? `${harnessDashboardSummary.fallback}명은 persistence 폴백 상태입니다. 보호 해석은 유지되지만 저장 연결 여부를 함께 확인해야 합니다.`
+                    : '대시보드에서도 승인 백로그와 즉시 보호 대상을 함께 읽어 보고서·OCR·관리자 검토 우선순위를 바로 정할 수 있습니다.',
+                tone: harnessDashboardSummary.approvalBacklog > 0 || harnessDashboardSummary.immediateAttention > 0
+                    ? 'border-violet-200 bg-violet-50/80'
+                    : 'border-slate-200 bg-slate-50',
+            },
         ];
-    }, [audienceView, selectedTeamOption, stats.averageScore, stats.highRiskWorkers, stats.totalChecks, stats.totalWorkers]);
+    }, [audienceView, harnessDashboardSummary.approvalBacklog, harnessDashboardSummary.fallback, harnessDashboardSummary.immediateAttention, selectedTeamOption, stats.averageScore, stats.highRiskWorkers, stats.totalChecks, stats.totalWorkers]);
 
     const audienceInsightMessage = useMemo(() => {
         if (audienceView === 'worker') {
@@ -1115,6 +1224,30 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 items={dashboardSummaryCards}
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
             />
+
+            <SummaryMetricGrid
+                items={harnessSummaryMetrics}
+                columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
+
+            {(harnessDashboardSummary.approvalBacklog > 0 || harnessDashboardSummary.fallback > 0 || harnessDashboardSummary.immediateAttention > 0) && (
+                <NoticeCallout
+                    variant={harnessDashboardSummary.immediateAttention > 0 ? 'rose' : harnessDashboardSummary.fallback > 0 ? 'amber' : 'indigo'}
+                    title={harnessDashboardSummary.immediateAttention > 0
+                        ? `즉시 보호 대상 ${harnessDashboardSummary.immediateAttention}명이 있어 승인·보완 우선순위를 먼저 정해야 합니다.`
+                        : harnessDashboardSummary.fallback > 0
+                            ? `하네스 persistence 폴백 ${harnessDashboardSummary.fallback}명이 있어 저장 연결 여부를 함께 점검해야 합니다.`
+                            : `승인 백로그 ${harnessDashboardSummary.approvalBacklog}명이 남아 있어 관리자 검토 순서를 먼저 정리해야 합니다.`}
+                    description={harnessDashboardSummary.fallback > 0
+                        ? '대시보드 단계에서 백로그를 읽고 OCR 분석, 리포트, 관리자 검토로 이어가면 보호 흐름이 끊기지 않습니다.'
+                        : '현장 보호 우선순위를 대시보드에서 먼저 읽고 세부 화면으로 내려가면 승인 누락과 설명 지연을 줄일 수 있습니다.'}
+                    className="rounded-2xl border px-4 py-3 shadow-sm"
+                    bodyClassName="block"
+                    titleClassName="text-sm font-black"
+                    descriptionClassName="mt-1 text-xs font-semibold leading-relaxed"
+                />
+            )}
 
             <div className="bg-indigo-50 border-l-4 border-indigo-400 p-3 sm:p-4 rounded-r-lg flex items-start sm:items-center justify-between gap-2 sm:gap-4">
                 <div className="flex items-start sm:items-center gap-2">

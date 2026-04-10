@@ -21,7 +21,7 @@ import { StatusBadge } from '../shared/StatusBadge';
 import { SummaryMetricGrid } from '../shared/SummaryMetricGrid';
 import { WhyThisResultPanel } from '../shared/WhyThisResultPanel';
 import { updateAnalysisBasedOnEdits } from '../../services/geminiService';
-import { approveHarnessRecord, fetchHarnessWorkflowStatus } from '../../services/harnessService';
+import { approveHarnessRecord, fetchHarnessWorkflowStatus, type HarnessWorkflowDiagnostics } from '../../services/harnessService';
 import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
 import { deriveCompetencyProfile, enforceSafetyLevel, getApprovalBlockers } from '../../utils/evidenceUtils';
 import { getSafetyLevelThresholds, getSafetyLevelFromScore } from '../../utils/safetyLevelUtils';
@@ -274,6 +274,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const [harnessStatusWarning, setHarnessStatusWarning] = useState<string | null>(null);
     const [harnessTimeline, setHarnessTimeline] = useState<Array<{ stage: string; timestamp: string; note: string; actor?: string }>>([]);
     const [isHarnessPersisted, setIsHarnessPersisted] = useState<boolean | null>(null);
+    const [harnessDiagnostics, setHarnessDiagnostics] = useState<HarnessWorkflowDiagnostics | null>(null);
     const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     const docInputRef = useRef<HTMLInputElement>(null); // For Document Image
@@ -327,6 +328,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             setHarnessTimeline([]);
             setHarnessStatusWarning(null);
             setIsHarnessPersisted(null);
+            setHarnessDiagnostics(null);
             return;
         }
 
@@ -341,6 +343,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             })));
             setHarnessStatusWarning(response.persistence?.warning || null);
             setIsHarnessPersisted(typeof response.persistence?.persisted === 'boolean' ? response.persistence.persisted : null);
+            setHarnessDiagnostics(response.diagnostics || null);
             setRecord((prev) => getConsistentRecord(withHarnessState(prev, {
                 workflowRunId: response.workflowRunId,
                 workflowState: response.workflowState,
@@ -352,10 +355,23 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         } catch (error) {
             setHarnessStatusWarning(error instanceof Error ? error.message : '하네스 상태 조회에 추가 확인이 필요합니다.');
             setIsHarnessPersisted(false);
+            setHarnessDiagnostics(null);
         } finally {
             setIsHarnessStatusLoading(false);
         }
     }, []);
+
+    const harnessLookupSummary = useMemo(() => {
+        if (!harnessDiagnostics) return null;
+
+        const resolvedByLabel = harnessDiagnostics.resolvedBy === 'workflow_run_id'
+            ? '런 ID 직접 조회'
+            : harnessDiagnostics.resolvedBy === 'source_record_id'
+                ? '원본 레코드 기준 조회'
+                : '실데이터 미발견';
+
+        return `${resolvedByLabel} · 이벤트 ${harnessDiagnostics.eventCount}건 · 승인 ${harnessDiagnostics.approvalCount}건 · 타임라인 ${harnessDiagnostics.timelineCount}건`;
+    }, [harnessDiagnostics]);
 
     useEffect(() => {
         void refreshHarnessStatus(record.workflowRunId);
@@ -1793,9 +1809,17 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                             {record.workflowRunId ? <StatusBadge variant="slateSoft">런 ID 연결됨</StatusBadge> : <StatusBadge variant="amberSoft">런 ID 대기</StatusBadge>}
                                                             {isHarnessPersisted === true && <StatusBadge variant="emeraldSoft">영속 저장 확인</StatusBadge>}
                                                             {isHarnessPersisted === false && <StatusBadge variant="amberSoft">영속 저장 폴백</StatusBadge>}
+                                                            {harnessDiagnostics?.found === false && isHarnessPersisted === true && <StatusBadge variant="amberSoft">실데이터 미발견</StatusBadge>}
+                                                            {harnessDiagnostics?.resolvedBy === 'source_record_id' && <StatusBadge variant="violetSoft">원본 레코드 기준 조회</StatusBadge>}
                                                         </div>
                                                         {record.workflowRunId && (
                                                             <p className="mt-2 text-[11px] font-semibold text-slate-500">workflowRunId: {record.workflowRunId}</p>
+                                                        )}
+                                                        {harnessLookupSummary && (
+                                                            <p className="mt-1 text-[11px] font-semibold text-slate-500">{harnessLookupSummary}</p>
+                                                        )}
+                                                        {harnessDiagnostics?.sourceRecordId && harnessDiagnostics.sourceRecordId !== record.workflowRunId && (
+                                                            <p className="mt-1 text-[11px] font-semibold text-slate-400">sourceRecordId: {harnessDiagnostics.sourceRecordId}</p>
                                                         )}
                                                     </div>
                                                     {record.workflowRunId && (
@@ -1813,9 +1837,15 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                     <NoticeCallout
                                                         variant="amber"
                                                         title={harnessStatusWarning}
+                                                        description={harnessDiagnostics?.found === false && isHarnessPersisted === true
+                                                            ? '실환경 persistence는 연결되어 있지만 현재 런 ID 또는 원본 레코드로 조회된 저장 이벤트가 없습니다.'
+                                                            : harnessDiagnostics?.resolvedBy === 'source_record_id'
+                                                                ? '현재 응답은 workflow run id 대신 원본 레코드 기준 최신 저장 런으로 보정되었습니다.'
+                                                                : undefined}
                                                         className="mt-3 w-full rounded-xl border px-3 py-2"
                                                         bodyClassName="block"
                                                         titleClassName="text-[11px] font-semibold leading-relaxed text-amber-700"
+                                                        descriptionClassName="mt-1 text-[11px] font-semibold leading-relaxed text-amber-700"
                                                     />
                                                 )}
                                             </div>

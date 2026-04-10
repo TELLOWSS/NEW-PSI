@@ -1,7 +1,7 @@
 
 import React, { Suspense, lazy, useRef, useState, useEffect, useMemo } from 'react';
 import type { WorkerRecord } from '../types';
-import { generateReportUrl } from '../utils/qrUtils';
+import { generateReportUrl, getReportShareDiagnostics } from '../utils/qrUtils';
 import { postAdminJson } from '../utils/adminApiClient';
 import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
@@ -106,6 +106,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
     const reassessmentTrail = (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-5).reverse();
     const messageWorkerKey = String(record.worker_uuid || record.workerUuid || record.employeeId || `${record.name}_${record.teamLeader || '미지정'}`).trim();
     const isGenerating = isGeneratingPdf || isGeneratingImage || isSendingMessage;
+    const shareDiagnostics = useMemo(() => getReportShareDiagnostics(record), [record]);
     const generationInterpretationCards: InterpretationCardItem[] = useMemo(() => [
         {
             key: 'individual-status',
@@ -132,7 +133,24 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                 : '자동문자, 문자공유, 이미지 저장, PDF 발급 중 현장 상황에 맞는 전달 방식을 선택하면 됩니다.',
             tone: isQrScanMode ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
         },
-    ], [generationProgress.action, generationProgress.phaseLabel, isGenerating, isQrScanMode, record.jobField, record.name, record.safetyLevel, record.safetyScore, record.teamLeader]);
+        {
+            key: 'individual-qr-diagnostics',
+            eyebrow: 'QR 공유 진단',
+            title: shareDiagnostics.qrRisk === 'overflow'
+                ? 'QR 길이가 한계에 가까워 링크/문서 공유를 함께 준비해야 합니다.'
+                : shareDiagnostics.qrRisk === 'warning'
+                    ? 'QR 길이가 다소 길어 현장 기기마다 인식 속도 차이가 있을 수 있습니다.'
+                    : 'QR 공유 길이가 안정 범위에 있습니다.',
+            description: shareDiagnostics.warning
+                ? `${shareDiagnostics.warning} 현재 URL 길이 ${shareDiagnostics.urlLength}자입니다.`
+                : `현재 URL 길이 ${shareDiagnostics.urlLength}자로 QR 현장 공유에 사용할 수 있습니다.`,
+            tone: shareDiagnostics.qrRisk === 'overflow'
+                ? 'border-rose-200 bg-rose-50/80'
+                : shareDiagnostics.qrRisk === 'warning'
+                    ? 'border-amber-200 bg-amber-50/80'
+                    : 'border-indigo-200 bg-indigo-50/70',
+        },
+    ], [generationProgress.action, generationProgress.phaseLabel, isGenerating, isQrScanMode, record.jobField, record.name, record.safetyLevel, record.safetyScore, record.teamLeader, shareDiagnostics.qrRisk, shareDiagnostics.urlLength, shareDiagnostics.warning]);
 
     const messageInterpretationCards: InterpretationCardItem[] = useMemo(() => [
         {
@@ -476,7 +494,8 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
     };
 
     const handleShare = async () => {
-        const url = generateReportUrl(record);
+        const diagnostics = getReportShareDiagnostics(record);
+        const url = diagnostics.url || generateReportUrl(record);
         if (!url) {
             alert('공유 URL 생성 확인이 필요합니다.');
             return;
@@ -489,9 +508,12 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         try {
             if (navigator.share) {
                 await navigator.share(shareData);
+                if (diagnostics.warning) {
+                    alert(`공유는 완료되었지만 확인이 필요합니다.\n\n${diagnostics.warning}`);
+                }
             } else {
                 await navigator.clipboard.writeText(url);
-                alert(`📋 링크가 복사되었습니다.\n\n${url}`);
+                alert(`📋 링크가 복사되었습니다.\n\n${url}${diagnostics.warning ? `\n\n[QR 안내]\n${diagnostics.warning}` : ''}`);
             }
         } catch (err) { console.error('Share failed:', err); }
     };
@@ -750,6 +772,12 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                     cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
                 />
             </div>
+
+            {shareDiagnostics.warning && !isQrScanMode && (
+                <div className={`w-full max-w-[210mm] rounded-2xl border px-4 py-3 text-[12px] font-bold shadow-sm ${shareDiagnostics.qrRisk === 'overflow' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                    QR 공유 길이 안내 · {shareDiagnostics.warning} 현재 URL 길이 {shareDiagnostics.urlLength}자 / payload {shareDiagnostics.payloadLength}자입니다.
+                </div>
+            )}
 
             {generationProgress.status !== 'idle' && (
                 <ReportGenerationProgress

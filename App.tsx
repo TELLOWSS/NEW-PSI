@@ -1092,7 +1092,7 @@ const App: React.FC = () => {
                         {currentPage === 'predictive-analysis' && <PredictiveAnalysis workerRecords={workerRecords} />}
                         {currentPage === 'performance-analysis' && <PerformanceAnalysis workerRecords={workerRecords} />}
                         {currentPage === 'safety-checks' && <SafetyChecks workerRecords={workerRecords} checkRecords={safetyCheckRecords} onAddCheck={(r: unknown) => setSafetyCheckRecords(p => [{...(r as SafetyCheckRecord), id:Date.now().toString()}, ...p])} />}
-                        {currentPage === 'site-issue-management' && <SiteIssueManagement />}
+                        {currentPage === 'site-issue-management' && <SiteIssueManagement workerRecords={workerRecords} />}
                         {currentPage === 'reports' && <Reports workerRecords={workerRecords} briefingData={briefingData} setBriefingData={setBriefingData} forecastData={forecastData} setForecastData={setForecastData} />}
                         {currentPage === 'admin-training' && <AdminTraining />}
                         {currentPage === 'worker-training' && <WorkerTraining sessionId={trainingSessionId} />}
@@ -1100,7 +1100,7 @@ const App: React.FC = () => {
                         {currentPage === 'safety-compliance-hub' && <FieldSafetyComplianceHub workerRecords={workerRecords} />}
                         {currentPage === 'feedback' && <Feedback />}
                         {currentPage === 'introduction' && <Introduction />}
-                        {currentPage === 'settings' && <Settings />}
+                        {currentPage === 'settings' && <Settings workerRecords={workerRecords} />}
                     </Suspense>
                 </Layout>
             )}

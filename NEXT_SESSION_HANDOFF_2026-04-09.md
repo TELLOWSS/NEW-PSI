@@ -119,6 +119,8 @@
     - role-aware 요약 카드와 인사이트 문구를 도입해 1차 view model 분리 기반을 마련
     - 역할별 통계 카드/빠른 실행/공종 비교 해설을 분기하고 근로자 관점에서 식별 불가 데이터 배너를 숨겨 노출 순서 차등화를 확장
     - 운영 포커스 카드, 하단 차트 배치 순서, 모바일 비교 탭/비교 안내 문구를 역할별로 다시 분기해 하단 분석 영역까지 role-aware 구조를 확장
+    - 상단에 하네스 저장 연결/승인 백로그/즉시 보호 대상/폴백·대기 요약을 추가해 운영 우선순위를 dashboard 첫 화면에서 바로 읽을 수 있게 정리
+    - 승인 백로그나 persistence 폴백이 남아 있으면 `NoticeCallout`으로 즉시 후속 조치 필요 여부를 노출
   - `types.ts`
     - `workflowState` / `riskDecision` / `approvalState` 타입과 `WorkerRecord` 하네스 상태 필드를 추가
   - `lib/server/harness/*`
@@ -139,12 +141,14 @@
     - 하네스 분석/승인/재분석/상태 조회용 프론트엔드 게이트웨이 래퍼를 추가
     - `postAdminJson`을 통해 관리자 인증 헤더를 공용 적용하도록 보강
     - persistence 메타(`persisted`, `workflowRunId`, `warning`)를 함께 반환하도록 타입을 확장
+    - 상태 조회 응답에 persistence 진단 메타(`resolvedBy`, 이벤트/승인/타임라인 건수, `sourceRecordId`)를 함께 전달하도록 확장
   - `components/modals/RecordDetailModal.tsx`
     - 승인/반려 시 `approveHarnessRecord()`를 호출해 하네스 승인 게이트와 실제 검토 UI를 연결
     - `recordId` / `workflowRunId` / `workflowState` / `riskDecision` / `approvalState` / `secondPassStatus`를 로컬 레코드 상태 및 감사 이력과 함께 동기화
     - `fetchHarnessWorkflowStatus()`를 호출해 저장된 하네스 상태를 새로고침하고 승인 패널에서 즉시 배지/경고를 표시
     - 감사 이력 영역에 하네스 상태 타임라인 패널을 추가해 workflow run 기준 이벤트 흐름을 직접 확인 가능하게 정리
     - 타임라인 엔트리에 `actor` 메타를 표시하고, 승인 게이트 영역에 영속 저장 확인/폴백 배지와 `workflowRunId`를 함께 노출
+    - persistence 진단 메타를 읽어 `실데이터 미발견` / `원본 레코드 기준 조회` 상태와 이벤트·승인 건수 요약을 함께 표시
   - `pages/OcrAnalysis.tsx`
     - 신규 파일 분석 성공 시 `analyzeHarnessRecord()`를 호출해 `workflowRunId` / 하네스 결정 상태를 즉시 기록에 반영
     - OCR 재분석 성공/실패 시 `reanalyzeHarnessRecord()`를 호출해 `workflowRunId` / `workflowState` / `riskDecision` / `approvalState` / `secondPassStatus`를 실제 하네스 응답과 동기화
@@ -158,18 +162,53 @@
     - 등록 근로자 관리자 센터 상단에 하네스 저장 연결/보호 재확인 요약 수치와 persistence 폴백 경고를 추가
     - 등록 근로자 목록 카드와 중복 상태 패널에 워크플로우·위험·승인·저장 연결 배지, `workflowRunId`, persistence 경고를 함께 노출
     - 선택 근로자 문자 발송 이력 상세에서도 최신 리포트의 하네스 보호 맥락을 배지와 안내문으로 바로 확인 가능하게 정리
+  - `pages/FieldSafetyComplianceHub.tsx`
+    - 허브 상단에 하네스 저장 연결/승인 백로그/즉시 보호 대상/폴백·대기 요약을 추가해 탭별 입력 전에 운영 우선순위를 읽을 수 있게 정리
+    - 종합판정 탭에도 하네스 요약 수치와 persistence/승인 경고를 연결해 행동 무결성 판정을 실제 보호 워크플로우와 함께 읽도록 보강
+  - `pages/SiteIssueManagement.tsx`
+    - 상단에 하네스 저장 연결/승인 백로그/즉시 보호 대상/폴백·대기 요약과 경고를 추가해 현장 지적사항도 보호 우선순위 맥락으로 읽도록 보강
+  - `pages/PredictiveAnalysis.tsx`
+    - 상단에 하네스 저장 연결/승인 백로그/즉시 개입/폴백·대기 요약을 추가해 실행 계획 전 현재 보호 공백을 먼저 읽도록 보강
+    - 즉시 보호 대상·승인 백로그·persistence 폴백 경고를 `NoticeCallout`으로 노출해 예측 실행계획과 실제 보호 흐름을 연결
+  - `pages/SafetyBehaviorManagement.tsx`
+    - 상단에 하네스 저장 연결/승인 백로그/즉시 보호/폴백·대기 요약을 추가해 관찰·코칭·무결성 판정이 보호 워크플로우와 분리되지 않도록 보강
+    - observe/review 탭 공통으로 하네스 경고를 노출해 입력·판정 전에 관리자 승인과 저장 연결 우선순위를 바로 읽도록 정리
+  - `pages/PerformanceAnalysis.tsx`
+    - 상단에 하네스 저장 연결/승인 백로그/즉시 보호/폴백·대기 요약을 추가해 성과 편차 해석 전에 현재 보호 공백을 먼저 읽도록 보강
+    - 성과 요약 카드 아래에서 하네스 경고를 노출해 평균·변동성보다 우선 처리할 승인/저장 이슈를 바로 확인 가능하게 정리
+  - `pages/SafetyChecks.tsx`
+    - 상단에 하네스 저장 연결/승인 백로그/즉시 보호/폴백·대기 요약을 추가해 새 점검 등록 전에 기존 보호 백로그를 먼저 확인하도록 보강
+    - 신규 점검 폼 앞에서 하네스 경고를 노출해 기록 추가와 승인·저장 연결 점검을 같은 흐름으로 읽도록 정리
+  - `pages/Settings.tsx`
+    - 상단에 하네스 저장 연결/승인 백로그/즉시 보호/폴백·대기 요약을 추가해 설정 변경 전 현재 보호 공백을 먼저 읽도록 보강
+    - 최근 `workflowRunId` 기준 persistence 진단 패널을 추가해 `직접 조회` / `원본 레코드 기준 조회` / `실데이터 미발견` / 경고 / 실패 건수를 설정 화면에서 바로 검증 가능하게 정리
+    - 하네스 persistence 환경 상태 카드(`환경변수` / `키 모드` / `테이블 준비` / `workflow runs` / `events·approvals`)를 추가해 실데이터 미발견과 환경 미구성을 먼저 구분 가능하게 보강
+  - `App.tsx`
+    - `SiteIssueManagement`에 `workerRecords`를 전달해 지적사항 관리 화면에서도 하네스 운영 신호를 함께 계산하도록 연결
+    - `Settings`에 `workerRecords`를 전달해 설정 화면에서도 최신 하네스 run 연결 레코드를 기준으로 persistence 진단 대상을 계산하도록 연결
+  - `lib/server/harness/persistence.ts`
+    - 환경변수/키 모드/하네스 테이블 건수를 점검하는 `fetchHarnessPersistenceHealth()`를 추가해 persisted 검증 전 환경 상태를 먼저 분리 가능하게 정리
+  - `api/harness/persistence-health.ts`, `services/harnessService.ts`
+    - 하네스 persistence 환경 상태 조회 엔드포인트와 클라이언트 래퍼를 추가
   - `App.tsx`
     - `sanitizeRecords()`에서 `workflowRunId` / `workflowState` / `riskDecision` / `approvalState` / `harnessPersistenceWarning`을 명시적으로 정규화해 IndexedDB 로드·가져오기·추가 저장 경로의 하네스 필드 보존을 고정
   - `utils/qrUtils.ts`
     - QR 공유 스키마를 v6으로 확장해 `workflowRunId` / 하네스 상태 / persistence 경고를 축약 코드로 함께 인코딩·복원
+    - QR 공유 길이 진단 헬퍼를 추가해 URL/payload 길이 기준 `ok` / `warning` / `overflow` 상태와 현장 안내 문구를 함께 계산
+  - `pages/IndividualReport.tsx`
+    - 상단 해석 카드와 공유 액션에 QR 길이 진단을 연결해 긴 링크일 때 링크·PDF 병행 안내와 실제 URL 길이를 바로 노출
+  - `pages/WorkerManagement.tsx`
+    - QR 코드 생성 전에 공유 길이 `overflow` 상태를 사전 감지해 `Data Too Long` 폴백으로 전환하고 무의미한 렌더링을 줄임
   - `types.ts`
     - `WorkerRecord.harnessPersistenceWarning` 필드를 추가해 하네스 저장 경고를 레코드와 함께 전달
   - `lib/server/harness/persistence.ts`
     - `ai_workflow_runs` / `ai_workflow_events` / `ai_guardrail_overrides` / `ai_context_snapshots` / `ai_human_approvals` 저장/조회 공통 헬퍼를 추가
     - 마이그레이션 미적용 또는 Supabase 환경변수 부재 시 하네스 API가 경고만 남기고 계속 동작하도록 안전 폴백 처리
+    - 상태 조회 시 `resolvedBy` / 이벤트 수 / 승인 수 / 타임라인 수 / `sourceRecordId`를 포함한 진단 메타를 반환해 실환경 검증 근거를 강화
   - `api/harness/analyze.ts`, `api/harness/approve.ts`, `api/harness/reanalyze.ts`, `api/harness/workflow-status.ts`
     - 하네스 결정과 이벤트를 Supabase persistence 레이어와 연결
     - 상태 조회 시 저장된 이벤트/인간 승인 타임라인을 우선 응답하고, 미연결 환경에서는 기존 초안 응답으로 폴백
+    - persistence 연결 성공이지만 저장 런이 미발견인 경우도 별도 경고/진단으로 반환해 실데이터 검증 시 혼선을 줄임
   - `components/Layout.tsx`
     - 상단 특허출원/유무료 API 상태 배지를 `StatusBadge` 기반으로 정리
   - `components/Sidebar.tsx`
@@ -232,6 +271,14 @@
 - `pages/Reports.tsx`
 - `pages/WorkerManagement.tsx`
 - `pages/OcrAnalysis.tsx`
+- `pages/PredictiveAnalysis.tsx`
+- `pages/PerformanceAnalysis.tsx`
+- `pages/SafetyChecks.tsx`
+- `pages/SafetyBehaviorManagement.tsx`
+- `pages/Settings.tsx`
+- `api/harness/persistence-health.ts`
+- `services/harnessService.ts`
+- `lib/server/harness/persistence.ts`
 - `pages/SiteIssueManagement.tsx`
 - `pages/FieldSafetyComplianceHub.tsx`
 - `types.ts`
@@ -251,18 +298,32 @@
 - `pages/Reports.tsx` → 오류 없음
 - `pages/WorkerManagement.tsx` → 오류 없음
 - `pages/OcrAnalysis.tsx` → 오류 없음
+- `pages/PredictiveAnalysis.tsx` → 오류 없음
+- `pages/PerformanceAnalysis.tsx` → 오류 없음
+- `pages/SafetyChecks.tsx` → 오류 없음
+- `pages/SafetyBehaviorManagement.tsx` → 오류 없음
+- `pages/Settings.tsx` → 오류 없음
+- `api/harness/persistence-health.ts` → 오류 없음
+- `services/harnessService.ts` → 오류 없음
+- `lib/server/harness/persistence.ts` → 오류 없음
 - `pages/SiteIssueManagement.tsx` → 오류 없음
 - `pages/FieldSafetyComplianceHub.tsx` → 오류 없음
 - `App.tsx` → 오류 없음
 - `utils/qrUtils.ts` → 오류 없음
+- `pages/IndividualReport.tsx` → 오류 없음
+- `lib/server/harness/persistence.ts` → 오류 없음
+- `api/harness/workflow-status.ts` → 오류 없음
+- `services/harnessService.ts` → 오류 없음
+- `pages/Dashboard.tsx` → 오류 없음
 
 ## 5) 다음 세션 시작 시 바로 이어갈 권장 작업
 우선순위 순서:
 1. 하네스 persistence 테이블 실환경 마이그레이션 적용 후 `fetchHarnessWorkflowStatus()` persisted 응답을 실제 데이터로 검증
-2. QR 공유 링크(v6) 생성 길이와 모바일 스캔 안정성을 실기기에서 확인
-3. 필요 시 재사용 컴포넌트 props 정리 및 세맨틱 토큰 연계
-4. 아직 남은 accent 계열 안내 박스/인라인 카드까지 shared tone preset으로 올릴지 점검
-5. 필요 시 새 handoff 문서 기준일 갱신 또는 후속 세션용 handoff 분리
+2. QR 공유 링크(v6) 생성 길이와 모바일 스캔 안정성을 실기기에서 확인하고, `warning`/`overflow` 기준이 과한지 실측으로 보정
+3. 새 진단 메타(`resolvedBy`, 이벤트/승인 건수)를 기준으로 실환경에서 `실데이터 미발견` / `source_record_id 보정` 케이스를 분류 검증
+4. 필요 시 재사용 컴포넌트 props 정리 및 세맨틱 토큰 연계
+5. 아직 남은 accent 계열 안내 박스/인라인 카드까지 shared tone preset으로 올릴지 점검
+6. 필요 시 새 handoff 문서 기준일 갱신 또는 후속 세션용 handoff 분리
 
 ## 6) 다음 세션용 실행 프롬프트 예시
 아래처럼 시작하면 바로 이어가기 쉽습니다.

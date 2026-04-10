@@ -1,6 +1,15 @@
 
 import type { WorkerRecord } from '../types';
 
+export type ReportShareDiagnostics = {
+    url: string;
+    payloadLength: number;
+    urlLength: number;
+    qrRisk: 'ok' | 'warning' | 'overflow';
+    warning: string | null;
+    schemaVersion: number;
+};
+
 const WORKFLOW_STATE_TO_CODE: Record<string, string> = {
     uploaded: 'UP',
     ocr_validating: 'OV',
@@ -96,15 +105,62 @@ const encodeData = (data: unknown[]): string => {
     }
 };
 
+export const getReportShareDiagnostics = (record: WorkerRecord): ReportShareDiagnostics => {
+    try {
+        if (!record || typeof window === 'undefined') {
+            return {
+                url: '',
+                payloadLength: 0,
+                urlLength: 0,
+                qrRisk: 'overflow',
+                warning: '공유 링크를 만들 환경을 확인해 주세요.',
+                schemaVersion: 6,
+            };
+        }
+
+        const baseUrl = window.location.origin + window.location.pathname;
+        const payload = encodeData(minifyFull(record));
+        const url = payload ? `${baseUrl}?d=${payload}` : '';
+        const payloadLength = payload.length;
+        const urlLength = url.length;
+
+        let qrRisk: ReportShareDiagnostics['qrRisk'] = 'ok';
+        let warning: string | null = null;
+
+        if (!payload || !url) {
+            qrRisk = 'overflow';
+            warning = '공유 링크 생성에 실패했습니다.';
+        } else if (urlLength >= 1850 || payloadLength >= 1700) {
+            qrRisk = 'overflow';
+            warning = 'QR 길이가 한계에 가까워 일부 기기에서 스캔이 어려울 수 있습니다. 링크 공유 또는 PDF 전달을 함께 준비해 주세요.';
+        } else if (urlLength >= 1200 || payloadLength >= 1050) {
+            qrRisk = 'warning';
+            warning = 'QR 길이가 길어 모바일 카메라·메신저 앱에 따라 인식 속도가 느릴 수 있습니다. 현장에서는 링크 복사본도 함께 준비해 주세요.';
+        }
+
+        return {
+            url,
+            payloadLength,
+            urlLength,
+            qrRisk,
+            warning,
+            schemaVersion: 6,
+        };
+    } catch {
+        return {
+            url: '',
+            payloadLength: 0,
+            urlLength: 0,
+            qrRisk: 'overflow',
+            warning: '공유 링크를 만들지 못했습니다.',
+            schemaVersion: 6,
+        };
+    }
+};
+
 export const generateReportUrl = (record: WorkerRecord): string => {
     try {
-        if (!record) return "";
-        const baseUrl = window.location.origin + window.location.pathname; // 현재 도메인 주소
-        
-        // 텍스트 데이터만 포함하여 인코딩
-        const payload = encodeData(minifyFull(record));
-        
-        return `${baseUrl}?d=${payload}`;
+        return getReportShareDiagnostics(record).url;
     } catch (e) {
         return "";
     }

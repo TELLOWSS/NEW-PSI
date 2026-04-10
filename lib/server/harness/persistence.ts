@@ -102,6 +102,43 @@ async function findWorkflowRun(supabase: SupabaseLike, workflowRunIdOrSource: st
     return (data as WorkflowRunRow | null) || null;
 }
 
+async function findWorkflowRunWithResolution(
+    supabase: SupabaseLike,
+    workflowRunIdOrSource: string,
+): Promise<{ run: WorkflowRunRow | null; resolvedBy: 'workflow_run_id' | 'source_record_id' | null }> {
+    const lookup = String(workflowRunIdOrSource || '').trim();
+    if (!lookup) {
+        return { run: null, resolvedBy: null };
+    }
+
+    if (isUuidLike(lookup)) {
+        const { data, error } = await supabase
+            .from('ai_workflow_runs')
+            .select('id, source_record_id, workflow_state, risk_decision, approval_state, second_pass_status, requires_manager_approval, latest_decision_payload')
+            .eq('id', lookup)
+            .maybeSingle();
+
+        if (error) throw error;
+        if (data) {
+            return { run: data as WorkflowRunRow, resolvedBy: 'workflow_run_id' };
+        }
+    }
+
+    const { data, error } = await supabase
+        .from('ai_workflow_runs')
+        .select('id, source_record_id, workflow_state, risk_decision, approval_state, second_pass_status, requires_manager_approval, latest_decision_payload')
+        .eq('source_record_id', lookup)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+    if (error) throw error;
+    return {
+        run: (data as WorkflowRunRow | null) || null,
+        resolvedBy: data ? 'source_record_id' : null,
+    };
+}
+
 export async function persistHarnessAnalysis(options: {
     workflowRunId?: string;
     payload: HarnessAnalyzeRequest;
@@ -324,9 +361,24 @@ export async function persistHarnessApproval(options: {
 export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string) {
     try {
         const supabase = getHarnessSupabaseClient();
-        const run = await findWorkflowRun(supabase, workflowRunId);
+        const lookupValue = String(workflowRunId || '').trim();
+        const { run, resolvedBy } = await findWorkflowRunWithResolution(supabase, lookupValue);
         if (!run) {
-            return { found: false, persisted: true, warning: null, data: null };
+            return {
+                found: false,
+                persisted: true,
+                warning: null,
+                data: null,
+                diagnostics: {
+                    lookupValue,
+                    found: false,
+                    resolvedBy: null,
+                    sourceRecordId: null,
+                    eventCount: 0,
+                    approvalCount: 0,
+                    timelineCount: 0,
+                },
+            };
         }
 
         const { data: events, error: eventsError } = await supabase
@@ -358,10 +410,22 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
             })),
         ].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
+        const eventCount = Array.isArray(events) ? events.length : 0;
+        const approvalCount = Array.isArray(approvals) ? approvals.length : 0;
+
         return {
             found: true,
             persisted: true,
             warning: null,
+            diagnostics: {
+                lookupValue,
+                found: true,
+                resolvedBy,
+                sourceRecordId: run.source_record_id || null,
+                eventCount,
+                approvalCount,
+                timelineCount: timeline.length,
+            },
             data: {
                 workflowRunId: run.id,
                 workflowState: run.workflow_state,
@@ -373,8 +437,99 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
         };
     } catch (error: any) {
         if (isMissingPersistenceDependency(error) || isMissingEnv(error)) {
-            return { found: false, persisted: false, warning: error?.message || '하네스 persistence 비활성', data: null };
+            return {
+                found: false,
+                persisted: false,
+                warning: error?.message || '하네스 persistence 비활성',
+                data: null,
+                diagnostics: {
+                    lookupValue: String(workflowRunId || '').trim(),
+                    found: false,
+                    resolvedBy: null,
+                    sourceRecordId: null,
+                    eventCount: 0,
+                    approvalCount: 0,
+                    timelineCount: 0,
+                },
+            };
         }
         throw error;
+    }
+}
+
+function getHarnessPersistenceEnvMeta() {
+    const supabaseUrl =
+        process.env.VITE_SUPABASE_URL ||
+        process.env.NEXT_PUBLIC_SUPABASE_URL ||
+        '';
+    const serviceRoleKey =
+        process.env.SUPABASE_SERVICE_ROLE_KEY ||
+        process.env.SUPABASE_SERVICE_KEY ||
+        process.env.SERVICE_ROLE_KEY ||
+        '';
+    const anonKey =
+        process.env.VITE_SUPABASE_ANON_KEY ||
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+        '';
+
+    return {
+        supabaseUrlConfigured: Boolean(supabaseUrl),
+        keyMode: serviceRoleKey ? 'service_role' : anonKey ? 'anon' : 'missing',
+        envConfigured: Boolean(supabaseUrl && (serviceRoleKey || anonKey)),
+    } as const;
+}
+
+export async function fetchHarnessPersistenceHealth() {
+    const envMeta = getHarnessPersistenceEnvMeta();
+
+    try {
+        const supabase = getHarnessSupabaseClient();
+        const [runsResult, eventsResult, approvalsResult, overridesResult, snapshotsResult] = await Promise.all([
+            supabase.from('ai_workflow_runs').select('id', { count: 'exact', head: true }),
+            supabase.from('ai_workflow_events').select('id', { count: 'exact', head: true }),
+            supabase.from('ai_human_approvals').select('id', { count: 'exact', head: true }),
+            supabase.from('ai_guardrail_overrides').select('id', { count: 'exact', head: true }),
+            supabase.from('ai_context_snapshots').select('id', { count: 'exact', head: true }),
+        ]);
+
+        const firstError = runsResult.error || eventsResult.error || approvalsResult.error || overridesResult.error || snapshotsResult.error;
+        if (firstError) throw firstError;
+
+        return {
+            connected: true,
+            envConfigured: envMeta.envConfigured,
+            keyMode: envMeta.keyMode,
+            supabaseUrlConfigured: envMeta.supabaseUrlConfigured,
+            tablesReady: true,
+            warning: null,
+            checkedAt: new Date().toISOString(),
+            counts: {
+                workflowRuns: Number(runsResult.count || 0),
+                workflowEvents: Number(eventsResult.count || 0),
+                humanApprovals: Number(approvalsResult.count || 0),
+                guardrailOverrides: Number(overridesResult.count || 0),
+                contextSnapshots: Number(snapshotsResult.count || 0),
+            },
+        };
+    } catch (error: any) {
+        const missingEnv = isMissingEnv(error);
+        const missingTable = isMissingPersistenceDependency(error);
+
+        return {
+            connected: false,
+            envConfigured: missingEnv ? false : envMeta.envConfigured,
+            keyMode: envMeta.keyMode,
+            supabaseUrlConfigured: envMeta.supabaseUrlConfigured,
+            tablesReady: missingTable ? false : false,
+            warning: error?.message || '하네스 persistence 상태를 확인할 수 없습니다.',
+            checkedAt: new Date().toISOString(),
+            counts: {
+                workflowRuns: 0,
+                workflowEvents: 0,
+                humanApprovals: 0,
+                guardrailOverrides: 0,
+                contextSnapshots: 0,
+            },
+        };
     }
 }

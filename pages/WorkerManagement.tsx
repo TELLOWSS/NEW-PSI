@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import { ReportTemplate } from '../components/ReportTemplate';
-import { generateReportUrl } from '../utils/qrUtils';
+import { generateReportUrl, getReportShareDiagnostics } from '../utils/qrUtils';
 import { extractMessage } from '../utils/errorUtils';
 import { postAdminJson } from '../utils/adminApiClient';
 import { ensureHtml2Canvas, ensureQRCodeJs } from '../utils/externalScripts';
@@ -126,9 +126,13 @@ const QRCodeComponent: React.FC<QRCodeProps> = React.memo(({ record, onLoad }) =
             try {
                 // 2. 초기화 및 URL 생성
                 element.innerHTML = ''; 
-                const qrUrl = generateReportUrl(record);
+                const diagnostics = getReportShareDiagnostics(record);
+                const qrUrl = diagnostics.url || generateReportUrl(record);
                 
                 if (!qrUrl) throw new Error("URL Gen Failed");
+                if (diagnostics.qrRisk === 'overflow') {
+                    throw new Error(diagnostics.warning || 'QR Data Too Long');
+                }
 
                 // 3. QR 생성 시도
                 new QRCodeLib(element, {
@@ -148,7 +152,7 @@ const QRCodeComponent: React.FC<QRCodeProps> = React.memo(({ record, onLoad }) =
                 console.error("QR Generation Error:", e);
                 let visibleError = "QR Error";
                 const errMsg = extractMessage(e);
-                if (typeof errMsg === 'string' && errMsg.includes("code length overflow")) visibleError = "Data Too Long";
+                if (typeof errMsg === 'string' && (errMsg.includes("code length overflow") || errMsg.includes('길이가 한계에 가까워') || errMsg.includes('Data Too Long'))) visibleError = "Data Too Long";
                 setErrorMsg(visibleError);
                 if (onLoad) onLoad(false); 
             }

@@ -25,9 +25,14 @@ export default async function handler(req: any, res: any) {
                     persisted: persisted.persisted,
                     warning: persisted.warning,
                 },
+                diagnostics: persisted.diagnostics,
             },
         });
     }
+
+    const lookupMissWarning = persisted.persisted && !persisted.warning
+        ? '저장 환경은 연결됐지만 조회한 workflow run에 해당하는 영속 데이터는 아직 없습니다.'
+        : persisted.warning;
 
     return res.status(200).json({
         ok: true,
@@ -39,13 +44,22 @@ export default async function handler(req: any, res: any) {
             secondPassStatus: 'NEEDED',
             persistence: {
                 persisted: persisted.persisted,
-                warning: persisted.warning,
+                warning: lookupMissWarning,
+            },
+            diagnostics: persisted.diagnostics || {
+                lookupValue: workflowRunId,
+                found: false,
+                resolvedBy: null,
+                sourceRecordId: null,
+                eventCount: 0,
+                approvalCount: 0,
+                timelineCount: 0,
             },
             timeline: [
                 {
                     stage: 'uploaded',
                     timestamp: new Date().toISOString(),
-                    note: '워크플로우 상태 조회 초안 응답',
+                    note: lookupMissWarning || '워크플로우 상태 조회 초안 응답',
                 },
             ],
         },
