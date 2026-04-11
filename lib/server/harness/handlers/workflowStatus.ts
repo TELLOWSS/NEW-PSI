@@ -94,6 +94,12 @@ export default async function handler(req: any, res: any) {
                 policy: [],
                 rule: [],
             },
+            ruleImpactSummary: {
+                items: [],
+                narrative: '현재 저장된 가드레일 오버라이드는 없습니다.',
+                totalCount: 0,
+                criticalCount: 0,
+            },
             decisionPayload: null,
             timeline: [
                 {

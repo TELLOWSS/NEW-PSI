@@ -155,6 +155,10 @@ type HarnessProbeResult = {
     workflowState?: string;
     riskDecision?: string;
     approvalState?: string;
+    overrideCount?: number;
+    criticalRuleCount?: number;
+    ruleImpactNarrative?: string;
+    ruleImpactRuleCodes?: string[];
     checkedAt?: string;
 };
 
@@ -162,6 +166,18 @@ type HarnessHealthState = {
     status: 'idle' | 'loading' | 'success' | 'error';
     data?: HarnessPersistenceHealth;
     message?: string;
+};
+
+const downloadTextFile = (fileName: string, content: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(objectUrl);
 };
 
 interface SettingsProps {
@@ -678,9 +694,11 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 if (!item.diagnostics.found) acc.missing += 1;
             }
             if (item.warning) acc.warning += 1;
+            if ((item.overrideCount || 0) > 0) acc.overrideRuns += 1;
+            acc.criticalRules += Number(item.criticalRuleCount || 0);
             if (item.status === 'error') acc.error += 1;
             return acc;
-        }, { direct: 0, sourceFallback: 0, missing: 0, warning: 0, error: 0 });
+        }, { direct: 0, sourceFallback: 0, missing: 0, warning: 0, overrideRuns: 0, criticalRules: 0, error: 0 });
     }, [harnessProbeResults]);
 
     const handleRunHarnessHealthCheck = async () => {
@@ -721,6 +739,10 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     workflowState: response.workflowState,
                     riskDecision: response.riskDecision,
                     approvalState: response.approvalState,
+                    overrideCount: response.ruleImpactSummary?.totalCount || response.overrides?.length || 0,
+                    criticalRuleCount: response.ruleImpactSummary?.criticalCount || 0,
+                    ruleImpactNarrative: response.ruleImpactSummary?.narrative || null,
+                    ruleImpactRuleCodes: response.ruleImpactSummary?.items.map((item) => item.ruleCode) || [],
                     checkedAt: new Date().toISOString(),
                 } satisfies HarnessProbeResult] as const;
             } catch (error) {
@@ -741,6 +763,83 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             return next;
         });
         setIsHarnessProbeLoading(false);
+    };
+
+    const handleExportHarnessProbeJson = () => {
+        const payload = {
+            exportedAt: new Date().toISOString(),
+            candidateCount: harnessCandidates.length,
+            summary: harnessProbeSummary,
+            runs: harnessCandidates.map((record) => {
+                const runId = String(record.workflowRunId || '').trim();
+                const result = harnessProbeResults[runId];
+                return {
+                    runId,
+                    recordId: record.id,
+                    name: record.name,
+                    jobField: record.jobField || '미분류',
+                    teamLeader: record.teamLeader || '미지정',
+                    date: record.date,
+                    probe: result || null,
+                };
+            }),
+        };
+
+        downloadTextFile(
+            `PSI_Harness_Probe_${new Date().toISOString().slice(0, 10)}.json`,
+            JSON.stringify(payload, null, 2),
+            'application/json;charset=utf-8;'
+        );
+    };
+
+    const handleExportHarnessProbeCsv = () => {
+        const escapeCsv = (value: unknown) => {
+            const str = String(value ?? '');
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        };
+
+        const rows: string[][] = [
+            ['runId', 'recordId', 'name', 'jobField', 'teamLeader', 'date', 'status', 'workflowState', 'riskDecision', 'approvalState', 'resolvedBy', 'found', 'eventCount', 'approvalCount', 'timelineCount', 'warning', 'overrideCount', 'criticalRuleCount', 'ruleImpactRuleCodes', 'ruleImpactNarrative', 'checkedAt'],
+        ];
+
+        harnessCandidates.forEach((record) => {
+            const runId = String(record.workflowRunId || '').trim();
+            const result = harnessProbeResults[runId];
+            rows.push([
+                runId,
+                record.id,
+                record.name,
+                record.jobField || '미분류',
+                record.teamLeader || '미지정',
+                record.date,
+                result?.status || 'idle',
+                result?.workflowState || record.workflowState || inferHarnessWorkflowState(record),
+                result?.riskDecision || record.riskDecision || inferHarnessRiskDecision(record),
+                result?.approvalState || record.approvalState || inferHarnessApprovalState(record, inferHarnessWorkflowState(record)),
+                result?.diagnostics?.resolvedBy || '',
+                result?.diagnostics?.found ? 'YES' : 'NO',
+                String(result?.diagnostics?.eventCount ?? 0),
+                String(result?.diagnostics?.approvalCount ?? 0),
+                String(result?.diagnostics?.timelineCount ?? 0),
+                result?.warning || '',
+                String(result?.overrideCount ?? 0),
+                String(result?.criticalRuleCount ?? 0),
+                result?.ruleImpactRuleCodes?.join(' | ') || '',
+                result?.ruleImpactNarrative || '',
+                result?.checkedAt || '',
+            ]);
+        });
+
+        const bom = '\uFEFF';
+        const csv = rows.map((row) => row.map(escapeCsv).join(',')).join('\n');
+        downloadTextFile(
+            `PSI_Harness_Probe_${new Date().toISOString().slice(0, 10)}.csv`,
+            bom + csv,
+            'text/csv;charset=utf-8;'
+        );
     };
 
     return (
@@ -851,17 +950,35 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                             최근 workflow run 연결 레코드를 기준으로 persisted 상태를 즉시 조회해 `직접 조회`, `원본 레코드 기준 조회`, `실데이터 미발견` 케이스를 설정 화면에서 바로 분류할 수 있습니다.
                         </p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={handleRunHarnessProbe}
-                        disabled={isHarnessProbeLoading || harnessCandidates.length === 0}
-                        className={`px-4 py-2.5 rounded-2xl text-sm font-black transition-all ${isHarnessProbeLoading || harnessCandidates.length === 0 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg'}`}
-                    >
-                        {isHarnessProbeLoading ? '진단 조회 중...' : '최근 workflow run 진단 새로고침'}
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={handleExportHarnessProbeCsv}
+                            disabled={harnessCandidates.length === 0}
+                            className={`px-4 py-2.5 rounded-2xl text-sm font-black transition-all ${harnessCandidates.length === 0 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
+                        >
+                            진단 CSV 내보내기
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleExportHarnessProbeJson}
+                            disabled={harnessCandidates.length === 0}
+                            className={`px-4 py-2.5 rounded-2xl text-sm font-black transition-all ${harnessCandidates.length === 0 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'}`}
+                        >
+                            진단 JSON 내보내기
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleRunHarnessProbe}
+                            disabled={isHarnessProbeLoading || harnessCandidates.length === 0}
+                            className={`px-4 py-2.5 rounded-2xl text-sm font-black transition-all ${isHarnessProbeLoading || harnessCandidates.length === 0 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg'}`}
+                        >
+                            {isHarnessProbeLoading ? '진단 조회 중...' : '최근 workflow run 진단 새로고침'}
+                        </button>
+                    </div>
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3">
                     <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
                         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700">직접 조회</p>
                         <p className="mt-1 text-2xl font-black text-slate-900">{harnessProbeSummary.direct}</p>
@@ -877,6 +994,11 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
                         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">경고 포함</p>
                         <p className="mt-1 text-2xl font-black text-slate-900">{harnessProbeSummary.warning}</p>
+                    </div>
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">룰 개입 런</p>
+                        <p className="mt-1 text-2xl font-black text-slate-900">{harnessProbeSummary.overrideRuns}</p>
+                        <p className="mt-1 text-[10px] font-bold text-amber-700">Critical 합계 {harnessProbeSummary.criticalRules}</p>
                     </div>
                     <div className="rounded-2xl border border-rose-200 bg-rose-50/80 px-4 py-3">
                         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-700">조회 실패</p>
@@ -931,6 +1053,18 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                                         <div>approval: <span className="font-black text-slate-800">{result?.approvalState || record.approvalState || inferHarnessApprovalState(record, inferHarnessWorkflowState(record))}</span></div>
                                         <div>counts: <span className="font-black text-slate-800">E {result?.diagnostics?.eventCount ?? 0} · A {result?.diagnostics?.approvalCount ?? 0} · T {result?.diagnostics?.timelineCount ?? 0}</span></div>
                                     </div>
+                                    {result?.status === 'success' ? (
+                                        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-3">
+                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-700">Rule Impact Summary</p>
+                                                <p className="text-[11px] font-black text-amber-800">오버라이드 {result?.overrideCount ?? 0}건 · Critical {result?.criticalRuleCount ?? 0}</p>
+                                            </div>
+                                            <p className="mt-2 text-xs font-bold leading-relaxed text-amber-800">{result?.ruleImpactNarrative || '저장된 룰 개입 요약이 없습니다.'}</p>
+                                            {result?.ruleImpactRuleCodes && result.ruleImpactRuleCodes.length > 0 ? (
+                                                <p className="mt-1 text-[10px] font-bold text-amber-700 break-all">룰 코드: {result.ruleImpactRuleCodes.slice(0, 4).join(', ')}{result.ruleImpactRuleCodes.length > 4 ? ` 외 ${result.ruleImpactRuleCodes.length - 4}개` : ''}</p>
+                                            ) : null}
+                                        </div>
+                                    ) : null}
                                     {result?.message ? <p className="mt-2 text-xs font-bold text-rose-700">{result.message}</p> : null}
                                     {result?.warning ? <p className="mt-2 text-xs font-bold text-amber-700">{result.warning}</p> : null}
                                     {result?.diagnostics && !result.diagnostics.found ? (

@@ -12,6 +12,12 @@ export interface EvidenceManifestFileEntry {
     ruleVersions?: string[];
     approvalCount?: number;
     overrideCount?: number;
+    ruleImpactSummary?: {
+        totalCount: number;
+        criticalCount: number;
+        narrative: string;
+        ruleCodes: string[];
+    };
     versionChangeSummary?: {
         prompt: string[];
         policy: string[];
@@ -160,6 +166,18 @@ export async function verifyEvidenceManifest(
             policy: normalizeStringArray(harnessAuditSnapshot?.versionChangeSummary?.policy || []),
             rule: normalizeStringArray(harnessAuditSnapshot?.versionChangeSummary?.rule || []),
         };
+        const expectedRuleImpactSummary = {
+            totalCount: Number(entry.ruleImpactSummary?.totalCount || 0),
+            criticalCount: Number(entry.ruleImpactSummary?.criticalCount || 0),
+            narrative: normalizeOptionalString(entry.ruleImpactSummary?.narrative),
+            ruleCodes: normalizeStringArray(entry.ruleImpactSummary?.ruleCodes || []),
+        };
+        const actualRuleImpactSummary = {
+            totalCount: Number(harnessAuditSnapshot?.ruleImpactSummary?.totalCount || 0),
+            criticalCount: Number(harnessAuditSnapshot?.ruleImpactSummary?.criticalCount || 0),
+            narrative: normalizeOptionalString(harnessAuditSnapshot?.ruleImpactSummary?.narrative),
+            ruleCodes: normalizeStringArray((harnessAuditSnapshot?.ruleImpactSummary?.items || []).map((item: any) => item?.ruleCode)),
+        };
 
         const expectsHarnessSnapshot = Boolean(
             normalizeOptionalString(entry.workflowRunId) ||
@@ -168,6 +186,9 @@ export async function verifyEvidenceManifest(
             expectedRuleVersions.length > 0 ||
             Number(entry.approvalCount || 0) > 0 ||
             Number(entry.overrideCount || 0) > 0 ||
+            expectedRuleImpactSummary.totalCount > 0 ||
+            expectedRuleImpactSummary.criticalCount > 0 ||
+            expectedRuleImpactSummary.ruleCodes.length > 0 ||
             expectedVersionChangeSummary.prompt.length > 0 ||
             expectedVersionChangeSummary.policy.length > 0 ||
             expectedVersionChangeSummary.rule.length > 0
@@ -215,6 +236,30 @@ export async function verifyEvidenceManifest(
                     expected: String(Number(entry.overrideCount || 0)),
                     actual: String(Array.isArray(harnessAuditSnapshot?.overrides) ? harnessAuditSnapshot.overrides.length : 0),
                     enabled: typeof entry.overrideCount !== 'undefined',
+                },
+                {
+                    field: 'ruleImpactSummary.totalCount',
+                    expected: String(expectedRuleImpactSummary.totalCount),
+                    actual: String(actualRuleImpactSummary.totalCount),
+                    enabled: typeof entry.ruleImpactSummary !== 'undefined',
+                },
+                {
+                    field: 'ruleImpactSummary.criticalCount',
+                    expected: String(expectedRuleImpactSummary.criticalCount),
+                    actual: String(actualRuleImpactSummary.criticalCount),
+                    enabled: typeof entry.ruleImpactSummary !== 'undefined',
+                },
+                {
+                    field: 'ruleImpactSummary.ruleCodes',
+                    expected: toComparableListText(expectedRuleImpactSummary.ruleCodes),
+                    actual: toComparableListText(actualRuleImpactSummary.ruleCodes),
+                    enabled: expectedRuleImpactSummary.ruleCodes.length > 0,
+                },
+                {
+                    field: 'ruleImpactSummary.narrative',
+                    expected: expectedRuleImpactSummary.narrative,
+                    actual: actualRuleImpactSummary.narrative,
+                    enabled: expectedRuleImpactSummary.narrative.length > 0,
                 },
                 {
                     field: 'versionChangeSummary.prompt',

@@ -6,7 +6,9 @@ import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { NextActionChecklist } from '../components/shared/NextActionChecklist';
 import { NoticeCallout } from '../components/shared/NoticeCallout';
+import { HarnessVersionChangeSummaryPanel } from '../components/shared/HarnessVersionChangeSummaryPanel';
 import { HarnessVersionDetailsPanel } from '../components/shared/HarnessVersionDetailsPanel';
+import { HarnessRuleImpactSummaryPanel } from '../components/shared/HarnessRuleImpactSummaryPanel';
 import { ReportGenerationProgress } from '../components/shared/ReportGenerationProgress';
 import { StatusBadge } from '../components/shared/StatusBadge';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
@@ -24,6 +26,7 @@ import { verifyEvidenceManifest, formatEvidenceVerificationSummary } from '../ut
 import type { EvidenceManifest, EvidenceManifestVerificationResult } from '../utils/evidenceVerificationUtils';
 import { buildHarnessTransitionExecutionGuide, buildHarnessTransitionNarrative } from '../utils/harnessTransitionNarratives';
 import { getHarnessVersionDescriptor, getHarnessVersionDescriptors, type HarnessVersionDetailsBundle } from '../utils/harnessVersionCatalog';
+import { buildHarnessRuleImpactSummary } from '../utils/harnessRuleImpactSummary';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { buildPdfBlobFromCanvases, canvasToBlob, captureReportCanvases, getCanvasImageData, getCanvasPlacementOnA4, saveCanvasesAsA4Pdf } from '../utils/pdfCapture';
 import { fetchHarnessWorkflowStatus } from '../services/harnessService';
@@ -870,6 +873,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         };
     }, [previewWorkflowStatus?.versionChangeSummary]);
 
+    const currentPreviewRuleImpactSummary = useMemo(() => {
+        if (previewWorkflowStatus?.ruleImpactSummary) {
+            return previewWorkflowStatus.ruleImpactSummary;
+        }
+
+        return buildHarnessRuleImpactSummary(previewWorkflowStatus?.overrides || []);
+    }, [previewWorkflowStatus]);
+
     const currentPreviewApprovalNarrative = useMemo(() => {
         const diff = previewWorkflowStatus?.latestApprovalDiff;
         if (!diff) {
@@ -905,16 +916,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     }, [previewWorkflowStatus]);
 
     const currentPreviewOverrideNarrative = useMemo(() => {
-        const overrides = previewWorkflowStatus?.overrides || [];
-        if (overrides.length === 0) {
-            return '현재 저장된 가드레일 오버라이드는 없습니다.';
-        }
-
-        return overrides
-            .slice(0, 2)
-            .map((override) => `${override.ruleCode}: ${override.message}`)
-            .join(' / ');
-    }, [previewWorkflowStatus]);
+        return currentPreviewRuleImpactSummary.narrative;
+    }, [currentPreviewRuleImpactSummary]);
 
     const currentPreviewGovernanceNarrative = useMemo(() => {
         const diff = previewWorkflowStatus?.latestApprovalDiff;
@@ -977,6 +980,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         const ruleVersions = Array.from(new Set(manifest.files.flatMap((entry) => entry.ruleVersions || []).filter(Boolean)));
         const overrideCount = manifest.files.reduce((sum, entry) => sum + Number(entry.overrideCount || 0), 0);
         const approvalCount = manifest.files.reduce((sum, entry) => sum + Number(entry.approvalCount || 0), 0);
+        const criticalRuleCount = manifest.files.reduce((sum, entry) => sum + Number(entry.ruleImpactSummary?.criticalCount || 0), 0);
+        const ruleImpactRuleCodes = Array.from(new Set(manifest.files.flatMap((entry) => entry.ruleImpactSummary?.ruleCodes || []).filter(Boolean)));
+        const ruleImpactNarratives = Array.from(new Set(manifest.files.map((entry) => entry.ruleImpactSummary?.narrative).filter(Boolean))) as string[];
         const linkedRunCount = manifest.files.filter((entry) => String(entry.workflowRunId || '').trim().length > 0).length;
         const versionChangeSummary = {
             prompt: Array.from(new Set(manifest.files.flatMap((entry) => entry.versionChangeSummary?.prompt || []).filter(Boolean))),
@@ -992,6 +998,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             ruleVersions,
             overrideCount,
             approvalCount,
+            criticalRuleCount,
+            ruleImpactRuleCodes,
+            ruleImpactNarratives,
             harnessAuditSnapshotIncluded: Boolean(manifest.summary.harnessAuditSnapshotIncluded),
             templateVersion: String(manifest.summary.templateVersion || '미기록'),
             jsonSchemaVersion: String(manifest.summary.jsonSchemaVersion || '미기록'),
@@ -1023,6 +1032,32 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             ...verificationHarnessVersionDetails.rule,
         ];
     }, [verificationHarnessVersionDetails]);
+
+    const verificationRuleImpactSummary = useMemo(() => {
+        if (!verificationHarnessMetaSummary) {
+            return buildHarnessRuleImpactSummary([]);
+        }
+
+        return {
+            items: verificationHarnessMetaSummary.ruleImpactRuleCodes.map((ruleCode) => ({
+                ruleCode,
+                ruleVersion: null,
+                severity: 'warning',
+                count: verificationManifestPreview?.files.filter((entry) => (entry.ruleImpactSummary?.ruleCodes || []).includes(ruleCode)).length || 0,
+                decisionPath: 'manifest 집계 기준',
+                messages: verificationManifestPreview?.files
+                    .filter((entry) => (entry.ruleImpactSummary?.ruleCodes || []).includes(ruleCode))
+                    .map((entry) => entry.ruleImpactSummary?.narrative || '')
+                    .filter(Boolean)
+                    .slice(0, 2) || [],
+                triggerTypes: [],
+                latestCreatedAt: null,
+            })),
+            narrative: verificationHarnessMetaSummary.ruleImpactNarratives[0] || '저장된 룰 개입 요약이 없습니다.',
+            totalCount: verificationHarnessMetaSummary.overrideCount,
+            criticalCount: verificationHarnessMetaSummary.criticalRuleCount,
+        };
+    }, [verificationHarnessMetaSummary, verificationManifestPreview]);
 
     const verificationTemplateMismatchWarnings = useMemo(() => {
         if (!verificationHarnessMetaSummary) {
@@ -1677,6 +1712,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 ruleVersions?: string[];
                 approvalCount?: number;
                 overrideCount?: number;
+                ruleImpactSummary?: {
+                    totalCount: number;
+                    criticalCount: number;
+                    narrative: string;
+                    ruleCodes: string[];
+                };
                 versionChangeSummary?: {
                     prompt: string[];
                     policy: string[];
@@ -1756,6 +1797,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             analyzerSummary: harnessAuditSnapshot.analyzerSummary,
                             evaluatorSummary: harnessAuditSnapshot.evaluatorSummary,
                             latestApprovalDiff: harnessAuditSnapshot.latestApprovalDiff,
+                            ruleImpactSummary: harnessAuditSnapshot.ruleImpactSummary,
                             versionDetails: harnessAuditSnapshot.versionDetails,
                             versionChangeSummary: harnessAuditSnapshot.versionChangeSummary,
                             overrides: harnessAuditSnapshot.overrides,
@@ -1783,6 +1825,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     ruleVersions: harnessRuleVersions,
                     approvalCount: harnessAuditSnapshot?.approvals?.length || 0,
                     overrideCount: harnessAuditSnapshot?.overrides?.length || 0,
+                    ruleImpactSummary: harnessAuditSnapshot?.ruleImpactSummary
+                        ? {
+                            totalCount: harnessAuditSnapshot.ruleImpactSummary.totalCount,
+                            criticalCount: harnessAuditSnapshot.ruleImpactSummary.criticalCount,
+                            narrative: harnessAuditSnapshot.ruleImpactSummary.narrative,
+                            ruleCodes: harnessAuditSnapshot.ruleImpactSummary.items.map((item) => item.ruleCode),
+                        }
+                        : undefined,
                     versionChangeSummary: harnessAuditSnapshot?.versionChangeSummary || { prompt: [], policy: [], rule: [] },
                     approvalAction: harnessAuditSnapshot?.latestApprovalDiff?.action || null,
                     approvalNarrative: harnessAuditSnapshot?.latestApprovalDiff
@@ -2023,6 +2073,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             verificationResult,
             manifestSummary: verificationManifestPreview?.summary || null,
             manifestMetaSummary: verificationHarnessMetaSummary || null,
+            manifestRuleImpactSummary: verificationRuleImpactSummary,
             manifestPackageName: verificationManifestPreview?.packageName || null,
             manifestGeneratedAt: verificationManifestPreview?.generatedAt || null,
         };
@@ -2078,7 +2129,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 ['manifest', 'policyVersions', String(verificationHarnessMetaSummary.policyVersions.length), verificationHarnessMetaSummary.policyVersions.join(' | ')],
                 ['manifest', 'ruleVersions', String(verificationHarnessMetaSummary.ruleVersions.length), verificationHarnessMetaSummary.ruleVersions.join(' | ')],
                 ['manifest', 'overrideCount', String(verificationHarnessMetaSummary.overrideCount), ''],
-                ['manifest', 'approvalCount', String(verificationHarnessMetaSummary.approvalCount), '']
+                ['manifest', 'approvalCount', String(verificationHarnessMetaSummary.approvalCount), ''],
+                ['manifest', 'criticalRuleCount', String(verificationHarnessMetaSummary.criticalRuleCount), ''],
+                ['manifest', 'ruleImpactRuleCodes', String(verificationHarnessMetaSummary.ruleImpactRuleCodes.length), verificationHarnessMetaSummary.ruleImpactRuleCodes.join(' | ')],
+                ['manifest', 'ruleImpactNarrative', verificationHarnessMetaSummary.ruleImpactNarratives[0] || '', '']
             );
         }
 
@@ -2877,6 +2931,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">룰/오버라이드</p>
                             <p className="mt-1 text-sm font-black text-amber-800">룰 버전 {verificationHarnessMetaSummary.ruleVersions.length}종 · 오버라이드 {verificationHarnessMetaSummary.overrideCount}건</p>
                             <p className="mt-1 text-[11px] font-bold text-amber-700 break-all">{verificationHarnessMetaSummary.ruleVersions.slice(0, 2).join(', ') || '미기록'}</p>
+                            <p className="mt-1 text-[10px] font-bold text-amber-600">Critical 룰 {verificationHarnessMetaSummary.criticalRuleCount}건</p>
                         </div>
                         <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500">승인/감사 스냅샷</p>
@@ -2887,32 +2942,29 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-                        {[
-                            {
-                                label: 'Prompt 변경 요약',
-                                tone: 'border-indigo-200 bg-indigo-50/80 text-indigo-800',
-                                lines: verificationHarnessMetaSummary.versionChangeSummary.prompt,
-                            },
-                            {
-                                label: 'Policy 변경 요약',
-                                tone: 'border-violet-200 bg-violet-50/80 text-violet-800',
-                                lines: verificationHarnessMetaSummary.versionChangeSummary.policy,
-                            },
-                            {
-                                label: 'Rule 변경 요약',
-                                tone: 'border-amber-200 bg-amber-50/80 text-amber-800',
-                                lines: verificationHarnessMetaSummary.versionChangeSummary.rule,
-                            },
-                        ].map((item) => (
-                            <div key={item.label} className={`rounded-xl border px-4 py-3 ${item.tone}`}>
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em]">{item.label}</p>
-                                <div className="mt-2 space-y-2 text-[11px] font-semibold leading-relaxed">
-                                    {item.lines.length > 0 ? item.lines.map((line, index) => (
-                                        <p key={`${item.label}-${index}`}>• {line}</p>
-                                    )) : <p>기록된 변경 요약이 없습니다.</p>}
-                                </div>
-                            </div>
-                        ))}
+                        <HarnessRuleImpactSummaryPanel
+                            title="Rule Impact Summary"
+                            summary={verificationRuleImpactSummary}
+                            maxVisible={2}
+                        />
+                        <HarnessVersionChangeSummaryPanel
+                            title="Prompt 변경 요약"
+                            tone="prompt"
+                            lines={verificationHarnessMetaSummary.versionChangeSummary.prompt}
+                        />
+                        <HarnessVersionChangeSummaryPanel
+                            title="Policy 변경 요약"
+                            tone="policy"
+                            lines={verificationHarnessMetaSummary.versionChangeSummary.policy}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-1">
+                        <HarnessVersionChangeSummaryPanel
+                            title="Rule 변경 요약"
+                            tone="rule"
+                            lines={verificationHarnessMetaSummary.versionChangeSummary.rule}
+                        />
                     </div>
 
                     <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
@@ -3391,11 +3443,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                             <p className="mt-3 text-sm font-black text-violet-800">{currentPreviewAnalysisNarrative.evaluatorTitle}</p>
                                             <p className="mt-1 text-xs font-bold leading-relaxed text-violet-700">{currentPreviewAnalysisNarrative.evaluatorDescription}</p>
                                         </div>
-                                        <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
-                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">Override Summary</p>
-                                            <p className="mt-2 text-sm font-black text-amber-800">{previewWorkflowStatus?.overrides?.length ? `${previewWorkflowStatus.overrides.length}건의 룰 개입이 저장됐습니다.` : '오버라이드 개입이 없는 흐름입니다.'}</p>
-                                            <p className="mt-1 text-xs font-bold leading-relaxed text-amber-700">{currentPreviewOverrideNarrative}</p>
-                                        </div>
+                                        <HarnessRuleImpactSummaryPanel
+                                            title="Override Summary"
+                                            summary={currentPreviewRuleImpactSummary}
+                                            className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4"
+                                            maxVisible={2}
+                                        />
                                         <div className={`rounded-2xl border p-4 ${currentPreviewGovernanceNarrative.tone}`}>
                                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Report Governance Narrative</p>
                                             <p className="mt-2 text-sm font-black text-slate-800">{currentPreviewGovernanceNarrative.title}</p>
@@ -3433,16 +3486,11 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                     </div>
                                     {(currentPreviewVersionDetails.prompt.length > 0 || currentPreviewVersionDetails.policy.length > 0 || currentPreviewVersionDetails.rule.length > 0) ? (
                                         <div className="space-y-3">
-                                            <NoticeCallout
-                                                variant="indigo"
-                                                eyebrow="Version Diff Summary"
-                                                title="현재 보고서에는 버전별 변경 포인트가 함께 연결되어 있습니다."
-                                                description={[
-                                                    currentPreviewVersionChangeSummary.prompt[0],
-                                                    currentPreviewVersionChangeSummary.policy[0],
-                                                    currentPreviewVersionChangeSummary.rule[0],
-                                                ].filter(Boolean).join(' / ') || '저장된 버전 변경 요약이 아직 없습니다.'}
-                                            />
+                                            <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+                                                <HarnessVersionChangeSummaryPanel title="Prompt 변경 요약" tone="prompt" lines={currentPreviewVersionChangeSummary.prompt} />
+                                                <HarnessVersionChangeSummaryPanel title="Policy 변경 요약" tone="policy" lines={currentPreviewVersionChangeSummary.policy} />
+                                                <HarnessVersionChangeSummaryPanel title="Rule 변경 요약" tone="rule" lines={currentPreviewVersionChangeSummary.rule} />
+                                            </div>
                                             <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
                                                 <HarnessVersionDetailsPanel title="Prompt 버전 설명" tone="prompt" descriptors={currentPreviewVersionDetails.prompt} />
                                                 <HarnessVersionDetailsPanel title="Policy 버전 설명" tone="policy" descriptors={currentPreviewVersionDetails.policy} />

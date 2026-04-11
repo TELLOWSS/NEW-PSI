@@ -12,6 +12,8 @@ import type {
 import { BRAND_STATUS_LABELS } from '../../utils/brandLabels';
 import { ActionButton } from '../shared/ActionButton';
 import { CircularProgress } from '../shared/CircularProgress';
+import { HarnessVersionChangeSummaryPanel } from '../shared/HarnessVersionChangeSummaryPanel';
+import { HarnessRuleImpactSummaryPanel } from '../shared/HarnessRuleImpactSummaryPanel';
 import { InterpretationCardGrid } from '../shared/InterpretationCardGrid';
 import { HarnessVersionDetailsPanel } from '../shared/HarnessVersionDetailsPanel';
 import { NextActionChecklist } from '../shared/NextActionChecklist';
@@ -35,9 +37,11 @@ import {
     type HarnessWorkflowPolicyVersion,
     type HarnessWorkflowPromptVersion,
     type HarnessWorkflowTransitionAction,
+    type HarnessWorkflowRuleImpactSummary,
     type HarnessWorkflowVersionDetails,
     type HarnessWorkflowVersionChangeSummary,
 } from '../../services/harnessService';
+import { buildHarnessRuleImpactSummary } from '../../utils/harnessRuleImpactSummary';
 import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
 import {
     buildHarnessTransitionExecutionGuide,
@@ -373,6 +377,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const [harnessPolicyVersion, setHarnessPolicyVersion] = useState<HarnessWorkflowPolicyVersion | null>(null);
     const [harnessVersionDetails, setHarnessVersionDetails] = useState<HarnessWorkflowVersionDetails>({ prompt: [], policy: [], rule: [] });
     const [harnessVersionChangeSummary, setHarnessVersionChangeSummary] = useState<HarnessWorkflowVersionChangeSummary>({ prompt: [], policy: [], rule: [] });
+    const [harnessRuleImpactSummary, setHarnessRuleImpactSummary] = useState<HarnessWorkflowRuleImpactSummary>({ items: [], narrative: '현재 저장된 가드레일 오버라이드는 없습니다.', totalCount: 0, criticalCount: 0 });
     const [harnessAnalyzerSummary, setHarnessAnalyzerSummary] = useState<HarnessWorkflowAnalyzerSummary>({ summary: null, confidence: null });
     const [harnessEvaluatorSummary, setHarnessEvaluatorSummary] = useState<HarnessWorkflowEvaluatorSummary>({ evidenceSufficiency: null, requiresHumanApproval: null, flags: [] });
     const [harnessLatestApprovalDiff, setHarnessLatestApprovalDiff] = useState<HarnessWorkflowApprovalDiff | null>(null);
@@ -438,6 +443,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             setHarnessPolicyVersion(null);
             setHarnessVersionDetails({ prompt: [], policy: [], rule: [] });
             setHarnessVersionChangeSummary({ prompt: [], policy: [], rule: [] });
+            setHarnessRuleImpactSummary({ items: [], narrative: '현재 저장된 가드레일 오버라이드는 없습니다.', totalCount: 0, criticalCount: 0 });
             setHarnessAnalyzerSummary({ summary: null, confidence: null });
             setHarnessEvaluatorSummary({ evidenceSufficiency: null, requiresHumanApproval: null, flags: [] });
             setHarnessLatestApprovalDiff(null);
@@ -464,6 +470,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             setHarnessPolicyVersion(response.policyVersion || null);
             setHarnessVersionDetails(response.versionDetails || { prompt: [], policy: [], rule: [] });
             setHarnessVersionChangeSummary(response.versionChangeSummary || { prompt: [], policy: [], rule: [] });
+            setHarnessRuleImpactSummary(response.ruleImpactSummary || buildHarnessRuleImpactSummary(response.overrides || []));
             setHarnessAnalyzerSummary(response.analyzerSummary || { summary: null, confidence: null });
             setHarnessEvaluatorSummary(response.evaluatorSummary || { evidenceSufficiency: null, requiresHumanApproval: null, flags: [] });
             setHarnessLatestApprovalDiff(response.latestApprovalDiff || null);
@@ -487,6 +494,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             setHarnessPolicyVersion(null);
             setHarnessVersionDetails({ prompt: [], policy: [], rule: [] });
             setHarnessVersionChangeSummary({ prompt: [], policy: [], rule: [] });
+            setHarnessRuleImpactSummary({ items: [], narrative: '현재 저장된 가드레일 오버라이드는 없습니다.', totalCount: 0, criticalCount: 0 });
             setHarnessAnalyzerSummary({ summary: null, confidence: null });
             setHarnessEvaluatorSummary({ evidenceSufficiency: null, requiresHumanApproval: null, flags: [] });
             setHarnessLatestApprovalDiff(null);
@@ -2674,6 +2682,15 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 />
                                             </div>
 
+                                            <div className="mt-4">
+                                                <HarnessRuleImpactSummaryPanel
+                                                    title="Rule Impact Summary"
+                                                    summary={harnessRuleImpactSummary}
+                                                    className="rounded-3xl border border-amber-200 bg-amber-50/80 p-6 shadow-sm"
+                                                    maxVisible={2}
+                                                />
+                                            </div>
+
                                             <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
                                                 <WhyThisResultPanel
                                                     title="가드레일 오버라이드 로그"
@@ -2770,20 +2787,26 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 />
                                             </div>
 
-                                            <NoticeCallout
-                                                variant="indigo"
-                                                eyebrow="Version Diff Summary"
-                                                title="현재 하네스 스냅샷에는 버전 변경 포인트가 함께 연결되어 있습니다."
-                                                description={[
-                                                    harnessVersionChangeSummary.prompt[0],
-                                                    harnessVersionChangeSummary.policy[0],
-                                                    harnessVersionChangeSummary.rule[0],
-                                                ].filter(Boolean).join(' / ') || '저장된 버전 변경 요약이 아직 없습니다.'}
-                                                className="mt-4 rounded-2xl border px-4 py-3"
-                                                bodyClassName="block"
-                                                titleClassName="text-sm font-black"
-                                                descriptionClassName="mt-1 text-xs font-semibold leading-relaxed"
-                                            />
+                                            <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
+                                                <HarnessVersionChangeSummaryPanel
+                                                    title="Prompt 변경 요약"
+                                                    tone="prompt"
+                                                    lines={harnessVersionChangeSummary.prompt}
+                                                    emptyMessage="저장된 프롬프트 변경 요약이 없습니다."
+                                                />
+                                                <HarnessVersionChangeSummaryPanel
+                                                    title="Policy 변경 요약"
+                                                    tone="policy"
+                                                    lines={harnessVersionChangeSummary.policy}
+                                                    emptyMessage="저장된 정책 변경 요약이 없습니다."
+                                                />
+                                                <HarnessVersionChangeSummaryPanel
+                                                    title="Rule 변경 요약"
+                                                    tone="rule"
+                                                    lines={harnessVersionChangeSummary.rule}
+                                                    emptyMessage="저장된 룰 변경 요약이 없습니다."
+                                                />
+                                            </div>
 
                                             {harnessVersionDescriptorRows.length > 0 ? (
                                                 <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-4">

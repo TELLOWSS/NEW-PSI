@@ -6,6 +6,7 @@ import type {
     HarnessWorkflowState,
 } from '../lib/server/harness/workflowTypes.js';
 import type { HarnessVersionChangeSummaryBundle, HarnessVersionDetailsBundle, HarnessVersionDescriptor } from '../utils/harnessVersionCatalog';
+import type { HarnessRuleImpactSummaryBundle } from '../utils/harnessRuleImpactSummary';
 import { postAdminJson } from '../utils/adminApiClient';
 
 export interface HarnessGatewayDecision {
@@ -117,6 +118,7 @@ export interface HarnessWorkflowTransitionAction {
 export type HarnessWorkflowVersionDescriptor = HarnessVersionDescriptor;
 export type HarnessWorkflowVersionDetails = HarnessVersionDetailsBundle;
 export type HarnessWorkflowVersionChangeSummary = HarnessVersionChangeSummaryBundle;
+export type HarnessWorkflowRuleImpactSummary = HarnessRuleImpactSummaryBundle;
 
 export interface HarnessPersistenceHealth {
     connected: boolean;
@@ -218,6 +220,7 @@ export async function fetchHarnessWorkflowStatus(workflowRunId: string) {
         latestApprovalDiff: HarnessWorkflowApprovalDiff | null;
         versionDetails: HarnessWorkflowVersionDetails;
         versionChangeSummary: HarnessWorkflowVersionChangeSummary;
+        ruleImpactSummary: HarnessWorkflowRuleImpactSummary;
         decisionPayload: Record<string, unknown> | null;
         timeline: Array<{ stage: string; timestamp: string; note: string; actor?: string }>;
     }>('harness.workflow-status', { workflowRunId });

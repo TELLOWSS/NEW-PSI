@@ -643,6 +643,31 @@
 - 히스토리 요약 칩/집계 카드에 `표준 적합` / `표준 불일치` 누적 수를 추가하고, 히스토리 표에도 개별 상태 배지와 설명을 노출
 - 검증 히스토리 CSV 내보내기에도 같은 필드를 포함해 사후 감사 시 과거 검증 실행의 표준 적합 여부를 추적할 수 있게 정리
 
+### 완료 78. Rule diff 설명 포맷을 공통 요약 패널로 경량화
+- `components/shared/HarnessVersionChangeSummaryPanel.tsx`를 신설해 `version: change` 형태의 버전 변경 로그를 `핵심 2건 + 추가 건수` 구조로 압축 표시하도록 표준화
+- `pages/Reports.tsx`의 Prompt/Policy/Rule 변경 요약 박스를 공통 패널로 교체해 검증 화면에서 긴 diff 문장을 그대로 나열하지 않고 버전 배지 중심으로 읽을 수 있게 정리
+- `components/modals/RecordDetailModal.tsx`도 동일 패널을 사용하도록 바꿔 관리자 상세 모달과 Reports가 같은 `경량 요약 → 하단 상세 표 확인` 흐름을 공유하게 정리
+
+### 완료 79. workflow-status 응답에 규칙별 개입 요약 번들 추가
+- `utils/harnessRuleImpactSummary.ts`를 신설해 오버라이드 로그를 `ruleCode / severity / count / decisionPath / 대표 메시지` 기준으로 묶는 공통 집계 로직을 추가
+- `lib/server/harness/persistence.ts`와 `lib/server/harness/handlers/workflowStatus.ts`가 `ruleImpactSummary`를 함께 반환하도록 확장해 `workflow-status` 응답이 단순 로그 배열을 넘어 규칙별 개입 요약까지 제공하도록 정리
+- `pages/Reports.tsx`와 `components/modals/RecordDetailModal.tsx`는 같은 `HarnessRuleImpactSummaryPanel`을 사용해 운영자 화면에서 `어떤 룰이 몇 건 개입했고 위험 판단을 어떻게 바꿨는지`를 상세 로그 전에 먼저 읽을 수 있게 정리
+
+### 완료 80. 감사 패키지 manifest/검증에도 rule impact summary 반영
+- `pages/Reports.tsx`의 증빙 ZIP 생성 로직이 각 JSON의 `harnessAuditSnapshot.ruleImpactSummary`를 함께 저장하고 manifest entry에도 `totalCount / criticalCount / narrative / ruleCodes`를 기록하도록 확장
+- `utils/evidenceVerificationUtils.ts`가 manifest의 rule impact 메타와 JSON 내부 `harnessAuditSnapshot.ruleImpactSummary`를 비교 검증하도록 보강해 룰 개입 요약도 감사 패키지 무결성 범위에 포함
+- Reports 검증 미리보기/JSON·CSV export에도 `criticalRuleCount`, `ruleImpactRuleCodes`, 대표 narrative를 추가해 표준 템플릿 검증과 함께 규칙 개입 요약까지 패키지 단위로 재확인할 수 있게 정리
+
+### 완료 81. Settings workflow run 진단에도 rule impact 축약 노출 추가
+- `pages/Settings.tsx`의 harness probe 결과 구조에 `overrideCount`, `criticalRuleCount`, `ruleImpactNarrative`, `ruleImpactRuleCodes`를 추가해 설정 화면에서도 workflow run별 룰 개입 요약을 보존
+- 진단 요약 카드에 `룰 개입 런` / `Critical 합계` 지표를 추가해 운영자가 persistence 상태뿐 아니라 규칙 개입 강도도 한눈에 확인할 수 있게 정리
+- 개별 run 카드에 `Rule Impact Summary` 박스를 넣어 상세 화면으로 이동하기 전에도 설정 화면에서 어떤 룰이 개입했는지 빠르게 읽을 수 있게 정리
+
+### 완료 82. Settings harness probe 결과 내보내기 추가
+- `pages/Settings.tsx`에 `진단 CSV 내보내기` / `진단 JSON 내보내기` 버튼을 추가해 최근 workflow run probe 결과를 설정 화면에서 바로 추출할 수 있게 정리
+- export payload에는 `status`, `resolvedBy`, 이벤트/승인/타임라인 수, `overrideCount`, `criticalRuleCount`, `ruleImpactRuleCodes`, `ruleImpactNarrative`, `checkedAt`를 포함해 운영·감사 재공유에 바로 사용할 수 있게 구성
+- 이로써 Settings 화면도 단순 조회 화면을 넘어 `persistence 진단 결과 공유`까지 닫히는 운영 보조 도구 역할을 하게 됨
+
 ---
 
 ## 5. 현재 남아 있는 갭

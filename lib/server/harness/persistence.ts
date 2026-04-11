@@ -14,6 +14,7 @@ import type {
 } from './workflowTypes.js';
 import { getDefaultHarnessPolicy } from './policyRegistry.js';
 import { buildHarnessVersionChangeSummary, buildHarnessVersionDetailsBundle } from '../../../utils/harnessVersionCatalog.js';
+import { buildHarnessRuleImpactSummary } from '../../../utils/harnessRuleImpactSummary.js';
 
 type SupabaseLike = ReturnType<typeof createClient>;
 
@@ -521,6 +522,18 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
             ruleVersions: resolvedRuleVersions,
         });
         const versionChangeSummary = buildHarnessVersionChangeSummary(versionDetails);
+        const normalizedOverrides = (overrides || []).map((override: any) => ({
+            ruleCode: String(override.rule_code || ''),
+            ruleVersion: String(override.rule_version || ''),
+            severity: String(override.severity || 'warning'),
+            message: String(override.message || ''),
+            triggerType: override.trigger_type ? String(override.trigger_type) : null,
+            originalDecision: override.original_decision ? String(override.original_decision) : null,
+            overriddenDecision: override.overridden_decision ? String(override.overridden_decision) : null,
+            createdAt: String(override.created_at || new Date().toISOString()),
+            triggerPayload: override.trigger_payload_json || {},
+        }));
+        const ruleImpactSummary = buildHarnessRuleImpactSummary(normalizedOverrides);
 
         const timeline = [
             ...(events || []).map((event: any) => ({
@@ -561,17 +574,7 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
                 riskDecision: run.risk_decision,
                 approvalState: run.approval_state,
                 secondPassStatus: run.second_pass_status || 'IN_PROGRESS',
-                overrides: (overrides || []).map((override: any) => ({
-                    ruleCode: String(override.rule_code || ''),
-                    ruleVersion: String(override.rule_version || ''),
-                    severity: String(override.severity || 'warning'),
-                    message: String(override.message || ''),
-                    triggerType: override.trigger_type ? String(override.trigger_type) : null,
-                    triggerPayload: override.trigger_payload_json || {},
-                    originalDecision: override.original_decision ? String(override.original_decision) : null,
-                    overriddenDecision: override.overridden_decision ? String(override.overridden_decision) : null,
-                    createdAt: String(override.created_at || new Date().toISOString()),
-                })),
+                overrides: normalizedOverrides,
                 approvals: (approvals || []).map((approval: any) => ({
                     approverName: approval.approver_name ? String(approval.approver_name) : null,
                     approverRole: approval.approver_role ? String(approval.approver_role) : null,
@@ -631,6 +634,7 @@ export async function fetchPersistedHarnessWorkflowStatus(workflowRunId: string)
                     : null,
                 versionDetails,
                 versionChangeSummary,
+                ruleImpactSummary,
                 decisionPayload: latestDecisionPayload,
                 timeline,
             },
