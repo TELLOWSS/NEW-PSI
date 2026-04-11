@@ -107,6 +107,13 @@ export interface HarnessWorkflowApprovalDiff {
     updatedAt: string;
 }
 
+export interface HarnessWorkflowTransitionAction {
+    action: HarnessApprovalAction | 'reanalyze';
+    allowed: boolean;
+    reason: string | null;
+    nextWorkflowState: HarnessWorkflowState | null;
+}
+
 export type HarnessWorkflowVersionDescriptor = HarnessVersionDescriptor;
 export type HarnessWorkflowVersionDetails = HarnessVersionDetailsBundle;
 export type HarnessWorkflowVersionChangeSummary = HarnessVersionChangeSummaryBundle;
@@ -200,6 +207,7 @@ export async function fetchHarnessWorkflowStatus(workflowRunId: string) {
         riskDecision: HarnessRiskDecision;
         approvalState: HarnessApprovalState;
         secondPassStatus: 'NEEDED' | 'IN_PROGRESS' | 'DONE';
+        transitionActions: HarnessWorkflowTransitionAction[];
         overrides: HarnessWorkflowOverride[];
         approvals: HarnessWorkflowApproval[];
         contextSnapshot: HarnessWorkflowContextSnapshot | null;

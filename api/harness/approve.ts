@@ -1,7 +1,7 @@
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
 import { fetchPersistedHarnessWorkflowStatus } from '../../lib/server/harness/persistence.js';
 import { persistHarnessApproval } from '../../lib/server/harness/persistence.js';
-import { buildHarnessApprovalDecision, HarnessTransitionError } from '../../lib/server/harness/router.js';
+import { assertHarnessApprovalCommentAllowed, buildHarnessApprovalDecision, HarnessTransitionError } from '../../lib/server/harness/router.js';
 import type { HarnessApprovalAction, HarnessRiskDecision } from '../../lib/server/harness/workflowTypes.js';
 
 export default async function handler(req: any, res: any) {
@@ -28,6 +28,11 @@ export default async function handler(req: any, res: any) {
         if (!['approve', 'reject', 'request-reanalysis'].includes(action)) {
             return res.status(400).json({ ok: false, message: '지원하지 않는 승인 액션입니다.' });
         }
+
+        assertHarnessApprovalCommentAllowed({
+            action,
+            comment,
+        });
 
         const currentWorkflow = await fetchPersistedHarnessWorkflowStatus(workflowRunId);
 

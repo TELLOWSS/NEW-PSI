@@ -219,8 +219,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         missingHarnessSnapshots: number;
         metadataMismatches: number;
         packageSummaryHashMatched: boolean;
+        primaryFailureReason: string;
         summaryText: string;
     }>>([]);
+    const [selectedVerificationStatusFilter, setSelectedVerificationStatusFilter] = useState<'ALL' | 'SUCCESS' | 'FAILED'>('ALL');
+    const [selectedVerificationFailureFilter, setSelectedVerificationFailureFilter] = useState('ALL');
+    const [selectedVerificationPackageFilter, setSelectedVerificationPackageFilter] = useState('ALL');
     const [verificationManifestPreview, setVerificationManifestPreview] = useState<EvidenceManifest | null>(null);
     const [verificationManifestPreviewError, setVerificationManifestPreviewError] = useState<string | null>(null);
     const [previewWorkflowStatus, setPreviewWorkflowStatus] = useState<Awaited<ReturnType<typeof fetchHarnessWorkflowStatus>> | null>(null);
@@ -276,6 +280,101 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+    };
+
+    const getPrimaryVerificationFailureReason = (input: {
+        missingJsonFiles: number;
+        invalidJsonFiles: number;
+        hashMismatches: number;
+        missingHarnessSnapshots: number;
+        metadataMismatches: number;
+        packageSummaryHashMatched: boolean;
+    }) => {
+        const ranked = [
+            { label: '해시 불일치', count: input.hashMismatches },
+            { label: '메타 불일치', count: input.metadataMismatches },
+            { label: '스냅샷 누락', count: input.missingHarnessSnapshots },
+            { label: '파싱 불가 JSON', count: input.invalidJsonFiles },
+            { label: '누락 JSON', count: input.missingJsonFiles },
+            { label: '요약 해시 불일치', count: input.packageSummaryHashMatched ? 0 : 1 },
+        ].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, 'ko'));
+
+        return ranked[0]?.count > 0 ? ranked[0].label : '실패 기록 없음';
+    };
+
+    const getVerificationFailureRecommendedAction = (reason: string) => {
+        switch (reason) {
+            case '해시 불일치':
+                return 'manifest와 JSON 원본을 같은 생성 시점 기준으로 다시 묶어 패키지를 재생성하십시오.';
+            case '메타 불일치':
+                return 'manifest 메타와 JSON 내부 하네스 스냅샷을 함께 재동기화한 뒤 다시 검증하십시오.';
+            case '스냅샷 누락':
+                return '하네스 감사 스냅샷 포함 옵션을 확인하고 workflow-status 연동 상태를 먼저 점검하십시오.';
+            case '파싱 불가 JSON':
+                return '손상된 JSON을 다시 내보내고 업로드 파일 인코딩/절단 여부를 재확인하십시오.';
+            case '누락 JSON':
+                return 'manifest에 기록된 JSON 파일이 모두 업로드되었는지 먼저 확인하십시오.';
+            case '요약 해시 불일치':
+                return '패키지 전체 JSON 묶음을 다시 생성해 manifest summary hash를 재계산하십시오.';
+            case '실패 기록 없음':
+                return '현재 추가 조치는 필요하지 않습니다.';
+            default:
+                return '해당 실패 원인의 입력 파일, manifest, 하네스 스냅샷을 함께 비교 점검하십시오.';
+        }
+    };
+
+    const VERIFICATION_HISTORY_STORAGE_KEY = 'psi_reports_verification_history_v1';
+    const VERIFICATION_STATUS_FILTER_STORAGE_KEY = 'psi_reports_verification_status_filter_v1';
+    const VERIFICATION_FAILURE_FILTER_STORAGE_KEY = 'psi_reports_verification_failure_filter_v1';
+    const VERIFICATION_PACKAGE_FILTER_STORAGE_KEY = 'psi_reports_verification_package_filter_v1';
+    const VERIFICATION_HISTORY_RETENTION_DAYS = 30;
+    const VERIFICATION_HISTORY_MAX_ITEMS = 12;
+    const VERIFICATION_STATUS_FILTER_OPTIONS: Array<'ALL' | 'SUCCESS' | 'FAILED'> = ['ALL', 'SUCCESS', 'FAILED'];
+
+    const normalizeStoredVerificationHistory = (entries: Array<{
+        id?: string;
+        verifiedAt?: string;
+        manifestFileName?: string;
+        packageName?: string;
+        isValid?: boolean;
+        totalEntries?: number;
+        verifiedEntries?: number;
+        missingJsonFiles?: number;
+        invalidJsonFiles?: number;
+        hashMismatches?: number;
+        missingHarnessSnapshots?: number;
+        metadataMismatches?: number;
+        packageSummaryHashMatched?: boolean;
+        primaryFailureReason?: string;
+        summaryText?: string;
+    }>) => {
+        const retentionThreshold = Date.now() - (VERIFICATION_HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+
+        return entries
+            .filter((entry) => entry && typeof entry === 'object')
+            .map((entry, index) => ({
+                id: String(entry.id || `stored-${index}`),
+                verifiedAt: String(entry.verifiedAt || new Date(0).toISOString()),
+                manifestFileName: String(entry.manifestFileName || 'manifest.json'),
+                packageName: String(entry.packageName || ''),
+                isValid: Boolean(entry.isValid),
+                totalEntries: Number(entry.totalEntries || 0),
+                verifiedEntries: Number(entry.verifiedEntries || 0),
+                missingJsonFiles: Number(entry.missingJsonFiles || 0),
+                invalidJsonFiles: Number(entry.invalidJsonFiles || 0),
+                hashMismatches: Number(entry.hashMismatches || 0),
+                missingHarnessSnapshots: Number(entry.missingHarnessSnapshots || 0),
+                metadataMismatches: Number(entry.metadataMismatches || 0),
+                packageSummaryHashMatched: Boolean(entry.packageSummaryHashMatched),
+                primaryFailureReason: String(entry.primaryFailureReason || '실패 기록 없음'),
+                summaryText: String(entry.summaryText || ''),
+            }))
+            .filter((entry) => {
+                const verifiedAt = new Date(entry.verifiedAt).getTime();
+                return !Number.isNaN(verifiedAt) && verifiedAt >= retentionThreshold;
+            })
+            .sort((a, b) => new Date(b.verifiedAt).getTime() - new Date(a.verifiedAt).getTime())
+            .slice(0, VERIFICATION_HISTORY_MAX_ITEMS);
     };
 
     const dateFilterLabel = useMemo(() => {
@@ -397,6 +496,127 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         setCustomStartDate(start);
         setCustomEndDate(end);
     }, [datePreset, customStartDate, customEndDate]);
+
+    useEffect(() => {
+        try {
+            const raw = window.localStorage.getItem(VERIFICATION_HISTORY_STORAGE_KEY);
+            if (!raw) return;
+
+            const parsed = JSON.parse(raw) as Array<{
+                id?: string;
+                verifiedAt?: string;
+                manifestFileName?: string;
+                packageName?: string;
+                isValid?: boolean;
+                totalEntries?: number;
+                verifiedEntries?: number;
+                missingJsonFiles?: number;
+                invalidJsonFiles?: number;
+                hashMismatches?: number;
+                missingHarnessSnapshots?: number;
+                metadataMismatches?: number;
+                packageSummaryHashMatched?: boolean;
+                primaryFailureReason?: string;
+                summaryText?: string;
+            }>;
+
+            if (!Array.isArray(parsed)) return;
+
+            setVerificationHistory(normalizeStoredVerificationHistory(parsed));
+        } catch {
+            // ignore storage parse failures
+        }
+    }, []);
+
+    useEffect(() => {
+        try {
+            const savedFilter = window.localStorage.getItem(VERIFICATION_STATUS_FILTER_STORAGE_KEY);
+            if (!savedFilter) return;
+            if (savedFilter === 'ALL' || savedFilter === 'SUCCESS' || savedFilter === 'FAILED') {
+                setSelectedVerificationStatusFilter(savedFilter);
+            }
+        } catch {
+            // ignore storage read failures
+        }
+    }, []);
+
+    useEffect(() => {
+        try {
+            const savedFilter = window.localStorage.getItem(VERIFICATION_FAILURE_FILTER_STORAGE_KEY);
+            if (!savedFilter) return;
+            setSelectedVerificationFailureFilter(savedFilter);
+        } catch {
+            // ignore storage read failures
+        }
+    }, []);
+
+    useEffect(() => {
+        try {
+            const savedFilter = window.localStorage.getItem(VERIFICATION_PACKAGE_FILTER_STORAGE_KEY);
+            if (!savedFilter) return;
+            setSelectedVerificationPackageFilter(savedFilter);
+        } catch {
+            // ignore storage read failures
+        }
+    }, []);
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(VERIFICATION_HISTORY_STORAGE_KEY, JSON.stringify(normalizeStoredVerificationHistory(verificationHistory)));
+        } catch {
+            // ignore storage write failures
+        }
+    }, [verificationHistory]);
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(VERIFICATION_STATUS_FILTER_STORAGE_KEY, selectedVerificationStatusFilter);
+        } catch {
+            // ignore storage write failures
+        }
+    }, [selectedVerificationStatusFilter]);
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(VERIFICATION_FAILURE_FILTER_STORAGE_KEY, selectedVerificationFailureFilter);
+        } catch {
+            // ignore storage write failures
+        }
+    }, [selectedVerificationFailureFilter]);
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(VERIFICATION_PACKAGE_FILTER_STORAGE_KEY, selectedVerificationPackageFilter);
+        } catch {
+            // ignore storage write failures
+        }
+    }, [selectedVerificationPackageFilter]);
+
+    useEffect(() => {
+        if (!VERIFICATION_STATUS_FILTER_OPTIONS.includes(selectedVerificationStatusFilter)) {
+            setSelectedVerificationStatusFilter('ALL');
+        }
+    }, [selectedVerificationStatusFilter]);
+
+    useEffect(() => {
+        if (selectedVerificationFailureFilter === 'ALL') {
+            return;
+        }
+
+        if (!verificationFailureFilterOptions.includes(selectedVerificationFailureFilter)) {
+            setSelectedVerificationFailureFilter('ALL');
+        }
+    }, [selectedVerificationFailureFilter, verificationFailureFilterOptions]);
+
+    useEffect(() => {
+        if (selectedVerificationPackageFilter === 'ALL') {
+            return;
+        }
+
+        if (!verificationPackageFilterOptions.includes(selectedVerificationPackageFilter)) {
+            setSelectedVerificationPackageFilter('ALL');
+        }
+    }, [selectedVerificationPackageFilter, verificationPackageFilterOptions]);
 
     // 현재 미리보기 대상 데이터
     const currentPreviewRecord = filteredRecords[previewIndex];
@@ -678,6 +898,81 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             .join(' / ');
     }, [previewWorkflowStatus]);
 
+    const currentPreviewGovernanceNarrative = useMemo(() => {
+        const diff = previewWorkflowStatus?.latestApprovalDiff;
+        const hasOverrides = (previewWorkflowStatus?.overrides?.length || 0) > 0;
+        const versionChanges = [
+            ...(previewWorkflowStatus?.versionChangeSummary?.prompt || []),
+            ...(previewWorkflowStatus?.versionChangeSummary?.policy || []),
+            ...(previewWorkflowStatus?.versionChangeSummary?.rule || []),
+        ].filter(Boolean);
+
+        if (diff) {
+            const actionLabel = diff.action === 'approved' ? '최종 승인' : diff.action === 'rejected' ? '보완 요청' : diff.action;
+            return {
+                title: `${actionLabel} 이후 보고 근거가 함께 연결되어 있습니다.`,
+                description: `위험 판단 ${diff.decisionBefore || 'N/A'} → ${diff.decisionAfter || 'N/A'} 변화와 승인 코멘트를 보고서 설명 문맥에 그대로 활용할 수 있습니다.`,
+                action: hasOverrides
+                    ? '오버라이드 사유와 승인 코멘트를 함께 읽어 현장 재설명 비용을 줄이십시오.'
+                    : versionChanges.length > 0
+                        ? '버전 변경 요약과 승인 코멘트를 함께 읽어 왜 판단이 달라졌는지 설명하십시오.'
+                        : '승인 코멘트와 현재 위험 판단을 묶어 보고서 해설 문구로 사용하시면 됩니다.',
+                tone: 'border-emerald-200 bg-emerald-50/80',
+            };
+        }
+
+        if (hasOverrides) {
+            return {
+                title: '승인 diff는 없지만 룰 개입 이력은 남아 있습니다.',
+                description: '오버라이드 메시지와 현재 위험 판단을 함께 읽으면 보고서 설명의 핵심 문장을 빠르게 만들 수 있습니다.',
+                action: '규칙 개입 사유를 먼저 설명한 뒤 현장 보완 조치를 이어서 적는 방식이 가장 효율적입니다.',
+                tone: 'border-amber-200 bg-amber-50/80',
+            };
+        }
+
+        return {
+            title: '현재 보고서는 기본 하네스 판단 흐름 중심으로 설명하면 됩니다.',
+            description: versionChanges.length > 0
+                ? `저장된 버전 변경 요약 ${versionChanges[0]}를 함께 적으면 문맥 설명력이 높아집니다.`
+                : '추가 승인 diff나 오버라이드가 없다면 현재 상태 배지와 증빙 해시 중심으로 설명하시면 됩니다.',
+            action: 'workflow, risk, approval 상태와 증빙 해시를 짧게 묶어 보고서 근거 문장으로 정리하십시오.',
+            tone: 'border-slate-200 bg-slate-50',
+        };
+    }, [previewWorkflowStatus]);
+
+    const currentPreviewTransitionNarrative = useMemo(() => {
+        const actions = previewWorkflowStatus?.transitionActions || [];
+        const allowed = actions.filter((item) => item.allowed);
+        const blocked = actions.filter((item) => !item.allowed);
+
+        if (actions.length === 0) {
+            return {
+                title: '현재 액션 가능 여부 정보가 아직 없습니다.',
+                description: 'workflow-status 저장 응답이 누적되면 승인, 반려, 재분석 가능 여부를 함께 읽을 수 있습니다.',
+                action: '현재는 상태 배지와 승인 diff를 기준으로 다음 행동을 판단해 주십시오.',
+                tone: 'border-slate-200 bg-slate-50',
+            };
+        }
+
+        if (allowed.length > 0) {
+            return {
+                title: `현재 ${allowed.length}개 액션이 허용되어 있습니다.`,
+                description: `가능: ${allowed.map((item) => `${item.action}${item.nextWorkflowState ? `→${item.nextWorkflowState}` : ''}`).join(' / ')}`,
+                action: blocked.length > 0
+                    ? `차단 액션 ${blocked.length}개는 상태머신 규칙에 의해 보류됩니다. 대표 사유: ${blocked[0]?.reason || '차단 사유 미기록'}`
+                    : '현재 허용된 액션 기준으로 승인 또는 재분석 후속 작업을 이어가시면 됩니다.',
+                tone: 'border-indigo-200 bg-indigo-50/80',
+            };
+        }
+
+        return {
+            title: '현재는 즉시 실행 가능한 액션이 없습니다.',
+            description: blocked[0]?.reason || '상태머신 규칙상 현재 전이를 진행할 수 없습니다.',
+            action: '선행 상태 전이 또는 판단 근거 보강 후 다시 확인해 주십시오.',
+            tone: 'border-amber-200 bg-amber-50/80',
+        };
+    }, [previewWorkflowStatus]);
+
     const verificationHarnessMetaSummary = useMemo(() => {
         const manifest = verificationManifestPreview;
         if (!manifest) {
@@ -940,6 +1235,64 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 .map((item) => item.primaryFailureReason)[0] || '실패 패키지 없음',
         };
     }, [verificationHistory]);
+
+    const verificationFailureReasonDistribution = useMemo(() => {
+        const reasonMap = new Map<string, { reason: string; count: number; latestAt: string }>();
+
+        verificationHistory
+            .filter((entry) => !entry.isValid && entry.primaryFailureReason !== '실패 기록 없음')
+            .forEach((entry) => {
+                const key = entry.primaryFailureReason || '복합 원인 확인 필요';
+                if (!reasonMap.has(key)) {
+                    reasonMap.set(key, {
+                        reason: key,
+                        count: 0,
+                        latestAt: entry.verifiedAt,
+                    });
+                }
+
+                const item = reasonMap.get(key)!;
+                item.count += 1;
+                if (new Date(entry.verifiedAt).getTime() > new Date(item.latestAt).getTime()) {
+                    item.latestAt = entry.verifiedAt;
+                }
+            });
+
+        const ranked = Array.from(reasonMap.values())
+            .sort((a, b) => b.count - a.count || new Date(b.latestAt).getTime() - new Date(a.latestAt).getTime() || a.reason.localeCompare(b.reason, 'ko'));
+
+        return {
+            items: ranked,
+            topReason: ranked[0]?.reason || '실패 원인 없음',
+            topReasonCount: ranked[0]?.count || 0,
+        };
+    }, [verificationHistory]);
+
+    const verificationFailureFilterOptions = useMemo(() => {
+        return ['ALL', ...verificationFailureReasonDistribution.items.map((item) => item.reason)];
+    }, [verificationFailureReasonDistribution.items]);
+
+    const verificationPackageFilterOptions = useMemo(() => {
+        return ['ALL', ...Array.from(new Set(verificationHistory.map((entry) => entry.packageName).filter((value) => String(value || '').trim().length > 0)))];
+    }, [verificationHistory]);
+
+    const filteredVerificationHistory = useMemo(() => {
+        return verificationHistory.filter((entry) => {
+            const matchesStatus = selectedVerificationStatusFilter === 'ALL'
+                ? true
+                : selectedVerificationStatusFilter === 'SUCCESS'
+                    ? entry.isValid
+                    : !entry.isValid;
+            const matchesFailure = selectedVerificationFailureFilter === 'ALL'
+                ? true
+                : (!entry.isValid && entry.primaryFailureReason === selectedVerificationFailureFilter);
+            const matchesPackage = selectedVerificationPackageFilter === 'ALL'
+                ? true
+                : entry.packageName === selectedVerificationPackageFilter;
+
+            return matchesStatus && matchesFailure && matchesPackage;
+        });
+    }, [selectedVerificationFailureFilter, selectedVerificationPackageFilter, selectedVerificationStatusFilter, verificationHistory]);
 
     const viewInterpretationCards: InterpretationCardItem[] = useMemo(() => [
         {
@@ -1294,6 +1647,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     policy: string[];
                     rule: string[];
                 };
+                approvalAction?: string | null;
+                approvalNarrative?: string | null;
+                overrideNarrative?: string | null;
             }> = [];
             const packageGeneratedAt = new Date().toISOString();
 
@@ -1393,6 +1749,13 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     approvalCount: harnessAuditSnapshot?.approvals?.length || 0,
                     overrideCount: harnessAuditSnapshot?.overrides?.length || 0,
                     versionChangeSummary: harnessAuditSnapshot?.versionChangeSummary || { prompt: [], policy: [], rule: [] },
+                    approvalAction: harnessAuditSnapshot?.latestApprovalDiff?.action || null,
+                    approvalNarrative: harnessAuditSnapshot?.latestApprovalDiff
+                        ? `${harnessAuditSnapshot.latestApprovalDiff.decisionBefore || 'N/A'} -> ${harnessAuditSnapshot.latestApprovalDiff.decisionAfter || 'N/A'} | ${harnessAuditSnapshot.latestApprovalDiff.comment || '코멘트 없음'}`
+                        : null,
+                    overrideNarrative: harnessAuditSnapshot?.overrides?.length
+                        ? harnessAuditSnapshot.overrides.slice(0, 2).map((override) => `${override.ruleCode}: ${override.message}`).join(' / ')
+                        : null,
                 });
 
                 const workflowState = inferHarnessWorkflowState(record);
@@ -1461,6 +1824,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 ...Array.from(new Set(manifestEntries.flatMap((entry) => entry.versionChangeSummary?.policy || []).filter(Boolean))).map((line) => `- Policy: ${line}`),
                 ...Array.from(new Set(manifestEntries.flatMap((entry) => entry.versionChangeSummary?.rule || []).filter(Boolean))).map((line) => `- Rule: ${line}`),
             ];
+            const approvalDiffLines = Array.from(new Set(manifestEntries.map((entry) => entry.approvalNarrative).filter(Boolean))).slice(0, 5).map((line) => `- ${line}`);
+            const overrideSummaryLines = Array.from(new Set(manifestEntries.map((entry) => entry.overrideNarrative).filter(Boolean))).slice(0, 5).map((line) => `- ${line}`);
 
             const csvMetaLines = [
                 `# packageName=${folderName}`,
@@ -1495,6 +1860,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 ...(ruleVersionLines.length > 0 ? ruleVersionLines : ['- 포함된 룰 버전 없음']),
                 'Version Change Summary',
                 ...(versionChangeLines.length > 0 ? versionChangeLines : ['- 포함된 버전 변경 요약 없음']),
+                'Approval Diff Summary',
+                ...(approvalDiffLines.length > 0 ? approvalDiffLines : ['- 포함된 승인 diff 요약 없음']),
+                'Override Summary',
+                ...(overrideSummaryLines.length > 0 ? overrideSummaryLines : ['- 포함된 오버라이드 요약 없음']),
                 'PowerShell 예시: Get-FileHash -Algorithm SHA256 .\\json\\파일명.json',
                 'OpenSSL 예시: openssl dgst -sha256 ./json/파일명.json'
             ].join('\n'));
@@ -1621,10 +1990,22 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             return;
         }
 
+        const primaryFailureReason = getPrimaryVerificationFailureReason({
+            missingJsonFiles: verificationResult.missingJsonFiles.length,
+            invalidJsonFiles: verificationResult.invalidJsonFiles.length,
+            hashMismatches: verificationResult.hashMismatches.length,
+            missingHarnessSnapshots: verificationResult.missingHarnessSnapshots.length,
+            metadataMismatches: verificationResult.metadataMismatches.length,
+            packageSummaryHashMatched: verificationResult.packageSummaryHashMatched,
+        });
+        const recommendedAction = getVerificationFailureRecommendedAction(primaryFailureReason);
+
         const payload = {
             exportedAt: new Date().toISOString(),
             manifestFileName: verificationManifestFile?.name || 'manifest.json',
             summaryText: verificationSummary,
+            primaryFailureReason,
+            recommendedAction,
             verificationResult,
             manifestSummary: verificationManifestPreview?.summary || null,
             manifestMetaSummary: verificationHarnessMetaSummary || null,
@@ -1645,9 +2026,21 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             return;
         }
 
+        const primaryFailureReason = getPrimaryVerificationFailureReason({
+            missingJsonFiles: verificationResult.missingJsonFiles.length,
+            invalidJsonFiles: verificationResult.invalidJsonFiles.length,
+            hashMismatches: verificationResult.hashMismatches.length,
+            missingHarnessSnapshots: verificationResult.missingHarnessSnapshots.length,
+            metadataMismatches: verificationResult.metadataMismatches.length,
+            packageSummaryHashMatched: verificationResult.packageSummaryHashMatched,
+        });
+        const recommendedAction = getVerificationFailureRecommendedAction(primaryFailureReason);
+
         const rows: string[][] = [
             ['section', 'item', 'value', 'detail'],
             ['summary', 'isValid', verificationResult.isValid ? 'SUCCESS' : 'FAILED', verificationSummary.replace(/\n/g, ' | ')],
+            ['summary', 'primaryFailureReason', primaryFailureReason, ''],
+            ['summary', 'recommendedAction', recommendedAction, ''],
             ['summary', 'totalEntries', String(verificationResult.totalEntries), ''],
             ['summary', 'verifiedEntries', String(verificationResult.verifiedEntries), ''],
             ['summary', 'missingJsonFiles', String(verificationResult.missingJsonFiles.length), ''],
@@ -1702,7 +2095,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         }
 
         const rows: string[][] = [
-            ['verifiedAt', 'manifestFileName', 'packageName', 'result', 'totalEntries', 'verifiedEntries', 'missingJsonFiles', 'invalidJsonFiles', 'hashMismatches', 'missingHarnessSnapshots', 'metadataMismatches', 'packageSummaryHashMatched', 'summaryText'],
+            ['verifiedAt', 'manifestFileName', 'packageName', 'result', 'totalEntries', 'verifiedEntries', 'missingJsonFiles', 'invalidJsonFiles', 'hashMismatches', 'missingHarnessSnapshots', 'metadataMismatches', 'packageSummaryHashMatched', 'primaryFailureReason', 'recommendedAction', 'summaryText'],
             ...verificationHistory.map((entry) => [
                 entry.verifiedAt,
                 entry.manifestFileName,
@@ -1716,6 +2109,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 String(entry.missingHarnessSnapshots),
                 String(entry.metadataMismatches),
                 entry.packageSummaryHashMatched ? 'YES' : 'NO',
+                entry.primaryFailureReason,
+                getVerificationFailureRecommendedAction(entry.primaryFailureReason),
                 entry.summaryText.replace(/\n/g, ' | '),
             ]),
         ];
@@ -1726,6 +2121,31 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             '\uFEFF' + csv,
             'text/csv;charset=utf-8;'
         );
+    };
+
+    const handleClearVerificationHistory = () => {
+        if (verificationHistory.length === 0) {
+            alert('초기화할 검증 히스토리가 없습니다.');
+            return;
+        }
+
+        const shouldClear = confirm(`최근 검증 히스토리 ${verificationHistory.length}건을 모두 초기화하시겠습니까?`);
+        if (!shouldClear) {
+            return;
+        }
+
+        setVerificationHistory([]);
+        try {
+            window.localStorage.removeItem(VERIFICATION_HISTORY_STORAGE_KEY);
+            window.localStorage.removeItem(VERIFICATION_STATUS_FILTER_STORAGE_KEY);
+            window.localStorage.removeItem(VERIFICATION_FAILURE_FILTER_STORAGE_KEY);
+            window.localStorage.removeItem(VERIFICATION_PACKAGE_FILTER_STORAGE_KEY);
+        } catch {
+            // ignore storage remove failures
+        }
+        setSelectedVerificationStatusFilter('ALL');
+        setSelectedVerificationFailureFilter('ALL');
+        setSelectedVerificationPackageFilter('ALL');
     };
 
     const handleVerifyEvidencePackage = async () => {
@@ -1758,6 +2178,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             }
 
             const result = await verifyEvidenceManifest(manifest, jsonContentByPath);
+            const primaryFailureReason = getPrimaryVerificationFailureReason({
+                missingJsonFiles: result.missingJsonFiles.length,
+                invalidJsonFiles: result.invalidJsonFiles.length,
+                hashMismatches: result.hashMismatches.length,
+                missingHarnessSnapshots: result.missingHarnessSnapshots.length,
+                metadataMismatches: result.metadataMismatches.length,
+                packageSummaryHashMatched: result.packageSummaryHashMatched,
+            });
             setVerificationResult(result);
             setVerificationSummary(formatEvidenceVerificationSummary(result));
             setVerificationHistory((previous) => [
@@ -1775,10 +2203,11 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     missingHarnessSnapshots: result.missingHarnessSnapshots.length,
                     metadataMismatches: result.metadataMismatches.length,
                     packageSummaryHashMatched: result.packageSummaryHashMatched,
+                    primaryFailureReason,
                     summaryText: formatEvidenceVerificationSummary(result),
                 },
                 ...previous,
-            ].slice(0, 12));
+            ].slice(0, VERIFICATION_HISTORY_MAX_ITEMS));
         } catch (error: unknown) {
             const message = extractMessage(error);
             alert(`증빙 검증 중 ${BRAND_STATUS_LABELS.attention}가 필요합니다: ${message}`);
@@ -2028,12 +2457,20 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     <h3 className="text-sm font-black text-slate-800">증빙 패키지 무결성 검증</h3>
                     <div className="flex items-center gap-2 flex-wrap">
                         {verificationHistory.length > 0 ? (
-                            <button
-                                onClick={handleExportVerificationHistoryCsv}
-                                className="px-4 py-2.5 rounded-xl text-xs font-black border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-all"
-                            >
-                                검증 히스토리 CSV
-                            </button>
+                            <>
+                                <button
+                                    onClick={handleExportVerificationHistoryCsv}
+                                    className="px-4 py-2.5 rounded-xl text-xs font-black border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-all"
+                                >
+                                    검증 히스토리 CSV
+                                </button>
+                                <button
+                                    onClick={handleClearVerificationHistory}
+                                    className="px-4 py-2.5 rounded-xl text-xs font-black border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 transition-all"
+                                >
+                                    히스토리 초기화
+                                </button>
+                            </>
                         ) : null}
                         {verificationResult ? (
                             <>
@@ -2067,6 +2504,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             <div>
                                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Verification History</p>
                                 <p className="mt-1 text-sm font-black text-slate-800">최근 세션 검증 결과 {verificationHistorySummary.total}건</p>
+                                <p className="mt-1 text-[11px] font-bold text-slate-500">보존 정책: 최근 {VERIFICATION_HISTORY_RETENTION_DAYS}일 · 최대 {VERIFICATION_HISTORY_MAX_ITEMS}건</p>
                             </div>
                             <div className="flex items-center gap-2 flex-wrap text-[11px] font-bold text-slate-600">
                                 <span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-700">성공 {verificationHistorySummary.success}건</span>
@@ -2074,6 +2512,75 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-700">메타 불일치 {verificationHistorySummary.metadataMismatches}건</span>
                             </div>
                         </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[11px] font-black text-slate-500">상태 필터</span>
+                            {VERIFICATION_STATUS_FILTER_OPTIONS.map((option) => {
+                                const active = selectedVerificationStatusFilter === option;
+                                const label = option === 'ALL' ? '전체' : option === 'SUCCESS' ? '성공' : '실패';
+                                const count = option === 'ALL'
+                                    ? verificationHistory.length
+                                    : option === 'SUCCESS'
+                                        ? verificationHistory.filter((entry) => entry.isValid).length
+                                        : verificationHistory.filter((entry) => !entry.isValid).length;
+
+                                return (
+                                    <button
+                                        key={option}
+                                        onClick={() => setSelectedVerificationStatusFilter(option)}
+                                        className={`rounded-full px-3 py-1 text-[11px] font-black transition-all ${active ? 'bg-sky-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+                                    >
+                                        {label} {count}건
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {verificationFailureFilterOptions.length > 1 ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[11px] font-black text-slate-500">실패 원인 필터</span>
+                                {verificationFailureFilterOptions.map((option) => {
+                                    const active = selectedVerificationFailureFilter === option;
+                                    const label = option === 'ALL' ? '전체' : option;
+                                    const count = option === 'ALL'
+                                        ? verificationHistory.length
+                                        : verificationHistory.filter((entry) => !entry.isValid && entry.primaryFailureReason === option).length;
+
+                                    return (
+                                        <button
+                                            key={option}
+                                            onClick={() => setSelectedVerificationFailureFilter(option)}
+                                            className={`rounded-full px-3 py-1 text-[11px] font-black transition-all ${active ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+                                        >
+                                            {label} {count}건
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        ) : null}
+
+                        {verificationPackageFilterOptions.length > 1 ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[11px] font-black text-slate-500">Package 필터</span>
+                                {verificationPackageFilterOptions.map((option) => {
+                                    const active = selectedVerificationPackageFilter === option;
+                                    const label = option === 'ALL' ? '전체 패키지' : option;
+                                    const count = option === 'ALL'
+                                        ? verificationHistory.length
+                                        : verificationHistory.filter((entry) => entry.packageName === option).length;
+
+                                    return (
+                                        <button
+                                            key={option}
+                                            onClick={() => setSelectedVerificationPackageFilter(option)}
+                                            className={`rounded-full px-3 py-1 text-[11px] font-black transition-all ${active ? 'bg-violet-600 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+                                        >
+                                            {label} {count}건
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        ) : null}
 
                         <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
                             <div className="rounded-xl border border-rose-200 bg-rose-50/80 px-4 py-3">
@@ -2093,18 +2600,69 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             </div>
                         </div>
 
+                        <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+                            <div className="rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">최다 실패 원인</p>
+                                <p className="mt-1 text-sm font-black text-indigo-800">{verificationFailureReasonDistribution.topReason}</p>
+                                <p className="mt-1 text-[11px] font-bold text-indigo-700">최근 세션에서 {verificationFailureReasonDistribution.topReasonCount}회 기록되었습니다.</p>
+                            </div>
+                            <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">실패 원인 종류</p>
+                                <p className="mt-1 text-sm font-black text-amber-800">{verificationFailureReasonDistribution.items.length}종</p>
+                                <p className="mt-1 text-[11px] font-bold text-amber-700">세션 내 누적된 원인 유형 수입니다.</p>
+                            </div>
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500">최근 실패 원인</p>
+                                <p className="mt-1 text-sm font-black text-emerald-800">{verificationHistory.find((entry) => !entry.isValid)?.primaryFailureReason || '없음'}</p>
+                                <p className="mt-1 text-[11px] font-bold text-emerald-700">가장 최근 실패 실행 기준입니다.</p>
+                            </div>
+                        </div>
+
                         <NoticeCallout
                             variant="amber"
                             eyebrow="주요 실패 원인"
                             title="최근 package 실패 패턴에서 가장 먼저 보이는 원인을 확인합니다."
                             description={verificationPackageFailureSummary.dominantFailureReason === '실패 패키지 없음'
                                 ? '아직 실패 package가 없어 별도 우선 원인이 없습니다.'
-                                : `현재 가장 우세한 실패 원인은 "${verificationPackageFailureSummary.dominantFailureReason}"입니다. 같은 유형이 반복되면 패키지 재생성 규칙과 검증 입력 순서를 먼저 점검하시는 편이 좋습니다.`}
+                                : `현재 가장 우세한 실패 원인은 "${verificationPackageFailureSummary.dominantFailureReason}"입니다. 권장 조치: ${getVerificationFailureRecommendedAction(verificationPackageFailureSummary.dominantFailureReason)}`}
                             className="rounded-2xl border px-4 py-3"
                             bodyClassName="block"
                             titleClassName="text-sm font-black"
                             descriptionClassName="mt-1 text-xs font-semibold leading-relaxed"
                         />
+
+                        {verificationFailureReasonDistribution.items.length > 0 ? (
+                            <div className="overflow-auto rounded-xl border border-slate-200 bg-white">
+                                <table className="w-full min-w-[720px] text-left text-[11px]">
+                                    <thead className="bg-slate-50 text-slate-500">
+                                        <tr>
+                                            <th className="px-3 py-2">실패 원인</th>
+                                            <th className="px-3 py-2">횟수</th>
+                                            <th className="px-3 py-2">비중</th>
+                                            <th className="px-3 py-2">권장 조치</th>
+                                            <th className="px-3 py-2">최근 발생 시각</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="text-slate-700">
+                                        {verificationFailureReasonDistribution.items.map((item) => {
+                                            const failureShare = verificationHistorySummary.failed > 0
+                                                ? Math.round((item.count / verificationHistorySummary.failed) * 100)
+                                                : 0;
+
+                                            return (
+                                                <tr key={item.reason} className="border-t border-slate-100">
+                                                    <td className="px-3 py-2 font-semibold">{item.reason}</td>
+                                                    <td className="px-3 py-2 font-black">{item.count}회</td>
+                                                    <td className="px-3 py-2">{failureShare}%</td>
+                                                    <td className="px-3 py-2 leading-relaxed">{getVerificationFailureRecommendedAction(item.reason)}</td>
+                                                    <td className="px-3 py-2 whitespace-nowrap">{new Date(item.latestAt).toLocaleString()}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : null}
 
                         {verificationPackageFailureSummary.topPackages.length > 0 ? (
                             <div className="overflow-auto rounded-xl border border-slate-200 bg-white">
@@ -2119,6 +2677,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                             <th className="px-3 py-2">Snapshot</th>
                                             <th className="px-3 py-2">Invalid JSON</th>
                                             <th className="px-3 py-2">주요 원인</th>
+                                            <th className="px-3 py-2">권장 조치</th>
                                             <th className="px-3 py-2">최근 시각</th>
                                         </tr>
                                     </thead>
@@ -2133,6 +2692,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                                 <td className="px-3 py-2">{item.missingHarnessSnapshots}</td>
                                                 <td className="px-3 py-2">{item.invalidJsonFiles}</td>
                                                 <td className="px-3 py-2 font-semibold">{item.primaryFailureReason}</td>
+                                                <td className="px-3 py-2 leading-relaxed">{getVerificationFailureRecommendedAction(item.primaryFailureReason)}</td>
                                                 <td className="px-3 py-2 whitespace-nowrap">{new Date(item.lastVerifiedAt).toLocaleString()}</td>
                                             </tr>
                                         ))}
@@ -2176,11 +2736,12 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                         <th className="px-3 py-2">Hash</th>
                                         <th className="px-3 py-2">Snapshot</th>
                                         <th className="px-3 py-2">Meta Diff</th>
+                                        <th className="px-3 py-2">주요 원인</th>
                                         <th className="px-3 py-2">Summary Hash</th>
                                     </tr>
                                 </thead>
                                 <tbody className="text-slate-700">
-                                    {verificationHistory.map((entry) => (
+                                    {filteredVerificationHistory.map((entry) => (
                                         <tr key={entry.id} className="border-t border-slate-100 align-top">
                                             <td className="px-3 py-2 whitespace-nowrap">{new Date(entry.verifiedAt).toLocaleString()}</td>
                                             <td className="px-3 py-2 break-all font-semibold">{entry.manifestFileName}</td>
@@ -2194,12 +2755,16 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                             <td className="px-3 py-2">{entry.hashMismatches}</td>
                                             <td className="px-3 py-2">{entry.missingHarnessSnapshots}</td>
                                             <td className="px-3 py-2">{entry.metadataMismatches}</td>
+                                            <td className="px-3 py-2 font-semibold">{entry.primaryFailureReason}</td>
                                             <td className="px-3 py-2">{entry.packageSummaryHashMatched ? 'YES' : 'NO'}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         </div>
+                        {filteredVerificationHistory.length === 0 ? (
+                            <p className="text-[11px] font-bold text-slate-500">현재 선택한 실패 원인 또는 package 필터에 해당하는 검증 실행이 없습니다.</p>
+                        ) : null}
                     </div>
                 ) : null}
 
@@ -2740,7 +3305,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                     {previewWorkflowStatusError ? (
                                         <p className="text-[11px] font-bold text-amber-700">{previewWorkflowStatusError}</p>
                                     ) : null}
-                                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+                                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-5">
                                         <NoticeCallout
                                             variant={currentPreviewApprovalNarrative.tone.includes('emerald') ? 'emerald' : currentPreviewApprovalNarrative.tone.includes('amber') ? 'amber' : 'white'}
                                             eyebrow="최신 승인 Diff"
@@ -2758,6 +3323,18 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">Override Summary</p>
                                             <p className="mt-2 text-sm font-black text-amber-800">{previewWorkflowStatus?.overrides?.length ? `${previewWorkflowStatus.overrides.length}건의 룰 개입이 저장됐습니다.` : '오버라이드 개입이 없는 흐름입니다.'}</p>
                                             <p className="mt-1 text-xs font-bold leading-relaxed text-amber-700">{currentPreviewOverrideNarrative}</p>
+                                        </div>
+                                        <div className={`rounded-2xl border p-4 ${currentPreviewGovernanceNarrative.tone}`}>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Report Governance Narrative</p>
+                                            <p className="mt-2 text-sm font-black text-slate-800">{currentPreviewGovernanceNarrative.title}</p>
+                                            <p className="mt-1 text-xs font-bold leading-relaxed text-slate-700">{currentPreviewGovernanceNarrative.description}</p>
+                                            <p className="mt-3 text-[11px] font-black text-slate-600">{currentPreviewGovernanceNarrative.action}</p>
+                                        </div>
+                                        <div className={`rounded-2xl border p-4 ${currentPreviewTransitionNarrative.tone}`}>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Action Readiness</p>
+                                            <p className="mt-2 text-sm font-black text-slate-800">{currentPreviewTransitionNarrative.title}</p>
+                                            <p className="mt-1 text-xs font-bold leading-relaxed text-slate-700">{currentPreviewTransitionNarrative.description}</p>
+                                            <p className="mt-3 text-[11px] font-black text-slate-600">{currentPreviewTransitionNarrative.action}</p>
                                         </div>
                                     </div>
                                     {(currentPreviewVersionDetails.prompt.length > 0 || currentPreviewVersionDetails.policy.length > 0 || currentPreviewVersionDetails.rule.length > 0) ? (

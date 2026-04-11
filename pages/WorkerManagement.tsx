@@ -1209,10 +1209,46 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         });
     };
 
-    const fetchRegisteredWorkers = useCallback(async () => {
+    const deriveRegisteredWorkerListMeta = useCallback((rows: RegisteredWorkerListRow[]) => {
+        const signatureMap = new Map<string, number>();
+        rows.forEach((row) => {
+            const signature = buildRegisteredWorkerSignature(row);
+            signatureMap.set(signature, (signatureMap.get(signature) || 0) + 1);
+        });
+
+        const hiddenExactDuplicateCount = Array.from(signatureMap.values()).reduce((sum, count) => {
+            return sum + Math.max(0, count - 1);
+        }, 0);
+
+        const sameNameMap = new Map<string, number>();
+        rows.forEach((row) => {
+            const key = normalizeWorkerNameKey(row.name);
+            sameNameMap.set(key, (sameNameMap.get(key) || 0) + 1);
+        });
+
+        return {
+            hiddenExactDuplicateCount,
+            sameNameGroupCount: Array.from(sameNameMap.values()).filter((count) => count > 1).length,
+            rawTotal: rows.length,
+        };
+    }, []);
+
+    const applyRegisteredWorkersSnapshot = useCallback((rows: RegisteredWorkerListRow[], metaOverride?: Partial<RegisteredWorkerListMeta>) => {
+        const derivedMeta = deriveRegisteredWorkerListMeta(rows);
+        setRegisteredWorkers(rows);
+        setRegisteredWorkerListMeta({
+            hiddenExactDuplicateCount: Number(metaOverride?.hiddenExactDuplicateCount ?? derivedMeta.hiddenExactDuplicateCount),
+            sameNameGroupCount: Number(metaOverride?.sameNameGroupCount ?? derivedMeta.sameNameGroupCount),
+            rawTotal: Number(metaOverride?.rawTotal ?? derivedMeta.rawTotal),
+        });
+    }, [deriveRegisteredWorkerListMeta]);
+
+    const fetchRegisteredWorkers = useCallback(async (options?: { preserveUpdateMessage?: boolean }) => {
         setIsRegisteredWorkersLoading(true);
         setRegisteredWorkersError('');
-        setRegisteredWorkerUpdateMessage(null);
+        if (!options?.preserveUpdateMessage) {
+            setRegisteredWorkerUpdateMessage(null);
+        }
 
         try {
             const data = await postAdminJson<any>(
@@ -1225,7 +1261,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             );
 
             const rows = Array.isArray(data?.data?.rows) ? data.data.rows : [];
-            setRegisteredWorkers(rows.map((row: any) => ({
+            const normalizedRows = rows.map((row: any) => ({
                 id: String(row?.id || '').trim(),
                 name: String(row?.name || '').trim(),
                 job_field: String(row?.job_field || '').trim(),
@@ -1233,20 +1269,19 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 birth_date: String(row?.birth_date || '').trim(),
                 phone_number: String(row?.phone_number || '').trim(),
                 passport_number: String(row?.passport_number || '').trim(),
-            })));
-            setRegisteredWorkerListMeta({
+            }));
+            applyRegisteredWorkersSnapshot(normalizedRows, {
                 hiddenExactDuplicateCount: Number(data?.data?.hiddenExactDuplicateCount || 0),
                 sameNameGroupCount: Number(data?.data?.sameNameGroupCount || 0),
-                rawTotal: Number(data?.data?.rawTotal || rows.length || 0),
+                rawTotal: Number(data?.data?.rawTotal || normalizedRows.length || 0),
             });
         } catch (error) {
             setRegisteredWorkersError(extractMessage(error));
-            setRegisteredWorkers([]);
-            setRegisteredWorkerListMeta({ hiddenExactDuplicateCount: 0, sameNameGroupCount: 0, rawTotal: 0 });
+            applyRegisteredWorkersSnapshot([]);
         } finally {
             setIsRegisteredWorkersLoading(false);
         }
-    }, []);
+    }, [applyRegisteredWorkersSnapshot]);
 
     const sortedRegisteredWorkers = useMemo(() => {
         const sorted = [...registeredWorkers];
@@ -2208,7 +2243,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             }
 
             setSelectedBulkMessageWorkerIds((prev) => prev.filter((id) => !deletedWorkerIds.includes(id)));
-            setRegisteredWorkers((prev) => prev.filter((worker) => !deletedWorkerIds.includes(worker.id)));
+            applyRegisteredWorkersSnapshot(registeredWorkers.filter((worker) => !deletedWorkerIds.includes(worker.id)));
             if (editingWorkerId && deletedWorkerIds.includes(editingWorkerId)) {
                 cancelEditRegisteredWorker();
             }
@@ -2229,7 +2264,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 setDeletedWorkerUndo(null);
                 setRegisteredWorkerUpdateMessage(`✅ 선택 근로자 ${deletedWorkerIds.length}명이 삭제되었습니다.`);
             }
-            await fetchRegisteredWorkers();
+            await fetchRegisteredWorkers({ preserveUpdateMessage: true });
         } catch (error) {
             setRegisteredWorkerUpdateMessage(`❌ ${extractMessage(error)}`);
         } finally {
@@ -2557,7 +2592,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 throw new Error('삭제 응답이 올바르지 않습니다.');
             }
 
-            setRegisteredWorkers((prev) => prev.filter((item) => item.id !== deletedWorkerId));
+            applyRegisteredWorkersSnapshot(registeredWorkers.filter((item) => item.id !== deletedWorkerId));
             if (editingWorkerId === deletedWorkerId) {
                 cancelEditRegisteredWorker();
             }
@@ -2578,6 +2613,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 setDeletedWorkerUndo(null);
                 setRegisteredWorkerUpdateMessage('✅ 등록 근로자 정보가 삭제되었습니다.');
             }
+            await fetchRegisteredWorkers({ preserveUpdateMessage: true });
         } catch (error) {
             setRegisteredWorkerUpdateMessage(`❌ ${extractMessage(error)}`);
         } finally {
@@ -2614,7 +2650,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
             setDeletedWorkerUndo(null);
             setRegisteredWorkerUpdateMessage(`✅ ${deletedWorkerUndo.displayLabel} 복구를 완료했습니다.`);
-            await fetchRegisteredWorkers();
+            await fetchRegisteredWorkers({ preserveUpdateMessage: true });
         } catch (error) {
             setRegisteredWorkerUpdateMessage(`❌ ${extractMessage(error)}`);
             setDeletedWorkerUndo(null);

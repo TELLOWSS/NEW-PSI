@@ -9,6 +9,15 @@ import type {
     HarnessWorkflowState,
 } from './workflowTypes.js';
 
+type HarnessTransitionAction = HarnessApprovalAction | 'reanalyze';
+
+export interface HarnessTransitionActionStatus {
+    action: HarnessTransitionAction;
+    allowed: boolean;
+    reason: string | null;
+    nextWorkflowState: HarnessWorkflowState | null;
+}
+
 export class HarnessTransitionError extends Error {
     statusCode: number;
 
@@ -95,6 +104,10 @@ export function assertHarnessApprovalActionAllowed(options: {
         throw new HarnessTransitionError('이미 승인 완료된 워크플로우입니다.');
     }
 
+    if (currentWorkflowState === 'second_pass_analyzing' && options.currentSecondPassStatus === 'IN_PROGRESS') {
+        throw new HarnessTransitionError('2차 재분석이 진행 중일 때는 승인/반려/재분석 요청을 동시에 진행하실 수 없습니다.');
+    }
+
     if (options.action === 'reject' && currentWorkflowState === 'completed') {
         throw new HarnessTransitionError('완료 상태에서는 반려 전이를 적용하실 수 없습니다. 먼저 재검토 상태로 되돌려 주셔야 합니다.');
     }
@@ -106,6 +119,17 @@ export function assertHarnessApprovalActionAllowed(options: {
         if (currentWorkflowState === 'second_pass_analyzing' && options.currentSecondPassStatus === 'IN_PROGRESS') {
             throw new HarnessTransitionError('이미 2차 재분석이 진행 중입니다.');
         }
+    }
+}
+
+export function assertHarnessApprovalCommentAllowed(options: {
+    action: HarnessApprovalAction;
+    comment?: string | null;
+}) {
+    const normalizedComment = String(options.comment || '').trim();
+
+    if ((options.action === 'reject' || options.action === 'request-reanalysis') && normalizedComment.length < 8) {
+        throw new HarnessTransitionError('반려 또는 재분석 요청 시에는 8자 이상의 판단 근거 코멘트가 필요합니다.');
     }
 }
 
@@ -127,6 +151,57 @@ export function assertHarnessReanalysisAllowed(options: {
     if (options.currentApprovalState === 'APPROVED' || (currentWorkflowState === 'completed' && options.currentSecondPassStatus === 'DONE')) {
         throw new HarnessTransitionError('승인 완료된 워크플로우는 바로 재분석으로 전이하실 수 없습니다.');
     }
+
+    if (currentWorkflowState === 'second_pass_analyzing' || options.currentSecondPassStatus === 'IN_PROGRESS') {
+        throw new HarnessTransitionError('이미 재분석이 진행 중이므로 중복 재분석을 시작하실 수 없습니다.');
+    }
+}
+
+export function getHarnessTransitionActionStatuses(options: {
+    currentWorkflowState?: HarnessWorkflowState;
+    currentApprovalState?: HarnessApprovalState;
+    currentSecondPassStatus?: HarnessDecisionResult['secondPassStatus'];
+}): HarnessTransitionActionStatus[] {
+    const actions: HarnessTransitionAction[] = ['approve', 'reject', 'request-reanalysis', 'reanalyze'];
+
+    return actions.map((action) => {
+        try {
+            if (action === 'reanalyze') {
+                assertHarnessReanalysisAllowed(options);
+                return {
+                    action,
+                    allowed: true,
+                    reason: null,
+                    nextWorkflowState: 'second_pass_analyzing',
+                };
+            }
+
+            assertHarnessApprovalActionAllowed({
+                action,
+                currentWorkflowState: options.currentWorkflowState,
+                currentApprovalState: options.currentApprovalState,
+                currentSecondPassStatus: options.currentSecondPassStatus,
+            });
+
+            return {
+                action,
+                allowed: true,
+                reason: null,
+                nextWorkflowState: action === 'approve'
+                    ? 'completed'
+                    : action === 'reject'
+                        ? 'awaiting_manager_approval'
+                        : 'second_pass_analyzing',
+            };
+        } catch (error) {
+            return {
+                action,
+                allowed: false,
+                reason: error instanceof Error ? error.message : '전이 조건을 확인할 수 없습니다.',
+                nextWorkflowState: null,
+            };
+        }
+    });
 }
 
 export function buildHarnessApprovalDecision(options: {

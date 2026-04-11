@@ -1,5 +1,6 @@
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
 import { fetchPersistedHarnessWorkflowStatus } from '../../lib/server/harness/persistence.js';
+import { getHarnessTransitionActionStatuses } from '../../lib/server/harness/router.js';
 
 export default async function handler(req: any, res: any) {
     if (req.method !== 'GET' && req.method !== 'POST') {
@@ -17,10 +18,17 @@ export default async function handler(req: any, res: any) {
 
     const persisted = await fetchPersistedHarnessWorkflowStatus(workflowRunId);
     if (persisted.found && persisted.data) {
+        const transitionActions = getHarnessTransitionActionStatuses({
+            currentWorkflowState: persisted.data.workflowState,
+            currentApprovalState: persisted.data.approvalState,
+            currentSecondPassStatus: persisted.data.secondPassStatus,
+        });
+
         return res.status(200).json({
             ok: true,
             data: {
                 ...persisted.data,
+                transitionActions,
                 persistence: {
                     persisted: persisted.persisted,
                     warning: persisted.warning,
@@ -42,6 +50,11 @@ export default async function handler(req: any, res: any) {
             riskDecision: 'SUPPLEMENTARY_REVIEW',
             approvalState: 'PENDING',
             secondPassStatus: 'NEEDED',
+            transitionActions: getHarnessTransitionActionStatuses({
+                currentWorkflowState: 'awaiting_manager_approval',
+                currentApprovalState: 'PENDING',
+                currentSecondPassStatus: 'NEEDED',
+            }),
             persistence: {
                 persisted: persisted.persisted,
                 warning: lookupMissWarning,

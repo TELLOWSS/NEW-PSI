@@ -59,6 +59,8 @@ type DashboardQuickActionConfig = {
 
 type DashboardInsightTab = 'chart' | 'team' | 'worker';
 
+type HarnessDashboardDrilldownType = 'approval-backlog' | 'immediate-attention' | 'fallback-pending' | 'trade-hotspot';
+
 type DashboardInsightTabConfig = {
     key: DashboardInsightTab;
     label: string;
@@ -228,6 +230,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
     const [selectedTarget, setSelectedTarget] = useState<SelectedTarget | null>(null);
     const [selectedTradeForComparison, setSelectedTradeForComparison] = useState<string | null>(null);
+    const [activeHarnessDrilldown, setActiveHarnessDrilldown] = useState<{ type: HarnessDashboardDrilldownType; trade?: string } | null>(null);
     const [mobileInsightTab, setMobileInsightTab] = useState<DashboardInsightTab>('chart');
     const [teamComparisonSort, setTeamComparisonSort] = useState<'score-asc' | 'score-desc' | 'risk-desc' | 'workers-desc'>('score-asc');
     const [detailViewMode, setDetailViewMode] = useState<'integrated' | 'nationality'>('integrated');
@@ -709,6 +712,15 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
     const dashboardData = useMemo(() => {
         return transformDashboardData(filteredWorkerRecords);
+    }, [filteredWorkerRecords]);
+
+    const latestFilteredWorkerRecords = useMemo(() => {
+        const uniqueWorkers = new Set(filteredWorkerRecords.map((record) => record.name));
+        return Array.from(uniqueWorkers).map((name) => {
+            return filteredWorkerRecords
+                .filter((record) => record.name === name)
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+        });
     }, [filteredWorkerRecords]);
 
     const selectedGroup = useMemo(() => {
@@ -1371,6 +1383,69 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         window.history.replaceState({}, '', nextUrl);
         setCurrentPage('worker-management');
     };
+
+    const openHarnessTradeDrilldown = (trade: string) => {
+        setSelectedTeam('ALL');
+        openTradeIntegratedAnalysis(trade, 'team');
+        setActiveHarnessDrilldown({ type: 'trade-hotspot', trade });
+    };
+
+    const openHarnessOperationalDrilldown = (type: HarnessDashboardDrilldownType) => {
+        setActiveHarnessDrilldown({ type });
+        if (type === 'approval-backlog') {
+            setMobileInsightTab('team');
+        }
+        if (type === 'immediate-attention') {
+            setMobileInsightTab('worker');
+        }
+    };
+
+    const harnessDrilldownPreview = useMemo(() => {
+        if (!activeHarnessDrilldown) return null;
+
+        const entries = latestFilteredWorkerRecords.filter((record) => {
+            const workflowState = inferHarnessWorkflowState(record);
+            const riskDecision = inferHarnessRiskDecision(record);
+            const approvalState = inferHarnessApprovalState(record, workflowState);
+            const persistenceState = getHarnessPersistenceState(record);
+            const trade = String(record.jobField || '미지정 공종').trim() || '미지정 공종';
+
+            switch (activeHarnessDrilldown.type) {
+                case 'approval-backlog':
+                    return approvalState === 'PENDING' || approvalState === 'REQUIRED';
+                case 'immediate-attention':
+                    return riskDecision === 'IMMEDIATE_ATTENTION' || riskDecision === 'CRITICAL_STOP';
+                case 'fallback-pending':
+                    return persistenceState === 'fallback' || persistenceState === 'pending';
+                case 'trade-hotspot':
+                    return trade === activeHarnessDrilldown.trade;
+                default:
+                    return false;
+            }
+        }).slice(0, 8);
+
+        const title = activeHarnessDrilldown.type === 'approval-backlog'
+            ? '승인 대기열 미리보기'
+            : activeHarnessDrilldown.type === 'immediate-attention'
+                ? '즉시 보호 대상 미리보기'
+                : activeHarnessDrilldown.type === 'fallback-pending'
+                    ? '저장 연결 점검 대상 미리보기'
+                    : `${activeHarnessDrilldown.trade || '선택 공종'} 최근 7일 hotspot 미리보기`;
+
+        const description = activeHarnessDrilldown.type === 'approval-backlog'
+            ? '승인 또는 추가 검토가 남아 있는 최신 대상만 추렸습니다.'
+            : activeHarnessDrilldown.type === 'immediate-attention'
+                ? '즉시 보호 또는 중단 판단이 필요한 최신 대상입니다.'
+                : activeHarnessDrilldown.type === 'fallback-pending'
+                    ? 'persistence 폴백 또는 저장 대기 상태의 최신 대상입니다.'
+                    : '선택 공종에서 최근 7일 감사 이벤트가 집중된 최신 대상을 보여드립니다.';
+
+        return {
+            title,
+            description,
+            entries,
+        };
+    }, [activeHarnessDrilldown, latestFilteredWorkerRecords]);
     
     // [SIMULATION DATE] 2026-02-17
     const today = "2026년 2월 17일 화요일";
@@ -1555,6 +1630,99 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
             />
 
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm shadow-slate-100">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Harness Drill-down</p>
+                        <h3 className="mt-1 text-sm font-black text-slate-800">백로그와 hotspot을 대시보드 안에서 바로 좁혀 봅니다.</h3>
+                    </div>
+                    {activeHarnessDrilldown ? (
+                        <button
+                            type="button"
+                            onClick={() => setActiveHarnessDrilldown(null)}
+                            className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-600 hover:bg-slate-100"
+                        >
+                            Drill-down 해제
+                        </button>
+                    ) : null}
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        onClick={() => openHarnessOperationalDrilldown('approval-backlog')}
+                        className={`rounded-full px-3 py-1.5 text-[11px] font-black transition-colors ${activeHarnessDrilldown?.type === 'approval-backlog' ? 'bg-violet-600 text-white' : 'border border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100'}`}
+                    >
+                        승인 대기 {harnessDashboardSummary.approvalBacklog}명
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => openHarnessOperationalDrilldown('immediate-attention')}
+                        className={`rounded-full px-3 py-1.5 text-[11px] font-black transition-colors ${activeHarnessDrilldown?.type === 'immediate-attention' ? 'bg-rose-600 text-white' : 'border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'}`}
+                    >
+                        즉시 보호 {harnessDashboardSummary.immediateAttention}명
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => openHarnessOperationalDrilldown('fallback-pending')}
+                        className={`rounded-full px-3 py-1.5 text-[11px] font-black transition-colors ${activeHarnessDrilldown?.type === 'fallback-pending' ? 'bg-amber-600 text-white' : 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'}`}
+                    >
+                        저장 점검 {harnessDashboardSummary.fallback + harnessDashboardSummary.pending}명
+                    </button>
+                </div>
+
+                {harnessDrilldownPreview ? (
+                    <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <div>
+                                <p className="text-sm font-black text-slate-800">{harnessDrilldownPreview.title}</p>
+                                <p className="mt-1 text-[11px] font-bold text-slate-500">{harnessDrilldownPreview.description}</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setCurrentPage('worker-management')}
+                                className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-black text-slate-700 hover:bg-slate-100"
+                            >
+                                근로자 관리로 이어보기
+                            </button>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-1 gap-2 xl:grid-cols-2">
+                            {harnessDrilldownPreview.entries.length > 0 ? harnessDrilldownPreview.entries.map((record) => {
+                                const workflowState = inferHarnessWorkflowState(record);
+                                const riskDecision = inferHarnessRiskDecision(record);
+                                const approvalState = inferHarnessApprovalState(record, workflowState);
+                                const persistenceState = getHarnessPersistenceState(record);
+
+                                return (
+                                    <div key={`${record.id}-${record.date}`} className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <p className="text-xs font-black text-slate-800">{record.name}</p>
+                                                <p className="mt-1 text-[11px] font-bold text-slate-500">{record.jobField} · {record.teamLeader || '미지정 팀'}</p>
+                                            </div>
+                                            <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-600 border border-slate-200">
+                                                {Number(record.safetyScore).toFixed(0)}점
+                                            </span>
+                                        </div>
+                                        <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-black">
+                                            <span className="rounded-full bg-indigo-100 px-2 py-1 text-indigo-700">{workflowState}</span>
+                                            <span className="rounded-full bg-rose-100 px-2 py-1 text-rose-700">{riskDecision}</span>
+                                            <span className="rounded-full bg-violet-100 px-2 py-1 text-violet-700">{approvalState}</span>
+                                            <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">{persistenceState}</span>
+                                        </div>
+                                    </div>
+                                );
+                            }) : (
+                                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-[11px] font-bold text-slate-500 xl:col-span-2">
+                                    현재 선택 조건에서 바로 보여드릴 대상이 없습니다.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                ) : null}
+            </div>
+
             <InterpretationCardGrid
                 items={harnessOperationalInsights}
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
@@ -1610,16 +1778,33 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             <tbody className="align-top text-slate-700">
                                 {harnessRecentTradeHotspots.map((item) => (
                                     <tr key={item.trade} className="border-t border-slate-100">
-                                        <td className="py-2 pr-3 font-black">{item.trade}</td>
+                                        <td className="py-2 pr-3 font-black">
+                                            <button
+                                                type="button"
+                                                onClick={() => openHarnessTradeDrilldown(item.trade)}
+                                                className="text-left text-indigo-700 hover:text-indigo-900 hover:underline"
+                                            >
+                                                {item.trade}
+                                            </button>
+                                        </td>
                                         <td className="py-2 pr-3">{item.touchedWorkerCount}명</td>
                                         <td className="py-2 pr-3 font-semibold text-amber-700">{item.transitionBlocks}건</td>
                                         <td className="py-2 pr-3 font-semibold text-emerald-700">{item.approvals}건</td>
                                         <td className="py-2 pr-3 font-semibold text-violet-700">{item.reassessments}건</td>
                                         <td className="py-2 pr-3">{item.auditEvents}건</td>
                                         <td className="py-2 pr-3">
-                                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${item.totalSignal >= 8 ? 'bg-rose-100 text-rose-700' : item.totalSignal >= 4 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
-                                                {item.totalSignal >= 8 ? '높음' : item.totalSignal >= 4 ? '중간' : '낮음'}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${item.totalSignal >= 8 ? 'bg-rose-100 text-rose-700' : item.totalSignal >= 4 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                                                    {item.totalSignal >= 8 ? '높음' : item.totalSignal >= 4 ? '중간' : '낮음'}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openHarnessTradeDrilldown(item.trade)}
+                                                    className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-black text-slate-600 hover:bg-slate-50"
+                                                >
+                                                    바로 보기
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

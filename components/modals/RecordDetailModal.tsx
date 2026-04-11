@@ -34,6 +34,7 @@ import {
     type HarnessWorkflowOverride,
     type HarnessWorkflowPolicyVersion,
     type HarnessWorkflowPromptVersion,
+    type HarnessWorkflowTransitionAction,
     type HarnessWorkflowVersionDetails,
     type HarnessWorkflowVersionChangeSummary,
 } from '../../services/harnessService';
@@ -369,6 +370,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const [harnessAnalyzerSummary, setHarnessAnalyzerSummary] = useState<HarnessWorkflowAnalyzerSummary>({ summary: null, confidence: null });
     const [harnessEvaluatorSummary, setHarnessEvaluatorSummary] = useState<HarnessWorkflowEvaluatorSummary>({ evidenceSufficiency: null, requiresHumanApproval: null, flags: [] });
     const [harnessLatestApprovalDiff, setHarnessLatestApprovalDiff] = useState<HarnessWorkflowApprovalDiff | null>(null);
+    const [harnessTransitionActions, setHarnessTransitionActions] = useState<HarnessWorkflowTransitionAction[]>([]);
     const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     const docInputRef = useRef<HTMLInputElement>(null); // For Document Image
@@ -433,6 +435,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             setHarnessAnalyzerSummary({ summary: null, confidence: null });
             setHarnessEvaluatorSummary({ evidenceSufficiency: null, requiresHumanApproval: null, flags: [] });
             setHarnessLatestApprovalDiff(null);
+            setHarnessTransitionActions([]);
             return;
         }
 
@@ -458,6 +461,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             setHarnessAnalyzerSummary(response.analyzerSummary || { summary: null, confidence: null });
             setHarnessEvaluatorSummary(response.evaluatorSummary || { evidenceSufficiency: null, requiresHumanApproval: null, flags: [] });
             setHarnessLatestApprovalDiff(response.latestApprovalDiff || null);
+            setHarnessTransitionActions(response.transitionActions || []);
             setRecord((prev) => getConsistentRecord(withHarnessState(prev, {
                 workflowRunId: response.workflowRunId,
                 workflowState: response.workflowState,
@@ -480,6 +484,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             setHarnessAnalyzerSummary({ summary: null, confidence: null });
             setHarnessEvaluatorSummary({ evidenceSufficiency: null, requiresHumanApproval: null, flags: [] });
             setHarnessLatestApprovalDiff(null);
+            setHarnessTransitionActions([]);
         } finally {
             setIsHarnessStatusLoading(false);
         }
@@ -501,6 +506,17 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         workflowState: record.workflowState || inferHarnessWorkflowState(record),
         approvalState: record.approvalState || inferHarnessApprovalState(record, record.workflowState || inferHarnessWorkflowState(record)),
     }), [record]);
+
+    const harnessTransitionActionSummary = useMemo(() => {
+        const allowed = harnessTransitionActions.filter((item) => item.allowed);
+        const blocked = harnessTransitionActions.filter((item) => !item.allowed);
+
+        return {
+            allowed,
+            blocked,
+            recommended: allowed[0] || null,
+        };
+    }, [harnessTransitionActions]);
 
     const harnessSnapshotMetrics = useMemo(() => {
         const weather = harnessContextSnapshot?.weather || {};
@@ -690,6 +706,60 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         }
         return '예: 현장 확인 결과 기록 내용과 증빙이 일치하여 승인합니다. 반려 시에는 재촬영/재작성 필요 사유를 구체적으로 남겨주세요.';
     }, [hasCriticalReviewEdits]);
+
+    const approvalReviewChecklistItems = useMemo(() => {
+        const workflowState = record.workflowState || inferHarnessWorkflowState(record);
+        const approvalState = record.approvalState || inferHarnessApprovalState(record, workflowState);
+        const riskDecision = record.riskDecision || inferHarnessRiskDecision(record);
+
+        return [
+            `현재 상태는 ${getHarnessWorkflowStateLabel(workflowState)} / ${getHarnessApprovalStateLabel(approvalState)} / ${getHarnessRiskDecisionLabel(riskDecision)} 조합인지 먼저 확인합니다.`,
+            harnessLatestApprovalDiff
+                ? `직전 승인 결과는 ${harnessLatestApprovalDiff.action}이며 위험 판단이 ${harnessLatestApprovalDiff.decisionBefore || 'N/A'} → ${harnessLatestApprovalDiff.decisionAfter || 'N/A'}로 바뀌었습니다.`
+                : '직전 승인 diff가 없으면 이번 판단 코멘트에 변경 이유를 더 명확히 남겨야 합니다.',
+            harnessOverrides.length > 0
+                ? `오버라이드 ${harnessOverrides.length}건이 있으므로 규칙 우회 사유와 현장 증빙 일치 여부를 반드시 다시 봅니다.`
+                : '현재 오버라이드가 없으므로 원문, 점수, 증빙 정합성 중심으로 확인하시면 됩니다.',
+            hasCriticalReviewEdits
+                ? '핵심 수정이 있었으므로 승인 전 코멘트에 수정 범위와 반영 이유를 반드시 함께 남깁니다.'
+                : '핵심 수정이 없다면 승인 또는 보완 요청의 판단 사유를 짧고 명확하게 남기면 됩니다.',
+        ].map((content, index) => ({
+            key: `approval-review-${index}`,
+            content,
+        }));
+    }, [harnessLatestApprovalDiff, harnessOverrides.length, hasCriticalReviewEdits, record]);
+
+    const approvalDiffInterpretation = useMemo(() => {
+        if (!harnessLatestApprovalDiff) {
+            return {
+                title: '직전 승인 변화 정보가 아직 없습니다.',
+                description: '이번 승인에서는 무엇이 바뀌었는지, 왜 승인 또는 보완 요청을 했는지를 코멘트에 직접 남겨 주셔야 합니다.',
+            };
+        }
+
+        const actionLabel = harnessLatestApprovalDiff.action === 'approved' ? '최종 승인' : harnessLatestApprovalDiff.action === 'rejected' ? '보완 요청' : harnessLatestApprovalDiff.action;
+        const decisionChanged = harnessLatestApprovalDiff.decisionBefore !== harnessLatestApprovalDiff.decisionAfter;
+
+        if (decisionChanged || harnessLatestApprovalDiff.requiresManagerApprovalAfter || harnessLatestApprovalDiff.secondPassStatusAfter !== 'DONE') {
+            return {
+                title: `직전 판단은 ${actionLabel} 처리되며 상태 변화가 실제로 발생했습니다.`,
+                description: `위험 판단, 승인 상태, 2차 재분석 상태 중 바뀐 항목을 이번 기록과 비교해 현재 판단이 연속선상에 있는지 확인해 주십시오.`,
+            };
+        }
+
+        return {
+            title: `직전 판단은 ${actionLabel} 처리됐지만 핵심 상태 변화는 제한적이었습니다.`,
+            description: '이번에는 코멘트와 증빙 체크리스트를 더 구체적으로 남겨 QA 재확인 비용을 줄이는 편이 좋습니다.',
+        };
+    }, [harnessLatestApprovalDiff]);
+
+    const harnessTimelineStageGuide = useMemo(() => {
+        return [
+            { stage: 'validation', meaning: '원문, OCR, 점수, 증빙 정합성을 다시 맞춘 단계입니다.' },
+            { stage: 'approval', meaning: '관리자 승인 또는 보완 요청 판단이 기록된 단계입니다.' },
+            { stage: 'reassessment', meaning: '수정 후 재분석 또는 재검토 흐름으로 되돌린 단계입니다.' },
+        ];
+    }, []);
 
     const safetyLevelThresholds = useMemo(() => getSafetyLevelThresholds(), []);
     const gradeExampleFor69 = useMemo(() => getSafetyLevelFromScore(69), []);
@@ -1189,6 +1259,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 analyzer: harnessAnalyzerSummary,
                 evaluator: harnessEvaluatorSummary,
                 latestApprovalDiff: harnessLatestApprovalDiff,
+                transitionActions: harnessTransitionActions,
             },
             versions: {
                 prompt: harnessPromptVersion,
@@ -1233,6 +1304,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             ['summary', 'analyzerSummary', harnessAnalyzerSummary.summary || '', typeof harnessAnalyzerSummary.confidence === 'number' ? `${Math.round(harnessAnalyzerSummary.confidence * 100)}%` : ''],
             ['summary', 'evaluatorFlags', String(harnessEvaluatorSummary.flags.length), harnessEvaluatorSummary.flags.join(' | ')],
             ['summary', 'evaluatorEvidenceSufficiency', String(harnessEvaluatorSummary.evidenceSufficiency ?? ''), `humanApproval=${typeof harnessEvaluatorSummary.requiresHumanApproval === 'boolean' ? (harnessEvaluatorSummary.requiresHumanApproval ? 'YES' : 'NO') : 'UNKNOWN'}`],
+            ['summary', 'allowedTransitionActions', String(harnessTransitionActionSummary.allowed.length), harnessTransitionActionSummary.allowed.map((item) => `${item.action}:${item.nextWorkflowState || '유지'}`).join(' | ')],
+            ['summary', 'blockedTransitionActions', String(harnessTransitionActionSummary.blocked.length), harnessTransitionActionSummary.blocked.map((item) => `${item.action}:${item.reason || '차단'}`).join(' | ')],
             ['version', 'promptVersion', harnessPromptVersion?.version || '', harnessPromptVersion?.checksum || ''],
             ['version', 'policyVersion', harnessPolicyVersion?.version || '', harnessPolicyVersion?.checksum || ''],
             ['version', 'promptChangeSummary', harnessVersionChangeSummary.prompt.join(' | '), ''],
@@ -2215,6 +2288,28 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 titleClassName="mt-1 text-xs font-bold"
                                                 descriptionClassName="mt-1 text-[11px] font-semibold leading-relaxed"
                                             />
+                                            <div className="mb-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
+                                                <NextActionChecklist
+                                                    title="승인 전 확인 포인트"
+                                                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                                                    titleClassName="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500"
+                                                    listClassName="space-y-2 text-[11px] font-bold leading-relaxed text-slate-700"
+                                                    itemClassName="flex items-start gap-2"
+                                                    bulletClassName="mt-[2px] text-indigo-500"
+                                                    items={approvalReviewChecklistItems}
+                                                />
+                                                <NoticeCallout
+                                                    variant={harnessLatestApprovalDiff ? 'emerald' : 'slate'}
+                                                    eyebrow="직전 승인 변화 해석"
+                                                    title={approvalDiffInterpretation.title}
+                                                    description={approvalDiffInterpretation.description}
+                                                    className="rounded-2xl border px-4 py-4"
+                                                    bodyClassName="block"
+                                                    eyebrowClassName="text-[11px] font-black"
+                                                    titleClassName="mt-1 text-xs font-bold"
+                                                    descriptionClassName="mt-1 text-[11px] font-semibold leading-relaxed"
+                                                />
+                                            </div>
                                             <div className="mb-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                                     <div>
@@ -2250,6 +2345,31 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                         </ActionButton>
                                                     )}
                                                 </div>
+                                                {harnessTransitionActions.length > 0 ? (
+                                                    <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                                                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                                                            <p className="text-[11px] font-black text-slate-500">현재 가능한 액션</p>
+                                                            {harnessTransitionActionSummary.recommended ? (
+                                                                <StatusBadge variant="violetSoft">
+                                                                    권장: {harnessTransitionActionSummary.recommended.action}
+                                                                </StatusBadge>
+                                                            ) : null}
+                                                        </div>
+                                                        <div className="mt-2 flex flex-wrap gap-2">
+                                                            {harnessTransitionActions.map((item) => (
+                                                                <div key={item.action} className={`rounded-xl border px-3 py-2 text-[11px] font-bold ${item.allowed ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+                                                                    <p className="font-black">{item.action}</p>
+                                                                    <p className="mt-1">{item.allowed ? `가능 · 다음 상태 ${item.nextWorkflowState || '유지'}` : item.reason || '차단 사유 미기록'}</p>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        {harnessTransitionActionSummary.blocked.length > 0 ? (
+                                                            <p className="mt-2 text-[11px] font-semibold leading-relaxed text-slate-500">
+                                                                차단된 액션은 현재 상태머신 규칙에 의해 보류됩니다. 먼저 허용된 상태 전이 또는 근거 코멘트 보강을 진행해 주십시오.
+                                                            </p>
+                                                        ) : null}
+                                                    </div>
+                                                ) : null}
                                                 {harnessStatusWarning && (
                                                     <NoticeCallout
                                                         variant="amber"
@@ -2402,6 +2522,26 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 emptyStateClassName="text-xs font-bold text-slate-400"
                                             />
                                         </div>
+
+                                        <SectionPanelCard
+                                            variant="whiteSoft"
+                                            eyebrow="TIMELINE GUIDE"
+                                            title="타임라인 단계 의미를 먼저 맞추고 승인 판단을 이어갑니다."
+                                            description="validation / approval / reassessment 단계가 무엇을 의미하는지 짧게 확인할 수 있습니다."
+                                            className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6 sm:py-6"
+                                            titleClassName="mt-1 text-sm font-black text-slate-800"
+                                            descriptionClassName="mt-2 text-xs font-bold text-slate-500"
+                                            bodyClassName="mt-4"
+                                        >
+                                            <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+                                                {harnessTimelineStageGuide.map((item) => (
+                                                    <div key={item.stage} className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">{item.stage}</p>
+                                                        <p className="mt-2 text-xs font-semibold leading-relaxed text-amber-800">{item.meaning}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </SectionPanelCard>
 
                                         <SectionPanelCard
                                             variant="whiteSoft"
