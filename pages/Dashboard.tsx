@@ -543,6 +543,170 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         ];
     }, [harnessAuditSummary]);
 
+    const harnessRecentOpsSummary = useMemo(() => {
+        const now = Date.now();
+        const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
+
+        return filteredWorkerRecords.reduce((summary, record) => {
+            const auditTrail = Array.isArray(record.auditTrail) ? record.auditTrail : [];
+            const recentEntries = auditTrail.filter((entry) => {
+                const parsed = new Date(entry.timestamp).getTime();
+                return !Number.isNaN(parsed) && parsed >= sevenDaysAgo;
+            });
+
+            if (recentEntries.length > 0) {
+                summary.touchedWorkers.add(record.name);
+            }
+
+            recentEntries.forEach((entry) => {
+                const note = String(entry.note || '');
+                summary.recentAuditEvents += 1;
+                if (entry.stage === 'approval') summary.recentApprovals += 1;
+                if (entry.stage === 'reassessment') summary.recentReassessments += 1;
+                if (/하네스 전이 거부|승인 차단/i.test(note)) summary.recentTransitionBlocks += 1;
+                if (/Harness 승인 게이트 동기화|최종 승인|반려/i.test(note)) summary.recentApprovalDecisions += 1;
+            });
+
+            return summary;
+        }, {
+            recentAuditEvents: 0,
+            recentApprovals: 0,
+            recentReassessments: 0,
+            recentTransitionBlocks: 0,
+            recentApprovalDecisions: 0,
+            touchedWorkers: new Set<string>(),
+        });
+    }, [filteredWorkerRecords]);
+
+    const harnessRecentOpsMetrics = useMemo(() => {
+        const touchedWorkerCount = harnessRecentOpsSummary.touchedWorkers.size;
+        return [
+            {
+                key: 'dashboard-harness-recent-audits',
+                label: '최근 7일 감사 이벤트',
+                value: `${harnessRecentOpsSummary.recentAuditEvents}건`,
+                helper: `${touchedWorkerCount}명 레코드에서 최근 운영 흔적이 확인되었습니다.`,
+                tone: harnessRecentOpsSummary.recentAuditEvents > 0 ? 'border-indigo-200 bg-indigo-50/80' : 'border-slate-200 bg-slate-50',
+            },
+            {
+                key: 'dashboard-harness-recent-approvals',
+                label: '최근 승인/반려 로그',
+                value: `${harnessRecentOpsSummary.recentApprovalDecisions}건`,
+                helper: `approval stage ${harnessRecentOpsSummary.recentApprovals}건 기준입니다.`,
+                tone: harnessRecentOpsSummary.recentApprovalDecisions > 0 ? 'border-emerald-200 bg-emerald-50/80' : 'border-slate-200 bg-slate-50',
+            },
+            {
+                key: 'dashboard-harness-recent-blocks',
+                label: '최근 전이 차단',
+                value: `${harnessRecentOpsSummary.recentTransitionBlocks}건`,
+                helper: '승인 차단 또는 상태 전이 거부 메모 기준입니다.',
+                tone: harnessRecentOpsSummary.recentTransitionBlocks > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+            },
+            {
+                key: 'dashboard-harness-recent-reassess',
+                label: '최근 재분석 실행',
+                value: `${harnessRecentOpsSummary.recentReassessments}건`,
+                helper: 'reassessment stage 기록 기준입니다.',
+                tone: harnessRecentOpsSummary.recentReassessments > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
+            },
+        ];
+    }, [harnessRecentOpsSummary]);
+
+    const harnessRecentOpsInsights = useMemo(() => {
+        const touchedWorkerCount = harnessRecentOpsSummary.touchedWorkers.size;
+        const dominantSignal = [
+            { key: 'transition', count: harnessRecentOpsSummary.recentTransitionBlocks, label: '전이 차단' },
+            { key: 'reassessment', count: harnessRecentOpsSummary.recentReassessments, label: '재분석' },
+            { key: 'approval', count: harnessRecentOpsSummary.recentApprovalDecisions, label: '승인/반려' },
+        ].sort((a, b) => b.count - a.count)[0];
+
+        return [
+            {
+                key: 'dashboard-harness-recent-window',
+                eyebrow: '최근 7일 운영 창',
+                title: touchedWorkerCount > 0
+                    ? `${touchedWorkerCount}명에서 최근 하네스 운영 흔적이 확인되었습니다.`
+                    : '최근 7일 기준 하네스 운영 흔적이 아직 많지 않습니다.',
+                description: touchedWorkerCount > 0
+                    ? `감사 이벤트 ${harnessRecentOpsSummary.recentAuditEvents}건을 기준으로 최근 승인, 차단, 재분석 흐름을 빠르게 읽으실 수 있습니다.`
+                    : '승인/재분석/차단 흐름이 누적되면 대시보드의 단기 운영 설명력이 더 좋아집니다.',
+                tone: touchedWorkerCount > 0 ? 'border-indigo-200 bg-indigo-50/80' : 'border-slate-200 bg-slate-50',
+            },
+            {
+                key: 'dashboard-harness-recent-dominant',
+                eyebrow: '우세 신호',
+                title: dominantSignal.count > 0
+                    ? `최근 운영 로그에서는 ${dominantSignal.label} 신호가 가장 크게 보입니다.`
+                    : '최근 7일 기준으로 특정 하네스 운영 신호 쏠림은 크지 않습니다.',
+                description: dominantSignal.key === 'transition'
+                    ? '상태 전이 조건과 승인 순서를 먼저 재정렬하시면 운영 마찰을 줄이기 쉽습니다.'
+                    : dominantSignal.key === 'reassessment'
+                        ? '현장 수정 이후 재분석 루프가 많으므로 코멘트 품질과 OCR 원문 품질을 함께 보시는 편이 좋습니다.'
+                        : dominantSignal.key === 'approval'
+                            ? '최근 승인/반려 판단이 활발하므로 승인 근거 문구와 감사 저장 품질을 함께 관리하셔야 합니다.'
+                            : '최근 로그가 충분히 쌓이면 주간 운영 요약 정밀도가 더 좋아집니다.',
+                tone: dominantSignal.count > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
+            },
+        ];
+    }, [harnessRecentOpsSummary]);
+
+    const harnessRecentTradeHotspots = useMemo(() => {
+        const now = Date.now();
+        const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
+        const tradeMap = new Map<string, {
+            trade: string;
+            touchedWorkers: Set<string>;
+            transitionBlocks: number;
+            approvals: number;
+            reassessments: number;
+            auditEvents: number;
+        }>();
+
+        filteredWorkerRecords.forEach((record) => {
+            const trade = String(record.jobField || '미지정 공종').trim() || '미지정 공종';
+            const auditTrail = Array.isArray(record.auditTrail) ? record.auditTrail : [];
+            const recentEntries = auditTrail.filter((entry) => {
+                const parsed = new Date(entry.timestamp).getTime();
+                return !Number.isNaN(parsed) && parsed >= sevenDaysAgo;
+            });
+
+            if (recentEntries.length === 0) {
+                return;
+            }
+
+            if (!tradeMap.has(trade)) {
+                tradeMap.set(trade, {
+                    trade,
+                    touchedWorkers: new Set<string>(),
+                    transitionBlocks: 0,
+                    approvals: 0,
+                    reassessments: 0,
+                    auditEvents: 0,
+                });
+            }
+
+            const tradeEntry = tradeMap.get(trade)!;
+            tradeEntry.touchedWorkers.add(record.name);
+
+            recentEntries.forEach((entry) => {
+                const note = String(entry.note || '');
+                tradeEntry.auditEvents += 1;
+                if (/하네스 전이 거부|승인 차단/i.test(note)) tradeEntry.transitionBlocks += 1;
+                if (entry.stage === 'approval' || /Harness 승인 게이트 동기화|최종 승인|반려/i.test(note)) tradeEntry.approvals += 1;
+                if (entry.stage === 'reassessment') tradeEntry.reassessments += 1;
+            });
+        });
+
+        return Array.from(tradeMap.values())
+            .map((item) => ({
+                ...item,
+                touchedWorkerCount: item.touchedWorkers.size,
+                totalSignal: item.transitionBlocks + item.approvals + item.reassessments,
+            }))
+            .sort((a, b) => b.totalSignal - a.totalSignal || b.auditEvents - a.auditEvents || a.trade.localeCompare(b.trade, 'ko'))
+            .slice(0, 6);
+    }, [filteredWorkerRecords]);
+
     const dashboardData = useMemo(() => {
         return transformDashboardData(filteredWorkerRecords);
     }, [filteredWorkerRecords]);
@@ -1406,6 +1570,64 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 items={harnessAuditInsights}
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
             />
+
+            <SummaryMetricGrid
+                items={harnessRecentOpsMetrics}
+                columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
+
+            <InterpretationCardGrid
+                items={harnessRecentOpsInsights}
+                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+            />
+
+            {harnessRecentTradeHotspots.length > 0 ? (
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-100">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">최근 7일 공종 집중도</p>
+                            <h3 className="mt-1 text-sm font-black text-slate-800">전이 차단·승인·재분석이 몰린 공종을 우선 확인합니다.</h3>
+                        </div>
+                        <div className="rounded-full bg-violet-50 px-3 py-1 text-[11px] font-black text-violet-700">
+                            상위 {harnessRecentTradeHotspots.length}개 공종
+                        </div>
+                    </div>
+
+                    <div className="mt-4 overflow-auto">
+                        <table className="w-full min-w-[760px] text-left text-[11px]">
+                            <thead className="text-slate-500">
+                                <tr>
+                                    <th className="py-2 pr-3">공종</th>
+                                    <th className="py-2 pr-3">최근 운영 대상</th>
+                                    <th className="py-2 pr-3">전이 차단</th>
+                                    <th className="py-2 pr-3">승인/반려</th>
+                                    <th className="py-2 pr-3">재분석</th>
+                                    <th className="py-2 pr-3">감사 이벤트</th>
+                                    <th className="py-2 pr-3">집중도</th>
+                                </tr>
+                            </thead>
+                            <tbody className="align-top text-slate-700">
+                                {harnessRecentTradeHotspots.map((item) => (
+                                    <tr key={item.trade} className="border-t border-slate-100">
+                                        <td className="py-2 pr-3 font-black">{item.trade}</td>
+                                        <td className="py-2 pr-3">{item.touchedWorkerCount}명</td>
+                                        <td className="py-2 pr-3 font-semibold text-amber-700">{item.transitionBlocks}건</td>
+                                        <td className="py-2 pr-3 font-semibold text-emerald-700">{item.approvals}건</td>
+                                        <td className="py-2 pr-3 font-semibold text-violet-700">{item.reassessments}건</td>
+                                        <td className="py-2 pr-3">{item.auditEvents}건</td>
+                                        <td className="py-2 pr-3">
+                                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${item.totalSignal >= 8 ? 'bg-rose-100 text-rose-700' : item.totalSignal >= 4 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                                                {item.totalSignal >= 8 ? '높음' : item.totalSignal >= 4 ? '중간' : '낮음'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            ) : null}
 
             {(harnessDashboardSummary.approvalBacklog > 0 || harnessDashboardSummary.fallback > 0 || harnessDashboardSummary.immediateAttention > 0) && (
                 <NoticeCallout

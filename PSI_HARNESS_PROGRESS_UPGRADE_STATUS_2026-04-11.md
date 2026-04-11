@@ -384,6 +384,46 @@
 - 실제 로컬 저장소 루트에서 `npm run build` 재실행 후 Vite production build 성공 확인
 - 현재까지 반영된 Reports/RecordDetailModal/하네스 버전 메타 변경이 빌드 단계에서도 문제 없음을 검증
 
+### 완료 28. 증빙 검증에 manifest/JSON 메타 정합성 검사 추가
+- 단순 SHA-256 검증 외에 JSON 파싱 가능 여부까지 함께 검증
+- manifest 메타 대비 `harnessAuditSnapshot` 누락 여부를 추가 점검
+- workflow run, prompt/policy/rule version, approval/override count, versionChangeSummary의 manifest-JSON 불일치 표를 검증 화면에 노출
+
+### 완료 29. 증빙 검증 결과 리포트 저장 기능 추가
+- 검증 완료 후 결과를 CSV로 저장해 운영팀 배포/보관이 가능하도록 반영
+- 동일 결과를 JSON으로도 저장해 자동화 파이프라인이나 후속 분석 입력으로 재사용 가능하도록 반영
+- 저장 리포트에 hash mismatch, invalid JSON, harness snapshot 누락, metadata mismatch 세부 항목을 구조화해 포함
+
+### 완료 30. 관리자 모달 하네스 감사 요약 내보내기 추가
+- `RecordDetailModal`에서 현재 레코드의 하네스 감사 상태를 CSV/JSON으로 즉시 저장 가능하도록 반영
+- 저장 리포트에 workflow 상태, persistence 진단, analyzer/evaluator 요약, override/approval/timeline, version change summary를 포함
+- 운영 검토자가 개별 레코드 단위로 감사 패키지와 별도 관리용 감사 요약을 함께 보관할 수 있도록 정리
+
+### 완료 31. Dashboard 최근 7일 하네스 운영 요약 추가
+- 최근 7일 기준 감사 이벤트, 승인/반려, 전이 차단, 재분석 실행 건수를 대시보드 메트릭으로 추가
+- 최근 운영 흔적이 남은 대상 수와 우세 신호(전이 차단/재분석/승인)를 해석 카드로 노출
+- 운영팀이 장기 누적 지표뿐 아니라 단기 운영 마찰과 승인 흐름도 한 화면에서 읽을 수 있도록 보강
+
+### 완료 32. Reports 검증 결과 히스토리 누적 패널 추가
+- Reports 증빙 검증 화면에 최근 세션 검증 결과를 최대 12건까지 누적 표시
+- 성공/실패, 해시 불일치, 스냅샷 누락, 메타 불일치 누계를 요약 카드로 제공
+- 검증 히스토리를 별도 CSV로 저장해 주간 운영 점검 자료로 재사용 가능하도록 반영
+
+### 완료 33. Dashboard 공종별 최근 7일 하네스 집중도 표 추가
+- 최근 7일 감사 이벤트를 공종별로 묶어 전이 차단, 승인/반려, 재분석 집중도를 표로 노출
+- 각 공종별 최근 운영 대상 수와 총 감사 이벤트 수도 함께 제공
+- 운영팀이 어떤 공종에서 단기 운영 마찰이 집중되는지 대시보드에서 바로 읽을 수 있도록 보강
+
+### 완료 34. Reports 검증 히스토리에 package별 실패 패턴 요약 추가
+- 최근 검증 히스토리를 package 단위로 다시 집계해 실패 package 수와 반복 실패 package 수를 바로 확인 가능하도록 반영
+- 실패 횟수, hash mismatch, metadata mismatch, snapshot 누락, invalid JSON 기준 상위 package 표를 추가
+- 운영팀이 어떤 증빙 패키지를 우선 재생성·재검증해야 하는지 Reports 화면에서 바로 판단할 수 있도록 보강
+
+### 완료 35. Reports package 실패 패턴에 주요 원인 문구 추가
+- package별 실패 집계에서 해시 불일치, 메타 불일치, 스냅샷 누락, 파싱 불가 JSON, 요약 해시 불일치, 누락 JSON을 원인 후보로 분류
+- 가장 우세한 실패 원인을 notice 문구와 표 컬럼으로 함께 노출
+- 운영팀이 실패 package를 단순 개수뿐 아니라 "어떤 유형의 실패가 반복되는지"까지 즉시 읽을 수 있도록 보강
+
 ---
 
 ## 5. 현재 남아 있는 갭

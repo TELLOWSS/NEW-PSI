@@ -43,10 +43,18 @@ export interface EvidenceManifestVerificationResult {
     totalEntries: number;
     verifiedEntries: number;
     missingJsonFiles: string[];
+    invalidJsonFiles: string[];
+    missingHarnessSnapshots: string[];
     hashMismatches: Array<{
         jsonFile: string;
         expectedSha256: string;
         actualSha256: string;
+    }>;
+    metadataMismatches: Array<{
+        jsonFile: string;
+        field: string;
+        expected: string;
+        actual: string;
     }>;
     packageSummaryHashExpected: string;
     packageSummaryHashActual: string;
@@ -71,15 +79,42 @@ const buildPackageSummarySource = (entries: Array<{ jsonFile: string; jsonSha256
         .join('\n');
 };
 
+const normalizeOptionalString = (value: unknown): string => {
+    return typeof value === 'string' ? value.trim() : '';
+};
+
+const normalizeStringArray = (values: unknown): string[] => {
+    if (!Array.isArray(values)) {
+        return [];
+    }
+
+    return Array.from(new Set(values
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
+        .filter(Boolean)))
+        .sort((a, b) => a.localeCompare(b));
+};
+
+const toComparableListText = (values: string[]): string => {
+    return values.length > 0 ? values.join(' | ') : '-';
+};
+
 export async function verifyEvidenceManifest(
     manifest: EvidenceManifest,
     jsonContentByPath: Record<string, string>
 ): Promise<EvidenceManifestVerificationResult> {
     const missingJsonFiles: string[] = [];
+    const invalidJsonFiles: string[] = [];
+    const missingHarnessSnapshots: string[] = [];
     const hashMismatches: Array<{
         jsonFile: string;
         expectedSha256: string;
         actualSha256: string;
+    }> = [];
+    const metadataMismatches: Array<{
+        jsonFile: string;
+        field: string;
+        expected: string;
+        actual: string;
     }> = [];
 
     const verifiedEntries: Array<{ jsonFile: string; jsonSha256: string }> = [];
@@ -101,6 +136,119 @@ export async function verifyEvidenceManifest(
             continue;
         }
 
+        let parsedJson: any = null;
+        try {
+            parsedJson = JSON.parse(jsonContent);
+        } catch {
+            invalidJsonFiles.push(entry.jsonFile);
+            continue;
+        }
+
+        const harnessAuditSnapshot = parsedJson?.harnessAuditSnapshot;
+        const expectedRuleVersions = normalizeStringArray(entry.ruleVersions || []);
+        const actualRuleVersions = normalizeStringArray((harnessAuditSnapshot?.overrides || []).map((override: any) => override?.ruleVersion));
+        const expectedVersionChangeSummary = {
+            prompt: normalizeStringArray(entry.versionChangeSummary?.prompt || []),
+            policy: normalizeStringArray(entry.versionChangeSummary?.policy || []),
+            rule: normalizeStringArray(entry.versionChangeSummary?.rule || []),
+        };
+        const actualVersionChangeSummary = {
+            prompt: normalizeStringArray(harnessAuditSnapshot?.versionChangeSummary?.prompt || []),
+            policy: normalizeStringArray(harnessAuditSnapshot?.versionChangeSummary?.policy || []),
+            rule: normalizeStringArray(harnessAuditSnapshot?.versionChangeSummary?.rule || []),
+        };
+
+        const expectsHarnessSnapshot = Boolean(
+            normalizeOptionalString(entry.workflowRunId) ||
+            normalizeOptionalString(entry.promptVersion) ||
+            normalizeOptionalString(entry.policyVersion) ||
+            expectedRuleVersions.length > 0 ||
+            Number(entry.approvalCount || 0) > 0 ||
+            Number(entry.overrideCount || 0) > 0 ||
+            expectedVersionChangeSummary.prompt.length > 0 ||
+            expectedVersionChangeSummary.policy.length > 0 ||
+            expectedVersionChangeSummary.rule.length > 0
+        );
+
+        if (expectsHarnessSnapshot && !harnessAuditSnapshot) {
+            missingHarnessSnapshots.push(entry.jsonFile);
+            continue;
+        }
+
+        if (harnessAuditSnapshot) {
+            const comparisons: Array<{ field: string; expected: string; actual: string; enabled: boolean }> = [
+                {
+                    field: 'workflowRunId',
+                    expected: normalizeOptionalString(entry.workflowRunId),
+                    actual: normalizeOptionalString(harnessAuditSnapshot.workflowRunId),
+                    enabled: normalizeOptionalString(entry.workflowRunId).length > 0,
+                },
+                {
+                    field: 'promptVersion',
+                    expected: normalizeOptionalString(entry.promptVersion),
+                    actual: normalizeOptionalString(harnessAuditSnapshot?.promptVersion?.version),
+                    enabled: normalizeOptionalString(entry.promptVersion).length > 0,
+                },
+                {
+                    field: 'policyVersion',
+                    expected: normalizeOptionalString(entry.policyVersion),
+                    actual: normalizeOptionalString(harnessAuditSnapshot?.policyVersion?.version),
+                    enabled: normalizeOptionalString(entry.policyVersion).length > 0,
+                },
+                {
+                    field: 'ruleVersions',
+                    expected: toComparableListText(expectedRuleVersions),
+                    actual: toComparableListText(actualRuleVersions),
+                    enabled: expectedRuleVersions.length > 0,
+                },
+                {
+                    field: 'approvalCount',
+                    expected: String(Number(entry.approvalCount || 0)),
+                    actual: String(Array.isArray(harnessAuditSnapshot?.approvals) ? harnessAuditSnapshot.approvals.length : 0),
+                    enabled: typeof entry.approvalCount !== 'undefined',
+                },
+                {
+                    field: 'overrideCount',
+                    expected: String(Number(entry.overrideCount || 0)),
+                    actual: String(Array.isArray(harnessAuditSnapshot?.overrides) ? harnessAuditSnapshot.overrides.length : 0),
+                    enabled: typeof entry.overrideCount !== 'undefined',
+                },
+                {
+                    field: 'versionChangeSummary.prompt',
+                    expected: toComparableListText(expectedVersionChangeSummary.prompt),
+                    actual: toComparableListText(actualVersionChangeSummary.prompt),
+                    enabled: expectedVersionChangeSummary.prompt.length > 0,
+                },
+                {
+                    field: 'versionChangeSummary.policy',
+                    expected: toComparableListText(expectedVersionChangeSummary.policy),
+                    actual: toComparableListText(actualVersionChangeSummary.policy),
+                    enabled: expectedVersionChangeSummary.policy.length > 0,
+                },
+                {
+                    field: 'versionChangeSummary.rule',
+                    expected: toComparableListText(expectedVersionChangeSummary.rule),
+                    actual: toComparableListText(actualVersionChangeSummary.rule),
+                    enabled: expectedVersionChangeSummary.rule.length > 0,
+                },
+            ];
+
+            for (const comparison of comparisons) {
+                if (!comparison.enabled) {
+                    continue;
+                }
+
+                if (comparison.expected !== comparison.actual) {
+                    metadataMismatches.push({
+                        jsonFile: entry.jsonFile,
+                        field: comparison.field,
+                        expected: comparison.expected,
+                        actual: comparison.actual,
+                    });
+                }
+            }
+        }
+
         verifiedEntries.push({
             jsonFile: entry.jsonFile,
             jsonSha256: actualSha256,
@@ -120,7 +268,10 @@ export async function verifyEvidenceManifest(
 
     const isValid =
         missingJsonFiles.length === 0 &&
+        invalidJsonFiles.length === 0 &&
+        missingHarnessSnapshots.length === 0 &&
         hashMismatches.length === 0 &&
+        metadataMismatches.length === 0 &&
         packageSummaryHashMatched;
 
     return {
@@ -128,7 +279,10 @@ export async function verifyEvidenceManifest(
         totalEntries: manifest.files.length,
         verifiedEntries: verifiedEntries.length,
         missingJsonFiles,
+        invalidJsonFiles,
+        missingHarnessSnapshots,
         hashMismatches,
+        metadataMismatches,
         packageSummaryHashExpected,
         packageSummaryHashActual,
         packageSummaryHashMatched,
@@ -148,8 +302,20 @@ export function formatEvidenceVerificationSummary(result: EvidenceManifestVerifi
         lines.push(`누락 JSON: ${result.missingJsonFiles.length}건`);
     }
 
+    if (result.invalidJsonFiles.length > 0) {
+        lines.push(`파싱 불가 JSON: ${result.invalidJsonFiles.length}건`);
+    }
+
     if (result.hashMismatches.length > 0) {
         lines.push(`JSON 해시 불일치: ${result.hashMismatches.length}건`);
+    }
+
+    if (result.missingHarnessSnapshots.length > 0) {
+        lines.push(`하네스 스냅샷 누락: ${result.missingHarnessSnapshots.length}건`);
+    }
+
+    if (result.metadataMismatches.length > 0) {
+        lines.push(`Manifest/JSON 메타 불일치: ${result.metadataMismatches.length}건`);
     }
 
     return lines.join('\n');

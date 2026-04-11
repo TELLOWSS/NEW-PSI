@@ -64,6 +64,26 @@ const truncateText = (value?: string, maxLength = 120) => {
     return normalized.length > maxLength ? `${normalized.slice(0, maxLength).trim()}…` : normalized;
 };
 
+const escapeCsvCell = (value: unknown) => {
+    const str = String(value ?? '');
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+};
+
+const downloadTextFile = (fileName: string, content: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+};
+
 const metricToneClass: Record<MetricTone, { badge: string; bar: string; panel: string; text: string; track: string }> = {
     slate: { badge: 'bg-slate-100 text-slate-700', bar: 'bg-slate-700', panel: 'bg-slate-50 border-slate-200', text: 'text-slate-700', track: 'bg-slate-200' },
     indigo: { badge: 'bg-indigo-100 text-indigo-700', bar: 'bg-indigo-600', panel: 'bg-indigo-50 border-indigo-200', text: 'text-indigo-700', track: 'bg-indigo-100' },
@@ -1148,6 +1168,120 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
     const handleExportEvidenceCsv = () => {
         exportEvidencePackageCsv(record);
+    };
+
+    const handleExportHarnessAuditJson = () => {
+        const payload = {
+            exportedAt: new Date().toISOString(),
+            recordId: record.id,
+            workerName: record.name,
+            workflowRunId: record.workflowRunId || '',
+            workflowState: record.workflowState || inferHarnessWorkflowState(record),
+            riskDecision: record.riskDecision || inferHarnessRiskDecision(record),
+            approvalState: record.approvalState || inferHarnessApprovalState(record, record.workflowState || inferHarnessWorkflowState(record)),
+            secondPassStatus: record.secondPassStatus || 'NONE',
+            persistence: {
+                persisted: isHarnessPersisted,
+                warning: harnessStatusWarning,
+                diagnostics: harnessDiagnostics,
+            },
+            summaries: {
+                analyzer: harnessAnalyzerSummary,
+                evaluator: harnessEvaluatorSummary,
+                latestApprovalDiff: harnessLatestApprovalDiff,
+            },
+            versions: {
+                prompt: harnessPromptVersion,
+                policy: harnessPolicyVersion,
+                details: harnessVersionDetails,
+                changeSummary: harnessVersionChangeSummary,
+            },
+            counts: {
+                overrides: harnessOverrides.length,
+                approvals: harnessApprovals.length,
+                timeline: harnessTimeline.length,
+                sensorEvents: Array.isArray(harnessContextSnapshot?.sensorEvents) ? harnessContextSnapshot.sensorEvents.length : 0,
+            },
+            contextSnapshot: harnessContextSnapshot,
+            overrides: harnessOverrides,
+            approvals: harnessApprovals,
+            timeline: harnessTimeline,
+            evidenceChecklist: harnessEvidenceChecklistItems,
+        };
+
+        downloadTextFile(
+            `PSI_Harness_Audit_${record.id}_${new Date().toISOString().slice(0, 10)}.json`,
+            JSON.stringify(payload, null, 2),
+            'application/json;charset=utf-8;'
+        );
+    };
+
+    const handleExportHarnessAuditCsv = () => {
+        const rows: string[][] = [
+            ['section', 'item', 'value', 'detail'],
+            ['record', 'recordId', record.id, ''],
+            ['record', 'workerName', record.name, ''],
+            ['record', 'workflowRunId', record.workflowRunId || '', ''],
+            ['record', 'workflowState', record.workflowState || inferHarnessWorkflowState(record), ''],
+            ['record', 'riskDecision', record.riskDecision || inferHarnessRiskDecision(record), ''],
+            ['record', 'approvalState', record.approvalState || inferHarnessApprovalState(record, record.workflowState || inferHarnessWorkflowState(record)), ''],
+            ['record', 'secondPassStatus', record.secondPassStatus || 'NONE', ''],
+            ['persistence', 'persisted', typeof isHarnessPersisted === 'boolean' ? (isHarnessPersisted ? 'YES' : 'NO') : 'UNKNOWN', harnessStatusWarning || ''],
+            ['summary', 'overrideCount', String(harnessOverrides.length), ''],
+            ['summary', 'approvalCount', String(harnessApprovals.length), ''],
+            ['summary', 'timelineCount', String(harnessTimeline.length), ''],
+            ['summary', 'analyzerSummary', harnessAnalyzerSummary.summary || '', typeof harnessAnalyzerSummary.confidence === 'number' ? `${Math.round(harnessAnalyzerSummary.confidence * 100)}%` : ''],
+            ['summary', 'evaluatorFlags', String(harnessEvaluatorSummary.flags.length), harnessEvaluatorSummary.flags.join(' | ')],
+            ['summary', 'evaluatorEvidenceSufficiency', String(harnessEvaluatorSummary.evidenceSufficiency ?? ''), `humanApproval=${typeof harnessEvaluatorSummary.requiresHumanApproval === 'boolean' ? (harnessEvaluatorSummary.requiresHumanApproval ? 'YES' : 'NO') : 'UNKNOWN'}`],
+            ['version', 'promptVersion', harnessPromptVersion?.version || '', harnessPromptVersion?.checksum || ''],
+            ['version', 'policyVersion', harnessPolicyVersion?.version || '', harnessPolicyVersion?.checksum || ''],
+            ['version', 'promptChangeSummary', harnessVersionChangeSummary.prompt.join(' | '), ''],
+            ['version', 'policyChangeSummary', harnessVersionChangeSummary.policy.join(' | '), ''],
+            ['version', 'ruleChangeSummary', harnessVersionChangeSummary.rule.join(' | '), ''],
+        ];
+
+        harnessOverrides.forEach((override, index) => {
+            rows.push([
+                'override',
+                `${index + 1}:${override.ruleCode}`,
+                `${override.originalDecision || 'N/A'} => ${override.overriddenDecision || 'N/A'}`,
+                `${override.severity} | ${override.ruleVersion || '미지정'} | ${override.message}`,
+            ]);
+        });
+
+        harnessApprovals.forEach((approval, index) => {
+            rows.push([
+                'approval',
+                `${index + 1}:${approval.approver}`,
+                approval.action,
+                `${approval.workflowStateAfter} | ${approval.approvalStateAfter} | ${approval.comment || ''}`,
+            ]);
+        });
+
+        harnessTimeline.forEach((entry, index) => {
+            rows.push([
+                'timeline',
+                `${index + 1}:${entry.stage}`,
+                entry.timestamp,
+                `${entry.actor || 'system'} | ${entry.note}`,
+            ]);
+        });
+
+        harnessEvidenceChecklistItems.forEach((item, index) => {
+            rows.push([
+                'checklist',
+                String(index + 1),
+                item.key,
+                item.content,
+            ]);
+        });
+
+        const csv = rows.map((row) => row.map(escapeCsvCell).join(',')).join('\n');
+        downloadTextFile(
+            `PSI_Harness_Audit_${record.id}_${new Date().toISOString().slice(0, 10)}.csv`,
+            '\uFEFF' + csv,
+            'text/csv;charset=utf-8;'
+        );
     };
 
     const handleReanalyzeClick = async () => {

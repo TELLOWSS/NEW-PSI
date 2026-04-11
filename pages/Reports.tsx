@@ -205,6 +205,22 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const [isVerifyingEvidence, setIsVerifyingEvidence] = useState(false);
     const [verificationResult, setVerificationResult] = useState<EvidenceManifestVerificationResult | null>(null);
     const [verificationSummary, setVerificationSummary] = useState('');
+    const [verificationHistory, setVerificationHistory] = useState<Array<{
+        id: string;
+        verifiedAt: string;
+        manifestFileName: string;
+        packageName: string;
+        isValid: boolean;
+        totalEntries: number;
+        verifiedEntries: number;
+        missingJsonFiles: number;
+        invalidJsonFiles: number;
+        hashMismatches: number;
+        missingHarnessSnapshots: number;
+        metadataMismatches: number;
+        packageSummaryHashMatched: boolean;
+        summaryText: string;
+    }>>([]);
     const [verificationManifestPreview, setVerificationManifestPreview] = useState<EvidenceManifest | null>(null);
     const [verificationManifestPreviewError, setVerificationManifestPreviewError] = useState<string | null>(null);
     const [previewWorkflowStatus, setPreviewWorkflowStatus] = useState<Awaited<ReturnType<typeof fetchHarnessWorkflowStatus>> | null>(null);
@@ -240,6 +256,26 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         const parsed = new Date(Number(year), Number(month) - 1, Number(day));
         if (Number.isNaN(parsed.getTime())) return null;
         return parsed;
+    };
+
+    const escapeCsvCell = (value: unknown) => {
+        const str = String(value ?? '');
+        if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+        }
+        return str;
+    };
+
+    const downloadTextFile = (fileName: string, content: string, mimeType: string) => {
+        const blob = new Blob([content], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     };
 
     const dateFilterLabel = useMemo(() => {
@@ -811,6 +847,99 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             tone: verificationResult && !verificationResult.isValid ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
         },
     ], [verificationJsonFiles.length, verificationManifestFile, verificationResult]);
+
+    const verificationHistorySummary = useMemo(() => {
+        return verificationHistory.reduce((summary, entry) => {
+            summary.total += 1;
+            if (entry.isValid) summary.success += 1;
+            else summary.failed += 1;
+            summary.hashMismatches += entry.hashMismatches;
+            summary.metadataMismatches += entry.metadataMismatches;
+            summary.missingHarnessSnapshots += entry.missingHarnessSnapshots;
+            return summary;
+        }, {
+            total: 0,
+            success: 0,
+            failed: 0,
+            hashMismatches: 0,
+            metadataMismatches: 0,
+            missingHarnessSnapshots: 0,
+        });
+    }, [verificationHistory]);
+
+    const verificationPackageFailureSummary = useMemo(() => {
+        const packageMap = new Map<string, {
+            packageName: string;
+            attempts: number;
+            failed: number;
+            hashMismatches: number;
+            metadataMismatches: number;
+            missingHarnessSnapshots: number;
+            invalidJsonFiles: number;
+            lastVerifiedAt: string;
+            reasonCounts: Record<string, number>;
+        }>();
+
+        verificationHistory.forEach((entry) => {
+            const key = entry.packageName || entry.manifestFileName || '미분류 패키지';
+            if (!packageMap.has(key)) {
+                packageMap.set(key, {
+                    packageName: key,
+                    attempts: 0,
+                    failed: 0,
+                    hashMismatches: 0,
+                    metadataMismatches: 0,
+                    missingHarnessSnapshots: 0,
+                    invalidJsonFiles: 0,
+                    lastVerifiedAt: entry.verifiedAt,
+                    reasonCounts: {},
+                });
+            }
+
+            const item = packageMap.get(key)!;
+            item.attempts += 1;
+            if (!entry.isValid) item.failed += 1;
+            item.hashMismatches += entry.hashMismatches;
+            item.metadataMismatches += entry.metadataMismatches;
+            item.missingHarnessSnapshots += entry.missingHarnessSnapshots;
+            item.invalidJsonFiles += entry.invalidJsonFiles;
+
+            const reasonCandidates = [
+                { label: '해시 불일치', count: entry.hashMismatches },
+                { label: '메타 불일치', count: entry.metadataMismatches },
+                { label: '스냅샷 누락', count: entry.missingHarnessSnapshots },
+                { label: '파싱 불가 JSON', count: entry.invalidJsonFiles },
+                { label: '요약 해시 불일치', count: entry.packageSummaryHashMatched ? 0 : 1 },
+                { label: '누락 JSON', count: entry.missingJsonFiles },
+            ].filter((candidate) => candidate.count > 0);
+
+            reasonCandidates.forEach((candidate) => {
+                item.reasonCounts[candidate.label] = (item.reasonCounts[candidate.label] || 0) + candidate.count;
+            });
+
+            if (new Date(entry.verifiedAt).getTime() > new Date(item.lastVerifiedAt).getTime()) {
+                item.lastVerifiedAt = entry.verifiedAt;
+            }
+        });
+
+        const ranked = Array.from(packageMap.values())
+            .map((item) => ({
+                ...item,
+                totalIssueSignals: item.hashMismatches + item.metadataMismatches + item.missingHarnessSnapshots + item.invalidJsonFiles,
+                primaryFailureReason: Object.entries(item.reasonCounts)
+                    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko'))[0]?.[0] || (item.failed > 0 ? '복합 원인 확인 필요' : '실패 기록 없음'),
+            }))
+            .sort((a, b) => b.failed - a.failed || b.totalIssueSignals - a.totalIssueSignals || b.attempts - a.attempts || a.packageName.localeCompare(b.packageName, 'ko'));
+
+        return {
+            topPackages: ranked.slice(0, 5),
+            failedPackages: ranked.filter((item) => item.failed > 0).length,
+            repeatedFailurePackages: ranked.filter((item) => item.failed >= 2).length,
+            dominantFailureReason: ranked
+                .filter((item) => item.failed > 0)
+                .map((item) => item.primaryFailureReason)[0] || '실패 패키지 없음',
+        };
+    }, [verificationHistory]);
 
     const viewInterpretationCards: InterpretationCardItem[] = useMemo(() => [
         {
@@ -1416,14 +1545,6 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             return;
         }
 
-        const escapeCsv = (value: unknown) => {
-            const str = String(value ?? '');
-            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-                return `"${str.replace(/"/g, '""')}"`;
-            }
-            return str;
-        };
-
         const header = [
             'recordId',
             'name',
@@ -1485,18 +1606,126 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             ];
         });
 
-        const csv = [header, ...rows].map((line) => line.map(escapeCsv).join(',')).join('\n');
+        const csv = [header, ...rows].map((line) => line.map(escapeCsvCell).join(',')).join('\n');
         const bom = '\uFEFF';
-        const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
+        downloadTextFile(
+            `PSI_Evidence_${selectedTeam}_${dateFilterLabel}_${new Date().toISOString().slice(0, 10)}.csv`,
+            bom + csv,
+            'text/csv;charset=utf-8;'
+        );
+    };
 
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `PSI_Evidence_${selectedTeam}_${dateFilterLabel}_${new Date().toISOString().slice(0, 10)}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+    const handleExportVerificationJson = () => {
+        if (!verificationResult) {
+            alert('먼저 증빙 검증을 실행해주세요.');
+            return;
+        }
+
+        const payload = {
+            exportedAt: new Date().toISOString(),
+            manifestFileName: verificationManifestFile?.name || 'manifest.json',
+            summaryText: verificationSummary,
+            verificationResult,
+            manifestSummary: verificationManifestPreview?.summary || null,
+            manifestMetaSummary: verificationHarnessMetaSummary || null,
+            manifestPackageName: verificationManifestPreview?.packageName || null,
+            manifestGeneratedAt: verificationManifestPreview?.generatedAt || null,
+        };
+
+        downloadTextFile(
+            `PSI_Evidence_Verification_${new Date().toISOString().slice(0, 10)}.json`,
+            JSON.stringify(payload, null, 2),
+            'application/json;charset=utf-8;'
+        );
+    };
+
+    const handleExportVerificationCsv = () => {
+        if (!verificationResult) {
+            alert('먼저 증빙 검증을 실행해주세요.');
+            return;
+        }
+
+        const rows: string[][] = [
+            ['section', 'item', 'value', 'detail'],
+            ['summary', 'isValid', verificationResult.isValid ? 'SUCCESS' : 'FAILED', verificationSummary.replace(/\n/g, ' | ')],
+            ['summary', 'totalEntries', String(verificationResult.totalEntries), ''],
+            ['summary', 'verifiedEntries', String(verificationResult.verifiedEntries), ''],
+            ['summary', 'missingJsonFiles', String(verificationResult.missingJsonFiles.length), ''],
+            ['summary', 'invalidJsonFiles', String(verificationResult.invalidJsonFiles.length), ''],
+            ['summary', 'hashMismatches', String(verificationResult.hashMismatches.length), ''],
+            ['summary', 'missingHarnessSnapshots', String(verificationResult.missingHarnessSnapshots.length), ''],
+            ['summary', 'metadataMismatches', String(verificationResult.metadataMismatches.length), ''],
+            ['summary', 'packageSummaryHashMatched', verificationResult.packageSummaryHashMatched ? 'YES' : 'NO', ''],
+        ];
+
+        if (verificationHarnessMetaSummary) {
+            rows.push(
+                ['manifest', 'packageName', verificationManifestPreview?.packageName || '', ''],
+                ['manifest', 'totalRecords', String(verificationHarnessMetaSummary.totalRecords), ''],
+                ['manifest', 'linkedRunCount', String(verificationHarnessMetaSummary.linkedRunCount), ''],
+                ['manifest', 'promptVersions', String(verificationHarnessMetaSummary.promptVersions.length), verificationHarnessMetaSummary.promptVersions.join(' | ')],
+                ['manifest', 'policyVersions', String(verificationHarnessMetaSummary.policyVersions.length), verificationHarnessMetaSummary.policyVersions.join(' | ')],
+                ['manifest', 'ruleVersions', String(verificationHarnessMetaSummary.ruleVersions.length), verificationHarnessMetaSummary.ruleVersions.join(' | ')],
+                ['manifest', 'overrideCount', String(verificationHarnessMetaSummary.overrideCount), ''],
+                ['manifest', 'approvalCount', String(verificationHarnessMetaSummary.approvalCount), '']
+            );
+        }
+
+        verificationResult.missingJsonFiles.forEach((filePath) => {
+            rows.push(['missingJson', filePath, 'MISSING', 'manifest entry without uploaded json']);
+        });
+        verificationResult.invalidJsonFiles.forEach((filePath) => {
+            rows.push(['invalidJson', filePath, 'INVALID_JSON', 'json parse failed']);
+        });
+        verificationResult.missingHarnessSnapshots.forEach((filePath) => {
+            rows.push(['missingHarnessSnapshot', filePath, 'MISSING_SNAPSHOT', 'manifest metadata expects harnessAuditSnapshot']);
+        });
+        verificationResult.hashMismatches.forEach((mismatch) => {
+            rows.push(['hashMismatch', mismatch.jsonFile, mismatch.expectedSha256, mismatch.actualSha256]);
+        });
+        verificationResult.metadataMismatches.forEach((mismatch) => {
+            rows.push(['metadataMismatch', mismatch.jsonFile, mismatch.field, `${mismatch.expected} => ${mismatch.actual}`]);
+        });
+
+        const csv = rows.map((row) => row.map(escapeCsvCell).join(',')).join('\n');
+        downloadTextFile(
+            `PSI_Evidence_Verification_${new Date().toISOString().slice(0, 10)}.csv`,
+            '\uFEFF' + csv,
+            'text/csv;charset=utf-8;'
+        );
+    };
+
+    const handleExportVerificationHistoryCsv = () => {
+        if (verificationHistory.length === 0) {
+            alert('저장할 검증 히스토리가 아직 없습니다.');
+            return;
+        }
+
+        const rows: string[][] = [
+            ['verifiedAt', 'manifestFileName', 'packageName', 'result', 'totalEntries', 'verifiedEntries', 'missingJsonFiles', 'invalidJsonFiles', 'hashMismatches', 'missingHarnessSnapshots', 'metadataMismatches', 'packageSummaryHashMatched', 'summaryText'],
+            ...verificationHistory.map((entry) => [
+                entry.verifiedAt,
+                entry.manifestFileName,
+                entry.packageName,
+                entry.isValid ? 'SUCCESS' : 'FAILED',
+                String(entry.totalEntries),
+                String(entry.verifiedEntries),
+                String(entry.missingJsonFiles),
+                String(entry.invalidJsonFiles),
+                String(entry.hashMismatches),
+                String(entry.missingHarnessSnapshots),
+                String(entry.metadataMismatches),
+                entry.packageSummaryHashMatched ? 'YES' : 'NO',
+                entry.summaryText.replace(/\n/g, ' | '),
+            ]),
+        ];
+
+        const csv = rows.map((row) => row.map(escapeCsvCell).join(',')).join('\n');
+        downloadTextFile(
+            `PSI_Evidence_Verification_History_${new Date().toISOString().slice(0, 10)}.csv`,
+            '\uFEFF' + csv,
+            'text/csv;charset=utf-8;'
+        );
     };
 
     const handleVerifyEvidencePackage = async () => {
@@ -1531,6 +1760,25 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             const result = await verifyEvidenceManifest(manifest, jsonContentByPath);
             setVerificationResult(result);
             setVerificationSummary(formatEvidenceVerificationSummary(result));
+            setVerificationHistory((previous) => [
+                {
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    verifiedAt: new Date().toISOString(),
+                    manifestFileName: verificationManifestFile?.name || 'manifest.json',
+                    packageName: manifest.packageName || '',
+                    isValid: result.isValid,
+                    totalEntries: result.totalEntries,
+                    verifiedEntries: result.verifiedEntries,
+                    missingJsonFiles: result.missingJsonFiles.length,
+                    invalidJsonFiles: result.invalidJsonFiles.length,
+                    hashMismatches: result.hashMismatches.length,
+                    missingHarnessSnapshots: result.missingHarnessSnapshots.length,
+                    metadataMismatches: result.metadataMismatches.length,
+                    packageSummaryHashMatched: result.packageSummaryHashMatched,
+                    summaryText: formatEvidenceVerificationSummary(result),
+                },
+                ...previous,
+            ].slice(0, 12));
         } catch (error: unknown) {
             const message = extractMessage(error);
             alert(`증빙 검증 중 ${BRAND_STATUS_LABELS.attention}가 필요합니다: ${message}`);
@@ -1778,14 +2026,182 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 />
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                     <h3 className="text-sm font-black text-slate-800">증빙 패키지 무결성 검증</h3>
-                    <button
-                        onClick={handleVerifyEvidencePackage}
-                        disabled={isVerifyingEvidence || !verificationManifestFile || verificationJsonFiles.length === 0}
-                        className={`px-4 py-2.5 rounded-xl text-xs font-black border transition-all ${isVerifyingEvidence || !verificationManifestFile || verificationJsonFiles.length === 0 ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 cursor-pointer'}`}
-                    >
-                        {isVerifyingEvidence ? '검증 실행 중...' : '증빙 검증 실행'}
-                    </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {verificationHistory.length > 0 ? (
+                            <button
+                                onClick={handleExportVerificationHistoryCsv}
+                                className="px-4 py-2.5 rounded-xl text-xs font-black border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-all"
+                            >
+                                검증 히스토리 CSV
+                            </button>
+                        ) : null}
+                        {verificationResult ? (
+                            <>
+                                <button
+                                    onClick={handleExportVerificationCsv}
+                                    className="px-4 py-2.5 rounded-xl text-xs font-black border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-all"
+                                >
+                                    검증 CSV 저장
+                                </button>
+                                <button
+                                    onClick={handleExportVerificationJson}
+                                    className="px-4 py-2.5 rounded-xl text-xs font-black border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-all"
+                                >
+                                    검증 JSON 저장
+                                </button>
+                            </>
+                        ) : null}
+                        <button
+                            onClick={handleVerifyEvidencePackage}
+                            disabled={isVerifyingEvidence || !verificationManifestFile || verificationJsonFiles.length === 0}
+                            className={`px-4 py-2.5 rounded-xl text-xs font-black border transition-all ${isVerifyingEvidence || !verificationManifestFile || verificationJsonFiles.length === 0 ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 cursor-pointer'}`}
+                        >
+                            {isVerifyingEvidence ? '검증 실행 중...' : '증빙 검증 실행'}
+                        </button>
+                    </div>
                 </div>
+
+                {verificationHistory.length > 0 ? (
+                    <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-4">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Verification History</p>
+                                <p className="mt-1 text-sm font-black text-slate-800">최근 세션 검증 결과 {verificationHistorySummary.total}건</p>
+                            </div>
+                            <div className="flex items-center gap-2 flex-wrap text-[11px] font-bold text-slate-600">
+                                <span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-700">성공 {verificationHistorySummary.success}건</span>
+                                <span className="rounded-full bg-rose-100 px-3 py-1 text-rose-700">실패 {verificationHistorySummary.failed}건</span>
+                                <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-700">메타 불일치 {verificationHistorySummary.metadataMismatches}건</span>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+                            <div className="rounded-xl border border-rose-200 bg-rose-50/80 px-4 py-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-500">실패 패키지 수</p>
+                                <p className="mt-1 text-sm font-black text-rose-800">{verificationPackageFailureSummary.failedPackages}개</p>
+                                <p className="mt-1 text-[11px] font-bold text-rose-700">한 번 이상 실패가 기록된 package 기준입니다.</p>
+                            </div>
+                            <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">반복 실패 패키지</p>
+                                <p className="mt-1 text-sm font-black text-amber-800">{verificationPackageFailureSummary.repeatedFailurePackages}개</p>
+                                <p className="mt-1 text-[11px] font-bold text-amber-700">2회 이상 실패한 package 수입니다.</p>
+                            </div>
+                            <div className="rounded-xl border border-violet-200 bg-violet-50/80 px-4 py-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-500">우선 재확인 대상</p>
+                                <p className="mt-1 text-sm font-black text-violet-800 break-all">{verificationPackageFailureSummary.topPackages[0]?.packageName || '없음'}</p>
+                                <p className="mt-1 text-[11px] font-bold text-violet-700">실패 횟수와 이슈 신호가 가장 높은 package입니다.</p>
+                            </div>
+                        </div>
+
+                        <NoticeCallout
+                            variant="amber"
+                            eyebrow="주요 실패 원인"
+                            title="최근 package 실패 패턴에서 가장 먼저 보이는 원인을 확인합니다."
+                            description={verificationPackageFailureSummary.dominantFailureReason === '실패 패키지 없음'
+                                ? '아직 실패 package가 없어 별도 우선 원인이 없습니다.'
+                                : `현재 가장 우세한 실패 원인은 "${verificationPackageFailureSummary.dominantFailureReason}"입니다. 같은 유형이 반복되면 패키지 재생성 규칙과 검증 입력 순서를 먼저 점검하시는 편이 좋습니다.`}
+                            className="rounded-2xl border px-4 py-3"
+                            bodyClassName="block"
+                            titleClassName="text-sm font-black"
+                            descriptionClassName="mt-1 text-xs font-semibold leading-relaxed"
+                        />
+
+                        {verificationPackageFailureSummary.topPackages.length > 0 ? (
+                            <div className="overflow-auto rounded-xl border border-slate-200 bg-white">
+                                <table className="w-full min-w-[860px] text-left text-[11px]">
+                                    <thead className="bg-slate-50 text-slate-500">
+                                        <tr>
+                                            <th className="px-3 py-2">Package</th>
+                                            <th className="px-3 py-2">시도</th>
+                                            <th className="px-3 py-2">실패</th>
+                                            <th className="px-3 py-2">Hash</th>
+                                            <th className="px-3 py-2">Meta Diff</th>
+                                            <th className="px-3 py-2">Snapshot</th>
+                                            <th className="px-3 py-2">Invalid JSON</th>
+                                            <th className="px-3 py-2">주요 원인</th>
+                                            <th className="px-3 py-2">최근 시각</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="text-slate-700">
+                                        {verificationPackageFailureSummary.topPackages.map((item) => (
+                                            <tr key={item.packageName} className="border-t border-slate-100">
+                                                <td className="px-3 py-2 break-all font-semibold">{item.packageName}</td>
+                                                <td className="px-3 py-2">{item.attempts}</td>
+                                                <td className="px-3 py-2 font-black text-rose-700">{item.failed}</td>
+                                                <td className="px-3 py-2">{item.hashMismatches}</td>
+                                                <td className="px-3 py-2">{item.metadataMismatches}</td>
+                                                <td className="px-3 py-2">{item.missingHarnessSnapshots}</td>
+                                                <td className="px-3 py-2">{item.invalidJsonFiles}</td>
+                                                <td className="px-3 py-2 font-semibold">{item.primaryFailureReason}</td>
+                                                <td className="px-3 py-2 whitespace-nowrap">{new Date(item.lastVerifiedAt).toLocaleString()}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : null}
+
+                        <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
+                            <div className="rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">최근 검증 수</p>
+                                <p className="mt-1 text-sm font-black text-indigo-800">{verificationHistorySummary.total}건</p>
+                                <p className="mt-1 text-[11px] font-bold text-indigo-700">세션 내 최근 12건까지 누적합니다.</p>
+                            </div>
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500">성공률</p>
+                                <p className="mt-1 text-sm font-black text-emerald-800">{verificationHistorySummary.total > 0 ? Math.round((verificationHistorySummary.success / verificationHistorySummary.total) * 100) : 0}%</p>
+                                <p className="mt-1 text-[11px] font-bold text-emerald-700">성공 {verificationHistorySummary.success}건 / 실패 {verificationHistorySummary.failed}건</p>
+                            </div>
+                            <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">해시/스냅샷 이슈</p>
+                                <p className="mt-1 text-sm font-black text-amber-800">{verificationHistorySummary.hashMismatches + verificationHistorySummary.missingHarnessSnapshots}건</p>
+                                <p className="mt-1 text-[11px] font-bold text-amber-700">해시 {verificationHistorySummary.hashMismatches}건 · 스냅샷 {verificationHistorySummary.missingHarnessSnapshots}건</p>
+                            </div>
+                            <div className="rounded-xl border border-violet-200 bg-violet-50/80 px-4 py-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-500">메타 정합성</p>
+                                <p className="mt-1 text-sm font-black text-violet-800">{verificationHistorySummary.metadataMismatches}건</p>
+                                <p className="mt-1 text-[11px] font-bold text-violet-700">manifest/JSON 비교 누적 결과입니다.</p>
+                            </div>
+                        </div>
+
+                        <div className="overflow-auto rounded-xl border border-slate-200 bg-white">
+                            <table className="w-full min-w-[920px] text-left text-[11px]">
+                                <thead className="bg-slate-50 text-slate-500">
+                                    <tr>
+                                        <th className="px-3 py-2">시각</th>
+                                        <th className="px-3 py-2">Manifest</th>
+                                        <th className="px-3 py-2">Package</th>
+                                        <th className="px-3 py-2">결과</th>
+                                        <th className="px-3 py-2">Entries</th>
+                                        <th className="px-3 py-2">Hash</th>
+                                        <th className="px-3 py-2">Snapshot</th>
+                                        <th className="px-3 py-2">Meta Diff</th>
+                                        <th className="px-3 py-2">Summary Hash</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="text-slate-700">
+                                    {verificationHistory.map((entry) => (
+                                        <tr key={entry.id} className="border-t border-slate-100 align-top">
+                                            <td className="px-3 py-2 whitespace-nowrap">{new Date(entry.verifiedAt).toLocaleString()}</td>
+                                            <td className="px-3 py-2 break-all font-semibold">{entry.manifestFileName}</td>
+                                            <td className="px-3 py-2 break-all">{entry.packageName || '-'}</td>
+                                            <td className="px-3 py-2">
+                                                <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${entry.isValid ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                                    {entry.isValid ? 'SUCCESS' : 'FAILED'}
+                                                </span>
+                                            </td>
+                                            <td className="px-3 py-2 font-semibold">{entry.verifiedEntries}/{entry.totalEntries}</td>
+                                            <td className="px-3 py-2">{entry.hashMismatches}</td>
+                                            <td className="px-3 py-2">{entry.missingHarnessSnapshots}</td>
+                                            <td className="px-3 py-2">{entry.metadataMismatches}</td>
+                                            <td className="px-3 py-2">{entry.packageSummaryHashMatched ? 'YES' : 'NO'}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                ) : null}
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div>
@@ -1938,6 +2354,34 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         </p>
                         <pre className="text-xs whitespace-pre-wrap text-slate-700 font-semibold">{verificationSummary}</pre>
 
+                        <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-5">
+                            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Hash Check</p>
+                                <p className="mt-1 text-sm font-black text-slate-800">{verificationResult.hashMismatches.length}건</p>
+                                <p className="text-[11px] text-slate-500">JSON SHA-256 불일치 수</p>
+                            </div>
+                            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Missing JSON</p>
+                                <p className="mt-1 text-sm font-black text-slate-800">{verificationResult.missingJsonFiles.length}건</p>
+                                <p className="text-[11px] text-slate-500">manifest에 있으나 업로드되지 않은 파일</p>
+                            </div>
+                            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Invalid JSON</p>
+                                <p className="mt-1 text-sm font-black text-slate-800">{verificationResult.invalidJsonFiles.length}건</p>
+                                <p className="text-[11px] text-slate-500">파싱 불가능한 JSON 파일 수</p>
+                            </div>
+                            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Harness Snapshot</p>
+                                <p className="mt-1 text-sm font-black text-slate-800">{verificationResult.missingHarnessSnapshots.length}건</p>
+                                <p className="text-[11px] text-slate-500">manifest 메타 대비 스냅샷 누락 수</p>
+                            </div>
+                            <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Meta Diff</p>
+                                <p className="mt-1 text-sm font-black text-slate-800">{verificationResult.metadataMismatches.length}건</p>
+                                <p className="text-[11px] text-slate-500">manifest와 JSON 메타 불일치 수</p>
+                            </div>
+                        </div>
+
                         {!verificationResult.isValid && (
                             <div className="mt-3 space-y-3">
                                 <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
@@ -1971,6 +2415,31 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                     </div>
                                 )}
 
+                                {verificationResult.invalidJsonFiles.length > 0 && (
+                                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                        <p className="text-[11px] font-black text-slate-700 mb-2">파싱 불가 JSON 파일</p>
+                                        <div className="max-h-32 overflow-auto">
+                                            <table className="w-full text-[11px] text-left">
+                                                <thead className="text-slate-500">
+                                                    <tr>
+                                                        <th className="py-1 pr-2">파일 경로</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="text-slate-700">
+                                                    {verificationResult.invalidJsonFiles.slice(0, 30).map((filePath) => (
+                                                        <tr key={filePath}>
+                                                            <td className="py-1 pr-2 break-all">{filePath}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        {verificationResult.invalidJsonFiles.length > 30 && (
+                                            <p className="text-[11px] text-slate-500 mt-1">... 외 {verificationResult.invalidJsonFiles.length - 30}건</p>
+                                        )}
+                                    </div>
+                                )}
+
                                 {verificationResult.hashMismatches.length > 0 && (
                                     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
                                         <p className="text-[11px] font-black text-slate-700 mb-2">JSON 해시 불일치</p>
@@ -1996,6 +2465,62 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                         </div>
                                         {verificationResult.hashMismatches.length > 20 && (
                                             <p className="text-[11px] text-slate-500 mt-1">... 외 {verificationResult.hashMismatches.length - 20}건</p>
+                                        )}
+                                    </div>
+                                )}
+
+                                {verificationResult.missingHarnessSnapshots.length > 0 && (
+                                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                        <p className="text-[11px] font-black text-slate-700 mb-2">하네스 스냅샷 누락</p>
+                                        <div className="max-h-32 overflow-auto">
+                                            <table className="w-full text-[11px] text-left">
+                                                <thead className="text-slate-500">
+                                                    <tr>
+                                                        <th className="py-1 pr-2">파일 경로</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="text-slate-700">
+                                                    {verificationResult.missingHarnessSnapshots.slice(0, 30).map((filePath) => (
+                                                        <tr key={filePath}>
+                                                            <td className="py-1 pr-2 break-all">{filePath}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        {verificationResult.missingHarnessSnapshots.length > 30 && (
+                                            <p className="text-[11px] text-slate-500 mt-1">... 외 {verificationResult.missingHarnessSnapshots.length - 30}건</p>
+                                        )}
+                                    </div>
+                                )}
+
+                                {verificationResult.metadataMismatches.length > 0 && (
+                                    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                                        <p className="text-[11px] font-black text-slate-700 mb-2">Manifest / JSON 메타 불일치</p>
+                                        <div className="max-h-48 overflow-auto">
+                                            <table className="w-full min-w-[760px] text-[11px] text-left">
+                                                <thead className="text-slate-500">
+                                                    <tr>
+                                                        <th className="py-1 pr-2">파일</th>
+                                                        <th className="py-1 pr-2">필드</th>
+                                                        <th className="py-1 pr-2">기대값</th>
+                                                        <th className="py-1 pr-2">실제값</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="text-slate-700">
+                                                    {verificationResult.metadataMismatches.slice(0, 30).map((mismatch, index) => (
+                                                        <tr key={`${mismatch.jsonFile}-${mismatch.field}-${index}`}>
+                                                            <td className="py-1 pr-2 break-all">{mismatch.jsonFile}</td>
+                                                            <td className="py-1 pr-2 break-all font-bold">{mismatch.field}</td>
+                                                            <td className="py-1 pr-2 break-all">{mismatch.expected}</td>
+                                                            <td className="py-1 pr-2 break-all">{mismatch.actual}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        {verificationResult.metadataMismatches.length > 30 && (
+                                            <p className="text-[11px] text-slate-500 mt-1">... 외 {verificationResult.metadataMismatches.length - 30}건</p>
                                         )}
                                     </div>
                                 )}
