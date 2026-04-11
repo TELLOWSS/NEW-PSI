@@ -119,7 +119,7 @@ flowchart TD
 |---|---|---|---|
 | UI/UX | 공감형 코칭, 역할별 설명, 승인 흐름 노출 | `pages/*`, `components/shared/*`, `components/modals/*` | Role-aware 승인 패널, 감사 로그 패널 |
 | API Gateway | 인증, 입력 정규화, 액션 라우팅 | `api/gateway.ts` | 하네스 진입점으로 확장 |
-| Guardrails | 입력/출력 검증, 정책 위반 차단 | 신규 계층 필요 | `api/harness/*` 또는 `lib/server/harness/*` |
+| Guardrails | 입력/출력 검증, 정책 위반 차단 | `lib/server/harness/*`, `api/gateway.ts` | `lib/server/harness/handlers/*` 중심 확장 |
 | Workflow | 상태 전이, 재분석, 승인 잠금 | 일부 상태 개념 존재 | LangGraph/Temporal 기반 워크플로우 |
 | Audit | 스냅샷, 정책 버전, 승인 기록 | Supabase migrations 활용 가능 | `ai_audit_logs`, `workflow_events`, `human_approvals` |
 
@@ -575,16 +575,21 @@ lib/
         craneRules.ts
         scaffoldRules.ts
 api/
-  harness/
-    analyze.ts
-    approve.ts
-    reanalyze.ts
-    workflow-status.ts
+  gateway.ts
+lib/
+  server/
+    harness/
+      handlers/
+        analyze.ts
+        approve.ts
+        reanalyze.ts
+        workflowStatus.ts
+        persistenceHealth.ts
 ```
 
 ## 13.2 API 전략
 
-### `POST /api/harness/analyze`
+### `POST /api/gateway` + `harness.analyze`
 - OCR 및 메타데이터 입력
 - 입력 검증
 - 컨텍스트 조합
@@ -592,17 +597,20 @@ api/
 - 룰 엔진 적용
 - 상태 반환
 
-### `POST /api/harness/approve`
+### `POST /api/gateway` + `harness.approve`
 - 관리자 승인/반려
 - 서명/사유 저장
 - 상태 잠금 해제 또는 유지
 
-### `POST /api/harness/reanalyze`
+### `POST /api/gateway` + `harness.reanalyze`
 - 수정 후 2차 분석
 - 이전 결과와 diff 저장
 
-### `GET /api/harness/workflow-status`
+### `POST /api/gateway` + `harness.workflow-status`
 - 상태, 이벤트 로그, 승인 이력 조회
+
+### `POST /api/gateway` + `harness.persistence-health`
+- persistence 환경변수, 키 모드, 테이블 준비 상태 조회
 
 ---
 

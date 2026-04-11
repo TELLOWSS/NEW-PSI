@@ -125,17 +125,17 @@
     - `workflowState` / `riskDecision` / `approvalState` 타입과 `WorkerRecord` 하네스 상태 필드를 추가
   - `lib/server/harness/*`
     - 입력 검증, 컨텍스트 스냅샷, 결정론적 룰 엔진, 상태 라우터, 감사 이벤트 생성, analyzer/evaluator 초안을 추가
-  - `api/harness/analyze.ts`
-    - 하네스 초기 진입점으로 검증 → 분석 → 가드레일 판정 → 감사 이벤트 응답 흐름을 추가
-  - `api/harness/approve.ts`, `api/harness/reanalyze.ts`, `api/harness/workflow-status.ts`
-    - 승인/2차 재분석/상태 조회용 하네스 API 초안을 추가
+  - `api/gateway.ts`
+    - 현재 운영 기준 하네스 진입점이며 `harness.analyze` / `harness.approve` / `harness.reanalyze` / `harness.workflow-status` / `harness.persistence-health`를 라우팅
+  - `lib/server/harness/handlers/analyze.ts`, `approve.ts`, `reanalyze.ts`, `workflowStatus.ts`
+    - 초기 `api/harness/*` 초안을 공통 핸들러로 이관해 기능은 유지하고 함수 수는 줄인 상태
   - `supabase_harness_workflow_migration.sql`
     - 하네스 워크플로우/이벤트/오버라이드/컨텍스트 스냅샷/인간 승인/버전 스냅샷 테이블 마이그레이션 초안을 추가
   - `pages/OcrAnalysis.tsx`
     - 재분석/정상분류 시 `workflowState` / `riskDecision` / `approvalState`를 함께 갱신하도록 연결
     - 실패 레코드 해석 뷰에 하네스 상태 요약과 레코드별 워크플로우/위험/승인 배지를 추가
   - `api/gateway.ts`
-    - `harness.analyze` / `harness.approve` / `harness.reanalyze` / `harness.workflow-status` 라우팅을 추가
+    - `harness.analyze` / `harness.approve` / `harness.reanalyze` / `harness.workflow-status` / `harness.persistence-health` 라우팅을 지원
     - 승인 액션과 게이트웨이 액션 충돌을 피하기 위해 `gatewayAction` 입력 경로를 지원
   - `services/harnessService.ts`
     - 하네스 분석/승인/재분석/상태 조회용 프론트엔드 게이트웨이 래퍼를 추가
@@ -188,8 +188,8 @@
     - `Settings`에 `workerRecords`를 전달해 설정 화면에서도 최신 하네스 run 연결 레코드를 기준으로 persistence 진단 대상을 계산하도록 연결
   - `lib/server/harness/persistence.ts`
     - 환경변수/키 모드/하네스 테이블 건수를 점검하는 `fetchHarnessPersistenceHealth()`를 추가해 persisted 검증 전 환경 상태를 먼저 분리 가능하게 정리
-  - `api/harness/persistence-health.ts`, `services/harnessService.ts`
-    - 하네스 persistence 환경 상태 조회 엔드포인트와 클라이언트 래퍼를 추가
+  - `lib/server/harness/handlers/persistenceHealth.ts`, `services/harnessService.ts`
+    - 하네스 persistence 환경 상태 조회 로직을 gateway 경유 구조로 정리하고 클라이언트 래퍼를 유지
   - `App.tsx`
     - `sanitizeRecords()`에서 `workflowRunId` / `workflowState` / `riskDecision` / `approvalState` / `harnessPersistenceWarning`을 명시적으로 정규화해 IndexedDB 로드·가져오기·추가 저장 경로의 하네스 필드 보존을 고정
   - `utils/qrUtils.ts`
@@ -205,7 +205,7 @@
     - `ai_workflow_runs` / `ai_workflow_events` / `ai_guardrail_overrides` / `ai_context_snapshots` / `ai_human_approvals` 저장/조회 공통 헬퍼를 추가
     - 마이그레이션 미적용 또는 Supabase 환경변수 부재 시 하네스 API가 경고만 남기고 계속 동작하도록 안전 폴백 처리
     - 상태 조회 시 `resolvedBy` / 이벤트 수 / 승인 수 / 타임라인 수 / `sourceRecordId`를 포함한 진단 메타를 반환해 실환경 검증 근거를 강화
-  - `api/harness/analyze.ts`, `api/harness/approve.ts`, `api/harness/reanalyze.ts`, `api/harness/workflow-status.ts`
+  - `lib/server/harness/handlers/analyze.ts`, `approve.ts`, `reanalyze.ts`, `workflowStatus.ts`
     - 하네스 결정과 이벤트를 Supabase persistence 레이어와 연결
     - 상태 조회 시 저장된 이벤트/인간 승인 타임라인을 우선 응답하고, 미연결 환경에서는 기존 초안 응답으로 폴백
     - persistence 연결 성공이지만 저장 런이 미발견인 경우도 별도 경고/진단으로 반환해 실데이터 검증 시 혼선을 줄임
@@ -276,7 +276,9 @@
 - `pages/SafetyChecks.tsx`
 - `pages/SafetyBehaviorManagement.tsx`
 - `pages/Settings.tsx`
-- `api/harness/persistence-health.ts`
+- `api/gateway.ts`
+- `lib/server/harness/handlers/persistenceHealth.ts`
+- `lib/server/harness/handlers/workflowStatus.ts`
 - `services/harnessService.ts`
 - `lib/server/harness/persistence.ts`
 - `pages/SiteIssueManagement.tsx`
@@ -303,7 +305,8 @@
 - `pages/SafetyChecks.tsx` → 오류 없음
 - `pages/SafetyBehaviorManagement.tsx` → 오류 없음
 - `pages/Settings.tsx` → 오류 없음
-- `api/harness/persistence-health.ts` → 오류 없음
+- `api/gateway.ts` → 오류 없음
+- `lib/server/harness/handlers/persistenceHealth.ts` → 오류 없음
 - `services/harnessService.ts` → 오류 없음
 - `lib/server/harness/persistence.ts` → 오류 없음
 - `pages/SiteIssueManagement.tsx` → 오류 없음
@@ -312,7 +315,7 @@
 - `utils/qrUtils.ts` → 오류 없음
 - `pages/IndividualReport.tsx` → 오류 없음
 - `lib/server/harness/persistence.ts` → 오류 없음
-- `api/harness/workflow-status.ts` → 오류 없음
+- `lib/server/harness/handlers/workflowStatus.ts` → 오류 없음
 - `services/harnessService.ts` → 오류 없음
 - `pages/Dashboard.tsx` → 오류 없음
 

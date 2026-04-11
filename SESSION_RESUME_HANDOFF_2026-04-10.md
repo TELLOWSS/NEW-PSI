@@ -58,8 +58,9 @@
 
 ### 3.3 persistence/진단 레이어 보강 완료
 - [lib/server/harness/persistence.ts](lib/server/harness/persistence.ts)
-- [api/harness/workflow-status.ts](api/harness/workflow-status.ts)
-- [api/harness/persistence-health.ts](api/harness/persistence-health.ts)
+- [api/gateway.ts](api/gateway.ts)
+- [lib/server/harness/handlers/workflowStatus.ts](lib/server/harness/handlers/workflowStatus.ts)
+- [lib/server/harness/handlers/persistenceHealth.ts](lib/server/harness/handlers/persistenceHealth.ts)
 - [services/harnessService.ts](services/harnessService.ts)
 - [components/modals/RecordDetailModal.tsx](components/modals/RecordDetailModal.tsx)
 
@@ -132,10 +133,11 @@
 1. [SESSION_RESUME_HANDOFF_2026-04-10.md](SESSION_RESUME_HANDOFF_2026-04-10.md)
 2. [pages/Settings.tsx](pages/Settings.tsx)
 3. [services/harnessService.ts](services/harnessService.ts)
-4. [api/harness/persistence-health.ts](api/harness/persistence-health.ts)
-5. [api/harness/workflow-status.ts](api/harness/workflow-status.ts)
-6. [lib/server/harness/persistence.ts](lib/server/harness/persistence.ts)
-7. [NEXT_SESSION_HANDOFF_2026-04-09.md](NEXT_SESSION_HANDOFF_2026-04-09.md)
+4. [api/gateway.ts](api/gateway.ts)
+5. [lib/server/harness/handlers/persistenceHealth.ts](lib/server/harness/handlers/persistenceHealth.ts)
+6. [lib/server/harness/handlers/workflowStatus.ts](lib/server/harness/handlers/workflowStatus.ts)
+7. [lib/server/harness/persistence.ts](lib/server/harness/persistence.ts)
+8. [NEXT_SESSION_HANDOFF_2026-04-09.md](NEXT_SESSION_HANDOFF_2026-04-09.md)
 
 ---
 
@@ -152,3 +154,6 @@
 다음 세션에서 아래처럼 시작하면 된다.
 
 > `SESSION_RESUME_HANDOFF_2026-04-10.md` 기준으로 이어서 진행. 먼저 Settings에서 하네스 persistence 환경 상태와 최근 workflow run persisted 진단부터 검증.
+
+참고:
+- 현재 하네스 상태 조회와 persistence health는 개별 `api/harness/*`가 아니라 `api/gateway.ts` 경유 구조다.
