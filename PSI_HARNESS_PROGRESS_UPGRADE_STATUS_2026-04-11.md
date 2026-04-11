@@ -509,6 +509,40 @@
 - 단건 삭제, 일괄 삭제, 복구 직후에도 등록자 수·완전 동일 중복 수·동명이인 그룹 수가 즉시 다시 계산되도록 보강
 - 삭제 성공 메시지를 유지한 채 서버 재조회까지 이어 붙여, 삭제는 됐지만 화면 수량이 안 줄어드는 체감 문제를 정리
 
+### 완료 53. Dashboard drill-down을 근로자 관리 필터로 직접 연결
+- Dashboard의 하네스 drill-down 상태를 URL 파라미터로 넘겨 `WorkerManagement`가 그대로 이어받도록 연결
+- 승인 대기 / 즉시 보호 / 저장 점검 / 공종 hotspot 선택 시 근로자 관리센터에서 같은 조건으로 목록이 즉시 좁혀지도록 보강
+- 근로자 관리센터 상단에 Dashboard 유입 필터 배너와 해제 액션을 추가해 현재 탐색 맥락을 잃지 않도록 정리
+
+### 완료 54. Record Detail 승인 게이트 실행 가이드 압축 보강
+- 하네스 승인 게이트에 `권장 실행 가이드`와 `액션 실행 전 체크` 블록을 추가해 다음 액션을 바로 읽을 수 있도록 보강
+- `approve / reject / request-reanalysis / reanalyze` 액션 라벨과 다음 상태 표시를 운영용 한글 문구로 통일
+- 허용 액션이 없을 때는 대표 차단 사유와 선행 보완 포인트를 바로 보여주도록 정리
+
+### 완료 55. workflow-status 액션 문구 공통화 및 Reports 정렬
+- 상태 전이 액션 라벨/설명/허용·차단 내러티브를 공통 유틸로 분리해 `RecordDetailModal`과 `Reports`가 같은 문구 기준을 쓰도록 정리
+- Reports `Action Readiness` 카드가 `승인 / 반려 / 재분석 요청 / 재분석 실행` 한글 라벨과 다음 상태 문구를 동일 기준으로 노출하도록 보강
+- 운영 화면과 보고서 화면의 상태머신 해석이 달라 보이지 않도록 액션 설명 문맥을 일치시킴
+
+### 완료 56. Reports 액션 실행 체크 요약 추가
+- Reports `Action Readiness` 카드 아래에 `권장 실행 가이드`와 `액션 실행 전 체크` 블록을 추가해 보고서 화면만으로도 다음 운영 액션을 바로 읽을 수 있도록 보강
+- 상태 전이 실행 가이드 체크리스트를 공통 유틸로 확장해 보고서와 운영 화면이 같은 실행 포인트를 공유하도록 정리
+- 보고서 검토자가 관리자 모달로 다시 이동하지 않아도 선행 확인 포인트와 다음 상태를 같은 화면에서 판단할 수 있게 연결
+
+### 완료 57. 상태 전이 차단 사유 운영 문구 정규화
+- 서버에서 내려오는 상태 전이 차단 사유를 짧은 운영 문구로 변환하는 공통 헬퍼를 추가
+- `Reports`와 `RecordDetailModal`이 `현재 상태(uploaded)` 같은 내부 표현 대신 `업로드됨 상태에서는 승인할 수 없습니다` 형태로 같은 문구를 쓰도록 정리
+- 장문 차단 사유를 축약해 운영자가 대표 사유를 더 빠르게 읽고 다음 조치를 판단할 수 있게 보강
+
+### 완료 58. Vercel 서버 타입 오류 1차 정리
+- `persistHarnessApproval`의 Supabase insert payload를 명시 row 변수로 분리하고 삽입 타입을 보강해 `never` 오버로드 충돌을 우회
+- `persistHarnessAnalysis`가 `HarnessInputValidationResult`와 `HarnessEvaluationOutput`을 직접 받을 수 있게 시그니처를 보강
+- `api/harness/reanalyze.ts`의 재분석 결정값에 `HarnessDecisionResult` 명시 타입을 부여해 `workflowState: string` widen 오류를 정리
+
+### 운영 블로커. Vercel Hobby 함수 수 제한
+- 현재 배포 로그 기준 빌드 이후 최종 실패 원인은 TypeScript 오류 외에 `Hobby plan 12개 Serverless Function 제한`이다
+- 현재 `api/*` 엔드포인트 수가 제한을 초과하므로, 최종 배포 완료를 위해서는 `엔드포인트 통합(gateway 집약)` 또는 `Pro plan 전환`이 필요하다
+
 ---
 
 ## 5. 현재 남아 있는 갭

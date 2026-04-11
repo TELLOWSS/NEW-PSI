@@ -4,6 +4,7 @@ import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, H
 import { extractMessage } from '../utils/errorUtils';
 import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
+import { NextActionChecklist } from '../components/shared/NextActionChecklist';
 import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { HarnessVersionDetailsPanel } from '../components/shared/HarnessVersionDetailsPanel';
 import { ReportGenerationProgress } from '../components/shared/ReportGenerationProgress';
@@ -13,6 +14,7 @@ import { createEvidencePackagePdfBlob } from '../utils/evidenceReportUtils';
 import { ensureFileSaver, ensureHtml2Canvas, ensureJsPdfConstructor, ensureJsZip } from '../utils/externalScripts';
 import { verifyEvidenceManifest, formatEvidenceVerificationSummary } from '../utils/evidenceVerificationUtils';
 import type { EvidenceManifest, EvidenceManifestVerificationResult } from '../utils/evidenceVerificationUtils';
+import { buildHarnessTransitionExecutionGuide, buildHarnessTransitionNarrative } from '../utils/harnessTransitionNarratives';
 import { getHarnessVersionDescriptor, getHarnessVersionDescriptors, type HarnessVersionDetailsBundle } from '../utils/harnessVersionCatalog';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { buildPdfBlobFromCanvases, canvasToBlob, captureReportCanvases, getCanvasImageData, getCanvasPlacementOnA4, saveCanvasesAsA4Pdf } from '../utils/pdfCapture';
@@ -941,36 +943,11 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     }, [previewWorkflowStatus]);
 
     const currentPreviewTransitionNarrative = useMemo(() => {
-        const actions = previewWorkflowStatus?.transitionActions || [];
-        const allowed = actions.filter((item) => item.allowed);
-        const blocked = actions.filter((item) => !item.allowed);
+        return buildHarnessTransitionNarrative(previewWorkflowStatus?.transitionActions || [], getHarnessWorkflowStateLabel);
+    }, [previewWorkflowStatus]);
 
-        if (actions.length === 0) {
-            return {
-                title: '현재 액션 가능 여부 정보가 아직 없습니다.',
-                description: 'workflow-status 저장 응답이 누적되면 승인, 반려, 재분석 가능 여부를 함께 읽을 수 있습니다.',
-                action: '현재는 상태 배지와 승인 diff를 기준으로 다음 행동을 판단해 주십시오.',
-                tone: 'border-slate-200 bg-slate-50',
-            };
-        }
-
-        if (allowed.length > 0) {
-            return {
-                title: `현재 ${allowed.length}개 액션이 허용되어 있습니다.`,
-                description: `가능: ${allowed.map((item) => `${item.action}${item.nextWorkflowState ? `→${item.nextWorkflowState}` : ''}`).join(' / ')}`,
-                action: blocked.length > 0
-                    ? `차단 액션 ${blocked.length}개는 상태머신 규칙에 의해 보류됩니다. 대표 사유: ${blocked[0]?.reason || '차단 사유 미기록'}`
-                    : '현재 허용된 액션 기준으로 승인 또는 재분석 후속 작업을 이어가시면 됩니다.',
-                tone: 'border-indigo-200 bg-indigo-50/80',
-            };
-        }
-
-        return {
-            title: '현재는 즉시 실행 가능한 액션이 없습니다.',
-            description: blocked[0]?.reason || '상태머신 규칙상 현재 전이를 진행할 수 없습니다.',
-            action: '선행 상태 전이 또는 판단 근거 보강 후 다시 확인해 주십시오.',
-            tone: 'border-amber-200 bg-amber-50/80',
-        };
+    const currentPreviewTransitionGuide = useMemo(() => {
+        return buildHarnessTransitionExecutionGuide(previewWorkflowStatus?.transitionActions || [], getHarnessWorkflowStateLabel);
     }, [previewWorkflowStatus]);
 
     const verificationHarnessMetaSummary = useMemo(() => {
@@ -3335,6 +3312,28 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                             <p className="mt-2 text-sm font-black text-slate-800">{currentPreviewTransitionNarrative.title}</p>
                                             <p className="mt-1 text-xs font-bold leading-relaxed text-slate-700">{currentPreviewTransitionNarrative.description}</p>
                                             <p className="mt-3 text-[11px] font-black text-slate-600">{currentPreviewTransitionNarrative.action}</p>
+                                            <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
+                                                <NoticeCallout
+                                                    variant={currentPreviewTransitionGuide.variant}
+                                                    eyebrow="권장 실행 가이드"
+                                                    title={currentPreviewTransitionGuide.title}
+                                                    description={currentPreviewTransitionGuide.description}
+                                                    className="rounded-2xl border px-4 py-4"
+                                                    bodyClassName="block"
+                                                    eyebrowClassName="text-[11px] font-black"
+                                                    titleClassName="mt-1 text-xs font-bold"
+                                                    descriptionClassName="mt-1 text-[11px] font-semibold leading-relaxed"
+                                                />
+                                                <NextActionChecklist
+                                                    title="액션 실행 전 체크"
+                                                    className="rounded-2xl border border-slate-200 bg-white px-4 py-4"
+                                                    titleClassName="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500"
+                                                    listClassName="space-y-2 text-[11px] font-bold leading-relaxed text-slate-700"
+                                                    itemClassName="flex items-start gap-2"
+                                                    bulletClassName="mt-[2px] text-indigo-500"
+                                                    items={currentPreviewTransitionGuide.checklistItems}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                     {(currentPreviewVersionDetails.prompt.length > 0 || currentPreviewVersionDetails.policy.length > 0 || currentPreviewVersionDetails.rule.length > 0) ? (

@@ -39,6 +39,7 @@ import {
     type HarnessWorkflowVersionChangeSummary,
 } from '../../services/harnessService';
 import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
+import { getHarnessTransitionActionLabel, getHarnessTransitionActionSummaryText, normalizeHarnessTransitionReason } from '../../utils/harnessTransitionNarratives';
 import { getHarnessVersionDescriptors } from '../../utils/harnessVersionCatalog';
 import { deriveCompetencyProfile, enforceSafetyLevel, getApprovalBlockers } from '../../utils/evidenceUtils';
 import { getSafetyLevelThresholds, getSafetyLevelFromScore } from '../../utils/safetyLevelUtils';
@@ -517,6 +518,63 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             recommended: allowed[0] || null,
         };
     }, [harnessTransitionActions]);
+
+    const harnessTransitionExecutionGuide = useMemo(() => {
+        const recommended = harnessTransitionActionSummary.recommended;
+        const primaryBlockedReason = harnessTransitionActionSummary.blocked[0]?.reason || null;
+
+        if (!recommended) {
+            return {
+                variant: 'amber' as const,
+                title: '현재는 선행 보완 없이 바로 진행할 수 있는 승인 액션이 없습니다.',
+                description: primaryBlockedReason
+                    ? `우선 차단 사유는 “${primaryBlockedReason}”입니다. 상태, 코멘트 길이, 재분석 진행 여부를 먼저 정리해 주십시오.`
+                    : '상태 전이 조건 또는 코멘트 기준이 충족되지 않아 선행 보완이 필요합니다.',
+                checklistItems: [
+                    {
+                        key: 'blocked-primary',
+                        content: primaryBlockedReason
+                            ? `가장 먼저 풀어야 할 차단 사유: ${primaryBlockedReason}`
+                            : '차단 사유가 명확하지 않다면 workflow / approval / second pass 상태를 다시 확인합니다.',
+                    },
+                    {
+                        key: 'blocked-comment',
+                        content: '반려 또는 재분석 요청을 하려면 판단 근거 코멘트를 더 구체적으로 남겨야 합니다.',
+                    },
+                    {
+                        key: 'blocked-proof',
+                        content: '원문, 번역, 증빙, 오버라이드 유무를 먼저 정리한 뒤 허용 액션이 생기는지 다시 확인합니다.',
+                    },
+                ],
+            };
+        }
+
+        return {
+            variant: recommended.action === 'approve'
+                ? 'emerald' as const
+                : recommended.action === 'reject'
+                    ? 'rose' as const
+                    : 'indigo' as const,
+            title: `지금 우선 액션은 ${getHarnessTransitionActionLabel(recommended.action)}입니다.`,
+            description: getHarnessTransitionActionSummaryText(recommended, getHarnessWorkflowStateLabel),
+            checklistItems: [
+                {
+                    key: 'recommended-action',
+                    content: `${getHarnessTransitionActionLabel(recommended.action)} 전에는 현재 상태 배지와 최신 승인 diff가 서로 모순되지 않는지 먼저 확인합니다.`,
+                },
+                {
+                    key: 'recommended-comment',
+                    content: recommended.action === 'reject' || recommended.action === 'request-reanalysis'
+                        ? '반려/재분석 요청은 8자 이상 판단 근거 코멘트를 남겨야 운영 QA 재확인이 쉬워집니다.'
+                        : '승인이라면 왜 지금 승인 가능한지 근거 코멘트를 짧고 분명하게 남겨 추후 QA 재확인을 줄입니다.',
+                },
+                {
+                    key: 'recommended-next-state',
+                    content: `실행 후 예상 다음 상태는 ${recommended.nextWorkflowState ? getHarnessWorkflowStateLabel(recommended.nextWorkflowState) : '현재 상태 유지'}입니다. 후속 검토자도 같은 흐름으로 읽을 수 있게 기록을 맞춥니다.`,
+                },
+            ],
+        };
+    }, [harnessTransitionActionSummary]);
 
     const harnessSnapshotMetrics = useMemo(() => {
         const weather = harnessContextSnapshot?.weather || {};
@@ -2347,19 +2405,41 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 </div>
                                                 {harnessTransitionActions.length > 0 ? (
                                                     <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                                                        <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                                                            <NoticeCallout
+                                                                variant={harnessTransitionExecutionGuide.variant}
+                                                                eyebrow="권장 실행 가이드"
+                                                                title={harnessTransitionExecutionGuide.title}
+                                                                description={harnessTransitionExecutionGuide.description}
+                                                                className="rounded-2xl border px-4 py-4"
+                                                                bodyClassName="block"
+                                                                eyebrowClassName="text-[11px] font-black"
+                                                                titleClassName="mt-1 text-xs font-bold"
+                                                                descriptionClassName="mt-1 text-[11px] font-semibold leading-relaxed"
+                                                            />
+                                                            <NextActionChecklist
+                                                                title="액션 실행 전 체크"
+                                                                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                                                                titleClassName="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500"
+                                                                listClassName="space-y-2 text-[11px] font-bold leading-relaxed text-slate-700"
+                                                                itemClassName="flex items-start gap-2"
+                                                                bulletClassName="mt-[2px] text-indigo-500"
+                                                                items={harnessTransitionExecutionGuide.checklistItems}
+                                                            />
+                                                        </div>
                                                         <div className="flex items-center justify-between gap-2 flex-wrap">
                                                             <p className="text-[11px] font-black text-slate-500">현재 가능한 액션</p>
                                                             {harnessTransitionActionSummary.recommended ? (
                                                                 <StatusBadge variant="violetSoft">
-                                                                    권장: {harnessTransitionActionSummary.recommended.action}
+                                                                    권장: {getHarnessTransitionActionLabel(harnessTransitionActionSummary.recommended.action)}
                                                                 </StatusBadge>
                                                             ) : null}
                                                         </div>
                                                         <div className="mt-2 flex flex-wrap gap-2">
                                                             {harnessTransitionActions.map((item) => (
                                                                 <div key={item.action} className={`rounded-xl border px-3 py-2 text-[11px] font-bold ${item.allowed ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
-                                                                    <p className="font-black">{item.action}</p>
-                                                                    <p className="mt-1">{item.allowed ? `가능 · 다음 상태 ${item.nextWorkflowState || '유지'}` : item.reason || '차단 사유 미기록'}</p>
+                                                                    <p className="font-black">{getHarnessTransitionActionLabel(item.action)}</p>
+                                                                    <p className="mt-1">{item.allowed ? `가능 · 다음 상태 ${item.nextWorkflowState ? getHarnessWorkflowStateLabel(item.nextWorkflowState) : '유지'}` : normalizeHarnessTransitionReason(item.reason, getHarnessWorkflowStateLabel)}</p>
                                                                 </div>
                                                             ))}
                                                         </div>

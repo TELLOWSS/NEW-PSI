@@ -8,7 +8,7 @@ import { assertHarnessReanalysisAllowed, buildHarnessDecision, HarnessTransition
 import { evaluateHarnessRules } from '../../lib/server/harness/ruleEngine.js';
 import { buildDeterministicAnalyzerOutput } from '../../lib/server/harness/agents/analyzer.js';
 import { buildDeterministicEvaluatorOutput } from '../../lib/server/harness/agents/evaluator.js';
-import type { HarnessAnalyzeRequest } from '../../lib/server/harness/workflowTypes.js';
+import type { HarnessAnalyzeRequest, HarnessDecisionResult } from '../../lib/server/harness/workflowTypes.js';
 
 export default async function handler(req: any, res: any) {
     if (req.method !== 'POST') {
@@ -47,7 +47,7 @@ export default async function handler(req: any, res: any) {
         const { decision, overrides } = evaluateHarnessRules({ payload, validation, context, evaluation: evaluator });
         const decisionResult = buildHarnessDecision({ validation, evaluation: evaluator, decision, overrides });
         const auditEvents = buildHarnessAuditEvents({ validation, context, decision: decisionResult, overrides });
-        const reanalysisDecision = {
+        const reanalysisDecision: HarnessDecisionResult = {
             ...decisionResult,
             workflowState: decisionResult.workflowState === 'completed' ? 'completed' : 'second_pass_analyzing',
         };

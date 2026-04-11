@@ -5,7 +5,9 @@ import type {
     HarnessAuditEvent,
     HarnessContextSnapshot,
     HarnessDecisionResult,
+    HarnessEvaluationOutput,
     HarnessGuardrailOverride,
+    HarnessInputValidationResult,
     HarnessPolicySnapshot,
     HarnessPromptLayerSnapshot,
     HarnessRiskDecision,
@@ -200,8 +202,8 @@ export async function persistHarnessAnalysis(options: {
     payload: HarnessAnalyzeRequest;
     decision: HarnessDecisionResult;
     analyzer?: { summary?: string; confidence?: number };
-    validation?: Record<string, unknown>;
-    evaluator?: Record<string, unknown>;
+    validation?: HarnessInputValidationResult | Record<string, unknown>;
+    evaluator?: HarnessEvaluationOutput | Record<string, unknown>;
     context: HarnessContextSnapshot;
     promptSnapshot?: HarnessPromptLayerSnapshot;
     auditEvents: HarnessAuditEvent[];
@@ -385,36 +387,40 @@ export async function persistHarnessApproval(options: {
 
         const approvalTimestamp = new Date().toISOString();
 
+        const approvalRow = {
+            workflow_run_id: workflowRunId,
+            approver_name: options.approver,
+            approver_role: options.approver,
+            approval_action: options.action,
+            approval_comment: options.comment || null,
+            decision_before: previousDecision,
+            decision_after: options.decision.riskDecision,
+            created_at: approvalTimestamp,
+        };
+
         const { error: approvalError } = await supabase
             .from('ai_human_approvals')
-            .insert({
-                workflow_run_id: workflowRunId,
-                approver_name: options.approver,
-                approver_role: options.approver,
-                approval_action: options.action,
-                approval_comment: options.comment || null,
-                decision_before: previousDecision,
-                decision_after: options.decision.riskDecision,
-                created_at: approvalTimestamp,
-            });
+            .insert(approvalRow as any);
         if (approvalError) throw approvalError;
+
+        const eventRow = {
+            workflow_run_id: workflowRunId,
+            event_stage: 'approval',
+            event_type: 'human-approval',
+            actor: options.approver,
+            note: `${options.action} 처리`,
+            payload_json: {
+                comment: options.comment || null,
+                workflowState: options.decision.workflowState,
+                approvalState: options.decision.approvalState,
+                riskDecision: options.decision.riskDecision,
+            },
+            created_at: approvalTimestamp,
+        };
 
         const { error: eventError } = await supabase
             .from('ai_workflow_events')
-            .insert({
-                workflow_run_id: workflowRunId,
-                event_stage: 'approval',
-                event_type: 'human-approval',
-                actor: options.approver,
-                note: `${options.action} 처리`,
-                payload_json: {
-                    comment: options.comment || null,
-                    workflowState: options.decision.workflowState,
-                    approvalState: options.decision.approvalState,
-                    riskDecision: options.decision.riskDecision,
-                },
-                created_at: approvalTimestamp,
-            });
+            .insert(eventRow as any);
         if (eventError) throw eventError;
 
         return { persisted: true, workflowRunId, warning: null, approvedAt: approvalTimestamp };

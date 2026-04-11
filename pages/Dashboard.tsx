@@ -1384,6 +1384,25 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         setCurrentPage('worker-management');
     };
 
+    const navigateToWorkerManagementWithHarnessFilter = (drilldown: { type: HarnessDashboardDrilldownType; trade?: string } | null) => {
+        const params = new URLSearchParams(window.location.search);
+        params.delete('filter');
+        params.delete('harnessFilter');
+        params.delete('harnessTrade');
+
+        if (drilldown) {
+            params.set('harnessFilter', drilldown.type);
+            if (drilldown.type === 'trade-hotspot' && drilldown.trade) {
+                params.set('harnessTrade', drilldown.trade);
+            }
+        }
+
+        const query = params.toString();
+        const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
+        window.history.replaceState({}, '', nextUrl);
+        setCurrentPage('worker-management');
+    };
+
     const openHarnessTradeDrilldown = (trade: string) => {
         setSelectedTeam('ALL');
         openTradeIntegratedAnalysis(trade, 'team');
@@ -1680,10 +1699,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             </div>
                             <button
                                 type="button"
-                                onClick={() => setCurrentPage('worker-management')}
+                                onClick={() => navigateToWorkerManagementWithHarnessFilter(activeHarnessDrilldown)}
                                 className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-black text-slate-700 hover:bg-slate-100"
                             >
-                                근로자 관리로 이어보기
+                                근로자 관리 필터로 이어보기
                             </button>
                         </div>
 

@@ -729,6 +729,26 @@ const isUnassignedFilterFromUrl = (): boolean => {
     return new URLSearchParams(window.location.search).get('filter') === 'unassigned';
 };
 
+type HarnessDashboardDrilldownFilter = 'approval-backlog' | 'immediate-attention' | 'fallback-pending' | 'trade-hotspot';
+
+const getHarnessDashboardDrilldownFilterFromUrl = (): { type: HarnessDashboardDrilldownFilter; trade?: string } | null => {
+    const params = new URLSearchParams(window.location.search);
+    const type = params.get('harnessFilter');
+    if (
+        type !== 'approval-backlog'
+        && type !== 'immediate-attention'
+        && type !== 'fallback-pending'
+        && type !== 'trade-hotspot'
+    ) {
+        return null;
+    }
+
+    const trade = String(params.get('harnessTrade') || '').trim();
+    return type === 'trade-hotspot'
+        ? { type, trade: trade || undefined }
+        : { type };
+};
+
 interface BulkWorkerUploadRow {
     name: string;
     nationality: string;
@@ -942,17 +962,19 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [reliabilityFilter, setReliabilityFilter] = useState<'all' | 'trusted' | 'needs-review'>('all');
     const [photoFilter, setPhotoFilter] = useState<'all' | 'with-photo' | 'missing-photo'>('all');
     const [isUnassignedFilterActive, setIsUnassignedFilterActive] = useState(() => isUnassignedFilterFromUrl());
+    const [activeHarnessDashboardFilter, setActiveHarnessDashboardFilter] = useState<{ type: HarnessDashboardDrilldownFilter; trade?: string } | null>(() => getHarnessDashboardDrilldownFilterFromUrl());
 
     useEffect(() => {
-        const syncUnassignedFilterFromUrl = () => {
+        const syncFiltersFromUrl = () => {
             setIsUnassignedFilterActive(isUnassignedFilterFromUrl());
+            setActiveHarnessDashboardFilter(getHarnessDashboardDrilldownFilterFromUrl());
         };
 
-        syncUnassignedFilterFromUrl();
-        window.addEventListener('popstate', syncUnassignedFilterFromUrl);
+        syncFiltersFromUrl();
+        window.addEventListener('popstate', syncFiltersFromUrl);
 
         return () => {
-            window.removeEventListener('popstate', syncUnassignedFilterFromUrl);
+            window.removeEventListener('popstate', syncFiltersFromUrl);
         };
     }, []);
 
@@ -3013,9 +3035,29 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 photoFilter === 'all' ||
                 (photoFilter === 'with-photo' && hasProfilePhoto(r)) ||
                 (photoFilter === 'missing-photo' && !hasProfilePhoto(r));
-            return matchesSearch && matchesJobField && matchesCrew && matchesLevel && matchesUnassigned && matchesReliability && matchesPhoto;
+            const harnessMeta = getHarnessMeta(r);
+            const normalizedRecordTrade = normalizeJobField(r.jobField) || safeJobField;
+            const normalizedFilterTrade = normalizeJobField(activeHarnessDashboardFilter?.trade);
+            const matchesHarnessDashboardFilter = (() => {
+                if (!activeHarnessDashboardFilter) return true;
+
+                switch (activeHarnessDashboardFilter.type) {
+                    case 'approval-backlog':
+                        return harnessMeta.approvalState === 'PENDING' || harnessMeta.approvalState === 'REQUIRED';
+                    case 'immediate-attention':
+                        return harnessMeta.riskDecision === 'IMMEDIATE_ATTENTION' || harnessMeta.riskDecision === 'CRITICAL_STOP';
+                    case 'fallback-pending':
+                        return harnessMeta.persistenceState === 'fallback' || harnessMeta.persistenceState === 'pending';
+                    case 'trade-hotspot':
+                        return !normalizedFilterTrade || normalizedRecordTrade === normalizedFilterTrade;
+                    default:
+                        return true;
+                }
+            })();
+
+            return matchesSearch && matchesJobField && matchesCrew && matchesLevel && matchesUnassigned && matchesReliability && matchesPhoto && matchesHarnessDashboardFilter;
         });
-    }, [latestRecords, searchTerm, selectedJobField, selectedCrew, filterLevel, reliabilityFilter, photoFilter, isUnassignedFilterActive]);
+    }, [latestRecords, searchTerm, selectedJobField, selectedCrew, filterLevel, reliabilityFilter, photoFilter, isUnassignedFilterActive, activeHarnessDashboardFilter]);
 
     const clearUnassignedFilter = () => {
         setIsUnassignedFilterActive(false);
@@ -3027,6 +3069,49 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             window.history.replaceState({}, '', nextUrl);
         }
     };
+
+    const clearHarnessDashboardFilter = () => {
+        setActiveHarnessDashboardFilter(null);
+        const params = new URLSearchParams(window.location.search);
+        params.delete('harnessFilter');
+        params.delete('harnessTrade');
+        const query = params.toString();
+        const nextUrl = `${window.location.pathname}${query ? `?${query}` : ''}`;
+        window.history.replaceState({}, '', nextUrl);
+    };
+
+    const activeHarnessDashboardFilterMeta = useMemo(() => {
+        if (!activeHarnessDashboardFilter) return null;
+
+        switch (activeHarnessDashboardFilter.type) {
+            case 'approval-backlog':
+                return {
+                    title: '대시보드 승인 백로그 필터 적용 중',
+                    description: 'Dashboard에서 선택한 승인 대기 대상만 현재 목록에 좁혀 보여드리고 있습니다.',
+                    variant: 'violet' as const,
+                };
+            case 'immediate-attention':
+                return {
+                    title: '대시보드 즉시 보호 필터 적용 중',
+                    description: '즉시 보호 또는 중지 검토가 필요한 대상만 현재 목록에 반영했습니다.',
+                    variant: 'rose' as const,
+                };
+            case 'fallback-pending':
+                return {
+                    title: '대시보드 저장 점검 필터 적용 중',
+                    description: 'workflow run 저장 연결이 불안정하거나 대기 중인 대상만 현재 목록에 반영했습니다.',
+                    variant: 'amber' as const,
+                };
+            case 'trade-hotspot':
+                return {
+                    title: `${activeHarnessDashboardFilter.trade || '선택 공종'} hotspot 필터 적용 중`,
+                    description: 'Dashboard에서 고른 공종의 최근 운영 집중 대상을 현재 목록으로 이어받았습니다.',
+                    variant: 'indigo' as const,
+                };
+            default:
+                return null;
+        }
+    }, [activeHarnessDashboardFilter]);
 
     const filteredReliabilitySummary = useMemo(() => {
         const evaluations = filteredRecords.map((worker) => verifyIssuanceReliability(worker));
@@ -4100,6 +4185,22 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         )}
                     />
                 )}
+                {activeHarnessDashboardFilterMeta && (
+                    <NoticeCallout
+                        variant={activeHarnessDashboardFilterMeta.variant}
+                        title={activeHarnessDashboardFilterMeta.title}
+                        description={activeHarnessDashboardFilterMeta.description}
+                        action={(
+                            <button
+                                type="button"
+                                onClick={clearHarnessDashboardFilter}
+                                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100"
+                            >
+                                Dashboard 필터 해제
+                            </button>
+                        )}
+                    />
+                )}
                 <input
                     ref={bulkFileInputRef}
                     type="file"
@@ -4210,7 +4311,6 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         </select>
                         <input
                             type="text"
-                            value={manualWorkerForm.team_name}
                             onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, team_name: e.target.value }))}
                             placeholder="팀명*"
                             className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
