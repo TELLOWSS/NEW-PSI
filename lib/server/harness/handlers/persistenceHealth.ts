@@ -1,5 +1,5 @@
-import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
-import { fetchHarnessPersistenceHealth } from '../../lib/server/harness/persistence.js';
+import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../adminAuthGuard.js';
+import { fetchHarnessPersistenceHealth } from '../persistence.js';
 
 export default async function handler(req: any, res: any) {
     if (req.method !== 'GET' && req.method !== 'POST') {

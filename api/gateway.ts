@@ -1,10 +1,11 @@
 import { randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../lib/server/adminAuthGuard.js';
-import handleHarnessAnalyze from './harness/analyze.js';
-import handleHarnessApprove from './harness/approve.js';
-import handleHarnessReanalyze from './harness/reanalyze.js';
-import handleHarnessWorkflowStatus from './harness/workflow-status.js';
+import handleHarnessAnalyze from '../lib/server/harness/handlers/analyze.js';
+import handleHarnessApprove from '../lib/server/harness/handlers/approve.js';
+import handleHarnessPersistenceHealth from '../lib/server/harness/handlers/persistenceHealth.js';
+import handleHarnessReanalyze from '../lib/server/harness/handlers/reanalyze.js';
+import handleHarnessWorkflowStatus from '../lib/server/harness/handlers/workflowStatus.js';
 
 type GatewayAction =
     | 'training.check-access'
@@ -14,6 +15,7 @@ type GatewayAction =
     | 'worker.authenticate'
     | 'harness.analyze'
     | 'harness.approve'
+    | 'harness.persistence-health'
     | 'harness.reanalyze'
     | 'harness.workflow-status';
 
@@ -951,6 +953,8 @@ export default async function handler(req: any, res: any) {
                 return await handleHarnessAnalyze(req, res);
             case 'harness.approve':
                 return await handleHarnessApprove(req, res);
+            case 'harness.persistence-health':
+                return await handleHarnessPersistenceHealth(req, res);
             case 'harness.reanalyze':
                 return await handleHarnessReanalyze(req, res);
             case 'harness.workflow-status':

@@ -1,16 +1,16 @@
-import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
-import { buildHarnessAuditEvents } from '../../lib/server/harness/auditLogger.js';
-import { buildHarnessContextSnapshot } from '../../lib/server/harness/contextAssembler.js';
-import { validateHarnessInput } from '../../lib/server/harness/inputValidators.js';
-import { getDefaultHarnessPolicy } from '../../lib/server/harness/policyRegistry.js';
-import { buildHarnessPromptSnapshot } from '../../lib/server/harness/promptLayers.js';
-import { buildHarnessDecision } from '../../lib/server/harness/router.js';
-import { evaluateHarnessRules } from '../../lib/server/harness/ruleEngine.js';
-import { buildDeterministicAnalyzerOutput } from '../../lib/server/harness/agents/analyzer.js';
-import { buildDeterministicEvaluatorOutput } from '../../lib/server/harness/agents/evaluator.js';
-import { validateAnalyzerOutput } from '../../lib/server/harness/outputValidators.js';
-import { persistHarnessAnalysis } from '../../lib/server/harness/persistence.js';
-import type { HarnessAnalyzeRequest } from '../../lib/server/harness/workflowTypes.js';
+import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../adminAuthGuard.js';
+import { buildHarnessAuditEvents } from '../auditLogger.js';
+import { buildHarnessContextSnapshot } from '../contextAssembler.js';
+import { validateHarnessInput } from '../inputValidators.js';
+import { getDefaultHarnessPolicy } from '../policyRegistry.js';
+import { buildHarnessPromptSnapshot } from '../promptLayers.js';
+import { buildHarnessDecision } from '../router.js';
+import { evaluateHarnessRules } from '../ruleEngine.js';
+import { buildDeterministicAnalyzerOutput } from '../agents/analyzer.js';
+import { buildDeterministicEvaluatorOutput } from '../agents/evaluator.js';
+import { validateAnalyzerOutput } from '../outputValidators.js';
+import { persistHarnessAnalysis } from '../persistence.js';
+import type { HarnessAnalyzeRequest } from '../workflowTypes.js';
 
 export default async function handler(req: any, res: any) {
     if (req.method !== 'POST') {

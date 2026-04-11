@@ -543,6 +543,27 @@
 - 현재 배포 로그 기준 빌드 이후 최종 실패 원인은 TypeScript 오류 외에 `Hobby plan 12개 Serverless Function 제한`이다
 - 현재 `api/*` 엔드포인트 수가 제한을 초과하므로, 최종 배포 완료를 위해서는 `엔드포인트 통합(gateway 집약)` 또는 `Pro plan 전환`이 필요하다
 
+### 완료 59. 하네스 API를 gateway 기준으로 집약
+- `api/harness/analyze.ts`, `approve.ts`, `reanalyze.ts`, `workflow-status.ts`를 함수 엔드포인트에서 제거하고 `lib/server/harness/handlers/*` 공통 핸들러로 이동
+- `api/gateway.ts`가 하네스 공통 핸들러를 직접 연결하도록 바꿔, 기능은 유지하면서 Vercel 함수 개수를 4개 줄이도록 정리
+- 현재 기준 함수 수는 `admin 10 + harness 1(persistence-health) + gateway 1 = 12` 구조로 Hobby 제한선에 맞춘 상태다
+
+### 완료 60. persistence-health까지 gateway로 편입
+- `harness.persistence-health` 액션을 gateway에 추가하고, persistence health 응답도 하네스 공통 핸들러에서 처리하도록 정리
+- `services/harnessService.ts`가 `/api/harness/persistence-health` 대신 gateway 액션을 사용하도록 변경
+- 전용 `api/harness/persistence-health.ts` 파일을 제거해 하네스 전용 Serverless Function을 완전히 없애고 `gateway 1개` 체계로 정리
+
+### 완료 61. 로컬 TypeScript 전수 오류 0건 정리
+- `App.tsx`, `WorkerManagement.tsx`의 경계 컴포넌트 타입 접근과 `WorkerRecord` 기본값 누락을 보정해 상위 타입 오류를 정리
+- `SafetyActionCenter`, `IndividualRadarChart`, `AdminTraining`, `Settings`, `OcrAnalysis`, `SafetyChecks`의 저위험 타입 오류를 묶음으로 정리
+- `NationalityChart`의 Chart.js v4 옵션 타입과 `geminiService.ts`의 누락 import·프롬프트 변수·반환 타입 문제를 정리하고, 테스트 파일은 tsconfig exclude로 분리
+- 최종적으로 `npx tsc --noEmit` 전체 기준 오류 0건을 확인
+
+### 완료 62. 비핸들러 API 공유 모듈을 `api/` 밖으로 이관
+- `api/shared/multilingualIntegrityEmbedding.ts`는 Vercel 요청 핸들러가 아닌 공유 로직이므로 `lib/server/shared/multilingualIntegrityEmbedding.ts`로 이동
+- 이 정리로 배포 함수 트리는 실질적으로 `admin 10 + gateway 1` 구조만 남도록 정리해 Hobby 함수 수 리스크를 한 단계 더 낮춤
+- 실제 Vercel 사전 검증은 코드 문제가 아니라 로컬 토큰 무효(`vercel build` 인증 실패) 상태 때문에 최종 확인만 남아 있음
+
 ---
 
 ## 5. 현재 남아 있는 갭

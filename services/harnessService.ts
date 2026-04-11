@@ -224,18 +224,5 @@ export async function fetchHarnessWorkflowStatus(workflowRunId: string) {
 }
 
 export async function fetchHarnessPersistenceHealth() {
-    const json = await postAdminJson<{ ok: boolean; data?: HarnessPersistenceHealth; message?: string }>(
-        '/api/harness/persistence-health',
-        {},
-        {
-            fallbackMessage: 'Harness persistence 상태 조회 실패',
-            method: 'GET',
-        } as any,
-    );
-
-    if (!json?.ok || !json.data) {
-        throw new Error(String(json?.message || 'Harness persistence 상태 조회 실패'));
-    }
-
-    return json.data;
+    return postGateway<HarnessPersistenceHealth>('harness.persistence-health', {});
 }

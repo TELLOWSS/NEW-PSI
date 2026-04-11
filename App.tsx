@@ -48,6 +48,10 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+    declare props: ErrorBoundaryProps;
+    declare state: ErrorBoundaryState;
+    declare setState: Component<ErrorBoundaryProps, ErrorBoundaryState>['setState'];
+
     state: ErrorBoundaryState = { hasError: false, error: null, errorInfo: null };
 
     static getDerivedStateFromError(error: Error): ErrorBoundaryState {
@@ -511,7 +515,7 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
             nationality: normalizeNationality(toStringSafe(r.nationality, "미상")),
             jobField: toStringSafe(r.jobField, "미분류"),
             teamLeader: toStringSafe(r.teamLeader, "미지정"),
-            role: r.role || 'worker', 
+            role: (r.role === 'worker' || r.role === 'leader' || r.role === 'sub_leader') ? r.role : 'worker', 
             filename: toOptionalStringSafe(r.filename),
             strengths: Array.isArray(r.strengths) ? r.strengths.map(item => toStringSafe(item)).filter(Boolean) : [],
             weakAreas: Array.isArray(r.weakAreas) ? r.weakAreas.map(item => toStringSafe(item)).filter(Boolean) : [],

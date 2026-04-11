@@ -1,8 +1,7 @@
-import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
-import { fetchPersistedHarnessWorkflowStatus } from '../../lib/server/harness/persistence.js';
-import { persistHarnessApproval } from '../../lib/server/harness/persistence.js';
-import { assertHarnessApprovalCommentAllowed, buildHarnessApprovalDecision, HarnessTransitionError } from '../../lib/server/harness/router.js';
-import type { HarnessApprovalAction, HarnessRiskDecision } from '../../lib/server/harness/workflowTypes.js';
+import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../adminAuthGuard.js';
+import { fetchPersistedHarnessWorkflowStatus, persistHarnessApproval } from '../persistence.js';
+import { assertHarnessApprovalCommentAllowed, buildHarnessApprovalDecision, HarnessTransitionError } from '../router.js';
+import type { HarnessApprovalAction, HarnessRiskDecision } from '../workflowTypes.js';
 
 export default async function handler(req: any, res: any) {
     if (req.method !== 'POST') {

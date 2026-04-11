@@ -50,6 +50,10 @@ type PrintModeErrorBoundaryState = {
 };
 
 class PrintModeErrorBoundary extends React.Component<PrintModeErrorBoundaryProps, PrintModeErrorBoundaryState> {
+    declare props: PrintModeErrorBoundaryProps;
+    declare state: PrintModeErrorBoundaryState;
+    declare setState: React.Component<PrintModeErrorBoundaryProps, PrintModeErrorBoundaryState>['setState'];
+
     constructor(props: PrintModeErrorBoundaryProps) {
         super(props);
         this.state = { hasError: false, errorMessage: '' };
@@ -480,7 +484,7 @@ const normalizeWorkerForPrint = (value: unknown, fallbackIndex: number): WorkerR
     const normalizedScore = Number.isFinite(safetyScore) ? safetyScore : 0;
 
     return {
-        ...(raw as WorkerRecord),
+        ...((raw as unknown) as Partial<WorkerRecord>),
         id: toDisplayString(raw.id, `unknown-${fallbackIndex}`),
         name: toDisplayString(raw.name, '식별 대기'),
         jobField: toDisplayString(raw.jobField, '미분류'),
