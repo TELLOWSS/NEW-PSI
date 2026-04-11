@@ -61,6 +61,14 @@ type DashboardInsightTab = 'chart' | 'team' | 'worker';
 
 type HarnessDashboardDrilldownType = 'approval-backlog' | 'immediate-attention' | 'fallback-pending' | 'trade-hotspot';
 
+type HarnessDrilldownActionPlan = {
+    headline: string;
+    detail: string;
+    primaryLabel: string;
+    secondaryLabel: string;
+    secondaryPage: Page;
+};
+
 type DashboardInsightTabConfig = {
     key: DashboardInsightTab;
     label: string;
@@ -1419,6 +1427,51 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         }
     };
 
+    const navigateToDashboardFollowUpPage = (page: Page) => {
+        setCurrentPage(page);
+    };
+
+    const harnessDrilldownActionPlan = useMemo<HarnessDrilldownActionPlan | null>(() => {
+        if (!activeHarnessDrilldown) return null;
+
+        switch (activeHarnessDrilldown.type) {
+            case 'approval-backlog':
+                return {
+                    headline: '승인 대기 대상은 관리자 검토 순서를 먼저 잠그는 편이 안전합니다.',
+                    detail: '먼저 근로자 관리 필터로 대상자를 좁히고, 이후 보고서 화면에서 승인·반려 근거와 감사 문맥을 함께 확인하시면 됩니다.',
+                    primaryLabel: '근로자 관리에서 승인 대기열 열기',
+                    secondaryLabel: '보고서 화면으로 이동',
+                    secondaryPage: 'reports',
+                };
+            case 'immediate-attention':
+                return {
+                    headline: '즉시 보호 대상은 OCR 판정과 운영 후속 조치를 같은 흐름으로 보셔야 합니다.',
+                    detail: 'OCR 분석 화면에서 원인 텍스트와 재분석 필요 여부를 먼저 확인한 뒤, 근로자 관리로 내려가 보호 조치를 연결하시면 됩니다.',
+                    primaryLabel: '근로자 관리에서 즉시 보호 대상 열기',
+                    secondaryLabel: 'OCR 분석 화면으로 이동',
+                    secondaryPage: 'ocr-analysis',
+                };
+            case 'fallback-pending':
+                return {
+                    headline: '저장 점검 대상은 환경 상태와 개별 레코드 상태를 함께 보셔야 합니다.',
+                    detail: '설정 화면에서 persistence 환경 상태를 먼저 확인하고, 이후 근로자 관리 필터로 실제 폴백·대기 레코드를 좁히시면 됩니다.',
+                    primaryLabel: '근로자 관리에서 저장 점검 대상 열기',
+                    secondaryLabel: '설정 화면으로 이동',
+                    secondaryPage: 'settings',
+                };
+            case 'trade-hotspot':
+                return {
+                    headline: `${activeHarnessDrilldown.trade || '선택 공종'}은 최근 운영 신호가 집중된 공종입니다.`,
+                    detail: '대상 공종을 근로자 관리 필터로 바로 넘겨 우선순위를 정리하고, 보고서 화면에서 공종별 감사 근거를 함께 확인하시면 됩니다.',
+                    primaryLabel: '근로자 관리에서 공종 hotspot 열기',
+                    secondaryLabel: '보고서 화면으로 이동',
+                    secondaryPage: 'reports',
+                };
+            default:
+                return null;
+        }
+    }, [activeHarnessDrilldown]);
+
     const harnessDrilldownPreview = useMemo(() => {
         if (!activeHarnessDrilldown) return null;
 
@@ -1697,14 +1750,32 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 <p className="text-sm font-black text-slate-800">{harnessDrilldownPreview.title}</p>
                                 <p className="mt-1 text-[11px] font-bold text-slate-500">{harnessDrilldownPreview.description}</p>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => navigateToWorkerManagementWithHarnessFilter(activeHarnessDrilldown)}
-                                className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-black text-slate-700 hover:bg-slate-100"
-                            >
-                                근로자 관리 필터로 이어보기
-                            </button>
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => navigateToWorkerManagementWithHarnessFilter(activeHarnessDrilldown)}
+                                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-black text-slate-700 hover:bg-slate-100"
+                                >
+                                    {harnessDrilldownActionPlan?.primaryLabel || '근로자 관리 필터로 이어보기'}
+                                </button>
+                                {harnessDrilldownActionPlan ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => navigateToDashboardFollowUpPage(harnessDrilldownActionPlan.secondaryPage)}
+                                        className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-black text-indigo-700 hover:bg-indigo-100"
+                                    >
+                                        {harnessDrilldownActionPlan.secondaryLabel}
+                                    </button>
+                                ) : null}
+                            </div>
                         </div>
+
+                        {harnessDrilldownActionPlan ? (
+                            <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 py-2.5">
+                                <p className="text-[11px] font-black text-indigo-900">{harnessDrilldownActionPlan.headline}</p>
+                                <p className="mt-1 text-[11px] font-semibold leading-relaxed text-indigo-700">{harnessDrilldownActionPlan.detail}</p>
+                            </div>
+                        ) : null}
 
                         <div className="mt-3 grid grid-cols-1 gap-2 xl:grid-cols-2">
                             {harnessDrilldownPreview.entries.length > 0 ? harnessDrilldownPreview.entries.map((record) => {

@@ -11,6 +11,14 @@ import { ReportGenerationProgress } from '../components/shared/ReportGenerationP
 import { StatusBadge } from '../components/shared/StatusBadge';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { createEvidencePackagePdfBlob } from '../utils/evidenceReportUtils';
+import {
+    buildEvidenceManifest,
+    buildEvidencePackageJsonMeta,
+    buildEvidencePackageReadme,
+    EVIDENCE_PACKAGE_JSON_SCHEMA_VERSION,
+    EVIDENCE_PACKAGE_README_FILE_NAME,
+    EVIDENCE_PACKAGE_TEMPLATE_VERSION,
+} from '../utils/evidencePackageTemplate';
 import { ensureFileSaver, ensureHtml2Canvas, ensureJsPdfConstructor, ensureJsZip } from '../utils/externalScripts';
 import { verifyEvidenceManifest, formatEvidenceVerificationSummary } from '../utils/evidenceVerificationUtils';
 import type { EvidenceManifest, EvidenceManifestVerificationResult } from '../utils/evidenceVerificationUtils';
@@ -222,6 +230,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         metadataMismatches: number;
         packageSummaryHashMatched: boolean;
         primaryFailureReason: string;
+        templateConformanceStatus: 'CONFORMANT' | 'MISMATCH' | 'UNKNOWN';
+        templateConformanceDescription: string;
         summaryText: string;
     }>>([]);
     const [selectedVerificationStatusFilter, setSelectedVerificationStatusFilter] = useState<'ALL' | 'SUCCESS' | 'FAILED'>('ALL');
@@ -348,6 +358,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         metadataMismatches?: number;
         packageSummaryHashMatched?: boolean;
         primaryFailureReason?: string;
+        templateConformanceStatus?: 'CONFORMANT' | 'MISMATCH' | 'UNKNOWN' | string;
+        templateConformanceDescription?: string;
         summaryText?: string;
     }>) => {
         const retentionThreshold = Date.now() - (VERIFICATION_HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000);
@@ -369,6 +381,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 metadataMismatches: Number(entry.metadataMismatches || 0),
                 packageSummaryHashMatched: Boolean(entry.packageSummaryHashMatched),
                 primaryFailureReason: String(entry.primaryFailureReason || '실패 기록 없음'),
+                templateConformanceStatus: entry.templateConformanceStatus === 'CONFORMANT' || entry.templateConformanceStatus === 'MISMATCH'
+                    ? entry.templateConformanceStatus
+                    : 'UNKNOWN',
+                templateConformanceDescription: String(entry.templateConformanceDescription || ''),
                 summaryText: String(entry.summaryText || ''),
             }))
             .filter((entry) => {
@@ -977,6 +993,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             overrideCount,
             approvalCount,
             harnessAuditSnapshotIncluded: Boolean(manifest.summary.harnessAuditSnapshotIncluded),
+            templateVersion: String(manifest.summary.templateVersion || '미기록'),
+            jsonSchemaVersion: String(manifest.summary.jsonSchemaVersion || '미기록'),
+            readmeFileName: String(manifest.summary.readmeFileName || 'README.txt'),
             versionChangeSummary,
         };
     }, [verificationManifestPreview]);
@@ -1004,6 +1023,41 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             ...verificationHarnessVersionDetails.rule,
         ];
     }, [verificationHarnessVersionDetails]);
+
+    const verificationTemplateMismatchWarnings = useMemo(() => {
+        if (!verificationHarnessMetaSummary) {
+            return [] as string[];
+        }
+
+        const warnings: string[] = [];
+        if (verificationHarnessMetaSummary.templateVersion !== EVIDENCE_PACKAGE_TEMPLATE_VERSION) {
+            warnings.push(`템플릿 버전이 현재 기준(${EVIDENCE_PACKAGE_TEMPLATE_VERSION})과 다릅니다: ${verificationHarnessMetaSummary.templateVersion}`);
+        }
+        if (verificationHarnessMetaSummary.jsonSchemaVersion !== EVIDENCE_PACKAGE_JSON_SCHEMA_VERSION) {
+            warnings.push(`JSON 스키마 버전이 현재 기준(${EVIDENCE_PACKAGE_JSON_SCHEMA_VERSION})과 다릅니다: ${verificationHarnessMetaSummary.jsonSchemaVersion}`);
+        }
+        if (verificationHarnessMetaSummary.readmeFileName !== EVIDENCE_PACKAGE_README_FILE_NAME) {
+            warnings.push(`README 파일명이 현재 기준(${EVIDENCE_PACKAGE_README_FILE_NAME})과 다릅니다: ${verificationHarnessMetaSummary.readmeFileName}`);
+        }
+
+        return warnings;
+    }, [verificationHarnessMetaSummary]);
+
+    const verificationTemplateConformance = useMemo(() => {
+        if (!verificationHarnessMetaSummary) {
+            return null;
+        }
+
+        const isConformant = verificationTemplateMismatchWarnings.length === 0;
+        return {
+            isConformant,
+            label: isConformant ? '표준 템플릿 적합' : '표준 템플릿 불일치',
+            variant: isConformant ? 'emeraldSoft' as const : 'amberSoft' as const,
+            description: isConformant
+                ? `현재 패키지는 템플릿 ${verificationHarnessMetaSummary.templateVersion} / 스키마 ${verificationHarnessMetaSummary.jsonSchemaVersion} 기준에 맞습니다.`
+                : verificationTemplateMismatchWarnings.join(' / '),
+        };
+    }, [verificationHarnessMetaSummary, verificationTemplateMismatchWarnings]);
 
     const reportSummaryCards: InterpretationCardItem[] = useMemo(() => [
         {
@@ -1128,6 +1182,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             summary.hashMismatches += entry.hashMismatches;
             summary.metadataMismatches += entry.metadataMismatches;
             summary.missingHarnessSnapshots += entry.missingHarnessSnapshots;
+            if (entry.templateConformanceStatus === 'CONFORMANT') summary.templateConformant += 1;
+            if (entry.templateConformanceStatus === 'MISMATCH') summary.templateMismatch += 1;
             return summary;
         }, {
             total: 0,
@@ -1136,6 +1192,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             hashMismatches: 0,
             metadataMismatches: 0,
             missingHarnessSnapshots: 0,
+            templateConformant: 0,
+            templateMismatch: 0,
         });
     }, [verificationHistory]);
 
@@ -1676,14 +1734,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 const harnessRuleVersions = Array.from(new Set((harnessAuditSnapshot?.overrides || []).map((override) => override.ruleVersion).filter(Boolean)));
 
                 const jsonPayload = {
-                    packageMeta: {
+                    packageMeta: buildEvidencePackageJsonMeta({
                         generatedAt: packageGeneratedAt,
                         teamFilter: selectedTeam,
                         levelFilter: filterLevel,
                         dateFilterPreset: dateFilterLabel,
                         dateRangeStart: resolvedDateRange.startLabel,
                         dateRangeEnd: resolvedDateRange.endLabel,
-                    },
+                    }),
                     record,
                     harnessAuditSnapshot: harnessAuditSnapshot
                         ? {
@@ -1778,24 +1836,15 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 .map((entry) => `${entry.jsonFile}:${entry.jsonSha256}`)
                 .join('\n');
             const packageJsonIndexSha256 = await sha256Hex(jsonHashIndexSource);
-            const promptVersionLines = Array.from(new Set(manifestEntries.map((entry) => entry.promptVersion).filter(Boolean))).map((version) => {
+            const promptVersions = Array.from(new Set(manifestEntries.map((entry) => entry.promptVersion).filter(Boolean))) as string[];
+            const policyVersions = Array.from(new Set(manifestEntries.map((entry) => entry.policyVersion).filter(Boolean))) as string[];
+            const ruleVersions = Array.from(new Set(manifestEntries.flatMap((entry) => entry.ruleVersions || []).filter(Boolean)));
+            const describeVersion = (version: string) => {
                 const descriptor = getHarnessVersionDescriptor(version);
                 return descriptor
                     ? `- ${descriptor.version}: ${descriptor.summary}${descriptor.changesFromPrevious?.length ? ` | 변경: ${descriptor.changesFromPrevious[0]}` : ''}`
                     : `- ${version}`;
-            });
-            const policyVersionLines = Array.from(new Set(manifestEntries.map((entry) => entry.policyVersion).filter(Boolean))).map((version) => {
-                const descriptor = getHarnessVersionDescriptor(version);
-                return descriptor
-                    ? `- ${descriptor.version}: ${descriptor.summary}${descriptor.changesFromPrevious?.length ? ` | 변경: ${descriptor.changesFromPrevious[0]}` : ''}`
-                    : `- ${version}`;
-            });
-            const ruleVersionLines = Array.from(new Set(manifestEntries.flatMap((entry) => entry.ruleVersions || []).filter(Boolean))).map((version) => {
-                const descriptor = getHarnessVersionDescriptor(version);
-                return descriptor
-                    ? `- ${descriptor.version}: ${descriptor.summary}${descriptor.changesFromPrevious?.length ? ` | 변경: ${descriptor.changesFromPrevious[0]}` : ''}`
-                    : `- ${version}`;
-            });
+            };
             const versionChangeLines = [
                 ...Array.from(new Set(manifestEntries.flatMap((entry) => entry.versionChangeSummary?.prompt || []).filter(Boolean))).map((line) => `- Prompt: ${line}`),
                 ...Array.from(new Set(manifestEntries.flatMap((entry) => entry.versionChangeSummary?.policy || []).filter(Boolean))).map((line) => `- Policy: ${line}`),
@@ -1816,53 +1865,34 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             ];
 
             root.file('evidence_index.csv', '\uFEFF' + [...csvMetaLines, ...csvRows].join('\n'));
-            root.file('README.txt', [
-                'PSI 증빙 패키지 ZIP',
-                `생성일시: ${new Date().toLocaleString()}`,
-                `대상 수: ${filteredRecords.length}`,
-                `기간 프리셋: ${dateFilterLabel}`,
-                `적용 시작일: ${resolvedDateRange.startLabel}`,
-                `적용 종료일: ${resolvedDateRange.endLabel}`,
-                '구성: pdf/, json/, evidence_index.csv, manifest.json',
-                'JSON 확장: record 외에 harnessAuditSnapshot(prompt/policy/analyzer/evaluator/override/approval/context/timeline)이 포함될 수 있습니다.',
-                '무결성 검증: manifest.json의 files[].jsonSha256 값과 json 파일 SHA-256 해시를 비교하세요.',
-                '패키지 요약 해시: manifest.summary.packageJsonIndexSha256 값으로 전체 JSON 집합의 일관성을 검증하세요.',
-                'CSV 메타: evidence_index.csv 상단 #packageJsonIndexSha256 값으로 동일 검증 가능합니다.',
-                '---',
-                'Prompt Versions',
-                ...(promptVersionLines.length > 0 ? promptVersionLines : ['- 포함된 프롬프트 버전 없음']),
-                'Policy Versions',
-                ...(policyVersionLines.length > 0 ? policyVersionLines : ['- 포함된 정책 버전 없음']),
-                'Rule Versions',
-                ...(ruleVersionLines.length > 0 ? ruleVersionLines : ['- 포함된 룰 버전 없음']),
-                'Version Change Summary',
-                ...(versionChangeLines.length > 0 ? versionChangeLines : ['- 포함된 버전 변경 요약 없음']),
-                'Approval Diff Summary',
-                ...(approvalDiffLines.length > 0 ? approvalDiffLines : ['- 포함된 승인 diff 요약 없음']),
-                'Override Summary',
-                ...(overrideSummaryLines.length > 0 ? overrideSummaryLines : ['- 포함된 오버라이드 요약 없음']),
-                'PowerShell 예시: Get-FileHash -Algorithm SHA256 .\\json\\파일명.json',
-                'OpenSSL 예시: openssl dgst -sha256 ./json/파일명.json'
-            ].join('\n'));
+            root.file(EVIDENCE_PACKAGE_README_FILE_NAME, buildEvidencePackageReadme({
+                generatedAtLabel: new Date().toLocaleString(),
+                totalRecords: filteredRecords.length,
+                dateFilterPreset: dateFilterLabel,
+                dateRangeStart: resolvedDateRange.startLabel,
+                dateRangeEnd: resolvedDateRange.endLabel,
+                packageJsonIndexSha256,
+                promptVersions,
+                policyVersions,
+                ruleVersions,
+                versionChangeLines,
+                approvalDiffLines,
+                overrideSummaryLines,
+                describeVersion,
+            }));
 
-            const manifest = {
+            const manifest = buildEvidenceManifest({
                 packageName: folderName,
                 generatedAt: packageGeneratedAt,
-                summary: {
-                    totalRecords: filteredRecords.length,
-                    teamFilter: selectedTeam,
-                    levelFilter: filterLevel,
-                    dateFilterPreset: dateFilterLabel,
-                    dateRangeStart: resolvedDateRange.startLabel,
-                    dateRangeEnd: resolvedDateRange.endLabel,
-                    jsonHashAlgorithm: 'SHA-256',
-                    packageJsonIndexSha256,
-                    packageJsonIndexSourceFormat: 'jsonPath:jsonSha256 per line',
-                    csvIncludesMetaHeader: true,
-                    harnessAuditSnapshotIncluded: true,
-                },
+                totalRecords: filteredRecords.length,
+                teamFilter: selectedTeam,
+                levelFilter: filterLevel,
+                dateFilterPreset: dateFilterLabel,
+                dateRangeStart: resolvedDateRange.startLabel,
+                dateRangeEnd: resolvedDateRange.endLabel,
+                packageJsonIndexSha256,
                 files: manifestEntries,
-            };
+            });
             root.file('manifest.json', JSON.stringify(manifest, null, 2));
 
             const blob = await zip.generateAsync({ type: 'blob' });
@@ -1983,6 +2013,13 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             summaryText: verificationSummary,
             primaryFailureReason,
             recommendedAction,
+            templateConformance: verificationTemplateConformance
+                ? {
+                    status: verificationTemplateConformance.isConformant ? 'CONFORMANT' : 'MISMATCH',
+                    label: verificationTemplateConformance.label,
+                    description: verificationTemplateConformance.description,
+                }
+                : null,
             verificationResult,
             manifestSummary: verificationManifestPreview?.summary || null,
             manifestMetaSummary: verificationHarnessMetaSummary || null,
@@ -2018,6 +2055,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             ['summary', 'isValid', verificationResult.isValid ? 'SUCCESS' : 'FAILED', verificationSummary.replace(/\n/g, ' | ')],
             ['summary', 'primaryFailureReason', primaryFailureReason, ''],
             ['summary', 'recommendedAction', recommendedAction, ''],
+            ['summary', 'templateConformance', verificationTemplateConformance ? (verificationTemplateConformance.isConformant ? 'CONFORMANT' : 'MISMATCH') : 'UNKNOWN', verificationTemplateConformance?.description || ''],
             ['summary', 'totalEntries', String(verificationResult.totalEntries), ''],
             ['summary', 'verifiedEntries', String(verificationResult.verifiedEntries), ''],
             ['summary', 'missingJsonFiles', String(verificationResult.missingJsonFiles.length), ''],
@@ -2031,6 +2069,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         if (verificationHarnessMetaSummary) {
             rows.push(
                 ['manifest', 'packageName', verificationManifestPreview?.packageName || '', ''],
+                ['manifest', 'templateVersion', verificationHarnessMetaSummary.templateVersion, ''],
+                ['manifest', 'jsonSchemaVersion', verificationHarnessMetaSummary.jsonSchemaVersion, ''],
+                ['manifest', 'readmeFileName', verificationHarnessMetaSummary.readmeFileName, ''],
                 ['manifest', 'totalRecords', String(verificationHarnessMetaSummary.totalRecords), ''],
                 ['manifest', 'linkedRunCount', String(verificationHarnessMetaSummary.linkedRunCount), ''],
                 ['manifest', 'promptVersions', String(verificationHarnessMetaSummary.promptVersions.length), verificationHarnessMetaSummary.promptVersions.join(' | ')],
@@ -2072,12 +2113,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         }
 
         const rows: string[][] = [
-            ['verifiedAt', 'manifestFileName', 'packageName', 'result', 'totalEntries', 'verifiedEntries', 'missingJsonFiles', 'invalidJsonFiles', 'hashMismatches', 'missingHarnessSnapshots', 'metadataMismatches', 'packageSummaryHashMatched', 'primaryFailureReason', 'recommendedAction', 'summaryText'],
+            ['verifiedAt', 'manifestFileName', 'packageName', 'result', 'templateConformanceStatus', 'templateConformanceDescription', 'totalEntries', 'verifiedEntries', 'missingJsonFiles', 'invalidJsonFiles', 'hashMismatches', 'missingHarnessSnapshots', 'metadataMismatches', 'packageSummaryHashMatched', 'primaryFailureReason', 'recommendedAction', 'summaryText'],
             ...verificationHistory.map((entry) => [
                 entry.verifiedAt,
                 entry.manifestFileName,
                 entry.packageName,
                 entry.isValid ? 'SUCCESS' : 'FAILED',
+                entry.templateConformanceStatus,
+                entry.templateConformanceDescription,
                 String(entry.totalEntries),
                 String(entry.verifiedEntries),
                 String(entry.missingJsonFiles),
@@ -2181,6 +2224,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     metadataMismatches: result.metadataMismatches.length,
                     packageSummaryHashMatched: result.packageSummaryHashMatched,
                     primaryFailureReason,
+                    templateConformanceStatus: verificationTemplateConformance
+                        ? (verificationTemplateConformance.isConformant ? 'CONFORMANT' : 'MISMATCH')
+                        : 'UNKNOWN',
+                    templateConformanceDescription: verificationTemplateConformance?.description || '',
                     summaryText: formatEvidenceVerificationSummary(result),
                 },
                 ...previous,
@@ -2486,6 +2533,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             <div className="flex items-center gap-2 flex-wrap text-[11px] font-bold text-slate-600">
                                 <span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-700">성공 {verificationHistorySummary.success}건</span>
                                 <span className="rounded-full bg-rose-100 px-3 py-1 text-rose-700">실패 {verificationHistorySummary.failed}건</span>
+                                <span className="rounded-full bg-sky-100 px-3 py-1 text-sky-700">표준 적합 {verificationHistorySummary.templateConformant}건</span>
+                                <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-700">표준 불일치 {verificationHistorySummary.templateMismatch}건</span>
                                 <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-700">메타 불일치 {verificationHistorySummary.metadataMismatches}건</span>
                             </div>
                         </div>
@@ -2678,7 +2727,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             </div>
                         ) : null}
 
-                        <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
+                        <div className="grid grid-cols-1 gap-3 xl:grid-cols-5">
                             <div className="rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-3">
                                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">최근 검증 수</p>
                                 <p className="mt-1 text-sm font-black text-indigo-800">{verificationHistorySummary.total}건</p>
@@ -2699,16 +2748,22 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 <p className="mt-1 text-sm font-black text-violet-800">{verificationHistorySummary.metadataMismatches}건</p>
                                 <p className="mt-1 text-[11px] font-bold text-violet-700">manifest/JSON 비교 누적 결과입니다.</p>
                             </div>
+                            <div className="rounded-xl border border-sky-200 bg-sky-50/80 px-4 py-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-500">표준 템플릿 적합성</p>
+                                <p className="mt-1 text-sm font-black text-sky-800">적합 {verificationHistorySummary.templateConformant}건 · 불일치 {verificationHistorySummary.templateMismatch}건</p>
+                                <p className="mt-1 text-[11px] font-bold text-sky-700">히스토리 기준 템플릿 표준 적합 누적입니다.</p>
+                            </div>
                         </div>
 
                         <div className="overflow-auto rounded-xl border border-slate-200 bg-white">
-                            <table className="w-full min-w-[920px] text-left text-[11px]">
+                            <table className="w-full min-w-[1080px] text-left text-[11px]">
                                 <thead className="bg-slate-50 text-slate-500">
                                     <tr>
                                         <th className="px-3 py-2">시각</th>
                                         <th className="px-3 py-2">Manifest</th>
                                         <th className="px-3 py-2">Package</th>
                                         <th className="px-3 py-2">결과</th>
+                                        <th className="px-3 py-2">템플릿 적합</th>
                                         <th className="px-3 py-2">Entries</th>
                                         <th className="px-3 py-2">Hash</th>
                                         <th className="px-3 py-2">Snapshot</th>
@@ -2727,6 +2782,16 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                                 <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${entry.isValid ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                                                     {entry.isValid ? 'SUCCESS' : 'FAILED'}
                                                 </span>
+                                            </td>
+                                            <td className="px-3 py-2">
+                                                <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${entry.templateConformanceStatus === 'CONFORMANT' ? 'bg-sky-100 text-sky-700' : entry.templateConformanceStatus === 'MISMATCH' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                                                    {entry.templateConformanceStatus === 'CONFORMANT' ? '적합' : entry.templateConformanceStatus === 'MISMATCH' ? '불일치' : '미확인'}
+                                                </span>
+                                                {entry.templateConformanceDescription ? (
+                                                    <p className="mt-1 max-w-[220px] break-words text-[10px] font-semibold leading-relaxed text-slate-500">
+                                                        {entry.templateConformanceDescription}
+                                                    </p>
+                                                ) : null}
                                             </td>
                                             <td className="px-3 py-2 font-semibold">{entry.verifiedEntries}/{entry.totalEntries}</td>
                                             <td className="px-3 py-2">{entry.hashMismatches}</td>
@@ -2781,11 +2846,27 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
                 {verificationHarnessMetaSummary && (
                     <div className="space-y-3">
-                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
+                    {verificationTemplateMismatchWarnings.length > 0 ? (
+                        <NoticeCallout
+                            variant="amber"
+                            title="현재 검증 중인 패키지는 최신 표준 템플릿과 일부 차이가 있습니다."
+                            description={verificationTemplateMismatchWarnings.join(' / ')}
+                            className="rounded-2xl border px-4 py-3"
+                            bodyClassName="block"
+                            titleClassName="text-xs font-black"
+                            descriptionClassName="mt-1 text-[11px] font-semibold leading-relaxed"
+                        />
+                    ) : null}
+                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-5">
                         <div className="rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-3">
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">런 연결 범위</p>
                             <p className="mt-1 text-sm font-black text-indigo-800">{verificationHarnessMetaSummary.linkedRunCount}/{verificationHarnessMetaSummary.totalRecords}건</p>
                             <p className="mt-1 text-[11px] font-bold text-indigo-700">workflow run이 연결된 JSON 수입니다.</p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">템플릿 버전</p>
+                            <p className="mt-1 text-sm font-black text-slate-800">{verificationHarnessMetaSummary.templateVersion}</p>
+                            <p className="mt-1 text-[11px] font-bold text-slate-600 break-all">Schema {verificationHarnessMetaSummary.jsonSchemaVersion}</p>
                         </div>
                         <div className="rounded-xl border border-violet-200 bg-violet-50/80 px-4 py-3">
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-500">프롬프트/정책</p>
@@ -2801,6 +2882,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500">승인/감사 스냅샷</p>
                             <p className="mt-1 text-sm font-black text-emerald-800">승인 로그 {verificationHarnessMetaSummary.approvalCount}건</p>
                             <p className="mt-1 text-[11px] font-bold text-emerald-700">하네스 스냅샷 포함: {verificationHarnessMetaSummary.harnessAuditSnapshotIncluded ? '예' : '아니오'}</p>
+                            <p className="mt-1 text-[10px] font-bold text-emerald-600">README: {verificationHarnessMetaSummary.readmeFileName}</p>
                         </div>
                     </div>
 
@@ -2891,10 +2973,23 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
                 {verificationSummary && verificationResult && (
                     <div className={`rounded-xl border px-4 py-3 ${verificationResult.isValid ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
-                        <p className={`text-xs font-black mb-2 ${verificationResult.isValid ? 'text-emerald-700' : 'text-rose-700'}`}>
-                            {verificationResult.isValid ? '검증 성공' : `검증 ${BRAND_STATUS_LABELS.attention}`}
-                        </p>
+                        <div className="mb-2 flex items-center justify-between gap-2 flex-wrap">
+                            <p className={`text-xs font-black ${verificationResult.isValid ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                {verificationResult.isValid ? '검증 성공' : `검증 ${BRAND_STATUS_LABELS.attention}`}
+                            </p>
+                            {verificationTemplateConformance ? (
+                                <StatusBadge variant={verificationTemplateConformance.variant} className="px-2.5 py-1 text-[10px] font-black">
+                                    {verificationTemplateConformance.label}
+                                </StatusBadge>
+                            ) : null}
+                        </div>
                         <pre className="text-xs whitespace-pre-wrap text-slate-700 font-semibold">{verificationSummary}</pre>
+
+                        {verificationTemplateConformance ? (
+                            <p className="mt-2 text-[11px] font-semibold leading-relaxed text-slate-600">
+                                {verificationTemplateConformance.description}
+                            </p>
+                        ) : null}
 
                         <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-5">
                             <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">

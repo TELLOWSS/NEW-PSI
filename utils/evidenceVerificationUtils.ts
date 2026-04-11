@@ -34,6 +34,9 @@ export interface EvidenceManifest {
         packageJsonIndexSourceFormat?: string;
         csvIncludesMetaHeader?: boolean;
         harnessAuditSnapshotIncluded?: boolean;
+        templateVersion?: string;
+        jsonSchemaVersion?: string;
+        readmeFileName?: string;
     };
     files: EvidenceManifestFileEntry[];
 }

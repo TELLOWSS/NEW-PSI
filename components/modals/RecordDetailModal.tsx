@@ -39,7 +39,12 @@ import {
     type HarnessWorkflowVersionChangeSummary,
 } from '../../services/harnessService';
 import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
-import { getHarnessTransitionActionLabel, getHarnessTransitionActionSummaryText, normalizeHarnessTransitionReason } from '../../utils/harnessTransitionNarratives';
+import {
+    buildHarnessTransitionExecutionGuide,
+    buildHarnessTransitionNarrative,
+    getHarnessTransitionActionLabel,
+    normalizeHarnessTransitionReason,
+} from '../../utils/harnessTransitionNarratives';
 import { getHarnessVersionDescriptors } from '../../utils/harnessVersionCatalog';
 import { deriveCompetencyProfile, enforceSafetyLevel, getApprovalBlockers } from '../../utils/evidenceUtils';
 import { getSafetyLevelThresholds, getSafetyLevelFromScore } from '../../utils/safetyLevelUtils';
@@ -519,62 +524,13 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         };
     }, [harnessTransitionActions]);
 
+    const harnessTransitionNarrative = useMemo(() => {
+        return buildHarnessTransitionNarrative(harnessTransitionActions, getHarnessWorkflowStateLabel);
+    }, [harnessTransitionActions]);
+
     const harnessTransitionExecutionGuide = useMemo(() => {
-        const recommended = harnessTransitionActionSummary.recommended;
-        const primaryBlockedReason = harnessTransitionActionSummary.blocked[0]?.reason || null;
-
-        if (!recommended) {
-            return {
-                variant: 'amber' as const,
-                title: '현재는 선행 보완 없이 바로 진행할 수 있는 승인 액션이 없습니다.',
-                description: primaryBlockedReason
-                    ? `우선 차단 사유는 “${primaryBlockedReason}”입니다. 상태, 코멘트 길이, 재분석 진행 여부를 먼저 정리해 주십시오.`
-                    : '상태 전이 조건 또는 코멘트 기준이 충족되지 않아 선행 보완이 필요합니다.',
-                checklistItems: [
-                    {
-                        key: 'blocked-primary',
-                        content: primaryBlockedReason
-                            ? `가장 먼저 풀어야 할 차단 사유: ${primaryBlockedReason}`
-                            : '차단 사유가 명확하지 않다면 workflow / approval / second pass 상태를 다시 확인합니다.',
-                    },
-                    {
-                        key: 'blocked-comment',
-                        content: '반려 또는 재분석 요청을 하려면 판단 근거 코멘트를 더 구체적으로 남겨야 합니다.',
-                    },
-                    {
-                        key: 'blocked-proof',
-                        content: '원문, 번역, 증빙, 오버라이드 유무를 먼저 정리한 뒤 허용 액션이 생기는지 다시 확인합니다.',
-                    },
-                ],
-            };
-        }
-
-        return {
-            variant: recommended.action === 'approve'
-                ? 'emerald' as const
-                : recommended.action === 'reject'
-                    ? 'rose' as const
-                    : 'indigo' as const,
-            title: `지금 우선 액션은 ${getHarnessTransitionActionLabel(recommended.action)}입니다.`,
-            description: getHarnessTransitionActionSummaryText(recommended, getHarnessWorkflowStateLabel),
-            checklistItems: [
-                {
-                    key: 'recommended-action',
-                    content: `${getHarnessTransitionActionLabel(recommended.action)} 전에는 현재 상태 배지와 최신 승인 diff가 서로 모순되지 않는지 먼저 확인합니다.`,
-                },
-                {
-                    key: 'recommended-comment',
-                    content: recommended.action === 'reject' || recommended.action === 'request-reanalysis'
-                        ? '반려/재분석 요청은 8자 이상 판단 근거 코멘트를 남겨야 운영 QA 재확인이 쉬워집니다.'
-                        : '승인이라면 왜 지금 승인 가능한지 근거 코멘트를 짧고 분명하게 남겨 추후 QA 재확인을 줄입니다.',
-                },
-                {
-                    key: 'recommended-next-state',
-                    content: `실행 후 예상 다음 상태는 ${recommended.nextWorkflowState ? getHarnessWorkflowStateLabel(recommended.nextWorkflowState) : '현재 상태 유지'}입니다. 후속 검토자도 같은 흐름으로 읽을 수 있게 기록을 맞춥니다.`,
-                },
-            ],
-        };
-    }, [harnessTransitionActionSummary]);
+        return buildHarnessTransitionExecutionGuide(harnessTransitionActions, getHarnessWorkflowStateLabel);
+    }, [harnessTransitionActions]);
 
     const harnessSnapshotMetrics = useMemo(() => {
         const weather = harnessContextSnapshot?.weather || {};
@@ -2405,6 +2361,15 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 </div>
                                                 {harnessTransitionActions.length > 0 ? (
                                                     <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                                                        <NoticeCallout
+                                                            variant={harnessTransitionExecutionGuide.variant}
+                                                            title={harnessTransitionNarrative.title}
+                                                            description={`${harnessTransitionNarrative.description} ${harnessTransitionNarrative.action}`.trim()}
+                                                            className="mb-3 rounded-2xl border px-4 py-3"
+                                                            bodyClassName="block"
+                                                            titleClassName="text-xs font-black"
+                                                            descriptionClassName="mt-1 text-[11px] font-semibold leading-relaxed"
+                                                        />
                                                         <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
                                                             <NoticeCallout
                                                                 variant={harnessTransitionExecutionGuide.variant}
@@ -2445,7 +2410,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                         </div>
                                                         {harnessTransitionActionSummary.blocked.length > 0 ? (
                                                             <p className="mt-2 text-[11px] font-semibold leading-relaxed text-slate-500">
-                                                                차단된 액션은 현재 상태머신 규칙에 의해 보류됩니다. 먼저 허용된 상태 전이 또는 근거 코멘트 보강을 진행해 주십시오.
+                                                                {harnessTransitionNarrative.action}
                                                             </p>
                                                         ) : null}
                                                     </div>

@@ -603,6 +603,46 @@
 - 같은 문서의 `API 전략` 구간도 `POST /api/gateway + harness.*` 액션 기준으로 교체하고 `harness.persistence-health`까지 포함
 - `NEXT_SESSION_HANDOFF_2026-04-09.md`의 하단 파일 목록/오류 확인 항목도 현재 파일명 기준으로 동기화해 남아 있던 마지막 구형 경로를 줄임
 
+### 완료 70. Vercel 배포 프리플라이트 전용 핸드오프 문서 추가
+- `VERCEL_PREFLIGHT_HANDOFF_2026-04-11.md`를 신설해 현재 실패 원인, 재검증 선행 조건, 실패 분기 기준, 성공 기준을 1장으로 압축 정리
+- 코드 이슈와 운영 인증 이슈를 분리해 다음 세션이나 운영 담당자가 즉시 `무엇부터 복구해야 하는지` 판단할 수 있도록 정리
+- 배포 프리플라이트가 닫힌 뒤 이어갈 구현 우선순위도 같은 문서에 고정해 문서 전환 비용을 낮춤
+
+### 완료 71. Dashboard drill-down 후속 마감 1차 완료
+- `pages/Dashboard.tsx`의 하네스 drill-down 미리보기 박스에 유형별 다음 운영 액션 문구를 추가해 `승인 대기/즉시 보호/저장 점검/공종 hotspot`별 후속 경로를 대시보드 안에서 바로 읽을 수 있게 정리
+- 근로자 관리 필터 이동 버튼 라벨을 drill-down 유형에 맞게 구체화하고, 보조 이동 버튼(`OCR 분석`, `보고서`, `설정`)을 함께 추가해 클릭 흐름을 고정
+- 운영 통제 완성 트랙 기준으로 `Dashboard drill-down 클릭 흐름 고정` 항목을 문서화 중심이 아니라 실제 UI 보강까지 연결
+
+### 완료 72. workflow-status 액션/차단 사유 문구를 Record Detail까지 공통화
+- `components/modals/RecordDetailModal.tsx`가 자체 중복 문구 대신 `utils/harnessTransitionNarratives.ts`의 공통 narrative / execution guide 빌더를 사용하도록 정리
+- Reports와 Record Detail이 같은 `권장 액션`, `대표 차단 사유`, `실행 전 체크` 문구 체계를 공유하게 되어 workflow-status 응답 해석 기준이 일치
+- 차단 상태 안내도 자유 문장 대신 공통 narrative action 문구를 따르도록 맞춰 운영자 화면 간 해석 편차를 줄임
+
+### 완료 73. Reports 감사 패키지 README/manifest/JSON 템플릿 잠금
+- `utils/evidencePackageTemplate.ts`를 신설해 증빙 패키지 `templateVersion`, `jsonSchemaVersion`, README 파일명, manifest summary 구성을 공통 헬퍼로 고정
+- `pages/Reports.tsx`의 ZIP 생성 로직이 공통 템플릿 빌더를 사용하도록 정리되어 README/manifest/JSON packageMeta가 같은 버전 기준으로 생성됨
+- `utils/evidenceVerificationUtils.ts` 타입도 템플릿 버전/스키마 버전 필드를 수용하도록 보강해 이후 검증/미리보기 확장 기반을 마련
+
+### 완료 74. Reports 검증 미리보기에서 템플릿 버전/스키마 버전 직접 노출
+- `pages/Reports.tsx`의 manifest 미리보기 요약에 `templateVersion`, `jsonSchemaVersion`, `readmeFileName`을 포함해 패키지 표준 버전을 화면에서 바로 확인할 수 있게 정리
+- 검증 요약 카드에 템플릿 버전 전용 블록을 추가하고, 감사 스냅샷 카드에도 README 파일명을 함께 노출해 패키지 구성 표준을 즉시 읽을 수 있도록 보강
+- 검증 CSV 내보내기에도 동일 메타를 추가해 외부 공유 시 어떤 템플릿 기준으로 생성·검증했는지 기록이 남도록 정리
+
+### 완료 75. Reports 검증 화면에 template mismatch 경고 규칙 추가
+- `pages/Reports.tsx`가 현재 기준 `templateVersion`, `jsonSchemaVersion`, `readmeFileName`과 manifest 메타를 직접 비교해 불일치 시 상단 경고를 노출하도록 보강
+- 이를 통해 구형 패키지나 임시 수동 수정 패키지를 검증할 때도 `해시는 맞지만 표준 템플릿은 다르다`는 신호를 바로 읽을 수 있게 정리
+- 감사 패키지 표준화 트랙 기준으로 검증 화면이 단순 무결성 확인을 넘어 `표준 버전 적합성`까지 점검하도록 확장
+
+### 완료 76. 검증 결과 요약에 표준 템플릿 적합 상태 배지 추가
+- `pages/Reports.tsx` 검증 결과 요약 헤더에 `표준 템플릿 적합` / `표준 템플릿 불일치` 상태 배지를 추가해 무결성 결과와 표준 적합 여부를 함께 읽을 수 있도록 보강
+- 검증 JSON/CSV 내보내기에도 template conformance 상태와 설명을 포함해 외부 공유 시 표준 적합 여부가 기록으로 남도록 정리
+- 이로써 Reports 검증 흐름은 `해시·누락·메타 불일치`뿐 아니라 `현재 표준 템플릿 기준 적합 여부`까지 한 번에 설명 가능해짐
+
+### 완료 77. 검증 히스토리 목록에도 표준 템플릿 적합 상태 반영
+- `pages/Reports.tsx`의 verification history 저장 구조에 `templateConformanceStatus`, `templateConformanceDescription`을 추가해 세션 히스토리에도 표준 적합 여부를 보존
+- 히스토리 요약 칩/집계 카드에 `표준 적합` / `표준 불일치` 누적 수를 추가하고, 히스토리 표에도 개별 상태 배지와 설명을 노출
+- 검증 히스토리 CSV 내보내기에도 같은 필드를 포함해 사후 감사 시 과거 검증 실행의 표준 적합 여부를 추적할 수 있게 정리
+
 ---
 
 ## 5. 현재 남아 있는 갭
