@@ -624,20 +624,32 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             return;
         }
 
-        if (!verificationFailureFilterOptions.includes(selectedVerificationFailureFilter)) {
+        const availableFailureReasons = new Set(
+            verificationHistory
+                .filter((entry) => !entry.isValid && entry.primaryFailureReason !== '실패 기록 없음')
+                .map((entry) => entry.primaryFailureReason),
+        );
+
+        if (!availableFailureReasons.has(selectedVerificationFailureFilter)) {
             setSelectedVerificationFailureFilter('ALL');
         }
-    }, [selectedVerificationFailureFilter, verificationFailureFilterOptions]);
+    }, [selectedVerificationFailureFilter, verificationHistory]);
 
     useEffect(() => {
         if (selectedVerificationPackageFilter === 'ALL') {
             return;
         }
 
-        if (!verificationPackageFilterOptions.includes(selectedVerificationPackageFilter)) {
+        const availablePackages = new Set(
+            verificationHistory
+                .map((entry) => entry.packageName)
+                .filter((value) => String(value || '').trim().length > 0),
+        );
+
+        if (!availablePackages.has(selectedVerificationPackageFilter)) {
             setSelectedVerificationPackageFilter('ALL');
         }
-    }, [selectedVerificationPackageFilter, verificationPackageFilterOptions]);
+    }, [selectedVerificationPackageFilter, verificationHistory]);
 
     // 현재 미리보기 대상 데이터
     const currentPreviewRecord = filteredRecords[previewIndex];

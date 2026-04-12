@@ -8,6 +8,27 @@
 
 Use this checklist to manually verify the main functionality after running the app locally (`npm install` + `npm run dev`).
 
+## 토큰 절약형 사전확인 묶음 (권장)
+
+반복 질의/재확인을 줄이기 위해 아래 순서로 한 번에 실행합니다.
+
+1) 빠른 사전확인 (저비용)
+- `npm run verify:fast`
+- 포함 항목:
+   - `check:context` (현재 저장소에서 가능한 작업 범위 자동 판별)
+   - `check:tdz` (useEffect 의존성 TDZ/선언 순서 문제 탐지)
+   - `check:types` (`tsc --noEmit`)
+
+2) 릴리스 전 단일 검증 (고비용)
+- `npm run verify:release`
+- 포함 항목:
+   - `verify:fast`
+   - `build` (Vite production build)
+
+운영 원칙:
+- 작은 수정마다 `build`를 반복하지 않고, 묶음 작업 완료 시점에만 `verify:release` 1회 실행
+- 화면 오류 재현 시에도 먼저 `verify:fast`로 구조적 문제를 선차단 후 UI 점검
+
 1. Environment & Startup
    - [ ] `npm install` completes without errors.
    - [ ] `npm run dev` starts Vite and the app is reachable (default: http://localhost:5173).

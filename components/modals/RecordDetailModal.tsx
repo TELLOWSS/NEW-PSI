@@ -1263,6 +1263,18 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     };
 
     const handleExportHarnessAuditJson = () => {
+        const normalizedTransitionActions = harnessTransitionActions.map((item) => ({
+            action: item.action,
+            actionLabel: getHarnessTransitionActionLabel(item.action),
+            allowed: item.allowed,
+            nextWorkflowState: item.nextWorkflowState,
+            nextWorkflowStateLabel: item.nextWorkflowState ? getHarnessWorkflowStateLabel(item.nextWorkflowState) : '유지',
+            reason: item.reason,
+            normalizedReason: item.allowed
+                ? null
+                : normalizeHarnessTransitionReason(item.reason, getHarnessWorkflowStateLabel),
+        }));
+
         const payload = {
             exportedAt: new Date().toISOString(),
             recordId: record.id,
@@ -1281,7 +1293,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 analyzer: harnessAnalyzerSummary,
                 evaluator: harnessEvaluatorSummary,
                 latestApprovalDiff: harnessLatestApprovalDiff,
-                transitionActions: harnessTransitionActions,
+                transitionActions: normalizedTransitionActions,
             },
             versions: {
                 prompt: harnessPromptVersion,
@@ -1326,8 +1338,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             ['summary', 'analyzerSummary', harnessAnalyzerSummary.summary || '', typeof harnessAnalyzerSummary.confidence === 'number' ? `${Math.round(harnessAnalyzerSummary.confidence * 100)}%` : ''],
             ['summary', 'evaluatorFlags', String(harnessEvaluatorSummary.flags.length), harnessEvaluatorSummary.flags.join(' | ')],
             ['summary', 'evaluatorEvidenceSufficiency', String(harnessEvaluatorSummary.evidenceSufficiency ?? ''), `humanApproval=${typeof harnessEvaluatorSummary.requiresHumanApproval === 'boolean' ? (harnessEvaluatorSummary.requiresHumanApproval ? 'YES' : 'NO') : 'UNKNOWN'}`],
-            ['summary', 'allowedTransitionActions', String(harnessTransitionActionSummary.allowed.length), harnessTransitionActionSummary.allowed.map((item) => `${item.action}:${item.nextWorkflowState || '유지'}`).join(' | ')],
-            ['summary', 'blockedTransitionActions', String(harnessTransitionActionSummary.blocked.length), harnessTransitionActionSummary.blocked.map((item) => `${item.action}:${item.reason || '차단'}`).join(' | ')],
+            ['summary', 'allowedTransitionActions', String(harnessTransitionActionSummary.allowed.length), harnessTransitionActionSummary.allowed.map((item) => `${getHarnessTransitionActionLabel(item.action)}:${item.nextWorkflowState ? getHarnessWorkflowStateLabel(item.nextWorkflowState) : '유지'}`).join(' | ')],
+            ['summary', 'blockedTransitionActions', String(harnessTransitionActionSummary.blocked.length), harnessTransitionActionSummary.blocked.map((item) => `${getHarnessTransitionActionLabel(item.action)}:${normalizeHarnessTransitionReason(item.reason, getHarnessWorkflowStateLabel)}`).join(' | ')],
             ['version', 'promptVersion', harnessPromptVersion?.version || '', harnessPromptVersion?.checksum || ''],
             ['version', 'policyVersion', harnessPolicyVersion?.version || '', harnessPolicyVersion?.checksum || ''],
             ['version', 'promptChangeSummary', harnessVersionChangeSummary.prompt.join(' | '), ''],

@@ -11,6 +11,32 @@ import type {
 
 type HarnessTransitionAction = HarnessApprovalAction | 'reanalyze';
 
+const WORKFLOW_STATE_LABELS: Record<HarnessWorkflowState, string> = {
+    uploaded: '업로드됨',
+    ocr_validating: 'OCR 검증 중',
+    manual_review_required: '수동 검토 필요',
+    context_ready: '컨텍스트 준비',
+    first_pass_analyzing: '1차 분석 중',
+    evaluator_review: '검증 중',
+    awaiting_manager_approval: '관리자 승인 대기',
+    manager_revised: '관리자 수정 완료',
+    second_pass_analyzing: '2차 재분석 중',
+    completed: '완료',
+};
+
+const ACTION_LABELS: Record<HarnessTransitionAction, string> = {
+    approve: '승인',
+    reject: '반려',
+    'request-reanalysis': '재분석 요청',
+    reanalyze: '재분석 시작',
+};
+
+const getWorkflowStateLabel = (state: HarnessWorkflowState) => WORKFLOW_STATE_LABELS[state] || state;
+
+const buildActionBlockedMessage = (state: HarnessWorkflowState, action: HarnessTransitionAction) => {
+    return `${getWorkflowStateLabel(state)} 상태에서는 ${ACTION_LABELS[action]}을(를) 진행할 수 없습니다.`;
+};
+
 export interface HarnessTransitionActionStatus {
     action: HarnessTransitionAction;
     allowed: boolean;
@@ -97,24 +123,24 @@ export function assertHarnessApprovalActionAllowed(options: {
     const allowedStates = APPROVAL_ACTION_ALLOWED_STATES[options.action] || [];
 
     if (!allowedStates.includes(currentWorkflowState)) {
-        throw new HarnessTransitionError(`현재 상태(${currentWorkflowState})에서는 ${options.action} 전이를 진행하실 수 없습니다.`);
+        throw new HarnessTransitionError(buildActionBlockedMessage(currentWorkflowState, options.action));
     }
 
     if (options.action === 'approve' && currentApprovalState === 'APPROVED') {
-        throw new HarnessTransitionError('이미 승인 완료된 워크플로우입니다.');
+        throw new HarnessTransitionError('이미 승인 완료된 건은 다시 승인할 수 없습니다.');
     }
 
     if (currentWorkflowState === 'second_pass_analyzing' && options.currentSecondPassStatus === 'IN_PROGRESS') {
-        throw new HarnessTransitionError('2차 재분석이 진행 중일 때는 승인/반려/재분석 요청을 동시에 진행하실 수 없습니다.');
+        throw new HarnessTransitionError('2차 재분석 진행 중에는 승인·반려·재분석 요청을 함께 진행할 수 없습니다.');
     }
 
     if (options.action === 'reject' && currentWorkflowState === 'completed') {
-        throw new HarnessTransitionError('완료 상태에서는 반려 전이를 적용하실 수 없습니다. 먼저 재검토 상태로 되돌려 주셔야 합니다.');
+        throw new HarnessTransitionError('완료 상태는 바로 반려할 수 없습니다. 먼저 재검토 흐름으로 전환해 주세요.');
     }
 
     if (options.action === 'request-reanalysis') {
         if (currentWorkflowState === 'completed' || (currentApprovalState === 'APPROVED' && options.currentSecondPassStatus === 'DONE')) {
-            throw new HarnessTransitionError('완료 또는 승인 확정된 워크플로우에서는 바로 재분석을 시작하실 수 없습니다.');
+            throw new HarnessTransitionError('완료 또는 승인 확정 상태에서는 바로 재분석을 시작할 수 없습니다.');
         }
         if (currentWorkflowState === 'second_pass_analyzing' && options.currentSecondPassStatus === 'IN_PROGRESS') {
             throw new HarnessTransitionError('이미 2차 재분석이 진행 중입니다.');
@@ -129,7 +155,7 @@ export function assertHarnessApprovalCommentAllowed(options: {
     const normalizedComment = String(options.comment || '').trim();
 
     if ((options.action === 'reject' || options.action === 'request-reanalysis') && normalizedComment.length < 8) {
-        throw new HarnessTransitionError('반려 또는 재분석 요청 시에는 8자 이상의 판단 근거 코멘트가 필요합니다.');
+        throw new HarnessTransitionError('반려 또는 재분석 요청에는 8자 이상 판단 근거 코멘트가 필요합니다.');
     }
 }
 
@@ -145,15 +171,15 @@ export function assertHarnessReanalysisAllowed(options: {
     }
 
     if (!['awaiting_manager_approval', 'manager_revised', 'manual_review_required'].includes(currentWorkflowState)) {
-        throw new HarnessTransitionError(`현재 상태(${currentWorkflowState})에서는 재분석을 시작하실 수 없습니다.`);
+        throw new HarnessTransitionError(buildActionBlockedMessage(currentWorkflowState, 'reanalyze'));
     }
 
     if (options.currentApprovalState === 'APPROVED' || (currentWorkflowState === 'completed' && options.currentSecondPassStatus === 'DONE')) {
-        throw new HarnessTransitionError('승인 완료된 워크플로우는 바로 재분석으로 전이하실 수 없습니다.');
+        throw new HarnessTransitionError('승인 완료된 건은 바로 재분석으로 전환할 수 없습니다.');
     }
 
     if (currentWorkflowState === 'second_pass_analyzing' || options.currentSecondPassStatus === 'IN_PROGRESS') {
-        throw new HarnessTransitionError('이미 재분석이 진행 중이므로 중복 재분석을 시작하실 수 없습니다.');
+        throw new HarnessTransitionError('이미 재분석이 진행 중이므로 중복 재분석을 시작할 수 없습니다.');
     }
 }
 

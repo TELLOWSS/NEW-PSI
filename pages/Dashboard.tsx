@@ -674,7 +674,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         }>();
 
         filteredWorkerRecords.forEach((record) => {
-            const trade = String(record.jobField || '미지정 공종').trim() || '미지정 공종';
+            const trade = normalizeDashboardTrade(record.jobField) || '미지정 공종';
             const auditTrail = Array.isArray(record.auditTrail) ? record.auditTrail : [];
             const recentEntries = auditTrail.filter((entry) => {
                 const parsed = new Date(entry.timestamp).getTime();
@@ -1480,7 +1480,8 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             const riskDecision = inferHarnessRiskDecision(record);
             const approvalState = inferHarnessApprovalState(record, workflowState);
             const persistenceState = getHarnessPersistenceState(record);
-            const trade = String(record.jobField || '미지정 공종').trim() || '미지정 공종';
+            const trade = normalizeDashboardTrade(record.jobField) || '미지정 공종';
+            const selectedTrade = normalizeDashboardTrade(activeHarnessDrilldown.trade) || activeHarnessDrilldown.trade;
 
             switch (activeHarnessDrilldown.type) {
                 case 'approval-backlog':
@@ -1490,7 +1491,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 case 'fallback-pending':
                     return persistenceState === 'fallback' || persistenceState === 'pending';
                 case 'trade-hotspot':
-                    return trade === activeHarnessDrilldown.trade;
+                    return trade === selectedTrade;
                 default:
                     return false;
             }
