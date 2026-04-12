@@ -21,10 +21,20 @@ import {
     EVIDENCE_PACKAGE_README_FILE_NAME,
     EVIDENCE_PACKAGE_TEMPLATE_VERSION,
 } from '../utils/evidencePackageTemplate';
+import {
+    getVerificationItemLabel,
+    getVerificationSectionLabel,
+    VERIFICATION_HISTORY_HEADER_LABELS,
+} from '../utils/auditExportLabels';
 import { ensureFileSaver, ensureHtml2Canvas, ensureJsPdfConstructor, ensureJsZip } from '../utils/externalScripts';
 import { verifyEvidenceManifest, formatEvidenceVerificationSummary } from '../utils/evidenceVerificationUtils';
 import type { EvidenceManifest, EvidenceManifestVerificationResult } from '../utils/evidenceVerificationUtils';
-import { buildHarnessTransitionExecutionGuide, buildHarnessTransitionNarrative } from '../utils/harnessTransitionNarratives';
+import {
+    buildHarnessTransitionExecutionGuide,
+    buildHarnessTransitionNarrative,
+    formatHarnessTransitionStatusText,
+    getHarnessTransitionActionLabel,
+} from '../utils/harnessTransitionNarratives';
 import { getHarnessVersionDescriptor, getHarnessVersionDescriptors, type HarnessVersionDetailsBundle } from '../utils/harnessVersionCatalog';
 import { buildHarnessRuleImpactSummary } from '../utils/harnessRuleImpactSummary';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
@@ -979,6 +989,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
     const currentPreviewTransitionGuide = useMemo(() => {
         return buildHarnessTransitionExecutionGuide(previewWorkflowStatus?.transitionActions || [], getHarnessWorkflowStateLabel);
+    }, [previewWorkflowStatus]);
+
+    const currentPreviewTransitionActionLines = useMemo(() => {
+        const actions = previewWorkflowStatus?.transitionActions || [];
+        return actions.map((item) => ({
+            key: item.action,
+            text: `${item.allowed ? '가능' : '차단'} · ${getHarnessTransitionActionLabel(item.action)} · ${formatHarnessTransitionStatusText(item, getHarnessWorkflowStateLabel)}`,
+        }));
     }, [previewWorkflowStatus]);
 
     const verificationHarnessMetaSummary = useMemo(() => {
@@ -2071,6 +2089,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
         const payload = {
             exportedAt: new Date().toISOString(),
+            fieldLabels: {
+                section: '섹션 코드',
+                item: '항목 코드',
+                value: '값',
+                detail: '세부 설명',
+                sectionLabelHint: 'CSV 내보내기의 sectionLabel을 참고하세요.',
+                itemLabelHint: 'CSV 내보내기의 itemLabel을 참고하세요.',
+            },
             manifestFileName: verificationManifestFile?.name || 'manifest.json',
             summaryText: verificationSummary,
             primaryFailureReason,
@@ -2114,7 +2140,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         const recommendedAction = getVerificationFailureRecommendedAction(primaryFailureReason);
 
         const rows: string[][] = [
-            ['section', 'item', 'value', 'detail'],
+            ['section', 'sectionLabel', 'item', 'itemLabel', 'value', 'detail'],
             ['summary', 'isValid', verificationResult.isValid ? 'SUCCESS' : 'FAILED', verificationSummary.replace(/\n/g, ' | ')],
             ['summary', 'primaryFailureReason', primaryFailureReason, ''],
             ['summary', 'recommendedAction', recommendedAction, ''],
@@ -2164,7 +2190,20 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             rows.push(['metadataMismatch', mismatch.jsonFile, mismatch.field, `${mismatch.expected} => ${mismatch.actual}`]);
         });
 
-        const csv = rows.map((row) => row.map(escapeCsvCell).join(',')).join('\n');
+        const localizedRows = rows.map((row, index) => {
+            if (index === 0) return row;
+            const [section, item, value, detail] = row;
+            return [
+                section,
+                getVerificationSectionLabel(section),
+                item,
+                getVerificationItemLabel(item),
+                value,
+                detail,
+            ];
+        });
+
+        const csv = localizedRows.map((row) => row.map(escapeCsvCell).join(',')).join('\n');
         downloadTextFile(
             `PSI_Evidence_Verification_${new Date().toISOString().slice(0, 10)}.csv`,
             '\uFEFF' + csv,
@@ -2179,7 +2218,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         }
 
         const rows: string[][] = [
-            ['verifiedAt', 'manifestFileName', 'packageName', 'result', 'templateConformanceStatus', 'templateConformanceDescription', 'totalEntries', 'verifiedEntries', 'missingJsonFiles', 'invalidJsonFiles', 'hashMismatches', 'missingHarnessSnapshots', 'metadataMismatches', 'packageSummaryHashMatched', 'primaryFailureReason', 'recommendedAction', 'summaryText'],
+            VERIFICATION_HISTORY_HEADER_LABELS.map((header) => `${header.key}(${header.label})`),
             ...verificationHistory.map((entry) => [
                 entry.verifiedAt,
                 entry.manifestFileName,
@@ -3472,6 +3511,13 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                             <p className="mt-2 text-sm font-black text-slate-800">{currentPreviewTransitionNarrative.title}</p>
                                             <p className="mt-1 text-xs font-bold leading-relaxed text-slate-700">{currentPreviewTransitionNarrative.description}</p>
                                             <p className="mt-3 text-[11px] font-black text-slate-600">{currentPreviewTransitionNarrative.action}</p>
+                                            {currentPreviewTransitionActionLines.length > 0 ? (
+                                                <div className="mt-3 space-y-1">
+                                                    {currentPreviewTransitionActionLines.map((line) => (
+                                                        <p key={line.key} className="text-[11px] font-semibold leading-relaxed text-slate-700">• {line.text}</p>
+                                                    ))}
+                                                </div>
+                                            ) : null}
                                             <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-2">
                                                 <NoticeCallout
                                                     variant={currentPreviewTransitionGuide.variant}

@@ -44,8 +44,13 @@ import {
 import { buildHarnessRuleImpactSummary } from '../../utils/harnessRuleImpactSummary';
 import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
 import {
+    getHarnessAuditItemLabel,
+    getHarnessAuditSectionLabel,
+} from '../../utils/auditExportLabels';
+import {
     buildHarnessTransitionExecutionGuide,
     buildHarnessTransitionNarrative,
+    formatHarnessTransitionStatusText,
     getHarnessTransitionActionLabel,
     normalizeHarnessTransitionReason,
 } from '../../utils/harnessTransitionNarratives';
@@ -1277,6 +1282,14 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
         const payload = {
             exportedAt: new Date().toISOString(),
+            fieldLabels: {
+                section: '섹션 코드',
+                item: '항목 코드',
+                value: '값',
+                detail: '세부 설명',
+                sectionLabelHint: 'CSV 내보내기의 sectionLabel을 참고하세요.',
+                itemLabelHint: 'CSV 내보내기의 itemLabel을 참고하세요.',
+            },
             recordId: record.id,
             workerName: record.name,
             workflowRunId: record.workflowRunId || '',
@@ -1323,7 +1336,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
     const handleExportHarnessAuditCsv = () => {
         const rows: string[][] = [
-            ['section', 'item', 'value', 'detail'],
+            ['section', 'sectionLabel', 'item', 'itemLabel', 'value', 'detail'],
             ['record', 'recordId', record.id, ''],
             ['record', 'workerName', record.name, ''],
             ['record', 'workflowRunId', record.workflowRunId || '', ''],
@@ -1338,8 +1351,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             ['summary', 'analyzerSummary', harnessAnalyzerSummary.summary || '', typeof harnessAnalyzerSummary.confidence === 'number' ? `${Math.round(harnessAnalyzerSummary.confidence * 100)}%` : ''],
             ['summary', 'evaluatorFlags', String(harnessEvaluatorSummary.flags.length), harnessEvaluatorSummary.flags.join(' | ')],
             ['summary', 'evaluatorEvidenceSufficiency', String(harnessEvaluatorSummary.evidenceSufficiency ?? ''), `humanApproval=${typeof harnessEvaluatorSummary.requiresHumanApproval === 'boolean' ? (harnessEvaluatorSummary.requiresHumanApproval ? 'YES' : 'NO') : 'UNKNOWN'}`],
-            ['summary', 'allowedTransitionActions', String(harnessTransitionActionSummary.allowed.length), harnessTransitionActionSummary.allowed.map((item) => `${getHarnessTransitionActionLabel(item.action)}:${item.nextWorkflowState ? getHarnessWorkflowStateLabel(item.nextWorkflowState) : '유지'}`).join(' | ')],
-            ['summary', 'blockedTransitionActions', String(harnessTransitionActionSummary.blocked.length), harnessTransitionActionSummary.blocked.map((item) => `${getHarnessTransitionActionLabel(item.action)}:${normalizeHarnessTransitionReason(item.reason, getHarnessWorkflowStateLabel)}`).join(' | ')],
+            ['summary', 'allowedTransitionActions', String(harnessTransitionActionSummary.allowed.length), harnessTransitionActionSummary.allowed.map((item) => `${getHarnessTransitionActionLabel(item.action)}:${formatHarnessTransitionStatusText(item, getHarnessWorkflowStateLabel)}`).join(' | ')],
+            ['summary', 'blockedTransitionActions', String(harnessTransitionActionSummary.blocked.length), harnessTransitionActionSummary.blocked.map((item) => `${getHarnessTransitionActionLabel(item.action)}:${formatHarnessTransitionStatusText(item, getHarnessWorkflowStateLabel)}`).join(' | ')],
             ['version', 'promptVersion', harnessPromptVersion?.version || '', harnessPromptVersion?.checksum || ''],
             ['version', 'policyVersion', harnessPolicyVersion?.version || '', harnessPolicyVersion?.checksum || ''],
             ['version', 'promptChangeSummary', harnessVersionChangeSummary.prompt.join(' | '), ''],
@@ -1383,7 +1396,20 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             ]);
         });
 
-        const csv = rows.map((row) => row.map(escapeCsvCell).join(',')).join('\n');
+        const localizedRows = rows.map((row, index) => {
+            if (index === 0) return row;
+            const [section, item, value, detail] = row;
+            return [
+                section,
+                getHarnessAuditSectionLabel(section),
+                item,
+                getHarnessAuditItemLabel(item),
+                value,
+                detail,
+            ];
+        });
+
+        const csv = localizedRows.map((row) => row.map(escapeCsvCell).join(',')).join('\n');
         downloadTextFile(
             `PSI_Harness_Audit_${record.id}_${new Date().toISOString().slice(0, 10)}.csv`,
             '\uFEFF' + csv,
@@ -2424,7 +2450,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                             {harnessTransitionActions.map((item) => (
                                                                 <div key={item.action} className={`rounded-xl border px-3 py-2 text-[11px] font-bold ${item.allowed ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
                                                                     <p className="font-black">{getHarnessTransitionActionLabel(item.action)}</p>
-                                                                    <p className="mt-1">{item.allowed ? `가능 · 다음 상태 ${item.nextWorkflowState ? getHarnessWorkflowStateLabel(item.nextWorkflowState) : '유지'}` : normalizeHarnessTransitionReason(item.reason, getHarnessWorkflowStateLabel)}</p>
+                                                                    <p className="mt-1">{formatHarnessTransitionStatusText(item, getHarnessWorkflowStateLabel)}</p>
                                                                 </div>
                                                             ))}
                                                         </div>

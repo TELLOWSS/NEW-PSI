@@ -19,6 +19,15 @@
 - 저장소 컨텍스트 사전점검 자동화 추가
   - 파일: `scripts/check-repo-context.cjs`, `package.json`, `VERIFICATION.md`
   - 내용: `check:context`를 `verify:fast` 선행 단계로 추가해 경로 불일치(예: 서버 하네스 경로 누락) 시 작업 범위를 먼저 고정
+- 액션/차단 사유 문구 공통 포맷 잠금(UI+CSV)
+  - 파일: `utils/harnessTransitionNarratives.ts`, `components/modals/RecordDetailModal.tsx`
+  - 내용: `formatHarnessTransitionStatusText` 공통 포맷 함수를 추가하고 Record Detail UI/감사 CSV가 동일 문구를 사용하도록 통일
+- Reports Action Readiness 상세 라인 공통 포맷 적용
+  - 파일: `pages/Reports.tsx`
+  - 내용: Action Readiness 카드에 액션별 상태 라인을 추가하고 `formatHarnessTransitionStatusText` 기준으로 문구를 통일
+- 감사 내보내기 CSV/JSON 필드명 한글 라벨 병행 통일
+  - 파일: `utils/auditExportLabels.ts`, `components/modals/RecordDetailModal.tsx`, `pages/Reports.tsx`
+  - 내용: section/item 코드에 대응하는 한글 라벨(`sectionLabel`, `itemLabel`)을 CSV에 추가하고 JSON에도 라벨 가이드를 포함
 
 ## 2) 현재 운영 기본 명령
 - 빠른 사전확인: `npm run verify:fast`

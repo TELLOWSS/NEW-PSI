@@ -96,6 +96,17 @@ export const formatHarnessTransitionActionLine = (
     return `${actionLabel}${action.nextWorkflowState ? ` → ${nextStateLabel}` : ''}`;
 };
 
+export const formatHarnessTransitionStatusText = (
+    action: HarnessWorkflowTransitionAction,
+    getWorkflowStateLabel: (state: NonNullable<HarnessWorkflowTransitionAction['nextWorkflowState']>) => string,
+): string => {
+    if (action.allowed) {
+        return `가능 · 다음 상태 ${action.nextWorkflowState ? getWorkflowStateLabel(action.nextWorkflowState) : '유지'}`;
+    }
+
+    return normalizeHarnessTransitionReason(action.reason, getWorkflowStateLabel);
+};
+
 export const buildHarnessTransitionNarrative = (
     actions: HarnessWorkflowTransitionAction[],
     getWorkflowStateLabel: (state: NonNullable<HarnessWorkflowTransitionAction['nextWorkflowState']>) => string,
