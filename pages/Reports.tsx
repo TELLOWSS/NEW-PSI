@@ -27,7 +27,7 @@ import {
     VERIFICATION_HISTORY_HEADER_LABELS,
 } from '../utils/auditExportLabels';
 import { buildPsiExportBaseName, buildPsiExportFileName } from '../utils/exportFileNaming';
-import { buildExportTimestampMeta } from '../utils/exportTimestamp';
+import { buildExportTimestampMeta, formatIsoKstTimestamp } from '../utils/exportTimestamp';
 import { ensureFileSaver, ensureHtml2Canvas, ensureJsPdfConstructor, ensureJsZip } from '../utils/externalScripts';
 import { verifyEvidenceManifest, formatEvidenceVerificationSummary } from '../utils/evidenceVerificationUtils';
 import type { EvidenceManifest, EvidenceManifestVerificationResult } from '../utils/evidenceVerificationUtils';
@@ -1025,6 +1025,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         return {
             totalRecords: manifest.summary.totalRecords || manifest.files.length,
             linkedRunCount,
+            generatedAt: String(manifest.generatedAt || ''),
+            generatedAtKst: String(manifest.generatedAtKst || manifest.summary.generatedAtKst || ''),
             promptVersions,
             policyVersions,
             ruleVersions,
@@ -2138,6 +2140,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             manifestRuleImpactSummary: verificationRuleImpactSummary,
             manifestPackageName: verificationManifestPreview?.packageName || null,
             manifestGeneratedAt: verificationManifestPreview?.generatedAt || null,
+            manifestGeneratedAtKst: verificationManifestPreview?.generatedAtKst || verificationManifestPreview?.summary?.generatedAtKst || null,
         };
 
         downloadTextFile(
@@ -2192,6 +2195,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         if (verificationHarnessMetaSummary) {
             rows.push(
                 ['manifest', 'packageName', verificationManifestPreview?.packageName || '', ''],
+                ['manifest', 'generatedAt', verificationHarnessMetaSummary.generatedAt || '', verificationHarnessMetaSummary.generatedAtKst || ''],
                 ['manifest', 'templateVersion', verificationHarnessMetaSummary.templateVersion, ''],
                 ['manifest', 'jsonSchemaVersion', verificationHarnessMetaSummary.jsonSchemaVersion, ''],
                 ['manifest', 'readmeFileName', verificationHarnessMetaSummary.readmeFileName, ''],
@@ -2839,7 +2843,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                                     <td className="px-3 py-2 font-black">{item.count}회</td>
                                                     <td className="px-3 py-2">{failureShare}%</td>
                                                     <td className="px-3 py-2 leading-relaxed">{getVerificationFailureRecommendedAction(item.reason)}</td>
-                                                    <td className="px-3 py-2 whitespace-nowrap">{new Date(item.latestAt).toLocaleString()}</td>
+                                                    <td className="px-3 py-2 whitespace-nowrap">{formatIsoKstTimestamp(item.latestAt)}</td>
                                                 </tr>
                                             );
                                         })}
@@ -2877,7 +2881,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                                 <td className="px-3 py-2">{item.invalidJsonFiles}</td>
                                                 <td className="px-3 py-2 font-semibold">{item.primaryFailureReason}</td>
                                                 <td className="px-3 py-2 leading-relaxed">{getVerificationFailureRecommendedAction(item.primaryFailureReason)}</td>
-                                                <td className="px-3 py-2 whitespace-nowrap">{new Date(item.lastVerifiedAt).toLocaleString()}</td>
+                                                <td className="px-3 py-2 whitespace-nowrap">{formatIsoKstTimestamp(item.lastVerifiedAt)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -2933,7 +2937,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 <tbody className="text-slate-700">
                                     {filteredVerificationHistory.map((entry) => (
                                         <tr key={entry.id} className="border-t border-slate-100 align-top">
-                                            <td className="px-3 py-2 whitespace-nowrap">{new Date(entry.verifiedAt).toLocaleString()}</td>
+                                            <td className="px-3 py-2 whitespace-nowrap">{formatIsoKstTimestamp(entry.verifiedAt)}</td>
                                             <td className="px-3 py-2 break-all font-semibold">{entry.manifestFileName}</td>
                                             <td className="px-3 py-2 break-all">{entry.packageName || '-'}</td>
                                             <td className="px-3 py-2">
@@ -3025,6 +3029,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">템플릿 버전</p>
                             <p className="mt-1 text-sm font-black text-slate-800">{verificationHarnessMetaSummary.templateVersion}</p>
                             <p className="mt-1 text-[11px] font-bold text-slate-600 break-all">Schema {verificationHarnessMetaSummary.jsonSchemaVersion}</p>
+                            <p className="mt-1 text-[10px] font-bold text-slate-500 break-all">생성시각 {formatIsoKstTimestamp(verificationHarnessMetaSummary.generatedAt)}</p>
                         </div>
                         <div className="rounded-xl border border-violet-200 bg-violet-50/80 px-4 py-3">
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-500">프롬프트/정책</p>

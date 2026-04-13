@@ -16,6 +16,8 @@ Use this checklist to manually verify the main functionality after running the a
 - `npm run verify:fast`
 - 포함 항목:
    - `check:context` (현재 저장소에서 가능한 작업 범위 자동 판별)
+   - `check:hotspot` (`pages/Reports.tsx`, `utils/exportTimestamp.ts` 구문 손상 + `Reports`의 `toLocaleString()` 회귀 차단)
+   - 예외 정책: 레거시 `README 생성시각` 1줄만 WARN 허용(2건 이상이면 즉시 실패)
    - `check:tdz` (useEffect 의존성 TDZ/선언 순서 문제 탐지)
    - `check:types` (`tsc --noEmit`)
 
@@ -28,6 +30,7 @@ Use this checklist to manually verify the main functionality after running the a
 운영 원칙:
 - 작은 수정마다 `build`를 반복하지 않고, 묶음 작업 완료 시점에만 `verify:release` 1회 실행
 - 화면 오류 재현 시에도 먼저 `verify:fast`로 구조적 문제를 선차단 후 UI 점검
+- 대용량 TSX 파일 동기화 시 자동 치환(`Set-Content` + 광역 replace)보다 블록 단위 수동 패치 우선
 
 1. Environment & Startup
    - [ ] `npm install` completes without errors.

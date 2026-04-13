@@ -66,3 +66,11 @@ export const buildExportTimestampMeta = (date = new Date()): ExportTimestampMeta
         kst,
     };
 };
+
+export const formatIsoKstTimestamp = (value: string | null | undefined): string => {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return String(value);
+    const meta = buildExportTimestampMeta(parsed);
+    return `${meta.iso} / ${meta.kst}`;
+};
