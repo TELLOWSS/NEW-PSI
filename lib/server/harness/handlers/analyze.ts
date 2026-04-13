@@ -8,7 +8,7 @@ import { buildHarnessDecision } from '../router.js';
 import { evaluateHarnessRules } from '../ruleEngine.js';
 import { buildDeterministicAnalyzerOutput } from '../agents/analyzer.js';
 import { buildDeterministicEvaluatorOutput } from '../agents/evaluator.js';
-import { validateAnalyzerOutput } from '../outputValidators.js';
+import { validateAnalyzerOutput, validateEvaluatorOutput } from '../outputValidators.js';
 import { persistHarnessAnalysis } from '../persistence.js';
 import type { HarnessAnalyzeRequest } from '../workflowTypes.js';
 
@@ -30,9 +30,11 @@ export default async function handler(req: any, res: any) {
         const analyzerValidation = validateAnalyzerOutput(analyzer);
 
         const evaluator = buildDeterministicEvaluatorOutput({
+
             analyzer,
             validation,
         });
+        const evaluatorValidation = validateEvaluatorOutput(evaluator);
 
         const { decision, overrides } = evaluateHarnessRules({
             payload,
@@ -83,6 +85,7 @@ export default async function handler(req: any, res: any) {
                 analyzer,
                 analyzerValidation,
                 evaluator,
+                evaluatorValidation,
                 decision: decisionResult,
                 overrides,
                 context,

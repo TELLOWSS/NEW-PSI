@@ -91,6 +91,15 @@
 - ✅ `package.json` — `"test": "vitest run"`, `"test:watch": "vitest"` 스크립트 추가
 - ✅ verify:release PASS
 
+### 🗓️ 2026-04-13 배치 4 — 검증/연동 정합성 보강
+- ✅ `outputValidators.ts` — `validateEvaluatorOutput` 추가 (evidenceSufficiency/flags/requiresHumanApproval 검증)
+- ✅ `handlers/analyze.ts` — `evaluatorValidation` 계산 및 응답 페이로드 포함
+- ✅ `handlers/reanalyze.ts` — analyzer/evaluator validation 결과 동시 반환
+- ✅ `components/modals/RecordDetailModal.tsx` — `inferHarnessWorkflowState`에서 `workflowState` 우선 사용 + `reviewStatus: REJECTED` 시 `manager_revised` 추론
+- ✅ `components/modals/RecordDetailModal.tsx` — version descriptor 계산 시 `ruleVersions`를 string[]로 명시 협소화
+- ✅ `pages/Reports.tsx` — `extractMessage` 호출 시그니처 정합성 수정(단일 인자 + fallback)
+- ✅ 변경 파일 5개 단위 진단(`get_errors`) 무에러 확인
+
 ---
 
 ## A-4. 핵심 버그픽스 요약 (재발 방지용)
@@ -139,8 +148,9 @@ npm run test
 
 ### ⚪ P5 — 추가 개선 (선택)
 - `contextProviders/dynamicContext.ts` — 날씨 정규화 필드 추가 검토 완료 (rainfallMm 이미 올바르게 매핑됨)
-- `outputValidators.ts` — evaluator output 검증 함수 추가 (현재 analyzer only)
-- UI 연동: `OcrAnalysis.tsx`, `WorkerManagement.tsx`의 workflowState/riskDecision 표시 하네스 상태와 연동 확인
+- `outputValidators.ts` — evaluator output 검증 함수 추가 완료
+- UI 연동: `Reports.tsx`, `RecordDetailModal.tsx` 하네스 상태 표시 정합성 보강 완료
+- 잔여 UI 연동 점검: `OcrAnalysis.tsx`, `WorkerManagement.tsx` (별도 대형 변경 중이라 충돌 가능성 있음)
 
 ---
 

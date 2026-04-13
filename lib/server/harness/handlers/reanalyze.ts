@@ -8,6 +8,7 @@ import { assertHarnessReanalysisAllowed, buildHarnessDecision, HarnessTransition
 import { evaluateHarnessRules } from '../ruleEngine.js';
 import { buildDeterministicAnalyzerOutput } from '../agents/analyzer.js';
 import { buildDeterministicEvaluatorOutput } from '../agents/evaluator.js';
+import { validateAnalyzerOutput, validateEvaluatorOutput } from '../outputValidators.js';
 import type { HarnessAnalyzeRequest, HarnessDecisionResult } from '../workflowTypes.js';
 
 export default async function handler(req: any, res: any) {
@@ -43,7 +44,9 @@ export default async function handler(req: any, res: any) {
         const context = buildHarnessContextSnapshot(payload);
         const prompt = buildHarnessPromptSnapshot(payload, context);
         const analyzer = buildDeterministicAnalyzerOutput(payload, context);
+        const analyzerValidation = validateAnalyzerOutput(analyzer);
         const evaluator = buildDeterministicEvaluatorOutput({ analyzer, validation });
+        const evaluatorValidation = validateEvaluatorOutput(evaluator);
         const { decision, overrides } = evaluateHarnessRules({ payload, validation, context, evaluation: evaluator });
         const decisionResult = buildHarnessDecision({ validation, evaluation: evaluator, decision, overrides });
         const auditEvents = buildHarnessAuditEvents({
@@ -86,7 +89,9 @@ export default async function handler(req: any, res: any) {
                 revisedBy: payload.revisedBy || null,
                 reanalysisType: 'second-pass',
                 analyzer,
+                analyzerValidation,
                 evaluator,
+                evaluatorValidation,
                 persistence,
                 decision: reanalysisDecision,
                 overrides,

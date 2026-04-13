@@ -140,6 +140,7 @@ const getHarnessWorkflowBadgeVariant = (state: HarnessWorkflowState): React.Comp
         case 'completed': return 'emeraldSoft';
         case 'awaiting_manager_approval':
         case 'second_pass_analyzing': return 'violetSoft';
+        case 'manager_revised': return 'amberSoft';
         case 'manual_review_required': return 'roseSoft';
         default: return 'slateSoft';
     }
@@ -815,7 +816,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             } catch (error) {
                 if (!disposed) {
                     setPreviewWorkflowStatus(null);
-                    setPreviewWorkflowStatusError(extractMessage(error, '하네스 버전 정보를 불러오지 못했습니다.'));
+                    setPreviewWorkflowStatusError(extractMessage(error) || '하네스 버전 정보를 불러오지 못했습니다.');
                 }
             } finally {
                 if (!disposed) {
@@ -855,7 +856,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             } catch (error) {
                 if (!disposed) {
                     setVerificationManifestPreview(null);
-                    setVerificationManifestPreviewError(extractMessage(error, 'Manifest 미리보기를 불러오지 못했습니다.'));
+                    setVerificationManifestPreviewError(extractMessage(error) || 'Manifest 미리보기를 불러오지 못했습니다.');
                 }
             }
         };

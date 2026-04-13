@@ -182,7 +182,10 @@ const buildReassessmentAuditNote = (before: WorkerRecord, updated: Partial<Worke
 };
 
 const inferHarnessWorkflowState = (record: Partial<WorkerRecord>): HarnessWorkflowState => {
+    // harness 실 저장값 우선 사용
+    if (record.workflowState) return record.workflowState;
     if (record.secondPassStatus === 'IN_PROGRESS') return 'second_pass_analyzing';
+    if (record.reviewStatus === 'REJECTED') return 'manager_revised';
     if (record.reviewStatus === 'PENDING' || record.approvalStatus === 'PENDING') return 'awaiting_manager_approval';
     if (record.ocrErrorType || record.secondPassStatus === 'NEEDED') return 'manual_review_required';
     if (record.secondPassStatus === 'DONE' || record.reviewStatus === 'APPROVED' || record.approvalStatus === 'APPROVED') return 'completed';
@@ -631,7 +634,13 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             return harnessVersionDetails;
         }
 
-        const ruleVersions = Array.from(new Set(harnessOverrides.map((override) => override.ruleVersion).filter(Boolean)));
+        const ruleVersions = Array.from(
+            new Set(
+                harnessOverrides
+                    .map((override) => override.ruleVersion)
+                    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0),
+            ),
+        );
         return {
             prompt: getHarnessVersionDescriptors([harnessPromptVersion?.version]),
             policy: getHarnessVersionDescriptors([harnessPolicyVersion?.version]),

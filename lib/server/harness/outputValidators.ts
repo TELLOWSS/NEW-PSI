@@ -36,3 +36,31 @@ export function validateAnalyzerOutput(output: Partial<HarnessAnalyzerOutput>): 
         issues,
     };
 }
+
+export function validateEvaluatorOutput(output: Partial<import('./workflowTypes.js').HarnessEvaluationOutput>): { ok: boolean; issues: string[] } {
+    const issues: string[] = [];
+
+    if (typeof output.evidenceSufficiency !== 'number') {
+        issues.push('evidence_sufficiency 수치가 필요합니다.');
+    } else if (output.evidenceSufficiency < 0 || output.evidenceSufficiency > 100) {
+        issues.push(`evidenceSufficiency는 0~100 사이여야 합니다. (현재값: ${output.evidenceSufficiency})`);
+    }
+
+    if (typeof output.requiresHumanApproval !== 'boolean') {
+        issues.push('requiresHumanApproval boolean값이 필요합니다.');
+    }
+
+    if (!Array.isArray(output.flags)) {
+        issues.push('flags 배열이 필요합니다.');
+    } else {
+        const invalidFlag = output.flags.find((f) => typeof f !== 'string' || !f.trim());
+        if (invalidFlag !== undefined) {
+            issues.push('flags 배열 항목은 비어있지 않은 문자열이어야 합니다.');
+        }
+    }
+
+    return {
+        ok: issues.length === 0,
+        issues,
+    };
+}
