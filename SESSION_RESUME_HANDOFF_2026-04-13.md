@@ -28,6 +28,18 @@
 - 감사 내보내기 CSV/JSON 필드명 한글 라벨 병행 통일
   - 파일: `utils/auditExportLabels.ts`, `components/modals/RecordDetailModal.tsx`, `pages/Reports.tsx`
   - 내용: section/item 코드에 대응하는 한글 라벨(`sectionLabel`, `itemLabel`)을 CSV에 추가하고 JSON에도 라벨 가이드를 포함
+- 내보내기 파일명 규칙 표준화
+  - 파일: `utils/exportFileNaming.ts`, `components/modals/RecordDetailModal.tsx`, `pages/Reports.tsx`
+  - 내용: PDF/ZIP/CSV/JSON 파일명과 ZIP 루트 폴더명을 공통 토큰 규칙(`PSI_{scope}_{YYYYMMDD[_HHMMSS]}`)으로 통일
+- 내보내기 payload 메타(source/version/scope) 공통화
+  - 파일: `components/modals/RecordDetailModal.tsx`, `pages/Reports.tsx`
+  - 내용: 감사/검증 JSON에 `exportMeta` 추가, CSV에도 `exportSource/exportVersion/exportScope` 행(히스토리는 컬럼) 추가
+- 내보내기 시각 포맷 ISO/KST 병행 통일
+  - 파일: `utils/exportTimestamp.ts`, `components/modals/RecordDetailModal.tsx`, `pages/Reports.tsx`
+  - 내용: JSON에 `exportedAt` + `exportedAtKst`를 함께 저장하고 CSV/히스토리 CSV에도 ISO/KST 시각을 병행 기록
+- 증빙 패키지 파일명/manifest/readme 생성시각 기준 통일
+  - 파일: `utils/exportTimestamp.ts`, `utils/exportFileNaming.ts`, `utils/evidencePackageTemplate.ts`, `utils/evidenceVerificationUtils.ts`, `pages/Reports.tsx`
+  - 내용: 내보내기 파일명 날짜/시간 토큰을 KST 기준으로 통일하고 ZIP `manifest.json`/`README.txt`/`evidence_index.csv` 메타에 `generatedAtKst`를 병행 기록
 
 ## 2) 현재 운영 기본 명령
 - 빠른 사전확인: `npm run verify:fast`

@@ -26,6 +26,8 @@ import {
     getVerificationSectionLabel,
     VERIFICATION_HISTORY_HEADER_LABELS,
 } from '../utils/auditExportLabels';
+import { buildPsiExportBaseName, buildPsiExportFileName } from '../utils/exportFileNaming';
+import { buildExportTimestampMeta } from '../utils/exportTimestamp';
 import { ensureFileSaver, ensureHtml2Canvas, ensureJsPdfConstructor, ensureJsZip } from '../utils/externalScripts';
 import { verifyEvidenceManifest, formatEvidenceVerificationSummary } from '../utils/evidenceVerificationUtils';
 import type { EvidenceManifest, EvidenceManifestVerificationResult } from '../utils/evidenceVerificationUtils';
@@ -1455,7 +1457,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     addImage: (...args: unknown[]) => void;
                     save: (filename: string) => void;
                 },
-                `PSI_Report_${currentPreviewRecord.name}_${currentPreviewRecord.jobField}.pdf`,
+                buildPsiExportFileName({
+                    tokens: ['Report', currentPreviewRecord.name, currentPreviewRecord.jobField],
+                    extension: 'pdf',
+                }),
                 'JPEG',
                 0.88
             );
@@ -1508,8 +1513,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         setBulkProgress({ current: 0, total: filteredRecords.length });
 
         const zip = new JSZip();
-        const timestamp = new Date().toISOString().slice(0,10).replace(/-/g, '');
-        const folderName = `PSI_${selectedTeam}_${timestamp}`;
+        const folderName = buildPsiExportBaseName({
+            tokens: ['Report', selectedTeam],
+            includeTime: true,
+        });
         const folder = zip.folder(folderName);
         
         // [IMPROVED] Track failed records for user feedback
@@ -1724,7 +1731,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
         try {
             const zip = new JSZip();
-            const folderName = `PSI_Evidence_${selectedTeam}_${dateFilterLabel}_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`;
+            const folderName = buildPsiExportBaseName({
+                tokens: ['Evidence', selectedTeam, dateFilterLabel],
+                includeTime: true,
+            });
             const root = zip.folder(folderName);
             const pdfFolder = root.folder('pdf');
             const jsonFolder = root.folder('json');
@@ -1757,7 +1767,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 approvalNarrative?: string | null;
                 overrideNarrative?: string | null;
             }> = [];
-            const packageGeneratedAt = new Date().toISOString();
+            const packageGeneratedTimestamp = buildExportTimestampMeta();
+            const packageGeneratedAt = packageGeneratedTimestamp.iso;
+            const packageGeneratedAtKst = packageGeneratedTimestamp.kst;
 
             const csvHeader = [
                 'dateFilterPreset','dateRangeStart','dateRangeEnd',
@@ -1807,6 +1819,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 const jsonPayload = {
                     packageMeta: buildEvidencePackageJsonMeta({
                         generatedAt: packageGeneratedAt,
+                        generatedAtKst: packageGeneratedAtKst,
                         teamFilter: selectedTeam,
                         levelFilter: filterLevel,
                         dateFilterPreset: dateFilterLabel,
@@ -1936,6 +1949,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             const csvMetaLines = [
                 `# packageName=${folderName}`,
                 `# generatedAt=${packageGeneratedAt}`,
+                `# generatedAtKst=${packageGeneratedAtKst}`,
                 `# teamFilter=${selectedTeam}`,
                 `# levelFilter=${filterLevel}`,
                 `# dateFilterPreset=${dateFilterLabel}`,
@@ -1946,7 +1960,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
             root.file('evidence_index.csv', '\uFEFF' + [...csvMetaLines, ...csvRows].join('\n'));
             root.file(EVIDENCE_PACKAGE_README_FILE_NAME, buildEvidencePackageReadme({
-                generatedAtLabel: new Date().toLocaleString(),
+                generatedAtIso: packageGeneratedAt,
+                generatedAtKst: packageGeneratedAtKst,
                 totalRecords: filteredRecords.length,
                 dateFilterPreset: dateFilterLabel,
                 dateRangeStart: resolvedDateRange.startLabel,
@@ -1964,6 +1979,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             const manifest = buildEvidenceManifest({
                 packageName: folderName,
                 generatedAt: packageGeneratedAt,
+                generatedAtKst: packageGeneratedAtKst,
                 totalRecords: filteredRecords.length,
                 teamFilter: selectedTeam,
                 levelFilter: filterLevel,
@@ -2065,7 +2081,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         const csv = [header, ...rows].map((line) => line.map(escapeCsvCell).join(',')).join('\n');
         const bom = '\uFEFF';
         downloadTextFile(
-            `PSI_Evidence_${selectedTeam}_${dateFilterLabel}_${new Date().toISOString().slice(0, 10)}.csv`,
+            buildPsiExportFileName({ tokens: ['Evidence', selectedTeam, dateFilterLabel], extension: 'csv' }),
             bom + csv,
             'text/csv;charset=utf-8;'
         );
@@ -2086,9 +2102,17 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             packageSummaryHashMatched: verificationResult.packageSummaryHashMatched,
         });
         const recommendedAction = getVerificationFailureRecommendedAction(primaryFailureReason);
+        const exportTimestamp = buildExportTimestampMeta();
+        const exportMeta = {
+            source: 'evidence_verification_export',
+            version: 'v1',
+            scope: `manifest:${verificationManifestFile?.name || 'manifest.json'}`,
+        };
 
         const payload = {
-            exportedAt: new Date().toISOString(),
+            exportedAt: exportTimestamp.iso,
+            exportedAtKst: exportTimestamp.kst,
+            exportMeta,
             fieldLabels: {
                 section: '섹션 코드',
                 item: '항목 코드',
@@ -2117,7 +2141,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         };
 
         downloadTextFile(
-            `PSI_Evidence_Verification_${new Date().toISOString().slice(0, 10)}.json`,
+            buildPsiExportFileName({ tokens: ['Evidence', 'Verification'], extension: 'json' }),
             JSON.stringify(payload, null, 2),
             'application/json;charset=utf-8;'
         );
@@ -2138,9 +2162,19 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             packageSummaryHashMatched: verificationResult.packageSummaryHashMatched,
         });
         const recommendedAction = getVerificationFailureRecommendedAction(primaryFailureReason);
+        const exportTimestamp = buildExportTimestampMeta();
+        const exportMeta = {
+            source: 'evidence_verification_export',
+            version: 'v1',
+            scope: `manifest:${verificationManifestFile?.name || 'manifest.json'}`,
+        };
 
         const rows: string[][] = [
             ['section', 'sectionLabel', 'item', 'itemLabel', 'value', 'detail'],
+            ['summary', 'exportedAt', exportTimestamp.iso, exportTimestamp.kst],
+            ['summary', 'exportSource', exportMeta.source, ''],
+            ['summary', 'exportVersion', exportMeta.version, ''],
+            ['summary', 'exportScope', exportMeta.scope, ''],
             ['summary', 'isValid', verificationResult.isValid ? 'SUCCESS' : 'FAILED', verificationSummary.replace(/\n/g, ' | ')],
             ['summary', 'primaryFailureReason', primaryFailureReason, ''],
             ['summary', 'recommendedAction', recommendedAction, ''],
@@ -2205,7 +2239,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
         const csv = localizedRows.map((row) => row.map(escapeCsvCell).join(',')).join('\n');
         downloadTextFile(
-            `PSI_Evidence_Verification_${new Date().toISOString().slice(0, 10)}.csv`,
+            buildPsiExportFileName({ tokens: ['Evidence', 'Verification'], extension: 'csv' }),
             '\uFEFF' + csv,
             'text/csv;charset=utf-8;'
         );
@@ -2217,8 +2251,22 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             return;
         }
 
+        const exportMeta = {
+            source: 'evidence_verification_history_export',
+            version: 'v1',
+            scope: `historyCount:${verificationHistory.length}`,
+        };
+        const exportTimestamp = buildExportTimestampMeta();
+
         const rows: string[][] = [
-            VERIFICATION_HISTORY_HEADER_LABELS.map((header) => `${header.key}(${header.label})`),
+            [
+                ...VERIFICATION_HISTORY_HEADER_LABELS.map((header) => `${header.key}(${header.label})`),
+                'exportSource(내보내기 소스)',
+                'exportVersion(내보내기 버전)',
+                'exportScope(내보내기 범위)',
+                'exportedAt(ISO)',
+                'exportedAtKst(KST)',
+            ],
             ...verificationHistory.map((entry) => [
                 entry.verifiedAt,
                 entry.manifestFileName,
@@ -2237,12 +2285,17 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 entry.primaryFailureReason,
                 getVerificationFailureRecommendedAction(entry.primaryFailureReason),
                 entry.summaryText.replace(/\n/g, ' | '),
+                exportMeta.source,
+                exportMeta.version,
+                exportMeta.scope,
+                exportTimestamp.iso,
+                exportTimestamp.kst,
             ]),
         ];
 
         const csv = rows.map((row) => row.map(escapeCsvCell).join(',')).join('\n');
         downloadTextFile(
-            `PSI_Evidence_Verification_History_${new Date().toISOString().slice(0, 10)}.csv`,
+            buildPsiExportFileName({ tokens: ['Evidence', 'Verification', 'History'], extension: 'csv' }),
             '\uFEFF' + csv,
             'text/csv;charset=utf-8;'
         );

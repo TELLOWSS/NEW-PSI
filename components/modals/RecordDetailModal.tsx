@@ -47,6 +47,8 @@ import {
     getHarnessAuditItemLabel,
     getHarnessAuditSectionLabel,
 } from '../../utils/auditExportLabels';
+import { buildPsiExportFileName } from '../../utils/exportFileNaming';
+import { buildExportTimestampMeta } from '../../utils/exportTimestamp';
 import {
     buildHarnessTransitionExecutionGuide,
     buildHarnessTransitionNarrative,
@@ -1268,6 +1270,13 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     };
 
     const handleExportHarnessAuditJson = () => {
+        const exportTimestamp = buildExportTimestampMeta();
+        const exportMeta = {
+            source: 'harness_audit_export',
+            version: 'v1',
+            scope: `record:${record.id}`,
+        };
+
         const normalizedTransitionActions = harnessTransitionActions.map((item) => ({
             action: item.action,
             actionLabel: getHarnessTransitionActionLabel(item.action),
@@ -1281,7 +1290,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         }));
 
         const payload = {
-            exportedAt: new Date().toISOString(),
+            exportedAt: exportTimestamp.iso,
+            exportedAtKst: exportTimestamp.kst,
+            exportMeta,
             fieldLabels: {
                 section: '섹션 코드',
                 item: '항목 코드',
@@ -1328,13 +1339,14 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         };
 
         downloadTextFile(
-            `PSI_Harness_Audit_${record.id}_${new Date().toISOString().slice(0, 10)}.json`,
+            buildPsiExportFileName({ tokens: ['Harness', 'Audit', record.id], extension: 'json' }),
             JSON.stringify(payload, null, 2),
             'application/json;charset=utf-8;'
         );
     };
 
     const handleExportHarnessAuditCsv = () => {
+        const exportTimestamp = buildExportTimestampMeta();
         const rows: string[][] = [
             ['section', 'sectionLabel', 'item', 'itemLabel', 'value', 'detail'],
             ['record', 'recordId', record.id, ''],
@@ -1344,6 +1356,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             ['record', 'riskDecision', record.riskDecision || inferHarnessRiskDecision(record), ''],
             ['record', 'approvalState', record.approvalState || inferHarnessApprovalState(record, record.workflowState || inferHarnessWorkflowState(record)), ''],
             ['record', 'secondPassStatus', record.secondPassStatus || 'NONE', ''],
+            ['summary', 'exportedAt', exportTimestamp.iso, exportTimestamp.kst],
+            ['summary', 'exportSource', 'harness_audit_export', ''],
+            ['summary', 'exportVersion', 'v1', ''],
+            ['summary', 'exportScope', `record:${record.id}`, ''],
             ['persistence', 'persisted', typeof isHarnessPersisted === 'boolean' ? (isHarnessPersisted ? 'YES' : 'NO') : 'UNKNOWN', harnessStatusWarning || ''],
             ['summary', 'overrideCount', String(harnessOverrides.length), ''],
             ['summary', 'approvalCount', String(harnessApprovals.length), ''],
@@ -1411,7 +1427,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
         const csv = localizedRows.map((row) => row.map(escapeCsvCell).join(',')).join('\n');
         downloadTextFile(
-            `PSI_Harness_Audit_${record.id}_${new Date().toISOString().slice(0, 10)}.csv`,
+            buildPsiExportFileName({ tokens: ['Harness', 'Audit', record.id], extension: 'csv' }),
             '\uFEFF' + csv,
             'text/csv;charset=utf-8;'
         );

@@ -8,6 +8,7 @@ export type EvidencePackageVersionLineBuilder = (version: string) => string;
 
 export const buildEvidencePackageJsonMeta = (input: {
     generatedAt: string;
+    generatedAtKst?: string;
     teamFilter: string;
     levelFilter: string;
     dateFilterPreset: string;
@@ -17,6 +18,7 @@ export const buildEvidencePackageJsonMeta = (input: {
     templateVersion: EVIDENCE_PACKAGE_TEMPLATE_VERSION,
     jsonSchemaVersion: EVIDENCE_PACKAGE_JSON_SCHEMA_VERSION,
     generatedAt: input.generatedAt,
+    generatedAtKst: input.generatedAtKst,
     teamFilter: input.teamFilter,
     levelFilter: input.levelFilter,
     dateFilterPreset: input.dateFilterPreset,
@@ -25,7 +27,8 @@ export const buildEvidencePackageJsonMeta = (input: {
 });
 
 export const buildEvidencePackageReadme = (input: {
-    generatedAtLabel: string;
+    generatedAtIso: string;
+    generatedAtKst?: string;
     totalRecords: number;
     dateFilterPreset: string;
     dateRangeStart: string;
@@ -47,7 +50,8 @@ export const buildEvidencePackageReadme = (input: {
         'PSI 증빙 패키지 ZIP',
         `템플릿 버전: ${EVIDENCE_PACKAGE_TEMPLATE_VERSION}`,
         `JSON 스키마 버전: ${EVIDENCE_PACKAGE_JSON_SCHEMA_VERSION}`,
-        `생성일시: ${input.generatedAtLabel}`,
+        `생성일시(ISO): ${input.generatedAtIso}`,
+        `생성일시(KST): ${input.generatedAtKst || '-'}`,
         `대상 수: ${input.totalRecords}`,
         `기간 프리셋: ${input.dateFilterPreset}`,
         `적용 시작일: ${input.dateRangeStart}`,
@@ -78,6 +82,7 @@ export const buildEvidencePackageReadme = (input: {
 export const buildEvidenceManifest = (input: {
     packageName: string;
     generatedAt: string;
+    generatedAtKst?: string;
     totalRecords: number;
     teamFilter: string;
     levelFilter: string;
@@ -89,6 +94,7 @@ export const buildEvidenceManifest = (input: {
 }): EvidenceManifest => ({
     packageName: input.packageName,
     generatedAt: input.generatedAt,
+    generatedAtKst: input.generatedAtKst,
     summary: {
         totalRecords: input.totalRecords,
         teamFilter: input.teamFilter,
@@ -96,6 +102,7 @@ export const buildEvidenceManifest = (input: {
         dateFilterPreset: input.dateFilterPreset,
         dateRangeStart: input.dateRangeStart,
         dateRangeEnd: input.dateRangeEnd,
+        generatedAtKst: input.generatedAtKst,
         jsonHashAlgorithm: 'SHA-256',
         packageJsonIndexSha256: input.packageJsonIndexSha256,
         packageJsonIndexSourceFormat: 'jsonPath:jsonSha256 per line',

@@ -28,6 +28,7 @@ export interface EvidenceManifestFileEntry {
 export interface EvidenceManifest {
     packageName: string;
     generatedAt: string;
+    generatedAtKst?: string;
     summary: {
         totalRecords: number;
         teamFilter: string;
@@ -35,6 +36,7 @@ export interface EvidenceManifest {
         dateFilterPreset: string;
         dateRangeStart: string;
         dateRangeEnd: string;
+        generatedAtKst?: string;
         jsonHashAlgorithm?: string;
         packageJsonIndexSha256?: string;
         packageJsonIndexSourceFormat?: string;
