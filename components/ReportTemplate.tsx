@@ -164,9 +164,23 @@ const LABELS: Record<string, Record<string, string>> = {
     '캄보디아': { strengths: 'ចំណុចខ្លាំង (강점)', weaknesses: 'ចំណុចខ្សោយ (취약점)', trends: 'និន្នាការ (안전 추이)', verdict: 'ការវិនិច្ឆ័យ (종합진단)', pictogram: 'ស្លាកសញ្ញា (필수 안전 표지)', original: 'ឯកសារដើម', cert: 'វិញ្ញាបនបត្រសុវត្ថិភាព' },
     '인도네시아': { strengths: 'Kekuatan (강점)', weaknesses: 'Kelemahan (취약점)', trends: 'Tren (안전 추이)', verdict: 'Diagnosis (종합진단)', pictogram: 'Rambu Wajib (필수 안전 표지)', original: 'Asli', cert: 'Sertifikat Keselamatan' },
     '몽골': { strengths: 'Давуу тал (강점)', weaknesses: 'Сул тал (취약점)', trends: 'Хандлага (안전 추이)', verdict: 'Дүгнэлт (종합진단)', pictogram: 'Анхааруулах тэмдэг (필수 안전 표지)', original: 'Эх хувь', cert: 'Аюулгүй байдлын гэрчилгээ' },
+    '카자흐스탄': { strengths: 'Күшті жақтары (강점)', weaknesses: 'Әлсіз тұстары (취약점)', trends: 'Қауіпсіздік тренді (안전 추이)', verdict: 'Кешенді диагностика (종합진단)', pictogram: 'Қауіпсіздік белгілері (필수 안전 표지)', original: 'Түпнұсқа', cert: 'Қауіпсіздік құзыреті сертификаты' },
     '대한민국': { strengths: '역량 강점 (Strengths)', weaknesses: '개선 권고 (Focus Areas)', trends: '성과 추이 (Trends)', verdict: '종합 안전 진단 (Comprehensive Diagnosis)', pictogram: '직무 맞춤형 필수 안전 표지 (Safety Signs)', original: '수기 기록 원본 (Original Record)', cert: '안전 역량 인증 및 분석서' },
     'default': { strengths: 'Strengths', weaknesses: 'Focus Areas', trends: 'Trends', verdict: 'Comprehensive Diagnosis', pictogram: 'Essential Safety Signs', original: 'Original Record', cert: 'Certificate of Safety Competence' }
 };
+
+const FRONT_TUNING_LOCKED_THRESHOLDS = {
+    strictMin: 3000,
+    compactMin: 2400,
+    balancedMin: 1800,
+} as const;
+
+const FRONT_TUNING_LOCKED_LIMITS = {
+    strict: { entryLimit: 2, paragraphLimit: 2, koCharLimit: 48, nativeCharLimit: 42 },
+    compact: { entryLimit: 2, paragraphLimit: 2, koCharLimit: 64, nativeCharLimit: 56 },
+    balanced: { entryLimit: 3, paragraphLimit: 2, koCharLimit: 76, nativeCharLimit: 66 },
+    rich: { entryLimit: 3, paragraphLimit: 3, koCharLimit: 92, nativeCharLimit: 82 },
+} as const;
 
 const getLabels = (nationality: string) => {
     const nation = (nationality || '').trim();
@@ -180,6 +194,7 @@ const getLabels = (nationality: string) => {
     if (nation.includes('캄보디아')) return LABELS['캄보디아'];
     if (nation.includes('인도네시아')) return LABELS['인도네시아'];
     if (nation.includes('몽골')) return LABELS['몽골'];
+    if (nation.includes('카자흐')) return LABELS['카자흐스탄'];
     // 한국인 처리: 대한민국, 한국, Korea 등 모두 지원 (최종적으로 '대한민국'으로 정규화)
     if (nation.includes('한국') || nation.includes('korea') || nation === '대한민국') return LABELS['대한민국'];
     return LABELS['default'];
@@ -632,41 +647,233 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         verdictNative: getNarrativeWrapWidth(record.nationality, isWeaknessContentDense, 'verdictNative'),
         verdictKo: getNarrativeWrapWidth(record.nationality, isWeaknessContentDense, 'verdictKo'),
     }), [record.nationality, isWeaknessContentDense]);
+    const appendixTuningProfile = useMemo(() => {
+        const scoreLength = scoreReasonEntries.map((entry) => `${entry.text} ${entry.nativeText || ''}`).join(' ').length;
+        const strengthLength = strengthEntries.map((entry) => `${entry.text} ${entry.nativeText || ''}`).join(' ').length;
+        const improvementLength = improvementEntries.map((entry) => `${entry.text} ${entry.nativeText || ''}`).join(' ').length;
+        const coachingLength = [actionableCoachingText, record.actionable_coaching_native].filter(Boolean).join(' ').length;
+        const verdictLength = [record.aiInsights, record.aiInsights_native].filter(Boolean).join(' ').length;
+        const totalLength = scoreLength + strengthLength + improvementLength + coachingLength + verdictLength;
+
+        const entryCount = scoreReasonEntries.length + strengthEntries.length + improvementEntries.length;
+        const paragraphCount = coachingKoParagraphs.length + verdictKoParagraphs.length;
+        const hasNativeLayer = !isKorean && (
+            scoreReasonEntries.some((entry) => Boolean(entry.nativeText)) ||
+            strengthEntries.some((entry) => Boolean(entry.nativeText)) ||
+            improvementEntries.some((entry) => Boolean(entry.nativeText)) ||
+            coachingNativeParagraphs.length > 0 ||
+            verdictNativeParagraphs.length > 0
+        );
+
+        const pressureScore =
+            totalLength +
+            (entryCount * 70) +
+            (paragraphCount * 60) +
+            (hasNativeLayer ? 140 : 0);
+
+        if (pressureScore >= 2800) {
+            return {
+                key: 'strict' as const,
+                entryLimit: 2,
+                paragraphLimit: 2,
+                koCharLimit: 155,
+                nativeCharLimit: 130,
+                koLineClamp: 2,
+                nativeLineClamp: 1,
+                timelineLineClamp: 2,
+            };
+        }
+
+        if (pressureScore >= 2200) {
+            return {
+                key: 'compact' as const,
+                entryLimit: 3,
+                paragraphLimit: 3,
+                koCharLimit: 175,
+                nativeCharLimit: 145,
+                koLineClamp: 2,
+                nativeLineClamp: 2,
+                timelineLineClamp: 2,
+            };
+        }
+
+        if (pressureScore >= 1500) {
+            return {
+                key: 'balanced' as const,
+                entryLimit: 3,
+                paragraphLimit: 3,
+                koCharLimit: 220,
+                nativeCharLimit: 175,
+                koLineClamp: 3,
+                nativeLineClamp: 2,
+                timelineLineClamp: 3,
+            };
+        }
+
+        return {
+            key: 'rich' as const,
+            entryLimit: 3,
+            paragraphLimit: 3,
+            koCharLimit: 240,
+            nativeCharLimit: 210,
+            koLineClamp: 3,
+            nativeLineClamp: 3,
+            timelineLineClamp: 3,
+        };
+    }, [
+        scoreReasonEntries,
+        strengthEntries,
+        improvementEntries,
+        actionableCoachingText,
+        record.actionable_coaching_native,
+        record.aiInsights,
+        record.aiInsights_native,
+        coachingKoParagraphs.length,
+        verdictKoParagraphs.length,
+        coachingNativeParagraphs.length,
+        verdictNativeParagraphs.length,
+        isKorean,
+    ]);
+    const frontTuningProfile = useMemo(() => {
+        const scoreLength = scoreReasonEntries.map((entry) => `${entry.text} ${entry.nativeText || ''}`).join(' ').length;
+        const strengthLength = strengthEntries.map((entry) => `${entry.text} ${entry.nativeText || ''}`).join(' ').length;
+        const improvementLength = improvementEntries.map((entry) => `${entry.text} ${entry.nativeText || ''}`).join(' ').length;
+        const coachingLength = [actionableCoachingText, record.actionable_coaching_native].filter(Boolean).join(' ').length;
+        const verdictLength = [record.aiInsights, record.aiInsights_native].filter(Boolean).join(' ').length;
+        const totalLength = scoreLength + strengthLength + improvementLength + coachingLength + verdictLength;
+
+        const entryCount = scoreReasonEntries.length + strengthEntries.length + improvementEntries.length;
+        const paragraphCount = coachingKoParagraphs.length + verdictKoParagraphs.length;
+        const hasNativeLayer = !isKorean && (
+            scoreReasonEntries.some((entry) => Boolean(entry.nativeText)) ||
+            strengthEntries.some((entry) => Boolean(entry.nativeText)) ||
+            improvementEntries.some((entry) => Boolean(entry.nativeText)) ||
+            coachingNativeParagraphs.length > 0 ||
+            verdictNativeParagraphs.length > 0
+        );
+
+        const pressureScore =
+            totalLength +
+            (entryCount * 70) +
+            (paragraphCount * 60) +
+            (hasNativeLayer ? 140 : 0);
+
+        if (pressureScore >= FRONT_TUNING_LOCKED_THRESHOLDS.strictMin) {
+            return {
+                key: 'strict' as const,
+                ...FRONT_TUNING_LOCKED_LIMITS.strict,
+            };
+        }
+
+        if (pressureScore >= FRONT_TUNING_LOCKED_THRESHOLDS.compactMin) {
+            return {
+                key: 'compact' as const,
+                ...FRONT_TUNING_LOCKED_LIMITS.compact,
+            };
+        }
+
+        if (pressureScore >= FRONT_TUNING_LOCKED_THRESHOLDS.balancedMin) {
+            return {
+                key: 'balanced' as const,
+                ...FRONT_TUNING_LOCKED_LIMITS.balanced,
+            };
+        }
+
+        return {
+            key: 'rich' as const,
+            ...FRONT_TUNING_LOCKED_LIMITS.rich,
+        };
+    }, [
+        scoreReasonEntries,
+        strengthEntries,
+        improvementEntries,
+        actionableCoachingText,
+        record.actionable_coaching_native,
+        record.aiInsights,
+        record.aiInsights_native,
+        coachingKoParagraphs.length,
+        verdictKoParagraphs.length,
+        isKorean,
+    ]);
+    const frontEntryLimit = frontTuningProfile.entryLimit;
+    const frontParagraphLimit = frontTuningProfile.paragraphLimit;
+    const frontKoCharLimit = frontTuningProfile.koCharLimit;
+    const frontNativeCharLimit = frontTuningProfile.nativeCharLimit;
+    const frontEntryLineClampStyle = createLineClampStyle(frontTuningProfile.key === 'rich' ? 3 : 2);
+    const frontCoachingLineClampStyle = createLineClampStyle(frontTuningProfile.key === 'rich' ? 3 : 2);
+    const frontVerdictLineClampStyle = createLineClampStyle(
+        frontTuningProfile.key === 'strict' ? 5 : frontTuningProfile.key === 'compact' ? 6 : frontTuningProfile.key === 'balanced' ? 7 : 8,
+    );
     const frontStrengthEntries = useMemo(
-        () => strengthEntries.slice(0, 2).map((entry) => limitNarrativeEntry(entry, isWeaknessContentDense ? 40 : 50, isWeaknessContentDense ? 36 : 42)),
-        [strengthEntries, isWeaknessContentDense],
+        () => strengthEntries.slice(0, frontEntryLimit).map((entry) => limitNarrativeEntry(entry, frontKoCharLimit, frontNativeCharLimit)),
+        [strengthEntries, frontEntryLimit, frontKoCharLimit, frontNativeCharLimit],
     );
     const frontImprovementEntries = useMemo(
-        () => improvementEntries.slice(0, 2).map((entry) => limitNarrativeEntry(entry, isWeaknessContentDense ? 42 : 52, isWeaknessContentDense ? 38 : 44)),
-        [improvementEntries, isWeaknessContentDense],
+        () => improvementEntries.slice(0, frontEntryLimit).map((entry) => limitNarrativeEntry(entry, frontKoCharLimit, frontNativeCharLimit)),
+        [improvementEntries, frontEntryLimit, frontKoCharLimit, frontNativeCharLimit],
     );
     const frontCoachingText = useMemo(
-        () => wrapNarrativeText(limitNarrativeText(actionableCoachingText, isWeaknessContentDense ? 92 : 118), isWeaknessContentDense ? 30 : 34),
-        [actionableCoachingText, isWeaknessContentDense],
+        () => wrapNarrativeText(limitNarrativeText(actionableCoachingText, frontKoCharLimit + 30), frontKoCharLimit > 60 ? 34 : 30),
+        [actionableCoachingText, frontKoCharLimit],
     );
     const frontCoachingNativeText = useMemo(
-        () => coachingNativeParagraphs.length > 0 ? wrapNarrativeText(limitNarrativeText(coachingNativeParagraphs[0], isWeaknessContentDense ? 92 : 118), isWeaknessContentDense ? 30 : 34) : '',
-        [coachingNativeParagraphs, isWeaknessContentDense],
+        () => coachingNativeParagraphs.length > 0 ? wrapNarrativeText(limitNarrativeText(coachingNativeParagraphs[0], frontNativeCharLimit + 30), frontNativeCharLimit > 52 ? 34 : 30) : '',
+        [coachingNativeParagraphs, frontNativeCharLimit],
     );
     const frontCoachingSummaryParagraphs = useMemo(
-        () => buildNarrativeParagraphs(frontCoachingNativeText || frontCoachingText).slice(0, 2),
-        [frontCoachingNativeText, frontCoachingText],
+        () => buildNarrativeParagraphs(frontCoachingNativeText || frontCoachingText).slice(0, frontParagraphLimit),
+        [frontCoachingNativeText, frontCoachingText, frontParagraphLimit],
     );
     const frontVerdictNativeText = useMemo(
-        () => wrapNarrativeText(limitNarrativeText(record.aiInsights_native, isWeaknessContentDense ? 118 : 150), narrativeWrapWidth.verdictNative),
-        [record.aiInsights_native, isWeaknessContentDense, narrativeWrapWidth.verdictNative],
+        () => wrapNarrativeText(limitNarrativeText(record.aiInsights_native, frontNativeCharLimit + 15), narrativeWrapWidth.verdictNative),
+        [record.aiInsights_native, frontNativeCharLimit, narrativeWrapWidth.verdictNative],
     );
     const frontVerdictKoText = useMemo(
-        () => wrapNarrativeText(limitNarrativeText(record.aiInsights, isWeaknessContentDense ? 124 : 164), narrativeWrapWidth.verdictKo),
-        [record.aiInsights, isWeaknessContentDense, narrativeWrapWidth.verdictKo],
+        () => wrapNarrativeText(limitNarrativeText(record.aiInsights, frontKoCharLimit + 20), narrativeWrapWidth.verdictKo),
+        [record.aiInsights, frontKoCharLimit, narrativeWrapWidth.verdictKo],
     );
     const frontVerdictPrimaryText = useMemo(
         () => (isKorean ? frontVerdictKoText : (frontVerdictNativeText || frontVerdictKoText)),
         [isKorean, frontVerdictKoText, frontVerdictNativeText],
     );
     const frontScoreReasonEntries = useMemo(
-        () => scoreReasonEntries.slice(0, 2).map((entry) => limitNarrativeEntry(entry, isWeaknessContentDense ? 38 : 50, isWeaknessContentDense ? 34 : 42)),
-        [scoreReasonEntries, isWeaknessContentDense],
+        () => scoreReasonEntries.slice(0, frontEntryLimit).map((entry) => limitNarrativeEntry(entry, frontKoCharLimit, frontNativeCharLimit)),
+        [scoreReasonEntries, frontEntryLimit, frontKoCharLimit, frontNativeCharLimit],
+    );
+    const appendixEntryLimit = appendixTuningProfile.entryLimit;
+    const appendixParagraphLimit = appendixTuningProfile.paragraphLimit;
+    const appendixKoCharLimit = appendixTuningProfile.koCharLimit;
+    const appendixNativeCharLimit = appendixTuningProfile.nativeCharLimit;
+    const appendixKoLineClampStyle = createLineClampStyle(appendixTuningProfile.koLineClamp);
+    const appendixNativeLineClampStyle = createLineClampStyle(appendixTuningProfile.nativeLineClamp);
+    const appendixTimelineLineClampStyle = createLineClampStyle(appendixTuningProfile.timelineLineClamp);
+    const appendixScoreReasonEntries = useMemo(
+        () => scoreReasonEntries.slice(0, appendixEntryLimit).map((entry) => limitNarrativeEntry(entry, appendixKoCharLimit, appendixNativeCharLimit)),
+        [scoreReasonEntries, appendixEntryLimit, appendixKoCharLimit, appendixNativeCharLimit],
+    );
+    const appendixStrengthEntries = useMemo(
+        () => strengthEntries.slice(0, appendixEntryLimit).map((entry) => limitNarrativeEntry(entry, appendixKoCharLimit, appendixNativeCharLimit)),
+        [strengthEntries, appendixEntryLimit, appendixKoCharLimit, appendixNativeCharLimit],
+    );
+    const appendixImprovementEntries = useMemo(
+        () => improvementEntries.slice(0, appendixEntryLimit).map((entry) => limitNarrativeEntry(entry, appendixKoCharLimit, appendixNativeCharLimit)),
+        [improvementEntries, appendixEntryLimit, appendixKoCharLimit, appendixNativeCharLimit],
+    );
+    const appendixCoachingKoParagraphs = useMemo(
+        () => buildNarrativeParagraphs(limitNarrativeText(actionableCoachingText, appendixKoCharLimit)).slice(0, appendixParagraphLimit),
+        [actionableCoachingText, appendixKoCharLimit, appendixParagraphLimit],
+    );
+    const appendixCoachingNativeParagraphs = useMemo(
+        () => buildNarrativeParagraphs(limitNarrativeText(record.actionable_coaching_native, appendixNativeCharLimit)).slice(0, appendixParagraphLimit),
+        [record.actionable_coaching_native, appendixNativeCharLimit, appendixParagraphLimit],
+    );
+    const appendixVerdictKoParagraphs = useMemo(
+        () => buildNarrativeParagraphs(limitNarrativeText(record.aiInsights, appendixKoCharLimit)).slice(0, appendixParagraphLimit),
+        [record.aiInsights, appendixKoCharLimit, appendixParagraphLimit],
+    );
+    const appendixVerdictNativeParagraphs = useMemo(
+        () => buildNarrativeParagraphs(limitNarrativeText(record.aiInsights_native, appendixNativeCharLimit)).slice(0, appendixParagraphLimit),
+        [record.aiInsights_native, appendixNativeCharLimit, appendixParagraphLimit],
     );
     const workerNameClassName = useMemo(() => {
         const nameLength = (record.name || '').trim().length;
@@ -706,7 +913,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </div>
                         </div>
                         <h1 className="text-lg font-serif font-black text-slate-900 uppercase">Certificate of Safety Competence</h1>
-                        <p className="text-[10px] font-bold text-slate-500 tracking-widest">{labels.cert}</p>
+                        <p className="text-[10.5px] font-black text-slate-600 tracking-[0.08em]">{labels.cert}</p>
                     </div>
 
                     {isKorean ? (
@@ -854,7 +1061,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         {frontScoreReasonEntries.map((entry, i) => (
                                             <li key={`score-reason-${i}`} className="flex items-start gap-1 text-[8.5px] leading-[1.35] text-slate-700">
                                                 <span className="mt-[2px] text-slate-400">•</span>
-                                                <span style={createLineClampStyle(2)}>
+                                                <span style={frontEntryLineClampStyle}>
                                                     <HighlightedText text={entry.nativeText || entry.text} />
                                                 </span>
                                             </li>
@@ -878,7 +1085,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     {frontCoachingSummaryParagraphs.map((paragraph, index) => (
                                         <li key={`coaching-summary-${index}`} className="flex items-start gap-1">
                                             <span className="mt-[2px] text-amber-500">•</span>
-                                            <span style={createLineClampStyle(2)}><HighlightedText text={paragraph} /></span>
+                                            <span style={frontCoachingLineClampStyle}><HighlightedText text={paragraph} /></span>
                                         </li>
                                     ))}
                                 </ul>
@@ -898,7 +1105,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         {frontStrengthEntries.map((entry, i) => (
                                             <li key={`strength-ko-${i}`} className="text-[9px] leading-[1.35] text-slate-800 flex items-start gap-1 min-w-0">
                                                 <CheckBulletIcon />
-                                                <span className="min-w-0 break-words leading-[1.35]" style={createLineClampStyle(2)}><HighlightedText text={entry.text} /></span>
+                                                <span className="min-w-0 break-words leading-[1.35]" style={frontEntryLineClampStyle}><HighlightedText text={entry.text} /></span>
                                             </li>
                                         ))}
                                     </ul>
@@ -913,7 +1120,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         {frontImprovementEntries.map((entry, i) => (
                                             <li key={`improvement-ko-${i}`} className="text-[9px] leading-[1.35] text-rose-900 flex items-start gap-1 min-w-0">
                                                 <WarningBulletIcon />
-                                                <span className="min-w-0 break-words leading-[1.35]" style={createLineClampStyle(2)}><HighlightedText text={entry.text} /></span>
+                                                <span className="min-w-0 break-words leading-[1.35]" style={frontEntryLineClampStyle}><HighlightedText text={entry.text} /></span>
                                             </li>
                                         ))}
                                     </ul>
@@ -924,14 +1131,14 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         <span className="w-1.5 h-1.5 rounded-full bg-slate-800 shrink-0"></span>
                                         {labels.verdict}
                                     </h3>
-                                    <p className="text-[8.5px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line" style={createLineClampStyle(6)}>
+                                    <p className="text-[8.5px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line" style={frontVerdictLineClampStyle}>
                                         <HighlightedText text={frontVerdictPrimaryText} />
                                     </p>
                                     <NextActionChecklist
                                         title="현장 실천 체크"
                                         items={frontImprovementEntries.slice(0, 2).map((entry, i) => ({
                                             key: `action-ko-${i}`,
-                                            content: <span style={createLineClampStyle(2)}><HighlightedText text={entry.text} /></span>,
+                                            content: <span style={frontEntryLineClampStyle}><HighlightedText text={entry.text} /></span>,
                                         }))}
                                     />
                                     {reassessmentTrail.length > 0 && (
@@ -999,7 +1206,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                             <li key={`strength-${i}`}>
                                                 <div className="text-[8.5px] leading-[1.35] text-slate-800 flex items-start gap-1 min-w-0">
                                                     <CheckBulletIcon className="text-emerald-600" />
-                                                    <span className="min-w-0 break-words font-bold leading-[1.35]" style={createLineClampStyle(2)}>
+                                                    <span className="min-w-0 break-words font-bold leading-[1.35]" style={frontEntryLineClampStyle}>
                                                         <HighlightedText text={entry.nativeText || entry.text} />
                                                     </span>
                                                 </div>
@@ -1018,7 +1225,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                             <li key={`improvement-${i}`}>
                                                 <div className="text-[8.5px] leading-[1.35] text-rose-900 flex items-start gap-1 min-w-0">
                                                     <WarningBulletIcon />
-                                                    <span className="min-w-0 break-words font-bold leading-[1.35]" style={createLineClampStyle(2)}>
+                                                    <span className="min-w-0 break-words font-bold leading-[1.35]" style={frontEntryLineClampStyle}>
                                                         <HighlightedText text={entry.nativeText || entry.text} />
                                                     </span>
                                                 </div>
@@ -1032,14 +1239,14 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         <span className="w-1.5 h-1.5 rounded-full bg-slate-800 shrink-0"></span>
                                         {labels.verdict}
                                     </h3>
-                                    <p className="text-[8.5px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line" style={createLineClampStyle(6)}>
+                                    <p className="text-[8.5px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line" style={frontVerdictLineClampStyle}>
                                         <HighlightedText text={frontVerdictPrimaryText} />
                                     </p>
                                     <NextActionChecklist
                                         title="Action checklist"
                                         items={frontImprovementEntries.slice(0, 2).map((entry, i) => ({
                                             key: `action-${i}`,
-                                            content: <span style={createLineClampStyle(2)}><HighlightedText text={entry.nativeText || entry.text} /></span>,
+                                            content: <span style={frontEntryLineClampStyle}><HighlightedText text={entry.nativeText || entry.text} /></span>,
                                         }))}
                                     />
                                     {reassessmentTrail.length > 0 && (
@@ -1118,12 +1325,12 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <WhyThisResultPanel
                             title="Formal score reasoning"
                             badge={<StatusBadge variant="slateSoft" className="px-2.5 py-1 text-[8px]">검증용 상세 기술</StatusBadge>}
-                            entries={scoreReasonEntries.slice(0, 3).map((entry, index) => ({
+                            entries={appendixScoreReasonEntries.map((entry, index) => ({
                                 key: `score-detail-${index}`,
                                 content: (
                                     <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-                                        {!isKorean && entry.nativeText ? <p className="text-[8.5px] font-bold leading-[1.5] text-slate-800">{entry.nativeText}</p> : null}
-                                        <p className={`leading-[1.5] ${!isKorean && entry.nativeText ? 'mt-1 border-t border-slate-200 pt-1 text-[8px] text-slate-500' : 'text-[8.5px] text-slate-700'}`}>
+                                        {!isKorean && entry.nativeText ? <p className="text-[8.5px] font-bold leading-[1.5] text-slate-800 break-words" style={appendixNativeLineClampStyle}>{entry.nativeText}</p> : null}
+                                        <p className={`leading-[1.5] break-words ${!isKorean && entry.nativeText ? 'mt-1 border-t border-slate-200 pt-1 text-[8px] text-slate-500' : 'text-[8.5px] text-slate-700'}`} style={appendixKoLineClampStyle}>
                                             {!isKorean && entry.nativeText ? <span className="mr-1 text-[7px] font-black text-slate-300">[KO]</span> : null}
                                             <HighlightedText text={entry.text} />
                                         </p>
@@ -1131,8 +1338,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 ),
                             }))}
                             emptyState="상세 채점 근거 데이터가 아직 등록되지 않았습니다."
-                            className="col-span-7 rounded-[18px] border border-slate-200 bg-white/95 p-3.5 shadow-sm min-h-0"
+                            className="col-span-7 rounded-[18px] border border-slate-200 bg-white/95 p-3.5 shadow-sm min-h-0 overflow-hidden flex flex-col"
                             titleClassName="text-[11px] font-black uppercase tracking-[0.16em] text-slate-700"
+                            listClassName="mt-3 space-y-1.5 overflow-hidden"
                             emptyStateClassName="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-[9px] font-bold text-slate-400"
                         >
 
@@ -1175,14 +1383,14 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     <span className="text-[8px] font-black text-slate-400">양면 인쇄 상세 해설</span>
                                 </div>
                                 <div className="mt-2 space-y-1.5">
-                                    {!isKorean && verdictNativeParagraphs.length > 0 && (
+                                    {!isKorean && appendixVerdictNativeParagraphs.length > 0 && (
                                         <div className="rounded-xl bg-white px-3 py-2 text-[8.5px] font-bold leading-[1.5] text-slate-800 shadow-sm space-y-1">
-                                            {verdictNativeParagraphs.slice(0, 3).map((paragraph, index) => <p key={`verdict-native-${index}`}>{paragraph}</p>)}
+                                            {appendixVerdictNativeParagraphs.map((paragraph, index) => <p key={`verdict-native-${index}`} className="break-words" style={appendixNativeLineClampStyle}>{paragraph}</p>)}
                                         </div>
                                     )}
-                                    <div className={`rounded-xl px-3 py-2 leading-[1.5] space-y-1 ${!isKorean && verdictNativeParagraphs.length > 0 ? 'border border-slate-200 bg-slate-100/80 text-[8px] text-slate-600' : 'bg-white text-[8.5px] text-slate-700 shadow-sm'}`}>
-                                        {!isKorean && verdictNativeParagraphs.length > 0 && <span className="mr-1 text-[7px] font-black text-slate-400">[KO]</span>}
-                                        {verdictKoParagraphs.slice(0, 3).map((paragraph, index) => <p key={`verdict-ko-${index}`}><HighlightedText text={paragraph} /></p>)}
+                                    <div className={`rounded-xl px-3 py-2 leading-[1.5] space-y-1 break-words ${!isKorean && appendixVerdictNativeParagraphs.length > 0 ? 'border border-slate-200 bg-slate-100/80 text-[8px] text-slate-600' : 'bg-white text-[8.5px] text-slate-700 shadow-sm'}`}>
+                                        {!isKorean && appendixVerdictNativeParagraphs.length > 0 && <span className="mr-1 text-[7px] font-black text-slate-400">[KO]</span>}
+                                        {appendixVerdictKoParagraphs.map((paragraph, index) => <p key={`verdict-ko-${index}`} style={appendixKoLineClampStyle}><HighlightedText text={paragraph} /></p>)}
                                     </div>
                                 </div>
                             </div>
@@ -1193,12 +1401,12 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             badge={<StatusBadge variant="amberSoft" className="px-2.5 py-1 text-[8px] text-amber-700">현장 실행 우선</StatusBadge>}
                             entries={(() => {
                                 const coachingEntries = [] as Array<{ key: string; content: React.ReactNode }>;
-                                if (!isKorean && coachingNativeParagraphs.length > 0) {
+                                if (!isKorean && appendixCoachingNativeParagraphs.length > 0) {
                                     coachingEntries.push({
                                         key: 'coaching-native',
                                         content: (
                                             <div className="rounded-2xl border border-amber-200 bg-white/90 px-3 py-2.5 text-[8.5px] font-bold leading-[1.5] text-amber-950 shadow-sm space-y-1">
-                                                {coachingNativeParagraphs.slice(0, 3).map((paragraph, index) => <p key={`coaching-native-${index}`}>{paragraph}</p>)}
+                                                {appendixCoachingNativeParagraphs.map((paragraph, index) => <p key={`coaching-native-${index}`} className="break-words" style={appendixNativeLineClampStyle}>{paragraph}</p>)}
                                             </div>
                                         ),
                                     });
@@ -1206,16 +1414,17 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 coachingEntries.push({
                                     key: 'coaching-ko',
                                     content: (
-                                        <div className={`rounded-2xl px-3 py-2.5 leading-[1.5] space-y-1 ${!isKorean && coachingNativeParagraphs.length > 0 ? 'border border-amber-200 bg-amber-100/70 text-[8px] text-amber-900' : 'bg-white/90 text-[8.5px] text-amber-950 shadow-sm'}`}>
-                                            {!isKorean && coachingNativeParagraphs.length > 0 ? <span className="mr-1 text-[7px] font-black text-amber-700">[KO]</span> : null}
-                                            {coachingKoParagraphs.slice(0, 3).map((paragraph, index) => <p key={`coaching-ko-${index}`}><HighlightedText text={paragraph} /></p>)}
+                                        <div className={`rounded-2xl px-3 py-2.5 leading-[1.5] space-y-1 break-words ${!isKorean && appendixCoachingNativeParagraphs.length > 0 ? 'border border-amber-200 bg-amber-100/70 text-[8px] text-amber-900' : 'bg-white/90 text-[8.5px] text-amber-950 shadow-sm'}`}>
+                                            {!isKorean && appendixCoachingNativeParagraphs.length > 0 ? <span className="mr-1 text-[7px] font-black text-amber-700">[KO]</span> : null}
+                                            {appendixCoachingKoParagraphs.map((paragraph, index) => <p key={`coaching-ko-${index}`} style={appendixKoLineClampStyle}><HighlightedText text={paragraph} /></p>)}
                                         </div>
                                     ),
                                 });
                                 return coachingEntries;
                             })()}
-                            className="col-span-5 rounded-[18px] border border-amber-200 bg-[linear-gradient(180deg,rgba(255,251,235,0.98),rgba(255,247,237,0.96))] p-3.5 shadow-sm min-h-0"
+                            className="col-span-5 rounded-[18px] border border-amber-200 bg-[linear-gradient(180deg,rgba(255,251,235,0.98),rgba(255,247,237,0.96))] p-3.5 shadow-sm min-h-0 overflow-hidden flex flex-col"
                             titleClassName="text-[11px] font-black uppercase tracking-[0.16em] text-amber-900"
+                            listClassName="mt-3 space-y-1.5 overflow-hidden"
                         >
 
                             <WhyThisResultPanel
@@ -1225,7 +1434,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     content: (
                                         <div className="rounded-xl border border-violet-100 bg-white/90 px-3 py-2">
                                             <p className="text-[8px] font-black text-violet-700">{reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)}</p>
-                                            <p className="mt-0.5 text-[8.5px] leading-relaxed text-violet-900">{entry.note || reassessmentFallback}</p>
+                                            <p className="mt-0.5 text-[8.5px] leading-relaxed text-violet-900 break-words" style={appendixTimelineLineClampStyle}>{entry.note || reassessmentFallback}</p>
                                         </div>
                                     ),
                                 }))}
@@ -1252,12 +1461,12 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <WhyThisResultPanel
                             title="Strength details"
                             badge={<StatusBadge variant="emeraldSoft" className="px-2.5 py-1 text-[8px] text-emerald-700">강점 상세 표현</StatusBadge>}
-                            entries={strengthEntries.slice(0, 3).map((entry, index) => ({
+                            entries={appendixStrengthEntries.map((entry, index) => ({
                                 key: `strength-detail-${index}`,
                                 content: (
                                     <div className="rounded-2xl border border-emerald-100 bg-white/90 px-3 py-2.5 shadow-sm">
-                                        {!isKorean && entry.nativeText ? <p className="text-[8.5px] font-bold leading-[1.5] text-emerald-950">{entry.nativeText}</p> : null}
-                                        <p className={`leading-[1.5] ${!isKorean && entry.nativeText ? 'mt-1 border-t border-emerald-100 pt-1 text-[8px] text-emerald-900/80' : 'text-[8.5px] text-emerald-950'}`}>
+                                        {!isKorean && entry.nativeText ? <p className="text-[8.5px] font-bold leading-[1.5] text-emerald-950 break-words" style={appendixNativeLineClampStyle}>{entry.nativeText}</p> : null}
+                                        <p className={`leading-[1.5] break-words ${!isKorean && entry.nativeText ? 'mt-1 border-t border-emerald-100 pt-1 text-[8px] text-emerald-900/80' : 'text-[8.5px] text-emerald-950'}`} style={appendixKoLineClampStyle}>
                                             {!isKorean && entry.nativeText ? <span className="mr-1 text-[7px] font-black text-emerald-600">[KO]</span> : null}
                                             <HighlightedText text={entry.text} />
                                         </p>
@@ -1265,20 +1474,21 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 ),
                             }))}
                             emptyState="강점 상세 데이터가 없습니다."
-                            className="col-span-6 rounded-[18px] border border-emerald-200 bg-emerald-50/80 p-3.5 shadow-sm min-h-0"
+                            className="col-span-6 rounded-[18px] border border-emerald-200 bg-emerald-50/80 p-3.5 shadow-sm min-h-0 overflow-hidden flex flex-col"
                             titleClassName="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-900"
+                            listClassName="mt-3 space-y-1.5 overflow-hidden"
                             emptyStateClassName="rounded-2xl border border-dashed border-emerald-200 bg-white/80 px-3 py-3 text-[9px] font-bold text-emerald-500"
                         />
 
                         <WhyThisResultPanel
                             title="Focus area details"
                             badge={<StatusBadge variant="roseSoft" className="px-2.5 py-1 text-[8px] text-rose-700">중복 검증 후 정리</StatusBadge>}
-                            entries={improvementEntries.slice(0, 3).map((entry, index) => ({
+                            entries={appendixImprovementEntries.map((entry, index) => ({
                                 key: `improvement-detail-${index}`,
                                 content: (
                                     <div className="rounded-2xl border border-rose-100 bg-white/90 px-3 py-2.5 shadow-sm">
-                                        {!isKorean && entry.nativeText ? <p className="text-[8.5px] font-bold leading-[1.5] text-rose-950">{entry.nativeText}</p> : null}
-                                        <p className={`leading-[1.5] ${!isKorean && entry.nativeText ? 'mt-1 border-t border-rose-100 pt-1 text-[8px] text-rose-900/80' : 'text-[8.5px] text-rose-950'}`}>
+                                        {!isKorean && entry.nativeText ? <p className="text-[8.5px] font-bold leading-[1.5] text-rose-950 break-words" style={appendixNativeLineClampStyle}>{entry.nativeText}</p> : null}
+                                        <p className={`leading-[1.5] break-words ${!isKorean && entry.nativeText ? 'mt-1 border-t border-rose-100 pt-1 text-[8px] text-rose-900/80' : 'text-[8.5px] text-rose-950'}`} style={appendixKoLineClampStyle}>
                                             {!isKorean && entry.nativeText ? <span className="mr-1 text-[7px] font-black text-rose-600">[KO]</span> : null}
                                             <HighlightedText text={entry.text} />
                                         </p>
@@ -1286,8 +1496,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 ),
                             }))}
                             emptyState="개선 상세 데이터가 없습니다."
-                            className="col-span-6 rounded-[18px] border border-rose-200 bg-rose-50/85 p-3.5 shadow-sm min-h-0"
+                            className="col-span-6 rounded-[18px] border border-rose-200 bg-rose-50/85 p-3.5 shadow-sm min-h-0 overflow-hidden flex flex-col"
                             titleClassName="text-[11px] font-black uppercase tracking-[0.16em] text-rose-900"
+                            listClassName="mt-3 space-y-1.5 overflow-hidden"
                             emptyStateClassName="rounded-2xl border border-dashed border-rose-200 bg-white/80 px-3 py-3 text-[9px] font-bold text-rose-500"
                         />
                     </div>

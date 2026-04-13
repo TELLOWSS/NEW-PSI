@@ -940,8 +940,8 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             )}
 
             {/* A4 REPORT CONTAINER - Using Shared Template */}
-            <div className="w-full max-w-[calc(210mm+20px)] rounded-[20px] border border-slate-200 bg-white p-2 shadow-lg">
-                <div className="overflow-auto max-h-[calc(100vh-220px)] rounded-xl bg-white p-1 custom-scrollbar">
+            <div className="w-full max-w-[calc(210mm+20px)] rounded-[20px] border border-slate-200 bg-white p-1.5 sm:p-2 shadow-lg">
+                <div className="overflow-auto max-h-[calc(100dvh-220px)] md:max-h-[calc(100vh-220px)] overscroll-contain rounded-xl bg-white p-1 custom-scrollbar" style={{ touchAction: 'pan-x pan-y' }}>
                     <div className="mx-auto flex min-w-fit justify-center">
                         <div className="min-w-[210mm] bg-white">
                             <Suspense fallback={<ReportTemplateFallback />}>

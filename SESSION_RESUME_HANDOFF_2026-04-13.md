@@ -1,92 +1,122 @@
 # SESSION RESUME HANDOFF (2026-04-13)
 
-## 1) 이번 세션 누적 완료
-- Reports 런타임 오류(TDZ) 수정
-  - 파일: `pages/Reports.tsx`
-  - 내용: `useEffect` 의존성에서 선언 전 참조 제거 (`availableFailureReasons`, `availablePackages` 기반으로 보정)
-- Dashboard drill-down 후속 마감 보정
-  - 파일: `pages/Dashboard.tsx`
-  - 내용: `trade-hotspot` 비교를 `normalizeDashboardTrade` 기준으로 통일
-- 토큰 절약형 검증 흐름 고정
-  - 파일: `package.json`, `scripts/check-tdz-useeffect-order.cjs`, `VERIFICATION.md`
-  - 스크립트: `check:tdz`, `check:types`, `verify:fast`, `verify:release`
-- workflow-status 액션/차단 사유 문구 통일 보강(내보내기 정합)
-  - 파일: `components/modals/RecordDetailModal.tsx`
-  - 내용: 감사 JSON/CSV 내보내기에 액션 라벨 + 정규화된 차단 사유(`normalizeHarnessTransitionReason`) 반영
-- workflow-status 차단 사유 서버 원문 운영형 문구 통일
-  - 파일: `lib/server/harness/router.ts`
-  - 내용: 상태/액션 차단 메시지를 한국어 운영형 라벨 기준으로 생성하도록 보강
-- 저장소 컨텍스트 사전점검 자동화 추가
-  - 파일: `scripts/check-repo-context.cjs`, `package.json`, `VERIFICATION.md`
-  - 내용: `check:context`를 `verify:fast` 선행 단계로 추가해 경로 불일치(예: 서버 하네스 경로 누락) 시 작업 범위를 먼저 고정
-- 액션/차단 사유 문구 공통 포맷 잠금(UI+CSV)
-  - 파일: `utils/harnessTransitionNarratives.ts`, `components/modals/RecordDetailModal.tsx`
-  - 내용: `formatHarnessTransitionStatusText` 공통 포맷 함수를 추가하고 Record Detail UI/감사 CSV가 동일 문구를 사용하도록 통일
-- Reports Action Readiness 상세 라인 공통 포맷 적용
-  - 파일: `pages/Reports.tsx`
-  - 내용: Action Readiness 카드에 액션별 상태 라인을 추가하고 `formatHarnessTransitionStatusText` 기준으로 문구를 통일
-- 감사 내보내기 CSV/JSON 필드명 한글 라벨 병행 통일
-  - 파일: `utils/auditExportLabels.ts`, `components/modals/RecordDetailModal.tsx`, `pages/Reports.tsx`
-  - 내용: section/item 코드에 대응하는 한글 라벨(`sectionLabel`, `itemLabel`)을 CSV에 추가하고 JSON에도 라벨 가이드를 포함
-- 내보내기 파일명 규칙 표준화
-  - 파일: `utils/exportFileNaming.ts`, `components/modals/RecordDetailModal.tsx`, `pages/Reports.tsx`
-  - 내용: PDF/ZIP/CSV/JSON 파일명과 ZIP 루트 폴더명을 공통 토큰 규칙(`PSI_{scope}_{YYYYMMDD[_HHMMSS]}`)으로 통일
-- 내보내기 payload 메타(source/version/scope) 공통화
-  - 파일: `components/modals/RecordDetailModal.tsx`, `pages/Reports.tsx`
-  - 내용: 감사/검증 JSON에 `exportMeta` 추가, CSV에도 `exportSource/exportVersion/exportScope` 행(히스토리는 컬럼) 추가
-- 내보내기 시각 포맷 ISO/KST 병행 통일
-  - 파일: `utils/exportTimestamp.ts`, `components/modals/RecordDetailModal.tsx`, `pages/Reports.tsx`
-  - 내용: JSON에 `exportedAt` + `exportedAtKst`를 함께 저장하고 CSV/히스토리 CSV에도 ISO/KST 시각을 병행 기록
-- 증빙 패키지 파일명/manifest/readme 생성시각 기준 통일
-  - 파일: `utils/exportTimestamp.ts`, `utils/exportFileNaming.ts`, `utils/evidencePackageTemplate.ts`, `utils/evidenceVerificationUtils.ts`, `pages/Reports.tsx`
-  - 내용: 내보내기 파일명 날짜/시간 토큰을 KST 기준으로 통일하고 ZIP `manifest.json`/`README.txt`/`evidence_index.csv` 메타에 `generatedAtKst`를 병행 기록
-- 배치 검증 완료(릴리스)
-  - 실행: `npm run verify:release` (로컬)
-  - 결과: `verify:fast` + `vite build` 모두 성공, UI+docs 범위 배치 종료
-- Reports 검증 미리보기 시간표시 ISO/KST 병행 통일
-  - 파일: `pages/Reports.tsx`
-  - 내용: 실패 원인/패키지/히스토리 표의 시각 컬럼을 `ISO / KST` 공통 포맷으로 통일하고 검증 내보내기에 `manifestGeneratedAtKst`를 추가
-- ISO/KST 시각 포맷 공용 유틸 추출
-  - 파일: `utils/exportTimestamp.ts`, `pages/Reports.tsx`
-  - 내용: `formatIsoKstTimestamp`를 공용 유틸로 분리해 Reports 내부 중복 포맷 함수를 제거
-- 로컬 복구 메모(재동기화 필요)
-  - 내용: 로컬 자동치환 중 `pages/Reports.tsx` 손상으로 `origin/main` 기준 복구 후 `verify:fast` 통과
-  - 메모: 워크스페이스 최신 Reports 변경분(검증 시각 표기 통일)은 다음 로컬 동기화 배치에서 안전 방식으로 재적용 필요
-- hotspot 문법 사전검사 가드 추가
-  - 파일: `scripts/check-hotspot-syntax.cjs`, `package.json`
-  - 내용: `verify:fast`에 `check:hotspot`을 추가해 `pages/Reports.tsx`/`utils/exportTimestamp.ts` 구문 손상을 타입검사 전에 조기 차단
-- 검증 가이드 업데이트 + 릴리스 재검증
-  - 파일: `VERIFICATION.md`
-  - 내용: `check:hotspot` 포함 항목과 대용량 TSX 동기화 시 블록 단위 패치 원칙을 문서화
-  - 검증: 로컬 `npm run verify:release` 재통과 (`check:context -> check:hotspot -> check:tdz -> check:types -> build`)
-- 로컬 Reports 부분 재동기화(안전 최소 반영)
-  - 파일: `pages/Reports.tsx`
-  - 내용: 증빙 패키지 `generatedAtKst`를 로컬 구버전 Reports의 CSV/manifest 메타에 우선 반영
-  - 검증: 로컬 `npm run verify:fast` 통과 (`check:hotspot` 포함)
-- 로컬 Reports 재적용 안정화(템플릿 문자열 치환 주의)
-  - 파일: `pages/Reports.tsx`
-  - 내용: PowerShell 치환 실패로 롤백 후, Python 블록 치환으로 `README` 생성시각 `ISO/KST` + `generatedAtKst` 메타를 재적용
-  - 검증: 로컬 `npm run verify:release` 재통과
-- hotspot 가드 정책 조정(레거시 1줄 경고 허용)
-  - 파일: `scripts/check-hotspot-syntax.cjs`, `VERIFICATION.md`
-  - 내용: `Reports`의 `toLocaleString()`은 기본 차단하되, 로컬 구버전 `README 생성시각` 1줄은 경고(WARN)로만 처리
-  - 검증: 로컬 `check:hotspot` WARN 1건 상태에서 `verify:fast`/`verify:release` 통과
-- hotspot WARN 상한 고정(1건)
-  - 파일: `scripts/check-hotspot-syntax.cjs`, `VERIFICATION.md`
-  - 내용: 레거시 WARN이 1건을 초과하면 즉시 실패하도록 가드 강화
-  - 검증: 로컬 `check:hotspot` WARN 1건 유지 + `verify:fast`/`verify:release` 통과
+## 1) 금일 완료 사항 (핵심)
 
-## 2) 현재 운영 기본 명령
-- 빠른 사전확인: `npm run verify:fast`
-- 릴리스 전 묶음검증: `npm run verify:release`
+### A. 리포트 후면(부록) 안정화 + 설명량 확장
+- `components/ReportTemplate.tsx`
+- 2단계(dense/normal)에서 4단계 적응형 프로파일(`rich / balanced / compact / strict`)로 전환
+- 콘텐츠 압력 점수 기반 자동 제어 적용
+  - 항목 수(`entryLimit`), 문단 수(`paragraphLimit`), 한글/모국어 글자수 제한, 라인클램프
+- 패널 단위 `overflow-hidden + break-words` 고정으로 겹침/침범 방지
+- 현장 분포 기반 미세 완화 반영(설명량 중심)
 
-## 3) 다음 우선순위
-1. `workflow-status` 차단 사유 원문을 서버(`router.ts`)에서도 운영형 문구로 직접 통일
-2. Reports/RecordDetail 공통 액션 문구의 축약 기준(짧은 버전/상세 버전) 분리
-3. Vercel 인증 복구 후 preflight 재검증 (`vercel pull` -> `vercel build`)
+### B. 리포트 전면(1페이지) 추가 보강
+- `components/ReportTemplate.tsx`
+- 전면도 4단계 적응형(`frontTuningProfile`)으로 전환
+- 전면 항목/문단/문자수/라인클램프를 프로파일별 자동 조절
+- 전면 미세튜닝(8개 현장형 샘플: 짧음/중간/장문 + 한국어/다국어)
+  - strict: KO 45→48, native 40→42
+  - compact: KO 60→64, native 52→56
+  - balanced: KO 70→76, native 60→66
+  - rich: KO 85→92, native 75→82
+- 전면 임계값 락(고정) 상수화 완료
+  - `FRONT_TUNING_LOCKED_THRESHOLDS`, `FRONT_TUNING_LOCKED_LIMITS`
+- 전면 판정 문단 라인클램프 상향
+  - rich 구간 8줄, balanced 7줄, compact 6줄, strict 5줄
 
-## 4) 재시작 체크리스트
-- [x] `npm run verify:fast` 실행
-- [ ] 작업 묶음 1개만 선택해서 수정
-- [x] 완료 후 `npm run verify:release` 1회
-- [ ] 본 문서에 완료 항목 append
+### C. 전면 최상단 제목 다국어 이질감 보완
+- `components/ReportTemplate.tsx`
+- 영문 타이틀 하단 모국어 제목(`labels.cert`) 강조 표시로 유지/보강
+- 다국어 라벨 확장
+  - `카자흐스탄` 라벨 세트 추가
+  - 국적 부분매칭(`카자흐`) 추가
+
+### D. 핸드폰 화면 구성 최적화(뷰포트/스크롤 안정화)
+- `index.html`, `pages/IndividualReport.tsx`
+- 모바일 뷰포트 노치 대응: `viewport-fit=cover`
+- 리포트 미리보기 영역 모바일 스크롤 안정화
+  - `max-h: 100dvh` 기준 적용
+  - `overscroll-contain` + 터치 패닝(`pan-x pan-y`) 적용
+  - 모바일 패딩 최적화(`p-1.5`)
+
+---
+
+## 2) 검증 결과
+
+- 실행 명령: `npm run verify:release`
+- 결과: 통과
+  - `check:context` → `check:hotspot` → `check:tdz` → `check:types` → `vite build`
+- 빌드: 성공 (최근 실행 기준 정상 완료)
+
+---
+
+## 3) 현재 코드 상태 요약
+
+- 전면/후면 모두 적응형 프로파일 적용 완료
+- 전면 임계값 락 상수 적용 완료
+- 전면 상단 제목 다국어(모국어) 표기 강화 완료
+- 모바일(핸드폰) 리포트 미리보기 안정화 완료
+- 타입/빌드 검증 완료
+- 배포 전 기능 검증 가능한 상태
+
+---
+
+## 4) 다음 세션 우선 작업 (이어하기)
+
+1. **전면 인쇄 실측 QA (필수)**
+   - 샘플 10건 이상(한국어/다국어 혼합)으로 PDF 출력 확인
+   - 체크 항목: 섹션 겹침, 문단 잘림, 가독성(8.5~10px)
+
+2. **10건 실출력 QA 결과에 따른 미세 보정(필요 시만)**
+  - 현재는 락 상태로 운영
+  - 실출력에서만 발생하는 케이스가 확인되면 국적군(베트남/중국/태국/캄보디아/몽골/카자흐)별 wrap 폭만 최소 조정
+
+3. **문구 품질 정리(선택)**
+   - 모국어 `cert` 문구 톤/길이 통일
+   - 현장 운영팀 승인 용어로 최종 교정
+
+4. **배포 전 최종 검증**
+   - `npm run verify:release`
+   - 리포트 생성/인쇄 1회 수동 점검
+
+---
+
+## 5) 다음 세션 빠른 시작 커맨드
+
+```bash
+npm run verify:fast
+npm run verify:release
+```
+
+---
+
+## 6) 즉시 사용 문서
+
+- 전면/후면 실출력 10건 검증 시트: [REPORT_PDF_QA_LOCK_CHECKLIST_2026-04-13.md](REPORT_PDF_QA_LOCK_CHECKLIST_2026-04-13.md)
+- QA 최종 집계 템플릿(복붙용 FAIL 예시 포함): [REPORT_QA_SUMMARY_TEMPLATE_2026-04-13.md](REPORT_QA_SUMMARY_TEMPLATE_2026-04-13.md)
+- QA 최종 1페이지 보고서: [REPORT_QA_FINAL_ONEPAGE_2026-04-13.md](REPORT_QA_FINAL_ONEPAGE_2026-04-13.md)
+- 모바일 화면 검증 체크리스트: [MOBILE_VIEWPORT_QA_CHECKLIST.md](MOBILE_VIEWPORT_QA_CHECKLIST.md)
+
+---
+
+## 7) QA 결과 Append 섹션
+
+### 실검수 결과 기록
+- PDF PASS/FAIL:
+- 모바일 PASS/FAIL:
+- 반복 이슈:
+- 최종 조치:
+- 배포 판단:
+
+---
+
+## 8) 변경 파일
+
+- `components/ReportTemplate.tsx`
+- `pages/IndividualReport.tsx`
+- `index.html`
+- `REPORT_PDF_QA_LOCK_CHECKLIST_2026-04-13.md`
+- `REPORT_QA_SUMMARY_TEMPLATE_2026-04-13.md`
+- `REPORT_QA_FINAL_ONEPAGE_2026-04-13.md`
+- `MOBILE_VIEWPORT_QA_CHECKLIST.md`
+- `SESSION_RESUME_HANDOFF_2026-04-13.md`
