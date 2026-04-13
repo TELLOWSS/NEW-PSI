@@ -53,6 +53,8 @@ export default async function handler(req: any, res: any) {
             context,
             decision: decisionResult,
             overrides,
+            analyzer,
+            evaluator,
         });
 
         const persistence = await persistHarnessAnalysis({

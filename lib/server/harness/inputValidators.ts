@@ -41,8 +41,22 @@ export function validateHarnessInput(payload: HarnessAnalyzeRequest): HarnessInp
 
     const detectedKeywords = ALL_HIGH_RISK_KEYWORDS.filter((keyword) => normalizedText.includes(keyword));
 
-    if (detectedKeywords.length === 0 && textLength < 80) {
-        issues.push(buildIssue('HIGH_RISK_CONTEXT_MISSING', '고위험 작업 판단에 필요한 핵심 키워드가 충분하지 않습니다.', 'warning'));
+    // 키워드가 전혀 없으면서 텍스트가 짧으면 → 경고
+    // 키워드가 있어도 텍스트 분량이 너무 부족하면 → 별도 경고
+    if (detectedKeywords.length === 0 && textLength < 120) {
+        issues.push(buildIssue(
+            'HIGH_RISK_CONTEXT_MISSING',
+            '고위험 작업 판단에 필요한 핵심 키워드가 충분하지 않습니다. 문서 재확인이 필요합니다.',
+            'warning',
+        ));
+    }
+
+    if (detectedKeywords.length > 0 && textLength < DEFAULT_HARNESS_POLICY.minTextLength * 2) {
+        issues.push(buildIssue(
+            'HIGH_RISK_EVIDENCE_THIN',
+            '고위험 키워드가 감지됐으나 판단 근거 텍스트 분량이 충분하지 않습니다.',
+            'warning',
+        ));
     }
 
     return {

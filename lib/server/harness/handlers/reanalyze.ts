@@ -46,10 +46,22 @@ export default async function handler(req: any, res: any) {
         const evaluator = buildDeterministicEvaluatorOutput({ analyzer, validation });
         const { decision, overrides } = evaluateHarnessRules({ payload, validation, context, evaluation: evaluator });
         const decisionResult = buildHarnessDecision({ validation, evaluation: evaluator, decision, overrides });
-        const auditEvents = buildHarnessAuditEvents({ validation, context, decision: decisionResult, overrides });
+        const auditEvents = buildHarnessAuditEvents({
+            validation,
+            context,
+            decision: decisionResult,
+            overrides,
+            analyzer,
+            evaluator,
+        });
+        // secondPassStatus 를 workflowState 에 맞게 정확히 설정
+        const reanalysisWorkflowState = decisionResult.workflowState === 'completed'
+            ? 'completed'
+            : 'second_pass_analyzing';
         const reanalysisDecision: HarnessDecisionResult = {
             ...decisionResult,
-            workflowState: decisionResult.workflowState === 'completed' ? 'completed' : 'second_pass_analyzing',
+            workflowState: reanalysisWorkflowState,
+            secondPassStatus: reanalysisWorkflowState === 'completed' ? 'DONE' : 'IN_PROGRESS',
         };
         const persistence = await persistHarnessAnalysis({
             workflowRunId: payload.workflowRunId,
