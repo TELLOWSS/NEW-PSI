@@ -1,4 +1,184 @@
-# SESSION RESUME HANDOFF (2026-04-13)
+# SESSION RESUME HANDOFF (2026-04-13, 최종 업데이트)
+
+> **⚠️ 중요**: 이 파일을 열면 전체 업그레이드 현황을 즉시 파악 가능.  
+> 다음 세션 시작 시 **섹션 4(잔여 작업)**부터 확인.  
+> 로컬에서 `npm run verify:release` 실행 전 반드시 **`git pull`** 먼저 실행.
+
+---
+
+# 🔷 파트 A — 하네스 엔지니어링 업그레이드 현황
+
+## A-1. 아키텍처 개요
+
+| 계층 | 위치 | 역할 |
+|------|------|------|
+| 게이트웨이 | `api/gateway.ts` | POST /api/gateway — harness.* 액션 라우팅 |
+| 핸들러 | `lib/server/harness/handlers/` | analyze / approve / reanalyze / workflow-status / persistence-health |
+| 룰 엔진 | `lib/server/harness/ruleEngine.ts` | 결정론적 가드레일 — 11개 룰 순차 실행 |
+| 룰 파일 | `lib/server/harness/rules/` | 순수 함수 단위 룰 (LLM 개입 없음) |
+| 에이전트 | `lib/server/harness/agents/` | analyzer.ts / evaluator.ts (LLM 결과 처리) |
+| 정책 레지스트리 | `lib/server/harness/policyRegistry.ts` | 키워드 그룹, 임계값, 버전 상수 |
+| 감사 로거 | `lib/server/harness/auditLogger.ts` | 6단계 이벤트 빌드 |
+| 영속성 | `lib/server/harness/persistence.ts` | Supabase 5개 테이블 |
+| 프롬프트 | `lib/server/harness/promptLayers.ts` | 8줄 정적 지식 + 동적 컨텍스트 |
+
+**4축 상태 모델:**
+- `HarnessWorkflowState`: uploaded → ocr_validating → manual_review_required → context_ready → first_pass_analyzing → evaluator_review → awaiting_manager_approval → manager_revised → second_pass_analyzing → completed
+- `HarnessRiskDecision`: SAFE_TO_PROCEED | SUPPLEMENTARY_REVIEW | IMMEDIATE_ATTENTION | CRITICAL_STOP
+- `HarnessApprovalState`: NOT_REQUIRED | REQUIRED | PENDING | APPROVED | REJECTED
+- `secondPassStatus`: NEEDED | IN_PROGRESS | DONE
+
+---
+
+## A-2. 룰 엔진 전체 룰 목록 (현재 11개)
+
+| 순서 | 함수 | 파일 | 트리거 | 결과 |
+|------|------|------|--------|------|
+| 1 | evaluateFallProtectionRule | fallProtectionRules.ts | 추락 문맥 + 안전대 없음 | CRITICAL_STOP |
+| 2 | evaluateOpeningRule | openingRules.ts | 개구부/고소작업 + 안전덮개 없음 | CRITICAL_STOP |
+| 3 | evaluateScaffoldRule | scaffoldRules.ts | 비계 + 아웃트리거 없음 | IMMEDIATE_ATTENTION |
+| 4 | evaluateCraneRule | craneRules.ts | 크레인 + 신호수 없음 | IMMEDIATE_ATTENTION |
+| 5 | evaluateCraneWeatherRule | craneRules.ts | 크레인 + 풍속 ≥10m/s | SUPPLEMENTARY_REVIEW |
+| 6 | evaluateShoringRule | shoringRules.ts | 동바리 + 깔판/잭베이스 없음 | CRITICAL_STOP |
+| 7 | evaluateShoringWeatherRule | shoringRules.ts | 동바리 + 강우/침하 문맥 | SUPPLEMENTARY_REVIEW |
+| 8 | evaluateExcavationRule | excavationRules.ts | 굴착 + 버팀대/어스앙카 없음 | CRITICAL_STOP |
+| 9 | evaluateExcavationRainRule | excavationRules.ts | 굴착 + 강우량>0 또는 강우 텍스트 | IMMEDIATE_ATTENTION |
+| 10 | evaluateLiftingRule | liftingRules.ts | 중량물 인양 + 줄걸이 없음 | IMMEDIATE_ATTENTION |
+| 11 | evaluateLiftingWindRule | liftingRules.ts | 인양 + 풍속 ≥10m/s | CRITICAL_STOP |
+| +gate | HIGH_RISK_JOBTYPE_REVIEW | ruleEngine.ts | 고위험 공종 + SAFE_TO_PROCEED | SUPPLEMENTARY_REVIEW |
+
+---
+
+## A-3. 세션별 완료 작업 누적 기록
+
+### 🗓️ 이전 세션 (2026-04-10 ~ 2026-04-11) — 基盤 구축
+- `lib/server/harness/` 디렉토리 전체 구조 생성
+- workflowTypes.ts, policyRegistry.ts, ruleEngine.ts, contextAssembler.ts
+- agents/analyzer.ts, agents/evaluator.ts
+- auditLogger.ts, inputValidators.ts, outputValidators.ts
+- persistence.ts (Supabase 5테이블 연동)
+- promptLayers.ts, router.ts
+- handlers: analyze.ts, approve.ts, reanalyze.ts, workflow-status.ts, persistence-health.ts
+- contextProviders/dynamicContext.ts
+- rules: fallProtectionRules.ts, scaffoldRules.ts, craneRules.ts, shoringRules.ts(weather만)
+- verify:release 최초 통과
+
+### 🗓️ 2026-04-13 배치 1 — 룰 확장 + 엔진 버그픽스
+- ✅ `rules/openingRules.ts` 신규 — OPENING_BARRIER_MISSING (CRITICAL_STOP)
+- ✅ `rules/excavationRules.ts` 신규 — EXCAVATION_SUPPORT_MISSING (CRITICAL_STOP) + EXCAVATION_RAIN_RISK (IMMEDIATE_ATTENTION)
+- ✅ `rules/liftingRules.ts` 신규 — LIFTING_CONTROL_MISSING (IMMEDIATE_ATTENTION) + LIFTING_HIGH_WIND (CRITICAL_STOP)
+- ✅ `policyRegistry.ts` — opening/excavation/lifting 키워드 그룹 추가, minTextLength 24→50, 버전 2026-04-13
+- ✅ `ruleEngine.ts` — **클로저 캡처 버그 수정** (stale decision 방지), 10→11룰 확장, jobType 게이트 강화
+- ✅ verify:release PASS
+
+### 🗓️ 2026-04-13 배치 2 — 레이어 정밀화
+- ✅ `agents/analyzer.ts` — HAZARD_PATTERNS 테이블 방식(6카테고리), 날씨 통합, rainfallMm 필드 수정
+- ✅ `agents/evaluator.ts` — INSUFFICIENT_EVIDENCE_VOLUME 플래그, 위험수×8 감점, hazardCount>0→인간승인 강제
+- ✅ `auditLogger.ts` — 4→6단계, analyzer/evaluator 스테이지 추가, 실데이터 note
+- ✅ `inputValidators.ts` — HIGH_RISK_EVIDENCE_THIN 신규 이슈, 임계값 120자로 상향
+- ✅ `handlers/reanalyze.ts` — secondPassStatus 버그 수정 (NEEDED→IN_PROGRESS 올바른 전환)
+- ✅ `handlers/analyze.ts` + `handlers/reanalyze.ts` — auditLogger 호출에 analyzer/evaluator 전달
+- ✅ `promptLayers.ts` — 정적 지식 4→8줄 (개구부/비계/크레인/동바리/복합날씨 규칙)
+- ✅ verify:release PASS
+
+### 🗓️ 2026-04-13 배치 3 — 구조 완성 (현재 세션)
+- ✅ `rules/shoringRules.ts` — `evaluateShoringRule` 신규 (SHORING_SUPPORT_MISSING → CRITICAL_STOP)
+- ✅ `ruleEngine.ts` — shoringRule 연결, 실행 순서 11개로 확정
+- ✅ `outputValidators.ts` — 항목별 타입 검증, confidence 범위(0~1) 검증 강화
+- ✅ `router.ts` — `reject` 흐름 수정: awaiting_manager_approval → `manager_revised` (순환 혼선 방지), riskDecision 자동 상향
+- ✅ `vitest.config.ts` — 신규 생성 (테스트 인프라)
+- ✅ `lib/server/harness/rules/__tests__/rules.test.ts` — 11개 룰 함수 단위 테스트 (27 케이스)
+- ✅ `package.json` — `"test": "vitest run"`, `"test:watch": "vitest"` 스크립트 추가
+- ✅ verify:release PASS
+
+---
+
+## A-4. 핵심 버그픽스 요약 (재발 방지용)
+
+| 버그 | 위치 | 원인 | 수정 내용 |
+|------|------|------|-----------|
+| 클로저 stale capture | ruleEngine.ts | `() => rule(text, decision)` 배열 생성 시 decision 고정 | `(d) => rule(text, d)` + 호출 시 `evaluateRule(decision)` |
+| secondPassStatus 미갱신 | handlers/reanalyze.ts | `...decisionResult` 스프레드로 NEEDED 상속 | 명시적 할당: completed→DONE, 나머지→IN_PROGRESS |
+| precipitation 필드명 오류 | analyzer.ts, excavationRules.ts | `precipitationMm` (타입 없음) 사용 | `rainfallMm` (실제 타입 필드명)으로 수정 |
+| reject 순환 흐름 | router.ts | reject 후 awaiting_manager_approval 복귀 → 관리자 재승인 불가 혼선 | reject → manager_revised 상태로 전환 |
+
+---
+
+## A-5. 잔여 작업 목록 (다음 세션 우선순위)
+
+### 🔴 P1 — 커밋 필요 (현재 세션 변경사항 미커밋 상태)
+```
+⚠️ vscode-vfs에서 작업한 내용이 아직 git commit/push되지 않았습니다.
+VS Code Source Control 패널에서 커밋한 후 로컬에서 git pull 실행.
+그 후 npm run test 로 27개 단위 테스트 확인.
+```
+
+### 🟡 P2 — Supabase 라이브 환경 검증
+- `harness.persistence-health` 실 Vercel/Supabase 환경 호출
+- 확인 항목: `connected`, `tablesReady`, `keyMode(service_role)`, 5개 테이블 카운트
+- 테이블: `ai_workflow_runs`, `ai_workflow_events`, `ai_human_approvals`, `ai_guardrail_overrides`, `ai_context_snapshots`
+
+### 🟡 P3 — End-to-End 워크플로 검증
+실제 OCR 레코드로 전체 체인 점검:
+```
+harness.analyze (recordId 포함)
+  → workflowRunId 확인
+  → harness.workflow-status 조회
+  → harness.approve (action: 'approve', approver, comment)
+  → 상태: completed / approvalState: APPROVED 확인
+  → (선택) harness.approve (action: 'reject', comment 8자+)
+  → 상태: manager_revised 확인
+```
+
+### 🟢 P4 — 단위 테스트 실행 (커밋 후)
+```bash
+git pull
+npm run test
+# 예상: 27 tests passed (rules.test.ts)
+```
+
+### ⚪ P5 — 추가 개선 (선택)
+- `contextProviders/dynamicContext.ts` — 날씨 정규화 필드 추가 검토 완료 (rainfallMm 이미 올바르게 매핑됨)
+- `outputValidators.ts` — evaluator output 검증 함수 추가 (현재 analyzer only)
+- UI 연동: `OcrAnalysis.tsx`, `WorkerManagement.tsx`의 workflowState/riskDecision 표시 하네스 상태와 연동 확인
+
+---
+
+## A-6. 빠른 시작 체크리스트
+
+```bash
+# 1. 코드 동기화
+git pull
+
+# 2. 빌드 검증
+npm run verify:release
+
+# 3. 단위 테스트 (vitest 설치 후)
+npm run test
+
+# 4. 현재 룰 구조 확인
+# lib/server/harness/rules/ 하위 8개 파일
+# ruleEngine.ts 11개 룰 순서 확인
+
+# 5. Supabase 라이브 테스트 (Vercel 환경에서)
+# POST /api/gateway { gatewayAction: "harness.persistence-health" }
+```
+
+---
+
+## A-7. Supabase 테이블 스키마 참조
+
+| 테이블 | 주요 컬럼 | 용도 |
+|--------|-----------|------|
+| `ai_workflow_runs` | id, source_record_id, workflow_state, risk_decision, approval_state | 워크플로 메인 |
+| `ai_workflow_events` | workflow_run_id, stage, note, created_at | 감사 이벤트 |
+| `ai_human_approvals` | workflow_run_id, approver_name, action, decision_before, decision_after | 승인 이력 |
+| `ai_guardrail_overrides` | workflow_run_id, rule_code, rule_version, severity, overridden_decision | 룰 오버라이드 |
+| `ai_context_snapshots` | workflow_run_id, weather, sensor_events, ocr_confidence_score | 컨텍스트 스냅샷 |
+
+---
+
+# 🔶 파트 B — 리포트/UI 이전 세션 완료 사항
 
 ## 1) 금일 완료 사항 (핵심)
 

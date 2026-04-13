@@ -12,6 +12,8 @@
     "check:hotspot": "node scripts/check-hotspot-syntax.cjs",
     "check:tdz": "node scripts/check-tdz-useeffect-order.cjs",
     "check:types": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "verify:fast": "npm run check:context && npm run check:hotspot && npm run check:tdz && npm run check:types",
     "verify:release": "npm run verify:fast && npm run build",
     "build": "vite build",

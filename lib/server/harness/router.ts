@@ -216,7 +216,7 @@ export function getHarnessTransitionActionStatuses(options: {
                 nextWorkflowState: action === 'approve'
                     ? 'completed'
                     : action === 'reject'
-                        ? 'awaiting_manager_approval'
+                        ? 'manager_revised'
                         : 'second_pass_analyzing',
             };
         } catch (error) {
@@ -250,12 +250,15 @@ export function buildHarnessApprovalDecision(options: {
     }
 
     if (options.action === 'reject') {
+        // 반려 후 관리자가 내용을 수정·보완할 수 있도록 manager_revised 상태로 전환
         return {
-            workflowState: 'awaiting_manager_approval',
+            workflowState: 'manager_revised',
             approvalState: 'REJECTED',
             secondPassStatus: 'NEEDED',
             requiresManagerApproval: true,
-            riskDecision: options.currentDecision,
+            riskDecision: options.currentDecision === 'SAFE_TO_PROCEED'
+                ? 'SUPPLEMENTARY_REVIEW'
+                : options.currentDecision,
         };
     }
 

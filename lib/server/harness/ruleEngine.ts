@@ -14,7 +14,7 @@ import { evaluateLiftingRule, evaluateLiftingWindRule } from './rules/liftingRul
 import { evaluateOpeningRule } from './rules/openingRules.js';
 import { evaluateScaffoldRule } from './rules/scaffoldRules.js';
 import { buildOverride } from './rules/shared.js';
-import { evaluateShoringWeatherRule } from './rules/shoringRules.js';
+import { evaluateShoringRule, evaluateShoringWeatherRule } from './rules/shoringRules.js';
 
 export function evaluateHarnessRules(options: {
     payload: HarnessAnalyzeRequest;
@@ -51,6 +51,7 @@ export function evaluateHarnessRules(options: {
         (d) => evaluateScaffoldRule(text, d),
         (d) => evaluateCraneRule(text, d),
         (d) => evaluateCraneWeatherRule(text, context, d),
+        (d) => evaluateShoringRule(text, d),
         (d) => evaluateShoringWeatherRule(text, context, d),
         (d) => evaluateExcavationRule(text, d),
         (d) => evaluateExcavationRainRule(text, context, d),
