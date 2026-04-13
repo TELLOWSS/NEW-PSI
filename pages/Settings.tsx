@@ -7,6 +7,7 @@ import { InterpretationCardGrid, type InterpretationCardItem } from '../componen
 import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { extractMessage } from '../utils/errorUtils';
+import { BRAND_TONE } from '../utils/brandToneTokens';
 import {
     fetchHarnessPersistenceHealth,
     fetchHarnessWorkflowStatus,
@@ -581,14 +582,14 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             eyebrow: '지금 상태',
             title: `${settings.siteName || '현장명 미입력'} 기준 시스템 구성을 조정 중입니다.`,
             description: `현재 ${isPaidApiMode ? '유료 API 모드' : '무료 API 모드'}이며 공종 ${jobFieldInput.split(',').filter((s) => s.trim()).length}개, 기본 교육 언어 ${normalizeTrainingLanguagePreset(settings.trainingLanguagePreset).length}개가 설정되어 있습니다.`,
-            tone: 'border-indigo-200 bg-indigo-50/70',
+            tone: BRAND_TONE.indigoSoft70,
         },
         {
             key: 'settings-evidence',
             eyebrow: '판단 근거',
             title: 'API, 현장 정보, 가중치, 컷오프, 배치 크기, 언어 세트가 운영 기준입니다.',
             description: '설정 화면은 단순 입력 폼이 아니라 현장 판단 기준을 고정하는 곳이므로, 저장 전 현재 기준이 어떤 운영 흐름을 만드는지 함께 읽을 수 있게 구성했습니다.',
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'settings-action',
@@ -612,7 +613,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             eyebrow: '판단 근거',
             title: 'API 키와 관리자 PIN이 처리 권한의 기준입니다.',
             description: '유료 모드는 PIN 확인을 거쳐야 켜지도록 구성해 무분별한 비용 사용 대신 운영 책임이 남도록 만들었습니다.',
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'api-action',
@@ -636,14 +637,14 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             eyebrow: '판단 근거',
             title: '가중치와 컷오프가 해석 기준을 만듭니다.',
             description: `현재 w1~w5 합계는 ${weightSum.toFixed(2)}이며, 배치 크기는 ${settings.batchSplitSize ?? 50}건 기준입니다. 이 값들이 점수 해석과 대량 처리 체감에 직접 영향을 줍니다.`,
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'policy-action',
             eyebrow: '다음 행동',
             title: '현장 운영 언어와 평가 기준이 맞는지 마지막으로 확인하세요.',
             description: '엄격 차단, 점수 컷오프, OCR 배치 크기는 실제 현장 보호 흐름을 바꾸므로, 저장 전 관리자와 현장 리듬에 맞는지 보는 것이 좋습니다.',
-            tone: 'border-indigo-200 bg-indigo-50/70',
+            tone: BRAND_TONE.indigoSoft70,
         },
     ], [normalizedAdvancedThreshold, normalizedIntermediateThreshold, settings.approvalPolicy?.strictRoleGate, settings.batchSplitSize, weightSum]);
 
@@ -653,7 +654,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             label: '저장 연결',
             value: `${harnessSummary.connected}명`,
             helper: `run 연결 ${harnessSummary.runLinked}명 / 전체 ${harnessSummary.total}명`,
-            tone: 'border-emerald-200 bg-emerald-50/80',
+            tone: BRAND_TONE.emeraldSoft80,
             labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700',
             helperClassName: 'mt-1 text-xs font-bold text-emerald-700',
         },

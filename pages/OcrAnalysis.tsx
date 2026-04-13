@@ -9,6 +9,7 @@ import { fileToBase64 } from '../utils/fileUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { getApiCallState, incrementApiCallCount, resetApiCallCount, type DailyCounterState } from '../utils/apiCounterUtils';
 import { BRAND_ACTION_LABELS, BRAND_STATUS_LABELS } from '../utils/brandLabels';
+import { BRAND_TONE } from '../utils/brandToneTokens';
 import { MasterTemplateList, type MasterTemplate } from '../components/shared/MasterTemplateList';
 import { MasterAssignment, type MasterAssignmentItem, type MasterGroup } from '../components/shared/MasterAssignment';
 import { CollapsibleSection } from '../components/shared/CollapsibleSection';
@@ -1755,21 +1756,21 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 description: latestActivity
                     ? `${latestActivity.name} · ${latestActivity.jobField} 기록 기준으로 최근 운영 판단이 남아 있습니다.`
                     : '최근 24시간 내 기록된 수정·검토·재분석 이력이 없습니다.',
-                tone: 'border-slate-200 bg-white',
+                tone: BRAND_TONE.slateWhite,
             },
             {
                 key: 'evidence',
                 eyebrow: '판단 근거',
                 title: `수정 ${recentAdminActivitySummary.corrections} · 승인 ${recentAdminActivitySummary.approvals} · 재분석 ${recentAdminActivitySummary.reassessments}`,
                 description: '운영 이력은 현장 판단이 어디에 집중됐는지 보여주는 근거입니다. 한쪽만 과도하면 병목을 의심해야 합니다.',
-                tone: 'border-indigo-200 bg-indigo-50',
+                tone: BRAND_TONE.indigo,
             },
             {
                 key: 'action',
                 eyebrow: '다음 행동',
                 title: '최근 조치와 QA 보완 대상을 함께 보세요',
                 description: '운영 조치 요약은 단순 기록보다, 어떤 기록을 먼저 다시 열어야 하는지 정하는 출발점으로 쓰는 편이 좋습니다.',
-                tone: 'border-emerald-200 bg-emerald-50',
+                tone: BRAND_TONE.emerald,
             },
         ];
     }, [recentAdminActivities, recentAdminActivitySummary]);
@@ -1794,7 +1795,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 eyebrow: '판단 근거',
                 title: `사유 없음 ${reasonQaSummary.missingDecision} · 승인 보강 ${reasonQaSummary.weakDecision} · 수정 보강 ${reasonQaSummary.weakCorrection}`,
                 description: '사유 품질은 단순 문장 길이가 아니라 검토 근거, 확인 범위, 반영 내용이 남았는지로 판단합니다.',
-                tone: 'border-amber-200 bg-amber-50',
+                tone: BRAND_TONE.amber,
             },
             {
                 key: 'action',
@@ -1805,7 +1806,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 description: reasonInputPrompt
                     ? `${reasonInputPrompt.focus} 권장 입력 예시를 바로 참고해 현장 맥락이 남는 문장으로 바꾸면 됩니다.`
                     : '누락 사유를 먼저 채우고, 그다음 약한 승인/수정 사유를 보강하는 순서가 효율적입니다.',
-                tone: 'border-indigo-200 bg-indigo-50',
+                tone: BRAND_TONE.indigo,
             },
         ];
     }, [reasonInputPrompt, reasonQaSummary]);
@@ -1872,7 +1873,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     description: topFailedType
                         ? `${topFailedType[0]} 유형이 가장 많이 확인되어 우선 점검 흐름을 먼저 여는 것이 좋습니다.`
                         : `재분석이 멈춘 기록을 먼저 정리해 관리자 판단 부담을 줄이는 단계입니다.`,
-                    tone: 'border-rose-400/20 bg-rose-500/10 text-rose-100',
+                    tone: BRAND_TONE.darkRoseText,
                 }
                 : {
                     key: 'current-state',
@@ -1881,7 +1882,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     description: lowConfidenceCount > 0
                         ? `다만 저신뢰 기록 ${lowConfidenceCount}건은 현장 설명을 조금 더 보강하면 정확도가 올라갑니다.`
                         : `즉시 다시 볼 OCR 보완 건은 많지 않아 유지 점검 중심으로 운영할 수 있습니다.`,
-                    tone: 'border-emerald-400/20 bg-emerald-500/10 text-emerald-100',
+                    tone: BRAND_TONE.darkEmeraldText,
                 },
             reviewAttentionCount > 0
                 ? {
@@ -1889,7 +1890,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     eyebrow: '판단 근거',
                     title: `검토 사유 보강 ${reviewAttentionCount}건이 남아 있습니다`,
                     description: `승인/검토 사유 없음 ${reasonQaSummary.missingDecision}건, 승인 사유 보강 ${reasonQaSummary.weakDecision}건, 수정 사유 보강 ${reasonQaSummary.weakCorrection}건을 함께 정리해야 추적성이 유지됩니다.`,
-                    tone: 'border-amber-400/20 bg-amber-500/10 text-amber-100',
+                    tone: BRAND_TONE.darkAmberText,
                 }
                 : {
                     key: 'evidence',
@@ -1900,7 +1901,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     description: topRetryGuide
                         ? topRetryGuide.action
                         : '승인/검토 사유 보강 대상이 적어 관리자 확인 흐름이 비교적 매끄럽습니다.',
-                    tone: 'border-indigo-400/20 bg-indigo-500/10 text-indigo-100',
+                    tone: BRAND_TONE.darkIndigoText,
                 },
             {
                 key: 'next-action',
@@ -1915,7 +1916,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     : secondPassTargets.length > 0
                         ? `OCR 성공 기록 중 관리자 수정 이력이 반영된 대상을 다시 계산해 해석 품질을 끌어올릴 수 있습니다.`
                         : '새 업로드, 요약 내보내기, 백업 정리를 중심으로 안정 운영을 유지하면 됩니다.',
-                tone: 'border-cyan-400/20 bg-cyan-500/10 text-cyan-100',
+                tone: BRAND_TONE.darkCyanText,
             },
         ];
     }, [failedRecords.length, failedTypeSummary, lowConfidenceCount, reasonQaSummary, retryActionGuides, secondPassTargets.length]);
@@ -1960,7 +1961,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 description: primaryErrorType
                     ? getOcrErrorGuideMessage(primaryErrorType)
                     : '대표 기록이 없으면 유형별 묶음부터 순서대로 확인하는 편이 안정적입니다.',
-                tone: 'border-rose-200 bg-rose-50',
+                tone: BRAND_TONE.rose,
             },
             {
                 key: 'evidence',
@@ -1971,14 +1972,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 description: topRetryGuide
                     ? topRetryGuide.action
                     : '유형별 체크리스트와 사전검증 사유를 함께 보면 관리자 판단 속도가 빨라집니다.',
-                tone: 'border-amber-200 bg-amber-50',
+                tone: BRAND_TONE.amber,
             },
             {
                 key: 'action',
                 eyebrow: '다음 행동',
                 title: `${BRAND_ACTION_LABELS.smartReanalyze} 후 관리자 판단으로 넘기세요`,
                 description: '자동으로 다시 읽을 수 있는 건 먼저 줄이고, 끝까지 남는 기록만 상세 검증으로 보내면 운영 피로가 낮아집니다.',
-                tone: 'border-emerald-200 bg-emerald-50',
+                tone: BRAND_TONE.emerald,
             },
         ];
     }, [failedTypeGroups, primaryFailedRecord, retryActionGuides]);
@@ -1996,14 +1997,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 description: filteredFailedCount > 0
                     ? `${BRAND_STATUS_LABELS.attentionPending} ${filteredFailedCount}건이 함께 보여 우선 확인 대상을 바로 가를 수 있습니다.`
                     : '즉시 보완이 필요한 OCR 기록은 많지 않아 검토와 후속 정리에 집중할 수 있습니다.',
-                tone: filteredFailedCount > 0 ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-white',
+                tone: filteredFailedCount > 0 ? BRAND_TONE.rose : BRAND_TONE.slateWhite,
             },
             {
                 key: 'evidence',
                 eyebrow: '판단 근거',
                 title: `재검토 대기 ${filteredPendingCount} · 최종확정 ${filteredFinalizedCount}`,
                 description: `현재 정렬은 ${getRecordSortModeLabel(recordSortMode)} 기준입니다. 필터와 정렬 조합이 곧 운영 우선순위를 결정합니다.`,
-                tone: 'border-indigo-200 bg-indigo-50',
+                tone: BRAND_TONE.indigo,
             },
             {
                 key: 'action',
@@ -2014,7 +2015,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 description: secondPassTargets.length > 0
                     ? '필터된 결과 안에서 관리자 수정 이력이 있는 대상을 다시 계산해 해석 품질을 끌어올릴 수 있습니다.'
                     : '조건에 맞는 재평가 대상이 적다면 검색·정렬을 바꿔 다른 보호 신호를 먼저 드러내는 편이 좋습니다.',
-                tone: 'border-emerald-200 bg-emerald-50',
+                tone: BRAND_TONE.emerald,
             },
         ];
     }, [filteredRecords, recordSortMode, secondPassTargets.length, getReviewTrustState]);
@@ -3260,7 +3261,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     label: '총 기록수',
                                     value: existingRecords.length,
                                     helper: '현재 OCR 운영 대상',
-                                    tone: 'border-white/10 bg-white/5',
+                                    tone: BRAND_TONE.glassSoft,
                                     labelClassName: 'text-[10px] font-black uppercase tracking-widest text-slate-500',
                                     valueClassName: 'mt-2 text-2xl font-black text-indigo-300',
                                     helperClassName: 'mt-1 text-[11px] font-bold text-slate-400',
@@ -3270,7 +3271,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     label: BRAND_STATUS_LABELS.attentionPending,
                                     value: failedRecords.length,
                                     helper: '우선 확인 권장',
-                                    tone: 'border-rose-400/20 bg-rose-500/10',
+                                    tone: BRAND_TONE.darkRose,
                                     labelClassName: 'text-[10px] font-black uppercase tracking-widest text-rose-300',
                                     valueClassName: `mt-2 text-2xl font-black ${failedRecords.length > 0 ? 'text-rose-300' : 'text-slate-400'}`,
                                     helperClassName: 'mt-1 text-[11px] font-bold text-rose-200/80',
@@ -3280,7 +3281,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     label: '신뢰도 미달',
                                     value: lowConfidenceCount,
                                     helper: '70% 미만 재검토',
-                                    tone: 'border-amber-400/20 bg-amber-500/10',
+                                    tone: BRAND_TONE.darkAmber,
                                     labelClassName: 'text-[10px] font-black uppercase tracking-widest text-amber-300',
                                     valueClassName: `mt-2 text-2xl font-black ${lowConfidenceCount > 0 ? 'text-amber-300' : 'text-slate-400'}`,
                                     helperClassName: 'mt-1 text-[11px] font-bold text-amber-200/80',
@@ -3295,7 +3296,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             <button onClick={() => { resetApiCallCount(); setDailyCounter(getApiCallState()); }} className="text-[10px] text-slate-300 underline hover:text-white" title="오늘 카운터 초기화">초기화</button>
                                         </div>
                                     ),
-                                    tone: 'border-emerald-400/20 bg-emerald-500/10',
+                                    tone: BRAND_TONE.darkEmerald,
                                     labelClassName: 'text-[10px] font-black uppercase tracking-widest text-emerald-300',
                                     valueClassName: `mt-2 text-2xl font-black ${dailyCounter.count > 800 ? 'text-rose-300' : dailyCounter.count > 400 ? 'text-amber-300' : 'text-emerald-300'}`,
                                     helperClassName: 'mt-1 text-[11px] font-bold text-slate-300',
@@ -3429,7 +3430,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     key: 'retry-server-success',
                                     label: '서버 성공',
                                     value: retryDiagnostics.serverSuccess,
-                                    tone: 'border-emerald-500/20 bg-emerald-500/10',
+                                    tone: BRAND_TONE.darkEmeraldStrong,
                                     labelClassName: 'text-[10px] font-black uppercase tracking-widest text-emerald-300',
                                     valueClassName: 'mt-1 text-2xl font-black text-emerald-200',
                                 },
@@ -3437,7 +3438,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     key: 'retry-fallback-success',
                                     label: '폴백 성공',
                                     value: retryDiagnostics.clientFallbackSuccess,
-                                    tone: 'border-cyan-500/20 bg-cyan-500/10',
+                                    tone: BRAND_TONE.darkCyan,
                                     labelClassName: 'text-[10px] font-black uppercase tracking-widest text-cyan-300',
                                     valueClassName: 'mt-1 text-2xl font-black text-cyan-200',
                                 },
@@ -3445,7 +3446,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     key: 'retry-preflight-fail',
                                     label: '사전 검증 실패',
                                     value: retryDiagnostics.preflightFail,
-                                    tone: 'border-amber-500/20 bg-amber-500/10',
+                                    tone: BRAND_TONE.darkAmberStrong,
                                     labelClassName: 'text-[10px] font-black uppercase tracking-widest text-amber-300',
                                     valueClassName: 'mt-1 text-2xl font-black text-amber-200',
                                 },
@@ -3453,7 +3454,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     key: 'retry-processing-fail',
                                     label: 'OCR 처리 실패',
                                     value: retryDiagnostics.processingFail,
-                                    tone: 'border-rose-500/20 bg-rose-500/10',
+                                    tone: BRAND_TONE.darkRoseStrong,
                                     labelClassName: 'text-[10px] font-black uppercase tracking-widest text-rose-300',
                                     valueClassName: 'mt-1 text-2xl font-black text-rose-200',
                                 },
@@ -3461,7 +3462,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     key: 'retry-server-route-fail',
                                     label: '서버 라우트 실패',
                                     value: retryDiagnostics.serverRouteFail,
-                                    tone: 'border-violet-500/20 bg-violet-500/10',
+                                    tone: BRAND_TONE.darkVioletStrong,
                                     labelClassName: 'text-[10px] font-black uppercase tracking-widest text-violet-300',
                                     valueClassName: 'mt-1 text-2xl font-black text-violet-200',
                                 },
@@ -3585,21 +3586,21 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 eyebrow: '하네스 상태',
                                 title: `${failedHarnessSummary.pendingApprovalCount}건이 관리자 판단 또는 승인 대기입니다`,
                                 description: `실패 건 중 ${failedHarnessSummary.manualReviewCount}건은 수동 검토 흐름으로 묶여 있으며, ${failedHarnessSummary.immediateAttentionCount}건은 즉시 확인 우선 대상입니다. 저장 연결 ${failedHarnessSummary.connectedCount}건 · 폴백 ${failedHarnessSummary.fallbackCount}건 · 대기 ${failedHarnessSummary.pendingPersistenceCount}건입니다.`,
-                                tone: 'border-slate-200 bg-white',
+                                tone: BRAND_TONE.slateWhite,
                             },
                             {
                                 key: 'failed-harness-evidence',
                                 eyebrow: '판단 근거',
                                 title: 'OCR 실패와 저품질 입력은 자동 확정이 아니라 상태 잠금 대상으로 읽어야 합니다',
                                 description: '하네스 상태는 단순 오류 표식이 아니라, 어떤 건을 다시 읽고 어떤 건을 관리자 승인 대기로 넘길지 운영 순서를 알려주는 통제 신호입니다.',
-                                tone: 'border-amber-100 bg-amber-50',
+                                tone: BRAND_TONE.amberSoft,
                             },
                             {
                                 key: 'failed-harness-action',
                                 eyebrow: '다음 행동',
                                 title: '자동 재분석 → 수동 정상분류 → 승인/반려 기록 순으로 이어서 정리하세요',
                                 description: '남은 실패 건을 줄인 뒤에도 보완이 필요한 레코드는 승인 사유와 감사 이력을 남겨야 현장 책임 흐름이 끊기지 않습니다.',
-                                tone: 'border-emerald-100 bg-emerald-50',
+                                tone: BRAND_TONE.emeraldSoft,
                             },
                         ]}
                     />
@@ -3756,14 +3757,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                     eyebrow: '지금 상태',
                                                     title: `${getOcrErrorTypeKoreanLabel(errorType)} 신호가 남아 있습니다`,
                                                     description: guideMessage,
-                                                    tone: 'border-white bg-white',
+                                                    tone: BRAND_TONE.white,
                                                     eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
                                                 },
                                                 {
                                                     key: `${record.id}-evidence`,
                                                     eyebrow: '판단 근거',
                                                     title: preflightReason ? `사전검증: ${preflightReason}` : '사전검증 경고는 없지만 원문/배치/필기 품질을 다시 확인할 필요가 있습니다.',
-                                                    tone: 'border-amber-100 bg-amber-50',
+                                                    tone: BRAND_TONE.amberSoft,
                                                     eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-600',
                                                     description: `${getHarnessWorkflowStateLabel(workflowState)} · ${getHarnessApprovalStateLabel(approvalState)} · ${getHarnessPersistenceLabel(persistenceState)}`,
                                                     content: (
@@ -3785,7 +3786,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                     key: `${record.id}-action`,
                                                     eyebrow: '다음 행동',
                                                     title: actionGuide,
-                                                    tone: 'border-emerald-100 bg-emerald-50',
+                                                    tone: BRAND_TONE.emeraldSoft,
                                                     eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600',
                                                     description: `${getHarnessRiskDecisionLabel(riskDecision)} 기준으로 재분석 또는 관리자 정상분류를 선택하세요.`,
                                                 },
@@ -3914,7 +3915,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                     key: `${activity.key}-summary`,
                                                     eyebrow: '판단 근거',
                                                     title: activity.summary,
-                                                    tone: 'border-slate-100 bg-slate-50',
+                                                    tone: BRAND_TONE.slateSoft,
                                                     eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
                                                 },
                                             ]}
@@ -4818,7 +4819,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             key: `${r.id}-row-status`,
                                             eyebrow: '지금 상태',
                                             title: rowStatusSummary,
-                                            tone: 'border-slate-200 bg-slate-50',
+                                            tone: BRAND_TONE.slate,
                                             eyebrowClassName: 'font-black text-slate-400 uppercase tracking-[0.18em]',
                                             description: undefined,
                                         },
@@ -4826,7 +4827,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             key: `${r.id}-row-evidence`,
                                             eyebrow: '판단 근거',
                                             title: rowEvidenceSummary,
-                                            tone: 'border-amber-100 bg-amber-50',
+                                            tone: BRAND_TONE.amberSoft,
                                             eyebrowClassName: 'font-black text-amber-600 uppercase tracking-[0.18em]',
                                             description: undefined,
                                         },
@@ -4834,7 +4835,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             key: `${r.id}-row-action`,
                                             eyebrow: '다음 행동',
                                             title: rowNextAction,
-                                            tone: 'border-emerald-100 bg-emerald-50',
+                                            tone: BRAND_TONE.emeraldSoft,
                                             eyebrowClassName: 'font-black text-emerald-600 uppercase tracking-[0.18em]',
                                             description: undefined,
                                         },
@@ -4989,21 +4990,21 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                             key: `${r.id}-row-status`,
                                                             eyebrow: '지금 상태',
                                                             title: rowStatusSummary,
-                                                            tone: 'border-slate-200 bg-slate-50 text-slate-700',
+                                                            tone: BRAND_TONE.slateText,
                                                             eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-slate-400',
                                                         },
                                                         {
                                                             key: `${r.id}-row-evidence`,
                                                             eyebrow: '판단 근거',
                                                             title: <span className="whitespace-pre-wrap break-words">{rowEvidenceSummary}</span>,
-                                                            tone: 'border-amber-100 bg-amber-50 text-amber-800',
+                                                            tone: BRAND_TONE.amberSoftTextStrong,
                                                             eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-amber-600',
                                                         },
                                                         {
                                                             key: `${r.id}-row-action`,
                                                             eyebrow: '다음 행동',
                                                             title: rowNextAction,
-                                                            tone: 'border-emerald-100 bg-emerald-50 text-emerald-800',
+                                                            tone: BRAND_TONE.emeraldSoftTextStrong,
                                                             eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600',
                                                         },
                                                     ]}

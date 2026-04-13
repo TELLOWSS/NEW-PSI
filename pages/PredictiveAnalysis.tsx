@@ -7,6 +7,7 @@ import { extractMessage } from '../utils/errorUtils';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
+import { BRAND_TONE } from '../utils/brandToneTokens';
 
 // 관리 직군 필터링 함수
 const isManagementRole = (field: string) => 
@@ -742,7 +743,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
             label: '저장 연결',
             value: `${harnessSummary.connected}명`,
             helper: `run 연결 ${harnessSummary.runLinked}명 / 전체 ${harnessSummary.total}명`,
-            tone: 'border-emerald-200 bg-emerald-50/80',
+            tone: BRAND_TONE.emeraldSoft80,
             labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700',
             helperClassName: 'mt-1 text-xs font-bold text-emerald-700',
         },
@@ -1149,7 +1150,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
             eyebrow: '판단 근거',
             title: '점수 추세, 반복 취약, 현재 점수, 자가 위험수준이 함께 반영됩니다.',
             description: '예측 위험점수는 단일 점수 대신 최근 변화와 반복 신호를 함께 읽어 누가 먼저 보호 개입이 필요한지 설명 중심으로 정리합니다.',
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'predictive-action',
@@ -1175,14 +1176,14 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
             eyebrow: '판단 근거',
             title: '선의 굵기와 노드 분류가 연관성의 근거입니다.',
             description: '반복 위험이 많은 근로자일수록 더 강한 연결로 표시되어, 어떤 예방대책을 먼저 전파해야 하는지 시각적으로 빠르게 파악할 수 있습니다.',
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'ontology-action',
             eyebrow: '다음 행동',
             title: '위험요인에서 예방대책 노드까지 이어서 읽으세요.',
             description: '지도형 그래프는 설명 자료이기도 하므로 회의 중에는 취약 근로자를 지적하기보다 어떤 보호 조치를 먼저 전파할지 논의하는 데 활용할 수 있습니다.',
-            tone: 'border-amber-200 bg-amber-50/80',
+            tone: BRAND_TONE.amberSoft80,
         },
     ], [graphData.nodes.length, riskInsights.length]);
 
@@ -1199,7 +1200,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
             eyebrow: '판단 근거',
             title: executionPlanFilter === 'urgent' ? '긴급·고 우선안만 선별 중입니다.' : '필터 기준에 따라 실행 상태를 보고 있습니다.',
             description: `현재 필터 조건에서 ${filteredExecutionPlans.length}건이 보이며, 최근 변경 이력과 담당자 정보로 조치 신뢰도를 함께 확인할 수 있습니다.`,
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'execution-action',
@@ -1223,14 +1224,14 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
             eyebrow: '판단 근거',
             title: '완료 · 진행중 · 미착수 분포가 조치율의 기준입니다.',
             description: '형틀 공종은 팀 단위로 세분화해 같은 공종 안에서도 어느 팀에서 조치가 막히는지 더 세밀하게 읽을 수 있습니다.',
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'jobrate-action',
             eyebrow: '다음 행동',
             title: jobActionRateSummary.focusLabels.length > 0 ? '우선 확인 공종부터 팀장과 후속 일정을 맞추세요.' : '실행 계획이 쌓이면 공종별 조치율도 함께 살아납니다.',
             description: '낮은 조치율 공종을 그대로 두지 말고 TBM 안건, 현장 지적, 추가 코칭 흐름과 연결해 실제 현장 보완으로 이어가야 합니다.',
-            tone: 'border-indigo-200 bg-indigo-50/70',
+            tone: BRAND_TONE.indigoSoft70,
         },
     ], [jobActionRateSummary]);
 

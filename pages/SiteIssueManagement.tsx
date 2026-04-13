@@ -9,6 +9,7 @@ import { InterpretationCardGrid, type InterpretationCardItem } from '../componen
 import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { StatusEvidenceActionPanel } from '../components/shared/StatusEvidenceActionPanel';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
+import { BRAND_TONE } from '../utils/brandToneTokens';
 
 interface Issue {
     id: string;
@@ -439,7 +440,7 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                                 label: '하네스 저장 연결',
                                 value: `${harnessSummary.connected}명`,
                                 helper: `${harnessSummary.runLinked}명이 workflow run과 연결되어 있습니다.`,
-                                tone: 'border-emerald-200 bg-emerald-50/80',
+                                tone: BRAND_TONE.emeraldSoft80,
                             },
                             {
                                 key: 'site-issue-harness-backlog',
@@ -547,7 +548,7 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                                             eyebrow: '판단 근거',
                                             title: `위험도 ${issue.riskLevel || 'Medium'} · 담당자 ${issue.responsiblePerson || '미지정'}`,
                                             description: issue.actionRequired || '조치 요구 문구가 아직 정리되지 않았습니다.',
-                                            tone: 'border-slate-200 bg-slate-50',
+                                            tone: BRAND_TONE.slate,
                                             eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-slate-500',
                                         },
                                         {
@@ -558,7 +559,7 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                                                 : issue.status === '조치 중'
                                                     ? '조치 요구가 실제로 반영됐는지 완료 처리 전 한 번 더 확인하세요.'
                                                     : '담당자 지정과 조치 시작을 먼저 연결해 현장 대기 시간을 줄이세요.',
-                                            tone: 'border-indigo-200 bg-indigo-50',
+                                            tone: BRAND_TONE.indigo,
                                             eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700',
                                         },
                                     ]}

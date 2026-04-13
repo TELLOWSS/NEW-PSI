@@ -10,6 +10,7 @@ import type {
     HarnessWorkflowState,
 } from '../../types';
 import { BRAND_STATUS_LABELS } from '../../utils/brandLabels';
+import { BRAND_TONE } from '../../utils/brandToneTokens';
 import { ActionButton } from '../shared/ActionButton';
 import { CircularProgress } from '../shared/CircularProgress';
 import { HarnessVersionChangeSummaryPanel } from '../shared/HarnessVersionChangeSummaryPanel';
@@ -566,7 +567,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 key: 'prompt-version',
                 label: '프롬프트 버전',
                 value: harnessPromptVersion?.version || '미연결',
-                tone: harnessPromptVersion ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50',
+                tone: harnessPromptVersion ? BRAND_TONE.indigo : BRAND_TONE.slate,
                 labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-indigo-400',
                 valueClassName: 'mt-1 text-xs font-black text-indigo-700',
             },
@@ -574,7 +575,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 key: 'policy-version',
                 label: '정책 버전',
                 value: harnessPolicyVersion?.version || '미연결',
-                tone: harnessPolicyVersion ? 'border-violet-200 bg-violet-50' : 'border-slate-200 bg-slate-50',
+                tone: harnessPolicyVersion ? BRAND_TONE.violet : BRAND_TONE.slate,
                 labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-violet-400',
                 valueClassName: 'mt-1 text-xs font-black text-violet-700',
             },
@@ -582,7 +583,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 key: 'override-count',
                 label: '오버라이드',
                 value: `${harnessOverrides.length}건`,
-                tone: harnessOverrides.length > 0 ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50',
+                tone: harnessOverrides.length > 0 ? BRAND_TONE.amber : BRAND_TONE.slate,
                 labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-500',
                 valueClassName: 'mt-1 text-xs font-black text-amber-700',
             },
@@ -590,7 +591,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 key: 'approval-count',
                 label: '승인 이력',
                 value: `${harnessApprovals.length}건`,
-                tone: harnessApprovals.length > 0 ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50',
+                tone: harnessApprovals.length > 0 ? BRAND_TONE.emerald : BRAND_TONE.slate,
                 labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-400',
                 valueClassName: 'mt-1 text-xs font-black text-emerald-700',
             },
@@ -598,7 +599,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 key: 'weather',
                 label: '기상 컨텍스트',
                 value: weatherLabel,
-                tone: 'border-slate-200 bg-slate-50',
+                tone: BRAND_TONE.slate,
                 labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
                 valueClassName: 'mt-1 text-xs font-black text-slate-700',
             },
@@ -606,7 +607,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 key: 'schedule',
                 label: '작업 계획',
                 value: scheduleLabel,
-                tone: 'border-slate-200 bg-slate-50',
+                tone: BRAND_TONE.slate,
                 labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
                 valueClassName: 'mt-1 text-xs font-black text-slate-700',
             },
@@ -614,7 +615,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 key: 'sensor-events',
                 label: '센서 이벤트',
                 value: `${sensorEvents.length}건`,
-                tone: sensorEvents.length > 0 ? 'border-rose-200 bg-rose-50' : 'border-slate-200 bg-slate-50',
+                tone: sensorEvents.length > 0 ? BRAND_TONE.rose : BRAND_TONE.slate,
                 labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-rose-400',
                 valueClassName: 'mt-1 text-xs font-black text-rose-700',
             },
@@ -622,7 +623,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 key: 'ocr-quality',
                 label: 'OCR/품질',
                 value: `${typeof harnessContextSnapshot?.ocrConfidenceScore === 'number' ? `${Math.round(harnessContextSnapshot.ocrConfidenceScore * 100)}%` : 'N/A'} · ${typeof harnessContextSnapshot?.imageQualityScore === 'number' ? `${Math.round(harnessContextSnapshot.imageQualityScore * 100)}%` : 'N/A'}`,
-                tone: 'border-slate-200 bg-slate-50',
+                tone: BRAND_TONE.slate,
                 labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
                 valueClassName: 'mt-1 text-xs font-black text-slate-700',
             },
@@ -1566,14 +1567,14 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 eyebrow: '원문 신호',
                 title: 'OCR 원문',
                 body: originalPreview,
-                tone: 'border-slate-200 bg-slate-50 text-slate-700',
+                tone: BRAND_TONE.slateText,
             },
             {
                 key: 'translation',
                 eyebrow: 'AI 해석',
                 title: '한국어 판단 초안',
                 body: translatedPreview,
-                tone: 'border-indigo-200 bg-indigo-50 text-indigo-700',
+                tone: BRAND_TONE.indigoText,
             },
             {
                 key: 'manager',
@@ -1581,8 +1582,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 title: '검토 메모',
                 body: managerPreview,
                 tone: hasCriticalReviewEdits || pendingApprovalAction === 'rejected'
-                    ? 'border-amber-200 bg-amber-50 text-amber-700'
-                    : 'border-emerald-200 bg-emerald-50 text-emerald-700',
+                    ? BRAND_TONE.amberText
+                    : BRAND_TONE.emeraldText,
             },
         ];
     }, [approvalSnapshot, hasCriticalReviewEdits, pendingApprovalAction, record.aiInsights, record.fullText, record.koreanTranslation]);
@@ -1653,7 +1654,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 eyebrow: '판단 근거',
                 title: '무엇을 보고 판단할지',
                 description: evidenceParts.join(' · '),
-                tone: 'border-slate-200 bg-slate-50',
+                tone: BRAND_TONE.slate,
             },
             {
                 key: 'next-action',
@@ -3004,7 +3005,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                             key: 'total',
                                                             label: '전체 문항',
                                                             value: `${answerComparisonSummary.total}개`,
-                                                            tone: 'border-slate-200 bg-slate-50',
+                                                            tone: BRAND_TONE.slate,
                                                             labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
                                                             valueClassName: 'mt-1 text-xs font-black text-slate-700',
                                                         },
@@ -3012,7 +3013,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                             key: 'original-ready',
                                                             label: '원문 확보',
                                                             value: `${answerComparisonSummary.originalReady}개`,
-                                                            tone: 'border-indigo-200 bg-indigo-50',
+                                                            tone: BRAND_TONE.indigo,
                                                             labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-indigo-400',
                                                             valueClassName: 'mt-1 text-xs font-black text-indigo-700',
                                                         },
@@ -3020,7 +3021,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                             key: 'translated-ready',
                                                             label: '해석 확보',
                                                             value: `${answerComparisonSummary.translated}개`,
-                                                            tone: 'border-emerald-200 bg-emerald-50',
+                                                            tone: BRAND_TONE.emerald,
                                                             labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500',
                                                             valueClassName: 'mt-1 text-xs font-black text-emerald-700',
                                                         },

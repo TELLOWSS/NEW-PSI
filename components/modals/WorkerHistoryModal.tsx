@@ -7,6 +7,7 @@ import { OperationalPreviewCard } from '../shared/OperationalPreviewCard';
 import { SectionPanelCard } from '../shared/SectionPanelCard';
 import { StatusBadge, type StatusBadgeVariant } from '../shared/StatusBadge';
 import { SummaryMetricGrid } from '../shared/SummaryMetricGrid';
+import { BRAND_TONE } from '../../utils/brandToneTokens';
 
 const normalizeIdentityText = (value: unknown): string => typeof value === 'string' ? value.trim().toUpperCase() : '';
 
@@ -215,7 +216,7 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                                         label: '현재 수준',
                                         value: selectedRecord.safetyLevel,
                                         helper: `${selectedRecord.safetyScore}점`,
-                                        tone: 'border-slate-200 bg-slate-50',
+                                        tone: BRAND_TONE.slate,
                                         valueClassName: `mt-1 text-lg font-black ${selectedSafetyTone.text}`,
                                     },
                                     {
@@ -223,7 +224,7 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                                         label: '역할',
                                         value: getRoleLabel(editableRecord.role),
                                         helper: editableRecord.teamLeader || '팀장 미지정',
-                                        tone: 'border-indigo-200 bg-indigo-50',
+                                        tone: BRAND_TONE.indigo,
                                         valueClassName: 'mt-1 text-lg font-black text-indigo-700',
                                         helperClassName: 'mt-1 text-xs font-bold text-indigo-500',
                                     },
@@ -232,7 +233,7 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                                         label: '공종/국적',
                                         value: editableRecord.jobField,
                                         helper: editableRecord.nationality,
-                                        tone: 'border-emerald-200 bg-emerald-50',
+                                        tone: BRAND_TONE.emerald,
                                         valueClassName: 'mt-1 text-lg font-black text-emerald-700',
                                         helperClassName: 'mt-1 text-xs font-bold text-emerald-600',
                                     },

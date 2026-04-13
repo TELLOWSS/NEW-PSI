@@ -7,6 +7,7 @@ import { SafetyGradeTrendChart } from '../components/charts/SafetyGradeTrendChar
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
+import { BRAND_TONE } from '../utils/brandToneTokens';
 
 interface PerformanceAnalysisProps {
     workerRecords: WorkerRecord[];
@@ -208,14 +209,14 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
             eyebrow: '지금 상태',
             title: `${filteredBaseRecords.length.toLocaleString()}건의 실무 근로자 성과 흐름을 분석 중입니다.`,
             description: `${timeRange} 기준으로 관리 직군을 제외한 실무 기록만 모아 변동성과 성장 흐름을 읽고 있습니다.`,
-            tone: 'border-indigo-200 bg-indigo-50/70',
+            tone: BRAND_TONE.indigoSoft70,
         },
         {
             key: 'performance-evidence',
             eyebrow: '판단 근거',
             title: `평균 ${kpiData?.currentAvg.toFixed(1) || '-'}점 · 변동성 ${kpiData?.volatility.toFixed(1) || '-'} · 최우수 ${kpiData?.topField.field || '-'}`,
             description: '평균 점수, 일관성, 공종별 편차, 등급 분포, 위험 키워드를 함께 봐야 단순 점수보다 실제 현장 안정도를 더 정확히 읽을 수 있습니다.',
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'performance-action',
@@ -232,7 +233,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
             eyebrow: '지금 상태',
             title: '시계열, 레이더, 히트맵, 등급 분포를 함께 읽는 구조입니다.',
             description: '한 차트만 보면 놓치는 흔들림을 여러 관점에서 동시에 확인하도록 배치했습니다.',
-            tone: 'border-slate-200 bg-slate-50',
+            tone: BRAND_TONE.slate,
         },
         {
             key: 'chart-evidence',
@@ -241,14 +242,14 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
             description: safetyHabitRanking.length > 0
                 ? `상위 안전 습관 근로자 ${safetyHabitRanking.length}명과 반복 키워드를 함께 보면 좋은 사례와 보완 대상이 동시에 보입니다.`
                 : '기복 없는 실천 사례가 충분히 쌓이면 상위 안전 습관자와 반복 위험 키워드를 함께 비교할 수 있습니다.',
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'chart-action',
             eyebrow: '다음 행동',
             title: '좋은 습관은 확산하고 반복 위험은 선제 보완하세요.',
             description: '최우수 성과 공종과 상위 안전 실무자의 패턴을 교육·코칭 메시지로 전환하면 보호 중심 운영이 더 쉬워집니다.',
-            tone: 'border-amber-200 bg-amber-50/80',
+            tone: BRAND_TONE.amberSoft80,
         },
     ], [riskKeywords, safetyHabitRanking.length]);
 
@@ -258,7 +259,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
             label: '저장 연결',
             value: `${harnessSummary.connected}명`,
             helper: `run 연결 ${harnessSummary.runLinked}명 / 전체 ${harnessSummary.total}명`,
-            tone: 'border-emerald-200 bg-emerald-50/80',
+            tone: BRAND_TONE.emeraldSoft80,
             labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700',
             helperClassName: 'mt-1 text-xs font-bold text-emerald-700',
         },

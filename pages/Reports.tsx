@@ -42,6 +42,8 @@ import { buildHarnessRuleImpactSummary } from '../utils/harnessRuleImpactSummary
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { buildPdfBlobFromCanvases, canvasToBlob, captureReportCanvases, getCanvasImageData, getCanvasPlacementOnA4, saveCanvasesAsA4Pdf } from '../utils/pdfCapture';
 import { fetchHarnessWorkflowStatus } from '../services/harnessService';
+import { buildReportsSummaryCards, buildReportsViewCards } from '../utils/roleViewModel';
+import { BRAND_TONE } from '../utils/brandToneTokens';
 
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
 
@@ -710,7 +712,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             label: '저장 연결',
             value: `${harnessSummary.connected}건`,
             helper: `${harnessSummary.runLinked}건이 workflow run과 연결되어 있습니다.`,
-            tone: 'border-emerald-200 bg-emerald-50/80',
+            tone: BRAND_TONE.emeraldSoft80,
         },
         {
             key: 'harness-fallback',
@@ -912,7 +914,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             return {
                 title: '최신 승인 diff가 아직 저장되지 않았습니다.',
                 description: '현재는 승인 이력 건수와 상태 배지만 확인 가능하며, 상세 변경 설명은 이후 승인 액션부터 누적됩니다.',
-                tone: 'border-slate-200 bg-slate-50',
+                tone: BRAND_TONE.slate,
             };
         }
 
@@ -963,7 +965,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     : versionChanges.length > 0
                         ? '버전 변경 요약과 승인 코멘트를 함께 읽어 왜 판단이 달라졌는지 설명하십시오.'
                         : '승인 코멘트와 현재 위험 판단을 묶어 보고서 해설 문구로 사용하시면 됩니다.',
-                tone: 'border-emerald-200 bg-emerald-50/80',
+                tone: BRAND_TONE.emeraldSoft80,
             };
         }
 
@@ -972,7 +974,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 title: '승인 diff는 없지만 룰 개입 이력은 남아 있습니다.',
                 description: '오버라이드 메시지와 현재 위험 판단을 함께 읽으면 보고서 설명의 핵심 문장을 빠르게 만들 수 있습니다.',
                 action: '규칙 개입 사유를 먼저 설명한 뒤 현장 보완 조치를 이어서 적는 방식이 가장 효율적입니다.',
-                tone: 'border-amber-200 bg-amber-50/80',
+                tone: BRAND_TONE.amberSoft80,
             };
         }
 
@@ -982,7 +984,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 ? `저장된 버전 변경 요약 ${versionChanges[0]}를 함께 적으면 문맥 설명력이 높아집니다.`
                 : '추가 승인 diff나 오버라이드가 없다면 현재 상태 배지와 증빙 해시 중심으로 설명하시면 됩니다.',
             action: 'workflow, risk, approval 상태와 증빙 해시를 짧게 묶어 보고서 근거 문장으로 정리하십시오.',
-            tone: 'border-slate-200 bg-slate-50',
+            tone: BRAND_TONE.slate,
         };
     }, [previewWorkflowStatus]);
 
@@ -1129,42 +1131,17 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         };
     }, [verificationHarnessMetaSummary, verificationTemplateMismatchWarnings]);
 
-    const reportSummaryCards: InterpretationCardItem[] = useMemo(() => [
-        {
-            key: 'report-status',
-            eyebrow: '지금 상태',
-            title: `${filteredRecords.length}명의 보고서 흐름을 정리할 준비가 되어 있습니다.`,
-            description: activeTab === 'team-report'
-                ? `${selectedTeam === '전체' ? '전체 공종' : `${selectedTeam} 공종`} 기준으로 보고 대상을 모아 팀 단위 비교와 일괄 생성을 바로 이어갈 수 있습니다.`
-                : '전체 근로자 목록에서 개별 미리보기와 일괄 생성 흐름을 같은 화면에서 이어갈 수 있습니다.',
-            tone: 'border-indigo-200 bg-indigo-50/70',
-        },
-        {
-            key: 'report-evidence',
-            eyebrow: '판단 근거',
-            title: '공종, 등급, 기간 필터가 현재 보고 범위를 만듭니다.',
-            description: `현재 ${dateFilterLabel} 기준이며${filterLevel !== '전체' ? ` ${filterLevel} 등급만` : ' 전체 등급을'} 보고 있습니다. 필터 조건은 목록, 미리보기, ZIP/PDF 출력에 동일하게 반영됩니다.`,
-            tone: 'border-white/80 bg-white',
-        },
-        {
-            key: 'report-action',
-            eyebrow: '다음 행동',
-            title: viewMode === 'preview' ? '현재 미리보기 보고서를 먼저 확인하세요.' : '대상 목록에서 먼저 우선순위를 읽으세요.',
-            description: viewMode === 'preview'
-                ? '미리보기에서 내용이 맞는지 확인한 뒤 현재 보고서 내보내기 또는 일괄 생성으로 이어가면 됩니다.'
-                : '약점, 점수, 등급을 함께 비교해 어떤 근로자군부터 설명과 보호 조치를 연결할지 먼저 정리할 수 있습니다.',
-            tone: viewMode === 'preview' ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80',
-        },
-        {
-            key: 'report-harness',
-            eyebrow: '하네스 커버리지',
-            title: `${harnessSummary.connected}건은 저장 연결, ${harnessSummary.reviewNeeded}건은 추가 보호 판단이 필요합니다.`,
-            description: harnessSummary.fallback > 0
-                ? `현재 ${harnessSummary.fallback}건은 persistence 폴백 상태입니다. 보고서 해석은 유지되지만 저장 연결 상태를 함께 읽어야 합니다.`
-                : '보고서 대상마다 하네스 워크플로우·위험·승인 상태를 함께 읽을 수 있어 설명보다 보호 조치를 먼저 정리할 수 있습니다.',
-            tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-violet-200 bg-violet-50/80',
-        },
-    ], [activeTab, dateFilterLabel, filterLevel, filteredRecords.length, harnessSummary, selectedTeam, viewMode]);
+    const reportSummaryCards: InterpretationCardItem[] = useMemo(() => {
+        return buildReportsSummaryCards({
+            filteredRecordsLength: filteredRecords.length,
+            activeTab,
+            selectedTeam,
+            dateFilterLabel,
+            filterLevel,
+            viewMode,
+            harnessSummary,
+        });
+    }, [activeTab, dateFilterLabel, filterLevel, filteredRecords.length, harnessSummary, selectedTeam, viewMode]);
 
     const filterInterpretationCards: InterpretationCardItem[] = useMemo(() => [
         {
@@ -1181,7 +1158,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             eyebrow: '판단 근거',
             title: '대상 수와 출력 방식이 작업량을 보여줍니다.',
             description: `현재 ${filteredRecords.length}명을 처리 대상으로 보고 있으며, 목록 보기와 상세 미리보기는 같은 필터 집합을 공유합니다.`,
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'filter-action',
@@ -1207,7 +1184,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             eyebrow: '판단 근거',
             title: '진행 상태 바와 대상 수가 생성 근거입니다.',
             description: `현재 대상 ${filteredRecords.length}명 기준으로 처리 중이며${bulkProgress.total > 0 ? `, ${bulkProgress.current}/${bulkProgress.total}건이 반영되고 있습니다.` : ' 생성 시작 전에는 대상 수만 먼저 확인할 수 있습니다.'}`,
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'generation-action',
@@ -1233,7 +1210,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             eyebrow: '판단 근거',
             title: 'Manifest, JSON 파일 수, 해시 비교가 기준입니다.',
             description: `현재 Manifest ${verificationManifestFile ? '1개 선택됨' : '미선택'}, JSON ${verificationJsonFiles.length}개가 준비되어 있습니다.`,
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'verify-action',
@@ -1399,33 +1376,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         });
     }, [selectedVerificationFailureFilter, selectedVerificationPackageFilter, selectedVerificationStatusFilter, verificationHistory]);
 
-    const viewInterpretationCards: InterpretationCardItem[] = useMemo(() => [
-        {
-            key: 'view-status',
-            eyebrow: '지금 상태',
-            title: viewMode === 'list' ? '생성 대상 목록을 비교 중입니다.' : `${currentPreviewRecord?.name || '선택된 근로자'} 보고서를 미리보고 있습니다.`,
-            description: viewMode === 'list'
-                ? '이름, 공종, 점수, 등급, 취약점을 같은 행에서 확인해 설명이 더 필요한 대상을 빠르게 찾을 수 있습니다.'
-                : `${previewIndex + 1}/${filteredRecords.length} 순서이며 현재 보고서 내용을 실제 출력 전 단계에서 검토할 수 있습니다.`,
-            tone: 'border-slate-200 bg-slate-50',
-        },
-        {
-            key: 'view-evidence',
-            eyebrow: '판단 근거',
-            title: viewMode === 'list' ? '점수와 약점 조합이 우선 해설 대상을 보여줍니다.' : '미리보기 템플릿이 실제 PDF/이미지 출력 기준입니다.',
-            description: viewMode === 'list'
-                ? '단순 점수보다 주요 취약점을 함께 읽어 어떤 설명과 코칭이 필요한지 보호 중심으로 판단할 수 있습니다.'
-                : '현재 보이는 템플릿이 그대로 캡처되어 PDF 또는 이미지로 저장됩니다.',
-            tone: 'border-white/80 bg-white',
-        },
-        {
-            key: 'view-action',
-            eyebrow: '다음 행동',
-            title: viewMode === 'list' ? '행을 눌러 개별 미리보기로 이동하세요.' : '내용 확인 후 현재 보고서 내보내기 또는 일괄 생성으로 이어가세요.',
-            description: '목록과 미리보기를 오가며 먼저 설명이 필요한 사람을 확인한 뒤 출력하면 보고서가 평가 문서가 아니라 보호 안내서처럼 작동합니다.',
-            tone: viewMode === 'preview' ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80',
-        },
-    ], [currentPreviewRecord, filteredRecords.length, previewIndex, viewMode]);
+    const viewInterpretationCards: InterpretationCardItem[] = useMemo(() => {
+        return buildReportsViewCards({
+            viewMode,
+            currentPreviewName: currentPreviewRecord?.name || '선택된 근로자',
+            previewIndex,
+            filteredRecordsLength: filteredRecords.length,
+        });
+    }, [currentPreviewRecord?.name, filteredRecords.length, previewIndex, viewMode]);
 
     // 렌더링 안정화 대기 함수
     const waitForRender = async (ms: number = 1500) => {

@@ -8,6 +8,7 @@ import { InterpretationCardGrid, type InterpretationCardItem } from '../componen
 import { ReportGenerationProgress } from '../components/shared/ReportGenerationProgress';
 import { ensureFileSaver, ensureHtml2Canvas, ensureJsPdfConstructor, ensureJsZip } from '../utils/externalScripts';
 import { canvasToBlob, captureReportCanvases, saveCanvasesAsA4Pdf } from '../utils/pdfCapture';
+import { BRAND_TONE } from '../utils/brandToneTokens';
 
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
 
@@ -122,7 +123,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             eyebrow: '판단 근거',
             title: `안전점수 ${record.safetyScore || '-'}점 · 등급 ${record.safetyLevel || '-'}`,
             description: `${record.jobField || '미분류'}${record.teamLeader ? ` · ${record.teamLeader}` : ''} 기준 기록과 이력 데이터를 현재 리포트 템플릿에 함께 반영합니다.`,
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'individual-action',
@@ -169,7 +170,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             description: serverMessageLogs.length > 0
                 ? `최근 서버 로그 ${serverMessageLogs.length}건이 있어 성공·실패 여부를 바로 확인할 수 있습니다.`
                 : '서버 발송 로그가 없으면 현재 입력한 번호와 메모가 가장 중요한 판단 근거가 됩니다.',
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'message-action',
@@ -186,7 +187,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             eyebrow: '지금 상태',
             title: 'QR 현장 조회용 핵심 정보가 열려 있습니다.',
             description: '성명, 사번, QR ID, 등급·점수, 무결성, OCR 신뢰도를 작은 화면에서도 빠르게 읽을 수 있도록 묶었습니다.',
-            tone: 'border-indigo-200 bg-indigo-50/70',
+            tone: BRAND_TONE.indigoSoft70,
         },
         {
             key: 'qr-evidence',
@@ -195,14 +196,14 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             description: reassessmentTrail.length > 0
                 ? `최근 재평가 이력 ${reassessmentTrail.length}건이 있어 현장 설명 시 이전 보완 흐름까지 함께 볼 수 있습니다.`
                 : '재평가 이력이 없더라도 현재 점수와 AI 채점 근거를 기준으로 간단한 설명을 바로 이어갈 수 있습니다.',
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'qr-action',
             eyebrow: '다음 행동',
             title: '핵심 6을 먼저 설명한 뒤 필요 시 전체 리포트로 확장하세요.',
             description: '현장에서는 모든 내용을 다 읽기보다 지금 위험 신호와 다음 행동을 짧게 전달하는 것이 더 중요합니다.',
-            tone: 'border-amber-200 bg-amber-50/80',
+            tone: BRAND_TONE.amberSoft80,
         },
     ], [reassessmentTrail.length]);
 

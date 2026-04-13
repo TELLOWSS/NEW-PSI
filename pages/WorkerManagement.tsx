@@ -21,6 +21,8 @@ import { TableStateRow } from '../components/shared/TableStateRow';
 import { canvasToBlob, captureReportCanvases } from '../utils/pdfCapture';
 import { getWindowProp } from '../utils/windowUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
+import { BRAND_TONE } from '../utils/brandToneTokens';
+import { buildWorkerMessageDashboardCards, buildWorkerRegisteredCards } from '../utils/roleViewModel';
 import {
     ResponsiveContainer,
     BarChart,
@@ -1772,41 +1774,17 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             );
         }).length;
 
-        return [
-            {
-                eyebrow: '지금 상태',
-                title: `현재 화면에서 ${visibleRegisteredWorkers.length}명을 보고 있고 중복 후보는 ${registeredWorkerDuplicateSummary.duplicateWorkerCount}명입니다.`,
-                description:
-                    registeredWorkerDuplicateSummary.duplicateGroupCount > 0
-                        ? `${registeredWorkerDuplicateSummary.duplicateGroupCount}개 그룹에서 같은 사람으로 보이는 등록이 반복되고 있어, 발급 전 기준 데이터 정리가 필요한 상태입니다.`
-                        : '현재 필터 기준에서는 즉시 정리해야 할 중복 신호가 크지 않아, 현장 발급 흐름을 이어갈 수 있습니다.',
-            },
-            {
-                eyebrow: '판단 근거',
-                title: `연락처·생년월일·여권번호 중 ${missingAnyCount}명이 최소 1개 이상 확인이 더 필요합니다.`,
-                description:
-                    `전화번호 ${registeredWorkerMissingSummary.missingPhone}명, 생년월일 ${registeredWorkerMissingSummary.missingBirth}명, 여권번호 ${registeredWorkerMissingSummary.missingPassport}명이 비어 있어 문자 발송과 본인 확인 신뢰에 직접 영향을 줍니다.`,
-            },
-            {
-                eyebrow: '다음 행동',
-                title:
-                    registeredWorkerDuplicateSummary.autoDeleteIds.length > 0
-                        ? `삭제 권장 ${registeredWorkerDuplicateSummary.autoDeleteIds.length}명을 먼저 검토하고, 남길 1명을 기준 데이터로 고정하세요.`
-                        : '중복 정리보다는 누락 정보 보완과 번호 검증을 먼저 진행하세요.',
-                description:
-                    registeredWorkerDuplicateSummary.autoDeleteIds.length > 0
-                        ? '중복 그룹 미리보기에서 보존 후보를 확인한 뒤 자동선택으로 정리하면 이후 문자 발송과 발급 이력이 한 사람 기준으로 정리됩니다.'
-                        : '필터에서 누락 항목을 좁힌 뒤 등록 정보를 보완하면 문자 발송 이력과 보안 패스 발급 연결이 더 안정적으로 유지됩니다.',
-            },
-            {
-                eyebrow: '하네스 보호 맥락',
-                title: `최신 리포트 연결 ${registeredWorkerHarnessSummary.linkedReport}명 중 ${registeredWorkerHarnessSummary.reviewNeeded}명은 추가 보호 판단이 필요합니다.`,
-                description:
-                    registeredWorkerHarnessSummary.fallback > 0
-                        ? `하네스 저장 폴백 ${registeredWorkerHarnessSummary.fallback}명, 저장 대기 ${registeredWorkerHarnessSummary.pending}명입니다. 등록 정보 정리와 함께 저장 연결 상태를 다시 확인해야 합니다.`
-                        : `즉시 보호 대상 ${registeredWorkerHarnessSummary.highRisk}명, 최신 리포트 미연결 ${registeredWorkerHarnessSummary.missingReport}명입니다.`,
-            },
-        ];
+        return buildWorkerRegisteredCards({
+            visibleWorkersLength: visibleRegisteredWorkers.length,
+            duplicateWorkerCount: registeredWorkerDuplicateSummary.duplicateWorkerCount,
+            duplicateGroupCount: registeredWorkerDuplicateSummary.duplicateGroupCount,
+            missingAnyCount,
+            missingPhone: registeredWorkerMissingSummary.missingPhone,
+            missingBirth: registeredWorkerMissingSummary.missingBirth,
+            missingPassport: registeredWorkerMissingSummary.missingPassport,
+            autoDeleteCount: registeredWorkerDuplicateSummary.autoDeleteIds.length,
+            harnessSummary: registeredWorkerHarnessSummary,
+        });
     }, [
         registeredWorkerDuplicateSummary.autoDeleteIds.length,
         registeredWorkerDuplicateSummary.duplicateGroupCount,
@@ -1832,34 +1810,18 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         if (!reportMessageDashboardSummary?.schemaReady) return [];
 
         const primaryFailureGuide = failurePriorityActions[0];
-        const hasAttention = reportMessageDashboardSummary.overview.failedCount > 0;
 
-        return [
-            {
-                eyebrow: '지금 상태',
-                title: `${getRangeFilterLabel(dashboardRangeFilter)} 기준 ${reportMessageDashboardSummary.overview.totalCount}건 중 ${reportMessageDashboardSummary.overview.successRate}%가 정상 전달됐습니다.`,
-                description: hasAttention
-                    ? `${reportMessageDashboardSummary.overview.failedCount}건은 추가 확인이 필요하며, 현장 커뮤니케이션이 끊기지 않도록 우선순위 판단이 필요한 상태입니다.`
-                    : '현재 범위에서는 발송 흐름이 안정적으로 유지되고 있어 추가 개입 필요도가 낮습니다.',
-            },
-            {
-                eyebrow: '판단 근거',
-                title: hasAttention
-                    ? `가장 많이 보이는 신호는 ${reportMessageDashboardSummary.overview.topFailureCategory || '미분류'}입니다.`
-                    : `가장 많이 발송한 팀은 ${reportMessageDashboardSummary.overview.topTeam || '미지정'}입니다.`,
-                description: primaryFailureGuide
-                    ? `${primaryFailureGuide.reason}이 ${primaryFailureGuide.count}건으로 가장 자주 보여, ${primaryFailureGuide.action} 흐름을 우선 적용하는 것이 좋습니다.`
-                    : '월별·팀별 집계를 함께 보면 특정 팀이나 시점에 발송 품질이 흔들렸는지 빠르게 파악할 수 있습니다.',
-            },
-            {
-                eyebrow: '다음 행동',
-                title: `${BRAND_ACTION_LABELS.retryCandidate} ${reportMessageDashboardSummary.overview.retryCandidateCount}건을 먼저 확인해 다시 보낼 수 있는 대상을 가려내세요.`,
-                description:
-                    reportMessageDashboardSummary.overview.retryCandidateCount > 0
-                        ? '재시도 큐에서 전화번호·등록 근로자·리포트 원본이 모두 연결된 대상을 먼저 선택하면, 실패 원인을 다시 찾는 시간보다 복구 속도를 더 빠르게 가져갈 수 있습니다.'
-                        : '현재는 재시도 후보가 많지 않으므로, 신규 발송 품질 유지와 주요 실패 원인 예방에 집중하면 됩니다.',
-            },
-        ];
+        return buildWorkerMessageDashboardCards({
+            rangeLabel: getRangeFilterLabel(dashboardRangeFilter),
+            totalCount: reportMessageDashboardSummary.overview.totalCount,
+            successRate: reportMessageDashboardSummary.overview.successRate,
+            failedCount: reportMessageDashboardSummary.overview.failedCount,
+            topFailureCategory: reportMessageDashboardSummary.overview.topFailureCategory || '',
+            topTeam: reportMessageDashboardSummary.overview.topTeam || '',
+            retryCandidateCount: reportMessageDashboardSummary.overview.retryCandidateCount,
+            primaryFailureGuide: primaryFailureGuide || null,
+            retryLabel: BRAND_ACTION_LABELS.retryCandidate,
+        });
     }, [dashboardRangeFilter, failurePriorityActions, reportMessageDashboardSummary]);
 
     const filteredRetryQueueRows = useMemo(() => {
@@ -4703,7 +4665,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             key: 'registered-workers-visible',
                             label: '현재 표시 등록자',
                             value: `${registeredWorkers.length}명`,
-                            tone: 'border-slate-200 bg-slate-50',
+                            tone: BRAND_TONE.slate,
                             labelClassName: 'text-[10px] font-black text-slate-500',
                             valueClassName: 'mt-1 text-lg font-black text-slate-900',
                         },
@@ -4711,7 +4673,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             key: 'registered-workers-hidden-duplicates',
                             label: '완전 동일 중복',
                             value: `${registeredWorkerListMeta.hiddenExactDuplicateCount}건`,
-                            tone: 'border-amber-200 bg-amber-50',
+                            tone: BRAND_TONE.amber,
                             labelClassName: 'text-[10px] font-black text-amber-600',
                             valueClassName: 'mt-1 text-lg font-black text-amber-900',
                         },
@@ -4719,7 +4681,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             key: 'registered-workers-duplicate-groups',
                             label: '중복 후보 그룹',
                             value: `${registeredWorkerDuplicateSummary.duplicateGroupCount}그룹`,
-                            tone: 'border-indigo-200 bg-indigo-50',
+                            tone: BRAND_TONE.indigo,
                             labelClassName: 'text-[10px] font-black text-indigo-600',
                             valueClassName: 'mt-1 text-lg font-black text-indigo-900',
                         },
@@ -4728,7 +4690,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             label: '하네스 저장 연결',
                             value: `${registeredWorkerHarnessSummary.connected}명`,
                             helper: `최신 리포트 연결 ${registeredWorkerHarnessSummary.linkedReport}명`,
-                            tone: 'border-emerald-200 bg-emerald-50',
+                            tone: BRAND_TONE.emerald,
                             labelClassName: 'text-[10px] font-black text-emerald-600',
                             valueClassName: 'mt-1 text-lg font-black text-emerald-900',
                             helperClassName: 'mt-1 text-[11px] font-bold text-emerald-700',
@@ -5063,14 +5025,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             key: 'dashboard-total',
                                             label: `${getRangeFilterLabel(dashboardRangeFilter)} 총 발송`,
                                             value: reportMessageDashboardSummary.overview.totalCount,
-                                            tone: 'border-slate-200 bg-slate-50',
+                                            tone: BRAND_TONE.slate,
                                             labelClassName: 'text-[10px] font-black text-slate-500',
                                         },
                                         {
                                             key: 'dashboard-success',
                                             label: `${getRangeFilterLabel(dashboardRangeFilter)} 성공`,
                                             value: reportMessageDashboardSummary.overview.successCount,
-                                            tone: 'border-emerald-100 bg-emerald-50',
+                                            tone: BRAND_TONE.emeraldSoft,
                                             labelClassName: 'text-[10px] font-black text-emerald-600',
                                             valueClassName: 'mt-1 text-2xl font-black text-emerald-900',
                                         },
@@ -5078,7 +5040,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             key: 'dashboard-failed',
                                             label: `${getRangeFilterLabel(dashboardRangeFilter)} ${BRAND_STATUS_LABELS.attention}`,
                                             value: reportMessageDashboardSummary.overview.failedCount,
-                                            tone: 'border-rose-100 bg-rose-50',
+                                            tone: BRAND_TONE.roseSoft,
                                             labelClassName: 'text-[10px] font-black text-rose-600',
                                             valueClassName: 'mt-1 text-2xl font-black text-rose-900',
                                         },
@@ -5086,7 +5048,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             key: 'dashboard-success-rate',
                                             label: `${getRangeFilterLabel(dashboardRangeFilter)} 성공률`,
                                             value: `${reportMessageDashboardSummary.overview.successRate}%`,
-                                            tone: 'border-amber-100 bg-amber-50',
+                                            tone: BRAND_TONE.amberSoft,
                                             labelClassName: 'text-[10px] font-black text-amber-600',
                                             valueClassName: 'mt-1 text-2xl font-black text-amber-900',
                                         },
@@ -5094,7 +5056,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             key: 'dashboard-top-team',
                                             label: '최다 팀',
                                             value: reportMessageDashboardSummary.overview.topTeam,
-                                            tone: 'border-indigo-100 bg-indigo-50',
+                                            tone: BRAND_TONE.indigoSoft,
                                             labelClassName: 'text-[10px] font-black text-indigo-600',
                                             valueClassName: 'mt-1 text-sm font-black text-indigo-900 truncate',
                                         },
@@ -5102,7 +5064,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             key: 'dashboard-top-failure',
                                             label: `주요 ${BRAND_STATUS_LABELS.attention} 원인`,
                                             value: reportMessageDashboardSummary.overview.topFailureCategory,
-                                            tone: 'border-violet-100 bg-violet-50',
+                                            tone: BRAND_TONE.violetSoft,
                                             labelClassName: 'text-[10px] font-black text-violet-600',
                                             valueClassName: 'mt-1 text-sm font-black text-violet-900 truncate',
                                         },
@@ -5115,7 +5077,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             key: 'dashboard-individual-count',
                                             label: '개별 발송 누계',
                                             value: `${reportMessageDashboardSummary.overview.individualCount}건`,
-                                            tone: 'border-sky-100 bg-sky-50',
+                                            tone: BRAND_TONE.skySoft,
                                             labelClassName: 'text-[10px] font-black text-sky-700',
                                             valueClassName: 'mt-1 text-lg font-black text-sky-900',
                                         },
@@ -5123,7 +5085,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             key: 'dashboard-bulk-count',
                                             label: '일괄 발송 누계',
                                             value: `${reportMessageDashboardSummary.overview.bulkCount}건`,
-                                            tone: 'border-violet-100 bg-violet-50',
+                                            tone: BRAND_TONE.violetSoft,
                                             labelClassName: 'text-[10px] font-black text-violet-700',
                                             valueClassName: 'mt-1 text-lg font-black text-violet-900',
                                         },
@@ -5131,7 +5093,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             key: 'dashboard-retry-count',
                                             label: BRAND_ACTION_LABELS.retryCandidate,
                                             value: `${reportMessageDashboardSummary.overview.retryCandidateCount}건`,
-                                            tone: 'border-amber-100 bg-amber-50',
+                                            tone: BRAND_TONE.amberSoft,
                                             labelClassName: 'text-[10px] font-black text-amber-700',
                                             valueClassName: 'mt-1 text-lg font-black text-amber-900',
                                         },
@@ -5266,7 +5228,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                                         key: `${row.retry_key}-evidence`,
                                                                         eyebrow: '판단 근거',
                                                                         title: <span className="break-words">{row.message || row.provider || '-'}</span>,
-                                                                        tone: 'border-slate-200 bg-slate-50',
+                                                                        tone: BRAND_TONE.slate,
                                                                         eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-slate-500',
                                                                         content: (
                                                                             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -5283,7 +5245,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                                         key: `${row.retry_key}-action`,
                                                                         eyebrow: '다음 행동',
                                                                         title: actionable ? '이력 확인 후 즉시 재발송 대상으로 묶거나 원본 리포트를 열어 최종 판단하세요.' : '차단 원인을 먼저 풀어야 동일 실패를 반복하지 않습니다.',
-                                                                        tone: 'border-indigo-200 bg-indigo-50',
+                                                                        tone: BRAND_TONE.indigo,
                                                                         eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700',
                                                                         content: blockers.length > 0 ? (
                                                                             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -5598,7 +5560,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             key: 'message-history-success',
                                             label: 'SUCCESS',
                                             value: selectedMessageHistorySummary.successCount,
-                                            tone: 'border-emerald-100 bg-emerald-50',
+                                            tone: BRAND_TONE.emeraldSoft,
                                             labelClassName: 'text-[10px] font-black text-emerald-600 uppercase tracking-[0.18em]',
                                             valueClassName: 'mt-1 text-2xl font-black text-emerald-900',
                                         },
@@ -5606,7 +5568,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             key: 'message-history-failure',
                                             label: 'CHECK / HOLD',
                                             value: selectedMessageHistorySummary.failureCount,
-                                            tone: 'border-rose-100 bg-rose-50',
+                                            tone: BRAND_TONE.roseSoft,
                                             labelClassName: 'text-[10px] font-black text-rose-600 uppercase tracking-[0.18em]',
                                             valueClassName: 'mt-1 text-2xl font-black text-rose-900',
                                         },
@@ -5614,7 +5576,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             key: 'message-history-pages',
                                             label: 'SENT PAGES',
                                             value: selectedMessageHistorySummary.sentPageCount,
-                                            tone: 'border-sky-100 bg-sky-50',
+                                            tone: BRAND_TONE.skySoft,
                                             labelClassName: 'text-[10px] font-black text-sky-600 uppercase tracking-[0.18em]',
                                             valueClassName: 'mt-1 text-2xl font-black text-sky-900',
                                         },
@@ -5622,7 +5584,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             key: 'message-history-success-rate',
                                             label: 'SUCCESS RATE',
                                             value: `${selectedMessageHistorySummary.successRate}%`,
-                                            tone: 'border-amber-100 bg-amber-50',
+                                            tone: BRAND_TONE.amberSoft,
                                             labelClassName: 'text-[10px] font-black text-amber-600 uppercase tracking-[0.18em]',
                                             valueClassName: 'mt-1 text-2xl font-black text-amber-900',
                                         },
@@ -5631,7 +5593,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             label: 'TOP PROVIDER',
                                             value: selectedMessageHistorySummary.topProviderLabel,
                                             helper: `${selectedMessageHistorySummary.topProviderCount}건`,
-                                            tone: 'border-violet-100 bg-violet-50',
+                                            tone: BRAND_TONE.violetSoft,
                                             labelClassName: 'text-[10px] font-black text-violet-600 uppercase tracking-[0.18em]',
                                             valueClassName: 'mt-1 text-base font-black text-violet-900 truncate',
                                             helperClassName: 'mt-1 text-xs font-bold text-violet-700',
@@ -6231,7 +6193,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     key: `${worker.id}-evidence`,
                                                     eyebrow: '판단 근거',
                                                     title: evidenceSummary,
-                                                    tone: 'border-slate-200 bg-white',
+                                                    tone: BRAND_TONE.slateWhite,
                                                     eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-slate-500',
                                                     content: (
                                                         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -6279,7 +6241,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     key: `${worker.id}-action`,
                                                     eyebrow: '다음 행동',
                                                     title: nextActionSummary,
-                                                    tone: 'border-indigo-200 bg-indigo-50',
+                                                    tone: BRAND_TONE.indigo,
                                                     eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700',
                                                 },
                                             ]}

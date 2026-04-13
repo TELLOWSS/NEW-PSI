@@ -16,6 +16,20 @@ import {
     normalizeDashboardTrade,
     transformDashboardData,
 } from '../utils/dashboardDataTransformer';
+import {
+    DASHBOARD_AUDIENCE_META,
+    buildAudienceInsightMessage,
+    buildComparisonSectionMeta,
+    buildDashboardSummaryCards,
+    buildMobileInsightTabs,
+    buildOperationalFocusCards,
+    buildOverviewStatCards,
+    type DashboardAudience,
+    type DashboardInsightTab,
+    type DashboardInsightTabConfig,
+    type DashboardStatCardConfig,
+} from '../utils/roleViewModel';
+import { BRAND_TONE } from '../utils/brandToneTokens';
 
 const NationalityChart = lazy(() => import('../components/charts/NationalityChart').then(module => ({ default: module.NationalityChart })));
 const TopWeaknessesChart = lazy(() => import('../components/charts/TopWeaknessesChart').then(module => ({ default: module.TopWeaknessesChart })));
@@ -39,16 +53,6 @@ type DashboardTeamOption = {
     avgScore: number;
 };
 
-type DashboardAudience = 'worker' | 'manager' | 'executive';
-
-type DashboardStatCardConfig = {
-    key: string;
-    title: string;
-    value: string;
-    iconType: 'users' | 'chart' | 'warning' | 'check';
-    page: Page;
-};
-
 type DashboardQuickActionConfig = {
     key: string;
     label: string;
@@ -56,8 +60,6 @@ type DashboardQuickActionConfig = {
     variant: 'ghost' | 'solid';
     icon: React.ReactNode;
 };
-
-type DashboardInsightTab = 'chart' | 'team' | 'worker';
 
 type HarnessDashboardDrilldownType = 'approval-backlog' | 'immediate-attention' | 'fallback-pending' | 'trade-hotspot';
 
@@ -67,26 +69,6 @@ type HarnessDrilldownActionPlan = {
     primaryLabel: string;
     secondaryLabel: string;
     secondaryPage: Page;
-};
-
-type DashboardInsightTabConfig = {
-    key: DashboardInsightTab;
-    label: string;
-};
-
-const DASHBOARD_AUDIENCE_META: Record<DashboardAudience, { label: string; description: string }> = {
-    worker: {
-        label: '근로자 관점',
-        description: '의미와 다음 행동 중심으로 읽습니다.',
-    },
-    manager: {
-        label: '관리자 관점',
-        description: '근거와 우선순위 중심으로 읽습니다.',
-    },
-    executive: {
-        label: '경영진 관점',
-        description: '추세와 리스크 중심으로 읽습니다.',
-    },
 };
 
 // 관리 직군 여부 확인 함수
@@ -369,7 +351,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             label: '하네스 저장 연결',
             value: `${harnessDashboardSummary.connected}명`,
             helper: `${harnessDashboardSummary.runLinked}명이 workflow run과 연결되어 있습니다.`,
-            tone: 'border-emerald-200 bg-emerald-50/80',
+            tone: BRAND_TONE.emeraldSoft80,
         },
         {
             key: 'dashboard-harness-approval',
@@ -879,219 +861,34 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const isUnassignedWarning = unassignedCount > 0;
 
     const dashboardSummaryCards: InterpretationCardItem[] = useMemo(() => {
-        const teamDescription = selectedTeamOption
-            ? `${selectedTeamOption.label} 기준으로 대상을 좁혀 팀별 신호를 읽고 있습니다.`
-            : '전체 현장 기준으로 실무 근로자 안전 흐름을 한 화면에서 확인하고 있습니다.';
-
-        if (audienceView === 'worker') {
-            return [
-                {
-                    key: 'dashboard-status',
-                    eyebrow: '지금 내 현장',
-                    title: `${stats.totalWorkers}명의 실무 근로자 흐름을 보고 있습니다.`,
-                    description: teamDescription,
-                    tone: 'border-indigo-200 bg-indigo-50/70',
-                },
-                {
-                    key: 'dashboard-evidence',
-                    eyebrow: '무엇을 보면 되나',
-                    title: `평균 ${stats.averageScore.toFixed(1)}점 · 보호 필요 ${stats.highRiskWorkers}명`,
-                    description: '점수와 위험 인원은 누가 추가 확인이 필요한지 알려주는 신호입니다. 공종·팀 비교까지 함께 보면 내 작업조의 위치를 더 쉽게 이해할 수 있습니다.',
-                    tone: 'border-white/80 bg-white',
-                },
-                {
-                    key: 'dashboard-action',
-                    eyebrow: '다음 행동',
-                    title: stats.highRiskWorkers > 0 ? '보호가 필요한 구간부터 코칭과 재확인을 시작하세요.' : '현재 안정 흐름을 유지하며 작은 이상 신호만 먼저 확인하세요.',
-                    description: stats.highRiskWorkers > 0
-                        ? 'OCR 분석과 예측 분석으로 연결하면 어떤 항목을 먼저 보완해야 하는지 바로 이어서 볼 수 있습니다.'
-                        : '공종·국적 교차 분석으로 유사 작업군의 신호를 가볍게 확인해 선제 보완을 준비할 수 있습니다.',
-                    tone: stats.highRiskWorkers > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
-                },
-            ];
-        }
-
-        if (audienceView === 'executive') {
-            return [
-                {
-                    key: 'dashboard-status',
-                    eyebrow: '리스크 현황',
-                    title: `${stats.totalWorkers}명 기준 현장 안전 흐름을 추적 중입니다.`,
-                    description: selectedTeamOption
-                        ? `${selectedTeamOption.label} 팀 구간을 별도로 좁혀 리스크 편차를 보고 있습니다.`
-                        : '전체 현장 관점에서 실무 인력의 리스크 흐름을 집계하고 있습니다.',
-                    tone: 'border-indigo-200 bg-indigo-50/70',
-                },
-                {
-                    key: 'dashboard-evidence',
-                    eyebrow: '핵심 지표',
-                    title: `평균 ${stats.averageScore.toFixed(1)}점 · 고위험 ${stats.highRiskWorkers}명 · 점검 ${stats.totalChecks}건`,
-                    description: '평균 점수, 고위험 인원, 점검 건수는 현재 현장의 리스크 수준과 이행 상태를 보여주는 운영 지표입니다.',
-                    tone: 'border-white/80 bg-white',
-                },
-                {
-                    key: 'dashboard-action',
-                    eyebrow: '의사결정 포인트',
-                    title: stats.highRiskWorkers > 0 ? '취약 공종과 고위험 인원 중심으로 보호 자원 배분을 검토하세요.' : '안정 구간을 유지하면서 취약 팀만 선별 관리하세요.',
-                    description: stats.highRiskWorkers > 0
-                        ? '팀 비교와 공종 비교를 함께 보면 어느 구간에 교육·점검 자원을 먼저 투입해야 하는지 빠르게 정리할 수 있습니다.'
-                        : '안정 흐름일수록 팀 편차와 식별 불가 데이터를 함께 봐야 잠재 리스크를 놓치지 않습니다.',
-                    tone: stats.highRiskWorkers > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
-                },
-            ];
-        }
-
-        return [
-            {
-                key: 'dashboard-status',
-                eyebrow: '지금 상태',
-                title: `${stats.totalWorkers}명의 실무 근로자 흐름을 보고 있습니다.`,
-                description: teamDescription,
-                tone: 'border-indigo-200 bg-indigo-50/70',
+        return buildDashboardSummaryCards({
+            audience: audienceView,
+            stats: {
+                totalWorkers: stats.totalWorkers,
+                averageScore: stats.averageScore,
+                highRiskWorkers: stats.highRiskWorkers,
+                totalChecks: stats.totalChecks,
             },
-            {
-                key: 'dashboard-evidence',
-                eyebrow: '판단 근거',
-                title: `평균 ${stats.averageScore.toFixed(1)}점 · 고위험 ${stats.highRiskWorkers}명 · 점검 ${stats.totalChecks}건`,
-                description: '평균 점수, 고위험 인원, 점검 건수, 공종·국적·팀 비교가 함께 있어 어느 구간에서 보완이 필요한지 빠르게 읽을 수 있습니다.',
-                tone: 'border-white/80 bg-white',
+            selectedTeamOption: selectedTeamOption ? { label: selectedTeamOption.label } : null,
+            harnessSummary: {
+                approvalBacklog: harnessDashboardSummary.approvalBacklog,
+                fallback: harnessDashboardSummary.fallback,
+                immediateAttention: harnessDashboardSummary.immediateAttention,
             },
-            {
-                key: 'dashboard-action',
-                eyebrow: '다음 행동',
-                title: stats.highRiskWorkers > 0 ? '고위험 인원부터 분석·코칭 흐름으로 연결하세요.' : '현재 안정 흐름을 유지하며 취약 공종만 선별 확인하세요.',
-                description: stats.highRiskWorkers > 0
-                    ? '예측 분석, OCR 분석, 리포트 생성으로 바로 연결해 현장 보호 조치를 끊기지 않게 이어갈 수 있습니다.'
-                    : '공종·국적 교차 분석과 팀 비교를 통해 작은 이상 신호를 먼저 찾아 선제 보완할 수 있습니다.',
-                tone: stats.highRiskWorkers > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
-            },
-            {
-                key: 'dashboard-harness',
-                eyebrow: '하네스 백로그',
-                title: `${harnessDashboardSummary.approvalBacklog}명 승인 대기 · ${harnessDashboardSummary.immediateAttention}명 즉시 보호 대상`,
-                description: harnessDashboardSummary.fallback > 0
-                    ? `${harnessDashboardSummary.fallback}명은 persistence 폴백 상태입니다. 보호 해석은 유지되지만 저장 연결 여부를 함께 확인해야 합니다.`
-                    : '대시보드에서도 승인 백로그와 즉시 보호 대상을 함께 읽어 보고서·OCR·관리자 검토 우선순위를 바로 정할 수 있습니다.',
-                tone: harnessDashboardSummary.approvalBacklog > 0 || harnessDashboardSummary.immediateAttention > 0
-                    ? 'border-violet-200 bg-violet-50/80'
-                    : 'border-slate-200 bg-slate-50',
-            },
-        ];
+        });
     }, [audienceView, harnessDashboardSummary.approvalBacklog, harnessDashboardSummary.fallback, harnessDashboardSummary.immediateAttention, selectedTeamOption, stats.averageScore, stats.highRiskWorkers, stats.totalChecks, stats.totalWorkers]);
 
     const audienceInsightMessage = useMemo(() => {
-        if (audienceView === 'worker') {
-            return stats.highRiskWorkers > 0
-                ? `현재 ${stats.highRiskWorkers}명의 보호 우선 대상이 보입니다. 누구를 먼저 코칭하고 다시 확인할지 순서를 잡아주세요.`
-                : '전반적으로 안정 흐름입니다. 지금 상태를 유지하면서 작은 이상 신호만 먼저 확인하면 됩니다.';
-        }
-        if (audienceView === 'executive') {
-            return stats.highRiskWorkers > 0
-                ? `현재 ${stats.highRiskWorkers}명의 고위험 인원이 감지되었습니다. 취약 공종과 팀 편차를 함께 보며 보호 자원 배분이 필요합니다.`
-                : '전반적으로 안정 흐름입니다. 취약 팀과 식별 불가 데이터만 선별 관리하면 현재 수준을 유지할 수 있습니다.';
-        }
-        return stats.highRiskWorkers > 0
-            ? `현재 ${stats.highRiskWorkers}명의 고위험 근로자가 감지되었습니다. 즉시 교육 및 점검이 필요합니다.`
-            : '모든 근로자가 안전 기준을 충족하고 있습니다. 현재 상태를 유지하세요.';
+        return buildAudienceInsightMessage(audienceView, stats.highRiskWorkers);
     }, [audienceView, stats.highRiskWorkers]);
 
     const overviewStatCards = useMemo<DashboardStatCardConfig[]>(() => {
-        if (audienceView === 'worker') {
-            return [
-                {
-                    key: 'risk-priority',
-                    title: '보호 필요 인원',
-                    value: `${stats.highRiskWorkers}명`,
-                    iconType: 'warning',
-                    page: 'predictive-analysis',
-                },
-                {
-                    key: 'avg-score',
-                    title: '실무 평균 안전 점수',
-                    value: `${stats.averageScore.toFixed(1)}점`,
-                    iconType: 'chart',
-                    page: 'performance-analysis',
-                },
-                {
-                    key: 'workers',
-                    title: '현장 실무 근로자',
-                    value: `${stats.totalWorkers}명`,
-                    iconType: 'users',
-                    page: 'worker-management',
-                },
-                {
-                    key: 'checks',
-                    title: '안전 이행 점검',
-                    value: `${stats.totalChecks}건`,
-                    iconType: 'check',
-                    page: 'safety-checks',
-                },
-            ];
-        }
-
-        if (audienceView === 'executive') {
-            return [
-                {
-                    key: 'risk-priority',
-                    title: '고위험 근로자',
-                    value: `${stats.highRiskWorkers}명`,
-                    iconType: 'warning',
-                    page: 'predictive-analysis',
-                },
-                {
-                    key: 'checks',
-                    title: '안전 이행 점검',
-                    value: `${stats.totalChecks}건`,
-                    iconType: 'check',
-                    page: 'safety-checks',
-                },
-                {
-                    key: 'avg-score',
-                    title: '실무 평균 안전 점수',
-                    value: `${stats.averageScore.toFixed(1)}점`,
-                    iconType: 'chart',
-                    page: 'performance-analysis',
-                },
-                {
-                    key: 'workers',
-                    title: '현장 실무 근로자',
-                    value: `${stats.totalWorkers}명`,
-                    iconType: 'users',
-                    page: 'worker-management',
-                },
-            ];
-        }
-
-        return [
-            {
-                key: 'workers',
-                title: '현장 실무 근로자',
-                value: `${stats.totalWorkers}명`,
-                iconType: 'users',
-                page: 'worker-management',
-            },
-            {
-                key: 'avg-score',
-                title: '실무 평균 안전 점수',
-                value: `${stats.averageScore.toFixed(1)}점`,
-                iconType: 'chart',
-                page: 'performance-analysis',
-            },
-            {
-                key: 'risk-priority',
-                title: '고위험 근로자',
-                value: `${stats.highRiskWorkers}명`,
-                iconType: 'warning',
-                page: 'predictive-analysis',
-            },
-            {
-                key: 'checks',
-                title: '안전 이행 점검',
-                value: `${stats.totalChecks}건`,
-                iconType: 'check',
-                page: 'safety-checks',
-            },
-        ];
+        return buildOverviewStatCards(audienceView, {
+            totalWorkers: stats.totalWorkers,
+            averageScore: stats.averageScore,
+            highRiskWorkers: stats.highRiskWorkers,
+            totalChecks: stats.totalChecks,
+        });
     }, [audienceView, stats.averageScore, stats.highRiskWorkers, stats.totalChecks, stats.totalWorkers]);
 
     const quickActions = useMemo<DashboardQuickActionConfig[]>(() => {
@@ -1172,7 +969,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     description: hasNationalityDetail && selectedTarget
                         ? `${selectedTarget.trade} · ${selectedTarget.nationality} 세부 기준이 열려 있어 같은 작업군 안의 세부 차이도 함께 볼 수 있습니다.`
                         : '팀 비교는 전체 국적 통합 기준으로 유지되어, 같은 공종 안에서 어느 작업조가 더 보호가 필요한지 빠르게 읽을 수 있습니다.',
-                    tone: 'border-white/80 bg-white',
+                    tone: BRAND_TONE.whiteSoft,
                 },
                 {
                     key: 'comparison-action',
@@ -1202,7 +999,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     description: hasNationalityDetail && selectedTarget
                         ? `${selectedTarget.trade} · ${selectedTarget.nationality} 세부 기준이 열려 있어 통합 흐름과 세부 리스크를 번갈아 읽을 수 있습니다.`
                         : '팀 비교는 전체 국적 통합 기준으로 유지되어, 동일 공종 내 팀 편차를 안정적으로 읽을 수 있습니다.',
-                    tone: 'border-white/80 bg-white',
+                    tone: BRAND_TONE.whiteSoft,
                 },
                 {
                     key: 'comparison-action',
@@ -1231,7 +1028,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 description: hasNationalityDetail && selectedTarget
                     ? `${selectedTarget.trade} · ${selectedTarget.nationality} 세부 기준이 열려 있어 통합 흐름과 세부 흐름을 번갈아 읽을 수 있습니다.`
                     : '팀 비교는 전체 국적 통합 기준으로 유지되어, 동일 공종 내 팀 편차를 안정적으로 읽을 수 있습니다.',
-                tone: 'border-white/80 bg-white',
+                tone: BRAND_TONE.whiteSoft,
             },
             {
                 key: 'comparison-action',
@@ -1246,141 +1043,17 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     }, [audienceView, hasNationalityDetail, selectedTarget, selectedTeamsForComparison.length, selectedTradeForComparison, selectedTradeTeamComparison.length, weakestTeam]);
 
     const operationalFocusCards: InterpretationCardItem[] = useMemo(() => {
-        if (audienceView === 'worker') {
-            return [
-                {
-                    key: 'operational-focus-status',
-                    eyebrow: '지금 먼저 볼 곳',
-                    title: '행동 센터와 개인 추이를 먼저 보면 보호 순서를 빠르게 잡을 수 있습니다.',
-                    description: '아래 패널은 위험 신호가 큰 작업군, 자주 반복되는 취약 분야, 최근 점검 흐름을 연결해서 보여줍니다.',
-                    tone: 'border-indigo-200 bg-indigo-50/70',
-                },
-                {
-                    key: 'operational-focus-evidence',
-                    eyebrow: '판단 기준',
-                    title: '취약 분야와 점검 흐름은 지금 무엇을 보완해야 하는지 알려주는 근거입니다.',
-                    description: '특정 공종의 국적 분포와 최근 2주 점검 흐름을 함께 보면 같은 작업군 안의 반복 신호를 더 쉽게 읽을 수 있습니다.',
-                    tone: 'border-white/80 bg-white',
-                },
-            ];
-        }
-
-        if (audienceView === 'executive') {
-            return [
-                {
-                    key: 'operational-focus-status',
-                    eyebrow: '운영 개요',
-                    title: '분포와 취약 영역을 먼저 보면 자원 배분 우선순위를 빠르게 정리할 수 있습니다.',
-                    description: '아래 섹션은 국적 분포, 반복 취약 분야, 최근 점검 동향, 보호 우선 작업군을 한 흐름으로 묶어 보여줍니다.',
-                    tone: 'border-indigo-200 bg-indigo-50/70',
-                },
-                {
-                    key: 'operational-focus-action',
-                    eyebrow: '의사결정 포인트',
-                    title: '취약 공종과 점검 공백이 겹치는 구간부터 교육·점검 자원을 배분하세요.',
-                    description: '리스크 분포를 먼저 보고, 행동 센터에서 실제 보호 우선순위를 확인하면 보고와 실행 흐름을 분리하지 않고 이어갈 수 있습니다.',
-                    tone: 'border-amber-200 bg-amber-50/80',
-                },
-            ];
-        }
-
-        return [
-            {
-                key: 'operational-focus-status',
-                eyebrow: '운영 해석',
-                title: '행동 센터와 분포 차트를 함께 보면 지금 보호가 필요한 구간을 빠르게 읽을 수 있습니다.',
-                description: '국적 분포, 주요 취약 분야, 점검 동향, 행동 센터를 나란히 보며 현장 상태를 운영 관점으로 정리할 수 있습니다.',
-                tone: 'border-indigo-200 bg-indigo-50/70',
-            },
-            {
-                key: 'operational-focus-action',
-                eyebrow: '다음 행동',
-                title: '취약 신호가 반복되는 공종부터 코칭·점검·보고를 연결하세요.',
-                description: '행동 센터에서 우선 대상을 고르고, 아래 비교 섹션으로 내려가 같은 공종 안의 팀 편차를 이어서 확인할 수 있습니다.',
-                tone: 'border-white/80 bg-white',
-            },
-        ];
+        return buildOperationalFocusCards(audienceView);
     }, [audienceView]);
 
     const mobileInsightTabs = useMemo<DashboardInsightTabConfig[]>(() => {
-        if (audienceView === 'worker') {
-            return [
-                { key: 'chart', label: '차트' },
-                { key: 'worker', label: '개인추이' },
-                { key: 'team', label: '팀비교' },
-            ];
-        }
-
-        if (audienceView === 'executive') {
-            return [
-                { key: 'chart', label: '리스크차트' },
-                { key: 'team', label: '팀편차' },
-                { key: 'worker', label: '개인추이' },
-            ];
-        }
-
-        return [
-            { key: 'chart', label: '차트' },
-            { key: 'team', label: '팀비교' },
-            { key: 'worker', label: '개인추이' },
-        ];
+        return buildMobileInsightTabs(audienceView);
     }, [audienceView]);
 
     const comparisonSectionMeta = useMemo(() => {
-        if (audienceView === 'worker') {
-            return {
-                title: '공종 × 작업조 보호 흐름 해석',
-                description: '작업조를 고르면 같은 공종 안에서 어디를 먼저 확인해야 하는지 순서대로 읽을 수 있습니다.',
-                tradeQuickAccessTitle: '보호 우선 공종 바로가기',
-                tradeQuickAccessDescription: '평균점수가 낮은 공종부터 선택해 같은 작업군의 보호 순서를 바로 확인할 수 있습니다.',
-                tradeQuickAccessBadge: '보호 필요 공종 우선',
-                teamQuickAccessTitle: '작업조 비교 바로가기',
-                teamQuickAccessDescription: '같은 팀장명이라도 공종이 다르면 별도 작업조로 분리합니다. 예: 김철수팀 (형틀), 김철수팀 (콘크리트비계)',
-                teamQuickAccessBadge: '공종 포함 작업조 기준',
-                teamComparisonDescription: '팀 비교는 같은 공종 안에서 어느 작업조를 먼저 코칭해야 하는지 읽기 위한 통합 기준입니다.',
-                teamSortDescription: '취약 작업조부터 우수 작업조까지 순서를 바꿔 보며 보호 우선순위를 정리할 수 있습니다.',
-                detailModeDescription: '작업조 비교는 통합 기준으로 유지하고, 필요할 때만 국적 세부 흐름으로 내려갑니다.',
-                emptyRadarTitle: '위 그래프에서 확인할 작업조를 선택하세요',
-                emptyRadarDescription: '막대는 공종·국적 기준, 작업조 비교와 공종 칩은 전체 국적 통합 기준입니다.',
-                emptyWorkerTrend: '작업조를 선택하면 개인별 추이 목록이 열려 누구를 먼저 다시 확인할지 이어서 볼 수 있습니다.',
-            };
-        }
-
-        if (audienceView === 'executive') {
-            return {
-                title: '공종 × 팀 리스크 편차 분석',
-                description: '공종별 리스크 분포와 팀 편차를 묶어 읽으며 자원 배분 우선순위를 정리합니다.',
-                tradeQuickAccessTitle: '리스크 우선 공종',
-                tradeQuickAccessDescription: '평균점수가 낮은 공종부터 열어 어느 구간의 리스크 편차가 큰지 바로 확인할 수 있습니다.',
-                tradeQuickAccessBadge: '자원 배분 우선 노출',
-                teamQuickAccessTitle: '팀 편차 바로가기',
-                teamQuickAccessDescription: '같은 팀장명이라도 공종이 다르면 별도 팀으로 분리합니다. 예: 김철수팀 (형틀), 김철수팀 (콘크리트비계)',
-                teamQuickAccessBadge: '공종 포함 팀명 기준',
-                teamComparisonDescription: '팀 비교는 항상 전체 국적 통합 기준으로 계산되어 동일 공종 내 편차를 안정적으로 읽을 수 있습니다.',
-                teamSortDescription: '정렬 기준에 따라 취약 팀부터 우수 팀까지 빠르게 비교하며 보고 우선순위를 정할 수 있습니다.',
-                detailModeDescription: '팀 비교는 통합 기준을 유지하고, 필요 시에만 국적 세부 분석으로 내려가 원인을 구분합니다.',
-                emptyRadarTitle: '위 그래프에서 리스크를 확인할 공종 또는 팀을 선택하세요',
-                emptyRadarDescription: '막대는 공종·국적 기준, 팀 비교와 공종 칩은 전체 국적 통합 기준입니다.',
-                emptyWorkerTrend: '대상을 선택하면 개인별 추이가 열려 특정 팀 안의 반복 리스크를 세부 확인할 수 있습니다.',
-            };
-        }
-
-        return {
-            title: '공종 × 국적 교차 안전 숙련도 분석',
-            description: '팀별로 보기: 아래에서 팀을 선택하면 해당 팀의 데이터만 표시됩니다.',
-            tradeQuickAccessTitle: '주요 공종 바로가기',
-            tradeQuickAccessDescription: '평균점수가 낮은 공종부터 바로 팀 비교로 진입할 수 있습니다.',
-            tradeQuickAccessBadge: '취약 공종 우선 노출',
-            teamQuickAccessTitle: '팀 비교 바로가기',
-            teamQuickAccessDescription: '같은 팀장명이라도 공종이 다르면 별도 팀으로 분리합니다. 예: 김철수팀 (형틀), 김철수팀 (콘크리트비계)',
-            teamQuickAccessBadge: '공종 포함 팀명 기준',
-            teamComparisonDescription: '팀 비교는 항상 전체 국적 통합 기준으로 계산됩니다. 팀 내부의 다양한 국적은 분리하지 않습니다.',
-            teamSortDescription: '정렬 기준에 따라 취약 팀부터 우수 팀까지 빠르게 비교할 수 있습니다.',
-            detailModeDescription: '팀 비교는 통합 기준으로 유지하고, 하단 상세만 필요 시 국적 세부 분석으로 전환합니다.',
-            emptyRadarTitle: '위 그래프에서 분석할 작업조를 클릭하세요',
-            emptyRadarDescription: '막대는 공종·국적 기준, 팀 비교와 공종 칩은 전체 국적 통합 기준입니다.',
-            emptyWorkerTrend: '작업조를 선택하면 개인별 트렌드 목록이 활성화됩니다.',
-        };
+        return buildComparisonSectionMeta({
+            audience: audienceView,
+        });
     }, [audienceView]);
 
     const handleNavigateToUnassignedRecords = () => {

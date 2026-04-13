@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { BrandPhilosophyLogo } from '../components/shared/BrandPhilosophyLogo';
 import { PSI_APP_VERSION, PSI_CURRENT_RELEASE, PSI_SYSTEM_NAME } from '../lib/appInfo';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
+import { BRAND_TONE } from '../utils/brandToneTokens';
 
 const Introduction: React.FC = () => {
     const [isGravityOff, setIsGravityOff] = useState(false);
@@ -33,14 +34,14 @@ const Introduction: React.FC = () => {
             eyebrow: '지금 상태',
             title: `PSI ${PSI_APP_VERSION}의 현재 정체성과 신뢰 기반을 소개하는 화면입니다.`,
             description: '이 화면은 단순 소개서가 아니라 PSI가 왜 보호 중심 안전 파트너인지 사용자에게 처음 설명하는 진입점 역할을 합니다.',
-            tone: 'border-indigo-200 bg-indigo-50/70',
+            tone: BRAND_TONE.indigoSoft70,
         },
         {
             key: 'intro-evidence',
             eyebrow: '판단 근거',
             title: '브랜드 원칙, 권리화 현황, 연혁, 철학, 최신 업그레이드가 함께 배치됩니다.',
             description: '제품의 기능보다 먼저 어떤 태도로 현장을 읽고 보호하는지 보여줘야 PSI의 차별성이 더 분명하게 전달됩니다.',
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'intro-action',
@@ -57,21 +58,21 @@ const Introduction: React.FC = () => {
             eyebrow: '지금 상태',
             title: '브랜드 철학이 시각 요소와 함께 설명되고 있습니다.',
             description: '방패, 비대칭 구조, AI의 눈은 각각 보호, 능동 개입, 따뜻한 관찰이라는 PSI의 태도를 시각화합니다.',
-            tone: 'border-slate-200 bg-slate-50',
+            tone: BRAND_TONE.slate,
         },
         {
             key: 'philosophy-evidence',
             eyebrow: '판단 근거',
             title: '브랜드 원칙 3가지가 실제 UX 문장 구조의 기준입니다.',
             description: '평가보다 해석, 지적보다 보완, 감시보다 보호라는 원칙은 이후 대시보드와 운영 화면의 정보 구조로 이어집니다.',
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'philosophy-action',
             eyebrow: '다음 행동',
             title: '소개 문구와 실제 제품 경험이 같은 톤으로 이어져야 합니다.',
             description: '브랜드 페이지에서 약속한 메시지가 운영 화면에서도 그대로 느껴질 때 PSI의 신뢰가 더 강해집니다.',
-            tone: 'border-indigo-200 bg-indigo-50/70',
+            tone: BRAND_TONE.indigoSoft70,
         },
     ], []);
 

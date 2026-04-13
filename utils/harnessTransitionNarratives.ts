@@ -1,4 +1,5 @@
 import type { HarnessWorkflowTransitionAction } from '../services/harnessService';
+import { BRAND_TONE } from './brandToneTokens';
 
 const ACTION_REASON_LABELS: Record<string, string> = {
     approve: '승인',
@@ -120,7 +121,7 @@ export const buildHarnessTransitionNarrative = (
             title: '현재 액션 가능 여부 정보가 아직 없습니다.',
             description: 'workflow-status 저장 응답이 누적되면 승인, 반려, 재분석 가능 여부를 같은 문구 기준으로 읽을 수 있습니다.',
             action: '현재는 상태 배지와 승인 diff를 기준으로 다음 행동을 판단해 주십시오.',
-            tone: 'border-slate-200 bg-slate-50',
+            tone: BRAND_TONE.slate,
         };
     }
 
@@ -132,10 +133,10 @@ export const buildHarnessTransitionNarrative = (
                 ? `차단 액션 ${blocked.length}개는 보류 상태입니다. 대표 사유: ${normalizeHarnessTransitionReason(blocked[0]?.reason, getWorkflowStateLabel)}`
                 : getHarnessTransitionActionSummaryText(recommended, getWorkflowStateLabel),
             tone: recommended.action === 'approve'
-                ? 'border-emerald-200 bg-emerald-50/80'
+                ? BRAND_TONE.emeraldSoft80
                 : recommended.action === 'reject'
-                    ? 'border-rose-200 bg-rose-50/80'
-                    : 'border-indigo-200 bg-indigo-50/80',
+                    ? BRAND_TONE.roseSoft80
+                    : BRAND_TONE.indigoSoft80,
         };
     }
 
@@ -143,7 +144,7 @@ export const buildHarnessTransitionNarrative = (
         title: '현재는 즉시 실행 가능한 액션이 없습니다.',
         description: normalizeHarnessTransitionReason(blocked[0]?.reason, getWorkflowStateLabel) || '상태머신 규칙상 현재 전이를 진행할 수 없습니다.',
         action: '선행 상태 전이 또는 판단 근거 보강 후 다시 확인해 주십시오.',
-        tone: 'border-amber-200 bg-amber-50/80',
+        tone: BRAND_TONE.amberSoft80,
     };
 };
 

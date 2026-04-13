@@ -20,6 +20,8 @@ import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { StatusEvidenceActionPanel } from '../components/shared/StatusEvidenceActionPanel';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { compressImage } from '../utils/imageCompression';
+import { buildFieldHubSummaryCards, buildFieldReviewCards } from '../utils/roleViewModel';
+import { BRAND_TONE } from '../utils/brandToneTokens';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 공통 유틸
@@ -400,7 +402,7 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
             description: items.length > 0
                 ? '이행·부분이행·미이행을 같은 높이의 버튼으로 정리해 현장 판단을 빠르게 남기고, 필요한 경우 사유 메모를 바로 이어서 기록합니다.'
                 : '등록된 공종과 근로자 데이터에서 공통 기준을 모아 점검 시작 전부터 판단 기준을 흔들리지 않게 유지합니다.',
-            tone: 'border-slate-200 bg-white',
+            tone: BRAND_TONE.slateWhite,
         },
         {
             key: 'risk-action',
@@ -421,21 +423,21 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
             description: latestSession
                 ? `${latestSession.jobField}${latestSession.teamLeader ? ` · ${latestSession.teamLeader}` : ''} 점검이 가장 최근 기록이며, 현재 입력과 이전 기록을 나란히 비교할 수 있습니다.`
                 : '첫 기록을 저장하면 우측 패널에서 최근 점검 흐름과 미이행 항목을 함께 추적할 수 있습니다.',
-            tone: 'border-slate-200 bg-slate-50',
+            tone: BRAND_TONE.slate,
         },
         {
             key: 'history-evidence',
             eyebrow: '판단 근거',
             title: '최근 10건 기준으로 이행 편차를 빠르게 읽습니다.',
             description: '이행·부분이행·미이행 건수를 동시에 보여줘 특정 공종이나 팀에서 반복되는 보완 포인트를 즉시 확인할 수 있습니다.',
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'history-action',
             eyebrow: '다음 행동',
             title: '반복 미이행 항목을 다음 점검 우선순위로 넘기세요.',
             description: '최근 기록에서 자주 나온 미이행 사유를 다음 TBM, 코칭, 현장 지적 등록 흐름과 연결하면 보호 중심의 후속 조치가 더 빨라집니다.',
-            tone: 'border-amber-200 bg-amber-50/80',
+            tone: BRAND_TONE.amberSoft80,
         },
     ], [latestSession, sessions.length]);
 
@@ -673,7 +675,7 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
             description: behavior
                 ? `${severity} 수준으로 분류하고 ${photo ? '사진과 ' : ''}증빙 메모를 함께 남겨 현장 상황을 설명 중심으로 기록할 수 있습니다.`
                 : '유형, 심각도, 사진, 메모를 같은 흐름으로 배치해 지적보다 해석이 먼저 보이도록 구성했습니다.',
-            tone: 'border-slate-200 bg-white',
+            tone: BRAND_TONE.slateWhite,
         },
         {
             key: 'behavior-action',
@@ -694,14 +696,14 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
             description: coaching
                 ? '현장 상황을 본 직후 조치 유형과 사후 결과를 연결해 기록 단절을 줄입니다.'
                 : '관찰 기록만 먼저 남기고 실제 확인 후 필요한 조치를 다음 단계에서 추가할 수 있습니다.',
-            tone: 'border-slate-200 bg-slate-50',
+            tone: BRAND_TONE.slate,
         },
         {
             key: 'coaching-evidence',
             eyebrow: '판단 근거',
             title: followup ? `${followup} 기준으로 사후 상태를 관리합니다.` : '사후 결과가 재발 여부 판단의 기준입니다.',
             description: '조치 유형, 코치 이름, 메모를 함께 적어 단순 등록이 아니라 실제 보완 여부를 추적할 수 있게 했습니다.',
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'coaching-action',
@@ -1045,7 +1047,7 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
             eyebrow: '판단 근거',
             title: '출처·심각도·기한이 판단의 기준입니다.',
             description: `조치 필요 ${openCount}건, 조치 중 ${inProgressCount}건, 완료 ${resolvedCount}건을 함께 보여줘 어느 영역에서 병목이 생기는지 빠르게 읽을 수 있습니다.`,
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'violation-action',
@@ -1062,7 +1064,7 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
             eyebrow: '지금 상태',
             title: showForm ? '지적 등록을 입력 중입니다.' : '등록 폼은 필요할 때만 열립니다.',
             description: '모바일과 PC 모두 같은 입력 순서를 유지해 출처에서 기한까지 판단 흐름이 흔들리지 않도록 구성했습니다.',
-            tone: 'border-slate-200 bg-slate-50',
+            tone: BRAND_TONE.slate,
         },
         {
             key: 'violation-form-evidence',
@@ -1071,7 +1073,7 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
             description: description.trim()
                 ? '설명, 사진, 책임 팀을 함께 남기면 나중에 다시 해석하지 않아도 바로 조치 흐름을 이어갈 수 있습니다.'
                 : '지적 내용을 구체적으로 남길수록 이후 조치 상태와 재확인 근거가 명확해집니다.',
-            tone: 'border-white/80 bg-white',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'violation-form-action',
@@ -1265,21 +1267,21 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
                                             eyebrow: '지금 상태',
                                             title: stMeta.label,
                                             description: isOverdue ? '기한이 지나 우선 조치가 필요한 상태입니다.' : v.status === 'resolved' ? '조치 완료 상태로 기록이 정리되고 있습니다.' : '현장 확인과 후속 조치를 이어가야 하는 단계입니다.',
-                                            tone: 'border-slate-200 bg-slate-50',
+                                            tone: BRAND_TONE.slate,
                                         },
                                         {
                                             key: `${v.id}-evidence`,
                                             eyebrow: '판단 근거',
                                             title: `${v.category} · ${v.severity}`,
                                             description: `${v.source === 'external' && v.externalAuthority ? `${v.externalAuthority} 지적이며 ` : ''}${v.responsibleTeam ? `${v.responsibleTeam} 팀이 대응 대상으로 지정되어 있습니다.` : '책임 팀 지정 전 상태입니다.'}`,
-                                            tone: 'border-slate-200 bg-white',
+                                            tone: BRAND_TONE.slateWhite,
                                         },
                                         {
                                             key: `${v.id}-action`,
                                             eyebrow: '다음 행동',
                                             title: '상태 변경과 조치 메모를 이어서 남기세요.',
                                             description: v.status === 'resolved' ? '필요하면 조치 내용을 짧게 남겨 후속 확인 근거를 보완하세요.' : '아래 상태 버튼으로 진행 상황을 갱신하고, 완료 시 조치 메모를 기록하면 됩니다.',
-                                            tone: 'border-amber-200 bg-amber-50/70',
+                                            tone: BRAND_TONE.amberSoft70,
                                             eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.22em] text-amber-700',
                                         },
                                     ]}
@@ -1484,31 +1486,13 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[]; wo
     const summary = { green: reviews.filter(r => r.traffic_light === 'green').length, yellow: reviews.filter(r => r.traffic_light === 'yellow').length, red: reviews.filter(r => r.traffic_light === 'red').length };
     const reviewHarnessSummary = useMemo(() => summarizeHarnessRecords(workerRecords.filter((record) => workers.some((worker) => worker.id === record.id))), [workerRecords, workers]);
 
-    const reviewInterpretationCards: InterpretationCardItem[] = useMemo(() => [
-        {
-            key: 'review-status',
-            eyebrow: '지금 상태',
-            title: reviews.length > 0 ? `${reviews.length}명의 행동 무결성 판정이 정리되어 있습니다.` : '자동 판정 실행 전 상태입니다.',
-            description: reviews.length > 0
-                ? `확정 ${summary.green}명, 추가 확인 ${summary.yellow}명, 조치 필요 ${summary.red}명으로 월별 보호 우선순위를 빠르게 볼 수 있습니다.`
-                : '좌측 이행 현황과 행동 데이터를 함께 읽어 근로자별 보호 우선순위를 자동으로 정리하는 화면입니다.',
-            tone: reviews.length > 0 ? 'border-indigo-200 bg-indigo-50/70' : 'border-slate-200 bg-slate-50',
-        },
-        {
-            key: 'review-evidence',
-            eyebrow: '판단 근거',
-            title: '점검 이행률, 열린 지적, 행동 기록이 함께 반영됩니다.',
-            description: `현재 위험성평가 ${localStats.totalSessions}건, 열린 지적 ${localStats.openViolations}건, 중대 지적 ${localStats.criticalViolations}건이 종합 판단의 바탕이 됩니다.`,
-            tone: 'border-white/80 bg-white',
-        },
-        {
-            key: 'review-action',
-            eyebrow: '다음 행동',
-            title: reviews.length > 0 ? '노란색·빨간색 대상부터 코칭과 보완을 연결하세요.' : '판정 실행 후 추가 확인 대상을 먼저 살펴보세요.',
-            description: '사유 코드를 그대로 두지 말고 관찰·코칭, 지적사항, 다음 점검 계획과 연결해 실제 현장 보완으로 이어지게 하는 것이 핵심입니다.',
-            tone: reviews.length > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
-        },
-    ], [localStats.criticalViolations, localStats.openViolations, localStats.totalSessions, reviews.length, summary.green, summary.red, summary.yellow]);
+    const reviewInterpretationCards: InterpretationCardItem[] = useMemo(() => {
+        return buildFieldReviewCards({
+            reviewsLength: reviews.length,
+            summary,
+            localStats,
+        });
+    }, [localStats, reviews.length, summary]);
 
     return (
         <div className="space-y-5 xl:space-y-0 xl:grid xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[420px_minmax(0,1fr)] xl:gap-6 xl:items-start">
@@ -1569,7 +1553,7 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[]; wo
                             label: '하네스 저장 연결',
                             value: `${reviewHarnessSummary.connected}명`,
                             helper: `${reviewHarnessSummary.runLinked}명이 workflow run과 연결되어 있습니다.`,
-                            tone: 'border-emerald-200 bg-emerald-50/80',
+                            tone: BRAND_TONE.emeraldSoft80,
                         },
                         {
                             key: 'review-harness-backlog',
@@ -1712,40 +1696,18 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
         const openViolations = violations.filter(v => v.status === 'open').length;
         const recentRisk = riskSessions[0];
 
-        return [
-            {
-                key: 'hub-status',
-                eyebrow: '지금 상태',
-                title: `${workerRecords.length}건의 근로자 기록을 기준으로 현장 안전 흐름을 보고 있습니다.`,
-                description: recentRisk
-                    ? `최근 이행점검은 ${recentRisk.jobField}${recentRisk.teamLeader ? ` · ${recentRisk.teamLeader}` : ''} 기준으로 저장되어 있으며, 탭별 조치 흐름을 같은 구조로 이어갈 수 있습니다.`
-                    : '아직 이행점검 기록이 없다면 위험성평가 이행점검 탭부터 시작해 현장 기준을 먼저 세우는 것이 좋습니다.',
-                tone: 'border-indigo-200 bg-indigo-50/70',
-            },
-            {
-                key: 'hub-evidence',
-                eyebrow: '판단 근거',
-                title: '점검, 관찰·코칭, 지적사항, 종합판정을 한 화면 체계로 묶었습니다.',
-                description: `현재 열린 지적 ${openViolations}건이 있으며, 각 탭은 상태보다 해석이 먼저 보이도록 '지금 상태 · 판단 근거 · 다음 행동' 구조를 공유합니다.`,
-                tone: 'border-white/80 bg-white',
-            },
-            {
-                key: 'hub-action',
-                eyebrow: '다음 행동',
-                title: activeTab === 'review' ? '종합판정 결과를 실제 보완 흐름과 연결하세요.' : '현재 탭에서 확인한 신호를 다음 탭 조치로 넘기세요.',
-                description: '이행점검에서 찾은 미이행은 관찰·코칭으로, 반복 지적은 종합판정의 우선 확인 대상으로 연결하면 PSI가 감시 도구가 아니라 보호 파트너처럼 작동합니다.',
-                tone: activeTab === 'review' ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
-            },
-            {
-                key: 'hub-harness',
-                eyebrow: '하네스 우선순위',
-                title: `${harnessSummary.approvalBacklog}명 승인 대기 · ${harnessSummary.immediateAttention}명 즉시 보호 대상`,
-                description: harnessSummary.fallback > 0
-                    ? `${harnessSummary.fallback}명은 persistence 폴백 상태입니다. 현장 조치는 계속하되 저장 연결 여부를 함께 점검해야 합니다.`
-                    : '현장 안전이행 허브에서도 승인 백로그와 즉시 보호 대상을 함께 읽어 위험성평가, 코칭, 지적, 종합판정을 같은 보호 흐름으로 묶을 수 있습니다.',
-                tone: harnessSummary.approvalBacklog > 0 || harnessSummary.immediateAttention > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
-            },
-        ];
+        return buildFieldHubSummaryCards({
+            workerRecordsLength: workerRecords.length,
+            recentRisk: recentRisk
+                ? {
+                    jobField: recentRisk.jobField,
+                    teamLeader: recentRisk.teamLeader,
+                }
+                : null,
+            openViolations,
+            activeTab,
+            harnessSummary,
+        });
     }, [activeTab, harnessSummary.approvalBacklog, harnessSummary.fallback, harnessSummary.immediateAttention, workerRecords.length]);
 
     const workerOptions: WorkerOption[] = useMemo(() => {
@@ -1805,7 +1767,7 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
                         label: '하네스 저장 연결',
                         value: `${harnessSummary.connected}명`,
                         helper: `${harnessSummary.runLinked}명이 workflow run과 연결되어 있습니다.`,
-                        tone: 'border-emerald-200 bg-emerald-50/80',
+                        tone: BRAND_TONE.emeraldSoft80,
                     },
                     {
                         key: 'hub-harness-backlog',
