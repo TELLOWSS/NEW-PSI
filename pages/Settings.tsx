@@ -15,6 +15,7 @@ import {
     type HarnessWorkflowDiagnostics,
 } from '../services/harnessService';
 import { getStoredTheme, getResolvedTheme, setTheme, watchSystemThemeChange, THEME_CHANGED_EVENT, type ThemeMode } from '../utils/themeUtils';
+import type { UIViewMetricRecord } from '../utils/uiViewModeMetrics';
 
 const TRAINING_LANGUAGE_OPTIONS = [
     { code: 'ko-KR', label: '한국어 (ko-KR)' },
@@ -69,6 +70,7 @@ const toFiniteOr = (value: unknown, fallback: number): number => {
 };
 
 const isManagementRole = (field: string) => /관리|팀장|부장|과장|기사|공무|소장/.test(field);
+const UI_VIEW_MODE_METRICS_KEY = 'psi_view_mode_metrics';
 
 const getWorkerIdentityKey = (record: WorkerRecord): string => {
     return String(
@@ -332,6 +334,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1280));
     const [isTouchPointer, setIsTouchPointer] = useState<boolean>(() => (typeof window !== 'undefined' ? window.matchMedia?.('(hover: none) and (pointer: coarse)').matches ?? false : false));
     const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(() => (typeof window !== 'undefined' ? window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false : false));
+    const [uiViewMetrics, setUIViewMetrics] = useState<UIViewMetricRecord[]>([]);
 
     const harnessSourceRecords = useMemo(() => workerRecords.filter((record) => !isManagementRole(record.jobField)), [workerRecords]);
     const harnessSummary = useMemo(() => summarizeHarnessRecords(harnessSourceRecords), [harnessSourceRecords]);
@@ -531,6 +534,29 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 motionMedia.removeListener(motionHandler);
             }
         };
+    }, []);
+
+    const loadUIViewMetrics = () => {
+        try {
+            const raw = localStorage.getItem(UI_VIEW_MODE_METRICS_KEY);
+            const parsed = raw ? JSON.parse(raw) : [];
+            setUIViewMetrics(Array.isArray(parsed) ? parsed : []);
+        } catch {
+            setUIViewMetrics([]);
+        }
+    };
+
+    useEffect(() => {
+        loadUIViewMetrics();
+
+        const handleStorage = (event: StorageEvent) => {
+            if (event.key === UI_VIEW_MODE_METRICS_KEY) {
+                loadUIViewMetrics();
+            }
+        };
+
+        window.addEventListener('storage', handleStorage);
+        return () => window.removeEventListener('storage', handleStorage);
     }, []);
 
     const handleSave = () => {
@@ -769,6 +795,70 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             },
         ];
     }, [isTouchPointer, prefersReducedMotion, resolvedTheme, themeMode, viewportWidth]);
+
+    const uiViewMetricSummary = useMemo(() => {
+        const modeChanges = uiViewMetrics.filter((item) => item.event === 'view_mode_change').length;
+        const ctaClicks = uiViewMetrics.filter((item) => item.event === 'cta_click').length;
+        const controlChanges = uiViewMetrics.filter((item) => item.event === 'control_change').length;
+        const dwellEvents = uiViewMetrics.filter((item) => item.event === 'view_exit');
+        const dwellValues = dwellEvents
+            .map((item) => Number(item.payload?.dwellMs || 0))
+            .filter((value) => Number.isFinite(value) && value > 0);
+        const avgDwellSec = dwellValues.length > 0
+            ? Math.round((dwellValues.reduce((acc, value) => acc + value, 0) / dwellValues.length) / 100) / 10
+            : 0;
+        const dashboardSessions = new Set(uiViewMetrics.filter((item) => item.page === 'dashboard').map((item) => item.sessionId)).size;
+        const performanceSessions = new Set(uiViewMetrics.filter((item) => item.page === 'performance-analysis').map((item) => item.sessionId)).size;
+
+        return {
+            total: uiViewMetrics.length,
+            modeChanges,
+            ctaClicks,
+            controlChanges,
+            avgDwellSec,
+            dashboardSessions,
+            performanceSessions,
+        };
+    }, [uiViewMetrics]);
+
+    const uiViewMetricCards = useMemo(() => [
+        {
+            key: 'ui-metric-total',
+            label: '수집 이벤트',
+            value: uiViewMetricSummary.total,
+            helper: '최근 local KPI 로그 수',
+            tone: BRAND_TONE.whiteSoft,
+        },
+        {
+            key: 'ui-metric-mode',
+            label: '모드 변경',
+            value: uiViewMetricSummary.modeChanges,
+            helper: 'view_mode_change',
+            tone: uiViewMetricSummary.modeChanges > 0 ? BRAND_TONE.indigoSoft70 : BRAND_TONE.whiteSoft,
+        },
+        {
+            key: 'ui-metric-cta',
+            label: '핵심 클릭',
+            value: uiViewMetricSummary.ctaClicks,
+            helper: 'cta_click',
+            tone: uiViewMetricSummary.ctaClicks > 0 ? BRAND_TONE.emeraldSoft80 : BRAND_TONE.whiteSoft,
+        },
+        {
+            key: 'ui-metric-dwell',
+            label: '평균 체류',
+            value: `${uiViewMetricSummary.avgDwellSec.toFixed(1)}초`,
+            helper: 'view_exit dwell 평균',
+            tone: BRAND_TONE.slate,
+        },
+    ], [uiViewMetricSummary]);
+
+    const recentUIViewMetrics = useMemo(() => uiViewMetrics.slice(0, 10), [uiViewMetrics]);
+
+    const handleClearUIViewMetrics = () => {
+        if (!confirm('UI KPI 로그를 모두 초기화하시겠습니까?')) return;
+        localStorage.removeItem(UI_VIEW_MODE_METRICS_KEY);
+        setUIViewMetrics([]);
+    };
 
     const handleThemeModeChange = (mode: ThemeMode) => {
         const next = setTheme(mode);
@@ -1061,6 +1151,69 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     descriptionClassName="mt-1 text-xs font-semibold"
                     bodyClassName="block"
                 />
+            </div>
+
+            <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">UI 모드 실험 KPI 요약</h3>
+                        <p className="mt-1 text-xs sm:text-sm text-slate-500 leading-relaxed">
+                            Dashboard/PerformanceAnalysis의 모드 전환, 핵심 클릭, 체류시간 로그를 로컬 기준으로 빠르게 확인합니다.
+                        </p>
+                    </div>
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={loadUIViewMetrics}
+                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                        >
+                            지표 새로고침
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleClearUIViewMetrics}
+                            className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100"
+                        >
+                            지표 초기화
+                        </button>
+                    </div>
+                </div>
+
+                <SummaryMetricGrid
+                    items={uiViewMetricCards}
+                    className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
+                    cardClassName="rounded-2xl border p-4 shadow-sm"
+                />
+
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">세션 요약</p>
+                    <p className="mt-2 text-sm font-bold text-slate-700">
+                        Dashboard 세션 {uiViewMetricSummary.dashboardSessions}건 · Performance 세션 {uiViewMetricSummary.performanceSessions}건 · 컨트롤 변경 {uiViewMetricSummary.controlChanges}건
+                    </p>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-slate-200 overflow-hidden">
+                    <div className="bg-slate-50 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">최근 이벤트 10건</div>
+                    {recentUIViewMetrics.length === 0 ? (
+                        <div className="px-4 py-5 text-sm font-semibold text-slate-500">수집된 이벤트가 없습니다.</div>
+                    ) : (
+                        <div className="divide-y divide-slate-200 bg-white">
+                            {recentUIViewMetrics.map((item, index) => (
+                                <div key={`${item.timestamp}-${item.sessionId}-${index}`} className="px-4 py-3">
+                                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-700">
+                                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">{item.page}</span>
+                                        <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-indigo-700">{item.event}</span>
+                                        <span className="text-slate-400 font-semibold">{new Date(item.timestamp).toLocaleString('ko-KR')}</span>
+                                    </div>
+                                    <p className="mt-1 text-xs text-slate-500 break-all">session: {item.sessionId}</p>
+                                    {item.payload ? (
+                                        <p className="mt-1 text-xs text-slate-600 break-all">payload: {JSON.stringify(item.payload)}</p>
+                                    ) : null}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {(harnessSummary.immediateAttention > 0 || harnessSummary.approvalBacklog > 0 || harnessSummary.fallback > 0) && (

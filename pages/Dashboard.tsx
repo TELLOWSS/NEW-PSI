@@ -30,6 +30,7 @@ import {
     type DashboardStatCardConfig,
 } from '../utils/roleViewModel';
 import { BRAND_TONE } from '../utils/brandToneTokens';
+import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 
 const NationalityChart = lazy(() => import('../components/charts/NationalityChart').then(module => ({ default: module.NationalityChart })));
 const TopWeaknessesChart = lazy(() => import('../components/charts/TopWeaknessesChart').then(module => ({ default: module.TopWeaknessesChart })));
@@ -71,6 +72,8 @@ type HarnessDrilldownActionPlan = {
     secondaryPage: Page;
 };
 
+type DashboardViewMode = 'full' | 'balanced' | 'essential';
+
 // 관리 직군 여부 확인 함수
 const isManagementRole = (field: string) => 
     /관리|팀장|부장|과장|기사|공무|소장/.test(field);
@@ -105,6 +108,44 @@ const getHarnessPersistenceState = (record: Partial<WorkerRecord>): 'connected' 
     if (String(record.harnessPersistenceWarning || '').trim()) return 'fallback';
     if (String(record.workflowRunId || '').trim()) return 'connected';
     return 'pending';
+};
+
+const DASHBOARD_VIEW_MODE_STORAGE_KEY = 'psi_dashboard_view_mode';
+const DASHBOARD_VIEW_MODE_MANUAL_KEY = 'psi_dashboard_view_mode_manual';
+
+const getStoredDashboardViewMode = (): DashboardViewMode | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+        const value = window.localStorage.getItem(DASHBOARD_VIEW_MODE_STORAGE_KEY);
+        if (value === 'full' || value === 'balanced' || value === 'essential') {
+            return value;
+        }
+    } catch {
+        return null;
+    }
+    return null;
+};
+
+const getStoredDashboardViewModeManual = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    try {
+        return window.localStorage.getItem(DASHBOARD_VIEW_MODE_MANUAL_KEY) === 'true';
+    } catch {
+        return false;
+    }
+};
+
+const getRecommendedDashboardViewMode = (audience: DashboardAudience, viewportWidth: number): DashboardViewMode => {
+    if (viewportWidth < 640) return 'essential';
+    if (audience === 'worker') return 'essential';
+    if (audience === 'executive') return 'full';
+    return viewportWidth >= 1280 ? 'full' : 'balanced';
+};
+
+const getDefaultDashboardViewMode = (viewportWidth: number): DashboardViewMode => {
+    if (viewportWidth < 640) return 'essential';
+    if (viewportWidth >= 1280) return 'full';
+    return 'balanced';
 };
 
 const ChartSkeleton: React.FC<{ minHeight?: string }> = ({ minHeight = '220px' }) => (
@@ -227,6 +268,15 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const [teamViewFilter, setTeamViewFilter] = useState<'all' | 'top3' | 'risk-only'>('all');
     const [selectedTeamsForComparison, setSelectedTeamsForComparison] = useState<string[]>([]);
     const [audienceView, setAudienceView] = useState<DashboardAudience>('manager');
+    const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
+    const [isDashboardViewModeManual, setIsDashboardViewModeManual] = useState<boolean>(() => getStoredDashboardViewModeManual());
+    const viewMetricSessionRef = useRef<string>(createMetricSessionId('dashboard'));
+    const viewMetricStartRef = useRef<number>(Date.now());
+    const [dashboardViewMode, setDashboardViewMode] = useState<DashboardViewMode>(() => {
+        const storedMode = getStoredDashboardViewMode();
+        if (storedMode && getStoredDashboardViewModeManual()) return storedMode;
+        return getDefaultDashboardViewMode(typeof window !== 'undefined' ? window.innerWidth : 1440);
+    });
 
     useEffect(() => {
         try {
@@ -246,6 +296,72 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             // ignore localStorage write failures
         }
     }, [audienceView]);
+
+    useEffect(() => {
+        const handleResize = () => setViewportWidth(window.innerWidth);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(DASHBOARD_VIEW_MODE_STORAGE_KEY, dashboardViewMode);
+            window.localStorage.setItem(DASHBOARD_VIEW_MODE_MANUAL_KEY, isDashboardViewModeManual ? 'true' : 'false');
+        } catch {
+            // ignore localStorage write failures
+        }
+    }, [dashboardViewMode, isDashboardViewModeManual]);
+
+    useEffect(() => {
+        if (isDashboardViewModeManual) return;
+        const recommended = getRecommendedDashboardViewMode(audienceView, viewportWidth);
+        setDashboardViewMode(recommended);
+    }, [audienceView, viewportWidth, isDashboardViewModeManual]);
+
+    useEffect(() => {
+        trackUIViewMetric('view_enter', 'dashboard', viewMetricSessionRef.current, {
+            audienceView,
+            dashboardViewMode,
+            viewportWidth,
+        });
+
+        return () => {
+            trackUIViewMetric('view_exit', 'dashboard', viewMetricSessionRef.current, {
+                dwellMs: Date.now() - viewMetricStartRef.current,
+            });
+        };
+    }, []);
+
+    const handleDashboardViewModeChange = (mode: DashboardViewMode) => {
+        setIsDashboardViewModeManual(true);
+        setDashboardViewMode(mode);
+        trackUIViewMetric('view_mode_change', 'dashboard', viewMetricSessionRef.current, {
+            mode,
+            source: 'manual',
+            viewportWidth,
+            audienceView,
+        });
+    };
+
+    const handleAudienceChange = (audience: DashboardAudience) => {
+        setAudienceView(audience);
+        trackUIViewMetric('control_change', 'dashboard', viewMetricSessionRef.current, {
+            control: 'audience_view',
+            audience,
+            viewportWidth,
+        });
+    };
+
+    const handleQuickActionClick = (action: DashboardQuickActionConfig) => {
+        trackUIViewMetric('cta_click', 'dashboard', viewMetricSessionRef.current, {
+            actionKey: action.key,
+            targetPage: action.page,
+            viewMode: dashboardViewMode,
+            audienceView,
+            viewportWidth,
+        });
+        setCurrentPage(action.page);
+    };
 
     const resetComparisonState = () => {
         setSelectedTeam('ALL');
@@ -1195,9 +1311,12 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     
     // [SIMULATION DATE] 2026-02-17
     const today = "2026년 2월 17일 화요일";
+    const isFullMode = dashboardViewMode === 'full';
+    const isEssentialMode = dashboardViewMode === 'essential';
+    const isEssentialMobile = isEssentialMode && viewportWidth < 640;
 
     return (
-        <div className="space-y-4 sm:space-y-6 lg:space-y-8 animate-fade-in-up">
+        <div className={`${isEssentialMobile ? 'space-y-3' : 'space-y-4 sm:space-y-6 lg:space-y-8'} animate-fade-in-up`}>
             {/* AI-Powered Safety Command Center */}
             <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 text-white shadow-2xl relative overflow-hidden border border-white/10">
                 {/* Animated background elements */}
@@ -1267,7 +1386,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 <button
                                     key={audience}
                                     type="button"
-                                    onClick={() => setAudienceView(audience)}
+                                    onClick={() => handleAudienceChange(audience)}
                                     className={`rounded-xl px-3 py-2 text-xs font-black transition-colors ${
                                         audienceView === audience
                                             ? 'bg-white text-slate-900'
@@ -1275,6 +1394,39 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     }`}
                                 >
                                     {DASHBOARD_AUDIENCE_META[audience].label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-200">화면 구성 모드</p>
+                            <p className="mt-1 text-xs font-medium text-slate-200">
+                                {dashboardViewMode === 'full'
+                                    ? '현재 구성: 평가자 중심 전체 맥락(Full Context)'
+                                    : dashboardViewMode === 'balanced'
+                                        ? '중간 구성: 핵심 + 필요 시 확장(Balanced)'
+                                        : '필수 구성: 즉시 행동 중심(Essential)'}
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {([
+                                { key: 'full', label: '현재 구성' },
+                                { key: 'balanced', label: '중간 구성' },
+                                { key: 'essential', label: '필수 구성' },
+                            ] as Array<{ key: DashboardViewMode; label: string }>).map((mode) => (
+                                <button
+                                    key={mode.key}
+                                    type="button"
+                                    onClick={() => handleDashboardViewModeChange(mode.key)}
+                                    className={`rounded-xl px-3 py-2 text-xs font-black transition-colors ${
+                                        dashboardViewMode === mode.key
+                                            ? 'bg-white text-slate-900'
+                                            : 'bg-white/10 text-slate-100 hover:bg-white/20'
+                                    }`}
+                                >
+                                    {mode.label}
                                 </button>
                             ))}
                         </div>
@@ -1330,26 +1482,28 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
                     {/* AI Insights & Quick Actions */}
                     <div className="flex flex-col lg:flex-row gap-3 sm:gap-4 items-stretch">
-                        <div className="flex-1 bg-indigo-500/10 backdrop-blur-sm border border-indigo-400/20 rounded-lg sm:rounded-xl p-3 sm:p-4">
-                            <div className="flex items-start gap-2 sm:gap-3">
-                                <div className="p-1.5 sm:p-2 bg-indigo-400/20 rounded-lg shrink-0">
-                                    <svg className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                    </svg>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-[10px] sm:text-xs font-bold text-indigo-200 mb-1 uppercase tracking-wide">AI 인사이트</p>
-                                    <p className="text-xs sm:text-sm text-white font-medium leading-relaxed">
-                                        {audienceInsightMessage}
-                                    </p>
+                        {!isEssentialMobile && (
+                            <div className="flex-1 bg-indigo-500/10 backdrop-blur-sm border border-indigo-400/20 rounded-lg sm:rounded-xl p-3 sm:p-4">
+                                <div className="flex items-start gap-2 sm:gap-3">
+                                    <div className="p-1.5 sm:p-2 bg-indigo-400/20 rounded-lg shrink-0">
+                                        <svg className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                        </svg>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[10px] sm:text-xs font-bold text-indigo-200 mb-1 uppercase tracking-wide">AI 인사이트</p>
+                                        <p className="text-xs sm:text-sm text-white font-medium leading-relaxed">
+                                            {audienceInsightMessage}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
                         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full lg:w-auto">
                             {quickActions.map((action) => (
                                 <button
                                     key={action.key}
-                                    onClick={() => setCurrentPage(action.page)}
+                                    onClick={() => handleQuickActionClick(action)}
                                     className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 hover:scale-105 active:scale-95 ${
                                         action.variant === 'solid'
                                             ? 'bg-white text-slate-900 shadow-lg hover:bg-slate-50'
@@ -1365,10 +1519,12 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 </div>
             </div>
 
-            <InterpretationCardGrid
-                items={dashboardSummaryCards}
-                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
-            />
+            {!isEssentialMode && (
+                <InterpretationCardGrid
+                    items={dashboardSummaryCards}
+                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                />
+            )}
 
             <SummaryMetricGrid
                 items={harnessSummaryMetrics}
@@ -1376,6 +1532,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
             />
 
+            {isFullMode && (
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800 p-4 shadow-sm shadow-slate-100">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div>
@@ -1486,35 +1643,46 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     </div>
                 ) : null}
             </div>
+            )}
 
-            <InterpretationCardGrid
-                items={harnessOperationalInsights}
-                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
-            />
+            {isFullMode && (
+                <InterpretationCardGrid
+                    items={harnessOperationalInsights}
+                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                />
+            )}
 
-            <SummaryMetricGrid
-                items={harnessAuditMetrics}
-                columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
-                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
-            />
+            {isFullMode && (
+                <SummaryMetricGrid
+                    items={harnessAuditMetrics}
+                    columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
+                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                />
+            )}
 
-            <InterpretationCardGrid
-                items={harnessAuditInsights}
-                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
-            />
+            {isFullMode && (
+                <InterpretationCardGrid
+                    items={harnessAuditInsights}
+                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                />
+            )}
 
-            <SummaryMetricGrid
-                items={harnessRecentOpsMetrics}
-                columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
-                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
-            />
+            {isFullMode && (
+                <SummaryMetricGrid
+                    items={harnessRecentOpsMetrics}
+                    columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
+                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                />
+            )}
 
-            <InterpretationCardGrid
-                items={harnessRecentOpsInsights}
-                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
-            />
+            {isFullMode && (
+                <InterpretationCardGrid
+                    items={harnessRecentOpsInsights}
+                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                />
+            )}
 
-            {harnessRecentTradeHotspots.length > 0 ? (
+            {isFullMode && harnessRecentTradeHotspots.length > 0 ? (
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm shadow-slate-100">
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div>
@@ -1653,12 +1821,15 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 </button>
             )}
 
-            <InterpretationCardGrid
-                items={operationalFocusCards}
-                className="grid grid-cols-1 xl:grid-cols-2 gap-3"
-                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
-            />
+            {!isEssentialMode && (
+                <InterpretationCardGrid
+                    items={operationalFocusCards}
+                    className="grid grid-cols-1 xl:grid-cols-2 gap-3"
+                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                />
+            )}
             
+            {!isEssentialMode && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
                 <div className={`lg:col-span-2 ${audienceView === 'executive' ? 'lg:order-2' : 'lg:order-1'}`}>
                     <div className="h-full rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300">
@@ -1676,7 +1847,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     </div>
                 </div>
             </div>
+            )}
 
+            {!isEssentialMode && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
                 <div className={`bg-white dark:bg-slate-800 p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 dark:border-slate-700 ${audienceView === 'executive' ? 'md:order-2' : 'md:order-1'}`}>
                     <div className="flex items-center justify-between mb-4 sm:mb-6">
@@ -1707,11 +1880,13 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     </div>
                 </div>
             </div>
+            )}
 
 
             {/* ═══════════════════════════════════════════════════════
                     공종 × 국적 교차 안전 숙련도 분석 섹션 (아래)
             ═══════════════════════════════════════════════════════ */}
+            {isFullMode && (
             <div className="space-y-4 sm:space-y-6">
                 <InterpretationCardGrid
                     items={comparisonCards}
@@ -2196,6 +2371,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     )}
                 </div>
             </div>
+            )}
         </div>
     );
 };

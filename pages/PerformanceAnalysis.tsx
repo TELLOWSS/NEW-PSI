@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { WorkerRecord } from '../types';
 import { MonthlyTrendChart } from '../components/charts/MonthlyTrendChart';
 import { FieldRadarChart } from '../components/charts/FieldRadarChart';
@@ -8,10 +8,13 @@ import { InterpretationCardGrid, type InterpretationCardItem } from '../componen
 import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { BRAND_TONE } from '../utils/brandToneTokens';
+import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 
 interface PerformanceAnalysisProps {
     workerRecords: WorkerRecord[];
 }
+
+type PerformanceViewMode = 'full' | 'balanced' | 'essential';
 
 // 관리 직군 필터링 함수 (실무 공종인 '시스템', '할석' 등은 제외되지 않도록 유지)
 const isManagementRole = (field: string) => 
@@ -55,6 +58,59 @@ const getHarnessPersistenceState = (record: Partial<WorkerRecord>): 'connected' 
     if (String(record.harnessPersistenceWarning || '').trim()) return 'fallback';
     if (String(record.workflowRunId || '').trim()) return 'connected';
     return 'pending';
+};
+
+const PERFORMANCE_VIEW_MODE_STORAGE_KEY = 'psi_performance_view_mode';
+const PERFORMANCE_VIEW_MODE_MANUAL_KEY = 'psi_performance_view_mode_manual';
+
+type StoredAudience = 'worker' | 'manager' | 'executive';
+
+const getStoredPerformanceViewMode = (): PerformanceViewMode | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+        const value = window.localStorage.getItem(PERFORMANCE_VIEW_MODE_STORAGE_KEY);
+        if (value === 'full' || value === 'balanced' || value === 'essential') {
+            return value;
+        }
+    } catch {
+        return null;
+    }
+    return null;
+};
+
+const getStoredPerformanceViewModeManual = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    try {
+        return window.localStorage.getItem(PERFORMANCE_VIEW_MODE_MANUAL_KEY) === 'true';
+    } catch {
+        return false;
+    }
+};
+
+const getStoredAudience = (): StoredAudience => {
+    if (typeof window === 'undefined') return 'manager';
+    try {
+        const value = window.localStorage.getItem('psi_dashboard_audience');
+        if (value === 'worker' || value === 'manager' || value === 'executive') {
+            return value;
+        }
+    } catch {
+        return 'manager';
+    }
+    return 'manager';
+};
+
+const getRecommendedPerformanceViewMode = (audience: StoredAudience, viewportWidth: number): PerformanceViewMode => {
+    if (viewportWidth < 640) return 'essential';
+    if (audience === 'worker') return 'essential';
+    if (audience === 'executive') return 'full';
+    return viewportWidth >= 1280 ? 'full' : 'balanced';
+};
+
+const getDefaultPerformanceViewMode = (viewportWidth: number): PerformanceViewMode => {
+    if (viewportWidth < 640) return 'essential';
+    if (viewportWidth >= 1280) return 'full';
+    return 'balanced';
 };
 
 const summarizeHarnessRecords = (records: WorkerRecord[]) => {
@@ -106,6 +162,94 @@ const calculateStandardDeviation = (scores: number[]) => {
 const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords }) => {
     const [timeRange, setTimeRange] = useState('최근 6개월');
     const [compareMode, setCompareMode] = useState<'field' | 'team'>('field'); // New state for Radar Chart
+    const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
+    const [isViewModeManual, setIsViewModeManual] = useState<boolean>(() => getStoredPerformanceViewModeManual());
+    const viewMetricSessionRef = useRef<string>(createMetricSessionId('performance-analysis'));
+    const viewMetricStartRef = useRef<number>(Date.now());
+    const prevTimeRangeRef = useRef<string>('최근 6개월');
+    const prevCompareModeRef = useRef<'field' | 'team'>('field');
+    const [viewMode, setViewMode] = useState<PerformanceViewMode>(() => {
+        const storedMode = getStoredPerformanceViewMode();
+        if (storedMode && getStoredPerformanceViewModeManual()) return storedMode;
+        return getDefaultPerformanceViewMode(typeof window !== 'undefined' ? window.innerWidth : 1440);
+    });
+
+    useEffect(() => {
+        const handleResize = () => setViewportWidth(window.innerWidth);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(PERFORMANCE_VIEW_MODE_STORAGE_KEY, viewMode);
+            window.localStorage.setItem(PERFORMANCE_VIEW_MODE_MANUAL_KEY, isViewModeManual ? 'true' : 'false');
+        } catch {
+            // ignore localStorage write failures
+        }
+    }, [viewMode, isViewModeManual]);
+
+    useEffect(() => {
+        if (isViewModeManual) return;
+        const audience = getStoredAudience();
+        setViewMode(getRecommendedPerformanceViewMode(audience, viewportWidth));
+    }, [viewportWidth, isViewModeManual]);
+
+    useEffect(() => {
+        trackUIViewMetric('view_enter', 'performance-analysis', viewMetricSessionRef.current, {
+            viewMode,
+            viewportWidth,
+            audience: getStoredAudience(),
+        });
+
+        return () => {
+            trackUIViewMetric('view_exit', 'performance-analysis', viewMetricSessionRef.current, {
+                dwellMs: Date.now() - viewMetricStartRef.current,
+            });
+        };
+    }, []);
+
+    useEffect(() => {
+        if (prevTimeRangeRef.current === timeRange) return;
+        trackUIViewMetric('control_change', 'performance-analysis', viewMetricSessionRef.current, {
+            control: 'time_range',
+            before: prevTimeRangeRef.current,
+            after: timeRange,
+            viewMode,
+        });
+        prevTimeRangeRef.current = timeRange;
+    }, [timeRange, viewMode]);
+
+    useEffect(() => {
+        if (prevCompareModeRef.current === compareMode) return;
+        trackUIViewMetric('control_change', 'performance-analysis', viewMetricSessionRef.current, {
+            control: 'compare_mode',
+            before: prevCompareModeRef.current,
+            after: compareMode,
+            viewMode,
+        });
+        prevCompareModeRef.current = compareMode;
+    }, [compareMode, viewMode]);
+
+    const handleViewModeChange = (mode: PerformanceViewMode) => {
+        setIsViewModeManual(true);
+        setViewMode(mode);
+        trackUIViewMetric('view_mode_change', 'performance-analysis', viewMetricSessionRef.current, {
+            mode,
+            source: 'manual',
+            viewportWidth,
+            audience: getStoredAudience(),
+        });
+    };
+
+    const handleTimeRangeChange = (range: string) => {
+        setTimeRange(range);
+        trackUIViewMetric('cta_click', 'performance-analysis', viewMetricSessionRef.current, {
+            actionKey: 'time_range',
+            range,
+            viewMode,
+        });
+    };
 
     // 1. 순수 근로자 데이터만 추출
     const filteredBaseRecords = useMemo(() => 
@@ -292,8 +436,12 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
         },
     ]), [harnessSummary]);
 
+    const isFullMode = viewMode === 'full';
+    const isEssentialMode = viewMode === 'essential';
+    const isEssentialMobile = isEssentialMode && viewportWidth < 640;
+
     return (
-        <div className="space-y-6 sm:space-y-8 pb-10">
+        <div className={`${isEssentialMobile ? 'space-y-4' : 'space-y-6 sm:space-y-8'} pb-10`}>
             <div className="relative bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
                 <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full opacity-10 blur-2xl"></div>
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
@@ -303,16 +451,18 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                             <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 text-[10px] px-2 py-0.5 rounded border border-slate-200 dark:border-slate-600 font-bold uppercase tracking-tighter">* 관리 직군 제외됨</span>
                         </div>
                         <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-slate-100">근로자 안전 성과 심층 분석</h2>
-                        <p className="text-slate-500 dark:text-slate-300 mt-2 max-w-xl leading-relaxed text-sm sm:text-base">
-                            관리 직군을 제외한 실무 근로자 데이터를 바탕으로 변동성과 역량을 분석합니다. <br/>
-                            <span className="font-bold text-indigo-600">시스템, 할석미장견출, 콘비팀</span> 등 모든 실무 공종의 데이터를 누락 없이 추적합니다.
-                        </p>
+                        {!isEssentialMobile && (
+                            <p className="text-slate-500 dark:text-slate-300 mt-2 max-w-xl leading-relaxed text-sm sm:text-base">
+                                관리 직군을 제외한 실무 근로자 데이터를 바탕으로 변동성과 역량을 분석합니다. <br/>
+                                <span className="font-bold text-indigo-600">시스템, 할석미장견출, 콘비팀</span> 등 모든 실무 공종의 데이터를 누락 없이 추적합니다.
+                            </p>
+                        )}
                     </div>
                     <div className="flex items-center bg-slate-50 dark:bg-slate-900 rounded-lg p-1 border border-slate-200 dark:border-slate-700">
                         {['최근 3개월', '최근 6개월', '최근 1년'].map(range => (
                             <button 
                                 key={range}
-                                onClick={() => setTimeRange(range)}
+                                onClick={() => handleTimeRangeChange(range)}
                                 className={`px-3 sm:px-4 py-2 text-xs font-bold rounded-md transition-all duration-200 ${timeRange === range ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100'}`}
                             >
                                 {range}
@@ -320,12 +470,43 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                         ))}
                     </div>
                 </div>
+
+                <div className="relative z-10 mt-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 sm:p-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-300">화면 구성 모드</p>
+                        <p className="mt-1 text-xs font-bold text-slate-600 dark:text-slate-200">
+                            {viewMode === 'full' ? '현재 구성' : viewMode === 'balanced' ? '중간 구성' : '필수 구성'}
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {([
+                            { key: 'full', label: '현재 구성' },
+                            { key: 'balanced', label: '중간 구성' },
+                            { key: 'essential', label: '필수 구성' },
+                        ] as Array<{ key: PerformanceViewMode; label: string }>).map((mode) => (
+                            <button
+                                key={mode.key}
+                                type="button"
+                                onClick={() => handleViewModeChange(mode.key)}
+                                className={`rounded-xl px-3 py-2 text-xs font-black transition-colors ${
+                                    viewMode === mode.key
+                                        ? 'bg-slate-900 text-white'
+                                        : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                }`}
+                            >
+                                {mode.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
             </div>
 
-            <InterpretationCardGrid
-                items={performanceSummaryCards}
-                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
-            />
+            {!isEssentialMode && (
+                <InterpretationCardGrid
+                    items={performanceSummaryCards}
+                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                />
+            )}
 
             <SummaryMetricGrid
                 items={harnessSummaryMetrics}
@@ -409,67 +590,80 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
-                <div className="lg:col-span-3">
-                    <InterpretationCardGrid
-                        items={chartInterpretationCards}
-                        cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
-                    />
-                </div>
-                <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
-                    <div className="flex items-center justify-between mb-8">
+            {isEssentialMode ? (
+                <div className="bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
+                    <div className="flex items-center justify-between mb-6">
                         <div>
                             <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 안전 성과 추이</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">전체 근로자의 안전 수준 변화를 시계열로 추적합니다.</p>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs font-bold bg-slate-50 dark:bg-slate-900 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700">
-                            <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
-                            <span className="text-slate-600 dark:text-slate-300">근로자 평균</span>
+                            <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">핵심 추세만 빠르게 확인합니다.</p>
                         </div>
                     </div>
-                    <div className="h-80 w-full">
+                    <div className="h-72 w-full">
                         <MonthlyTrendChart records={filteredBaseRecords} />
                     </div>
                 </div>
-                
-                {/* Radar Chart Section with Toggle */}
-                <div className="lg:col-span-1 bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 flex flex-col">
-                    <div className="mb-4">
-                        <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">역량 비교 분석</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">공종별 또는 팀별로 세분화하여 역량을 비교합니다.</p>
+            ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+                    <div className="lg:col-span-3">
+                        <InterpretationCardGrid
+                            items={chartInterpretationCards}
+                            cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                        />
                     </div>
-                    
-                    {/* Mode Switcher */}
-                    <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg mb-4">
-                        <button 
-                            onClick={() => setCompareMode('field')}
-                            className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${compareMode === 'field' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-100'}`}
-                        >
-                            공종별 비교
-                        </button>
-                        <button 
-                            onClick={() => setCompareMode('team')}
-                            className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${compareMode === 'team' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-100'}`}
-                        >
-                            팀 단위 비교
-                        </button>
-                    </div>
-
-                    <div className="flex-1 flex items-center justify-center relative">
-                        <div className="w-full h-64">
-                            <FieldRadarChart records={filteredBaseRecords} mode={compareMode} />
+                    <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
+                        <div className="flex items-center justify-between mb-8">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 안전 성과 추이</h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">전체 근로자의 안전 수준 변화를 시계열로 추적합니다.</p>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs font-bold bg-slate-50 dark:bg-slate-900 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700">
+                                <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
+                                <span className="text-slate-600 dark:text-slate-300">근로자 평균</span>
+                            </div>
+                        </div>
+                        <div className="h-80 w-full">
+                            <MonthlyTrendChart records={filteredBaseRecords} />
                         </div>
                     </div>
-                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
-                        <h4 className="text-xs font-bold text-slate-500 dark:text-slate-300 uppercase mb-2">지표 설명</h4>
-                        <ul className="space-y-1 text-xs text-slate-500 dark:text-slate-300">
-                            <li className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> 평균 점수: 높을수록 안전 역량 우수</li>
-                            <li className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-teal-500"></div> 일관성: 점수 편차가 적을수록 우수</li>
-                        </ul>
+
+                    <div className="lg:col-span-1 bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 flex flex-col">
+                        <div className="mb-4">
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">역량 비교 분석</h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">공종별 또는 팀별로 세분화하여 역량을 비교합니다.</p>
+                        </div>
+
+                        <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg mb-4">
+                            <button
+                                onClick={() => setCompareMode('field')}
+                                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${compareMode === 'field' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-100'}`}
+                            >
+                                공종별 비교
+                            </button>
+                            <button
+                                onClick={() => setCompareMode('team')}
+                                className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${compareMode === 'team' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-100'}`}
+                            >
+                                팀 단위 비교
+                            </button>
+                        </div>
+
+                        <div className="flex-1 flex items-center justify-center relative">
+                            <div className="w-full h-64">
+                                <FieldRadarChart records={filteredBaseRecords} mode={compareMode} />
+                            </div>
+                        </div>
+                        <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+                            <h4 className="text-xs font-bold text-slate-500 dark:text-slate-300 uppercase mb-2">지표 설명</h4>
+                            <ul className="space-y-1 text-xs text-slate-500 dark:text-slate-300">
+                                <li className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> 평균 점수: 높을수록 안전 역량 우수</li>
+                                <li className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-teal-500"></div> 일관성: 점수 편차가 적을수록 우수</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
+            {isFullMode && (
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
                 <div className="xl:col-span-2 bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
                     <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-6 flex items-center gap-2">
@@ -531,8 +725,10 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                     </div>
                 </div>
             </div>
+            )}
 
             {/* NEW SECTION: Bottom Infographics to utilize whitespace */}
+            {isFullMode && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
                 <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
                     <div className="mb-6 flex justify-between items-center">
@@ -571,6 +767,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                     </div>
                 </div>
             </div>
+            )}
         </div>
     );
 };
