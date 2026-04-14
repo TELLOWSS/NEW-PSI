@@ -22,7 +22,7 @@
   - TRAFFIC_LIGHT_BRAND_LABELS ✓
   - VIOLATION_BRAND_LABELS ✓
 
-- [x] **utils/brandToneTokens.ts** - 톤 56개 정의 완료
+- [x] **utils/brandToneTokens.ts** - 톤 72개 정의 완료
   - 기본 톤 8개 ✓
   - Soft 변형 8개 ✓
   - Text 변형 3개 ✓
@@ -73,11 +73,11 @@
 - [x] PerformanceAnalysis.tsx ✓
 - [x] PredictiveAnalysis.tsx ✓
 
-#### 3-3. Pages 톤 정규화 (진행중 - 70%)
-- [ ] WorkerManagement.tsx 기본 톤 (20-30 케이스)
-- [ ] Introduction.tsx 브랜드 원칙 카드 (특수: shadow-sm 유지)
-- [ ] SafetyChecks.tsx 기본 톤 (8-12 케이스)
-- ℹ️ **상태**: 선택적 최적화 (배포 필수 아님)
+#### 3-3. Pages 톤 정규화 (완료 - 100%)
+- [x] WorkerManagement.tsx 기본 톤 정규화 완료 (108→0)
+- [x] Introduction.tsx 브랜드 원칙/다크 카드 포함 정규화 완료 (10→0)
+- [x] SafetyChecks.tsx 기본 톤 정규화 완료 (6→0)
+- ✅ **상태**: 배포 필수 항목 충족 완료
 
 ---
 

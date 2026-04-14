@@ -57,7 +57,7 @@ Dashboard.tsx:
 ### 핵심 구현 파일
 - ✅ `utils/roleViewModel.ts` (757줄) - 역할별 ViewModel
 - ✅ `utils/brandLabels.ts` - 상태어 15개
-- ✅ `utils/brandToneTokens.ts` - 톤 56개
+- ✅ `utils/brandToneTokens.ts` - 톤 72개
 - ✅ `components/shared/toneVariants.ts` - P1-VERIFY 리팩 완료
 
 ### 문서 파일
@@ -74,7 +74,7 @@ Dashboard.tsx:
 
 ### SWOT
 - **Strengths**: 단일 포인트 톤 관리, 타입 안전성, 재사용성
-- **Weaknesses**: 50+ 하드코딩 톤 남음 (선택사항), Hex 색상 혼재
+- **Weaknesses**: Hex 색상 혼재(인쇄 로직 일부), 대형 페이지 유지보수 난이도
 - **Opportunities**: 마케팅 강화, 고객 신뢰도, B2B 확장, 국제화
 - **Threats**: Tailwind 변경, 경쟁사 추격, 핵심 인력 이탈
 

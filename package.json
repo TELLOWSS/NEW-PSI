@@ -11,6 +11,7 @@
     "check:context": "node scripts/check-repo-context.cjs",
     "check:hotspot": "node scripts/check-hotspot-syntax.cjs",
     "check:tdz": "node scripts/check-tdz-useeffect-order.cjs",
+    "check:page-tone": "node scripts/check-page-tone-coverage.cjs",
     "check:types": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

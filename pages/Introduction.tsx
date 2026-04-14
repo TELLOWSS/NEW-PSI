@@ -48,7 +48,7 @@ const Introduction: React.FC = () => {
             eyebrow: '다음 행동',
             title: isGravityOff ? '브랜드 경험 모드를 유지한 채 핵심 메시지를 읽어보세요.' : '소개 화면에서 PSI의 보호 원칙을 먼저 이해하세요.',
             description: '사용자는 여기서 PSI가 사람을 평가하는 도구가 아니라 위험 신호를 보호 언어로 바꾸는 파트너라는 인상을 받아야 합니다.',
-            tone: isGravityOff ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
+            tone: isGravityOff ? BRAND_TONE.amberSoft80 : BRAND_TONE.emeraldSoft80,
         },
     ], [isGravityOff]);
 
@@ -153,7 +153,7 @@ const Introduction: React.FC = () => {
                                 }
                             }}
                         >
-                            <div className="inline-flex items-center gap-2 rounded-full bg-sky-50 border border-sky-200 px-3 py-1 text-xs font-black text-sky-700">
+                            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black text-sky-700 ${BRAND_TONE.sky}`}>
                                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l7 4v5c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V7l7-4z" />
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
@@ -187,17 +187,17 @@ const Introduction: React.FC = () => {
 
             <div className="max-w-5xl mx-auto px-4 card-gravity-target">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-6 shadow-sm">
+                    <div className={`rounded-3xl border p-6 shadow-sm ${BRAND_TONE.emeraldSoft}`}>
                         <p className="text-xs font-black tracking-[0.18em] text-emerald-700 mb-3">BRAND PRINCIPLE 01</p>
                         <h3 className="text-lg font-black text-slate-900 mb-2">평가보다 해석</h3>
                         <p className="text-sm leading-relaxed text-slate-700">PSI는 점수만 보여주지 않고 왜 그런 판단이 나왔는지 설명해 현장의 신뢰를 높입니다.</p>
                     </div>
-                    <div className="rounded-3xl border border-indigo-100 bg-indigo-50 p-6 shadow-sm">
+                    <div className={`rounded-3xl border p-6 shadow-sm ${BRAND_TONE.indigoSoft}`}>
                         <p className="text-xs font-black tracking-[0.18em] text-indigo-700 mb-3">BRAND PRINCIPLE 02</p>
                         <h3 className="text-lg font-black text-slate-900 mb-2">지적보다 보완</h3>
                         <p className="text-sm leading-relaxed text-slate-700">근로자에게는 불합격 대신 보완 권고를, 관리자에게는 재검토 근거를 제시하는 코칭형 구조를 따릅니다.</p>
                     </div>
-                    <div className="rounded-3xl border border-sky-100 bg-sky-50 p-6 shadow-sm">
+                    <div className={`rounded-3xl border p-6 shadow-sm ${BRAND_TONE.skySoft}`}>
                         <p className="text-xs font-black tracking-[0.18em] text-sky-700 mb-3">BRAND PRINCIPLE 03</p>
                         <h3 className="text-lg font-black text-slate-900 mb-2">감시보다 보호</h3>
                         <p className="text-sm leading-relaxed text-slate-700">동일한 분석 결과도 역할별 안전 언어로 바꿔 현장을 압박하지 않고 보호 중심의 행동으로 연결합니다.</p>
@@ -384,25 +384,25 @@ const Introduction: React.FC = () => {
                         PSI {PSI_APP_VERSION} 기준으로 최근 누적된 핵심 개선사항을 영역별로 정리했습니다. 보고서 전달 품질, 운영 추적성, 현장 실행성을 동시에 끌어올리는 방향으로 업데이트가 반영되었습니다.
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
+                        <div className={`rounded-2xl border p-4 ${BRAND_TONE.indigoSoft}`}>
                             <h3 className="font-black text-indigo-800 mb-2">리포트/전달 체계</h3>
                             <ul className="text-slate-700 font-semibold space-y-1 list-disc list-inside">
                                 {latestUpgradeColumns[0].map((item) => <li key={item}>{item}</li>)}
                             </ul>
                         </div>
-                        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
+                        <div className={`rounded-2xl border p-4 ${BRAND_TONE.emeraldSoft}`}>
                             <h3 className="font-black text-emerald-800 mb-2">운영/성능 안정화</h3>
                             <ul className="text-slate-700 font-semibold space-y-1 list-disc list-inside">
                                 {latestUpgradeColumns[1].map((item) => <li key={item}>{item}</li>)}
                             </ul>
                         </div>
-                        <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+                        <div className={`rounded-2xl border p-4 ${BRAND_TONE.amberSoft}`}>
                             <h3 className="font-black text-amber-800 mb-2">검증 상태</h3>
                             <ul className="text-slate-700 font-semibold space-y-1 list-disc list-inside">
                                 {PSI_CURRENT_RELEASE.validations.map((item) => <li key={item}>{item}</li>)}
                             </ul>
                         </div>
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div className={`rounded-2xl border p-4 ${BRAND_TONE.slate}`}>
                             <h3 className="font-black text-slate-800 mb-2">다음 협업 초점</h3>
                             <ul className="text-slate-700 font-semibold space-y-1 list-disc list-inside">
                                 <li>피드백 탭 카테고리 기반 의사결정 기록 강화</li>
@@ -436,7 +436,7 @@ const Introduction: React.FC = () => {
                                 <div className="relative group shrink-0">
                                     {/* Golden Glow Effect */}
                                     <div className="absolute -inset-1 bg-gradient-to-tr from-amber-200 to-yellow-500 rounded-xl blur opacity-20 group-hover:opacity-40 transition duration-500"></div>
-                                    <div className="relative w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center border border-slate-800 shadow-xl overflow-hidden">
+                                    <div className={`relative w-12 h-12 rounded-xl flex items-center justify-center border shadow-xl overflow-hidden ${BRAND_TONE.slateDarkSoft}`}>
                                         {/* Metallic Texture Overlay */}
                                         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-20"></div>
                                         

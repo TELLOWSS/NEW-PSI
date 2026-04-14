@@ -233,7 +233,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
             label: '승인 백로그',
             value: `${harnessSummary.approvalBacklog}명`,
             helper: `재검토 필요 ${harnessSummary.reviewNeeded}명`,
-            tone: harnessSummary.approvalBacklog > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+            tone: harnessSummary.approvalBacklog > 0 ? BRAND_TONE.amberSoft80 : BRAND_TONE.slate,
             labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.approvalBacklog > 0 ? 'text-amber-700' : 'text-slate-500'}`,
             helperClassName: `mt-1 text-xs font-bold ${harnessSummary.approvalBacklog > 0 ? 'text-amber-700' : 'text-slate-600'}`,
         },
@@ -242,7 +242,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
             label: '즉시 보호',
             value: `${harnessSummary.immediateAttention}명`,
             helper: '새 점검 등록 전 우선 조치 대상 확인',
-            tone: harnessSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-indigo-200 bg-indigo-50/70',
+            tone: harnessSummary.immediateAttention > 0 ? BRAND_TONE.roseSoft80 : BRAND_TONE.indigoSoft70,
             labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.immediateAttention > 0 ? 'text-rose-700' : 'text-indigo-700'}`,
             helperClassName: `mt-1 text-xs font-bold ${harnessSummary.immediateAttention > 0 ? 'text-rose-700' : 'text-indigo-700'}`,
         },
@@ -251,7 +251,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
             label: '폴백·저장 대기',
             value: `${harnessSummary.fallback + harnessSummary.pending}명`,
             helper: `폴백 ${harnessSummary.fallback}명 · 대기 ${harnessSummary.pending}명`,
-            tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+            tone: harnessSummary.fallback > 0 ? BRAND_TONE.amberSoft80 : BRAND_TONE.slate,
             labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-500'}`,
             helperClassName: `mt-1 text-xs font-bold ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-600'}`,
         },
@@ -361,7 +361,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                 <InterpretationCardGrid
                     items={formInterpretationCards}
                     className="mb-4 grid-cols-1 xl:grid-cols-3"
-                    cardClassName="border-slate-200 bg-slate-50"
+                    cardClassName={BRAND_TONE.slate}
                     eyebrowClassName="text-slate-500"
                     titleClassName="text-slate-900"
                     descriptionClassName="text-slate-600"
@@ -409,7 +409,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                             <button
                                 type="button"
                                 onClick={() => imageInputRef.current?.click()}
-                                className="px-3 py-2 bg-slate-100 border border-slate-300 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-200"
+                                className={`px-3 py-2 border text-slate-700 text-sm font-medium rounded-md hover:bg-slate-200 ${BRAND_TONE.slateMuted}`}
                             >
                                 📷 사진 첨부(카메라/갤러리)
                             </button>
@@ -448,7 +448,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                 <InterpretationCardGrid
                     items={recordInterpretationCards}
                     className="mb-4 grid-cols-1 xl:grid-cols-3"
-                    cardClassName="border-indigo-100 bg-indigo-50/50"
+                    cardClassName={BRAND_TONE.indigoSoft50}
                     eyebrowClassName="text-indigo-700"
                     titleClassName="text-slate-900"
                     descriptionClassName="text-slate-600"

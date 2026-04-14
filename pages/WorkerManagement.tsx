@@ -170,7 +170,7 @@ const QRCodeComponent: React.FC<QRCodeProps> = React.memo(({ record, onLoad }) =
 
     if (errorMsg) {
         return (
-            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 border border-red-200">
+            <div className={`w-full h-full flex flex-col items-center justify-center border ${BRAND_TONE.redSlate}`}>
                 <span className="text-[8px] font-black text-red-500 uppercase">{errorMsg}</span>
                 <span className="text-[6px] text-slate-400">{getSafeIdTail(record.id, 4)}</span>
             </div>
@@ -553,7 +553,7 @@ const PremiumSticker: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker 
             {/* 우측: 정보 섹션 */}
             <div className="flex-1 p-3 flex flex-col justify-between">
                 <div className="flex justify-between items-start gap-2">
-                    <div className="w-[14mm] h-[18mm] bg-slate-100 rounded border border-slate-200 overflow-hidden shrink-0 relative shadow-inner">
+                    <div className={`w-[14mm] h-[18mm] rounded border overflow-hidden shrink-0 relative shadow-inner ${BRAND_TONE.slatePanel}`}>
                         {profileImageSrc ? (
                             <img src={profileImageSrc} className="w-full h-full object-cover" alt={`${worker.name} 프로필`} />
                         ) : (
@@ -565,7 +565,7 @@ const PremiumSticker: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker 
                     </div>
                     <div className="min-w-0">
                         <div className="flex items-center gap-1.5 mb-1">
-                            <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded border border-slate-200">{worker.nationality}</span>
+                            <span className={`text-[10px] font-bold text-slate-600 px-1.5 py-0.5 rounded border ${BRAND_TONE.slatePanel}`}>{worker.nationality}</span>
                             {worker.role === 'leader' && <span className="text-[10px] font-black bg-yellow-400 text-slate-900 px-1.5 py-0.5 rounded">팀장</span>}
                         </div>
                         <h2 className="text-2xl font-black text-slate-900 leading-none truncate tracking-tight">{worker.name}</h2>
@@ -579,10 +579,10 @@ const PremiumSticker: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker 
                 <div className="mt-2">
                     <div className={`rounded-lg p-2 border flex items-center gap-2 ${
                         shouldShowWarning 
-                            ? 'bg-rose-50 border-rose-100' 
+                            ? BRAND_TONE.roseSoft
                             : profileImageSrc
-                                ? 'bg-emerald-50 border-emerald-100'
-                                : 'bg-amber-50 border-amber-100'
+                                ? BRAND_TONE.emeraldSoft
+                                : BRAND_TONE.amberSoft
                     }`}>
                         <div className={`font-bold text-xs shrink-0 ${
                             shouldShowWarning ? 'text-rose-500' : profileImageSrc ? 'text-emerald-600' : 'text-amber-600'
@@ -627,7 +627,7 @@ const PremiumIDCard: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker }
                 <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
                 
                 {/* Photo Frame */}
-                <div className="w-[28mm] h-[36mm] bg-slate-100 rounded border border-slate-200 mb-3 overflow-hidden relative shadow-inner">
+                <div className={`w-[28mm] h-[36mm] rounded border mb-3 overflow-hidden relative shadow-inner ${BRAND_TONE.slatePanel}`}>
                     {profileImageSrc ? (
                         <img src={profileImageSrc} className="w-full h-full object-cover" alt="Profile" />
                     ) : (
@@ -659,7 +659,7 @@ const PremiumIDCard: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker }
                     {roles.length > 0 ? (
                         <div className="flex justify-center flex-wrap gap-0.5 mb-3 min-h-[12px]">
                             {roles.map((role, i) => (
-                                <span key={i} className="px-1 py-0.5 rounded text-[6px] font-bold bg-slate-100 text-slate-600 border border-slate-200 leading-tight">
+                                <span key={i} className={`px-1 py-0.5 rounded text-[6px] font-bold text-slate-600 border leading-tight ${BRAND_TONE.slatePanel}`}>
                                     {role}
                                 </span>
                             ))}
@@ -3779,7 +3779,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             <PrintModeErrorBoundary onExit={() => setIsPrintMode(false)} resetKey={printResetKey}>
             <div className="fixed inset-0 bg-slate-100 z-[3000] overflow-y-auto font-sans">
                 {printRuntimeError && (
-                    <div className="sticky top-0 z-[4000] bg-rose-50 border-b border-rose-200 px-6 py-3 no-print">
+                    <div className={`sticky top-0 z-[4000] border-b px-6 py-3 no-print ${BRAND_TONE.rose}`}>
                         <p className="text-sm font-black text-rose-700">⚠️ {printRuntimeError}</p>
                     </div>
                 )}
@@ -3800,7 +3800,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <p className="text-slate-500 text-sm font-bold">
                                     총 {workersToPrint.length}명 대기 중
                                 </p>
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black border ${printTrustMode === 'fallback' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black border ${printTrustMode === 'fallback' ? `${BRAND_TONE.amber} text-amber-700` : `${BRAND_TONE.emerald} text-emerald-700`}`}>
                                     {printTrustMode === 'fallback' ? '⚠ 예외 출력 모드' : '✅ 검증 통과 출력'}
                                 </span>
                                 {/* View Toggle */}
@@ -3839,7 +3839,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     )}
                     
                     {viewType === 'flip' && isRenderingComplete && (
-                        <div className="flex items-center gap-4 bg-slate-50 px-4 py-2 rounded-xl border border-slate-200">
+                        <div className={`flex items-center gap-4 px-4 py-2 rounded-xl border ${BRAND_TONE.slate}`}>
                             <button onClick={handlePrev} disabled={currentFlipIndex === 0} className="p-2 hover:bg-white rounded-full disabled:opacity-30"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
                             <span className="font-mono font-bold text-slate-700 w-16 text-center">{currentFlipIndex + 1} / {workersToPrint.length}</span>
                             <button onClick={handleNext} disabled={currentFlipIndex === workersToPrint.length - 1} className="p-2 hover:bg-white rounded-full disabled:opacity-30"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></button>
@@ -3881,7 +3881,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 </div>
 
                 {printDiagnostics && (
-                    <div className="px-8 py-2 no-print border-b border-slate-200 bg-slate-50">
+                    <div className={`px-8 py-2 no-print border-b ${BRAND_TONE.slate}`}>
                         <p className="text-xs font-bold text-slate-600">
                             진단: {printDiagnostics.targetType === 'sticker' ? '스티커' : '사원증'} / 대상 {printDiagnostics.targetCount}명 / 검증통과 {printDiagnostics.trustedCount}명 / 예외모드 {printDiagnostics.fallbackUsed ? 'ON' : 'OFF'} / 시작 {new Date(printDiagnostics.startedAt).toLocaleTimeString()}
                         </p>
@@ -3892,7 +3892,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 <div ref={printAreaRef} className="p-8 flex flex-col items-center min-h-screen bg-slate-100 print:bg-white print:p-0">
                     {printTrustMode === 'fallback' && (
                         <div className="w-full max-w-[210mm] mb-4 no-print">
-                            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800 shadow-sm">
+                            <div className={`rounded-2xl border px-4 py-3 text-amber-800 shadow-sm ${BRAND_TONE.amber}`}>
                                 <p className="text-sm font-black">예외 출력 모드로 인쇄 중입니다.</p>
                                 <p className="text-xs font-bold mt-1">검증 통과 데이터가 없어 현재 필터 대상 전체를 출력합니다. 운영 권장사항은 OCR 재분석 후 재발급입니다.</p>
                             </div>
@@ -3971,7 +3971,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             </div>
 
             {printUserNotice && (
-                <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold text-indigo-700 no-print">
+                <div className={`rounded-2xl border px-4 py-3 text-sm font-bold text-indigo-700 no-print ${BRAND_TONE.indigo}`}>
                     {printUserNotice}
                 </div>
             )}
@@ -4013,7 +4013,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <span className="text-[10px] text-slate-400 mt-1 block font-bold group-hover:text-white transition-colors">A4 라벨지 최적화</span>
                             </div>
                         </button>
-                        <button onClick={() => startProcessing('idcard', filteredRecords)} className="group relative w-40 h-48 bg-indigo-600 rounded-[30px] shadow-2xl shadow-indigo-900/50 hover:bg-indigo-500 transition-all flex flex-col items-center justify-center gap-4 hover:-translate-y-2 duration-300 border border-indigo-400/30">
+                        <button onClick={() => startProcessing('idcard', filteredRecords)} className={`group relative w-40 h-48 rounded-[30px] shadow-2xl shadow-indigo-900/50 hover:bg-indigo-500 transition-all flex flex-col items-center justify-center gap-4 hover:-translate-y-2 duration-300 border ${BRAND_TONE.indigoCta}`}>
                             <div className="w-16 h-16 rounded-2xl bg-white text-indigo-600 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
                                 <span className="text-3xl">💳</span>
                             </div>
@@ -4029,7 +4029,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             {/* Design Sample Modal */}
             {showSampleModal && (
                 <div className="fixed inset-0 z-[4000] bg-black/90 p-4 md:p-6 backdrop-blur-md animate-fade-in overflow-y-auto" onClick={() => setShowSampleModal(false)}>
-                    <div className="bg-slate-900 rounded-[40px] p-6 md:p-8 lg:p-10 max-w-5xl w-full relative overflow-hidden border border-slate-700 shadow-2xl mx-auto my-2 md:my-6" onClick={e => e.stopPropagation()}>
+                    <div className={`rounded-[40px] p-6 md:p-8 lg:p-10 max-w-5xl w-full relative overflow-hidden border shadow-2xl mx-auto my-2 md:my-6 ${BRAND_TONE.slateDark}`} onClick={e => e.stopPropagation()}>
                         <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
                         <button className="absolute top-6 right-6 text-slate-400 hover:text-white transition-colors" onClick={() => setShowSampleModal(false)}>
                             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -4099,7 +4099,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     type="password"
                                     value={overridePin}
                                     onChange={(e) => setOverridePin(e.target.value)}
-                                    className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold"
+                                    className={`w-full p-3 rounded-xl border font-bold ${BRAND_TONE.slate}`}
                                     placeholder="PIN 입력"
                                 />
                             </div>
@@ -4108,7 +4108,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <textarea
                                     value={overrideReason}
                                     onChange={(e) => setOverrideReason(e.target.value)}
-                                    className="w-full p-3 rounded-xl border border-slate-200 bg-slate-50 font-bold min-h-[100px]"
+                                    className={`w-full p-3 rounded-xl border font-bold min-h-[100px] ${BRAND_TONE.slate}`}
                                     placeholder="법적/운영상 강제 발급 사유를 구체적으로 입력"
                                 />
                             </div>
@@ -4144,7 +4144,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             <button
                                 type="button"
                                 onClick={clearUnassignedFilter}
-                                className="inline-flex items-center justify-center rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-black text-amber-800 hover:bg-amber-100"
+                                className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-amber-800 hover:bg-amber-100 ${BRAND_TONE.amberWhiteStrong}`}
                             >
                                 Clear Filter
                             </button>
@@ -4160,7 +4160,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             <button
                                 type="button"
                                 onClick={clearHarnessDashboardFilter}
-                                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100"
+                                className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 ${BRAND_TONE.slateWhite}`}
                             >
                                 Dashboard 필터 해제
                             </button>
@@ -4176,13 +4176,13 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 />
                 <div className="w-full relative min-w-0">
                     <svg className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={3}/></svg>
-                    <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="근로자 이름으로 검색..." className="w-full bg-slate-50 border-transparent focus:bg-white focus:border-indigo-500 rounded-2xl pl-14 pr-6 py-4 font-bold text-base transition-all shadow-inner" />
+                    <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="근로자 이름으로 검색..." className={`w-full border-transparent focus:bg-white focus:border-indigo-500 rounded-2xl pl-14 pr-6 py-4 font-bold text-base transition-all shadow-inner ${BRAND_TONE.slate}`} />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 w-full">
                     <button
                         type="button"
                         onClick={handleDownloadTemplate}
-                        className="w-full px-4 py-3 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-xs sm:text-sm font-black hover:bg-emerald-100 transition-colors"
+                        className={`w-full px-4 py-3 text-emerald-700 border rounded-xl text-xs sm:text-sm font-black hover:bg-emerald-100 transition-colors ${BRAND_TONE.emerald}`}
                     >
                         업로드 양식 다운로드
                     </button>
@@ -4190,7 +4190,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         type="button"
                         onClick={() => bulkFileInputRef.current?.click()}
                         disabled={isBulkUploading}
-                        className="w-full px-4 py-3 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs sm:text-sm font-black hover:bg-indigo-100 transition-colors disabled:opacity-60"
+                        className={`w-full px-4 py-3 text-indigo-700 border rounded-xl text-xs sm:text-sm font-black hover:bg-indigo-100 transition-colors disabled:opacity-60 ${BRAND_TONE.indigo}`}
                     >
                         {isBulkUploading ? '엑셀 대량 업로드 처리 중...' : '엑셀 대량 업로드'}
                     </button>
@@ -4206,14 +4206,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             <button
                                 type="button"
                                 onClick={() => setPhotoFilter('missing-photo')}
-                                className={`px-3 py-2 rounded-xl text-xs font-black border transition-colors ${photoFilter === 'missing-photo' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-100'}`}
+                                className={`px-3 py-2 rounded-xl text-xs font-black border transition-colors ${photoFilter === 'missing-photo' ? `${BRAND_TONE.indigoStrong} text-white` : `${BRAND_TONE.indigoWhite} text-indigo-700 hover:bg-indigo-100`}`}
                             >
                                 사진 미등록자만 보기
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setPhotoFilter('all')}
-                                className={`px-3 py-2 rounded-xl text-xs font-black border transition-colors ${photoFilter === 'all' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'}`}
+                                className={`px-3 py-2 rounded-xl text-xs font-black border transition-colors ${photoFilter === 'all' ? `${BRAND_TONE.slateStrong} text-white` : `${BRAND_TONE.slateWhite} text-slate-700 hover:bg-slate-100`}`}
                             >
                                 전체 보기
                             </button>
@@ -4225,17 +4225,17 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     bodyClassName="mt-3"
                 >
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                        <div className="rounded-xl bg-white border border-indigo-100 px-3 py-3">
+                        <div className={`rounded-xl border px-3 py-3 ${BRAND_TONE.indigoSoft}`}>
                             <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">STEP 1</p>
                             <p className="mt-1 text-xs font-black text-slate-900">사진 미등록자만 필터</p>
                             <p className="mt-1 text-[11px] font-bold text-slate-500">누락자만 남겨서 등록 대상을 한 번에 정리</p>
                         </div>
-                        <div className="rounded-xl bg-white border border-indigo-100 px-3 py-3">
+                        <div className={`rounded-xl border px-3 py-3 ${BRAND_TONE.indigoSoft}`}>
                             <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">STEP 2</p>
                             <p className="mt-1 text-xs font-black text-slate-900">근로자 카드 클릭 → 상세 보기</p>
                             <p className="mt-1 text-[11px] font-bold text-slate-500">상단 `증명사진(프로필) 등록` 영역에서 즉시 업로드</p>
                         </div>
-                        <div className="rounded-xl bg-white border border-indigo-100 px-3 py-3">
+                        <div className={`rounded-xl border px-3 py-3 ${BRAND_TONE.indigoSoft}`}>
                             <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em]">STEP 3</p>
                             <p className="mt-1 text-xs font-black text-slate-900">저장 후 스티커/사원증 발급</p>
                             <p className="mt-1 text-[11px] font-bold text-slate-500">얼굴 기반 본인 확인이 가능해져 현장 신뢰감이 크게 올라감</p>
@@ -4244,7 +4244,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 </SectionPanelCard>
 
                 <SectionPanelCard
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                    className={`w-full rounded-2xl border px-4 py-4 ${BRAND_TONE.slate}`}
                     title="프로그램에서 근로자 직접 등록"
                     description="엑셀 없이 1명씩 바로 등록할 수 있습니다. (공종: 관리 포함)"
                     titleClassName="text-sm font-black text-slate-800"
@@ -4313,7 +4313,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         type="button"
                         onClick={handleManualRegisterWorker}
                         disabled={isManualRegistering || isBulkUploading}
-                        className="mt-3 inline-flex items-center rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-xs font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+                        className={`mt-3 inline-flex items-center rounded-xl border px-4 py-2 text-xs font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-60 ${BRAND_TONE.indigo}`}
                     >
                         {isManualRegistering ? '프로그램 등록 처리 중...' : '프로그램에서 1명 등록'}
                     </button>
@@ -4321,12 +4321,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 </SectionPanelCard>
 
                 {bulkUploadMessage && (
-                    <div className={`w-full rounded-2xl px-4 py-3 text-sm font-bold border ${bulkUploadMessage.startsWith('✅') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}>
+                    <div className={`w-full rounded-2xl px-4 py-3 text-sm font-bold border ${bulkUploadMessage.startsWith('✅') ? `${BRAND_TONE.emerald} text-emerald-700` : `${BRAND_TONE.rose} text-rose-700`}`}>
                         {bulkUploadMessage}
                     </div>
                 )}
                 {bulkUploadSummary && (
-                    <div className={`w-full rounded-2xl border px-4 py-3 ${bulkUploadSummary.status === 'success' ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
+                    <div className={`w-full rounded-2xl border px-4 py-3 ${bulkUploadSummary.status === 'success' ? BRAND_TONE.emerald : BRAND_TONE.rose}`}>
                         <p className={`text-xs font-black ${bulkUploadSummary.status === 'success' ? 'text-emerald-800' : 'text-rose-800'}`}>
                             업로드/등록 현황 요약
                         </p>
@@ -4355,17 +4355,17 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3 w-full">
                     <div className="min-w-0">
-                        <select value={selectedJobField} onChange={e => setSelectedJobField(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[140px]">
+                        <select value={selectedJobField} onChange={e => setSelectedJobField(e.target.value)} className={`w-full border text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[140px] ${BRAND_TONE.slate}`}>
                             {jobFields.map(field => <option key={field} value={field}>{`공종: ${field}`}</option>)}
                         </select>
                     </div>
                     <div className="min-w-0">
-                        <select value={selectedCrew} onChange={e => setSelectedCrew(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[140px]">
+                        <select value={selectedCrew} onChange={e => setSelectedCrew(e.target.value)} className={`w-full border text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[140px] ${BRAND_TONE.slate}`}>
                             {crews.map(crew => <option key={crew} value={crew}>{`팀: ${crew}`}</option>)}
                         </select>
                     </div>
                     <div className="min-w-0">
-                        <select value={filterLevel} onChange={e => setFilterLevel(e.target.value)} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[120px]">
+                        <select value={filterLevel} onChange={e => setFilterLevel(e.target.value)} className={`w-full border text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[120px] ${BRAND_TONE.slate}`}>
                             <option value="전체">전체 등급</option>
                             <option value="초급">초급</option>
                             <option value="중급">중급</option>
@@ -4373,14 +4373,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         </select>
                     </div>
                     <div className="min-w-0">
-                        <select value={reliabilityFilter} onChange={e => setReliabilityFilter(e.target.value as 'all' | 'trusted' | 'needs-review')} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[150px]">
+                        <select value={reliabilityFilter} onChange={e => setReliabilityFilter(e.target.value as 'all' | 'trusted' | 'needs-review')} className={`w-full border text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[150px] ${BRAND_TONE.slate}`}>
                             <option value="all">검증 상태: 전체</option>
                             <option value="trusted">검증 통과만</option>
                             <option value="needs-review">검증 필요만</option>
                         </select>
                     </div>
                     <div className="min-w-0">
-                        <select value={photoFilter} onChange={e => setPhotoFilter(e.target.value as 'all' | 'with-photo' | 'missing-photo')} className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[150px]">
+                        <select value={photoFilter} onChange={e => setPhotoFilter(e.target.value as 'all' | 'with-photo' | 'missing-photo')} className={`w-full border text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 font-bold min-w-[150px] ${BRAND_TONE.slate}`}>
                             <option value="all">사진 상태: 전체</option>
                             <option value="with-photo">사진 등록자만</option>
                             <option value="missing-photo">사진 미등록자만</option>
@@ -4388,23 +4388,23 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3 w-full">
-                    <div className="bg-indigo-50 px-4 py-3 rounded-2xl text-indigo-700 font-bold text-sm border border-indigo-100 flex items-center gap-2 min-w-0">
+                    <div className={`px-4 py-3 rounded-2xl text-indigo-700 font-bold text-sm border flex items-center gap-2 min-w-0 ${BRAND_TONE.indigoSoft}`}>
                         <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
                         <span className="truncate">발급 대기: {filteredRecords.length}명</span>
                     </div>
-                    <div className="bg-emerald-50 px-4 py-3 rounded-2xl text-emerald-700 font-bold text-sm border border-emerald-100 flex items-center gap-2 min-w-0">
+                    <div className={`px-4 py-3 rounded-2xl text-emerald-700 font-bold text-sm border flex items-center gap-2 min-w-0 ${BRAND_TONE.emeraldSoft}`}>
                         <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
                         <span className="truncate">검증통과: {filteredReliabilitySummary.trustedCount}명</span>
                     </div>
-                    <div className="bg-rose-50 px-4 py-3 rounded-2xl text-rose-700 font-bold text-sm border border-rose-100 flex items-center gap-2 min-w-0">
+                    <div className={`px-4 py-3 rounded-2xl text-rose-700 font-bold text-sm border flex items-center gap-2 min-w-0 ${BRAND_TONE.roseSoft}`}>
                         <span className="w-2 h-2 rounded-full bg-rose-500"></span>
                         <span className="truncate">검증필요: {filteredReliabilitySummary.untrustedCount}명</span>
                     </div>
-                    <div className="bg-amber-50 px-4 py-3 rounded-2xl text-amber-700 font-bold text-sm border border-amber-100 flex items-center gap-2 min-w-0">
+                    <div className={`px-4 py-3 rounded-2xl text-amber-700 font-bold text-sm border flex items-center gap-2 min-w-0 ${BRAND_TONE.amberSoft}`}>
                         <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                         <span className="truncate">사진등록: {filteredPhotoSummary.registeredCount}명 / 미등록 {filteredPhotoSummary.missingCount}명</span>
                     </div>
-                    <div className="bg-sky-50 px-4 py-3 rounded-2xl text-sky-700 font-bold text-sm border border-sky-100 flex items-center gap-2 min-w-0">
+                    <div className={`px-4 py-3 rounded-2xl text-sky-700 font-bold text-sm border flex items-center gap-2 min-w-0 ${BRAND_TONE.skySoft}`}>
                         <span className="w-2 h-2 rounded-full bg-sky-500"></span>
                         <span className="truncate">공통 프로필 연계: {filteredPhotoSummary.linkedCount}명 / 수동사진 {filteredPhotoSummary.manualCount}명</span>
                     </div>
@@ -4492,13 +4492,13 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 w-full">
                     <button
                         onClick={() => startProcessing('sticker', filteredRecords)}
-                        className="w-full px-4 py-3 bg-orange-50 text-orange-700 border border-orange-200 rounded-xl text-xs sm:text-sm font-black hover:bg-orange-100 transition-colors whitespace-normal break-keep"
+                        className={`w-full px-4 py-3 text-orange-700 border rounded-xl text-xs sm:text-sm font-black hover:bg-orange-100 transition-colors whitespace-normal break-keep ${BRAND_TONE.orange}`}
                     >
                         필터 대상 스티커 일괄 인쇄
                     </button>
                     <button
                         onClick={() => startProcessing('idcard', filteredRecords)}
-                        className="w-full px-4 py-3 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl text-xs sm:text-sm font-black hover:bg-indigo-100 transition-colors whitespace-normal break-keep"
+                        className={`w-full px-4 py-3 text-indigo-700 border rounded-xl text-xs sm:text-sm font-black hover:bg-indigo-100 transition-colors whitespace-normal break-keep ${BRAND_TONE.indigo}`}
                     >
                         필터 대상 사원증 일괄 인쇄
                     </button>
@@ -4550,7 +4550,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             </div>
 
                             <div className="flex items-center gap-4 relative z-10">
-                                <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0 shadow-inner relative">
+                                <div className={`w-16 h-16 rounded-2xl overflow-hidden border shrink-0 shadow-inner relative ${BRAND_TONE.slatePanel}`}>
                                     {profileImageSrc ? <img src={profileImageSrc} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-2xl opacity-20">👷</div>}
                                     <div className={`absolute bottom-0 w-full h-1.5 ${s.bg}`}></div>
                                 </div>
@@ -4573,34 +4573,34 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             <div className="relative z-10 min-h-[42px] flex items-center">
                                 <div className="flex flex-wrap items-center gap-2">
                                     {worker.approvalStatus === 'OVERRIDDEN' ? (
-                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200" title={`${worker.approvedBy || '승인자 미기록'} / ${worker.approvedAt || '-'} / ${worker.approvalReason || '-'}`}>
+                                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black text-amber-700 border ${BRAND_TONE.amberStrong}`} title={`${worker.approvedBy || '승인자 미기록'} / ${worker.approvedAt || '-'} / ${worker.approvalReason || '-'}`}>
                                             🔐 예외 승인 발급
                                         </span>
                                     ) : reliability.trusted ? (
-                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200">
+                                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black text-emerald-700 border ${BRAND_TONE.emeraldSoft}`}>
                                             ✅ OCR 검증 통과
                                         </span>
                                     ) : (
-                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200" title={reliability.reasons.join(', ')}>
+                                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black text-rose-700 border ${BRAND_TONE.roseSoft}`} title={reliability.reasons.join(', ')}>
                                             ⚠️ 검증 필요 (구백업 가능)
                                         </span>
                                     )}
                                     {hasProfilePhoto(worker) ? (
-                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-indigo-100 text-indigo-700 border border-indigo-200">
+                                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black text-indigo-700 border ${BRAND_TONE.indigoSoft}`}>
                                             👤 사진 등록 완료
                                         </span>
                                     ) : (
-                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200">
+                                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black text-slate-600 border ${BRAND_TONE.slatePanel}`}>
                                             📷 사진 등록 권장
                                         </span>
                                     )}
                                     {profileLinkState === 'linked' && (
-                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-sky-100 text-sky-700 border border-sky-200">
+                                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black text-sky-700 border ${BRAND_TONE.skySoft}`}>
                                             🔗 공통 프로필 연계
                                         </span>
                                     )}
                                     {profileLinkState === 'manual' && (
-                                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-violet-100 text-violet-700 border border-violet-200">
+                                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black text-violet-700 border ${BRAND_TONE.violetSoft}`}>
                                             🖼 수동 등록 사진
                                         </span>
                                     )}
@@ -4612,7 +4612,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 e.stopPropagation();
                                                 openOverrideModal(worker);
                                             }}
-                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black bg-rose-600 text-white border border-rose-700 hover:bg-rose-500 shrink-0"
+                                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-black text-white border hover:bg-rose-500 shrink-0 ${BRAND_TONE.roseStrong}`}
                                             title="관리자 예외 승인 후 강제 발급"
                                         >
                                             🔑 예외 발급
@@ -4636,14 +4636,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         <button
                             type="button"
                             onClick={() => setRegisteredWorkerAdminTab('list')}
-                            className={`px-3 py-2 rounded-xl border text-xs font-black transition-colors ${registeredWorkerAdminTab === 'list' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-100'}`}
+                            className={`px-3 py-2 rounded-xl border text-xs font-black transition-colors ${registeredWorkerAdminTab === 'list' ? `${BRAND_TONE.slateStrong} text-white` : `${BRAND_TONE.slateWhite} text-slate-700 hover:bg-slate-100`}`}
                         >
                             등록 리스트
                         </button>
                         <button
                             type="button"
                             onClick={() => setRegisteredWorkerAdminTab('message-history')}
-                            className={`px-3 py-2 rounded-xl border text-xs font-black transition-colors ${registeredWorkerAdminTab === 'message-history' ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}
+                            className={`px-3 py-2 rounded-xl border text-xs font-black transition-colors ${registeredWorkerAdminTab === 'message-history' ? `${BRAND_TONE.indigoStrong} text-white` : `${BRAND_TONE.indigo} text-indigo-700 hover:bg-indigo-100`}`}
                         >
                             문자 발송 이력
                         </button>
@@ -4651,7 +4651,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             type="button"
                             onClick={() => void fetchRegisteredWorkers()}
                             disabled={isRegisteredWorkersLoading}
-                            className="px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-black hover:bg-indigo-100 disabled:opacity-60"
+                            className={`px-3 py-2 rounded-xl border text-indigo-700 text-xs font-black hover:bg-indigo-100 disabled:opacity-60 ${BRAND_TONE.indigo}`}
                         >
                             {isRegisteredWorkersLoading ? '불러오는 중...' : '새로고침'}
                         </button>
@@ -4700,7 +4700,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             label: '보호 재확인',
                             value: `${registeredWorkerHarnessSummary.reviewNeeded + registeredWorkerHarnessSummary.highRisk}명`,
                             helper: `즉시 보호 ${registeredWorkerHarnessSummary.highRisk}명 · 폴백 ${registeredWorkerHarnessSummary.fallback}명`,
-                            tone: registeredWorkerHarnessSummary.highRisk > 0 ? 'border-rose-200 bg-rose-50' : 'border-violet-200 bg-violet-50',
+                            tone: registeredWorkerHarnessSummary.highRisk > 0 ? BRAND_TONE.rose : BRAND_TONE.violet,
                             labelClassName: `text-[10px] font-black ${registeredWorkerHarnessSummary.highRisk > 0 ? 'text-rose-600' : 'text-violet-600'}`,
                             valueClassName: `mt-1 text-lg font-black ${registeredWorkerHarnessSummary.highRisk > 0 ? 'text-rose-900' : 'text-violet-900'}`,
                             helperClassName: `mt-1 text-[11px] font-bold ${registeredWorkerHarnessSummary.highRisk > 0 ? 'text-rose-700' : 'text-violet-700'}`,
@@ -4719,7 +4719,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 <InterpretationCardGrid
                     items={registeredWorkerInterpretationCards}
                     className="mt-3 grid-cols-1 xl:grid-cols-3"
-                    cardClassName="border-slate-200 bg-slate-50/90"
+                    cardClassName={BRAND_TONE.slateSoft90}
                     eyebrowClassName="text-slate-500"
                     titleClassName="text-slate-900"
                     descriptionClassName="text-slate-600"
@@ -4738,7 +4738,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             <button
                                 type="button"
                                 onClick={() => void handleUndoDeleteRegisteredWorker()}
-                                className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-[11px] font-black text-amber-700 hover:bg-amber-100"
+                                className={`rounded-lg border px-2 py-1 text-[11px] font-black text-amber-700 hover:bg-amber-100 ${BRAND_TONE.amberWhiteStrong}`}
                             >
                                 실행 취소
                             </button>
@@ -4750,7 +4750,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 )}
 
                 <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-                    <ControlPanelCard className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" contentClassName="">
+                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate}`} contentClassName="">
                         <input
                             type="text"
                             value={registeredWorkerSearchTerm}
@@ -4759,7 +4759,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             className="w-full text-sm font-bold text-slate-800 bg-transparent focus:bg-white focus:border-indigo-500 rounded-lg px-0 py-0 border-0 outline-none"
                         />
                     </ControlPanelCard>
-                    <ControlPanelCard className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" contentClassName="">
+                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate}`} contentClassName="">
                         <select
                             value={registeredWorkerJobFilter}
                             onChange={(event) => setRegisteredWorkerJobFilter(event.target.value)}
@@ -4770,7 +4770,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             ))}
                         </select>
                     </ControlPanelCard>
-                    <ControlPanelCard className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" contentClassName="">
+                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate}`} contentClassName="">
                         <select
                             value={registeredWorkerTeamFilter}
                             onChange={(event) => setRegisteredWorkerTeamFilter(event.target.value)}
@@ -4781,7 +4781,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             ))}
                         </select>
                     </ControlPanelCard>
-                    <ControlPanelCard className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" contentClassName="">
+                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate}`} contentClassName="">
                         <select
                             value={registeredWorkerMissingFilter}
                             onChange={(event) => setRegisteredWorkerMissingFilter(event.target.value as 'all' | 'missing-any' | 'missing-phone' | 'missing-birth' | 'missing-passport')}
@@ -4794,7 +4794,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             <option value="missing-passport">누락 필터: 여권번호 누락</option>
                         </select>
                     </ControlPanelCard>
-                    <ControlPanelCard className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" contentClassName="">
+                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate}`} contentClassName="">
                         <select
                             value={registeredWorkerDuplicateFilter}
                             onChange={(event) => setRegisteredWorkerDuplicateFilter(event.target.value as RegisteredWorkerDuplicateFilter)}
@@ -4810,7 +4810,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 <p className="mt-2 text-[11px] font-bold text-slate-500">
                     등록 {registeredWorkers.length}명 · 필터 결과 {visibleRegisteredWorkers.length}명 · 중복 후보 {registeredWorkerDuplicateSummary.duplicateWorkerCount}명 · 삭제 권장 {registeredWorkerDuplicateSummary.autoDeleteIds.length}명 · 완전 동일 중복 {registeredWorkerExactDuplicateSummary.exactDuplicateIds.length}명
                 </p>
-                <div className="mt-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4">
+                <div className={`mt-3 rounded-2xl border px-4 py-4 ${BRAND_TONE.rose}`}>
                     <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
                         <div>
                             <p className="text-[11px] font-black text-rose-700 uppercase tracking-[0.18em]">DUPLICATE CLEANUP</p>
@@ -4825,7 +4825,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 type="button"
                                 onClick={selectSuggestedDuplicateWorkers}
                                 disabled={registeredWorkerDuplicateSummary.autoDeleteIds.length === 0 || deletingWorkerId === '__bulk__'}
-                                className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-black text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+                                className={`rounded-xl border px-3 py-2 text-xs font-black text-amber-700 hover:bg-amber-100 disabled:opacity-60 ${BRAND_TONE.amberWhite}`}
                             >
                                 중복 삭제 권장 자동선택
                             </button>
@@ -4833,7 +4833,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 type="button"
                                 onClick={selectExactDuplicateWorkers}
                                 disabled={registeredWorkerExactDuplicateSummary.exactDuplicateIds.length === 0 || deletingWorkerId === '__bulk__'}
-                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 disabled:opacity-60"
+                                className={`rounded-xl border px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 disabled:opacity-60 ${BRAND_TONE.slateWhite}`}
                             >
                                 완전 동일 중복 자동선택
                             </button>
@@ -4841,7 +4841,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 type="button"
                                 onClick={() => setSelectedBulkMessageWorkerIds([])}
                                 disabled={selectedBulkMessageWorkerIds.length === 0 || deletingWorkerId === '__bulk__'}
-                                className="rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                                className={`rounded-xl border px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-200 disabled:opacity-60 ${BRAND_TONE.slatePanel}`}
                             >
                                 선택 해제
                             </button>
@@ -4849,7 +4849,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 type="button"
                                 onClick={() => void handleBulkDeleteRegisteredWorkers()}
                                 disabled={selectedBulkMessageWorkerIds.length === 0 || deletingWorkerId === '__bulk__'}
-                                className="rounded-xl border border-rose-200 bg-rose-600 px-3 py-2 text-xs font-black text-white hover:bg-rose-700 disabled:opacity-60"
+                                className={`rounded-xl border px-3 py-2 text-xs font-black text-white hover:bg-rose-700 disabled:opacity-60 ${BRAND_TONE.roseStrong}`}
                             >
                                 {deletingWorkerId === '__bulk__' ? '일괄삭제 중...' : `선택 근로자 일괄삭제 (${selectedBulkMessageWorkerIds.length}명)`}
                             </button>
@@ -4858,7 +4858,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 </div>
                 {registeredWorkerDuplicateGroupPreview.length > 0 && (
                     <SectionPanelCard
-                        className="mt-3 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-4"
+                        className={`mt-3 rounded-2xl border px-4 py-4 ${BRAND_TONE.amberSoft70}`}
                         eyebrow="DUPLICATE PREVIEW"
                         title="중복 그룹 미리보기"
                         description="각 그룹의 보존 후보와 삭제 권장 대상을 바로 확인할 수 있습니다."
@@ -4961,7 +4961,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             />
                         )}
                         {reportMessageDashboardSummary?.schemaReady && (
-                            <div className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+                            <div className={`mb-4 rounded-2xl border px-4 py-4 shadow-sm ${BRAND_TONE.slateWhite}`}>
                                 <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
                                     <div>
                                         <p className="text-xs font-black text-slate-800 uppercase tracking-[0.18em]">MESSAGE OPS DASHBOARD</p>
@@ -4973,7 +4973,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 key={`dashboard-range-${range}`}
                                                 type="button"
                                                 onClick={() => applyMessageOpsRangeFilter(range)}
-                                                className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black ${dashboardRangeFilter === range ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                                                className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black ${dashboardRangeFilter === range ? `${BRAND_TONE.slateStrong} text-white` : `${BRAND_TONE.slateWhite} text-slate-700 hover:bg-slate-50`}`}
                                             >
                                                 {getRangeFilterLabel(range)}
                                             </button>
@@ -4981,28 +4981,28 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         <button
                                             type="button"
                                             onClick={() => void downloadDashboardSummaryExcel()}
-                                            className="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-50"
+                                            className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-50 ${BRAND_TONE.emeraldWhite}`}
                                         >
                                             대시보드 Excel
                                         </button>
                                         <button
                                             type="button"
                                             onClick={downloadDashboardSummaryCsv}
-                                            className="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100"
+                                            className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-100 ${BRAND_TONE.emerald}`}
                                         >
                                             대시보드 CSV
                                         </button>
                                         <button
                                             type="button"
                                             onClick={downloadDashboardSummaryJson}
-                                            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                                            className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 ${BRAND_TONE.slateWhite}`}
                                         >
                                             대시보드 JSON
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setReportMessageDashboardSummary(null)}
-                                            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100"
+                                            className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 ${BRAND_TONE.slate}`}
                                         >
                                             운영 집계 새로고침
                                         </button>
@@ -5012,7 +5012,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <InterpretationCardGrid
                                     items={messageDashboardInterpretationCards}
                                     className="mt-4 grid-cols-1 xl:grid-cols-3"
-                                    cardClassName="border-indigo-100 bg-indigo-50/70"
+                                    cardClassName={BRAND_TONE.indigoSoft70}
                                     eyebrowClassName="text-indigo-600"
                                     titleClassName="text-slate-900"
                                     descriptionClassName="text-slate-600"
@@ -5136,7 +5136,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             </ResponsiveContainer>
                                     </SectionPanelCard>
                                     <SectionPanelCard
-                                        className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                                        className={`rounded-2xl border px-4 py-4 ${BRAND_TONE.slate}`}
                                         title={BRAND_ACTION_LABELS.retryQueue}
                                         description={`현재 최신 상태가 ${BRAND_STATUS_LABELS.attention}인 대상만 우선 점수순으로 표시합니다.`}
                                         titleClassName="text-xs font-black text-slate-800"
@@ -5152,7 +5152,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 <button
                                                     type="button"
                                                     onClick={selectRetryQueueActionableWorkers}
-                                                    className="inline-flex items-center rounded-lg border border-sky-200 bg-white px-3 py-1.5 text-[10px] font-black text-sky-700 hover:bg-sky-100"
+                                                    className={`inline-flex items-center rounded-lg border px-3 py-1.5 text-[10px] font-black text-sky-700 hover:bg-sky-100 ${BRAND_TONE.skyWhite}`}
                                                 >
                                                     {BRAND_ACTION_LABELS.recheck} 대상 일괄 선택
                                                 </button>
@@ -5166,21 +5166,21 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             <button
                                                 type="button"
                                                 onClick={() => setRetryQueueFilter('all')}
-                                                className={`rounded-lg border px-2.5 py-1 text-[10px] font-black ${retryQueueFilter === 'all' ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                                                className={`rounded-lg border px-2.5 py-1 text-[10px] font-black ${retryQueueFilter === 'all' ? `${BRAND_TONE.slateStrong} text-white` : `${BRAND_TONE.slateWhite} text-slate-700 hover:bg-slate-50`}`}
                                             >
                                                 전체
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setRetryQueueFilter('actionable')}
-                                                className={`rounded-lg border px-2.5 py-1 text-[10px] font-black ${retryQueueFilter === 'actionable' ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+                                                className={`rounded-lg border px-2.5 py-1 text-[10px] font-black ${retryQueueFilter === 'actionable' ? `${BRAND_TONE.emeraldStrong} text-white` : `${BRAND_TONE.emerald} text-emerald-700 hover:bg-emerald-100`}`}
                                             >
                                                 다시 보낼 수 있는 대상만
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setRetryQueueFilter('blocked')}
-                                                className={`rounded-lg border px-2.5 py-1 text-[10px] font-black ${retryQueueFilter === 'blocked' ? 'border-rose-600 bg-rose-600 text-white' : 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'}`}
+                                                className={`rounded-lg border px-2.5 py-1 text-[10px] font-black ${retryQueueFilter === 'blocked' ? `${BRAND_TONE.roseStrong} text-white` : `${BRAND_TONE.rose} text-rose-700 hover:bg-rose-100`}`}
                                             >
                                                 차단 대상만
                                             </button>
@@ -5195,7 +5195,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 return (
                                                 <OperationalPreviewCard
                                                     key={row.retry_key}
-                                                    className={`rounded-2xl border px-3 py-3 ${actionable ? 'border-emerald-200 bg-emerald-50/40' : 'border-amber-200 bg-white'}`}
+                                                    className={`rounded-2xl border px-3 py-3 ${actionable ? BRAND_TONE.emeraldSoft40 : BRAND_TONE.amberWhite}`}
                                                     title={row.worker_name || '근로자 미상'}
                                                     subtitle={`${row.team_name || '미지정'} · ${formatPhoneForDisplay(row.phone_number) || '전화 미등록'}`}
                                                     titleClassName="text-sm font-black text-slate-900"
@@ -5221,7 +5221,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                                         eyebrow: '지금 상태',
                                                                         title: actionable ? '등록 정보와 리포트 원본이 연결돼 바로 다시 보낼 수 있습니다.' : `재발송 전에 ${blockers.length}가지 확인이 더 필요합니다.`,
                                                                         description: `${row.failure_category} · ${formatMessageLogDateTime(row.failed_at)}`,
-                                                                        tone: actionable ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50',
+                                                                        tone: actionable ? BRAND_TONE.emerald : BRAND_TONE.rose,
                                                                         eyebrowClassName: `text-[10px] font-black uppercase tracking-[0.16em] ${actionable ? 'text-emerald-700' : 'text-rose-700'}`,
                                                                     },
                                                                     {
@@ -5232,10 +5232,10 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                                         eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-slate-500',
                                                                         content: (
                                                                             <div className="mt-2 flex flex-wrap gap-1.5">
-                                                                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${matchedWorker ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+                                                                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${matchedWorker ? `${BRAND_TONE.emerald} text-emerald-700` : `${BRAND_TONE.rose} text-rose-700`}`}>
                                                                                     {matchedWorker ? '등록 근로자 연결됨' : '등록 근로자 매칭 없음'}
                                                                                 </span>
-                                                                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${matchedRecord ? 'border-sky-200 bg-sky-50 text-sky-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+                                                                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${matchedRecord ? `${BRAND_TONE.sky} text-sky-700` : `${BRAND_TONE.rose} text-rose-700`}`}>
                                                                                     {matchedRecord ? '리포트 원본 확인됨' : '리포트 원본 없음'}
                                                                                 </span>
                                                                             </div>
@@ -5268,7 +5268,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                                 type="button"
                                                                 onClick={() => handleInspectRetryQueueRow(row)}
                                                                 disabled={!matchedWorker}
-                                                                className="inline-flex items-center rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+                                                                className={`inline-flex items-center rounded-lg border px-2 py-1 text-[10px] font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-60 ${BRAND_TONE.indigo}`}
                                                             >
                                                                 이력 열기
                                                             </button>
@@ -5276,7 +5276,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                                 type="button"
                                                                 onClick={() => handleOpenRetryQueueReport(row)}
                                                                 disabled={!matchedRecord}
-                                                                className="inline-flex items-center rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-black text-sky-700 hover:bg-sky-100 disabled:opacity-60"
+                                                                className={`inline-flex items-center rounded-lg border px-2 py-1 text-[10px] font-black text-sky-700 hover:bg-sky-100 disabled:opacity-60 ${BRAND_TONE.sky}`}
                                                             >
                                                                 리포트 열기
                                                             </button>
@@ -5284,7 +5284,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                                 type="button"
                                                                 onClick={() => handleEditRetryQueueWorker(row)}
                                                                 disabled={!matchedWorker}
-                                                                className="inline-flex items-center rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+                                                                className={`inline-flex items-center rounded-lg border px-2 py-1 text-[10px] font-black text-amber-700 hover:bg-amber-100 disabled:opacity-60 ${BRAND_TONE.amber}`}
                                                             >
                                                                 근로자 수정
                                                             </button>
@@ -5333,7 +5333,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             {reportMessageDashboardSummary.sendModeRows.map((row) => (
                                                 <OperationalPreviewCard
                                                     key={row.send_mode}
-                                                    className={`rounded-2xl border px-4 py-4 ${row.send_mode === 'BULK' ? 'border-violet-200 bg-violet-50' : 'border-sky-200 bg-sky-50'}`}
+                                                    className={`rounded-2xl border px-4 py-4 ${row.send_mode === 'BULK' ? BRAND_TONE.violet : BRAND_TONE.sky}`}
                                                     title={row.send_mode === 'BULK' ? '선택 근로자 일괄 발송' : '개별 리포트 발송'}
                                                     subtitle={<p className={`text-[10px] font-black ${row.send_mode === 'BULK' ? 'text-violet-700' : 'text-sky-700'}`}>{row.send_mode === 'BULK' ? 'BULK MODE' : 'INDIVIDUAL MODE'}</p>}
                                                     titleClassName="mt-1 text-lg font-black text-slate-900"
@@ -5381,7 +5381,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         )}
                         {reportMessageDashboardSummary && !reportMessageDashboardSummary.schemaReady && (
                             <NoticeCallout
-                                className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-800"
+                                className={`mb-4 rounded-2xl border px-4 py-4 text-amber-800 ${BRAND_TONE.amber}`}
                                 title="운영 집계 뷰가 아직 준비되지 않았습니다."
                                 description="최신 supabase_report_message_logs_migration.sql를 실행하면 월별/팀별/실패사유/발송방식 대시보드가 활성화됩니다."
                                 titleClassName="text-sm font-black"
@@ -5402,7 +5402,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 />
                                 <SummaryMetricGrid
                                     className="mt-3 grid grid-cols-2 gap-2"
-                                    cardClassName="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"
+                                    cardClassName={`rounded-xl border px-3 py-3 ${BRAND_TONE.slate}`}
                                     items={[
                                         {
                                             key: 'message-api-session-count',
@@ -5447,7 +5447,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     setSelectedMessageHistoryWorkerId(worker.id);
                                                     setMessageLogError('');
                                                 }}
-                                                className={`w-full rounded-2xl border px-4 py-3 text-left transition-colors ${isActive ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-200 bg-white hover:border-indigo-200 hover:bg-slate-50'}`}
+                                                className={`w-full rounded-2xl border px-4 py-3 text-left transition-colors ${isActive ? `${BRAND_TONE.indigoActive} shadow-sm` : BRAND_TONE.slateWhiteHoverIndigo}`}
                                             >
                                                 <OperationalPreviewCard
                                                     className="p-0 border-0 bg-transparent"
@@ -5455,7 +5455,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     subtitle={<p className="truncate">{worker.job_field || '미분류'} · {worker.team_name || '미지정'}</p>}
                                                     titleClassName="text-sm font-black text-slate-900"
                                                     subtitleClassName="mt-1 text-[11px] font-bold text-slate-500"
-                                                    badge={<span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black border ${cachedEntry ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>{cachedEntry ? '캐시됨' : '미조회'}</span>}
+                                                    badge={<span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black border ${cachedEntry ? `${BRAND_TONE.emerald} text-emerald-700` : `${BRAND_TONE.slate} text-slate-500`}`}>{cachedEntry ? '캐시됨' : '미조회'}</span>}
                                                     body={<p>전화: {formatPhoneForDisplay(worker.phone_number) || '미등록'}</p>}
                                                     footer={<span className="truncate block">최근 발송: {lastLog ? `${formatMessageLogDateTime(lastLog.created_at)} · ${lastLog.status}` : '기록 없음'}</span>}
                                                     bodyClassName="mt-2 text-[11px] font-bold text-slate-500"
@@ -5516,7 +5516,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 </div>
 
                                 <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-                                    <ControlPanelCard className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" contentClassName="">
+                                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate}`} contentClassName="">
                                         <input
                                             type="text"
                                             value={messageHistorySearchTerm}
@@ -5525,7 +5525,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             className="w-full text-sm font-bold text-slate-800 bg-transparent focus:bg-white focus:border-indigo-500 rounded-lg px-0 py-0 border-0 outline-none"
                                         />
                                     </ControlPanelCard>
-                                    <ControlPanelCard className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" contentClassName="">
+                                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate}`} contentClassName="">
                                         <select
                                             value={messageHistoryRangeFilter}
                                             onChange={(event) => applyMessageOpsRangeFilter(event.target.value as MessageHistoryRangeFilter)}
@@ -5537,7 +5537,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             <option value="all">전체 기간</option>
                                         </select>
                                     </ControlPanelCard>
-                                    <ControlPanelCard className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" contentClassName="">
+                                    <ControlPanelCard className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate}`} contentClassName="">
                                         <select
                                             value={messageHistoryStatusFilter}
                                             onChange={(event) => setMessageHistoryStatusFilter(event.target.value as MessageHistoryStatusFilter)}
@@ -5548,7 +5548,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             <option value="fail">상태: {BRAND_STATUS_LABELS.attentionHold}만</option>
                                         </select>
                                     </ControlPanelCard>
-                                    <ControlPanelCard label="표시 중" className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" labelClassName="text-[10px] font-black text-slate-500" contentClassName="mt-1">
+                                    <ControlPanelCard label="표시 중" className={`rounded-xl border px-3 py-2 ${BRAND_TONE.slate}`} labelClassName="text-[10px] font-black text-slate-500" contentClassName="mt-1">
                                         <p className="text-sm font-black text-slate-900">{filteredMessageHistoryRows.length}건 / 원본 {selectedMessageHistoryRows.length}건</p>
                                     </ControlPanelCard>
                                 </div>
@@ -5602,7 +5602,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 />
                                 {messageHistoryMonthlyTrend.length > 0 && (
                                     <SectionPanelCard
-                                        className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
+                                        className={`mt-4 rounded-2xl border px-4 py-4 ${BRAND_TONE.slate}`}
                                         title="월별 발송 추이"
                                         description={`현재 필터 기준 최근 최대 6개월의 성공/${BRAND_STATUS_LABELS.attention} 건수를 표시합니다.`}
                                         bodyClassName="mt-4 h-[240px]"
@@ -5674,7 +5674,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 )}
                                 {failurePriorityActions.length > 0 && (
                                     <SectionPanelCard
-                                        className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4"
+                                        className={`mt-4 rounded-2xl border px-4 py-4 ${BRAND_TONE.amber}`}
                                         title="재발송 우선순위 가이드"
                                         description={`${BRAND_STATUS_LABELS.attention} 빈도가 높은 원인부터 현장 대응 우선순위를 안내합니다.`}
                                         titleClassName="text-xs font-black text-amber-900"
@@ -5794,15 +5794,15 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 )}
 
                                                 {filteredMessageHistoryRows.map((row) => (
-                                                    <tr key={row.id} className={`border-t hover:bg-slate-50/70 ${isSuccessfulMessageStatus(row.status) ? 'border-slate-100' : 'border-rose-100 bg-rose-50/40'}`}>
+                                                    <tr key={row.id} className={`border-t ${isSuccessfulMessageStatus(row.status) ? BRAND_TONE.slateRowHover : BRAND_TONE.roseRowHover}`}>
                                                         <td className="px-4 py-3 font-bold text-slate-900 whitespace-nowrap">{formatMessageLogDateTime(row.created_at)}</td>
                                                         <td className="px-4 py-3 whitespace-nowrap">
-                                                            <span className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-black border ${row.send_mode === 'BULK' ? 'border-violet-200 bg-violet-50 text-violet-700' : 'border-sky-200 bg-sky-50 text-sky-700'}`}>
+                                                            <span className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-black border ${row.send_mode === 'BULK' ? `${BRAND_TONE.violet} text-violet-700` : `${BRAND_TONE.sky} text-sky-700`}`}>
                                                                 {row.send_mode === 'BULK' ? '일괄발송' : '개별발송'}
                                                             </span>
                                                         </td>
                                                         <td className="px-4 py-3 whitespace-nowrap">
-                                                            <span className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-black border ${isSuccessfulMessageStatus(row.status) ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'}`}>
+                                                            <span className={`inline-flex items-center rounded-full px-2 py-1 text-[10px] font-black border ${isSuccessfulMessageStatus(row.status) ? `${BRAND_TONE.emerald} text-emerald-700` : `${BRAND_TONE.rose} text-rose-700`}`}>
                                                                 {row.status}
                                                             </span>
                                                         </td>
@@ -5817,7 +5817,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                                         <button
                                                                             type="button"
                                                                             onClick={openSelectedWorkerReport}
-                                                                            className="inline-flex items-center rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-black text-sky-700 hover:bg-sky-100"
+                                                                            className={`inline-flex items-center rounded-lg border px-2 py-1 text-[10px] font-black text-sky-700 hover:bg-sky-100 ${BRAND_TONE.sky}`}
                                                                         >
                                                                             리포트 보기
                                                                         </button>
@@ -5837,7 +5837,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             type="button"
                                             onClick={() => void fetchWorkerMessageHistory(selectedMessageHistoryWorker, { append: true, force: true })}
                                             disabled={isMessageLogLoadingMore}
-                                            className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                                            className={`inline-flex items-center justify-center rounded-xl border px-4 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:opacity-60 ${BRAND_TONE.slateWhite}`}
                                         >
                                             {isMessageLogLoadingMore ? '추가 이력 불러오는 중...' : '이력 더 보기'}
                                         </button>
@@ -5882,14 +5882,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             <button
                                 type="button"
                                 onClick={toggleSelectAllFilteredWorkersForBulkMessage}
-                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                                className={`rounded-xl border px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 ${BRAND_TONE.slateWhite}`}
                             >
                                 {visibleRegisteredWorkers.length > 0 && visibleRegisteredWorkers.every((worker) => selectedBulkMessageWorkerIds.includes(worker.id)) ? '필터 결과 전체 해제' : '필터 결과 전체 선택'}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => setSelectedBulkMessageWorkerIds([])}
-                                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100"
+                                className={`rounded-xl border px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 ${BRAND_TONE.slate}`}
                             >
                                 선택 초기화
                             </button>
@@ -5897,7 +5897,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <button
                                     type="button"
                                     onClick={reselectLastBulkFailedWorkers}
-                                    className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100"
+                                    className={`rounded-xl border px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100 ${BRAND_TONE.rose}`}
                                 >
                                     {BRAND_STATUS_LABELS.attention} 대상 다시 선택 ({lastBulkFailedWorkerIds.length}명)
                                 </button>
@@ -5906,7 +5906,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 type="button"
                                 onClick={() => void handleBulkSendSelectedWorkerReports()}
                                 disabled={isBulkSendingReports || selectedBulkMessageWorkerIds.length === 0}
-                                className="rounded-xl border border-sky-700 bg-sky-600 px-3 py-2 text-xs font-black text-white hover:bg-sky-700 disabled:opacity-60"
+                                className={`rounded-xl border px-3 py-2 text-xs font-black text-white hover:bg-sky-700 disabled:opacity-60 ${BRAND_TONE.skyStrong}`}
                             >
                                 {isBulkSendingReports ? '일괄 발송 중...' : `선택 근로자 일괄 발송 (${selectedBulkMessageWorkerIds.length}명)`}
                             </button>
@@ -5915,7 +5915,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     type="button"
                                     onClick={requestCancelBulkSend}
                                     disabled={isBulkSendCancelRequested}
-                                    className="rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+                                    className={`rounded-xl border px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100 disabled:opacity-60 ${BRAND_TONE.roseSoftStrong}`}
                                 >
                                     {isBulkSendCancelRequested ? '중단 요청됨' : '일괄 발송 중단'}
                                 </button>
@@ -6035,7 +6035,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             : '문자 이력을 열어 최근 전달 상태를 확인하거나 선택 발송 대상으로 묶으세요.';
 
                                 return (
-                                <tr key={worker.id} className={`border-t border-slate-100 hover:bg-slate-50/70 ${duplicateMeta ? 'bg-rose-50/40' : ''}`}>
+                                <tr key={worker.id} className={`border-t ${duplicateMeta ? BRAND_TONE.roseRowHover : BRAND_TONE.slateRowHover}`}>
                                     <td className="px-4 py-3 text-center">
                                         <input
                                             type="checkbox"
@@ -6057,15 +6057,15 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 <p className="font-black text-slate-900">{worker.name || '-'}</p>
                                                 <div className="mt-1 flex flex-wrap gap-1.5">
                                                     {selectedBulkMessageWorkerIds.includes(worker.id) && (
-                                                        <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-black text-sky-700">
+                                                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black text-sky-700 ${BRAND_TONE.sky}`}>
                                                             선택됨
                                                         </span>
                                                     )}
-                                                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${latestRecord ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                                                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${latestRecord ? `${BRAND_TONE.emerald} text-emerald-700` : `${BRAND_TONE.amber} text-amber-700`}`}>
                                                         {latestRecord ? '리포트 연결됨' : '리포트 확인 필요'}
                                                     </span>
                                                     {missingLabels.length > 0 && (
-                                                        <span className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-700">
+                                                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black text-rose-700 ${BRAND_TONE.rose}`}>
                                                             정보 보완 {missingLabels.length}건
                                                         </span>
                                                     )}
@@ -6133,7 +6133,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     type="button"
                                                     onClick={() => void handleSaveRegisteredWorker()}
                                                     disabled={isSavingWorkerEdit}
-                                                    className="rounded-lg bg-emerald-50 border border-emerald-200 px-2 py-1 text-[11px] font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+                                                    className={`rounded-lg border px-2 py-1 text-[11px] font-black text-emerald-700 hover:bg-emerald-100 disabled:opacity-60 ${BRAND_TONE.emerald}`}
                                                 >
                                                     {isSavingWorkerEdit ? '저장중' : '저장'}
                                                 </button>
@@ -6141,7 +6141,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     type="button"
                                                     onClick={cancelEditRegisteredWorker}
                                                     disabled={isSavingWorkerEdit}
-                                                    className="rounded-lg bg-slate-100 border border-slate-200 px-2 py-1 text-[11px] font-black text-slate-700 hover:bg-slate-200 disabled:opacity-60"
+                                                    className={`rounded-lg border px-2 py-1 text-[11px] font-black text-slate-700 hover:bg-slate-200 disabled:opacity-60 ${BRAND_TONE.slatePanel}`}
                                                 >
                                                     취소
                                                 </button>
@@ -6152,7 +6152,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     type="button"
                                                     onClick={() => startEditRegisteredWorker(worker)}
                                                     disabled={deletingWorkerId === worker.id || deletingWorkerId === '__bulk__'}
-                                                    className="rounded-lg bg-indigo-50 border border-indigo-200 px-2 py-1 text-[11px] font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-60"
+                                                    className={`rounded-lg border px-2 py-1 text-[11px] font-black text-indigo-700 hover:bg-indigo-100 disabled:opacity-60 ${BRAND_TONE.indigo}`}
                                                 >
                                                     수정
                                                 </button>
@@ -6160,7 +6160,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     type="button"
                                                     onClick={() => handleOpenWorkerMessageHistory(worker)}
                                                     disabled={deletingWorkerId === worker.id || deletingWorkerId === '__bulk__'}
-                                                    className="rounded-lg bg-sky-50 border border-sky-200 px-2 py-1 text-[11px] font-black text-sky-700 hover:bg-sky-100 disabled:opacity-60"
+                                                    className={`rounded-lg border px-2 py-1 text-[11px] font-black text-sky-700 hover:bg-sky-100 disabled:opacity-60 ${BRAND_TONE.sky}`}
                                                 >
                                                     문자이력
                                                 </button>
@@ -6168,7 +6168,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     type="button"
                                                     onClick={() => void handleDeleteRegisteredWorker(worker)}
                                                     disabled={deletingWorkerId === worker.id || deletingWorkerId === '__bulk__'}
-                                                    className="rounded-lg bg-rose-50 border border-rose-200 px-2 py-1 text-[11px] font-black text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+                                                    className={`rounded-lg border px-2 py-1 text-[11px] font-black text-rose-700 hover:bg-rose-100 disabled:opacity-60 ${BRAND_TONE.rose}`}
                                                 >
                                                     {deletingWorkerId === worker.id ? '삭제중' : '삭제'}
                                                 </button>
@@ -6186,7 +6186,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     key: `${worker.id}-status`,
                                                     eyebrow: '지금 상태',
                                                     title: stateTitle,
-                                                    tone: isActionReady ? 'border-emerald-200 bg-emerald-50' : isSuggestedDelete ? 'border-amber-200 bg-amber-50' : 'border-slate-200 bg-slate-50',
+                                                    tone: isActionReady ? BRAND_TONE.emerald : isSuggestedDelete ? BRAND_TONE.amber : BRAND_TONE.slate,
                                                     eyebrowClassName: `text-[10px] font-black uppercase tracking-[0.16em] ${isActionReady ? 'text-emerald-700' : isSuggestedDelete ? 'text-amber-700' : 'text-slate-500'}`,
                                                 },
                                                 {
@@ -6204,33 +6204,33 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                                     <StatusBadge variant={getHarnessApprovalBadgeVariant(harnessMeta.approvalState)} className="px-2 py-0.5 text-[10px]">{getHarnessApprovalStateLabel(harnessMeta.approvalState)}</StatusBadge>
                                                                     <StatusBadge variant={getHarnessPersistenceBadgeVariant(harnessMeta.persistenceState)} className="px-2 py-0.5 text-[10px]">{getHarnessPersistenceLabel(harnessMeta.persistenceState)}</StatusBadge>
                                                                     {latestRecord?.workflowRunId ? (
-                                                                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black text-slate-600">
+                                                                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black text-slate-600 ${BRAND_TONE.slate}`}>
                                                                             Run {latestRecord.workflowRunId}
                                                                         </span>
                                                                     ) : null}
                                                                 </>
                                                             )}
                                                             {duplicateMeta?.groupLabels.size ? Array.from(duplicateMeta.groupLabels).map((label) => (
-                                                                <span key={`${worker.id}-${label}`} className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-700">
+                                                                <span key={`${worker.id}-${label}`} className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black text-rose-700 ${BRAND_TONE.rose}`}>
                                                                     {label}
                                                                 </span>
                                                             )) : (
-                                                                <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-black text-slate-500">
+                                                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black text-slate-500 ${BRAND_TONE.slate}`}>
                                                                     중복 신호 없음
                                                                 </span>
                                                             )}
                                                             {duplicateMeta && (
-                                                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${duplicateMeta.suggestedDelete ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                                                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black ${duplicateMeta.suggestedDelete ? `${BRAND_TONE.amber} text-amber-700` : `${BRAND_TONE.emerald} text-emerald-700`}`}>
                                                                     {duplicateMeta.suggestedDelete ? '삭제 권장' : '보존 후보'}
                                                                 </span>
                                                             )}
                                                             {missingLabels.map((label) => (
-                                                                <span key={`${worker.id}-${label}`} className="inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-black text-rose-700">
+                                                                <span key={`${worker.id}-${label}`} className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black text-rose-700 ${BRAND_TONE.rose}`}>
                                                                     {label}
                                                                 </span>
                                                             ))}
                                                             {latestRecord?.harnessPersistenceWarning ? (
-                                                                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700">
+                                                                <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-black text-amber-700 ${BRAND_TONE.amber}`}>
                                                                     {latestRecord.harnessPersistenceWarning}
                                                                 </span>
                                                             ) : null}
