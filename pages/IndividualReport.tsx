@@ -107,6 +107,14 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
     const reassessmentTrail = (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-5).reverse();
     const messageWorkerKey = String(record.worker_uuid || record.workerUuid || record.employeeId || `${record.name}_${record.teamLeader || '미지정'}`).trim();
     const isGenerating = isGeneratingPdf || isGeneratingImage || isSendingMessage;
+    const normalizePhoneInput = (value: string) => value.replace(/\D/g, '').slice(0, 11);
+    const formatPhoneForDisplay = (value: string) => {
+        const digits = normalizePhoneInput(value);
+        if (digits.length < 4) return digits;
+        if (digits.length < 8) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+        if (digits.length < 11) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+        return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+    };
     const shareDiagnostics = useMemo(() => getReportShareDiagnostics(record), [record]);
     const generationInterpretationCards: InterpretationCardItem[] = useMemo(() => [
         {
@@ -206,15 +214,6 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             tone: BRAND_TONE.amberSoft80,
         },
     ], [reassessmentTrail.length]);
-
-    const normalizePhoneInput = (value: string) => value.replace(/\D/g, '').slice(0, 11);
-    const formatPhoneForDisplay = (value: string) => {
-        const digits = normalizePhoneInput(value);
-        if (digits.length < 4) return digits;
-        if (digits.length < 8) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-        if (digits.length < 11) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
-        return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
-    };
 
     const readWorkerLocalSetting = (storageKey: string): string => {
         if (typeof window === 'undefined' || !messageWorkerKey) return '';

@@ -39,7 +39,6 @@ interface QRCodeProps {
     record: WorkerRecord;
     onLoad?: (success: boolean) => void;
 }
-
 type PrintModeErrorBoundaryProps = {
     children: React.ReactNode;
     onExit: () => void;
