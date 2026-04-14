@@ -170,17 +170,98 @@ const LABELS: Record<string, Record<string, string>> = {
 };
 
 const FRONT_TUNING_LOCKED_THRESHOLDS = {
-    strictMin: 3000,
-    compactMin: 2400,
-    balancedMin: 1800,
+    strictMin: 3400,
+    compactMin: 2700,
+    balancedMin: 2000,
 } as const;
 
 const FRONT_TUNING_LOCKED_LIMITS = {
-    strict: { entryLimit: 2, paragraphLimit: 2, koCharLimit: 48, nativeCharLimit: 42 },
-    compact: { entryLimit: 2, paragraphLimit: 2, koCharLimit: 64, nativeCharLimit: 56 },
-    balanced: { entryLimit: 3, paragraphLimit: 2, koCharLimit: 76, nativeCharLimit: 66 },
-    rich: { entryLimit: 3, paragraphLimit: 3, koCharLimit: 92, nativeCharLimit: 82 },
+    strict: { entryLimit: 2, paragraphLimit: 2, koCharLimit: 60, nativeCharLimit: 52 },
+    compact: { entryLimit: 3, paragraphLimit: 2, koCharLimit: 72, nativeCharLimit: 62 },
+    balanced: { entryLimit: 3, paragraphLimit: 3, koCharLimit: 86, nativeCharLimit: 74 },
+    rich: { entryLimit: 4, paragraphLimit: 3, koCharLimit: 100, nativeCharLimit: 86 },
 } as const;
+
+const getCertificateTitleNative = (nationality: string): string => {
+    const nation = (nationality || '').trim();
+    if (nation.includes('한국') || nation.includes('대한민국') || nation.toLowerCase().includes('korea')) return '안전 역량 인증서';
+    if (nation.includes('베트남') || nation.toLowerCase().includes('vietnam')) return 'Chứng nhận Năng lực An toàn';
+    if (nation.includes('중국') || nation.toLowerCase().includes('china')) return '安全能力认证书';
+    if (nation.includes('태국') || nation.toLowerCase().includes('thailand')) return 'ใบรับรองสมรรถนะด้านความปลอดภัย';
+    if (nation.includes('우즈벡') || nation.toLowerCase().includes('uzbek')) return 'Xavfsizlik malakasi sertifikati';
+    if (nation.includes('캄보디아') || nation.toLowerCase().includes('cambodia')) return 'វិញ្ញាបនបត្រសមត្ថភាពសុវត្ថិភាព';
+    if (nation.includes('인도네시아') || nation.toLowerCase().includes('indonesia')) return 'Sertifikat Kompetensi Keselamatan';
+    if (nation.includes('몽골') || nation.toLowerCase().includes('mongol')) return 'Аюулгүй ажиллагааны чадамжийн гэрчилгээ';
+    if (nation.includes('카자흐') || nation.toLowerCase().includes('kazakh')) return 'Қауіпсіздік құзыреті сертификаты';
+    return 'Certificate of Safety Competence';
+};
+
+const getSixMetricBilingualLabels = (nationality: string): Array<{ ko: string; native: string; max: number; isPenalty?: boolean }> => {
+    const nation = (nationality || '').toLowerCase();
+    const koBase = [
+        { ko: '① 심리적 안정', max: 100 },
+        { ko: '② 업무 이해도', max: 100 },
+        { ko: '③ 위험평가 이해', max: 100 },
+        { ko: '④ 작업 숙련도', max: 100 },
+        { ko: '⑤ 개선 이행력', max: 100 },
+        { ko: '⑥ 반복위반 패널티', max: 20, isPenalty: true },
+    ];
+
+    if (nation.includes('한국') || nation.includes('korea')) {
+        return koBase.map((item) => ({ ...item, native: item.ko.replace(/^\d+\s*/, '') }));
+    }
+
+    if (nation.includes('베트남') || nation.includes('vietnam')) {
+        return [
+            { ko: koBase[0].ko, native: 'Ổn định tâm lý', max: 100 },
+            { ko: koBase[1].ko, native: 'Hiểu biết công việc', max: 100 },
+            { ko: koBase[2].ko, native: 'Hiểu đánh giá rủi ro', max: 100 },
+            { ko: koBase[3].ko, native: 'Mức độ thành thạo', max: 100 },
+            { ko: koBase[4].ko, native: 'Năng lực thực hiện cải thiện', max: 100 },
+            { ko: koBase[5].ko, native: 'Mức phạt vi phạm lặp lại', max: 20, isPenalty: true },
+        ];
+    }
+
+    if (nation.includes('중국') || nation.includes('china')) {
+        return [
+            { ko: koBase[0].ko, native: '心理稳定性', max: 100 },
+            { ko: koBase[1].ko, native: '作业理解度', max: 100 },
+            { ko: koBase[2].ko, native: '风险评估理解', max: 100 },
+            { ko: koBase[3].ko, native: '作业熟练度', max: 100 },
+            { ko: koBase[4].ko, native: '改进执行力', max: 100 },
+            { ko: koBase[5].ko, native: '重复违规惩罚', max: 20, isPenalty: true },
+        ];
+    }
+
+    return [
+        { ko: koBase[0].ko, native: 'Psychological stability', max: 100 },
+        { ko: koBase[1].ko, native: 'Job understanding', max: 100 },
+        { ko: koBase[2].ko, native: 'Risk assessment understanding', max: 100 },
+        { ko: koBase[3].ko, native: 'Work proficiency', max: 100 },
+        { ko: koBase[4].ko, native: 'Improvement execution', max: 100 },
+        { ko: koBase[5].ko, native: 'Repeat violation penalty', max: 20, isPenalty: true },
+    ];
+};
+
+const buildFallbackNativeCoachingText = (record: WorkerRecord): string => {
+    const nation = (record.nationality || '').toLowerCase();
+    const job = String(record.jobField || '작업').trim();
+    const weak = normalizeNarrativeText(record.weakAreas?.[0]);
+
+    if (nation.includes('베트남') || nation.includes('vietnam')) {
+        return `Trong công việc ${job}, hãy kiểm tra đầy đủ khu vực nguy hiểm, thiết bị bảo hộ và trình tự công việc trước khi bắt đầu. ${weak ? `Nội dung cần cải thiện trọng tâm là "${weak}". ` : ''}Trong khi làm việc, nếu điều kiện thay đổi thì phải dừng lại để đánh giá rủi ro lại, sau đó mới tiếp tục theo biện pháp bảo vệ đã thống nhất với đội trưởng.`;
+    }
+
+    if (nation.includes('중국') || nation.includes('china')) {
+        return `在${job}作业开始前，请完整确认危险点、个人防护装备和作业顺序。${weak ? `本次重点改进项为“${weak}”。` : ''}作业过程中一旦现场条件变化，请先暂停并重新评估风险，再按照与班组长确认的防护措施继续作业。`;
+    }
+
+    if (nation.includes('한국') || nation.includes('korea')) {
+        return `${job} 작업 전 위험요인, 보호구, 작업순서를 빠짐없이 확인하고 시작하세요. ${weak ? `이번 핵심 개선 항목은 '${weak}'입니다. ` : ''}작업 중 조건이 바뀌면 즉시 멈추어 위험평가를 다시 수행한 뒤 팀장과 확인한 보호조치에 따라 재개해야 합니다.`;
+    }
+
+    return `Before starting ${job} work, fully check hazards, personal protective equipment, and the work sequence. ${weak ? `The key improvement item is "${weak}." ` : ''}If site conditions change during work, stop first, reassess risk, and then continue only with the protective actions confirmed with the team leader.`;
+};
 
 const getLabels = (nationality: string) => {
     const nation = (nationality || '').trim();
@@ -602,6 +683,8 @@ const createLineClampStyle = (lines: number): React.CSSProperties => ({
 
 export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>(({ record, history = [], onPhotoClick }, ref) => {
     const labels = useMemo(() => getLabels(record.nationality), [record.nationality]);
+    const certificateTitleNative = useMemo(() => getCertificateTitleNative(record.nationality), [record.nationality]);
+    const sixMetricBilingualLabels = useMemo(() => getSixMetricBilingualLabels(record.nationality), [record.nationality]);
     const isKorean = record.nationality === '대한민국' || record.nationality === '한국' || (record.nationality || '').toLowerCase().includes('korea');
     const timelineLocale = isKorean ? 'ko-KR' : 'en-US';
     const timelineDateOptions: Intl.DateTimeFormatOptions = {
@@ -799,10 +882,10 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     const frontParagraphLimit = frontTuningProfile.paragraphLimit;
     const frontKoCharLimit = frontTuningProfile.koCharLimit;
     const frontNativeCharLimit = frontTuningProfile.nativeCharLimit;
-    const frontEntryLineClampStyle = createLineClampStyle(frontTuningProfile.key === 'rich' ? 3 : 2);
-    const frontCoachingLineClampStyle = createLineClampStyle(frontTuningProfile.key === 'rich' ? 3 : 2);
+    const frontEntryLineClampStyle = createLineClampStyle(frontTuningProfile.key === 'strict' ? 2 : 3);
+    const frontCoachingLineClampStyle = createLineClampStyle(frontTuningProfile.key === 'strict' ? 2 : 3);
     const frontVerdictLineClampStyle = createLineClampStyle(
-        frontTuningProfile.key === 'strict' ? 5 : frontTuningProfile.key === 'compact' ? 6 : frontTuningProfile.key === 'balanced' ? 7 : 8,
+        frontTuningProfile.key === 'strict' ? 6 : frontTuningProfile.key === 'compact' ? 7 : frontTuningProfile.key === 'balanced' ? 8 : 9,
     );
     const frontStrengthEntries = useMemo(
         () => strengthEntries.slice(0, frontEntryLimit).map((entry) => limitNarrativeEntry(entry, frontKoCharLimit, frontNativeCharLimit)),
@@ -846,6 +929,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     const appendixNativeCharLimit = appendixTuningProfile.nativeCharLimit;
     const appendixKoLineClampStyle = createLineClampStyle(appendixTuningProfile.koLineClamp);
     const appendixNativeLineClampStyle = createLineClampStyle(appendixTuningProfile.nativeLineClamp);
+    const appendixCoachingLineClampStyle = createLineClampStyle(Math.max(appendixTuningProfile.koLineClamp, 4));
     const appendixTimelineLineClampStyle = createLineClampStyle(appendixTuningProfile.timelineLineClamp);
     const appendixScoreReasonEntries = useMemo(
         () => scoreReasonEntries.slice(0, appendixEntryLimit).map((entry) => limitNarrativeEntry(entry, appendixKoCharLimit, appendixNativeCharLimit)),
@@ -860,12 +944,16 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         [improvementEntries, appendixEntryLimit, appendixKoCharLimit, appendixNativeCharLimit],
     );
     const appendixCoachingKoParagraphs = useMemo(
-        () => buildNarrativeParagraphs(limitNarrativeText(actionableCoachingText, appendixKoCharLimit)).slice(0, appendixParagraphLimit),
-        [actionableCoachingText, appendixKoCharLimit, appendixParagraphLimit],
+        () => buildNarrativeParagraphs(actionableCoachingText).slice(0, Math.max(appendixParagraphLimit, 3)),
+        [actionableCoachingText, appendixParagraphLimit],
+    );
+    const coachingNativeSourceText = useMemo(
+        () => normalizeNarrativeText(record.actionable_coaching_native) || buildFallbackNativeCoachingText(record),
+        [record],
     );
     const appendixCoachingNativeParagraphs = useMemo(
-        () => buildNarrativeParagraphs(limitNarrativeText(record.actionable_coaching_native, appendixNativeCharLimit)).slice(0, appendixParagraphLimit),
-        [record.actionable_coaching_native, appendixNativeCharLimit, appendixParagraphLimit],
+        () => buildNarrativeParagraphs(coachingNativeSourceText).slice(0, Math.max(appendixParagraphLimit, 3)),
+        [coachingNativeSourceText, appendixParagraphLimit],
     );
     const appendixVerdictKoParagraphs = useMemo(
         () => buildNarrativeParagraphs(limitNarrativeText(record.aiInsights, appendixKoCharLimit)).slice(0, appendixParagraphLimit),
@@ -913,7 +1001,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </div>
                         </div>
                         <h1 className="text-lg font-serif font-black text-slate-900 uppercase">Certificate of Safety Competence</h1>
-                        <p className="text-[10.5px] font-black text-slate-600 tracking-[0.08em]">{labels.cert}</p>
+                        <p className="text-[10.5px] font-black text-slate-600 tracking-[0.06em] break-keep">{certificateTitleNative}</p>
                     </div>
 
                     {isKorean ? (
@@ -1292,10 +1380,10 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     )}
 
                     <div className="pt-1.5 border-t-2 border-slate-900 shrink-0 flex justify-between items-end">
-                        <div className="text-[8px] font-bold text-slate-400">PSI Safety Intelligence System {PSI_APP_VERSION} · 월간 안전보건정기교육</div>
+                        <div className="text-[8px] font-bold text-slate-500">PSI 안전 인텔리전스 시스템 {PSI_APP_VERSION} · 월간 안전보건정기교육</div>
                         <div className="flex gap-8 text-center">
-                            <div className="text-[9px] font-bold">Safety Manager 박 성 훈</div>
-                            <div className="text-[9px] font-bold">Site Manager 정 용 현</div>
+                            <div className="text-[9px] font-bold">안전관리자 박 성 훈</div>
+                            <div className="text-[9px] font-bold">현장관리자 정 용 현</div>
                         </div>
                     </div>
                 </div>
@@ -1346,22 +1434,27 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
 
                             <div className="mt-2.5 rounded-[18px] border border-slate-200 bg-white px-3 py-3">
                                 <div className="flex items-center justify-between gap-2">
-                                    <h4 className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-700">Metric breakdown</h4>
+                                    <h4 className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-700">6대 지표 상세</h4>
                                     <span className="text-[8px] font-black text-slate-400">전면 막대영역 이동</span>
                                 </div>
                                 <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
                                     {([
-                                        ['①심리', competencyProfile.psychologicalScore, 100],
-                                        ['②업무이해', competencyProfile.jobUnderstandingScore, 100],
-                                        ['③위험평가', competencyProfile.riskAssessmentUnderstandingScore, 100],
-                                        ['④숙련도', competencyProfile.proficiencyScore, 100],
-                                        ['⑤개선이행', competencyProfile.improvementExecutionScore, 100],
-                                        ['⑥패널티', competencyProfile.repeatViolationPenalty, 20, true],
-                                    ] as [string, number, number, boolean?][]).map(([label, rawVal, max, isPenalty]) => {
+                                        [sixMetricBilingualLabels[0], competencyProfile.psychologicalScore],
+                                        [sixMetricBilingualLabels[1], competencyProfile.jobUnderstandingScore],
+                                        [sixMetricBilingualLabels[2], competencyProfile.riskAssessmentUnderstandingScore],
+                                        [sixMetricBilingualLabels[3], competencyProfile.proficiencyScore],
+                                        [sixMetricBilingualLabels[4], competencyProfile.improvementExecutionScore],
+                                        [sixMetricBilingualLabels[5], competencyProfile.repeatViolationPenalty],
+                                    ] as [{ ko: string; native: string; max: number; isPenalty?: boolean }, number][]).map(([labelSet, rawVal]) => {
+                                        const max = labelSet.max;
+                                        const isPenalty = Boolean(labelSet.isPenalty);
                                         const val = clampMetric(rawVal, max);
                                         return (
-                                            <div key={`appendix-metric-${label}`} className="flex items-center gap-1.5">
-                                                <span className="w-12 shrink-0 text-[7.5px] font-bold text-slate-500">{label}</span>
+                                            <div key={`appendix-metric-${labelSet.ko}`} className="flex items-center gap-1.5">
+                                                <div className="w-[78px] shrink-0">
+                                                    <p className="text-[7px] font-black text-slate-600 leading-tight">{labelSet.native}</p>
+                                                    <p className="text-[6.8px] font-bold text-slate-400 leading-tight">{labelSet.ko}</p>
+                                                </div>
                                                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
                                                     <div
                                                         className={`h-full rounded-full ${isPenalty ? 'bg-rose-400' : 'bg-indigo-500'}`}
@@ -1406,7 +1499,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         key: 'coaching-native',
                                         content: (
                                             <div className="rounded-2xl border border-amber-200 bg-white/90 px-3 py-2.5 text-[8.5px] font-bold leading-[1.5] text-amber-950 shadow-sm space-y-1">
-                                                {appendixCoachingNativeParagraphs.map((paragraph, index) => <p key={`coaching-native-${index}`} className="break-words" style={appendixNativeLineClampStyle}>{paragraph}</p>)}
+                                                {appendixCoachingNativeParagraphs.map((paragraph, index) => <p key={`coaching-native-${index}`} className="break-words" style={appendixCoachingLineClampStyle}>{paragraph}</p>)}
                                             </div>
                                         ),
                                     });
@@ -1415,8 +1508,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     key: 'coaching-ko',
                                     content: (
                                         <div className={`rounded-2xl px-3 py-2.5 leading-[1.5] space-y-1 break-words ${!isKorean && appendixCoachingNativeParagraphs.length > 0 ? 'border border-amber-200 bg-amber-100/70 text-[8px] text-amber-900' : 'bg-white/90 text-[8.5px] text-amber-950 shadow-sm'}`}>
-                                            {!isKorean && appendixCoachingNativeParagraphs.length > 0 ? <span className="mr-1 text-[7px] font-black text-amber-700">[KO]</span> : null}
-                                            {appendixCoachingKoParagraphs.map((paragraph, index) => <p key={`coaching-ko-${index}`} style={appendixKoLineClampStyle}><HighlightedText text={paragraph} /></p>)}
+                                            {appendixCoachingKoParagraphs.map((paragraph, index) => <p key={`coaching-ko-${index}`} style={appendixCoachingLineClampStyle}><HighlightedText text={paragraph} /></p>)}
                                         </div>
                                     ),
                                 });
@@ -1505,12 +1597,12 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
 
                     <div className="pt-1.5 border-t border-slate-200 flex items-center justify-between gap-4">
                         <div>
-                            <p className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-400">Appendix control</p>
-                            <p className="text-[8.5px] font-bold text-slate-500">Front page summary ↔ Back page detail synchronized for duplex printing.</p>
+                            <p className="text-[8px] font-black tracking-[0.08em] text-slate-400">부록 안내</p>
+                            <p className="text-[8.5px] font-bold text-slate-500">앞장 요약과 뒷장 상세 해설이 양면 인쇄 기준으로 연동됩니다.</p>
                         </div>
                         <div className="text-right">
-                            <p className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-400">PSI official issue</p>
-                            <p className="text-[9px] font-bold text-slate-700">Safety Intelligence System · Detailed Narrative Appendix</p>
+                            <p className="text-[8px] font-black tracking-[0.08em] text-slate-400">PSI 공식 발행</p>
+                            <p className="text-[9px] font-bold text-slate-700">안전 인텔리전스 시스템 · 상세 해설 부록</p>
                         </div>
                     </div>
                 </div>
