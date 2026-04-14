@@ -68,14 +68,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
     }, []);
 
     return (
-        <div className="w-64 bg-white shadow-lg flex flex-col shrink-0 h-full">
-            <div className="p-3 sm:p-4 text-center border-b border-slate-200">
+        <div className="w-64 bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 flex flex-col shrink-0 h-full transition-colors duration-200">
+            <div className="p-3 sm:p-4 text-center border-b border-slate-200 dark:border-slate-700">
                 <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center shadow-sm p-1">
                     <BrandPhilosophyLogo className="w-7 h-7 sm:w-8 sm:h-8" />
                 </div>
 
                 <div className="mt-2 flex items-center justify-center gap-2">
-                    <h1 className="text-base sm:text-lg font-black text-slate-800 tracking-tight">PSI SAFETY</h1>
+                    <h1 className="text-base sm:text-lg font-black text-slate-800 dark:text-slate-100 tracking-tight">PSI SAFETY</h1>
                     <div
                         className="relative group/patent rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
                         title="특허출원 제10-2026-0039151호 (발명자: 박성훈)"
@@ -100,15 +100,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
                         </div>
                     </div>
                 </div>
-                <p className="text-[11px] sm:text-xs text-slate-500 font-bold">Proactive Safety Intelligence</p>
-                <div className="bg-slate-100 rounded-md p-1.5 sm:p-2 mt-3 sm:mt-4">
-                     <p className="text-[10px] sm:text-xs font-semibold text-slate-700 truncate px-1">{siteName} 현장</p>
+                <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-bold">Proactive Safety Intelligence</p>
+                <div className="bg-slate-100 dark:bg-slate-700 rounded-md p-1.5 sm:p-2 mt-3 sm:mt-4">
+                     <p className="text-[10px] sm:text-xs font-semibold text-slate-700 dark:text-slate-200 truncate px-1">{siteName} 현장</p>
                 </div>
             </div>
             <nav className="flex-1 px-2 py-3 sm:py-4 space-y-4 overflow-y-auto custom-scrollbar">
                 {navSections.map((section) => (
                     <div key={section.title}>
-                        <p className="px-3 mb-1.5 text-[10px] sm:text-[11px] font-extrabold tracking-wide text-slate-400 uppercase">
+                        <p className="px-3 mb-1.5 text-[10px] sm:text-[11px] font-extrabold tracking-wide text-slate-400 dark:text-slate-500 uppercase">
                             {section.title}
                         </p>
                         <div className="space-y-0.5 sm:space-y-1">
@@ -122,7 +122,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
                                     }}
                                     className={`flex items-center px-3 py-2 sm:py-2.5 text-xs sm:text-sm font-medium rounded-md transition-colors duration-150 ${currentPage === item.id
                                         ? 'bg-indigo-600 text-white shadow-md'
-                                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white'
                                         }`}
                                 >
                                     <span className="w-4 h-4 sm:w-5 sm:h-5">{item.icon}</span>
@@ -134,7 +134,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
                 ))}
             </nav>
             {/* Developer Credit Footer */}
-            <div className="p-3 sm:p-5 border-t border-slate-200 bg-slate-50/50">
+            <div className="p-3 sm:p-5 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
                 <div className="flex items-center gap-2 sm:gap-3">
                     <div className="shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center shadow-sm p-1">
                         <BrandPhilosophyLogo className="w-6 h-6 sm:w-7 sm:h-7" />
@@ -142,8 +142,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
 
                     <div className="flex flex-col min-w-0">
                         <span className="text-[8px] sm:text-[9px] font-black text-indigo-500 uppercase tracking-widest mb-0.5">Developed By</span>
-                        <span className="text-xs sm:text-sm font-black text-slate-800 truncate tracking-tight">박성훈 부장</span>
-                        <span className="text-[9px] sm:text-[10px] text-slate-500 font-bold truncate">(주)휘강건설 · Hwigang Const.</span>
+                        <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-200 truncate tracking-tight">박성훈 부장</span>
+                        <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 font-bold truncate">(주)휘강건설 · Hwigang Const.</span>
                     </div>
                 </div>
                 <div className="mt-3 sm:mt-4 text-center">

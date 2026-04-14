@@ -13,6 +13,7 @@ import {
     type BestPracticeSyncFailureLog,
     type BestPracticeSyncState,
 } from '../utils/bestPracticeSyncStatus';
+import { getStoredTheme, toggleTheme, applyTheme, THEME_CHANGED_EVENT } from '../utils/themeUtils';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -25,6 +26,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const [isPaidApiMode, setIsPaidApiMode] = useState(false);
     const [bestPracticeSyncState, setBestPracticeSyncState] = useState<BestPracticeSyncState>(() => getBestPracticeSyncState());
     const [bestPracticeFailureLogs, setBestPracticeFailureLogs] = useState<BestPracticeSyncFailureLog[]>(() => getBestPracticeSyncFailureLogs());
+    const [isDark, setIsDark] = useState(() => getStoredTheme() === 'dark');
 
     const pageTitles: { [key in Page]: string } = {
         'dashboard': '대시보드',
@@ -49,6 +51,21 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         setCurrentPage(page);
         setIsMobileMenuOpen(false); // Close mobile menu on navigation
     };
+
+    const handleToggleTheme = () => {
+        const next = toggleTheme();
+        setIsDark(next === 'dark');
+    };
+
+    // 앱 로드 시 저장된 테마 적용
+    useEffect(() => {
+        applyTheme(getStoredTheme());
+        setIsDark(getStoredTheme() === 'dark');
+
+        const sync = () => setIsDark(getStoredTheme() === 'dark');
+        window.addEventListener(THEME_CHANGED_EVENT, sync);
+        return () => window.removeEventListener(THEME_CHANGED_EVENT, sync);
+    }, []);
 
     // Handle Escape key to close mobile menu
     useEffect(() => {
@@ -106,7 +123,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     }, []);
 
     return (
-        <div className="flex h-screen bg-slate-100 text-slate-800">
+        <div className="flex h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors duration-200">
             {/* Desktop Sidebar - Hidden on mobile */}
             <div className="no-print hidden lg:block h-full">
                 <Sidebar currentPage={currentPage} setCurrentPage={handlePageChange} />
@@ -130,7 +147,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
 
             <div className="flex-1 flex flex-col overflow-hidden w-full">
                 {/* Header with mobile hamburger */}
-                <header className="bg-white shadow-sm z-10 shrink-0 no-print">
+                <header className="bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/50 z-10 shrink-0 no-print">
                     <div className="mx-auto px-4 sm:px-6 lg:px-8">
                        <div className="flex items-center h-14 sm:h-16 gap-2">
                            {/* Mobile Menu Button */}
@@ -177,6 +194,27 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                <span className="hidden sm:inline">{isPaidApiMode ? '유료 API' : '무료 API'}</span>
                            </StatusBadge>
                            <BestPracticeSyncBadge state={bestPracticeSyncState} failureLogs={bestPracticeFailureLogs} />
+                           {/* 다크모드 토글 */}
+                           <button
+                               type="button"
+                               onClick={handleToggleTheme}
+                               className="ml-1 flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
+                               aria-label={isDark ? '라이트 모드로 전환' : '다크 모드로 전환'}
+                               title={isDark ? '라이트 모드' : '다크 모드'}
+                           >
+                               {isDark ? (
+                                   /* 홄 */
+                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                       <circle cx="12" cy="12" r="5" strokeWidth={2} />
+                                       <path strokeLinecap="round" strokeWidth={2} d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                                   </svg>
+                               ) : (
+                                   /* 달 */
+                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+                                   </svg>
+                               )}
+                           </button>
                        </div>
                     </div>
                 </header>
