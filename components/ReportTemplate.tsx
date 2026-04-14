@@ -243,6 +243,29 @@ const getSixMetricBilingualLabels = (nationality: string): Array<{ ko: string; n
     ];
 };
 
+const getMonthlyEduNativeTitle = (nationality: string): string => {
+    const nation = (nationality || '').trim();
+    if (nation.includes('한국') || nation.includes('대한민국') || nation.toLowerCase().includes('korea'))
+        return '월간 안전보건정기교육 역량 진단서';
+    if (nation.includes('베트남') || nation.toLowerCase().includes('vietnam'))
+        return 'Báo cáo Chẩn đoán Năng lực Giáo dục An toàn Hàng tháng';
+    if (nation.includes('중국') || nation.toLowerCase().includes('china'))
+        return '月度安全健康定期教育能力诊断报告';
+    if (nation.includes('태국') || nation.toLowerCase().includes('thailand'))
+        return 'รายงานวินิจฉัยศักยภาพการฝึกอบรมความปลอดภัยประจำเดือน';
+    if (nation.includes('우즈베키스탄') || nation.includes('우즈벡') || nation.toLowerCase().includes('uzbek'))
+        return "Oylik xavfsizlik ta'limi malakasi hisoboti";
+    if (nation.includes('캄보디아') || nation.toLowerCase().includes('cambodia'))
+        return 'របាយការណ៍វិនិច្ឆ័យជំនាញអប់រំសុវត្ថិភាពប្រចាំខែ';
+    if (nation.includes('인도네시아') || nation.toLowerCase().includes('indonesia'))
+        return 'Laporan Diagnostik Kompetensi Pendidikan Keselamatan Bulanan';
+    if (nation.includes('몽골') || nation.toLowerCase().includes('mongol'))
+        return 'Сарын аюулгүй ажиллагааны боловсролын чадамжийн тайлан';
+    if (nation.includes('카자흐') || nation.toLowerCase().includes('kazakh'))
+        return 'Ай сайынғы еңбек қауіпсіздігі білімі есебі';
+    return 'Monthly Safety & Health Training Competence Diagnostic Report';
+};
+
 const buildFallbackNativeCoachingText = (record: WorkerRecord): string => {
     const nation = (record.nationality || '').toLowerCase();
     const job = String(record.jobField || '작업').trim();
@@ -684,6 +707,7 @@ const createLineClampStyle = (lines: number): React.CSSProperties => ({
 export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>(({ record, history = [], onPhotoClick }, ref) => {
     const labels = useMemo(() => getLabels(record.nationality), [record.nationality]);
     const certificateTitleNative = useMemo(() => getCertificateTitleNative(record.nationality), [record.nationality]);
+    const monthlyEduNativeTitle = useMemo(() => getMonthlyEduNativeTitle(record.nationality), [record.nationality]);
     const sixMetricBilingualLabels = useMemo(() => getSixMetricBilingualLabels(record.nationality), [record.nationality]);
     const isKorean = record.nationality === '대한민국' || record.nationality === '한국' || (record.nationality || '').toLowerCase().includes('korea');
     const timelineLocale = isKorean ? 'ko-KR' : 'en-US';
@@ -759,10 +783,10 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                 key: 'strict' as const,
                 entryLimit: 2,
                 paragraphLimit: 2,
-                koCharLimit: 155,
-                nativeCharLimit: 130,
+                koCharLimit: 165,
+                nativeCharLimit: 145,
                 koLineClamp: 2,
-                nativeLineClamp: 1,
+                nativeLineClamp: 2,
                 timelineLineClamp: 2,
             };
         }
@@ -772,10 +796,10 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                 key: 'compact' as const,
                 entryLimit: 3,
                 paragraphLimit: 3,
-                koCharLimit: 175,
-                nativeCharLimit: 145,
-                koLineClamp: 2,
-                nativeLineClamp: 2,
+                koCharLimit: 185,
+                nativeCharLimit: 160,
+                koLineClamp: 3,
+                nativeLineClamp: 3,
                 timelineLineClamp: 2,
             };
         }
@@ -785,10 +809,10 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                 key: 'balanced' as const,
                 entryLimit: 3,
                 paragraphLimit: 3,
-                koCharLimit: 220,
-                nativeCharLimit: 175,
+                koCharLimit: 230,
+                nativeCharLimit: 190,
                 koLineClamp: 3,
-                nativeLineClamp: 2,
+                nativeLineClamp: 3,
                 timelineLineClamp: 3,
             };
         }
@@ -797,10 +821,10 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
             key: 'rich' as const,
             entryLimit: 3,
             paragraphLimit: 3,
-            koCharLimit: 240,
-            nativeCharLimit: 210,
-            koLineClamp: 3,
-            nativeLineClamp: 3,
+            koCharLimit: 250,
+            nativeCharLimit: 220,
+            koLineClamp: 4,
+            nativeLineClamp: 4,
             timelineLineClamp: 3,
         };
     }, [
@@ -931,6 +955,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     const appendixNativeLineClampStyle = createLineClampStyle(appendixTuningProfile.nativeLineClamp);
     const appendixCoachingLineClampStyle = createLineClampStyle(Math.max(appendixTuningProfile.koLineClamp, 4));
     const appendixTimelineLineClampStyle = createLineClampStyle(appendixTuningProfile.timelineLineClamp);
+    // 하단 패널(강점상세·개선상세)은 정보 밀도가 낮으므로 클램프를 1줄 더 허용
+    const appendixBottomKoLineClampStyle = createLineClampStyle(appendixTuningProfile.koLineClamp + 1);
+    const appendixBottomNativeLineClampStyle = createLineClampStyle(appendixTuningProfile.nativeLineClamp + 1);
     const appendixScoreReasonEntries = useMemo(
         () => scoreReasonEntries.slice(0, appendixEntryLimit).map((entry) => limitNarrativeEntry(entry, appendixKoCharLimit, appendixNativeCharLimit)),
         [scoreReasonEntries, appendixEntryLimit, appendixKoCharLimit, appendixNativeCharLimit],
@@ -993,15 +1020,21 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                 </div>
 
                 <div className="absolute inset-0 m-4 border-[2px] border-slate-800 z-10 pointer-events-none"></div>
-                <div className="relative z-10 px-[11mm] py-[8.5mm] grid h-full grid-rows-[18mm_48mm_46mm_150mm_10mm] gap-2.5 overflow-hidden">
-                    <div className="text-center shrink-0 h-[18mm] overflow-hidden">
-                        <div className="flex justify-center mb-1.5">
-                            <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
-                                <BrandPhilosophyLogo className="w-7 h-7" />
+                <div className="relative z-10 px-[11mm] py-[8.5mm] grid h-full grid-rows-[21mm_45mm_46mm_150mm_10mm] gap-2.5 overflow-hidden">
+                    <div className="text-center shrink-0 h-[21mm] overflow-hidden">
+                        <div className="flex justify-center mb-1">
+                            <div className="w-9 h-9 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+                                <BrandPhilosophyLogo className="w-6 h-6" />
                             </div>
                         </div>
-                        <h1 className="text-lg font-serif font-black text-slate-900 uppercase">Certificate of Safety Competence</h1>
-                        <p className="text-[10.5px] font-black text-slate-600 tracking-[0.06em] break-keep">{certificateTitleNative}</p>
+                        <h1 className="text-base font-serif font-black text-slate-900 uppercase leading-tight">Certificate of Safety Competence</h1>
+                        <p className="text-[10px] font-black text-slate-700 tracking-[0.06em] break-keep leading-tight mt-0.5">{certificateTitleNative}</p>
+                        {!isKorean && (
+                            <p className="text-[8px] font-bold text-indigo-600 tracking-[0.04em] break-keep mt-0.5">{monthlyEduNativeTitle}</p>
+                        )}
+                        {isKorean && (
+                            <p className="text-[8px] font-bold text-slate-500 tracking-[0.04em] break-keep mt-0.5">{monthlyEduNativeTitle}</p>
+                        )}
                     </div>
 
                     {isKorean ? (
@@ -1049,7 +1082,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </div>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-[19mm_minmax(0,1fr)_58mm] items-start gap-3 pb-2.5 border-b-2 border-slate-800 min-h-[38mm] overflow-hidden">
+                        <div className="grid grid-cols-[19mm_minmax(0,1fr)_63mm] items-start gap-3 pb-2.5 border-b-2 border-slate-800 min-h-[38mm] overflow-hidden">
                             <div className="w-[19mm] h-[27mm] bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
                                 {getProfileImage() ? (
                                     <img src={getProfileImage()!} className="w-full h-full object-cover" alt="Profile" />
@@ -1076,7 +1109,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 </div>
                             </div>
 
-                            <div className="flex items-start justify-between gap-1.5 shrink-0 self-start pl-1">
+                            <div className="flex items-start justify-between gap-1.5 shrink-0 self-start">
                                 <div className="flex flex-col items-center justify-start gap-1 min-w-[68px] pt-0.5">
                                     <div className={`relative w-[17mm] h-[17mm] flex items-center justify-center rounded-full border-[3px] shadow-md ${record.safetyLevel === '고급' ? 'bg-emerald-50 border-emerald-400' : record.safetyLevel === '중급' ? 'bg-amber-50 border-amber-400' : 'bg-rose-50 border-rose-400'}`}>
                                         <span className={`text-[27px] font-black tracking-tighter ${record.safetyLevel === '고급' ? 'text-emerald-700' : record.safetyLevel === '중급' ? 'text-amber-700' : 'text-rose-700'}`}>
@@ -1409,7 +1442,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-12 auto-rows-fr gap-2.5 flex-1 min-h-0">
+                    <div className="grid grid-cols-12 grid-rows-[3fr_2fr] gap-2.5 flex-1 min-h-0">
                         <WhyThisResultPanel
                             title="Formal score reasoning"
                             badge={<StatusBadge variant="slateSoft" className="px-2.5 py-1 text-[8px]">검증용 상세 기술</StatusBadge>}
@@ -1557,8 +1590,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 key: `strength-detail-${index}`,
                                 content: (
                                     <div className="rounded-2xl border border-emerald-100 bg-white/90 px-3 py-2.5 shadow-sm">
-                                        {!isKorean && entry.nativeText ? <p className="text-[8.5px] font-bold leading-[1.5] text-emerald-950 break-words" style={appendixNativeLineClampStyle}>{entry.nativeText}</p> : null}
-                                        <p className={`leading-[1.5] break-words ${!isKorean && entry.nativeText ? 'mt-1 border-t border-emerald-100 pt-1 text-[8px] text-emerald-900/80' : 'text-[8.5px] text-emerald-950'}`} style={appendixKoLineClampStyle}>
+                                        {!isKorean && entry.nativeText ? <p className="text-[8.5px] font-bold leading-[1.5] text-emerald-950 break-words" style={appendixBottomNativeLineClampStyle}>{entry.nativeText}</p> : null}
+                                        <p className={`leading-[1.5] break-words ${!isKorean && entry.nativeText ? 'mt-1 border-t border-emerald-100 pt-1 text-[8px] text-emerald-900/80' : 'text-[8.5px] text-emerald-950'}`} style={appendixBottomKoLineClampStyle}>
                                             {!isKorean && entry.nativeText ? <span className="mr-1 text-[7px] font-black text-emerald-600">[KO]</span> : null}
                                             <HighlightedText text={entry.text} />
                                         </p>
@@ -1579,8 +1612,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 key: `improvement-detail-${index}`,
                                 content: (
                                     <div className="rounded-2xl border border-rose-100 bg-white/90 px-3 py-2.5 shadow-sm">
-                                        {!isKorean && entry.nativeText ? <p className="text-[8.5px] font-bold leading-[1.5] text-rose-950 break-words" style={appendixNativeLineClampStyle}>{entry.nativeText}</p> : null}
-                                        <p className={`leading-[1.5] break-words ${!isKorean && entry.nativeText ? 'mt-1 border-t border-rose-100 pt-1 text-[8px] text-rose-900/80' : 'text-[8.5px] text-rose-950'}`} style={appendixKoLineClampStyle}>
+                                        {!isKorean && entry.nativeText ? <p className="text-[8.5px] font-bold leading-[1.5] text-rose-950 break-words" style={appendixBottomNativeLineClampStyle}>{entry.nativeText}</p> : null}
+                                        <p className={`leading-[1.5] break-words ${!isKorean && entry.nativeText ? 'mt-1 border-t border-rose-100 pt-1 text-[8px] text-rose-900/80' : 'text-[8.5px] text-rose-950'}`} style={appendixBottomKoLineClampStyle}>
                                             {!isKorean && entry.nativeText ? <span className="mr-1 text-[7px] font-black text-rose-600">[KO]</span> : null}
                                             <HighlightedText text={entry.text} />
                                         </p>
