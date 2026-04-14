@@ -14,6 +14,7 @@ import {
     type HarnessPersistenceHealth,
     type HarnessWorkflowDiagnostics,
 } from '../services/harnessService';
+import { getStoredTheme, getResolvedTheme, setTheme, watchSystemThemeChange, THEME_CHANGED_EVENT, type ThemeMode } from '../utils/themeUtils';
 
 const TRAINING_LANGUAGE_OPTIONS = [
     { code: 'ko-KR', label: '한국어 (ko-KR)' },
@@ -326,6 +327,11 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     const [harnessProbeResults, setHarnessProbeResults] = useState<Record<string, HarnessProbeResult>>({});
     const [isHarnessProbeLoading, setIsHarnessProbeLoading] = useState(false);
     const [harnessHealthState, setHarnessHealthState] = useState<HarnessHealthState>({ status: 'idle' });
+    const [themeMode, setThemeMode] = useState<ThemeMode>(() => getStoredTheme());
+    const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(() => getResolvedTheme(getStoredTheme()));
+    const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1280));
+    const [isTouchPointer, setIsTouchPointer] = useState<boolean>(() => (typeof window !== 'undefined' ? window.matchMedia?.('(hover: none) and (pointer: coarse)').matches ?? false : false));
+    const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(() => (typeof window !== 'undefined' ? window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false : false));
 
     const harnessSourceRecords = useMemo(() => workerRecords.filter((record) => !isManagementRole(record.jobField)), [workerRecords]);
     const harnessSummary = useMemo(() => summarizeHarnessRecords(harnessSourceRecords), [harnessSourceRecords]);
@@ -470,6 +476,61 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         } catch (e) {
             console.error('Failed to load weight history', e);
         }
+    }, []);
+
+    useEffect(() => {
+        const syncTheme = () => {
+            const mode = getStoredTheme();
+            setThemeMode(mode);
+            setResolvedTheme(getResolvedTheme(mode));
+        };
+
+        syncTheme();
+        window.addEventListener(THEME_CHANGED_EVENT, syncTheme);
+        const unwatch = watchSystemThemeChange(syncTheme);
+
+        return () => {
+            window.removeEventListener(THEME_CHANGED_EVENT, syncTheme);
+            unwatch();
+        };
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.matchMedia) return;
+
+        const pointerMedia = window.matchMedia('(hover: none) and (pointer: coarse)');
+        const motionMedia = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+        const syncDisplayContext = () => {
+            setViewportWidth(window.innerWidth);
+            setIsTouchPointer(pointerMedia.matches);
+            setPrefersReducedMotion(motionMedia.matches);
+        };
+
+        syncDisplayContext();
+        window.addEventListener('resize', syncDisplayContext);
+
+        const pointerHandler = () => syncDisplayContext();
+        const motionHandler = () => syncDisplayContext();
+
+        if (typeof pointerMedia.addEventListener === 'function') {
+            pointerMedia.addEventListener('change', pointerHandler);
+            motionMedia.addEventListener('change', motionHandler);
+        } else {
+            pointerMedia.addListener(pointerHandler);
+            motionMedia.addListener(motionHandler);
+        }
+
+        return () => {
+            window.removeEventListener('resize', syncDisplayContext);
+            if (typeof pointerMedia.removeEventListener === 'function') {
+                pointerMedia.removeEventListener('change', pointerHandler);
+                motionMedia.removeEventListener('change', motionHandler);
+            } else {
+                pointerMedia.removeListener(pointerHandler);
+                motionMedia.removeListener(motionHandler);
+            }
+        };
     }, []);
 
     const handleSave = () => {
@@ -647,6 +708,73 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             tone: BRAND_TONE.indigoSoft70,
         },
     ], [normalizedAdvancedThreshold, normalizedIntermediateThreshold, settings.approvalPolicy?.strictRoleGate, settings.batchSplitSize, weightSum]);
+
+    const themeInterpretationCards: InterpretationCardItem[] = useMemo(() => [
+        {
+            key: 'theme-status',
+            eyebrow: '지금 상태',
+            title: `테마 모드는 ${themeMode === 'system' ? '시스템 자동' : themeMode === 'dark' ? '다크' : '라이트'}이며 현재 화면은 ${resolvedTheme === 'dark' ? '다크' : '라이트'}로 렌더링 중입니다.`,
+            description: '평가 시점과 실사용 시점이 다를 수 있어 모드(선택값)와 실제 적용값을 분리해 보여줍니다.',
+            tone: resolvedTheme === 'dark' ? BRAND_TONE.darkIndigoText : BRAND_TONE.indigoSoft70,
+        },
+        {
+            key: 'theme-evidence',
+            eyebrow: '판단 근거',
+            title: '가독성·작업성 기준은 배경 대비, 입력 필드 식별성, 모바일 터치 타겟 안정성입니다.',
+            description: '다크모드에서도 카드 경계, 본문 텍스트, 입력 placeholder가 분리되어야 현장 입력 실수가 줄어듭니다.',
+            tone: BRAND_TONE.whiteSoft,
+        },
+        {
+            key: 'theme-action',
+            eyebrow: '다음 행동',
+            title: resolvedTheme === 'dark'
+                ? '야간/실내 작업 시 다크를 유지하고 보고서 검토 전에는 라이트 대비를 한 번 교차 확인하세요.'
+                : '주간/문서 공유 중심이면 라이트를 유지하고 야간 현장 점검 시 다크로 즉시 전환하세요.',
+            description: '테마는 미관보다 오입력 방지와 피로 저감이 목적이므로, 운영 시간대 기준으로 선택하는 것이 안전합니다.',
+            tone: resolvedTheme === 'dark' ? BRAND_TONE.darkEmeraldText : BRAND_TONE.emeraldSoft80,
+        },
+    ], [resolvedTheme, themeMode]);
+
+    const displayAuditMetrics = useMemo(() => {
+        const viewportLabel = viewportWidth < 640 ? '모바일' : viewportWidth < 1024 ? '태블릿' : '데스크톱';
+
+        return [
+            {
+                key: 'display-viewport',
+                label: '뷰포트',
+                value: viewportLabel,
+                helper: `${viewportWidth}px`,
+                tone: viewportWidth < 640 ? BRAND_TONE.indigoSoft70 : BRAND_TONE.whiteSoft,
+            },
+            {
+                key: 'display-touch',
+                label: '포인터',
+                value: isTouchPointer ? '터치 중심' : '마우스 중심',
+                helper: isTouchPointer ? '버튼 44px 이상 권장' : '밀집 정보 보기 최적',
+                tone: isTouchPointer ? BRAND_TONE.emeraldSoft80 : BRAND_TONE.whiteSoft,
+            },
+            {
+                key: 'display-motion',
+                label: '모션 선호',
+                value: prefersReducedMotion ? '감소 모드' : '기본 모드',
+                helper: prefersReducedMotion ? '과한 애니메이션 억제 권장' : '시각 피드백 활성',
+                tone: prefersReducedMotion ? 'border-amber-200 bg-amber-50/80' : BRAND_TONE.whiteSoft,
+            },
+            {
+                key: 'display-theme-live',
+                label: '실적용 테마',
+                value: resolvedTheme === 'dark' ? '다크' : '라이트',
+                helper: themeMode === 'system' ? '시스템 정책 연동' : '사용자 고정',
+                tone: resolvedTheme === 'dark' ? BRAND_TONE.darkIndigoText : BRAND_TONE.indigoSoft70,
+            },
+        ];
+    }, [isTouchPointer, prefersReducedMotion, resolvedTheme, themeMode, viewportWidth]);
+
+    const handleThemeModeChange = (mode: ThemeMode) => {
+        const next = setTheme(mode);
+        setThemeMode(next);
+        setResolvedTheme(getResolvedTheme(next));
+    };
 
     const harnessSettingsMetrics = useMemo(() => ([
         {
@@ -873,6 +1001,67 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
             />
+
+            <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">테마/다크모드 운영 설정</h3>
+                        <p className="mt-1 text-xs sm:text-sm text-slate-500 leading-relaxed">
+                            평가자 관점(검증 가능성)과 실무자 관점(야간/장시간 사용 피로도)을 함께 반영해 테마를 선택합니다.
+                        </p>
+                    </div>
+                    <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-black text-slate-700">
+                        적용 상태: {themeMode === 'system' ? '시스템 자동' : themeMode === 'dark' ? '다크' : '라이트'} / 현재 {resolvedTheme === 'dark' ? '다크' : '라이트'}
+                    </div>
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <button
+                        type="button"
+                        onClick={() => handleThemeModeChange('light')}
+                        className={`rounded-xl border px-4 py-3 text-sm font-black transition-colors ${themeMode === 'light' ? 'border-indigo-300 bg-indigo-50 text-indigo-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                    >
+                        라이트 고정
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleThemeModeChange('dark')}
+                        className={`rounded-xl border px-4 py-3 text-sm font-black transition-colors ${themeMode === 'dark' ? 'border-indigo-300 bg-indigo-50 text-indigo-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                    >
+                        다크 고정
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleThemeModeChange('system')}
+                        className={`rounded-xl border px-4 py-3 text-sm font-black transition-colors ${themeMode === 'system' ? 'border-indigo-300 bg-indigo-50 text-indigo-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                    >
+                        시스템 자동
+                    </button>
+                </div>
+
+                <InterpretationCardGrid
+                    items={themeInterpretationCards}
+                    className="mt-4 grid-cols-1 xl:grid-cols-3"
+                    cardClassName="rounded-2xl border p-4 shadow-sm"
+                />
+
+                <SummaryMetricGrid
+                    items={displayAuditMetrics}
+                    className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
+                    cardClassName="rounded-2xl border p-4 shadow-sm"
+                />
+
+                <NoticeCallout
+                    variant={resolvedTheme === 'dark' ? 'indigo' : 'emerald'}
+                    className="mt-4 rounded-2xl px-4 py-3"
+                    eyebrow="QUALITY CHECK"
+                    title="다크모드 검증 체크: 본문 가독성, 입력창 경계, 모바일 터치 영역(44px+)"
+                    description="테마 전환 후 입력 폼·표·배지에서 색만 바뀌고 의미가 흐려지지 않는지 확인하면, 평가/실무 모두에서 재작업이 줄어듭니다."
+                    titleClassName="text-sm font-black"
+                    descriptionClassName="mt-1 text-xs font-semibold"
+                    bodyClassName="block"
+                />
+            </div>
 
             {(harnessSummary.immediateAttention > 0 || harnessSummary.approvalBacklog > 0 || harnessSummary.fallback > 0) && (
                 <NoticeCallout

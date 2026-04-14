@@ -1191,9 +1191,9 @@ const AdminTraining: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
-                <h2 className="text-2xl font-black text-slate-900">{t.title}</h2>
-                <p className="text-sm font-bold text-slate-500 mt-2">{t.subtitle}</p>
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 sm:p-8 shadow-sm">
+                <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">{t.title}</h2>
+                <p className="text-sm font-bold text-slate-500 dark:text-slate-300 mt-2">{t.subtitle}</p>
 
                 <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
                     <p className="text-sm font-black text-indigo-900">관리자 사용 순서</p>
@@ -1221,13 +1221,13 @@ const AdminTraining: React.FC = () => {
                     onChange={(e) => setSourceTextKo(e.target.value)}
                     rows={8}
                     placeholder={t.sourcePlaceholder}
-                    className="w-full mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200 font-bold text-sm"
+                    className="w-full mt-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-sm text-slate-900 dark:text-slate-100"
                 />
 
                 <div className="mt-4">
                     <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                        <p className="text-xs font-black text-slate-600">{t.selectLanguages}</p>
-                        <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-[11px] font-black border border-slate-200">
+                        <p className="text-xs font-black text-slate-600 dark:text-slate-300">{t.selectLanguages}</p>
+                        <span className="px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-black border border-slate-200 dark:border-slate-600">
                             선택 {selectedLanguages.length}개
                         </span>
                         <button
@@ -1240,22 +1240,22 @@ const AdminTraining: React.FC = () => {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {LANGUAGE_OPTIONS.map((lang) => (
-                            <label key={lang.code} className={`flex items-center justify-between gap-3 p-3 rounded-xl border ${selectedLanguages.includes(lang.code) ? 'border-indigo-300 bg-indigo-50' : 'border-slate-200 bg-slate-50'}`}>
+                            <label key={lang.code} className={`flex items-center justify-between gap-3 p-3 rounded-xl border ${selectedLanguages.includes(lang.code) ? 'border-indigo-300 bg-indigo-50 dark:bg-indigo-900/30' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900'}`}>
                                 <div className="flex items-center gap-2 min-w-0">
                                 <input
                                     type="checkbox"
                                     checked={selectedLanguages.includes(lang.code)}
                                     onChange={() => toggleLanguage(lang.code)}
                                 />
-                                    <span className="text-xs font-bold text-slate-700">{lang.label[uiLocale]} ({lang.code})</span>
+                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{lang.label[uiLocale]} ({lang.code})</span>
                                 </div>
-                                <span className={`shrink-0 px-2 py-1 rounded-md text-[10px] font-black border ${selectedLanguages.includes(lang.code) ? 'border-indigo-200 bg-white text-indigo-700' : 'border-slate-200 bg-white text-slate-500'}`}>
+                                <span className={`shrink-0 px-2 py-1 rounded-md text-[10px] font-black border ${selectedLanguages.includes(lang.code) ? 'border-indigo-200 dark:border-indigo-500 bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-300' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}>
                                     업로드대상
                                 </span>
                             </label>
                         ))}
                     </div>
-                    <p className="mt-2 text-[11px] font-bold text-slate-500">
+                    <p className="mt-2 text-[11px] font-bold text-slate-500 dark:text-slate-300">
                         체크한 언어만 외부 팟캐스트 음성 업로드 대상입니다. 기본값은 설정 페이지의 "다국어 교육 기본 언어 세트"를 따릅니다.
                     </p>
                 </div>
@@ -1268,7 +1268,7 @@ const AdminTraining: React.FC = () => {
                     {loading ? t.creating : t.create}
                 </button>
 
-                {message && <p className="mt-4 text-sm font-bold text-slate-700">{message}</p>}
+                {message && <p className="mt-4 text-sm font-bold text-slate-700 dark:text-slate-200">{message}</p>}
                 {failedLanguages.length > 0 && (
                     <div className="mt-3">
                         <p className="text-xs font-black text-amber-700 mb-2">{t.failedLangTitle}</p>
@@ -1286,7 +1286,7 @@ const AdminTraining: React.FC = () => {
                             {failedLanguages.map((code) => {
                                 const attempts = failedLanguageAttempts[code] || [];
                                 return (
-                                    <p key={`${code}-attempts`} className="text-[11px] font-bold text-slate-600">
+                                    <p key={`${code}-attempts`} className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
                                         {code} {t.attemptLabel}: {attempts.length > 0 ? attempts.join(', ') : '-'}
                                     </p>
                                 );
@@ -1297,27 +1297,27 @@ const AdminTraining: React.FC = () => {
                 )}
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
-                <h3 className="text-lg font-black text-slate-900">{t.recentTitle}</h3>
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 sm:p-8 shadow-sm">
+                <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">{t.recentTitle}</h3>
                 <InterpretationCardGrid
                     items={recentSessionInterpretationCards}
                     className="mt-4 grid-cols-1 xl:grid-cols-3"
-                    cardClassName="border-slate-200 bg-slate-50"
-                    eyebrowClassName="text-slate-500"
-                    titleClassName="text-slate-900"
-                    descriptionClassName="text-slate-600"
+                    cardClassName="border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900"
+                    eyebrowClassName="text-slate-500 dark:text-slate-400"
+                    titleClassName="text-slate-900 dark:text-slate-100"
+                    descriptionClassName="text-slate-600 dark:text-slate-300"
                 />
                 {recentSessions.length === 0 ? (
-                    <p className="mt-3 text-sm font-bold text-slate-500">{t.recentEmpty}</p>
+                    <p className="mt-3 text-sm font-bold text-slate-500 dark:text-slate-400">{t.recentEmpty}</p>
                 ) : (
                     <div className="mt-3 space-y-2">
                         {recentSessions.map((session) => {
                             const hasMissingAudio = Object.values(session.audio_urls || {}).some((url) => !url);
                             const preview = (session.source_text_ko || '').trim();
                             return (
-                                <div key={session.id} className="p-3 rounded-xl border border-slate-200 bg-slate-50">
-                                    <p className="text-[11px] font-black text-slate-600 break-all">{session.id}</p>
-                                    <p className="mt-1 text-xs font-bold text-slate-700 line-clamp-2">{preview || '(문구 없음)'}</p>
+                                <div key={session.id} className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                                    <p className="text-[11px] font-black text-slate-600 dark:text-slate-300 break-all">{session.id}</p>
+                                    <p className="mt-1 text-xs font-bold text-slate-700 dark:text-slate-200 line-clamp-2">{preview || '(문구 없음)'}</p>
                                     <div className="mt-2 flex flex-wrap items-center gap-2">
                                         {hasMissingAudio && (
                                             <span className="px-2 py-1 rounded-md border border-amber-200 bg-amber-50 text-amber-800 text-[10px] font-black">
@@ -1327,7 +1327,7 @@ const AdminTraining: React.FC = () => {
                                         <button
                                             type="button"
                                             onClick={() => void hydrateSessionState(session, t.recentLoaded)}
-                                            className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-black border border-slate-200 hover:bg-slate-200"
+                                            className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-black border border-slate-200 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600"
                                         >
                                             {t.recentLoad}
                                         </button>
@@ -1347,9 +1347,9 @@ const AdminTraining: React.FC = () => {
                 )}
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
-                <h3 className="text-lg font-black text-slate-900">{t.awarenessTitle}</h3>
-                <p className="mt-1 text-xs font-bold text-slate-500">{t.awarenessSubtitle}</p>
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 sm:p-8 shadow-sm">
+                <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">{t.awarenessTitle}</h3>
+                <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-300">{t.awarenessSubtitle}</p>
                 {awarenessInterpretationCards.length > 0 && (
                     <InterpretationCardGrid
                         items={awarenessInterpretationCards}
@@ -1362,16 +1362,16 @@ const AdminTraining: React.FC = () => {
                 )}
 
                 {!currentSessionId ? (
-                    <p className="mt-3 text-sm font-bold text-slate-500">{t.recentEmpty}</p>
+                    <p className="mt-3 text-sm font-bold text-slate-500 dark:text-slate-400">{t.recentEmpty}</p>
                 ) : awarenessLoading ? (
-                    <p className="mt-3 text-sm font-bold text-slate-500">{t.statLoading}</p>
+                    <p className="mt-3 text-sm font-bold text-slate-500 dark:text-slate-400">{t.statLoading}</p>
                 ) : awarenessError ? (
                     <p className="mt-3 text-sm font-bold text-rose-700">{t.statErrorPrefix}: {awarenessError}</p>
                 ) : awarenessStats ? (
                     <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
-                            <p className="text-[11px] font-black text-slate-500">{t.statSubmitted}</p>
-                            <p className="mt-1 text-xl font-black text-slate-900">{awarenessStats.submittedWorkers}</p>
+                        <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                            <p className="text-[11px] font-black text-slate-500 dark:text-slate-400">{t.statSubmitted}</p>
+                            <p className="mt-1 text-xl font-black text-slate-900 dark:text-slate-100">{awarenessStats.submittedWorkers}</p>
                         </div>
                         <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50">
                             <p className="text-[11px] font-black text-emerald-700">{t.statConfirmed}</p>
@@ -1385,13 +1385,13 @@ const AdminTraining: React.FC = () => {
                             <p className="text-[11px] font-black text-indigo-700">{t.statRate}</p>
                             <p className="mt-1 text-xl font-black text-indigo-800">{awarenessStats.confirmationRate}%</p>
                         </div>
-                        <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
-                            <p className="text-[11px] font-black text-slate-500">{t.statNationalities}</p>
-                            <p className="mt-1 text-xl font-black text-slate-900">{awarenessStats.nationalityCount}</p>
+                        <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                            <p className="text-[11px] font-black text-slate-500 dark:text-slate-400">{t.statNationalities}</p>
+                            <p className="mt-1 text-xl font-black text-slate-900 dark:text-slate-100">{awarenessStats.nationalityCount}</p>
                         </div>
-                        <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
-                            <p className="text-[11px] font-black text-slate-500">{t.statDataSource}</p>
-                            <p className="mt-1 text-[12px] font-black text-slate-900">
+                        <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                            <p className="text-[11px] font-black text-slate-500 dark:text-slate-400">{t.statDataSource}</p>
+                            <p className="mt-1 text-[12px] font-black text-slate-900 dark:text-slate-100">
                                 {awarenessStats.ackDataSource === 'training_acknowledgements'
                                     ? t.statSourceAckTable
                                     : t.statSourceSubmissionGate}
@@ -1399,16 +1399,16 @@ const AdminTraining: React.FC = () => {
                         </div>
                     </div>
                 ) : (
-                    <p className="mt-3 text-sm font-bold text-slate-500">{t.recentEmpty}</p>
+                    <p className="mt-3 text-sm font-bold text-slate-500 dark:text-slate-400">{t.recentEmpty}</p>
                 )}
             </div>
 
             {mobileUrl && (
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
+                <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 sm:p-8 shadow-sm">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                            <h3 className="text-xl font-black text-slate-900">{t.qrTitle}</h3>
-                            <p className="mt-1 text-[11px] font-bold text-slate-500">{t.qrExpandHint}</p>
+                            <h3 className="text-xl font-black text-slate-900 dark:text-slate-100">{t.qrTitle}</h3>
+                            <p className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-300">{t.qrExpandHint}</p>
                         </div>
                         <button
                             type="button"
@@ -1430,7 +1430,7 @@ const AdminTraining: React.FC = () => {
                     {currentSessionId && <p className="text-[11px] font-bold text-slate-500 mt-1">세션 ID: {currentSessionId}</p>}
                     {linkExpiresAt && (
                         <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <p className="text-[11px] font-bold text-slate-500">
+                            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-300">
                                 {t.linkExpiryLabel}: {new Date(linkExpiresAt).toLocaleString()}
                             </p>
                             {Date.now() > linkExpiresAt && (
@@ -1440,16 +1440,16 @@ const AdminTraining: React.FC = () => {
                             )}
                         </div>
                     )}
-                    <p className="text-xs font-bold text-slate-500 mt-2 break-all">{mobileUrl}</p>
+                    <p className="text-xs font-bold text-slate-500 dark:text-slate-300 mt-2 break-all">{mobileUrl}</p>
                     <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
                         <p className="text-[11px] font-black text-amber-800">{t.directAccessHint}</p>
                     </div>
-                    <div className="mt-4 flex justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-4">
+                    <div className="mt-4 flex justify-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4">
                         <QRCodeCanvas value={mobileUrl} size={220} />
                     </div>
-                    <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                        <h4 className="text-sm font-black text-slate-900">{t.audioUploadTitle}</h4>
-                        <p className="mt-1 text-[11px] font-bold text-slate-600">{t.audioUploadSubtitle}</p>
+                    <div className="mt-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-4">
+                        <h4 className="text-sm font-black text-slate-900 dark:text-slate-100">{t.audioUploadTitle}</h4>
+                        <p className="mt-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">{t.audioUploadSubtitle}</p>
 
                         <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {selectedLanguages.map((code) => {
@@ -1458,18 +1458,18 @@ const AdminTraining: React.FC = () => {
                                 const selectedFile = audioUploadFiles?.[code];
 
                                 return (
-                                    <div key={code} className={`rounded-2xl border px-3 py-3 ${uploadedUrl ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-white'}`}>
+                                    <div key={code} className={`rounded-2xl border px-3 py-3 ${uploadedUrl ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-white dark:bg-slate-800'}`}>
                                         <div className="flex items-center justify-between gap-2">
                                             <div>
-                                                <p className="text-sm font-black text-slate-900">{languageLabel}</p>
-                                                <p className="text-[10px] font-black text-slate-500">{code}</p>
+                                                <p className="text-sm font-black text-slate-900 dark:text-slate-100">{languageLabel}</p>
+                                                <p className="text-[10px] font-black text-slate-500 dark:text-slate-400">{code}</p>
                                             </div>
                                             <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${uploadedUrl ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                                                 {uploadedUrl ? t.audioUploadDone : t.audioUploadPending}
                                             </span>
                                         </div>
 
-                                        <label className="mt-3 block w-full cursor-pointer rounded-xl border border-slate-200 bg-white px-3 py-3 text-center text-[11px] font-black text-slate-700 hover:bg-slate-100">
+                                        <label className="mt-3 block w-full cursor-pointer rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-3 text-center text-[11px] font-black text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
                                             {selectedFile ? selectedFile.name : t.audioUploadSelect}
                                             <input
                                                 type="file"
@@ -1504,7 +1504,7 @@ const AdminTraining: React.FC = () => {
                         <button
                             type="button"
                                 onClick={clearRenderedSession}
-                                className="px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-black border border-slate-200 hover:bg-slate-200"
+                                className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-black border border-slate-200 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600"
                         >
                             {t.removeFromScreen}
                         </button>
@@ -1548,24 +1548,24 @@ const AdminTraining: React.FC = () => {
                 </div>
             )}
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm">
-                <h3 className="text-lg font-black text-slate-900">{t.historyTitle}</h3>
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 sm:p-8 shadow-sm">
+                <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">{t.historyTitle}</h3>
                 {linkHistory.length === 0 ? (
-                    <p className="mt-3 text-sm font-bold text-slate-500">{t.historyEmpty}</p>
+                    <p className="mt-3 text-sm font-bold text-slate-500 dark:text-slate-400">{t.historyEmpty}</p>
                 ) : (
                     <div className="mt-3 space-y-2">
                         {linkHistory.map((item, index) => (
-                            <div key={`${item.sessionId}-${item.createdAt}-${index}`} className="p-3 rounded-xl border border-slate-200 bg-slate-50">
+                            <div key={`${item.sessionId}-${item.createdAt}-${index}`} className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
                                 <div className="flex flex-wrap items-center gap-2">
                                     <span className="px-2 py-1 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 text-[10px] font-black">
                                         {item.action === 'create' ? t.historyCreate : t.historyReissue}
                                     </span>
-                                    <span className="text-[11px] font-black text-slate-600 break-all">{item.sessionId}</span>
+                                    <span className="text-[11px] font-black text-slate-600 dark:text-slate-300 break-all">{item.sessionId}</span>
                                 </div>
-                                <p className="mt-1 text-[11px] font-bold text-slate-500">
+                                <p className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">
                                     {new Date(item.createdAt).toLocaleString()} · {t.linkExpiryLabel}: {new Date(item.linkExpiresAt).toLocaleString()}
                                 </p>
-                                <p className="mt-1 text-[11px] font-bold text-slate-500 break-all">{item.mobileUrl}</p>
+                                <p className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400 break-all">{item.mobileUrl}</p>
                             </div>
                         ))}
                     </div>

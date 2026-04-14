@@ -3777,14 +3777,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         const printResetKey = `${printType}-${workersToPrint.length}-${renderLimit}-${viewType}`;
         return (
             <PrintModeErrorBoundary onExit={() => setIsPrintMode(false)} resetKey={printResetKey}>
-            <div className="fixed inset-0 bg-slate-100 z-[3000] overflow-y-auto font-sans">
+            <div className="fixed inset-0 bg-slate-100 dark:bg-slate-900 z-[3000] overflow-y-auto font-sans">
                 {printRuntimeError && (
                     <div className={`sticky top-0 z-[4000] border-b px-6 py-3 no-print ${BRAND_TONE.rose}`}>
                         <p className="text-sm font-black text-rose-700">⚠️ {printRuntimeError}</p>
                     </div>
                 )}
                 {/* Print Control Header */}
-                <div className="sticky top-0 bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center z-[3001] no-print shadow-sm">
+                <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-8 py-4 flex justify-between items-center z-[3001] no-print shadow-sm">
                     <div className="flex items-center gap-6">
                         <div className={`p-3 rounded-2xl ${printType === 'sticker' ? 'bg-orange-50 text-orange-600' : 'bg-indigo-50 text-indigo-600'}`}>
                             {printType === 'sticker' 
@@ -3793,27 +3793,27 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             }
                         </div>
                         <div>
-                            <h2 className="text-2xl font-black text-slate-900">
+                            <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">
                                 {printType === 'sticker' ? '안전모 스티커' : '스마트 사원증'} 발급 센터
                             </h2>
                             <div className="flex items-center gap-4 mt-1">
-                                <p className="text-slate-500 text-sm font-bold">
+                                <p className="text-slate-500 dark:text-slate-300 text-sm font-bold">
                                     총 {workersToPrint.length}명 대기 중
                                 </p>
                                 <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black border ${printTrustMode === 'fallback' ? `${BRAND_TONE.amber} text-amber-700` : `${BRAND_TONE.emerald} text-emerald-700`}`}>
                                     {printTrustMode === 'fallback' ? '⚠ 예외 출력 모드' : '✅ 검증 통과 출력'}
                                 </span>
                                 {/* View Toggle */}
-                                <div className="flex bg-slate-100 p-1 rounded-lg">
+                                <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-lg">
                                     <button 
                                         onClick={() => setViewType('grid')}
-                                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${viewType === 'grid' ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${viewType === 'grid' ? 'bg-white dark:bg-slate-600 shadow text-slate-900 dark:text-slate-100' : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-100'}`}
                                     >
                                         그리드 보기 (전체)
                                     </button>
                                     <button 
                                         onClick={() => setViewType('flip')}
-                                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${viewType === 'flip' ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+                                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${viewType === 'flip' ? 'bg-white dark:bg-slate-600 shadow text-slate-900 dark:text-slate-100' : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-100'}`}
                                     >
                                         플립 보기 (상세)
                                     </button>
@@ -3825,11 +3825,11 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     {/* Rendering Progress Bar */}
                     {!isRenderingComplete && (
                         <div className="flex-1 max-w-xs mx-8">
-                            <div className="flex justify-between text-xs font-bold text-slate-500 mb-1">
+                            <div className="flex justify-between text-xs font-bold text-slate-500 dark:text-slate-300 mb-1">
                                 <span>인쇄 데이터 생성 중...</span>
                                 <span>{renderLimit} / {workersToPrint.length}</span>
                             </div>
-                            <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                            <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
                                 <div 
                                     className="bg-indigo-500 h-full rounded-full transition-all duration-100 ease-linear" 
                                     style={{ width: `${progressPercentage}%` }}
@@ -3840,14 +3840,14 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     
                     {viewType === 'flip' && isRenderingComplete && (
                         <div className={`flex items-center gap-4 px-4 py-2 rounded-xl border ${BRAND_TONE.slate}`}>
-                            <button onClick={handlePrev} disabled={currentFlipIndex === 0} className="p-2 hover:bg-white rounded-full disabled:opacity-30"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
-                            <span className="font-mono font-bold text-slate-700 w-16 text-center">{currentFlipIndex + 1} / {workersToPrint.length}</span>
-                            <button onClick={handleNext} disabled={currentFlipIndex === workersToPrint.length - 1} className="p-2 hover:bg-white rounded-full disabled:opacity-30"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></button>
+                            <button onClick={handlePrev} disabled={currentFlipIndex === 0} className="p-2 hover:bg-white dark:hover:bg-slate-600 rounded-full disabled:opacity-30"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
+                            <span className="font-mono font-bold text-slate-700 dark:text-slate-200 w-16 text-center">{currentFlipIndex + 1} / {workersToPrint.length}</span>
+                            <button onClick={handleNext} disabled={currentFlipIndex === workersToPrint.length - 1} className="p-2 hover:bg-white dark:hover:bg-slate-600 rounded-full disabled:opacity-30"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg></button>
                         </div>
                     )}
 
                     <div className="flex gap-3">
-                        <button onClick={() => setIsPrintMode(false)} className="px-6 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors text-sm">
+                        <button onClick={() => setIsPrintMode(false)} className="px-6 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 font-bold rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-sm">
                             닫기
                         </button>
                         {viewType === 'flip' ? (

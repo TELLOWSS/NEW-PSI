@@ -351,7 +351,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                 />
             )}
 
-            <div className="bg-white p-6 rounded-lg shadow-sm">
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-transparent dark:border-slate-700">
                 <h3 className="text-lg font-semibold mb-4 flex items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -362,11 +362,11 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                     items={formInterpretationCards}
                     className="mb-4 grid-cols-1 xl:grid-cols-3"
                     cardClassName={BRAND_TONE.slate}
-                    eyebrowClassName="text-slate-500"
-                    titleClassName="text-slate-900"
-                    descriptionClassName="text-slate-600"
+                    eyebrowClassName="text-slate-500 dark:text-slate-400"
+                    titleClassName="text-slate-900 dark:text-slate-100"
+                    descriptionClassName="text-slate-600 dark:text-slate-300"
                 />
-                <form onSubmit={handleSubmit} className="space-y-4 mt-4 p-4 border border-slate-200 rounded-lg">
+                <form onSubmit={handleSubmit} className="space-y-4 mt-4 p-4 border border-slate-200 dark:border-slate-700 rounded-lg">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div>
                             <label htmlFor="workerId" className="block text-sm font-medium text-slate-700">근로자</label>
@@ -413,11 +413,11 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                             >
                                 📷 사진 첨부(카메라/갤러리)
                             </button>
-                            {isCompressingImage && <span className="text-xs text-slate-500">이미지 최적화 중...</span>}
+                            {isCompressingImage && <span className="text-xs text-slate-500 dark:text-slate-400">이미지 최적화 중...</span>}
                         </div>
                         {attachedImage && (
                             <div className="mt-3 flex items-center gap-3">
-                                <img src={`data:image/jpeg;base64,${attachedImage}`} alt="점검 첨부" className="w-20 h-20 object-cover rounded-md border border-slate-200" />
+                                <img src={`data:image/jpeg;base64,${attachedImage}`} alt="점검 첨부" className="w-20 h-20 object-cover rounded-md border border-slate-200 dark:border-slate-700" />
                                 <button
                                     type="button"
                                     onClick={() => {
@@ -443,19 +443,19 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                     )}
                 </form>
             </div>
-            <div className="bg-white p-6 rounded-lg shadow-sm">
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-transparent dark:border-slate-700">
                 <h3 className="text-lg font-semibold mb-4">전체 점검 기록</h3>
                 <InterpretationCardGrid
                     items={recordInterpretationCards}
                     className="mb-4 grid-cols-1 xl:grid-cols-3"
                     cardClassName={BRAND_TONE.indigoSoft50}
                     eyebrowClassName="text-indigo-700"
-                    titleClassName="text-slate-900"
-                    descriptionClassName="text-slate-600"
+                    titleClassName="text-slate-900 dark:text-slate-100"
+                    descriptionClassName="text-slate-600 dark:text-slate-300"
                 />
                 <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left text-slate-500">
-                         <thead className="text-xs text-slate-700 uppercase bg-slate-50">
+                    <table className="w-full text-sm text-left text-slate-500 dark:text-slate-300">
+                         <thead className="text-xs text-slate-700 dark:text-slate-300 uppercase bg-slate-50 dark:bg-slate-900">
                             <tr>
                                 <th scope="col" className="px-6 py-3">점검일</th>
                                 <th scope="col" className="px-6 py-3">근로자</th>
@@ -467,9 +467,9 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                         </thead>
                         <tbody>
                            {checkRecords.map(record => (
-                               <tr key={record.id} className="bg-white border-b hover:bg-slate-50">
+                               <tr key={record.id} className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700">
                                    <td className="px-6 py-4">{record.date}</td>
-                                   <td className="px-6 py-4 font-medium text-slate-900">{record.workerName}</td>
+                                   <td className="px-6 py-4 font-medium text-slate-900 dark:text-slate-100">{record.workerName}</td>
                                    <td className="px-6 py-4">
                                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${record.type === 'unsafe_action' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}`}>
                                             {record.type === 'unsafe_action' ? '불안전한 행동' : '불안전한 상태'}
@@ -479,16 +479,16 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                                    <td className="px-6 py-4">{record.details}</td>
                                    <td className="px-6 py-4">
                                         {record.image ? (
-                                            <img src={`data:image/jpeg;base64,${record.image}`} alt="점검" className="w-14 h-14 object-cover rounded-md border border-slate-200" />
+                                            <img src={`data:image/jpeg;base64,${record.image}`} alt="점검" className="w-14 h-14 object-cover rounded-md border border-slate-200 dark:border-slate-700" />
                                         ) : (
-                                            <span className="text-xs text-slate-400">없음</span>
+                                            <span className="text-xs text-slate-400 dark:text-slate-500">없음</span>
                                         )}
                                    </td>
                                </tr>
                            ))}
                              {checkRecords.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="text-center py-12 text-slate-500">
+                                    <td colSpan={6} className="text-center py-12 text-slate-500 dark:text-slate-400">
                                         <p className="font-semibold">점검 기록이 없습니다.</p>
                                         <p className="text-sm mt-1">새 점검 기록을 추가해주세요.</p>
                                     </td>

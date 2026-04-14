@@ -48,15 +48,15 @@ import { BRAND_TONE } from '../utils/brandToneTokens';
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
 
 const ReportTemplateFallback: React.FC<{ compact?: boolean }> = ({ compact = false }) => (
-    <div className={`bg-white border border-slate-200 rounded-2xl animate-pulse ${compact ? 'w-[210mm] min-h-[297mm]' : 'w-[210mm] min-h-[297mm]'} p-8`}>
-        <div className="h-6 w-48 bg-slate-200 rounded mb-4" />
-        <div className="h-3 w-72 bg-slate-100 rounded mb-8" />
+    <div className={`bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl animate-pulse ${compact ? 'w-[210mm] min-h-[297mm]' : 'w-[210mm] min-h-[297mm]'} p-8`}>
+        <div className="h-6 w-48 bg-slate-200 dark:bg-slate-700 rounded mb-4" />
+        <div className="h-3 w-72 bg-slate-100 dark:bg-slate-700 rounded mb-8" />
         <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="h-24 rounded-xl bg-slate-100" />
-            <div className="h-24 rounded-xl bg-slate-100" />
+            <div className="h-24 rounded-xl bg-slate-100 dark:bg-slate-700" />
+            <div className="h-24 rounded-xl bg-slate-100 dark:bg-slate-700" />
         </div>
-        <div className="h-48 rounded-xl bg-slate-100 mb-6" />
-        <div className="h-32 rounded-xl bg-slate-100" />
+        <div className="h-48 rounded-xl bg-slate-100 dark:bg-slate-700 mb-6" />
+        <div className="h-32 rounded-xl bg-slate-100 dark:bg-slate-700" />
     </div>
 );
 
@@ -3297,22 +3297,22 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             </div>
 
             {/* Main Content Area */}
-            <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col relative">
+            <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col relative">
                 {filteredRecords.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
                         <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                         <p className="font-bold">선택된 조건의 근로자가 없습니다.</p>
                     </div>
                 ) : viewMode === 'list' ? (
                     /* VIEW MODE: LIST */
                     <>
-                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                            <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2">
+                        <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/60 flex justify-between items-center">
+                            <h3 className="font-bold text-slate-700 dark:text-slate-200 text-sm flex items-center gap-2">
                                 <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
                                 생성 대상 목록 ({filteredRecords.length}명)
                             </h3>
                         </div>
-                        <div className="border-b border-slate-100 bg-white p-4">
+                        <div className="border-b border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
                             <InterpretationCardGrid
                                 items={viewInterpretationCards}
                                 cardClassName="rounded-2xl border p-4"
@@ -3326,7 +3326,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         </div>
                         <div className="overflow-y-auto flex-1 p-0 custom-scrollbar">
                             <table className="w-full text-left text-sm">
-                                <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs sticky top-0 z-10 shadow-sm">
+                                <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-300 font-bold uppercase text-xs sticky top-0 z-10 shadow-sm">
                                     <tr>
                                         <th className="px-6 py-3">이름</th>
                                         <th className="px-6 py-3">직종 (Team)</th>
@@ -3337,7 +3337,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                         <th className="px-6 py-3 text-right">작업</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-100">
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                                     {filteredRecords.map((r, idx) => {
                                         const workflowState = inferHarnessWorkflowState(r);
                                         const riskDecision = inferHarnessRiskDecision(r);
@@ -3345,9 +3345,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                         const persistenceState = getHarnessPersistenceState(r);
 
                                         return (
-                                        <tr key={r.id} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => { setViewMode('preview'); setPreviewIndex(idx); }}>
-                                            <td className="px-6 py-3 font-bold text-slate-800">{r.name}</td>
-                                            <td className="px-6 py-3 text-slate-600">{r.jobField}</td>
+                                        <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer" onClick={() => { setViewMode('preview'); setPreviewIndex(idx); }}>
+                                            <td className="px-6 py-3 font-bold text-slate-800 dark:text-slate-100">{r.name}</td>
+                                            <td className="px-6 py-3 text-slate-600 dark:text-slate-300">{r.jobField}</td>
                                             <td className="px-6 py-3 font-black text-indigo-600">{r.safetyScore}</td>
                                             <td className="px-6 py-3">
                                                 {(() => {
@@ -3369,10 +3369,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                                     <StatusBadge variant={getHarnessApprovalBadgeVariant(approvalState)} className="px-2 py-1">{getHarnessApprovalStateLabel(approvalState)}</StatusBadge>
                                                     <StatusBadge variant={getHarnessPersistenceBadgeVariant(persistenceState)} className="px-2 py-1">{getHarnessPersistenceLabel(persistenceState)}</StatusBadge>
                                                 </div>
-                                                {r.workflowRunId ? <p className="mt-1 text-[11px] font-bold text-slate-500">Run {r.workflowRunId}</p> : null}
+                                                {r.workflowRunId ? <p className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">Run {r.workflowRunId}</p> : null}
                                                 {r.harnessPersistenceWarning ? <p className="mt-1 text-[11px] font-bold text-amber-700">{r.harnessPersistenceWarning}</p> : null}
                                             </td>
-                                            <td className="px-6 py-3 text-slate-500 truncate max-w-xs">{r.weakAreas.join(', ')}</td>
+                                            <td className="px-6 py-3 text-slate-500 dark:text-slate-400 truncate max-w-xs">{r.weakAreas.join(', ')}</td>
                                             <td className="px-6 py-3 text-right">
                                                 <button onClick={(e) => { e.stopPropagation(); setViewMode('preview'); setPreviewIndex(idx); }} className="text-xs font-bold text-indigo-600 hover:underline">
                                                     미리보기
@@ -3387,33 +3387,33 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     </>
                 ) : (
                     /* VIEW MODE: PREVIEW */
-                    <div className="flex flex-col h-full bg-slate-100">
+                    <div className="flex flex-col h-full bg-slate-100 dark:bg-slate-900">
                         {/* Preview Toolbar */}
-                        <div className="p-4 bg-white border-b border-slate-200 flex justify-between items-center shadow-sm z-20">
+                        <div className="p-4 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center shadow-sm z-20">
                             <div className="flex items-center gap-4">
                                 <button 
                                     onClick={handlePrev} 
                                     disabled={previewIndex === 0}
-                                    className="p-2 rounded-full hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
-                                    <svg className="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                                    <svg className="w-6 h-6 text-slate-700 dark:text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                                 </button>
                                 <div className="text-center">
-                                    <p className="text-sm font-black text-slate-800">{previewIndex + 1} / {filteredRecords.length}</p>
-                                    <p className="text-xs text-slate-500 font-bold">{currentPreviewRecord?.name}</p>
+                                    <p className="text-sm font-black text-slate-800 dark:text-slate-100">{previewIndex + 1} / {filteredRecords.length}</p>
+                                    <p className="text-xs text-slate-500 dark:text-slate-300 font-bold">{currentPreviewRecord?.name}</p>
                                 </div>
                                 <button 
                                     onClick={handleNext} 
                                     disabled={previewIndex === filteredRecords.length - 1}
-                                    className="p-2 rounded-full hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                                 >
-                                    <svg className="w-6 h-6 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                                    <svg className="w-6 h-6 text-slate-700 dark:text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                                 </button>
                             </div>
                             
                             <div className="flex gap-2">
                                 {currentPreviewHarnessMeta && (
-                                    <div className="hidden xl:flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                    <div className="hidden xl:flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-2">
                                         <StatusBadge variant={getHarnessWorkflowBadgeVariant(currentPreviewHarnessMeta.workflowState)} className="px-2 py-1">{getHarnessWorkflowStateLabel(currentPreviewHarnessMeta.workflowState)}</StatusBadge>
                                         <StatusBadge variant={getHarnessRiskBadgeVariant(currentPreviewHarnessMeta.riskDecision)} className="px-2 py-1">{getHarnessRiskDecisionLabel(currentPreviewHarnessMeta.riskDecision)}</StatusBadge>
                                         <StatusBadge variant={getHarnessApprovalBadgeVariant(currentPreviewHarnessMeta.approvalState)} className="px-2 py-1">{getHarnessApprovalStateLabel(currentPreviewHarnessMeta.approvalState)}</StatusBadge>
@@ -3431,7 +3431,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             </div>
                         </div>
 
-                        <div className="border-b border-slate-200 bg-white p-4">
+                        <div className="border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
                             <InterpretationCardGrid
                                 items={viewInterpretationCards}
                                 cardClassName="rounded-2xl border p-4"
@@ -3492,7 +3492,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                         </div>
                                     </div>
                                     {previewWorkflowStatusLoading ? (
-                                        <p className="text-[11px] font-bold text-slate-500">하네스 버전 스냅샷을 불러오는 중입니다.</p>
+                                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">하네스 버전 스냅샷을 불러오는 중입니다.</p>
                                     ) : null}
                                     {previewWorkflowStatusError ? (
                                         <p className="text-[11px] font-bold text-amber-700">{previewWorkflowStatusError}</p>
@@ -3578,7 +3578,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         </div>
 
                         {/* Preview Content Area */}
-                        <div className="flex-1 overflow-auto bg-slate-200 p-4 md:p-6 xl:p-8 custom-scrollbar">
+                        <div className="flex-1 overflow-auto bg-slate-200 dark:bg-slate-900 p-4 md:p-6 xl:p-8 custom-scrollbar">
                             {currentPreviewRecord && (
                                 <div className="mx-auto flex w-full max-w-[calc(210mm+20px)] min-w-fit justify-center">
                                     <div className="w-full rounded-[20px] border border-slate-200 bg-white p-2 shadow-lg">

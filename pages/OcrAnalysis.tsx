@@ -3496,14 +3496,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 )}
             </div>
 
-            <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 sm:p-6">
+            <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl p-5 sm:p-6">
                 <CollapsibleSection
                     title="기록 양식·공종/팀 배정 관리"
-                    summary={<span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-700">양식 {masterTemplates.length} · 그룹 {masterGroups.length} · 배정 {masterAssignments.length}</span>}
+                    summary={<span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 text-[11px] font-black text-slate-700 dark:text-slate-200">양식 {masterTemplates.length} · 그룹 {masterGroups.length} · 배정 {masterAssignments.length}</span>}
                 >
                     <div className="space-y-5">
                         <div className="flex flex-col gap-1">
-                            <p className="text-sm font-bold text-slate-500">기록 양식을 만들고, 공종/팀별로 사용할 양식을 쉽게 지정할 수 있습니다.</p>
+                            <p className="text-sm font-bold text-slate-500 dark:text-slate-300">기록 양식을 만들고, 공종/팀별로 사용할 양식을 쉽게 지정할 수 있습니다.</p>
                         </div>
 
                         <CollapsibleSection
@@ -3559,12 +3559,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         >
 
             {failedRecords.length > 0 && (
-                <div className="bg-white border border-rose-100 rounded-3xl p-5 sm:p-6 shadow-lg">
+                <div className="bg-white dark:bg-slate-800 border border-rose-100 dark:border-rose-900/40 rounded-3xl p-5 sm:p-6 shadow-lg">
                     <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                         <div>
                             <p className="text-xs font-black text-rose-600 uppercase tracking-widest">{BRAND_STATUS_LABELS.attention} 레코드 해석 뷰</p>
-                            <h4 className="text-lg sm:text-xl font-black text-slate-900 mt-1">우선 보호 조치가 필요한 OCR 신호</h4>
-                            <p className="text-sm font-bold text-slate-500 mt-2">상위 {failedPreviewRecords.length}건을 상태·근거·다음 행동 순서로 정리해, 무엇부터 다시 읽고 무엇을 관리자 판단으로 넘길지 바로 결정할 수 있게 했습니다.</p>
+                            <h4 className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100 mt-1">우선 보호 조치가 필요한 OCR 신호</h4>
+                            <p className="text-sm font-bold text-slate-500 dark:text-slate-300 mt-2">상위 {failedPreviewRecords.length}건을 상태·근거·다음 행동 순서로 정리해, 무엇부터 다시 읽고 무엇을 관리자 판단으로 넘길지 바로 결정할 수 있게 했습니다.</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {failedTypeSummary.map(([label, count]) => (
@@ -3636,25 +3636,25 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     >
                     {failureProcessingStats.length > 0 && (
                         <SectionPanelCard
-                            className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                            className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3"
                             title={`${BRAND_STATUS_LABELS.attention} 유형별 처리 완료율`}
                             description="현재 잔여 + 처리 이력 기준"
-                            titleClassName="text-[11px] font-black text-slate-700 uppercase tracking-wider"
-                            descriptionClassName="text-[10px] font-bold text-slate-500"
+                            titleClassName="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider"
+                            descriptionClassName="text-[10px] font-bold text-slate-500 dark:text-slate-400"
                             headerClassName="flex items-center justify-between gap-2"
                             bodyClassName="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-2"
                         >
                                 {failureProcessingStats.map((item) => (
-                                    <div key={item.label} className="rounded-xl border border-white bg-white px-3 py-3">
+                                    <div key={item.label} className="rounded-xl border border-white dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-3">
                                         <div className="flex items-center justify-between gap-2">
-                                            <p className="text-sm font-black text-slate-900">{item.label}</p>
-                                            <span className="text-[10px] font-black text-slate-600">완료율 {item.rate}%</span>
+                                            <p className="text-sm font-black text-slate-900 dark:text-slate-100">{item.label}</p>
+                                            <span className="text-[10px] font-black text-slate-600 dark:text-slate-300">완료율 {item.rate}%</span>
                                         </div>
-                                        <div className="mt-2 h-2 rounded-full bg-slate-100 overflow-hidden">
+                                        <div className="mt-2 h-2 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
                                             <div className="h-full bg-gradient-to-r from-emerald-400 to-indigo-500" style={{ width: `${item.rate}%` }}></div>
                                         </div>
-                                        <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] font-bold text-slate-600">
-                                            <div className="rounded-lg bg-slate-50 px-2 py-2 text-center">잔여<br/><span className="text-slate-900">{item.openCount}</span></div>
+                                        <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                            <div className="rounded-lg bg-slate-50 dark:bg-slate-800 px-2 py-2 text-center">잔여<br/><span className="text-slate-900 dark:text-slate-100">{item.openCount}</span></div>
                                             <div className="rounded-lg bg-emerald-50 px-2 py-2 text-center">처리<br/><span className="text-emerald-700">{item.resolvedCount}</span></div>
                                             <div className="rounded-lg bg-indigo-50 px-2 py-2 text-center">총계<br/><span className="text-indigo-700">{item.total}</span></div>
                                         </div>
@@ -3665,11 +3665,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                     {failedTypeGroups.length > 0 && (
                         <SectionPanelCard
-                            className="mt-4 rounded-2xl border border-slate-200 bg-white p-3"
+                            className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3"
                             title={`${BRAND_STATUS_LABELS.attention} 유형별 담당자 체크리스트`}
                             description="유형별 우선 점검 순서"
-                            titleClassName="text-[11px] font-black text-slate-700 uppercase tracking-wider"
-                            descriptionClassName="text-[10px] font-bold text-slate-500"
+                            titleClassName="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider"
+                            descriptionClassName="text-[10px] font-bold text-slate-500 dark:text-slate-400"
                             headerClassName="flex items-center justify-between gap-2"
                             bodyClassName="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2"
                         >
@@ -3839,20 +3839,20 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 </div>
             )}
 
-            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-100 flex flex-col gap-5 no-print">
+            <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 flex flex-col gap-5 no-print">
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                        <h4 className="text-base sm:text-lg font-black text-slate-900">운영 탐색 및 우선순위 정리</h4>
-                        <p className="mt-1 text-xs sm:text-sm font-semibold text-slate-500">검색·필터·정렬을 통해 지금 봐야 할 보호 신호와 재평가 대상을 한 번에 정리합니다.</p>
+                        <h4 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">운영 탐색 및 우선순위 정리</h4>
+                        <p className="mt-1 text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-300">검색·필터·정렬을 통해 지금 봐야 할 보호 신호와 재평가 대상을 한 번에 정리합니다.</p>
                         <div className="relative w-full mt-4 max-w-2xl">
                             <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={2}/></svg>
-                            <input type="text" placeholder="근로자명 · 공종 · 국적 · 팀장으로 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold" />
+                            <input type="text" placeholder="근로자명 · 공종 · 국적 · 팀장으로 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-900 dark:text-slate-100" />
                         </div>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 w-full lg:w-auto">
-                        <div className="rounded-2xl bg-slate-50 border border-slate-200 px-3 py-2">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">조회 결과</p>
-                            <p className="mt-1 text-lg font-black text-slate-900">{filteredRecords.length}</p>
+                        <div className="rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-2">
+                            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">조회 결과</p>
+                            <p className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">{filteredRecords.length}</p>
                         </div>
                         <div className="rounded-2xl bg-emerald-50 border border-emerald-200 px-3 py-2">
                             <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">재분석 가능</p>

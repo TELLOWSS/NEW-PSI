@@ -13,7 +13,7 @@ import {
     type BestPracticeSyncFailureLog,
     type BestPracticeSyncState,
 } from '../utils/bestPracticeSyncStatus';
-import { getStoredTheme, toggleTheme, applyTheme, THEME_CHANGED_EVENT } from '../utils/themeUtils';
+import { getStoredTheme, getResolvedTheme, toggleTheme, applyTheme, watchSystemThemeChange, THEME_CHANGED_EVENT, type ThemeMode } from '../utils/themeUtils';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -26,7 +26,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const [isPaidApiMode, setIsPaidApiMode] = useState(false);
     const [bestPracticeSyncState, setBestPracticeSyncState] = useState<BestPracticeSyncState>(() => getBestPracticeSyncState());
     const [bestPracticeFailureLogs, setBestPracticeFailureLogs] = useState<BestPracticeSyncFailureLog[]>(() => getBestPracticeSyncFailureLogs());
-    const [isDark, setIsDark] = useState(() => getStoredTheme() === 'dark');
+    const [themeMode, setThemeMode] = useState<ThemeMode>(() => getStoredTheme());
+    const [isDark, setIsDark] = useState(() => getResolvedTheme(getStoredTheme()) === 'dark');
 
     const pageTitles: { [key in Page]: string } = {
         'dashboard': '대시보드',
@@ -54,17 +55,28 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
 
     const handleToggleTheme = () => {
         const next = toggleTheme();
-        setIsDark(next === 'dark');
+        setThemeMode(next);
+        setIsDark(getResolvedTheme(next) === 'dark');
     };
 
     // 앱 로드 시 저장된 테마 적용
     useEffect(() => {
-        applyTheme(getStoredTheme());
-        setIsDark(getStoredTheme() === 'dark');
+        const initialMode = getStoredTheme();
+        applyTheme(initialMode);
+        setThemeMode(initialMode);
+        setIsDark(getResolvedTheme(initialMode) === 'dark');
 
-        const sync = () => setIsDark(getStoredTheme() === 'dark');
+        const sync = () => {
+            const mode = getStoredTheme();
+            setThemeMode(mode);
+            setIsDark(getResolvedTheme(mode) === 'dark');
+        };
         window.addEventListener(THEME_CHANGED_EVENT, sync);
-        return () => window.removeEventListener(THEME_CHANGED_EVENT, sync);
+        const unwatch = watchSystemThemeChange(sync);
+        return () => {
+            window.removeEventListener(THEME_CHANGED_EVENT, sync);
+            unwatch();
+        };
     }, []);
 
     // Handle Escape key to close mobile menu
@@ -153,7 +165,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                            {/* Mobile Menu Button */}
                            <button
                                onClick={() => setIsMobileMenuOpen(true)}
-                               className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors mr-3"
+                               className="lg:hidden p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors mr-3"
                                aria-label="메뉴 열기"
                                aria-expanded={isMobileMenuOpen}
                            >
@@ -163,7 +175,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                            </button>
                            
                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                               <h1 className="text-sm sm:text-lg lg:text-xl font-bold text-slate-900 truncate">
+                               <h1 className="text-sm sm:text-lg lg:text-xl font-bold text-slate-900 dark:text-slate-100 truncate">
                                    {pageTitles[currentPage]}
                                </h1>
                                <div
@@ -199,17 +211,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                type="button"
                                onClick={handleToggleTheme}
                                className="ml-1 flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
-                               aria-label={isDark ? '라이트 모드로 전환' : '다크 모드로 전환'}
-                               title={isDark ? '라이트 모드' : '다크 모드'}
+                               aria-label={`테마 전환 (현재: ${themeMode === 'system' ? `시스템/${isDark ? '다크' : '라이트'}` : themeMode === 'dark' ? '다크' : '라이트'})`}
+                               title={`테마: ${themeMode === 'system' ? `시스템/${isDark ? '다크' : '라이트'}` : themeMode === 'dark' ? '다크' : '라이트'} (클릭: 라이트→다크→시스템 순환)`}
                            >
                                {isDark ? (
-                                   /* 홄 */
                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                        <circle cx="12" cy="12" r="5" strokeWidth={2} />
                                        <path strokeLinecap="round" strokeWidth={2} d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
                                    </svg>
                                ) : (
-                                   /* 달 */
                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
                                    </svg>

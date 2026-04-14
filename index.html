@@ -15,7 +15,7 @@
             try {
                 var m = localStorage.getItem('psi_theme_mode');
                 if (m === 'dark') { document.documentElement.classList.add('dark'); }
-                else if (!m && window.matchMedia('(prefers-color-scheme: dark)').matches) { document.documentElement.classList.add('dark'); }
+                else if ((m === 'system' || !m) && window.matchMedia('(prefers-color-scheme: dark)').matches) { document.documentElement.classList.add('dark'); }
             } catch(e) {}
         })();
     </script>

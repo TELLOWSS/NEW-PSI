@@ -268,9 +268,9 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
             label: '승인 백로그',
             value: `${harnessSummary.approvalBacklog}명`,
             helper: `재검토 필요 ${harnessSummary.reviewNeeded}명`,
-            tone: harnessSummary.approvalBacklog > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
-            labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.approvalBacklog > 0 ? 'text-amber-700' : 'text-slate-500'}`,
-            helperClassName: `mt-1 text-xs font-bold ${harnessSummary.approvalBacklog > 0 ? 'text-amber-700' : 'text-slate-600'}`,
+            tone: harnessSummary.approvalBacklog > 0 ? 'border-amber-200 bg-amber-50/80 dark:border-amber-700 dark:bg-amber-900/30' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800',
+            labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.approvalBacklog > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-slate-500 dark:text-slate-300'}`,
+            helperClassName: `mt-1 text-xs font-bold ${harnessSummary.approvalBacklog > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'}`,
         },
         {
             key: 'performance-harness-attention',
@@ -286,34 +286,34 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
             label: '폴백·저장 대기',
             value: `${harnessSummary.fallback + harnessSummary.pending}명`,
             helper: `폴백 ${harnessSummary.fallback}명 · 대기 ${harnessSummary.pending}명`,
-            tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
-            labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-500'}`,
-            helperClassName: `mt-1 text-xs font-bold ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-600'}`,
+            tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80 dark:border-amber-700 dark:bg-amber-900/30' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800',
+            labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.fallback > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-slate-500 dark:text-slate-300'}`,
+            helperClassName: `mt-1 text-xs font-bold ${harnessSummary.fallback > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'}`,
         },
     ]), [harnessSummary]);
 
     return (
-        <div className="space-y-8 pb-10">
-            <div className="relative bg-white p-8 rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+        <div className="space-y-6 sm:space-y-8 pb-10">
+            <div className="relative bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
                 <div className="absolute top-0 right-0 -mt-4 -mr-4 w-32 h-32 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full opacity-10 blur-2xl"></div>
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
                     <div>
                         <div className="flex items-center gap-3 mb-2">
                             <span className="text-indigo-600 font-bold tracking-wider text-xs uppercase block">Advanced Safety Analytics</span>
-                            <span className="bg-slate-100 text-slate-500 text-[10px] px-2 py-0.5 rounded border border-slate-200 font-bold uppercase tracking-tighter">* 관리 직군 제외됨</span>
+                            <span className="bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 text-[10px] px-2 py-0.5 rounded border border-slate-200 dark:border-slate-600 font-bold uppercase tracking-tighter">* 관리 직군 제외됨</span>
                         </div>
-                        <h2 className="text-3xl font-extrabold text-slate-900">근로자 안전 성과 심층 분석</h2>
-                        <p className="text-slate-500 mt-2 max-w-xl leading-relaxed">
+                        <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-slate-100">근로자 안전 성과 심층 분석</h2>
+                        <p className="text-slate-500 dark:text-slate-300 mt-2 max-w-xl leading-relaxed text-sm sm:text-base">
                             관리 직군을 제외한 실무 근로자 데이터를 바탕으로 변동성과 역량을 분석합니다. <br/>
                             <span className="font-bold text-indigo-600">시스템, 할석미장견출, 콘비팀</span> 등 모든 실무 공종의 데이터를 누락 없이 추적합니다.
                         </p>
                     </div>
-                    <div className="flex items-center bg-slate-50 rounded-lg p-1 border border-slate-200">
+                    <div className="flex items-center bg-slate-50 dark:bg-slate-900 rounded-lg p-1 border border-slate-200 dark:border-slate-700">
                         {['최근 3개월', '최근 6개월', '최근 1년'].map(range => (
                             <button 
                                 key={range}
                                 onClick={() => setTimeRange(range)}
-                                className={`px-4 py-2 text-xs font-bold rounded-md transition-all duration-200 ${timeRange === range ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                                className={`px-3 sm:px-4 py-2 text-xs font-bold rounded-md transition-all duration-200 ${timeRange === range ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-sm' : 'text-slate-500 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100'}`}
                             >
                                 {range}
                             </button>
@@ -350,8 +350,8 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                 />
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100 flex flex-col justify-between group hover:-translate-y-1 transition-transform duration-300">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-700 flex flex-col justify-between group hover:-translate-y-1 transition-transform duration-300">
                     <div className="flex justify-between items-start mb-4">
                         <div className="p-3 bg-blue-50 text-blue-600 rounded-xl group-hover:bg-blue-600 group-hover:text-white transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
@@ -363,36 +363,36 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                         )}
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-slate-500">종합 근로자 안전 점수</p>
-                        <h3 className="text-3xl font-black text-slate-800 mt-1">{kpiData?.currentAvg.toFixed(1) || '-'}</h3>
+                        <p className="text-sm font-medium text-slate-500 dark:text-slate-300">종합 근로자 안전 점수</p>
+                        <h3 className="text-3xl font-black text-slate-800 dark:text-slate-100 mt-1">{kpiData?.currentAvg.toFixed(1) || '-'}</h3>
                     </div>
                 </div>
-                <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100 flex flex-col justify-between group hover:-translate-y-1 transition-transform duration-300">
+                <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-700 flex flex-col justify-between group hover:-translate-y-1 transition-transform duration-300">
                     <div className="flex justify-between items-start mb-4">
                         <div className="p-3 bg-purple-50 text-purple-600 rounded-xl group-hover:bg-purple-600 group-hover:text-white transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                         </div>
                         <div className="text-right">
-                            <p className="text-[10px] text-slate-400 uppercase font-bold">Consistency</p>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold">Consistency</p>
                         </div>
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-slate-500">안전 일관성 (표준편차)</p>
+                        <p className="text-sm font-medium text-slate-500 dark:text-slate-300">안전 일관성 (표준편차)</p>
                         <div className="flex items-baseline gap-2 mt-1">
-                            <h3 className="text-3xl font-black text-slate-800">{kpiData?.volatility.toFixed(1) || '-'}</h3>
-                            <span className="text-xs text-slate-400">낮을수록 안정적</span>
+                            <h3 className="text-3xl font-black text-slate-800 dark:text-slate-100">{kpiData?.volatility.toFixed(1) || '-'}</h3>
+                            <span className="text-xs text-slate-400 dark:text-slate-500">낮을수록 안정적</span>
                         </div>
                     </div>
                 </div>
-                <div className="bg-white p-6 rounded-2xl shadow-lg border border-slate-100 flex flex-col justify-between group hover:-translate-y-1 transition-transform duration-300 text-teal-600 border-t-4 border-t-teal-500">
+                <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-700 flex flex-col justify-between group hover:-translate-y-1 transition-transform duration-300 text-teal-600 border-t-4 border-t-teal-500">
                     <div className="flex justify-between items-start mb-4">
                         <div className="p-3 bg-teal-50 text-teal-600 rounded-xl group-hover:bg-teal-600 group-hover:text-white transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
                         </div>
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-slate-500">최우수 성과 공종</p>
-                        <h3 className="text-2xl font-black text-slate-800 mt-1 truncate">{kpiData?.topField.field || '-'}</h3>
+                        <p className="text-sm font-medium text-slate-500 dark:text-slate-300">최우수 성과 공종</p>
+                        <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1 truncate">{kpiData?.topField.field || '-'}</h3>
                         <p className="text-sm text-teal-600 font-bold mt-1">Avg. {kpiData?.topField.avg.toFixed(1)}점</p>
                     </div>
                 </div>
@@ -409,22 +409,22 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
                 <div className="lg:col-span-3">
                     <InterpretationCardGrid
                         items={chartInterpretationCards}
                         cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
                     />
                 </div>
-                <div className="lg:col-span-2 bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
+                <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
                     <div className="flex items-center justify-between mb-8">
                         <div>
-                            <h3 className="text-xl font-bold text-slate-900">현장 안전 성과 추이</h3>
-                            <p className="text-sm text-slate-500 mt-1">전체 근로자의 안전 수준 변화를 시계열로 추적합니다.</p>
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 안전 성과 추이</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">전체 근로자의 안전 수준 변화를 시계열로 추적합니다.</p>
                         </div>
-                        <div className="flex items-center gap-2 text-xs font-bold bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200">
+                        <div className="flex items-center gap-2 text-xs font-bold bg-slate-50 dark:bg-slate-900 px-3 py-1.5 rounded-full border border-slate-200 dark:border-slate-700">
                             <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
-                            <span className="text-slate-600">근로자 평균</span>
+                            <span className="text-slate-600 dark:text-slate-300">근로자 평균</span>
                         </div>
                     </div>
                     <div className="h-80 w-full">
@@ -433,23 +433,23 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                 </div>
                 
                 {/* Radar Chart Section with Toggle */}
-                <div className="lg:col-span-1 bg-white p-8 rounded-3xl shadow-xl border border-slate-100 flex flex-col">
+                <div className="lg:col-span-1 bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 flex flex-col">
                     <div className="mb-4">
-                        <h3 className="text-xl font-bold text-slate-900">역량 비교 분석</h3>
-                        <p className="text-xs text-slate-500 mt-1">공종별 또는 팀별로 세분화하여 역량을 비교합니다.</p>
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">역량 비교 분석</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">공종별 또는 팀별로 세분화하여 역량을 비교합니다.</p>
                     </div>
                     
                     {/* Mode Switcher */}
-                    <div className="flex bg-slate-100 p-1 rounded-lg mb-4">
+                    <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg mb-4">
                         <button 
                             onClick={() => setCompareMode('field')}
-                            className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${compareMode === 'field' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${compareMode === 'field' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-100'}`}
                         >
                             공종별 비교
                         </button>
                         <button 
                             onClick={() => setCompareMode('team')}
-                            className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${compareMode === 'team' ? 'bg-white shadow text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${compareMode === 'team' ? 'bg-white dark:bg-slate-700 shadow text-indigo-600 dark:text-indigo-300' : 'text-slate-500 dark:text-slate-300 hover:text-slate-700 dark:hover:text-slate-100'}`}
                         >
                             팀 단위 비교
                         </button>
@@ -460,9 +460,9 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                             <FieldRadarChart records={filteredBaseRecords} mode={compareMode} />
                         </div>
                     </div>
-                    <div className="mt-4 pt-4 border-t border-slate-100">
-                        <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">지표 설명</h4>
-                        <ul className="space-y-1 text-xs text-slate-500">
+                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+                        <h4 className="text-xs font-bold text-slate-500 dark:text-slate-300 uppercase mb-2">지표 설명</h4>
+                        <ul className="space-y-1 text-xs text-slate-500 dark:text-slate-300">
                             <li className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> 평균 점수: 높을수록 안전 역량 우수</li>
                             <li className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-teal-500"></div> 일관성: 점수 편차가 적을수록 우수</li>
                         </ul>
@@ -470,9 +470,9 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-                <div className="xl:col-span-2 bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
-                    <h3 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 lg:gap-8">
+                <div className="xl:col-span-2 bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-6 flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
                         공종별 성과 히트맵 (실무 공종 전체)
                     </h3>
@@ -481,13 +481,13 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                             <div className="grid grid-flow-col auto-cols-fr gap-2 mb-2">
                                 <div className="w-32 font-bold text-xs text-slate-400 uppercase tracking-wider text-left py-2">공종 \ 월</div>
                                 {matrixData.months.map(m => (
-                                    <div key={m} className="font-bold text-sm text-slate-600 text-center py-2 bg-slate-50 rounded-lg">{m.substring(5)}월</div>
+                                    <div key={m} className="font-bold text-sm text-slate-600 dark:text-slate-200 text-center py-2 bg-slate-50 dark:bg-slate-900 rounded-lg">{m.substring(5)}월</div>
                                 ))}
                             </div>
                             <div className="space-y-2">
                                 {matrixData.data.map(row => (
                                     <div key={row.field} className="grid grid-flow-col auto-cols-fr gap-2 items-center group">
-                                        <div className="w-32 font-bold text-slate-700 text-sm truncate pr-2" title={row.field}>{row.field}</div>
+                                        <div className="w-32 font-bold text-slate-700 dark:text-slate-200 text-sm truncate pr-2" title={row.field}>{row.field}</div>
                                         {row.scores.map((score, idx) => (
                                             <div key={idx} className="relative h-12 rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-105 cursor-default group/cell">
                                                 <div className={`absolute inset-0 rounded-lg opacity-90 ${getScoreColorClass(score)}`}></div>
@@ -503,42 +503,42 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                     </div>
                 </div>
 
-                <div className="xl:col-span-1 bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
-                    <h3 className="text-xl font-bold text-slate-900 mb-6">최우수 안전 실무자</h3>
-                    <p className="text-xs text-slate-500 mb-4">
+                <div className="xl:col-span-1 bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-6">최우수 안전 실무자</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-300 mb-4">
                         기복 없는 안전 실천 능력을 보여준 상위 근로자입니다. (관리 직군 제외)
                     </p>
                     <div className="space-y-4">
                         {safetyHabitRanking.length > 0 ? safetyHabitRanking.map((worker, idx) => (
-                            <div key={worker.name} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-indigo-200 transition-colors">
+                            <div key={worker.name} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-700 hover:border-indigo-200 dark:hover:border-indigo-700 transition-colors">
                                 <div className="flex items-center gap-3">
                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white ${idx === 0 ? 'bg-yellow-400 shadow-md' : 'bg-slate-300'}`}>
                                         {idx + 1}
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                        <p className="text-sm font-bold text-slate-800 truncate">{worker.name}</p>
-                                        <p className="text-[10px] text-slate-500 truncate">{worker.jobField} | 평균 {worker.avg.toFixed(0)}점</p>
+                                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">{worker.name}</p>
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{worker.jobField} | 평균 {worker.avg.toFixed(0)}점</p>
                                     </div>
                                 </div>
                                 <div className="text-right shrink-0">
                                     <p className="text-xs font-bold text-indigo-600">{worker.safetyHabitIndex.toFixed(2)}</p>
-                                    <p className="text-[10px] text-slate-400">습관 지수</p>
+                                    <p className="text-[10px] text-slate-400 dark:text-slate-500">습관 지수</p>
                                 </div>
                             </div>
                         )) : (
-                            <div className="text-center text-slate-400 py-10 text-sm">분석 데이터가 부족합니다.</div>
+                            <div className="text-center text-slate-400 dark:text-slate-500 py-10 text-sm">분석 데이터가 부족합니다.</div>
                         )}
                     </div>
                 </div>
             </div>
 
             {/* NEW SECTION: Bottom Infographics to utilize whitespace */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 bg-white p-8 rounded-3xl shadow-xl border border-slate-100">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
+                <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
                     <div className="mb-6 flex justify-between items-center">
                         <div>
-                            <h3 className="text-xl font-bold text-slate-900">현장 안전 등급 분포 변화 (6개월)</h3>
-                            <p className="text-sm text-slate-500 mt-1">월별 근로자 안전 등급 구성 비율의 변화를 추적합니다. 초급자 비율 감소가 목표입니다.</p>
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 안전 등급 분포 변화 (6개월)</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">월별 근로자 안전 등급 구성 비율의 변화를 추적합니다. 초급자 비율 감소가 목표입니다.</p>
                         </div>
                         <div className="flex gap-3 text-xs font-bold">
                             <span className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-500 rounded-sm"></div>고급</span>
@@ -550,9 +550,9 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                         <SafetyGradeTrendChart records={filteredBaseRecords} />
                     </div>
                 </div>
-                <div className="lg:col-span-1 bg-white p-8 rounded-3xl shadow-xl border border-slate-100 flex flex-col">
-                    <h3 className="text-xl font-bold text-slate-900 mb-6">주요 위험 키워드 클라우드</h3>
-                    <p className="text-xs text-slate-500 mb-4">최근 분석된 기록에서 가장 빈번하게 등장한 위험 요인입니다.</p>
+                <div className="lg:col-span-1 bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 flex flex-col">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-6">주요 위험 키워드 클라우드</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-300 mb-4">최근 분석된 기록에서 가장 빈번하게 등장한 위험 요인입니다.</p>
                     <div className="flex-1 flex flex-wrap content-start gap-2">
                         {riskKeywords.map(([word, count], i) => (
                             <span 
@@ -560,13 +560,13 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                                 className={`px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-all hover:scale-105 cursor-default
                                     ${i < 3 ? 'bg-rose-100 text-rose-700 text-lg border border-rose-200' : 
                                       i < 7 ? 'bg-orange-50 text-orange-600 border border-orange-100' : 
-                                      'bg-slate-50 text-slate-500 border border-slate-100 text-xs'}`}
+                                      'bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-300 border border-slate-100 dark:border-slate-700 text-xs'}`}
                             >
                                 {word} <span className="opacity-50 text-[0.8em] ml-1">{count}</span>
                             </span>
                         ))}
                         {riskKeywords.length === 0 && (
-                            <div className="w-full text-center text-slate-400 text-sm py-10">데이터가 없습니다.</div>
+                            <div className="w-full text-center text-slate-400 dark:text-slate-500 text-sm py-10">데이터가 없습니다.</div>
                         )}
                     </div>
                 </div>
