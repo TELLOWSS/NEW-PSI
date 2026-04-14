@@ -1,13 +1,11 @@
-import { createClient } from '@supabase/supabase-js';
-import { buildSignedTrainingMobileUrl, resolveLinkTtlMinutes } from '../../lib/server/trainingLinkToken.js';
-import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
+/**
+ * @deprecated 이 파일은 /api/admin/training (action: 'reissue-link') 으로 통합되었습니다.
+ * git에서 직접 제거하거나 배포 전 제외하세요.
+ */
+import trainingHandler from './training.js';
 
-function getSupabaseClient() {
-    const supabaseUrl =
-        process.env.VITE_SUPABASE_URL ||
-        process.env.NEXT_PUBLIC_SUPABASE_URL ||
-        '';
-    const supabaseServiceRoleKey =
+export default trainingHandler;
+
         process.env.SUPABASE_SERVICE_ROLE_KEY ||
         process.env.SUPABASE_SERVICE_KEY ||
         process.env.SERVICE_ROLE_KEY ||

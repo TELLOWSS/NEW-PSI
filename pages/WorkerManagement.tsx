@@ -4922,7 +4922,6 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             </div>
                                         </>
                                     )}
-                                    titleClassName="text-inherit"
                                     bodyClassName="mt-3"
                                 />
                             ))}

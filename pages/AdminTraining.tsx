@@ -658,10 +658,10 @@ const AdminTraining: React.FC = () => {
     }, [isQrExpanded]);
 
     const requestSignedMobileUrl = async (sessionId: string) => {
-        const response = await fetch('/api/admin/reissue-training-link', {
+        const response = await fetch('/api/admin/training', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ sessionId }),
+            body: JSON.stringify({ action: 'reissue-link', sessionId }),
         });
 
         const contentType = response.headers.get('content-type') || '';
@@ -698,10 +698,10 @@ const AdminTraining: React.FC = () => {
         setAwarenessLoading(true);
         setAwarenessError('');
         try {
-            const response = await fetch('/api/admin/training-awareness-stats', {
+            const response = await fetch('/api/admin/training', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId }),
+                body: JSON.stringify({ action: 'awareness-stats', sessionId }),
             });
 
             const contentType = response.headers.get('content-type') || '';
@@ -935,10 +935,11 @@ const AdminTraining: React.FC = () => {
                 )
             );
 
-            const response = await fetch('/api/admin/upload-training-audio', {
+            const response = await fetch('/api/admin/training', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    action: 'upload-audio',
                     sessionId: currentSessionId,
                     originalScript: sourceTextKo,
                     files: filesPayload,
@@ -996,10 +997,10 @@ const AdminTraining: React.FC = () => {
         setFailedLanguageAttempts({});
 
         try {
-            const response = await fetch('/api/admin/create-training', {
+            const response = await fetch('/api/admin/training', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sourceTextKo, selectedLanguages }),
+                body: JSON.stringify({ action: 'create', sourceTextKo, selectedLanguages }),
             });
 
             const contentType = response.headers.get('content-type') || '';
@@ -1150,10 +1151,10 @@ const AdminTraining: React.FC = () => {
 
         setDeletingSessionId(sessionIdToDelete);
         try {
-            const response = await fetch('/api/admin/delete-training-session', {
+            const response = await fetch('/api/admin/training', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ sessionId: sessionIdToDelete }),
+                body: JSON.stringify({ action: 'delete-session', sessionId: sessionIdToDelete }),
             });
 
             const contentType = response.headers.get('content-type') || '';

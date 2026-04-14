@@ -1,4 +1,4 @@
-import { BRAND_TONE } from '../utils/brandToneTokens';
+import { BRAND_TONE } from '../../utils/brandToneTokens';
 
 export type NoticeToneVariant = 'white' | 'slate' | 'amber' | 'indigo' | 'sky' | 'emerald' | 'rose' | 'glassDark';
 
