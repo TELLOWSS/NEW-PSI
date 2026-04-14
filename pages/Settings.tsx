@@ -71,6 +71,7 @@ const toFiniteOr = (value: unknown, fallback: number): number => {
 
 const isManagementRole = (field: string) => /관리|팀장|부장|과장|기사|공무|소장/.test(field);
 const UI_VIEW_MODE_METRICS_KEY = 'psi_view_mode_metrics';
+const PRESET_PINNED_SOURCE_TARGET_RATE = 60;
 
 const getWorkerIdentityKey = (record: WorkerRecord): string => {
     return String(
@@ -800,6 +801,41 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         const modeChanges = uiViewMetrics.filter((item) => item.event === 'view_mode_change').length;
         const ctaClicks = uiViewMetrics.filter((item) => item.event === 'cta_click').length;
         const controlChanges = uiViewMetrics.filter((item) => item.event === 'control_change').length;
+        const presetSaves = uiViewMetrics.filter((item) => (
+            item.event === 'cta_click'
+            && String(item.payload?.actionKey || '') === 'comparison_preset_save'
+        )).length;
+        const presetExports = uiViewMetrics.filter((item) => (
+            item.event === 'cta_click'
+            && String(item.payload?.actionKey || '') === 'comparison_preset_export_csv'
+        )).length;
+        const presetApplies = uiViewMetrics.filter((item) => (
+            item.event === 'control_change'
+            && String(item.payload?.control || '') === 'comparison_preset_apply'
+        )).length;
+        const presetRenames = uiViewMetrics.filter((item) => (
+            item.event === 'control_change'
+            && String(item.payload?.control || '') === 'comparison_preset_rename'
+        )).length;
+        const presetScopeChanges = uiViewMetrics.filter((item) => (
+            item.event === 'control_change'
+            && String(item.payload?.control || '') === 'comparison_preset_scope'
+        )).length;
+        const presetPinToggles = uiViewMetrics.filter((item) => (
+            item.event === 'control_change'
+            && String(item.payload?.control || '') === 'comparison_preset_pin'
+            && !Boolean(item.payload?.blockedByLimit)
+        )).length;
+        const presetPinLimitBlocked = uiViewMetrics.filter((item) => (
+            item.event === 'control_change'
+            && String(item.payload?.control || '') === 'comparison_preset_pin'
+            && Boolean(item.payload?.blockedByLimit)
+        )).length;
+        const presetApplySessions = new Set(uiViewMetrics.filter((item) => (
+            item.page === 'dashboard'
+            && item.event === 'control_change'
+            && String(item.payload?.control || '') === 'comparison_preset_apply'
+        )).map((item) => item.sessionId)).size;
         const dwellEvents = uiViewMetrics.filter((item) => item.event === 'view_exit');
         const dwellValues = dwellEvents
             .map((item) => Number(item.payload?.dwellMs || 0))
@@ -809,12 +845,24 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             : 0;
         const dashboardSessions = new Set(uiViewMetrics.filter((item) => item.page === 'dashboard').map((item) => item.sessionId)).size;
         const performanceSessions = new Set(uiViewMetrics.filter((item) => item.page === 'performance-analysis').map((item) => item.sessionId)).size;
+        const presetApplyRate = dashboardSessions > 0
+            ? Math.round((presetApplySessions / dashboardSessions) * 100)
+            : 0;
 
         return {
             total: uiViewMetrics.length,
             modeChanges,
             ctaClicks,
             controlChanges,
+            presetSaves,
+            presetExports,
+            presetApplies,
+            presetApplySessions,
+            presetApplyRate,
+            presetRenames,
+            presetScopeChanges,
+            presetPinToggles,
+            presetPinLimitBlocked,
             avgDwellSec,
             dashboardSessions,
             performanceSessions,
@@ -844,6 +892,13 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             tone: uiViewMetricSummary.ctaClicks > 0 ? BRAND_TONE.emeraldSoft80 : BRAND_TONE.whiteSoft,
         },
         {
+            key: 'ui-metric-preset',
+            label: '프리셋 적용',
+            value: uiViewMetricSummary.presetApplies,
+            helper: `저장 ${uiViewMetricSummary.presetSaves}건 · 내보내기 ${uiViewMetricSummary.presetExports}건 · 이름수정 ${uiViewMetricSummary.presetRenames}건 · 고정전환 ${uiViewMetricSummary.presetPinToggles}건 · 제한차단 ${uiViewMetricSummary.presetPinLimitBlocked}건 · 범위전환 ${uiViewMetricSummary.presetScopeChanges}건 · Dashboard 세션 적용률 ${uiViewMetricSummary.presetApplyRate}%`,
+            tone: uiViewMetricSummary.presetApplies > 0 ? BRAND_TONE.indigoSoft70 : BRAND_TONE.whiteSoft,
+        },
+        {
             key: 'ui-metric-dwell',
             label: '평균 체류',
             value: `${uiViewMetricSummary.avgDwellSec.toFixed(1)}초`,
@@ -851,6 +906,30 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             tone: BRAND_TONE.slate,
         },
     ], [uiViewMetricSummary]);
+
+    const presetSourceTargetStatus = useMemo(() => {
+        if (uiViewMetricSummary.presetApplies === 0) {
+            return {
+                label: '데이터 수집 중',
+                description: '프리셋 적용 로그가 누적되면 빠른실행 사용률 목표(60%) 달성 여부를 평가합니다.',
+                toneClassName: 'text-slate-600',
+            };
+        }
+
+        if (uiViewMetricSummary.presetPinnedSourceRate >= PRESET_PINNED_SOURCE_TARGET_RATE) {
+            return {
+                label: '목표 달성',
+                description: `빠른실행 비중 ${uiViewMetricSummary.presetPinnedSourceRate}%로 목표 ${PRESET_PINNED_SOURCE_TARGET_RATE}% 이상입니다.`,
+                toneClassName: 'text-emerald-700',
+            };
+        }
+
+        return {
+            label: '개선 필요',
+            description: `빠른실행 비중 ${uiViewMetricSummary.presetPinnedSourceRate}%로 목표 ${PRESET_PINNED_SOURCE_TARGET_RATE}% 미만입니다. 고정 프리셋 배치/이름을 점검하세요.`,
+            toneClassName: 'text-amber-700',
+        };
+    }, [uiViewMetricSummary.presetApplies, uiViewMetricSummary.presetPinnedSourceRate]);
 
     const recentUIViewMetrics = useMemo(() => uiViewMetrics.slice(0, 10), [uiViewMetrics]);
 
@@ -1188,7 +1267,13 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">세션 요약</p>
                     <p className="mt-2 text-sm font-bold text-slate-700">
-                        Dashboard 세션 {uiViewMetricSummary.dashboardSessions}건 · Performance 세션 {uiViewMetricSummary.performanceSessions}건 · 컨트롤 변경 {uiViewMetricSummary.controlChanges}건
+                        Dashboard 세션 {uiViewMetricSummary.dashboardSessions}건 · Performance 세션 {uiViewMetricSummary.performanceSessions}건 · 컨트롤 변경 {uiViewMetricSummary.controlChanges}건 · 프리셋 적용 세션 {uiViewMetricSummary.presetApplySessions}건
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-slate-600">
+                        프리셋 적용 소스 비중: 빠른실행 {uiViewMetricSummary.presetApplyFromPinnedLane}건({uiViewMetricSummary.presetPinnedSourceRate}%) · 리스트 {uiViewMetricSummary.presetApplyFromPresetList}건({uiViewMetricSummary.presetListSourceRate}%) · 기타 {uiViewMetricSummary.presetApplyFromUnknown}건
+                    </p>
+                    <p className={`mt-1 text-xs font-black ${presetSourceTargetStatus.toneClassName}`}>
+                        빠른실행 사용률 목표(60%): {presetSourceTargetStatus.label} · {presetSourceTargetStatus.description}
                     </p>
                 </div>
 

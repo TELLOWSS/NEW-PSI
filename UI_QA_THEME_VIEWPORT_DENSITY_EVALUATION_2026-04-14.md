@@ -169,3 +169,53 @@
   - 핵심 요약 지표(이벤트 수, 모드 변경 수, CTA 클릭 수, 평균 체류시간)
   - 세션 요약(Dashboard/Performance 분리)
   - `지표 새로고침`, `지표 초기화` 버튼
+
+### Dashboard 팀 비교 1차 사용성 개선 반영
+- [x] 팀 대 팀 비교 상단에 3문장 요약(비교 범위/우선 조치팀/벤치마크팀) 추가
+- [x] 고급 옵션 기본 접힘 적용
+  - 정렬, 직접 팀 선택, 팀 필터, 상세 분석 기준은 `고급 옵션 열기`에서만 노출
+- [x] 팀 조합 프리셋 저장/적용/삭제 추가
+  - 저장 키: `psi_dashboard_team_comparison_presets`
+  - 같은 공종/같은 팀 조합은 중복 저장하지 않도록 처리
+
+### Dashboard 팀 비교 2차 확장 반영
+- [x] 프리셋 이름 사용자 지정 입력 추가
+  - 저장 시 입력 이름 우선 사용(미입력 시 기본 이름 자동 생성)
+- [x] 프리셋 최근 사용 시각 표시 추가
+  - 프리셋 적용 시 `lastUsedAt` 갱신
+- [x] 프리셋 적용 시 팀 목록 정합성 보정
+  - 현재 공종에 없는 팀은 자동 정리
+- [x] 프리셋 CSV 내보내기 추가
+  - 파일명: `PSI_Dashboard_TeamComparisonPresets_YYYY-MM-DD.csv`
+- [x] 프리셋 이름 인라인 수정 추가
+  - 수정 이벤트는 KPI 로그(`comparison_preset_rename`)로 수집
+- [x] 프리셋 검색/범위 필터 추가
+  - 범위: `현재 공종` / `전체 공종`
+  - 검색: 프리셋명 + 공종명 키워드
+- [x] 프리셋 상단 고정(핀) 추가
+  - 고정된 프리셋이 목록 최상단 우선 정렬
+  - 고정 슬롯은 최대 3개 제한
+  - 제한 초과 시 인라인 안내 문구 즉시 노출
+  - 모바일 가독성 개선: `고정 프리셋 빠른 실행` 1줄 가로 섹션 분리
+
+### Settings KPI 확장 반영
+- [x] UI 모드 실험 KPI에 프리셋 지표 추가
+  - 프리셋 저장 수 (`comparison_preset_save`)
+  - 프리셋 적용 수 (`comparison_preset_apply`)
+  - Dashboard 세션 기준 프리셋 적용률
+- [x] 프리셋 운영 지표 추가 확장
+  - 프리셋 CSV 내보내기 수 (`comparison_preset_export_csv`)
+  - 프리셋 이름 수정 수 (`comparison_preset_rename`)
+  - 프리셋 범위 전환 수 (`comparison_preset_scope`)
+  - 프리셋 고정 전환 수 (`comparison_preset_pin`)
+  - 프리셋 고정 제한 차단 수 (`comparison_preset_pin` + `blockedByLimit=true`)
+  - 프리셋 적용 source 비중(빠른실행 `pinned_lane` vs 리스트 `preset_list`) 표시
+
+### 운영 목표치 (Preset Adoption)
+- [x] 빠른실행(고정 프리셋) 사용률 목표치 도입
+  - 목표: `pinned_lane` 비중 **60% 이상**
+  - 평가 기준: `comparison_preset_apply` 이벤트 중 source 비율
+  - 해석 가이드:
+    - 60% 이상: 고정 프리셋 동선이 실무 흐름에 잘 맞음(유지)
+    - 40~59%: 고정 프리셋 이름/순서/구성 재정렬 필요(개선)
+    - 40% 미만: 리스트 탐색 의존도가 높아 빠른실행 설계 재검토 필요(우선 개선)

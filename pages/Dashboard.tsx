@@ -74,6 +74,16 @@ type HarnessDrilldownActionPlan = {
 
 type DashboardViewMode = 'full' | 'balanced' | 'essential';
 
+type DashboardTeamComparisonPreset = {
+    id: string;
+    name: string;
+    trade: string;
+    teams: string[];
+    createdAt: number;
+    lastUsedAt?: number;
+    pinned?: boolean;
+};
+
 // 관리 직군 여부 확인 함수
 const isManagementRole = (field: string) => 
     /관리|팀장|부장|과장|기사|공무|소장/.test(field);
@@ -112,6 +122,65 @@ const getHarnessPersistenceState = (record: Partial<WorkerRecord>): 'connected' 
 
 const DASHBOARD_VIEW_MODE_STORAGE_KEY = 'psi_dashboard_view_mode';
 const DASHBOARD_VIEW_MODE_MANUAL_KEY = 'psi_dashboard_view_mode_manual';
+const DASHBOARD_TEAM_COMPARISON_PRESETS_KEY = 'psi_dashboard_team_comparison_presets';
+
+const getStoredDashboardTeamComparisonPresets = (): DashboardTeamComparisonPreset[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+        const raw = window.localStorage.getItem(DASHBOARD_TEAM_COMPARISON_PRESETS_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter((preset): preset is DashboardTeamComparisonPreset => {
+            return Boolean(
+                preset
+                && typeof preset.id === 'string'
+                && typeof preset.name === 'string'
+                && typeof preset.trade === 'string'
+                && Array.isArray(preset.teams)
+                && typeof preset.createdAt === 'number',
+            );
+        }).map((preset) => ({
+            id: preset.id,
+            name: String(preset.name || '').trim() || `${preset.trade} 팀 비교`,
+            trade: preset.trade,
+            teams: preset.teams.filter((team) => typeof team === 'string' && team.trim().length > 0),
+            createdAt: preset.createdAt,
+            lastUsedAt: typeof preset.lastUsedAt === 'number' ? preset.lastUsedAt : undefined,
+            pinned: Boolean(preset.pinned),
+        })).slice(0, 12);
+    } catch {
+        return [];
+    }
+};
+
+const areSameTeamList = (left: string[], right: string[]): boolean => {
+    if (left.length !== right.length) return false;
+    const leftSorted = [...left].sort((a, b) => a.localeCompare(b, 'ko'));
+    const rightSorted = [...right].sort((a, b) => a.localeCompare(b, 'ko'));
+    return leftSorted.every((value, index) => value === rightSorted[index]);
+};
+
+const formatPresetUsedAt = (timestamp?: number): string => {
+    if (!timestamp) return '최근 사용 없음';
+    const diffMs = Date.now() - timestamp;
+    if (diffMs < 60_000) return '방금 사용';
+    if (diffMs < 3_600_000) return `${Math.max(1, Math.round(diffMs / 60_000))}분 전 사용`;
+    if (diffMs < 86_400_000) return `${Math.max(1, Math.round(diffMs / 3_600_000))}시간 전 사용`;
+    return `${Math.max(1, Math.round(diffMs / 86_400_000))}일 전 사용`;
+};
+
+const downloadDashboardTextFile = (fileName: string, content: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(objectUrl);
+};
 
 const getStoredDashboardViewMode = (): DashboardViewMode | null => {
     if (typeof window === 'undefined') return null;
@@ -267,11 +336,19 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const [detailViewMode, setDetailViewMode] = useState<'integrated' | 'nationality'>('integrated');
     const [teamViewFilter, setTeamViewFilter] = useState<'all' | 'top3' | 'risk-only'>('all');
     const [selectedTeamsForComparison, setSelectedTeamsForComparison] = useState<string[]>([]);
+    const [isComparisonAdvancedOpen, setIsComparisonAdvancedOpen] = useState<boolean>(false);
+    const [teamComparisonPresets, setTeamComparisonPresets] = useState<DashboardTeamComparisonPreset[]>(() => getStoredDashboardTeamComparisonPresets());
+    const [presetNameDraft, setPresetNameDraft] = useState<string>('');
+    const [presetSearchQuery, setPresetSearchQuery] = useState<string>('');
+    const [presetScope, setPresetScope] = useState<'current-trade' | 'all-trades'>('current-trade');
+    const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
+    const [editingPresetName, setEditingPresetName] = useState<string>('');
     const [audienceView, setAudienceView] = useState<DashboardAudience>('manager');
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
     const [isDashboardViewModeManual, setIsDashboardViewModeManual] = useState<boolean>(() => getStoredDashboardViewModeManual());
     const viewMetricSessionRef = useRef<string>(createMetricSessionId('dashboard'));
     const viewMetricStartRef = useRef<number>(Date.now());
+    const skipTeamSelectionResetRef = useRef<boolean>(false);
     const [dashboardViewMode, setDashboardViewMode] = useState<DashboardViewMode>(() => {
         const storedMode = getStoredDashboardViewMode();
         if (storedMode && getStoredDashboardViewModeManual()) return storedMode;
@@ -317,6 +394,28 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         const recommended = getRecommendedDashboardViewMode(audienceView, viewportWidth);
         setDashboardViewMode(recommended);
     }, [audienceView, viewportWidth, isDashboardViewModeManual]);
+
+    useEffect(() => {
+        if (!selectedTradeForComparison) {
+            setPresetNameDraft('');
+            return;
+        }
+        setPresetNameDraft(`${selectedTradeForComparison} 팀 비교`);
+    }, [selectedTradeForComparison]);
+
+    useEffect(() => {
+        if (!selectedTradeForComparison && presetScope === 'current-trade') {
+            setPresetScope('all-trades');
+        }
+    }, [presetScope, selectedTradeForComparison]);
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(DASHBOARD_TEAM_COMPARISON_PRESETS_KEY, JSON.stringify(teamComparisonPresets.slice(0, 12)));
+        } catch {
+            // ignore localStorage write failures
+        }
+    }, [teamComparisonPresets]);
 
     useEffect(() => {
         trackUIViewMetric('view_enter', 'dashboard', viewMetricSessionRef.current, {
@@ -406,6 +505,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     }, [selectedTeam, teamOptions]);
 
     useEffect(() => {
+        if (skipTeamSelectionResetRef.current) {
+            skipTeamSelectionResetRef.current = false;
+            return;
+        }
         setSelectedTeamsForComparison([]);
     }, [selectedTradeForComparison]);
 
@@ -912,6 +1015,15 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         });
     }, [selectedTradeForComparison, teamComparisonSort, workerOnlyRecords]);
 
+    useEffect(() => {
+        if (selectedTeamsForComparison.length === 0) return;
+        const validTeamSet = new Set(selectedTradeTeamComparison.map((item) => item.team));
+        const nextTeams = selectedTeamsForComparison.filter((team) => validTeamSet.has(team));
+        if (nextTeams.length !== selectedTeamsForComparison.length) {
+            setSelectedTeamsForComparison(nextTeams);
+        }
+    }, [selectedTeamsForComparison, selectedTradeTeamComparison]);
+
     const tradeQuickAccess = useMemo(() => {
         return dashboardData.trades
             .map(trade => {
@@ -957,12 +1069,265 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         return selectedTradeTeamComparison.filter((team) => selectedTeamsForComparison.includes(team.team));
     }, [selectedTeamsForComparison, selectedTradeTeamComparison, visibleTeamComparison]);
 
+    const priorityTeamForAction = useMemo(() => {
+        if (comparedTeamRows.length === 0) return null;
+        return [...comparedTeamRows].sort((left, right) => {
+            const leftRiskRate = left.workerCount > 0 ? left.riskCount / left.workerCount : 0;
+            const rightRiskRate = right.workerCount > 0 ? right.riskCount / right.workerCount : 0;
+            return rightRiskRate - leftRiskRate || left.avgScore - right.avgScore || right.riskCount - left.riskCount;
+        })[0];
+    }, [comparedTeamRows]);
+
+    const benchmarkTeamForAction = useMemo(() => {
+        if (comparedTeamRows.length === 0) return null;
+        return [...comparedTeamRows].sort((left, right) => {
+            return right.avgScore - left.avgScore || right.goodCount - left.goodCount || left.riskCount - right.riskCount;
+        })[0];
+    }, [comparedTeamRows]);
+
+    const comparisonSummaryLines = useMemo(() => {
+        const scope = selectedTradeForComparison
+            ? `${selectedTradeForComparison} 공종에서 ${comparedTeamRows.length}개 팀을 비교 중이며, ${selectedTradeTeamComparison.length}개 팀 중 ${selectedTeamsForComparison.length > 0 ? `${selectedTeamsForComparison.length}개 팀` : '전체 팀'}이 현재 범위입니다.`
+            : '비교할 공종을 먼저 선택하면 팀 간 편차를 같은 기준으로 바로 확인할 수 있습니다.';
+
+        const priority = priorityTeamForAction
+            ? `우선 조치 팀은 ${priorityTeamForAction.team}이며, 고위험 ${priorityTeamForAction.riskCount}명과 평균 ${priorityTeamForAction.avgScore.toFixed(1)}점 기준으로 즉시 점검 대상입니다.`
+            : '우선 조치 팀 판단을 위해 비교할 팀을 2개 이상 선택해 주세요.';
+
+        const benchmark = benchmarkTeamForAction
+            ? `벤치마크 팀은 ${benchmarkTeamForAction.team}이며, 평균 ${benchmarkTeamForAction.avgScore.toFixed(1)}점 기준으로 현장 코칭 기준점으로 활용할 수 있습니다.`
+            : '벤치마크 팀 판단은 비교 데이터가 확보되면 자동으로 제안됩니다.';
+
+        return { scope, priority, benchmark };
+    }, [benchmarkTeamForAction, comparedTeamRows.length, priorityTeamForAction, selectedTeamsForComparison.length, selectedTradeForComparison, selectedTradeTeamComparison.length]);
+
+    const applicableComparisonPresets = useMemo(() => {
+        const normalizedQuery = presetSearchQuery.trim().toLowerCase();
+        const scopedPresets = teamComparisonPresets.filter((preset) => {
+            if (presetScope === 'all-trades') return true;
+            if (!selectedTradeForComparison) return true;
+            return preset.trade === selectedTradeForComparison;
+        });
+
+        return scopedPresets
+            .filter((preset) => {
+                if (!normalizedQuery) return true;
+                const presetName = preset.name.toLowerCase();
+                const presetTrade = preset.trade.toLowerCase();
+                return presetName.includes(normalizedQuery) || presetTrade.includes(normalizedQuery);
+            })
+            .sort((left, right) => {
+                const pinDelta = Number(Boolean(right.pinned)) - Number(Boolean(left.pinned));
+                if (pinDelta !== 0) return pinDelta;
+                return (right.lastUsedAt ?? right.createdAt) - (left.lastUsedAt ?? left.createdAt);
+            })
+            .slice(0, 8);
+    }, [presetScope, presetSearchQuery, selectedTradeForComparison, teamComparisonPresets]);
+
+    const pinnedQuickPresets = useMemo(() => {
+        return applicableComparisonPresets
+            .filter((preset) => preset.pinned)
+            .slice(0, 3);
+    }, [applicableComparisonPresets]);
+
     const toggleTeamComparisonSelection = (teamName: string) => {
         setSelectedTeamsForComparison((previous) => {
             if (previous.includes(teamName)) {
                 return previous.filter((item) => item !== teamName);
             }
             return [...previous, teamName];
+        });
+    };
+
+    const saveCurrentTeamComparisonPreset = () => {
+        if (!selectedTradeForComparison) return;
+        const selectedTeams = Array.from(new Set(selectedTeamsForComparison));
+        if (selectedTeams.length < 2) return;
+
+        const presetName = String(presetNameDraft || '').trim() || `${selectedTradeForComparison} ${selectedTeams.length}팀 비교`;
+        const nextPreset: DashboardTeamComparisonPreset = {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            name: presetName,
+            trade: selectedTradeForComparison,
+            teams: selectedTeams,
+            createdAt: Date.now(),
+            lastUsedAt: Date.now(),
+        };
+
+        setTeamComparisonPresets((previous) => {
+            const deduped = previous.filter((preset) => !(preset.trade === nextPreset.trade && areSameTeamList(preset.teams, nextPreset.teams)));
+            return [nextPreset, ...deduped].slice(0, 12);
+        });
+
+        trackUIViewMetric('cta_click', 'dashboard', viewMetricSessionRef.current, {
+            actionKey: 'comparison_preset_save',
+            trade: selectedTradeForComparison,
+            teamCount: selectedTeams.length,
+            presetName,
+            audienceView,
+            viewMode: dashboardViewMode,
+        });
+    };
+
+    const applyTeamComparisonPreset = (preset: DashboardTeamComparisonPreset, source: 'preset_list' | 'pinned_lane' = 'preset_list') => {
+        skipTeamSelectionResetRef.current = true;
+        setSelectedTarget({ trade: preset.trade, nationality: ALL_NATIONALITY_LABEL });
+        setSelectedTradeForComparison(preset.trade);
+        setMobileInsightTab('team');
+        setDetailViewMode('integrated');
+        setTeamViewFilter('all');
+        setSelectedTeamsForComparison(preset.teams);
+        setIsComparisonAdvancedOpen(true);
+        setTeamComparisonPresets((previous) => previous.map((item) => item.id === preset.id
+            ? { ...item, lastUsedAt: Date.now() }
+            : item,
+        ));
+
+        trackUIViewMetric('control_change', 'dashboard', viewMetricSessionRef.current, {
+            control: 'comparison_preset_apply',
+            source,
+            presetTrade: preset.trade,
+            presetName: preset.name,
+            teamCount: preset.teams.length,
+            audienceView,
+            viewMode: dashboardViewMode,
+        });
+    };
+
+    const removeTeamComparisonPreset = (presetId: string) => {
+        setTeamComparisonPresets((previous) => previous.filter((preset) => preset.id !== presetId));
+        if (editingPresetId === presetId) {
+            setEditingPresetId(null);
+            setEditingPresetName('');
+        }
+    };
+
+    const handlePresetScopeChange = (nextScope: 'current-trade' | 'all-trades') => {
+        setPresetScope(nextScope);
+        trackUIViewMetric('control_change', 'dashboard', viewMetricSessionRef.current, {
+            control: 'comparison_preset_scope',
+            scope: nextScope,
+            selectedTradeForComparison,
+            audienceView,
+            viewMode: dashboardViewMode,
+        });
+    };
+
+    const handleToggleTeamComparisonPresetPin = (presetId: string) => {
+        setTeamComparisonPresets((previous) => {
+            const target = previous.find((preset) => preset.id === presetId);
+            if (!target) return previous;
+
+            const activePinCount = previous.filter((preset) => preset.pinned).length;
+            const isPinning = !target.pinned;
+            if (isPinning && activePinCount >= 3) {
+                setPresetPinLimitNotice('프리셋 고정은 최대 3개까지 가능합니다.');
+                trackUIViewMetric('control_change', 'dashboard', viewMetricSessionRef.current, {
+                    control: 'comparison_preset_pin',
+                    presetId,
+                    pinned: false,
+                    blockedByLimit: true,
+                    pinLimit: 3,
+                    audienceView,
+                    viewMode: dashboardViewMode,
+                });
+                return previous;
+            }
+
+            setPresetPinLimitNotice(null);
+
+            const next = previous.map((preset) => (
+                preset.id === presetId
+                    ? { ...preset, pinned: isPinning }
+                    : preset
+            ));
+
+            trackUIViewMetric('control_change', 'dashboard', viewMetricSessionRef.current, {
+                control: 'comparison_preset_pin',
+                presetId,
+                pinned: isPinning,
+                blockedByLimit: false,
+                audienceView,
+                viewMode: dashboardViewMode,
+            });
+
+            return next;
+        });
+    };
+
+    const startEditingTeamComparisonPreset = (preset: DashboardTeamComparisonPreset) => {
+        setEditingPresetId(preset.id);
+        setEditingPresetName(preset.name);
+    };
+
+    const commitEditingTeamComparisonPreset = (presetId: string) => {
+        const trimmed = String(editingPresetName || '').trim();
+        if (!trimmed) return;
+
+        setTeamComparisonPresets((previous) => previous.map((preset) => (
+            preset.id === presetId
+                ? { ...preset, name: trimmed }
+                : preset
+        )));
+
+        trackUIViewMetric('control_change', 'dashboard', viewMetricSessionRef.current, {
+            control: 'comparison_preset_rename',
+            presetId,
+            nextName: trimmed,
+            audienceView,
+            viewMode: dashboardViewMode,
+        });
+
+        setEditingPresetId(null);
+        setEditingPresetName('');
+    };
+
+    const cancelEditingTeamComparisonPreset = () => {
+        setEditingPresetId(null);
+        setEditingPresetName('');
+    };
+
+    const handleExportTeamComparisonPresetsCsv = () => {
+        if (teamComparisonPresets.length === 0) return;
+
+        const escapeCsv = (value: unknown): string => {
+            const str = String(value ?? '');
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        };
+
+        const rows: string[][] = [
+            ['id', 'name', 'trade', 'teams', 'teamCount', 'pinned', 'lastUsedAt', 'createdAt'],
+        ];
+
+        teamComparisonPresets.forEach((preset) => {
+            rows.push([
+                preset.id,
+                preset.name,
+                preset.trade,
+                preset.teams.join(' | '),
+                String(preset.teams.length),
+                preset.pinned ? 'YES' : 'NO',
+                preset.lastUsedAt ? new Date(preset.lastUsedAt).toISOString() : '',
+                new Date(preset.createdAt).toISOString(),
+            ]);
+        });
+
+        const bom = '\uFEFF';
+        const csv = rows.map((row) => row.map(escapeCsv).join(',')).join('\n');
+        downloadDashboardTextFile(
+            `PSI_Dashboard_TeamComparisonPresets_${new Date().toISOString().slice(0, 10)}.csv`,
+            bom + csv,
+            'text/csv;charset=utf-8;'
+        );
+
+        trackUIViewMetric('cta_click', 'dashboard', viewMetricSessionRef.current, {
+            actionKey: 'comparison_preset_export_csv',
+            presetCount: teamComparisonPresets.length,
+            audienceView,
+            viewMode: dashboardViewMode,
         });
     };
 
@@ -2067,133 +2432,331 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             </div>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <p className="text-[11px] text-slate-500 dark:text-slate-300">{comparisonSectionMeta.teamSortDescription}</p>
-                            <div className="flex flex-wrap gap-2">
-                                {[
-                                    { key: 'score-asc', label: '취약팀순' },
-                                    { key: 'score-desc', label: '우수팀순' },
-                                    { key: 'risk-desc', label: '고위험순' },
-                                    { key: 'workers-desc', label: '인원순' },
-                                ].map(option => (
-                                    <button
-                                        key={option.key}
-                                        type="button"
-                                        onClick={() => setTeamComparisonSort(option.key as 'score-asc' | 'score-desc' | 'risk-desc' | 'workers-desc')}
-                                        className={`px-3 py-2 rounded-xl border text-xs font-bold transition-colors ${
-                                            teamComparisonSort === option.key
-                                                ? 'border-slate-900 bg-slate-900 text-white'
-                                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
-                                        }`}
-                                    >
-                                        {option.label}
-                                    </button>
-                                ))}
+                        <div className="rounded-2xl border border-indigo-100 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/20 p-3 sm:p-4">
+                            <p className="text-[11px] font-black text-indigo-700 dark:text-indigo-200">핵심 비교 요약</p>
+                            <div className="mt-2 space-y-1.5 text-[11px] text-indigo-800 dark:text-indigo-100">
+                                <p>1) {comparisonSummaryLines.scope}</p>
+                                <p>2) {comparisonSummaryLines.priority}</p>
+                                <p>3) {comparisonSummaryLines.benchmark}</p>
                             </div>
                         </div>
 
-                        <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-3 sm:p-4">
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 sm:p-4 space-y-3">
                             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
                                 <div>
-                                    <p className="text-xs font-black text-indigo-700">직접 팀 선택 비교</p>
-                                    <p className="text-[11px] text-indigo-600 mt-1">비교할 팀을 2개, 3개 또는 그 이상 직접 선택하세요. 선택한 팀만 아래에 남겨 비교합니다.</p>
+                                    <p className="text-xs font-black text-slate-700 dark:text-slate-100">팀 비교 프리셋</p>
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-300 mt-1">자주 보는 팀 조합을 저장해 평가 재현성과 실무 속도를 함께 높입니다. (상단 고정 최대 3개)</p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-indigo-700 rounded-lg text-xs font-black border border-indigo-200">
-                                        선택 팀 {selectedTeamsForComparison.length}개
-                                    </span>
                                     <button
                                         type="button"
-                                        onClick={() => setSelectedTeamsForComparison([])}
-                                        className="px-3 py-1.5 rounded-lg bg-white text-slate-700 text-xs font-bold border border-slate-200 hover:bg-slate-50 transition-colors"
+                                        onClick={() => {
+                                            setIsComparisonAdvancedOpen((previous) => {
+                                                const next = !previous;
+                                                trackUIViewMetric('control_change', 'dashboard', viewMetricSessionRef.current, {
+                                                    control: 'comparison_advanced_toggle',
+                                                    isOpen: next,
+                                                    audienceView,
+                                                    viewMode: dashboardViewMode,
+                                                });
+                                                return next;
+                                            });
+                                        }}
+                                        className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                                     >
-                                        팀 선택 초기화
+                                        {isComparisonAdvancedOpen ? '고급 옵션 닫기' : '고급 옵션 열기'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={saveCurrentTeamComparisonPreset}
+                                        disabled={!selectedTradeForComparison || selectedTeamsForComparison.length < 2}
+                                        className="px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-bold enabled:hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        현재 팀 조합 저장
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleExportTeamComparisonPresetsCsv}
+                                        disabled={teamComparisonPresets.length === 0}
+                                        className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs font-bold enabled:hover:bg-slate-50 dark:enabled:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                    >
+                                        프리셋 CSV 내보내기
                                     </button>
                                 </div>
                             </div>
-                            <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-200">
-                                <div className="rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-800 px-3 py-2">1) 먼저 공종을 선택합니다.</div>
-                                <div className="rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-800 px-3 py-2">2) 비교할 팀을 2개 이상 고릅니다.</div>
-                                <div className="rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-800 px-3 py-2">3) 아래 카드에서 점수·위험·인원을 바로 비교합니다.</div>
+
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                <input
+                                    value={presetNameDraft}
+                                    onChange={(event) => setPresetNameDraft(event.target.value)}
+                                    placeholder="예: 타설 핵심 3팀"
+                                    className="w-full sm:max-w-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-100 placeholder:text-slate-400"
+                                />
+                                <p className="text-[11px] text-slate-500 dark:text-slate-300">프리셋 저장 시 이 이름이 사용됩니다.</p>
                             </div>
-                            {selectedTeamsForComparison.length > 0 && (
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                    {selectedTeamsForComparison.map((teamName) => (
-                                        <button
-                                            key={teamName}
-                                            type="button"
-                                            onClick={() => toggleTeamComparisonSelection(teamName)}
-                                            className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-[11px] font-black text-indigo-700"
-                                        >
-                                            {teamName}
-                                            <span className="text-indigo-400">✕</span>
-                                        </button>
+
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => handlePresetScopeChange('current-trade')}
+                                        disabled={!selectedTradeForComparison}
+                                        className={`px-3 py-1.5 rounded-lg border text-[11px] font-black transition-colors ${
+                                            presetScope === 'current-trade'
+                                                ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-200'
+                                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                    >
+                                        현재 공종
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handlePresetScopeChange('all-trades')}
+                                        className={`px-3 py-1.5 rounded-lg border text-[11px] font-black transition-colors ${
+                                            presetScope === 'all-trades'
+                                                ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-200'
+                                        }`}
+                                    >
+                                        전체 공종
+                                    </button>
+                                </div>
+                                <input
+                                    value={presetSearchQuery}
+                                    onChange={(event) => setPresetSearchQuery(event.target.value)}
+                                    placeholder="프리셋/공종 검색"
+                                    className="w-full sm:max-w-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-100 placeholder:text-slate-400"
+                                />
+                            </div>
+                            {presetPinLimitNotice && (
+                                <p className="text-[11px] font-bold text-amber-700 dark:text-amber-300">{presetPinLimitNotice}</p>
+                            )}
+
+                            {pinnedQuickPresets.length > 0 && (
+                                <div className="rounded-xl border border-indigo-100 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/20 px-2.5 py-2">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-700 dark:text-indigo-200">고정 프리셋 빠른 실행</p>
+                                    <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                                        {pinnedQuickPresets.map((preset) => (
+                                            <button
+                                                key={`quick-${preset.id}`}
+                                                type="button"
+                                                onClick={() => applyTeamComparisonPreset(preset, 'pinned_lane')}
+                                                className="shrink-0 rounded-xl border border-indigo-200 dark:border-indigo-700 bg-white dark:bg-slate-900 px-3 py-2 text-left min-w-[156px]"
+                                            >
+                                                <p className="text-[11px] font-black text-indigo-700 dark:text-indigo-200 truncate">📌 {preset.name}</p>
+                                                <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-300">{preset.trade} · {formatPresetUsedAt(preset.lastUsedAt)}</p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {applicableComparisonPresets.length > 0 ? (
+                                <div className="flex flex-wrap gap-2">
+                                    {applicableComparisonPresets.map((preset) => (
+                                        <div key={preset.id} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2 py-1.5">
+                                            {editingPresetId === preset.id ? (
+                                                <div className="flex items-center gap-1.5">
+                                                    <input
+                                                        value={editingPresetName}
+                                                        onChange={(event) => setEditingPresetName(event.target.value)}
+                                                        className="w-36 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-[11px] font-semibold text-slate-700 dark:text-slate-100"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => commitEditingTeamComparisonPreset(preset.id)}
+                                                        disabled={String(editingPresetName || '').trim().length === 0}
+                                                        className="rounded-lg border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-black text-indigo-700 enabled:hover:bg-indigo-100 disabled:opacity-50"
+                                                    >
+                                                        저장
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={cancelEditingTeamComparisonPreset}
+                                                        className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-black text-slate-600 hover:bg-slate-50"
+                                                    >
+                                                        취소
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => applyTeamComparisonPreset(preset, 'preset_list')}
+                                                    className="text-left"
+                                                >
+                                                    <p className="text-[11px] font-black text-slate-700 dark:text-slate-100 hover:text-indigo-600 dark:hover:text-indigo-300 transition-colors">
+                                                        {preset.pinned ? '📌 ' : ''}{preset.name}
+                                                    </p>
+                                                    {presetScope === 'all-trades' && (
+                                                        <p className="text-[10px] font-semibold text-slate-500">{preset.trade}</p>
+                                                    )}
+                                                    <p className="text-[10px] font-semibold text-slate-400">{formatPresetUsedAt(preset.lastUsedAt)}</p>
+                                                </button>
+                                            )}
+                                            {editingPresetId !== preset.id && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleToggleTeamComparisonPresetPin(preset.id)}
+                                                    className={`text-[11px] font-black transition-colors ${preset.pinned ? 'text-indigo-600 hover:text-indigo-700' : 'text-slate-400 hover:text-indigo-500'}`}
+                                                >
+                                                    {preset.pinned ? '고정해제' : '고정'}
+                                                </button>
+                                            )}
+                                            {editingPresetId !== preset.id && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => startEditingTeamComparisonPreset(preset)}
+                                                    className="text-[11px] font-black text-slate-400 hover:text-indigo-500 transition-colors"
+                                                >
+                                                    수정
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => removeTeamComparisonPreset(preset.id)}
+                                                className="text-[11px] font-black text-slate-400 hover:text-rose-500 transition-colors"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
                                     ))}
                                 </div>
-                            )}
-                            {selectedTeamsForComparison.length === 1 && (
-                                <p className="mt-3 text-[11px] font-bold text-amber-700">비교를 명확히 하려면 팀을 1개 더 선택하세요.</p>
+                            ) : (
+                                <p className="text-[11px] text-slate-500 dark:text-slate-300">조건에 맞는 프리셋이 없습니다. 팀 2개 이상 선택 후 저장하거나 검색/공종 범위를 조정해 보세요.</p>
                             )}
                         </div>
 
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                            <p className="text-[11px] text-slate-500 dark:text-slate-300">복잡하면 핵심 팀만 빠르게 보세요.</p>
-                            <div className="flex flex-wrap gap-2">
-                                {[
-                                    { key: 'all', label: '전체 팀' },
-                                    { key: 'top3', label: '상위 3팀' },
-                                    { key: 'risk-only', label: '위험팀만' },
-                                ].map(option => (
-                                    <button
-                                        key={option.key}
-                                        type="button"
-                                        onClick={() => setTeamViewFilter(option.key as 'all' | 'top3' | 'risk-only')}
-                                        className={`px-3 py-2 rounded-xl border text-xs font-bold transition-colors ${
-                                            teamViewFilter === option.key
-                                                ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-                                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
-                                        }`}
-                                    >
-                                        {option.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 sm:p-4">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                <div>
-                                    <p className="text-xs font-black text-slate-700 dark:text-slate-100">상세 분석 기준</p>
-                                    <p className="text-[11px] text-slate-500 dark:text-slate-300 mt-1">{comparisonSectionMeta.detailModeDescription}</p>
+                        {isComparisonAdvancedOpen && (
+                            <>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-300">{comparisonSectionMeta.teamSortDescription}</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {[
+                                            { key: 'score-asc', label: '취약팀순' },
+                                            { key: 'score-desc', label: '우수팀순' },
+                                            { key: 'risk-desc', label: '고위험순' },
+                                            { key: 'workers-desc', label: '인원순' },
+                                        ].map(option => (
+                                            <button
+                                                key={option.key}
+                                                type="button"
+                                                onClick={() => setTeamComparisonSort(option.key as 'score-asc' | 'score-desc' | 'risk-desc' | 'workers-desc')}
+                                                className={`px-3 py-2 rounded-xl border text-xs font-bold transition-colors ${
+                                                    teamComparisonSort === option.key
+                                                        ? 'border-slate-900 bg-slate-900 text-white'
+                                                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                }`}
+                                            >
+                                                {option.label}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setDetailViewMode('integrated')}
-                                        className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
-                                            detailViewMode === 'integrated'
-                                                ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-                                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
-                                        }`}
-                                    >
-                                        팀 통합 기준
-                                    </button>
-                                    {hasNationalityDetail && selectedTarget && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setDetailViewMode('nationality')}
-                                            className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
-                                                detailViewMode === 'nationality'
-                                                    ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
-                                                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
-                                            }`}
-                                        >
-                                            {selectedTarget.nationality} 세부 기준
-                                        </button>
+
+                                <div className="rounded-2xl border border-indigo-100 bg-indigo-50 p-3 sm:p-4">
+                                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                                        <div>
+                                            <p className="text-xs font-black text-indigo-700">직접 팀 선택 비교</p>
+                                            <p className="text-[11px] text-indigo-600 mt-1">비교할 팀을 2개, 3개 또는 그 이상 직접 선택하세요. 선택한 팀만 아래에 남겨 비교합니다.</p>
+                                        </div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-indigo-700 rounded-lg text-xs font-black border border-indigo-200">
+                                                선택 팀 {selectedTeamsForComparison.length}개
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedTeamsForComparison([])}
+                                                className="px-3 py-1.5 rounded-lg bg-white text-slate-700 text-xs font-bold border border-slate-200 hover:bg-slate-50 transition-colors"
+                                            >
+                                                팀 선택 초기화
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-2 text-[11px] font-bold text-slate-600 dark:text-slate-200">
+                                        <div className="rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-800 px-3 py-2">1) 먼저 공종을 선택합니다.</div>
+                                        <div className="rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-800 px-3 py-2">2) 비교할 팀을 2개 이상 고릅니다.</div>
+                                        <div className="rounded-xl bg-white dark:bg-slate-900 border border-indigo-100 dark:border-indigo-800 px-3 py-2">3) 아래 카드에서 점수·위험·인원을 바로 비교합니다.</div>
+                                    </div>
+                                    {selectedTeamsForComparison.length > 0 && (
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                            {selectedTeamsForComparison.map((teamName) => (
+                                                <button
+                                                    key={teamName}
+                                                    type="button"
+                                                    onClick={() => toggleTeamComparisonSelection(teamName)}
+                                                    className="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-[11px] font-black text-indigo-700"
+                                                >
+                                                    {teamName}
+                                                    <span className="text-indigo-400">✕</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                    {selectedTeamsForComparison.length === 1 && (
+                                        <p className="mt-3 text-[11px] font-bold text-amber-700">비교를 명확히 하려면 팀을 1개 더 선택하세요.</p>
                                     )}
                                 </div>
-                            </div>
-                        </div>
+
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-300">복잡하면 핵심 팀만 빠르게 보세요.</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {[
+                                            { key: 'all', label: '전체 팀' },
+                                            { key: 'top3', label: '상위 3팀' },
+                                            { key: 'risk-only', label: '위험팀만' },
+                                        ].map(option => (
+                                            <button
+                                                key={option.key}
+                                                type="button"
+                                                onClick={() => setTeamViewFilter(option.key as 'all' | 'top3' | 'risk-only')}
+                                                className={`px-3 py-2 rounded-xl border text-xs font-bold transition-colors ${
+                                                    teamViewFilter === option.key
+                                                        ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                }`}
+                                            >
+                                                {option.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 sm:p-4">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-xs font-black text-slate-700 dark:text-slate-100">상세 분석 기준</p>
+                                            <p className="text-[11px] text-slate-500 dark:text-slate-300 mt-1">{comparisonSectionMeta.detailModeDescription}</p>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setDetailViewMode('integrated')}
+                                                className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                                                    detailViewMode === 'integrated'
+                                                        ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                }`}
+                                            >
+                                                팀 통합 기준
+                                            </button>
+                                            {hasNationalityDetail && selectedTarget && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDetailViewMode('nationality')}
+                                                    className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors ${
+                                                        detailViewMode === 'nationality'
+                                                            ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                    }`}
+                                                >
+                                                    {selectedTarget.nationality} 세부 기준
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </>
+                        )}
 
                         {weakestTeam && strongestTeam && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
