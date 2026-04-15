@@ -3100,9 +3100,48 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
                         <div className="space-y-3">
                             {selectedTeamsForComparison.length < 2 && (
-                                <div className="rounded-2xl border border-dashed border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 p-6 text-center">
-                                    <p className="text-sm font-bold text-indigo-600 dark:text-indigo-300">팀 2~3개를 먼저 선택하세요.</p>
-                                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">메인 비교는 선택한 팀만 같은 축으로 보여 줍니다.</p>
+                                <div className="rounded-2xl border border-dashed border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 p-6">
+                                    <p className="text-sm font-bold text-indigo-600 dark:text-indigo-300 text-center">팀 2~3개를 먼저 선택하세요.</p>
+                                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 text-center">메인 비교는 선택한 팀만 같은 축으로 보여 줍니다.</p>
+                                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                                        {visibleTeamComparison.map((team) => {
+                                            const isSelectedForComparison = selectedTeamsForComparison.includes(team.team);
+                                            const priorityBadge = getSelectedTeamPriorityBadge(team.team);
+                                            const isSelectionLocked = !isSelectedForComparison && selectedTeamsForComparison.length >= TEAM_COMPARISON_MAX_SELECTION;
+                                            return (
+                                                <button
+                                                    key={`team-add-${team.team}`}
+                                                    type="button"
+                                                    onClick={() => toggleTeamComparisonSelection(team.team)}
+                                                    disabled={isSelectionLocked}
+                                                    className={`rounded-xl border p-3 text-left transition-colors ${
+                                                        isSelectedForComparison
+                                                            ? 'border-indigo-300 bg-indigo-50 text-slate-700'
+                                                            : isSelectionLocked
+                                                                ? 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                                                                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-center gap-1.5">
+                                                                {priorityBadge && (
+                                                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${priorityBadge.className}`}>
+                                                                        {priorityBadge.label}
+                                                                    </span>
+                                                                )}
+                                                                <p className="text-xs font-black truncate">{team.team}</p>
+                                                            </div>
+                                                            <p className="mt-1 text-[10px] font-bold opacity-70">{team.workerCount}명 · {team.avgScore.toFixed(1)}점</p>
+                                                        </div>
+                                                        <div className="text-lg">
+                                                            {isSelectedForComparison ? '➖' : isSelectionLocked ? '⛔' : '➕'}
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             )}
                             {comparedTeamRows.map((team) => {
