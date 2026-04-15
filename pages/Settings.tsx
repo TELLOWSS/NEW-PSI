@@ -337,6 +337,31 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(() => (typeof window !== 'undefined' ? window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false : false));
     const [uiViewMetrics, setUIViewMetrics] = useState<UIViewMetricRecord[]>([]);
 
+    const envFreeApiKey = useMemo(() => String(import.meta.env.VITE_GEMINI_API_KEY_FREE || '').trim(), []);
+    const envPaidApiKey = useMemo(() => String(import.meta.env.VITE_GEMINI_API_KEY_PAID || '').trim(), []);
+
+    const activeApiKeyStatus = useMemo(() => {
+        const localFree = String(freeApiKey || '').trim();
+        const localPaid = String(paidApiKey || '').trim();
+
+        if (isPaidApiMode) {
+            if (localPaid) return { hasKey: true, source: 'local' as const, modeLabel: '유료' };
+            if (envPaidApiKey) return { hasKey: true, source: 'env' as const, modeLabel: '유료' };
+            return { hasKey: false, source: 'none' as const, modeLabel: '유료' };
+        }
+
+        if (localFree) return { hasKey: true, source: 'local' as const, modeLabel: '무료' };
+        if (envFreeApiKey) return { hasKey: true, source: 'env' as const, modeLabel: '무료' };
+        return { hasKey: false, source: 'none' as const, modeLabel: '무료' };
+    }, [envFreeApiKey, envPaidApiKey, freeApiKey, isPaidApiMode, paidApiKey]);
+
+    const activeApiKeySourceLabel = useMemo(() => {
+        if (!activeApiKeyStatus.hasKey) return '미설정';
+        if (activeApiKeyStatus.source === 'local') return '설정 화면(브라우저 저장)';
+        if (activeApiKeyStatus.source === 'env') return '환경변수(.env)';
+        return '미설정';
+    }, [activeApiKeyStatus]);
+
     const harnessSourceRecords = useMemo(() => workerRecords.filter((record) => !isManagementRole(record.jobField)), [workerRecords]);
     const harnessSummary = useMemo(() => summarizeHarnessRecords(harnessSourceRecords), [harnessSourceRecords]);
     const harnessCandidates = useMemo(() => {
@@ -692,8 +717,10 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         {
             key: 'api-status',
             eyebrow: '지금 상태',
-            title: isPaidApiMode ? '대규모 고속 처리 모드가 준비되어 있습니다.' : '기본 무료 API 모드로 운영 중입니다.',
-            description: `${freeApiKey ? '무료 API 키가 입력됨' : '무료 API 키 미입력'} · ${paidApiKey ? '유료 API 키가 입력됨' : '유료 API 키 미입력'} 상태입니다.`,
+            title: activeApiKeyStatus.hasKey
+                ? `${activeApiKeyStatus.modeLabel} API 모드 실행 키가 준비되어 있습니다.`
+                : `${activeApiKeyStatus.modeLabel} API 모드 실행 키가 비어 있습니다.`,
+            description: `${freeApiKey ? '무료 로컬 키 입력됨' : '무료 로컬 키 미입력'} · ${paidApiKey ? '유료 로컬 키 입력됨' : '유료 로컬 키 미입력'} · 현재 모드 실행 키 출처: ${activeApiKeySourceLabel}`,
             tone: isPaidApiMode ? 'border-rose-200 bg-rose-50/80' : 'border-slate-200 bg-slate-50',
         },
         {
@@ -706,11 +733,11 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         {
             key: 'api-action',
             eyebrow: '다음 행동',
-            title: freeApiKey || paidApiKey ? '운영 모드에 맞는 키를 유지하세요.' : '먼저 사용할 API 키를 입력하세요.',
+            title: activeApiKeyStatus.hasKey ? '운영 모드에 맞는 실행 키를 유지하세요.' : '현재 모드의 실행 키를 먼저 설정하세요.',
             description: '현장 규모와 처리량에 맞춰 무료/유료 모드를 선택하면 이후 OCR, 리포트, 대량 분석 흐름이 안정적으로 이어집니다.',
-            tone: freeApiKey || paidApiKey ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80',
+            tone: activeApiKeyStatus.hasKey ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80',
         },
-    ], [freeApiKey, isPaidApiMode, paidApiKey]);
+    ], [activeApiKeySourceLabel, activeApiKeyStatus, freeApiKey, isPaidApiMode, paidApiKey]);
 
     const policyInterpretationCards: InterpretationCardItem[] = useMemo(() => [
         {
@@ -1567,6 +1594,9 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                         <span className={`text-xs font-black px-3 py-1 rounded-full ${isPaidApiMode ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
                             {isPaidApiMode ? '현재: 유료 API' : '현재: 무료 API'}
                         </span>
+                    </div>
+                    <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-semibold ${activeApiKeyStatus.hasKey ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800' : 'border-amber-200 bg-amber-50/80 text-amber-800'}`}>
+                        현재 모드 실행 키: {activeApiKeyStatus.hasKey ? '준비됨' : '미설정'} · 출처: {activeApiKeySourceLabel}
                     </div>
                 </div>
 

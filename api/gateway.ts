@@ -89,6 +89,8 @@ const resolveGeminiApiKey = () => {
         process.env.GEMINI_API_KEY ||
         process.env.GOOGLE_GEMINI_API_KEY ||
         process.env.GOOGLE_API_KEY ||
+        process.env.VITE_GEMINI_API_KEY_PAID ||
+        process.env.VITE_GEMINI_API_KEY_FREE ||
         ''
     ).trim();
 };

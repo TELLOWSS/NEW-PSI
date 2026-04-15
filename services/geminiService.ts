@@ -35,9 +35,15 @@ type BestPracticeCase = {
 
 const getActiveApiKey = (): string => {
     const isPaidApiMode = getIsPaidApiMode();
-    return isPaidApiMode
+    const localKey = isPaidApiMode
         ? (localStorage.getItem('paidApiKey') || '')
         : (localStorage.getItem('freeApiKey') || '');
+
+    const envKey = isPaidApiMode
+        ? (import.meta.env.VITE_GEMINI_API_KEY_PAID || '')
+        : (import.meta.env.VITE_GEMINI_API_KEY_FREE || '');
+
+    return String(localKey || envKey || '').trim();
 };
 
     const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
@@ -111,7 +117,7 @@ const getAiInstance = () => {
     const apiKey = getActiveApiKey();
 
     if (!apiKey) {
-        throw new Error('설정 화면에서 API 키를 먼저 입력해주세요.');
+        throw new Error('설정 화면 또는 환경변수에서 API 키를 먼저 설정해주세요.');
     }
 
     return new GoogleGenAI({ apiKey });

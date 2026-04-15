@@ -2361,20 +2361,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const runBatchAnalysis = async (targetRecords: WorkerRecord[], title: string, forceReanalyze: boolean = false) => {
         const total = targetRecords.length;
         if (total === 0) return alert('재분석할 대상이 없습니다.');
-        
-        // [Quota State Check] Verify API quota status before batch processing
+
+        // 서버 재분석이 1차 경로이므로 브라우저 quota 상태만으로 전체 재분석을 선차단하지 않는다.
         const quotaState = getQuotaState();
-        if (quotaState.isExhausted) {
-            const recoveryTime = Math.ceil((quotaState.nextRetryTime - Date.now()) / 1000);
-            if (recoveryTime > 0) {
-                const forceRetry = confirm(`⚠️ API 할당량 대기 상태입니다.\n예상 복구: 약 ${recoveryTime}초 후\n\n지금 즉시 다시 확인(대기상태 해제) 하시겠습니까?\n※ 즉시 다시 확인 시 429가 다시 발생할 수 있습니다.`);
-                if (!forceRetry) {
-                    alert(`복구 대기 중입니다.\n${new Date(quotaState.nextRetryTime).toLocaleTimeString()} 이후 다시 확인을 권장합니다.`);
-                    return;
-                }
-                clearQuotaState();
-            }
-        }
+        const quotaRecoveryTime = quotaState.isExhausted
+            ? Math.ceil((quotaState.nextRetryTime - Date.now()) / 1000)
+            : 0;
         
         if (forceReanalyze) {
             console.log(`[강제 재분석] Preflight 검증 스킵, 직접 API 호출 모드`);
@@ -2597,7 +2589,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     while (retryCount < MAX_RETRIES) {
                         try {
                             const modeLabel = forceReanalyze ? '[강제 모드]' : '';
-                            setProgress(`${modeLabel} [${title}] ${record.name || '미상'} 서버 OCR 재분석 요청 중...`);
+                            const quotaHint = quotaRecoveryTime > 0
+                                ? ` (브라우저 폴백 대기 ${quotaRecoveryTime}초)`
+                                : '';
+                            setProgress(`${modeLabel} [${title}] ${record.name || '미상'} 서버 OCR 재분석 요청 중...${quotaHint}`);
 
                             try {
                                 apiResult = await requestServerRetryAnalysis(record);
@@ -2613,6 +2608,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     normalizedServerMessage.includes('bad gateway') ||
                                     normalizedServerMessage.includes('service unavailable') ||
                                     normalizedServerMessage.includes('internal server error') ||
+                                    normalizedServerMessage.includes('서버 gemini api 키가 설정되지 않았습니다') ||
+                                    normalizedServerMessage.includes('gemini_api_key') ||
                                     serverMessage.includes('404') ||
                                     serverMessage.includes('500') ||
                                     serverMessage.includes('502') ||
@@ -2627,6 +2624,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                                 const modeLabel = forceReanalyze ? '[강제 모드]' : '';
                                 setProgress(`${modeLabel} [${title}] ${record.name || '미상'} 브라우저 OCR 폴백 실행 중...`);
+                                const fallbackQuotaState = getQuotaState();
+                                const fallbackRecoverySeconds = fallbackQuotaState.isExhausted
+                                    ? Math.ceil((fallbackQuotaState.nextRetryTime - Date.now()) / 1000)
+                                    : 0;
+                                if (fallbackRecoverySeconds > 0) {
+                                    throw new Error(`브라우저 OCR 할당량 회복 대기 중입니다. 약 ${fallbackRecoverySeconds}초 후 재시도해주세요.`);
+                                }
                                 const fallbackImageSource = retryImageSource || cleanImage;
                                 if (!fallbackImageSource) {
                                     throw new Error('재분석 가능한 이미지 데이터가 없습니다.');

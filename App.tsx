@@ -14,22 +14,59 @@ import { getSafetyLevelThresholds } from './utils/safetyLevelUtils';
 import { appendBestPracticeSyncFailureLog, setBestPracticeSyncState } from './utils/bestPracticeSyncStatus';
 import { analyzeWorkerRiskAssessment } from './services/geminiService';
 
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const OcrAnalysis = lazy(() => import('./pages/OcrAnalysis'));
-const WorkerManagement = lazy(() => import('./pages/WorkerManagement'));
-const PredictiveAnalysis = lazy(() => import('./pages/PredictiveAnalysis'));
-const SafetyChecks = lazy(() => import('./pages/SafetyChecks'));
-const PerformanceAnalysis = lazy(() => import('./pages/PerformanceAnalysis'));
-const SiteIssueManagement = lazy(() => import('./pages/SiteIssueManagement'));
-const Reports = lazy(() => import('./pages/Reports'));
-const Feedback = lazy(() => import('./pages/Feedback'));
-const Introduction = lazy(() => import('./pages/Introduction'));
-const IndividualReport = lazy(() => import('./pages/IndividualReport'));
-const Settings = lazy(() => import('./pages/Settings'));
-const AdminTraining = lazy(() => import('./pages/AdminTraining'));
-const WorkerTraining = lazy(() => import('./pages/WorkerTraining'));
-const SafetyBehaviorManagement = lazy(() => import('./pages/SafetyBehaviorManagement'));
-const FieldSafetyComplianceHub = lazy(() => import('./pages/FieldSafetyComplianceHub'));
+const DYNAMIC_IMPORT_RELOAD_KEY = 'psi_dynamic_import_reload_once';
+
+const isDynamicImportFetchError = (message: string): boolean => {
+    const normalized = message.toLowerCase();
+    return normalized.includes('failed to fetch dynamically imported module')
+        || normalized.includes('importing a module script failed')
+        || normalized.includes('dynamically imported module')
+        || normalized.includes('chunkloaderror')
+        || normalized.includes('loading chunk')
+        || normalized.includes('fetch dynamically imported');
+};
+
+const lazyWithRecovery = <T extends { default: React.ComponentType<any> }>(
+    moduleId: string,
+    importer: () => Promise<T>,
+) => lazy(async () => {
+    try {
+        const loaded = await importer();
+        if (typeof window !== 'undefined') {
+            sessionStorage.removeItem(`${DYNAMIC_IMPORT_RELOAD_KEY}:${moduleId}`);
+        }
+        return loaded;
+    } catch (error: unknown) {
+        const message = extractMessage(error);
+        if (typeof window !== 'undefined' && isDynamicImportFetchError(message)) {
+            const retryKey = `${DYNAMIC_IMPORT_RELOAD_KEY}:${moduleId}`;
+            const hasRetried = sessionStorage.getItem(retryKey) === '1';
+            if (!hasRetried) {
+                sessionStorage.setItem(retryKey, '1');
+                window.location.reload();
+            }
+            throw new Error(`동적 모듈 로딩 실패(자동 복구 시도됨): ${message}`);
+        }
+        throw error instanceof Error ? error : new Error(message);
+    }
+});
+
+const Dashboard = lazyWithRecovery('Dashboard', () => import('./pages/Dashboard'));
+const OcrAnalysis = lazyWithRecovery('OcrAnalysis', () => import('./pages/OcrAnalysis'));
+const WorkerManagement = lazyWithRecovery('WorkerManagement', () => import('./pages/WorkerManagement'));
+const PredictiveAnalysis = lazyWithRecovery('PredictiveAnalysis', () => import('./pages/PredictiveAnalysis'));
+const SafetyChecks = lazyWithRecovery('SafetyChecks', () => import('./pages/SafetyChecks'));
+const PerformanceAnalysis = lazyWithRecovery('PerformanceAnalysis', () => import('./pages/PerformanceAnalysis'));
+const SiteIssueManagement = lazyWithRecovery('SiteIssueManagement', () => import('./pages/SiteIssueManagement'));
+const Reports = lazyWithRecovery('Reports', () => import('./pages/Reports'));
+const Feedback = lazyWithRecovery('Feedback', () => import('./pages/Feedback'));
+const Introduction = lazyWithRecovery('Introduction', () => import('./pages/Introduction'));
+const IndividualReport = lazyWithRecovery('IndividualReport', () => import('./pages/IndividualReport'));
+const Settings = lazyWithRecovery('Settings', () => import('./pages/Settings'));
+const AdminTraining = lazyWithRecovery('AdminTraining', () => import('./pages/AdminTraining'));
+const WorkerTraining = lazyWithRecovery('WorkerTraining', () => import('./pages/WorkerTraining'));
+const SafetyBehaviorManagement = lazyWithRecovery('SafetyBehaviorManagement', () => import('./pages/SafetyBehaviorManagement'));
+const FieldSafetyComplianceHub = lazyWithRecovery('FieldSafetyComplianceHub', () => import('./pages/FieldSafetyComplianceHub'));
 
 const IDB_NAME = 'PSI_Enterprise_V4';
 const IDB_VERSION = 1;
@@ -81,6 +118,11 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
                             처리 중 예상치 못한 문제가 발생했습니다.<br/>
                             데이터는 안전하게 보존되어 있으니 안심하세요.
                         </p>
+                        {isDynamicImportFetchError(String(this.state.error?.message || '')) ? (
+                            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-xs font-semibold text-amber-800">
+                                배포 직후 파일 해시가 바뀌면서 이전 청크를 참조한 경우입니다. 캐시 새로고침 후 다시 시도해 주세요.
+                            </div>
+                        ) : null}
                         
                         <div className="bg-slate-100 p-3 sm:p-4 rounded-lg sm:rounded-xl text-left mb-4 sm:mb-6 overflow-auto max-h-32 sm:max-h-40 text-[10px] sm:text-xs font-mono text-slate-600 border border-slate-200">
                             <strong>Error:</strong> {this.state.error?.toString()}
