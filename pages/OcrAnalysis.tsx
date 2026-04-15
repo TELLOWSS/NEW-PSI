@@ -5081,7 +5081,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
                                 const rowGuideSummary = rowErrorType ? getOcrErrorGuideSummary(rowErrorType) : '';
                                 const rowGuideMobile = rowErrorType ? getOcrErrorMobileLabel(rowErrorType) : '';
-                                const preflightReason = failed ? getPreflightFailureReason(r) : null;
                                 const reviewTrustState = getReviewTrustState(r);
                                 const rowStatusSummary = failed
                                     ? `${getOcrErrorTypeKoreanLabel(rowErrorType || 'UNKNOWN')} 신호가 남아 있습니다.`
