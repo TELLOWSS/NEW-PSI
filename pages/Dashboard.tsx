@@ -341,6 +341,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const [presetNameDraft, setPresetNameDraft] = useState<string>('');
     const [presetSearchQuery, setPresetSearchQuery] = useState<string>('');
     const [presetScope, setPresetScope] = useState<'current-trade' | 'all-trades'>('current-trade');
+    const [presetPinLimitNotice, setPresetPinLimitNotice] = useState<string | null>(null);
     const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
     const [editingPresetName, setEditingPresetName] = useState<string>('');
     const [audienceView, setAudienceView] = useState<DashboardAudience>('manager');
