@@ -2002,6 +2002,59 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 </div>
             </div>
 
+            {!isEssentialMode && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+                <div className={`lg:col-span-2 ${audienceView === 'executive' ? 'lg:order-2' : 'lg:order-1'}`}>
+                    <div className="h-full rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+                        <SafetyActionCenter workerRecords={workerOnlyRecords} />
+                    </div>
+                </div>
+                <div className={`bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 dark:border-slate-700 flex flex-col ${audienceView === 'executive' ? 'lg:order-1' : 'lg:order-2'}`}>
+                    <h3 className="text-base sm:text-lg font-bold mb-4 sm:mb-6 text-slate-800 dark:text-slate-100">국적별 근로자 현황</h3>
+                    <div className="flex-1 min-h-[200px]">
+                        <DeferredSection fallback={<ChartSkeleton minHeight="200px" />} rootMargin="160px">
+                            <Suspense fallback={<ChartSkeleton minHeight="200px" />}>
+                                <NationalityChart records={workerOnlyRecords} />
+                            </Suspense>
+                        </DeferredSection>
+                    </div>
+                </div>
+            </div>
+            )}
+
+            {!isEssentialMode && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
+                <div className={`bg-white dark:bg-slate-800 p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 dark:border-slate-700 ${audienceView === 'executive' ? 'md:order-2' : 'md:order-1'}`}>
+                    <div className="flex items-center justify-between mb-4 sm:mb-6">
+                        <h3 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100">근로자 주요 취약 분야</h3>
+                         <Tooltip text="관리 직군을 제외한 실무 근로자 데이터에서 추출된 주요 취약점입니다.">
+                            <div className="flex items-center text-xs sm:text-sm text-slate-400 dark:text-slate-300 cursor-pointer hover:text-slate-600 dark:hover:text-slate-100 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+                                <span className="hidden sm:inline">데이터 안내</span>
+                            </div>
+                        </Tooltip>
+                    </div>
+                    <div className="h-auto min-h-[15rem]">
+                        <DeferredSection fallback={<ChartSkeleton minHeight="15rem" />} rootMargin="160px">
+                            <Suspense fallback={<ChartSkeleton minHeight="15rem" />}>
+                                <TopWeaknessesChart records={workerOnlyRecords} />
+                            </Suspense>
+                        </DeferredSection>
+                    </div>
+                </div>
+                      <div className={`bg-white dark:bg-slate-800 p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 dark:border-slate-700 ${audienceView === 'executive' ? 'md:order-1' : 'md:order-2'}`}>
+                          <h3 className="text-base sm:text-lg font-bold mb-4 sm:mb-6 text-slate-800 dark:text-slate-100">최근 2주간 안전 점검 동향</h3>
+                    <div className="h-64">
+                        <DeferredSection fallback={<ChartSkeleton minHeight="16rem" />} rootMargin="160px">
+                            <Suspense fallback={<ChartSkeleton minHeight="16rem" />}>
+                                <SafetyCheckDonutChart records={safetyCheckRecords} />
+                            </Suspense>
+                        </DeferredSection>
+                    </div>
+                </div>
+            </div>
+            )}
+
             {(harnessDashboardSummary.approvalBacklog > 0 || harnessDashboardSummary.fallback > 0 || harnessDashboardSummary.immediateAttention > 0) && (
                 <NoticeCallout
                     variant={harnessDashboardSummary.immediateAttention > 0 ? 'rose' : harnessDashboardSummary.fallback > 0 ? 'amber' : 'indigo'}
@@ -2312,60 +2365,6 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 />
             )}
             
-            {!isEssentialMode && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
-                <div className={`lg:col-span-2 ${audienceView === 'executive' ? 'lg:order-2' : 'lg:order-1'}`}>
-                    <div className="h-full rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300">
-                        <SafetyActionCenter workerRecords={workerOnlyRecords} />
-                    </div>
-                </div>
-                <div className={`bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 dark:border-slate-700 flex flex-col ${audienceView === 'executive' ? 'lg:order-1' : 'lg:order-2'}`}>
-                    <h3 className="text-base sm:text-lg font-bold mb-4 sm:mb-6 text-slate-800 dark:text-slate-100">국적별 근로자 현황</h3>
-                    <div className="flex-1 min-h-[200px]">
-                        <DeferredSection fallback={<ChartSkeleton minHeight="200px" />} rootMargin="160px">
-                            <Suspense fallback={<ChartSkeleton minHeight="200px" />}>
-                                <NationalityChart records={workerOnlyRecords} />
-                            </Suspense>
-                        </DeferredSection>
-                    </div>
-                </div>
-            </div>
-            )}
-
-            {!isEssentialMode && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
-                <div className={`bg-white dark:bg-slate-800 p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 dark:border-slate-700 ${audienceView === 'executive' ? 'md:order-2' : 'md:order-1'}`}>
-                    <div className="flex items-center justify-between mb-4 sm:mb-6">
-                        <h3 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100">근로자 주요 취약 분야</h3>
-                         <Tooltip text="관리 직군을 제외한 실무 근로자 데이터에서 추출된 주요 취약점입니다.">
-                            <div className="flex items-center text-xs sm:text-sm text-slate-400 dark:text-slate-300 cursor-pointer hover:text-slate-600 dark:hover:text-slate-100 transition-colors">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4 mr-1" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
-                                <span className="hidden sm:inline">데이터 안내</span>
-                            </div>
-                        </Tooltip>
-                    </div>
-                    <div className="h-auto min-h-[15rem]">
-                        <DeferredSection fallback={<ChartSkeleton minHeight="15rem" />} rootMargin="160px">
-                            <Suspense fallback={<ChartSkeleton minHeight="15rem" />}>
-                                <TopWeaknessesChart records={workerOnlyRecords} />
-                            </Suspense>
-                        </DeferredSection>
-                    </div>
-                </div>
-                      <div className={`bg-white dark:bg-slate-800 p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 dark:border-slate-700 ${audienceView === 'executive' ? 'md:order-1' : 'md:order-2'}`}>
-                          <h3 className="text-base sm:text-lg font-bold mb-4 sm:mb-6 text-slate-800 dark:text-slate-100">최근 2주간 안전 점검 동향</h3>
-                    <div className="h-64">
-                        <DeferredSection fallback={<ChartSkeleton minHeight="16rem" />} rootMargin="160px">
-                            <Suspense fallback={<ChartSkeleton minHeight="16rem" />}>
-                                <SafetyCheckDonutChart records={safetyCheckRecords} />
-                            </Suspense>
-                        </DeferredSection>
-                    </div>
-                </div>
-            </div>
-            )}
-
-
             {/* ═══════════════════════════════════════════════════════
                     공종 × 국적 교차 안전 숙련도 분석 섹션 (아래)
             ═══════════════════════════════════════════════════════ */}

@@ -12,6 +12,11 @@ export const SafetyCheckDonutChart: React.FC<ChartProps> = ({ records }) => {
     const chartRef = useRef<HTMLCanvasElement>(null);
     const chartInstance = useRef<Chart | null>(null);
 
+    const twoWeeksAgoForView = new Date();
+    twoWeeksAgoForView.setDate(twoWeeksAgoForView.getDate() - 14);
+    const recentRecordsForView = records.filter(r => new Date(r.date) >= twoWeeksAgoForView);
+    const hasRecentData = recentRecordsForView.some((record) => record.type === 'unsafe_action' || record.type === 'unsafe_condition');
+
     useEffect(() => {
         let disposed = false;
 
@@ -38,8 +43,8 @@ export const SafetyCheckDonutChart: React.FC<ChartProps> = ({ records }) => {
         }, { unsafe_action: 0, unsafe_condition: 0 });
         
         const total = typeCounts.unsafe_action + typeCounts.unsafe_condition;
-        const labels = total > 0 ? [`불안전한 상태`, `불안전한 행동`] : ['데이터 없음'];
-        const data = total > 0 ? [typeCounts.unsafe_condition, typeCounts.unsafe_action] : [1];
+        const labels = [`불안전한 상태`, `불안전한 행동`];
+        const data = [typeCounts.unsafe_condition, typeCounts.unsafe_action];
         
         // Create Gradients
         const orangeGradient = ctx.createLinearGradient(0, 0, 0, chartRef.current.height);
@@ -77,6 +82,7 @@ export const SafetyCheckDonutChart: React.FC<ChartProps> = ({ records }) => {
                     cutout: '70%',
                     plugins: {
                         legend: {
+                            display: total > 0,
                             position: 'bottom',
                             labels: {
                                 padding: 20,
@@ -128,5 +134,16 @@ export const SafetyCheckDonutChart: React.FC<ChartProps> = ({ records }) => {
         };
     }, [records]);
 
-    return <canvas ref={chartRef} />;
+    return (
+        <div className="relative h-full w-full">
+            <canvas ref={chartRef} />
+            {!hasRecentData && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-500">
+                        최근 2주 점검 데이터 없음
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 };
