@@ -169,7 +169,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFilesChange, onAnalyze
                 ref={fileInputRef}
                 type="file"
                 className="hidden"
-                accept="image/png, image/jpeg, image/gif, image/bmp"
+                accept="image/png, image/jpeg, image/jpg, image/gif, image/bmp, image/webp, image/heic, image/heif"
                 multiple
                 onChange={(e) => handleFileSelect(e.target.files)}
             />

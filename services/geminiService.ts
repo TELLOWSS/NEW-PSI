@@ -1,7 +1,7 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { getWindowProp } from '../utils/windowUtils';
-import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, HandwrittenAnswer, OcrErrorType } from '../types';
+import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, HandwrittenAnswer, OcrErrorType, OcrFailureCode } from '../types';
 import { extractMessage } from '../utils/errorUtils';
 import { deriveIntegrityScore, enforceSafetyLevel } from '../utils/evidenceUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
@@ -405,6 +405,63 @@ const updateSchema = {
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+const parseWorkerRecordArrayFromText = (rawText: string): Record<string, unknown>[] | null => {
+    const text = String(rawText || '').trim();
+    if (!text) return null;
+
+    const stripFence = (value: string): string => {
+        const fenced = value.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+        return fenced ? fenced[1].trim() : value;
+    };
+
+    const toRecordArray = (value: unknown): Record<string, unknown>[] | null => {
+        if (Array.isArray(value)) {
+            const items = value.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object' && !Array.isArray(item));
+            return items.length > 0 ? items : null;
+        }
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+            return [value as Record<string, unknown>];
+        }
+        return null;
+    };
+
+    const candidate = stripFence(text);
+
+    try {
+        const parsed = JSON.parse(candidate);
+        const normalized = toRecordArray(parsed);
+        if (normalized) return normalized;
+    } catch {
+        // noop
+    }
+
+    const firstBracket = candidate.indexOf('[');
+    const lastBracket = candidate.lastIndexOf(']');
+    if (firstBracket >= 0 && lastBracket > firstBracket) {
+        try {
+            const parsed = JSON.parse(candidate.slice(firstBracket, lastBracket + 1));
+            const normalized = toRecordArray(parsed);
+            if (normalized) return normalized;
+        } catch {
+            // noop
+        }
+    }
+
+    const firstBrace = candidate.indexOf('{');
+    const lastBrace = candidate.lastIndexOf('}');
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+        try {
+            const parsed = JSON.parse(candidate.slice(firstBrace, lastBrace + 1));
+            const normalized = toRecordArray(parsed);
+            if (normalized) return normalized;
+        } catch {
+            // noop
+        }
+    }
+
+    return null;
+};
+
 const classifyOcrErrorType = (rawMessage: string): OcrErrorType => {
     const message = (rawMessage || '').toLowerCase();
 
@@ -455,6 +512,58 @@ const classifyOcrErrorType = (rawMessage: string): OcrErrorType => {
     return 'UNKNOWN';
 };
 
+const inferOcrFailureCode = (rawMessage: string): OcrFailureCode => {
+    const message = String(rawMessage || '').toLowerCase();
+
+    if (
+        message.includes('429') ||
+        message.includes('resource_exhausted') ||
+        message.includes('quota') ||
+        message.includes('too many requests')
+    ) return 'QUOTA';
+
+    if (
+        message.includes('api key') ||
+        message.includes('api 키') ||
+        message.includes('설정 화면') ||
+        message.includes('unauthorized') ||
+        message.includes('forbidden')
+    ) return 'KEY';
+
+    if (
+        message.includes('failed to fetch') ||
+        message.includes('network') ||
+        message.includes('timeout') ||
+        message.includes('gateway') ||
+        message.includes('service unavailable')
+    ) return 'NETWORK';
+
+    if (
+        message.includes('payload') ||
+        message.includes('too large') ||
+        message.includes('bytes') ||
+        message.includes('image data is empty') ||
+        message.includes('too short') ||
+        message.includes('cleaned image data is too short')
+    ) return 'PAYLOAD';
+
+    if (
+        message.includes('parse') ||
+        message.includes('json') ||
+        message.includes('schema') ||
+        message.includes('ai response is not an array')
+    ) return 'PARSE';
+
+    if (
+        message.includes('mime') ||
+        message.includes('format') ||
+        message.includes('invalid_argument') ||
+        message.includes('포맷')
+    ) return 'FORMAT';
+
+    return 'UNKNOWN';
+};
+
 const detectTextBasedOcrError = (record: WorkerRecord): OcrErrorType | null => {
     const fullText = String(record.fullText || '');
     const handwrittenCount = Array.isArray(record.handwrittenAnswers) ? record.handwrittenAnswers.length : 0;
@@ -484,6 +593,7 @@ const createOcrErrorRecord = (
     insight: string,
     ocrErrorType: OcrErrorType
 ): WorkerRecord => ({
+    
     id: `rec-err-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     name,
     jobField: '미분류',
@@ -513,6 +623,7 @@ const createOcrErrorRecord = (
     aiInsights_native: '',
     selfAssessedRiskLevel: '중',
     ocrErrorType,
+    ocrFailureCode: inferOcrFailureCode(insight),
     ocrErrorMessage: insight,
 });
 
@@ -951,8 +1062,8 @@ async function callGeminiWithRetry(
 
             if (response.text) {
                 try {
-                    const parsed = JSON.parse(response.text.trim());
-                    if (!Array.isArray(parsed)) throw new Error('AI response is not an array');
+                    const parsed = parseWorkerRecordArrayFromText(response.text);
+                    if (!parsed || parsed.length === 0) throw new Error('AI response parsing failed: no valid records');
                     return parsed.map((r: Record<string, unknown>) => {
                         const id = (r['id'] as string) || `${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
                         const name = (r['name'] as string) || "식별 대기";
@@ -1090,7 +1201,16 @@ async function callGeminiWithRetry(
             
             // Critical errors: Don't retry
             if (errorMsg.includes('400') || errorMsg.includes('INVALID_ARGUMENT')) {
-                lastError = new Error(`이미지 포맷(${mimeType})을 AI가 인식하지 못했습니다.`);
+                const normalizedMsg = errorMsg.toLowerCase();
+                if (normalizedMsg.includes('payload') || normalizedMsg.includes('too large') || normalizedMsg.includes('bytes')) {
+                    lastError = new Error('요청 이미지 용량이 너무 커 처리에 실패했습니다. 해상도/용량을 낮춰 다시 업로드해 주세요.');
+                } else if (normalizedMsg.includes('schema') || normalizedMsg.includes('json')) {
+                    lastError = new Error('AI 응답 형식이 스키마와 맞지 않아 분석에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+                } else if (normalizedMsg.includes('mime') || normalizedMsg.includes('image') || normalizedMsg.includes('format')) {
+                    lastError = new Error(`이미지 포맷(${mimeType})을 AI가 인식하지 못했습니다.`);
+                } else {
+                    lastError = new Error(`잘못된 요청(400)으로 분석에 실패했습니다: ${errorMsg}`);
+                }
                 break;
             }
             
@@ -1549,6 +1669,7 @@ export {
     setQuotaExhausted,
     clearQuotaState,
     isRateLimitError,
+    inferOcrFailureCode,
     validateImageFormat,
     isFormatCompatibleWithAI
 };

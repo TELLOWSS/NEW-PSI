@@ -2,9 +2,9 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { FileUpload } from '../components/FileUpload';
 import { Spinner } from '../components/Spinner';
-import { analyzeWorkerRiskAssessment, updateAnalysisBasedOnEdits, getQuotaState, setQuotaExhausted, clearQuotaState, isRateLimitError, validateImageFormat, isFormatCompatibleWithAI } from '../services/geminiService';
+import { analyzeWorkerRiskAssessment, updateAnalysisBasedOnEdits, getQuotaState, setQuotaExhausted, clearQuotaState, isRateLimitError, inferOcrFailureCode, validateImageFormat, isFormatCompatibleWithAI } from '../services/geminiService';
 import { extractMessage } from '../utils/errorUtils';
-import type { WorkerRecord, OcrErrorType, AppSettings, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState } from '../types';
+import type { WorkerRecord, OcrErrorType, OcrFailureCode, AppSettings, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState } from '../types';
 import { fileToBase64 } from '../utils/fileUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { getApiCallState, incrementApiCallCount, resetApiCallCount, type DailyCounterState } from '../utils/apiCounterUtils';
@@ -413,6 +413,7 @@ const createFileAnalysisErrorRecord = (file: File, message: string, errorType: O
         koreanTranslation: '',
         safetyScore: 0,
         ocrErrorType: errorType,
+        ocrFailureCode: inferOcrFailureCode(message),
         ocrErrorMessage: message,
         safetyLevel: '초급',
         strengths: [],
@@ -428,6 +429,12 @@ const createFileAnalysisErrorRecord = (file: File, message: string, errorType: O
         selfAssessedRiskLevel: '중',
         filename,
     };
+};
+
+const withFailureCodePrefix = (code: OcrFailureCode, message: string): string => {
+    const normalized = String(message || '').trim();
+    if (!normalized) return `[${code}]`;
+    return normalized.startsWith('[') ? normalized : `[${code}] ${normalized}`;
 };
 
 const getPreflightFailureReason = (record: WorkerRecord): string | null => {
@@ -459,28 +466,29 @@ const getPreflightFailureReason = (record: WorkerRecord): string | null => {
 const isFailedRecord = (r: WorkerRecord): boolean => {
     if (r.ocrErrorType) return true;
 
-    // 안전 점수가 0일 경우 실패
-    if (r.safetyScore === 0) return true;
-    
-    // AI 분석 결과가 없거나 비어있을 경우 실패
-    if (!r.aiInsights || r.aiInsights.trim() === "") return true;
-    
-    // 이름에서 실패 패턴 확인
-    const name = String(r.name || '');
-    if (name.includes('할당량 초과') || name.includes('분석 실패') || name.includes('이미지 데이터')) {
-        return true;
-    }
-    
-    // AI 분석 결과에서 오류 패턴 확인
     const insight = String(r.aiInsights || '');
-    if (insight.includes('API 요청량') || 
-        insight.includes('오류 상세') || 
-        insight.includes('Resource has been exhausted') || 
-        insight.includes('429') ||
-        insight.includes('분석 실패') ||
-        insight.includes('재시도 필요')) {
-        return true;
-    }
+    const normalizedInsight = insight.toLowerCase();
+    const normalizedName = String(r.name || '').toLowerCase();
+    const hasSourceText =
+        String(r.fullText || '').trim().length > 0 ||
+        String(r.koreanTranslation || '').trim().length > 0 ||
+        (r.handwrittenAnswers || []).some((answer) => String(answer?.answerText || '').trim().length > 0);
+    const hasErrorKeyword =
+        normalizedInsight.includes('api 요청량') ||
+        normalizedInsight.includes('오류 상세') ||
+        normalizedInsight.includes('resource has been exhausted') ||
+        normalizedInsight.includes('429') ||
+        normalizedInsight.includes('분석 실패') ||
+        normalizedInsight.includes('재시도 필요') ||
+        normalizedInsight.includes('설정 화면') ||
+        normalizedInsight.includes('api 키') ||
+        normalizedName.includes('할당량 초과') ||
+        normalizedName.includes('분석 실패') ||
+        normalizedName.includes('이미지 데이터');
+
+    if (hasErrorKeyword) return true;
+
+    if (!String(r.aiInsights || '').trim() && !hasSourceText) return true;
     
     return false;
 };
@@ -720,12 +728,13 @@ const getSecondPassEligibility = (record: WorkerRecord, editedOnly = false): { e
 
 const isHardRetryTarget = (r: WorkerRecord): boolean => {
     if (r.ocrErrorType) return true;
-    if (r.safetyScore === 0) return true;
 
     const insight = String(r.aiInsights || '').toLowerCase();
     return (
         insight.includes('429') ||
         insight.includes('resource_exhausted') ||
+        insight.includes('api 키') ||
+        insight.includes('설정 화면') ||
         insight.includes('할당량') ||
         insight.includes('분석 실패') ||
         insight.includes('재시도 필요') ||
@@ -735,13 +744,11 @@ const isHardRetryTarget = (r: WorkerRecord): boolean => {
 
 // 우선순위 점수: 낮을수록 먼저 처리 (0=최고우선)
 const getRetryPriorityScore = (r: WorkerRecord): number => {
-    if (r.safetyScore === 0 && r.ocrErrorType) return 0; // 완전 실패
-    if (r.safetyScore === 0) return 1;                    // 점수 없음
-    if (r.ocrErrorType) return 2;                         // OCR 오류
+    if (r.ocrErrorType) return 0; // OCR 오류
     const insight = String(r.aiInsights || '').toLowerCase();
-    if (insight.includes('할당량') || insight.includes('분석 실패') || insight.includes('재시도 필요')) return 3;
-    if (typeof r.ocrConfidence === 'number' && r.ocrConfidence < 0.5) return 4; // 신뢰도 극저
-    return 5; // 저신뢰
+    if (insight.includes('할당량') || insight.includes('분석 실패') || insight.includes('재시도 필요')) return 1;
+    if (typeof r.ocrConfidence === 'number' && r.ocrConfidence < 0.5) return 2; // 신뢰도 극저
+    return 3; // 저신뢰
 };
 
 const getFlag = (nationality: string) => {
@@ -2422,11 +2429,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     const retryImageSource = getBestRetryImageSource(record);
 
                     if (!retryImageSource) {
+                        const failureCode: OcrFailureCode = 'PAYLOAD';
+                        const failureMessage = withFailureCodePrefix(failureCode, '원본/대체 이미지 데이터 없음');
                         const errorRecord: WorkerRecord = withHarnessState(record, {
                             ...record,
-                            aiInsights: '❌ 원본/대체 이미지 데이터가 없어 재분석할 수 없습니다.',
+                            aiInsights: withFailureCodePrefix(failureCode, '❌ 원본/대체 이미지 데이터가 없어 재분석할 수 없습니다.'),
                             ocrErrorType: 'LAYOUT',
-                            ocrErrorMessage: '원본/대체 이미지 데이터 없음',
+                            ocrFailureCode: failureCode,
+                            ocrErrorMessage: failureMessage,
                             safetyScore: 0,
                             secondPassStatus: 'NEEDED',
                             workflowState: 'manual_review_required',
@@ -2453,11 +2463,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     // 1. Data Integrity Check
                     if (!forceReanalyze && !hasRetryableOriginalImage(retryImageSource)) {
                         console.warn(`Skipping ${record.id}: Image loss.`);
+                        const failureCode: OcrFailureCode = 'PAYLOAD';
+                        const failureMessage = withFailureCodePrefix(failureCode, '원본 이미지 데이터 소실');
                         const errorRecord: WorkerRecord = withHarnessState(record, {
                             ...record,
-                            aiInsights: "❌ 원본 이미지 데이터 소실 (분석 불가)",
+                            aiInsights: withFailureCodePrefix(failureCode, "❌ 원본 이미지 데이터 소실 (분석 불가)"),
                             ocrErrorType: 'LAYOUT',
-                            ocrErrorMessage: '원본 이미지 데이터 소실',
+                            ocrFailureCode: failureCode,
+                            ocrErrorMessage: failureMessage,
                             safetyScore: 0,
                             secondPassStatus: 'NEEDED',
                             workflowState: 'manual_review_required',
@@ -2492,11 +2505,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     
                     if (!forceReanalyze && !formatValidation.isValid) {
                         console.warn(`Image format error for ${record.id}: ${formatValidation.error}`);
+                        const failureCode: OcrFailureCode = 'FORMAT';
+                        const failureMessage = withFailureCodePrefix(failureCode, String(formatValidation.error || '이미지 형식 오류'));
                         const errorRecord: WorkerRecord = withHarnessState(record, {
                             ...record,
-                            aiInsights: `❌ 이미지 형식 오류: ${formatValidation.error} (감지: ${formatValidation.detectedFormat})`,
+                            aiInsights: withFailureCodePrefix(failureCode, `❌ 이미지 형식 오류: ${formatValidation.error} (감지: ${formatValidation.detectedFormat})`),
                             ocrErrorType: classifyLegacyOcrErrorType(String(formatValidation.error || '')),
-                            ocrErrorMessage: String(formatValidation.error || '이미지 형식 오류'),
+                            ocrFailureCode: failureCode,
+                            ocrErrorMessage: failureMessage,
                             safetyScore: 0,
                             secondPassStatus: 'NEEDED',
                             workflowState: 'manual_review_required',
@@ -2522,11 +2538,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     
                     if (!forceReanalyze && !formatValidation.supportedFormat) {
                         console.warn(`Unsupported format for ${record.id}: ${formatValidation.detectedFormat}`);
+                        const failureCode: OcrFailureCode = 'FORMAT';
+                        const failureMessage = withFailureCodePrefix(failureCode, `지원하지 않는 이미지 형식: ${formatValidation.detectedFormat}`);
                         const errorRecord: WorkerRecord = withHarnessState(record, {
                             ...record,
-                            aiInsights: `⚠️ 지원하지 않는 이미지 형식: ${formatValidation.detectedFormat}`,
+                            aiInsights: withFailureCodePrefix(failureCode, `⚠️ 지원하지 않는 이미지 형식: ${formatValidation.detectedFormat}`),
                             ocrErrorType: 'QUALITY',
-                            ocrErrorMessage: `지원하지 않는 이미지 형식: ${formatValidation.detectedFormat}`,
+                            ocrFailureCode: failureCode,
+                            ocrErrorMessage: failureMessage,
                             safetyScore: 0,
                             secondPassStatus: 'NEEDED',
                             workflowState: 'manual_review_required',
@@ -2552,11 +2571,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     
                     if (!forceReanalyze && !isFormatCompatibleWithAI(formatValidation.detectedFormat)) {
                         console.warn(`Format not AI-compatible for ${record.id}: ${formatValidation.detectedFormat}`);
+                        const failureCode: OcrFailureCode = 'FORMAT';
+                        const failureMessage = withFailureCodePrefix(failureCode, `AI 분석 미지원 형식: ${formatValidation.detectedFormat}`);
                         const errorRecord: WorkerRecord = withHarnessState(record, {
                             ...record,
-                            aiInsights: `⚠️ AI 분석 미지원 형식: ${formatValidation.detectedFormat}. JPEG, PNG, GIF, WebP, HEIC 형식만 지원됩니다.`,
+                            aiInsights: withFailureCodePrefix(failureCode, `⚠️ AI 분석 미지원 형식: ${formatValidation.detectedFormat}. JPEG, PNG, GIF, WebP, HEIC 형식만 지원됩니다.`),
                             ocrErrorType: 'QUALITY',
-                            ocrErrorMessage: `AI 분석 미지원 형식: ${formatValidation.detectedFormat}`,
+                            ocrFailureCode: failureCode,
+                            ocrErrorMessage: failureMessage,
                             safetyScore: 0,
                             secondPassStatus: 'NEEDED',
                             workflowState: 'manual_review_required',
@@ -2739,11 +2761,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                     } else {
                         // Final Failure after retries
+                        const failureCode = inferOcrFailureCode('반복적인 API 오류');
                         const errorRecord: WorkerRecord = withHarnessState(record, {
                             ...record,
-                            aiInsights: `⛔ 반복적인 API 오류로 ${BRAND_STATUS_LABELS.attention} 안내가 필요합니다. 다시 확인해 주세요.`,
+                            aiInsights: withFailureCodePrefix(failureCode, `⛔ 반복적인 API 오류로 ${BRAND_STATUS_LABELS.attention} 안내가 필요합니다. 다시 확인해 주세요.`),
                             ocrErrorType: 'UNKNOWN',
-                            ocrErrorMessage: '반복적인 API 오류',
+                            ocrFailureCode: failureCode,
+                            ocrErrorMessage: withFailureCodePrefix(failureCode, '반복적인 API 오류'),
                             secondPassStatus: 'NEEDED',
                             workflowState: 'awaiting_manager_approval',
                             riskDecision: 'IMMEDIATE_ATTENTION',
@@ -2771,11 +2795,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     const errMsg = extractMessage(err);
                     if (errMsg === "STOPPED") { stopped = true; break; }
                     console.error("Batch Error:", err);
+                    const failureCode = inferOcrFailureCode(errMsg);
                     const errorRecord: WorkerRecord = withHarnessState(record, {
                         ...record,
-                        aiInsights: `⛔ 시스템 오류: ${errMsg}`,
+                        aiInsights: withFailureCodePrefix(failureCode, `⛔ 시스템 오류: ${errMsg}`),
                         ocrErrorType: classifyLegacyOcrErrorType(errMsg),
-                        ocrErrorMessage: errMsg,
+                        ocrFailureCode: failureCode,
+                        ocrErrorMessage: withFailureCodePrefix(failureCode, errMsg),
                         secondPassStatus: 'NEEDED',
                         workflowState: 'manual_review_required',
                         riskDecision: 'IMMEDIATE_ATTENTION',

@@ -87,6 +87,15 @@ export type OcrErrorType =
     | 'LAYOUT'
     | 'UNKNOWN';
 
+export type OcrFailureCode =
+    | 'QUOTA'
+    | 'KEY'
+    | 'FORMAT'
+    | 'PARSE'
+    | 'PAYLOAD'
+    | 'NETWORK'
+    | 'UNKNOWN';
+
 export interface HandwrittenAnswer {
     questionNumber: string;
     answerText: string;
@@ -223,6 +232,7 @@ export interface WorkerRecord {
     safetyScore: number;
     ocrConfidence?: number; // 0-1
     ocrErrorType?: OcrErrorType;
+    ocrFailureCode?: OcrFailureCode;
     ocrErrorMessage?: string;
     integrityScore?: number; // 0-100
     safetyLevel: '초급' | '중급' | '고급';
