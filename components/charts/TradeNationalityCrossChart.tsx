@@ -55,10 +55,10 @@ export const TradeNationalityCrossChart: React.FC<Props> = ({ onSelect, selected
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
                 <div>
                     <h3 className="text-base sm:text-lg font-bold text-slate-800">
-                        공종 × 국적 교차 안전 숙련도
+                        팀 내부 국적 드릴다운
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
-                        막대를 클릭하면 해당 작업조의 6대 지표 분석이 표시됩니다. 모바일에서는 좌우 스와이프로 확인할 수 있습니다.
+                        메인 팀 비교는 전체 국적 통합 기준으로 유지됩니다. 막대 클릭은 팀 내부 국적 차이를 해석 근거로 확인할 때만 사용합니다.
                     </p>
                 </div>
                 {selected && (
@@ -70,8 +70,8 @@ export const TradeNationalityCrossChart: React.FC<Props> = ({ onSelect, selected
             </div>
             {!hasData ? (
                 <div className="h-[320px] flex flex-col items-center justify-center text-center text-slate-400">
-                    <p className="font-semibold text-sm">공종/국적 분석 데이터가 아직 없습니다.</p>
-                    <p className="text-xs mt-1">평가 기록이 수집되면 교차 차트가 자동으로 표시됩니다.</p>
+                    <p className="font-semibold text-sm">팀 내부 국적 드릴다운 데이터가 아직 없습니다.</p>
+                    <p className="text-xs mt-1">평가 기록이 수집되면 보조 드릴다운 차트가 자동으로 표시됩니다.</p>
                 </div>
             ) : (
                 <>

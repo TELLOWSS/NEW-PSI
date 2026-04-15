@@ -79,6 +79,7 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
     }
 
     const badge = RISK_BADGE(targetGroup.compositeScore);
+    const isIntegratedNationality = targetGroup.nationality === '전체 국적';
 
     const chartData = SIX_METRIC_KEYS.map(key => ({
         metric: SIX_METRIC_LABELS[key],
@@ -102,13 +103,20 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
                 <div>
                     <h3 className="text-base sm:text-lg font-bold text-slate-800">
-                        취약 타겟 그룹 · 6대 지표 분석
+                        팀 기준 6대 지표 분석
                     </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">공종 통합 또는 공종·국적 기준으로 현장 평균 대비 취약 지점을 확인합니다.</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                        {isIntegratedNationality
+                            ? '선택 팀의 국적 통합 기준으로 현장 평균 대비 취약 지점을 확인합니다.'
+                            : `선택 팀 내부 ${targetGroup.nationality} 세부 기준으로 현장 평균 대비 취약 지점을 확인합니다.`}
+                    </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                     <span className="px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold">
-                        {targetGroup.trade} · {targetGroup.nationality}
+                        {targetGroup.trade} 팀
+                    </span>
+                    <span className="px-3 py-1.5 bg-violet-50 text-violet-700 rounded-lg text-xs font-bold">
+                        {isIntegratedNationality ? '국적 통합' : `국적 ${targetGroup.nationality}`}
                     </span>
                     <span className={`px-3 py-1.5 rounded-lg text-xs font-bold ${badge.color}`}>
                         {badge.label} {targetGroup.compositeScore}점
@@ -147,7 +155,7 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
                                 dot={false}
                             />
                             <Radar
-                                name={`${targetGroup.trade}·${targetGroup.nationality}`}
+                                name={`${targetGroup.trade}팀·${targetGroup.nationality}`}
                                 dataKey="타겟"
                                 stroke="#f59e0b"
                                 fill="#fef3c7"

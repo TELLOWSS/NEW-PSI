@@ -245,6 +245,7 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
         return a.averageScore - b.averageScore;
     });
     const latestAvg = targetGroup?.compositeScore ?? 0;
+    const isIntegratedNationality = targetGroup?.nationality === '전체 국적';
     const normalizedSearch = searchQuery.trim().toLowerCase();
 
     const searchFilteredWorkers = useMemo(() => {
@@ -337,15 +338,17 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
             <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 mb-4">
                 <div>
                     <h3 className="text-base sm:text-lg font-bold text-slate-800">
-                        개인별 트렌드 추적
+                        팀 내부 개인추이
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
-                        공종 통합/국적 세부 그룹 모두 지원하며, 검색과 페이지 단위 요약으로 스크롤 부담을 줄였습니다.
+                        {isIntegratedNationality
+                            ? '선택 팀의 국적 통합 기준 개인추이를 보여줍니다. 필요 시 국적 세부 기준으로 내려가 차이를 확인할 수 있습니다.'
+                            : `선택 팀 내부 ${targetGroup?.nationality} 세부 기준 개인추이를 보여줍니다.`}
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge variant="violetSoft" className="rounded-lg px-3 py-1.5 text-xs whitespace-nowrap">
-                        {targetGroup.trade} · {targetGroup.nationality}
+                        {targetGroup.trade} 팀 · {isIntegratedNationality ? '국적 통합' : targetGroup.nationality}
                     </StatusBadge>
                     <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
                         그룹 평균: <strong>{latestAvg}점</strong>
