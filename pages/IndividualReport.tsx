@@ -9,6 +9,7 @@ import { ReportGenerationProgress } from '../components/shared/ReportGenerationP
 import { ensureFileSaver, ensureHtml2Canvas, ensureJsPdfConstructor, ensureJsZip } from '../utils/externalScripts';
 import { canvasToBlob, captureReportCanvases, saveCanvasesAsA4Pdf } from '../utils/pdfCapture';
 import { BRAND_TONE } from '../utils/brandToneTokens';
+import { useMobileBackGuard } from '../hooks/useMobileBackGuard';
 
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
 
@@ -107,6 +108,15 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
     const reassessmentTrail = (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-5).reverse();
     const messageWorkerKey = String(record.worker_uuid || record.workerUuid || record.employeeId || `${record.name}_${record.teamLeader || '미지정'}`).trim();
     const isGenerating = isGeneratingPdf || isGeneratingImage || isSendingMessage;
+    const hasMessageDraft = messagePhoneNumber.replace(/\D/g, '').slice(0, 11).length > 0 || messageNote.trim().length > 0;
+    const { guideMessage: mobileBackGuideMessage } = useMobileBackGuard({
+        hasActiveWork: isGenerating || hasMessageDraft || isCameraOpen,
+        guardStateKey: '__individualReportBackGuard',
+        confirmExitMessage: '리포트 생성 또는 문자 발송 준비가 진행 중입니다.\n저장된 범위까지만 유지하고 이전 화면으로 이동하시겠습니까?',
+        stayMessage: '현재 리포트 화면에서 계속 작업합니다.',
+        idleBackMessage: '한 번 더 누르면 이전 화면으로 이동합니다.',
+        exitMessage: '이전 화면으로 이동합니다.',
+    });
     const normalizePhoneInput = (value: string) => value.replace(/\D/g, '').slice(0, 11);
     const formatPhoneForDisplay = (value: string) => {
         const digits = normalizePhoneInput(value);
@@ -957,6 +967,12 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                     <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
                     <button onClick={capturePhoto} className="absolute bottom-10 bg-white px-8 py-4 rounded-full font-bold">촬영</button>
                     <button onClick={stopCamera} className="absolute top-10 right-10 text-white font-bold">닫기</button>
+                </div>
+            )}
+
+            {mobileBackGuideMessage && (
+                <div className="fixed bottom-4 left-1/2 z-[120] w-[calc(100%-32px)] max-w-sm -translate-x-1/2 rounded-2xl border border-slate-200 bg-slate-900/95 px-4 py-3 text-center text-[12px] font-bold text-white shadow-2xl sm:hidden">
+                    {mobileBackGuideMessage}
                 </div>
             )}
         </div>

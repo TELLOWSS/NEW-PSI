@@ -24,6 +24,7 @@ import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { StatusEvidenceActionPanel } from '../components/shared/StatusEvidenceActionPanel';
 import { analyzeHarnessRecord, reanalyzeHarnessRecord } from '../services/harnessService';
 import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
+import { useMobileBackGuard } from '../hooks/useMobileBackGuard';
 
 const buildMasterDataLoadErrorMessage = (rawMessage?: string) => {
     const message = String(rawMessage || '알 수 없는 오류');
@@ -1259,6 +1260,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const stopRef = useRef<boolean>(false);
     const importInputRef = useRef<HTMLInputElement>(null);
     const failedQuickActionsRef = useRef<HTMLDivElement>(null);
+
+    const { guideMessage: mobileBackGuideMessage } = useMobileBackGuard({
+        hasActiveWork: isAnalyzing || files.length > 0,
+        guardStateKey: '__ocrBackGuard',
+        confirmExitMessage: '분석 또는 입력이 진행 중입니다.\n저장된 범위까지만 유지하고 이전 화면으로 이동하시겠습니까?',
+        stayMessage: '현재 화면에서 계속 작업합니다.',
+        idleBackMessage: '한 번 더 누르면 이전 화면으로 이동합니다.',
+        exitMessage: '이전 화면으로 이동합니다.',
+    });
 
     // Prevent accidental close during analysis
     useEffect(() => {
@@ -5263,6 +5273,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
                 )}
             </div>
+
+            {mobileBackGuideMessage && (
+                <div className="fixed bottom-4 left-1/2 z-[120] w-[calc(100%-32px)] max-w-sm -translate-x-1/2 rounded-2xl border border-slate-200 bg-slate-900/95 px-4 py-3 text-center text-[12px] font-bold text-white shadow-2xl sm:hidden">
+                    {mobileBackGuideMessage}
+                </div>
+            )}
         </div>
     );
 };

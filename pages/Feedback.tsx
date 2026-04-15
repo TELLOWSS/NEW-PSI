@@ -108,6 +108,11 @@ const Feedback: React.FC = () => {
         PSI_CURRENT_RELEASE.highlights.slice(0, 3),
         PSI_CURRENT_RELEASE.highlights.slice(3),
     ];
+    const recentOpsUpgradeNotes = [
+        '모바일 하단 뒤로가기 실수 방지: 더블백(2초) 이탈 + 작업중 확인창 적용',
+        'OCR/개인리포트/근로자관리 화면에 공통 뒤로가기 가드 정책 일괄 반영',
+        'UI 모드 실험 KPI 요약에서 최근 이벤트를 3건 중심으로 압축 표시',
+    ];
 
     const feedbackChannel = useMemo(() => {
         try {
@@ -396,6 +401,14 @@ const Feedback: React.FC = () => {
                                     </h5>
                                     <ul className="text-sm text-slate-600 font-bold space-y-1.5">
                                         {PSI_CURRENT_RELEASE.validations.map((item) => <li key={item}>✅ {item}</li>)}
+                                    </ul>
+                                </div>
+                                <div className="p-5 bg-violet-50 rounded-3xl border border-violet-100">
+                                    <h5 className="font-black text-violet-800 mb-2 flex items-center gap-2">
+                                        <span className="text-xl">🧩</span> 현장 운영 업그레이드 반영
+                                    </h5>
+                                    <ul className="text-sm text-slate-600 font-bold space-y-1.5">
+                                        {recentOpsUpgradeNotes.map((item) => <li key={item}>• {item}</li>)}
                                     </ul>
                                 </div>
                             </div>

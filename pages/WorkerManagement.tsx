@@ -23,6 +23,7 @@ import { getWindowProp } from '../utils/windowUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { buildWorkerMessageDashboardCards, buildWorkerRegisteredCards } from '../utils/roleViewModel';
+import { useMobileBackGuard } from '../hooks/useMobileBackGuard';
 import {
     ResponsiveContainer,
     BarChart,
@@ -1081,6 +1082,27 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         viewType: 'grid' | 'flip';
         currentFlipIndex: number;
     } | null>(null);
+
+    const hasActiveMobileWork = isPrintMode
+        || isBulkUploading
+        || isManualRegistering
+        || isOverrideSubmitting
+        || isSavingWorkerEdit
+        || Boolean(editingWorkerId)
+        || isBulkSendingReports
+        || isRegisteredWorkersLoading
+        || isMessageLogLoading
+        || isMessageLogLoadingMore
+        || isReportMessageDashboardLoading;
+
+    const { guideMessage: mobileBackGuideMessage } = useMobileBackGuard({
+        hasActiveWork: hasActiveMobileWork,
+        guardStateKey: '__workerManagementBackGuard',
+        confirmExitMessage: '근로자 관리 작업이 진행 중입니다.\n저장된 범위까지만 유지하고 이전 화면으로 이동하시겠습니까?',
+        stayMessage: '현재 화면에서 계속 작업합니다.',
+        idleBackMessage: '한 번 더 누르면 이전 화면으로 이동합니다.',
+        exitMessage: '이전 화면으로 이동합니다.',
+    });
 
     const getPrintSafeId = (id: unknown) => {
         const raw = typeof id === 'string' ? id : (typeof id === 'number' || typeof id === 'boolean') ? String(id) : 'unknown';
@@ -6263,6 +6285,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         </div>
                     )}
                 </div>
+
+                {mobileBackGuideMessage && (
+                    <div className="fixed bottom-4 left-1/2 z-[120] w-[calc(100%-32px)] max-w-sm -translate-x-1/2 rounded-2xl border border-slate-200 bg-slate-900/95 px-4 py-3 text-center text-[12px] font-bold text-white shadow-2xl sm:hidden">
+                        {mobileBackGuideMessage}
+                    </div>
+                )}
             </div>
         </div>
     );

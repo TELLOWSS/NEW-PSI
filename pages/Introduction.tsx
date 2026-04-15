@@ -27,6 +27,11 @@ const Introduction: React.FC = () => {
         PSI_CURRENT_RELEASE.highlights.slice(0, 3),
         PSI_CURRENT_RELEASE.highlights.slice(3),
     ];
+    const recentOpsUpgradeNotes = [
+        '모바일 하단 뒤로가기 실수 방지 정책(더블백/작업중 확인창) 전면 적용',
+        'OCR · 개인리포트 · 근로자관리 화면의 뒤로가기 보호 흐름 공통화',
+        'UI 모드 실험 KPI 최근 이벤트를 3건 중심으로 축약해 핵심만 즉시 확인',
+    ];
 
     const introSummaryCards: InterpretationCardItem[] = useMemo(() => [
         {
@@ -136,6 +141,26 @@ const Introduction: React.FC = () => {
                     items={introSummaryCards}
                     cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
                 />
+            </div>
+
+            <div className="max-w-5xl mx-auto px-4 card-gravity-target">
+                <div className="rounded-3xl border border-violet-100 bg-violet-50/80 p-6 shadow-sm">
+                    <div className="flex items-center gap-3">
+                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-violet-600 shadow-sm">🧩</span>
+                        <div>
+                            <h3 className="text-lg font-black text-slate-900">최근 운영 업그레이드 반영</h3>
+                            <p className="text-sm font-semibold text-slate-600">현장 조작 실수 방지와 핵심 KPI 가독성 개선 항목을 소개 화면에 동기화했습니다.</p>
+                        </div>
+                    </div>
+                    <ul className="mt-4 space-y-2 text-sm font-bold text-slate-700">
+                        {recentOpsUpgradeNotes.map((item) => (
+                            <li key={item} className="flex items-start gap-2">
+                                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-violet-500"></span>
+                                <span>{item}</span>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
             </div>
 
             {/* System Trust & Patent Status */}

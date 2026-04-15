@@ -931,7 +931,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         };
     }, [uiViewMetricSummary.presetApplies, uiViewMetricSummary.presetPinnedSourceRate]);
 
-    const recentUIViewMetrics = useMemo(() => uiViewMetrics.slice(0, 10), [uiViewMetrics]);
+    const recentUIViewMetrics = useMemo(() => uiViewMetrics.slice(0, 3), [uiViewMetrics]);
 
     const handleClearUIViewMetrics = () => {
         if (!confirm('UI KPI 로그를 모두 초기화하시겠습니까?')) return;
@@ -1278,7 +1278,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-slate-200 overflow-hidden">
-                    <div className="bg-slate-50 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">최근 이벤트 10건</div>
+                    <div className="bg-slate-50 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">최근 이벤트 3건</div>
                     {recentUIViewMetrics.length === 0 ? (
                         <div className="px-4 py-5 text-sm font-semibold text-slate-500">수집된 이벤트가 없습니다.</div>
                     ) : (
@@ -1296,6 +1296,11 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                                     ) : null}
                                 </div>
                             ))}
+                            {uiViewMetrics.length > recentUIViewMetrics.length && (
+                                <div className="px-4 py-2 text-[11px] font-bold text-slate-500 bg-slate-50/70">
+                                    전체 {uiViewMetrics.length}건 중 최근 3건만 표시합니다.
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
