@@ -846,6 +846,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [showReasonQaDetailPanel, setShowReasonQaDetailPanel] = useState(false);
     const [showRetryDetailPanel, setShowRetryDetailPanel] = useState(false);
     const [showFailedQuickActions, setShowFailedQuickActions] = useState(false);
+    const [autoScrollFailedQuickActions, setAutoScrollFailedQuickActions] = useState(false);
 
     const syncHarnessAnalyzeResult = useCallback(async (record: WorkerRecord, fileNameOverride?: string) => {
         const fallbackPatch: Partial<WorkerRecord> = {
@@ -1257,6 +1258,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     // Strict stop control
     const stopRef = useRef<boolean>(false);
     const importInputRef = useRef<HTMLInputElement>(null);
+    const failedQuickActionsRef = useRef<HTMLDivElement>(null);
 
     // Prevent accidental close during analysis
     useEffect(() => {
@@ -1395,6 +1397,116 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const retryLastUpdatedLabel = useMemo(() => {
         return formatCompactDateTime(retryDiagnostics?.lastUpdatedAt);
     }, [retryDiagnostics]);
+
+    const fallbackRecoveryRate = useMemo(() => {
+        if (!retryDiagnostics) return 0;
+        const fallbackOpportunity = retryDiagnostics.clientFallbackSuccess + retryDiagnostics.serverRouteFail;
+        if (fallbackOpportunity <= 0) return 0;
+        return Math.round((retryDiagnostics.clientFallbackSuccess / fallbackOpportunity) * 100);
+    }, [retryDiagnostics]);
+
+    const fallbackRecoveryMeta = useMemo(() => {
+        if (!retryDiagnostics) {
+            return {
+                tone: 'border border-slate-200 bg-white/80',
+                labelClassName: 'text-[11px] font-bold text-slate-600',
+                valueClassName: 'mt-0.5 text-sm font-black text-slate-900',
+                helperClassName: 'mt-0.5 text-[10px] font-bold text-slate-400',
+                helperText: '서버 실패 대비 · 집계 대기',
+            };
+        }
+
+        const fallbackOpportunity = retryDiagnostics.clientFallbackSuccess + retryDiagnostics.serverRouteFail;
+        if (fallbackOpportunity <= 0) {
+            return {
+                tone: 'border border-slate-200 bg-white/80',
+                labelClassName: 'text-[11px] font-bold text-slate-600',
+                valueClassName: 'mt-0.5 text-sm font-black text-slate-900',
+                helperClassName: 'mt-0.5 text-[10px] font-bold text-slate-400',
+                helperText: '서버 실패 대비 · 해당 케이스 없음',
+            };
+        }
+
+        if (fallbackRecoveryRate < 30) {
+            return {
+                tone: 'border border-rose-200 bg-rose-50/80',
+                labelClassName: 'text-[11px] font-bold text-rose-700',
+                valueClassName: 'mt-0.5 text-sm font-black text-rose-700',
+                helperClassName: 'mt-0.5 text-[10px] font-bold text-rose-500',
+                helperText: '서버 실패 대비 · 위험',
+            };
+        }
+
+        if (fallbackRecoveryRate < 70) {
+            return {
+                tone: 'border border-amber-200 bg-amber-50/80',
+                labelClassName: 'text-[11px] font-bold text-amber-700',
+                valueClassName: 'mt-0.5 text-sm font-black text-amber-700',
+                helperClassName: 'mt-0.5 text-[10px] font-bold text-amber-500',
+                helperText: '서버 실패 대비 · 주의',
+            };
+        }
+
+        return {
+            tone: 'border border-emerald-200 bg-emerald-50/80',
+            labelClassName: 'text-[11px] font-bold text-emerald-700',
+            valueClassName: 'mt-0.5 text-sm font-black text-emerald-700',
+            helperClassName: 'mt-0.5 text-[10px] font-bold text-emerald-500',
+            helperText: '서버 실패 대비 · 안정',
+        };
+    }, [retryDiagnostics, fallbackRecoveryRate]);
+
+    const fallbackRecoveryBadge = useMemo(() => {
+        const fallbackOpportunity = retryDiagnostics
+            ? retryDiagnostics.clientFallbackSuccess + retryDiagnostics.serverRouteFail
+            : 0;
+
+        if (fallbackOpportunity <= 0) {
+            return {
+                className: 'bg-slate-100 text-slate-700 border border-slate-200',
+                text: '폴백 상태: 집계 대기',
+            };
+        }
+
+        if (fallbackRecoveryRate < 30) {
+            return {
+                className: 'bg-rose-100 text-rose-700 border border-rose-200',
+                text: '폴백 상태: 위험',
+            };
+        }
+
+        if (fallbackRecoveryRate < 70) {
+            return {
+                className: 'bg-amber-100 text-amber-700 border border-amber-200',
+                text: '폴백 상태: 주의',
+            };
+        }
+
+        return {
+            className: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+            text: '폴백 상태: 안정',
+        };
+    }, [retryDiagnostics, fallbackRecoveryRate]);
+
+    const retryActionButtonClass = useMemo(() => {
+        const fallbackOpportunity = retryDiagnostics
+            ? retryDiagnostics.clientFallbackSuccess + retryDiagnostics.serverRouteFail
+            : 0;
+
+        if (fallbackOpportunity <= 0) {
+            return 'border-rose-200 bg-rose-100 text-rose-700 hover:bg-rose-200';
+        }
+
+        if (fallbackRecoveryRate < 30) {
+            return 'border-rose-300 bg-rose-600 text-white hover:bg-rose-700 shadow-sm';
+        }
+
+        if (fallbackRecoveryRate < 70) {
+            return 'border-amber-300 bg-amber-200 text-amber-900 hover:bg-amber-300';
+        }
+
+        return 'border-rose-200 bg-rose-100 text-rose-700 hover:bg-rose-200';
+    }, [retryDiagnostics, fallbackRecoveryRate]);
 
     const retryActionGuides = useMemo(() => {
         if (!retryDiagnostics) return [] as Array<{ key: string; label: string; count: number; tone: string; action: string }>;
@@ -2159,6 +2271,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         setProgress('중단 요청 중...');
     }, []);
 
+    const handleToggleFailedQuickActions = useCallback(() => {
+        setShowFailedQuickActions((prev) => {
+            const next = !prev;
+            if (next && autoScrollFailedQuickActions) {
+                setTimeout(() => {
+                    failedQuickActionsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 40);
+            }
+            return next;
+        });
+    }, [autoScrollFailedQuickActions]);
+
     // [SMART DELAY] UI countdown included
     const waitWithCountdown = async (seconds: number, messagePrefix: string) => {
         for (let i = seconds; i > 0; i--) {
@@ -2470,9 +2594,20 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 usedClientFallback = false;
                             } catch (serverError: any) {
                                 const serverMessage = extractMessage(serverError);
+                                const normalizedServerMessage = serverMessage.toLowerCase();
                                 const shouldFallbackToClient =
-                                    serverMessage.toLowerCase().includes('failed to fetch') ||
+                                    normalizedServerMessage.includes('failed to fetch') ||
+                                    normalizedServerMessage.includes('network') ||
+                                    normalizedServerMessage.includes('timeout') ||
+                                    normalizedServerMessage.includes('gateway') ||
+                                    normalizedServerMessage.includes('bad gateway') ||
+                                    normalizedServerMessage.includes('service unavailable') ||
+                                    normalizedServerMessage.includes('internal server error') ||
                                     serverMessage.includes('404') ||
+                                    serverMessage.includes('500') ||
+                                    serverMessage.includes('502') ||
+                                    serverMessage.includes('503') ||
+                                    serverMessage.includes('504') ||
                                     serverMessage.includes('Method Not Allowed');
 
                                 if (!shouldFallbackToClient) {
@@ -2659,7 +2794,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             setBatchProgress({ current: 0, total: 0 });
             
             const modeLabel = forceReanalyze ? `[${BRAND_ACTION_LABELS.directReanalyze}]` : '';
-            const reasonsReport = `\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 폴백 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}`;
+            const fallbackOpportunity = clientFallbackSuccessCount + serverRouteFailCount;
+            const fallbackRecoveryRateText = fallbackOpportunity > 0
+                ? `${Math.round((clientFallbackSuccessCount / fallbackOpportunity) * 100)}%`
+                : '집계 대기';
+            const fallbackRecoveryState = fallbackOpportunity <= 0
+                ? '집계 대기'
+                : (Number(fallbackRecoveryRateText.replace('%', '')) < 30 ? '위험' : Number(fallbackRecoveryRateText.replace('%', '')) < 70 ? '주의' : '안정');
+            const reasonsReport = `\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 폴백 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}\n- 폴백 회복률: ${fallbackRecoveryRateText} (${fallbackRecoveryState})`;
             
             if (stopped) {
                 alert(`${modeLabel} 분석이 중단되었습니다.\n(완료: ${successCount}, ${BRAND_STATUS_LABELS.attentionPending}: ${failCount})${reasonsReport}`);
@@ -3628,12 +3770,24 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </div>
                     )}
 
-                    <CollapsibleSection
-                        title={`${BRAND_STATUS_LABELS.attention} 상세 조치`}
-                        isOpen={showFailedQuickActions}
-                        onToggle={() => setShowFailedQuickActions((prev) => !prev)}
-                        summary={<span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-black text-rose-700">{BRAND_STATUS_LABELS.attention} {failedRecords.length}건 · 유형 {failedTypeGroups.length}개</span>}
-                    >
+                    <div ref={failedQuickActionsRef} className="space-y-2">
+                        <div className="flex justify-end">
+                            <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] font-bold text-slate-600">
+                                <input
+                                    type="checkbox"
+                                    checked={autoScrollFailedQuickActions}
+                                    onChange={(e) => setAutoScrollFailedQuickActions(e.target.checked)}
+                                    className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                상세 조치 열 때 해당 섹션으로 이동
+                            </label>
+                        </div>
+                        <CollapsibleSection
+                            title={`${BRAND_STATUS_LABELS.attention} 상세 조치`}
+                            isOpen={showFailedQuickActions}
+                            onToggle={handleToggleFailedQuickActions}
+                            summary={<span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-black text-rose-700">{BRAND_STATUS_LABELS.attention} {failedRecords.length}건 · 유형 {failedTypeGroups.length}개</span>}
+                        >
                     {failureProcessingStats.length > 0 && (
                         <SectionPanelCard
                             className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3"
@@ -3806,7 +3960,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 <ActionButton
                                                     variant="roseSoft"
                                                     onClick={() => runBatchAnalysis([record], '개별 재분석')}
-                                                    className="border-0"
+                                                    className={`border ${retryActionButtonClass}`}
                                                 >
                                                     원문 다시 읽기
                                                 </ActionButton>
@@ -3830,7 +3984,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             );
                         })}
                     </div>
-                    </CollapsibleSection>
+                        </CollapsibleSection>
+                    </div>
                 </div>
             )}
                             🔄 다시 촬영하기
@@ -3840,16 +3995,24 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             )}
 
             <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 flex flex-col gap-5 no-print">
-                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                    <div className="flex-1 min-w-0">
+                <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(360px,420px)] gap-4 xl:items-start">
+                    <div className="min-w-0">
                         <h4 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">운영 탐색 및 우선순위 정리</h4>
                         <p className="mt-1 text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-300">검색·필터·정렬을 통해 지금 봐야 할 보호 신호와 재평가 대상을 한 번에 정리합니다.</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black ${fallbackRecoveryBadge.className}`}>
+                                {fallbackRecoveryBadge.text}
+                            </span>
+                            <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-black text-slate-700">
+                                폴백 회복률 {fallbackRecoveryRate}%
+                            </span>
+                        </div>
                         <div className="relative w-full mt-4 max-w-2xl">
                             <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={2}/></svg>
                             <input type="text" placeholder="근로자명 · 공종 · 국적 · 팀장으로 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-900 dark:text-slate-100" />
                         </div>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 w-full lg:w-auto">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-2 gap-2 sm:gap-3 w-full">
                         <div className="rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-2">
                             <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">조회 결과</p>
                             <p className="mt-1 text-lg font-black text-slate-900 dark:text-slate-100">{filteredRecords.length}</p>
@@ -4351,9 +4514,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 className="mt-4"
                                 title="최근 재분석 결과"
                                 description={`성공률 ${retrySuccessRate}%`}
+                                headerAction={(
+                                    <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black ${fallbackRecoveryBadge.className}`}>
+                                        {fallbackRecoveryBadge.text}
+                                    </span>
+                                )}
                                 titleClassName="text-[11px] font-black text-emerald-700 uppercase tracking-wider"
                                 descriptionClassName="text-[11px] font-black text-emerald-700"
-                                headerClassName="flex items-center justify-between gap-2"
+                                headerClassName="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
                                 bodyClassName="mt-0"
                             >
                                 {retryLastUpdatedLabel && (
@@ -4397,7 +4565,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     ]}
                                 />
                                 <SummaryMetricGrid
-                                    className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4"
+                                    className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5"
                                     cardClassName="rounded-xl bg-white/80 border border-slate-200 px-3 py-2"
                                     items={[
                                         {
@@ -4431,6 +4599,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             tone: '',
                                             labelClassName: 'text-[11px] font-bold text-slate-600',
                                             valueClassName: 'mt-0.5 text-sm font-black text-slate-900',
+                                        },
+                                        {
+                                            key: 'retry-fallback-recovery-rate',
+                                            label: '폴백 회복률',
+                                            value: `${fallbackRecoveryRate}%`,
+                                            tone: fallbackRecoveryMeta.tone,
+                                            labelClassName: fallbackRecoveryMeta.labelClassName,
+                                            valueClassName: fallbackRecoveryMeta.valueClassName,
+                                            helper: fallbackRecoveryMeta.helperText,
+                                            helperClassName: fallbackRecoveryMeta.helperClassName,
                                         },
                                     ]}
                                 />
@@ -4845,8 +5023,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <div className="mt-3 grid grid-cols-2 gap-2">
                                     <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-3 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl">상세 판단</button>
                                     <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-3 py-2 bg-slate-900 text-white font-black text-xs rounded-xl">보호 리포트</button>
+                                    {failed && preflightReason && (
+                                        <div className="col-span-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-800">
+                                            재분석 사전진단: {preflightReason}
+                                        </div>
+                                    )}
                                     {failed && !isAnalyzing && hasImage && (
-                                        <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className="col-span-2 px-3 py-2 bg-rose-100 text-rose-600 font-bold text-xs rounded-xl">원문 다시 읽기</button>
+                                        <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className={`col-span-2 px-3 py-2 font-bold text-xs rounded-xl border transition-all ${retryActionButtonClass}`}>원문 다시 읽기</button>
                                     )}
                                     {failed && !isAnalyzing && (
                                         <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="col-span-2 px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl" title={`${BRAND_STATUS_LABELS.attention} 안내가 필요한 건을 관리자 검토 후 정상 흐름으로 전환`}>관리자 판단으로 유지</button>
@@ -4877,6 +5060,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const isManager = isManagementRole(r.jobField);
                                 const hasImage = hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage);
                                 const failed = isFailedRecord(r);
+                                const preflightReason = failed ? getPreflightFailureReason(r) : null;
                                 const secondPassEligibility = getSecondPassEligibility(r, secondPassEditedOnly);
                                 const latestCorrectionPreview = getLatestCorrectionPreview(r);
                                 const latestCorrectionTimestampLabel = getLatestCorrectionTimestampLabel(r);
@@ -5046,7 +5230,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         <td className="px-4 sm:px-8 py-5 text-right">
                                             <div className="flex justify-end gap-2">
                                                 {failed && !isAnalyzing && hasImage && (
-                                                    <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className="px-3 py-2 bg-rose-100 text-rose-600 font-bold text-xs rounded-xl hover:bg-rose-200 transition-all">
+                                                    <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className={`px-3 py-2 font-bold text-xs rounded-xl border transition-all ${retryActionButtonClass}`} title={preflightReason || '사전진단 통과'}>
                                                         원문 다시 읽기
                                                     </button>
                                                 )}
