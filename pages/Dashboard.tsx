@@ -350,6 +350,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const [isDashboardViewModeManual, setIsDashboardViewModeManual] = useState<boolean>(() => getStoredDashboardViewModeManual());
     const viewMetricSessionRef = useRef<string>(createMetricSessionId('dashboard'));
     const viewMetricStartRef = useRef<number>(Date.now());
+    const teamComparisonSectionRef = useRef<HTMLDivElement | null>(null);
     const skipTeamSelectionResetRef = useRef<boolean>(false);
     const [dashboardViewMode, setDashboardViewMode] = useState<DashboardViewMode>(() => {
         const storedMode = getStoredDashboardViewMode();
@@ -450,6 +451,30 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             control: 'audience_view',
             audience,
             viewportWidth,
+        });
+    };
+
+    const handleNavigateToTeamComparison = () => {
+        setIsDashboardViewModeManual(true);
+        setDashboardViewMode('full');
+        setMobileInsightTab('team');
+
+        if (!selectedTradeForComparison) {
+            const fallbackTrade = tradeQuickAccess[0]?.trade || dashboardData.trades[0] || null;
+            if (fallbackTrade) {
+                openTradeIntegratedAnalysis(fallbackTrade, 'team');
+            }
+        }
+
+        window.setTimeout(() => {
+            teamComparisonSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 80);
+
+        trackUIViewMetric('cta_click', 'dashboard', viewMetricSessionRef.current, {
+            actionKey: 'jump_team_comparison',
+            viewMode: dashboardViewMode,
+            audienceView,
+            hadSelectedTrade: Boolean(selectedTradeForComparison),
         });
     };
 
@@ -1855,7 +1880,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-200">화면 구성 모드</p>
                             <p className="mt-1 text-xs font-medium text-slate-200">
                                 {dashboardViewMode === 'full'
-                                    ? '현재 구성: 평가자 중심 전체 맥락(Full Context)'
+                                    ? '전체 분석: 평가자 중심 전체 맥락(Full Context)'
                                     : dashboardViewMode === 'balanced'
                                         ? '중간 구성: 핵심 + 필요 시 확장(Balanced)'
                                         : '필수 구성: 즉시 행동 중심(Essential)'}
@@ -1863,7 +1888,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {([
-                                { key: 'full', label: '현재 구성' },
+                                { key: 'full', label: '전체 분석' },
                                 { key: 'balanced', label: '중간 구성' },
                                 { key: 'essential', label: '필수 구성' },
                             ] as Array<{ key: DashboardViewMode; label: string }>).map((mode) => (
@@ -1880,6 +1905,13 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     {mode.label}
                                 </button>
                             ))}
+                            <button
+                                type="button"
+                                onClick={handleNavigateToTeamComparison}
+                                className="rounded-xl px-3 py-2 text-xs font-black bg-indigo-500 text-white hover:bg-indigo-400 transition-colors"
+                            >
+                                팀 비교 바로가기
+                            </button>
                         </div>
                     </div>
 
@@ -2338,7 +2370,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     공종 × 국적 교차 안전 숙련도 분석 섹션 (아래)
             ═══════════════════════════════════════════════════════ */}
             {isFullMode && (
-            <div className="space-y-4 sm:space-y-6">
+            <div ref={teamComparisonSectionRef} className="space-y-4 sm:space-y-6">
                 <InterpretationCardGrid
                     items={comparisonCards}
                     cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
