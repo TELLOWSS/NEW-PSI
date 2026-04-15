@@ -38,6 +38,20 @@
 
 ## 3) 권장 타겟 아키텍처
 
+### 3.4 2026-04-16 즉시 안정화 반영사항 (운영 적용 완료)
+- 이미지 손상 오탐 제거:
+  - 기존 문자열 휴리스틱(`null`/`undefined`/`NaN`) 기반 손상 판정을 제거하고,
+  - Base64 URL-safe 정규화 + 패딩 보정 + decode 검증으로 교체.
+- API 키 선택 폴백 강화:
+  - 무료/유료 모드 키 불일치 시 반대 모드 키(local/env)까지 순차 폴백.
+- 모델 가용성 대응 강화:
+  - 기존 OCR fallback 모델 실패 시 `gemini-2.5-flash` 안정 폴백 추가.
+- 할당량 감지 기준 통합:
+  - 재시도 루프와 최종 실패 변환 모두 동일한 `isRateLimitError()` 기준으로 통일.
+
+> 위 4개는 `harness` 계층이 아닌 OCR 엔진 진입 계층(`services/geminiService.ts`)에 적용되었으며,
+> 하네스는 OCR 결과 텍스트 기반 검증/승인 워크플로우 역할을 유지한다.
+
 ## 3.1 상위 구조
 1. 입력 이미지 수신 (기존 `OcrAnalysis`)
 2. 서버 오케스트레이터 호출 (`/api/gateway?action=ocr.hybrid`)

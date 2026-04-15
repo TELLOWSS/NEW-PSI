@@ -129,6 +129,33 @@ const getOcrErrorTypeKoreanLabel = (errorType: OcrErrorType): string => {
     }
 };
 
+const FAILURE_CODE_LABELS: Record<OcrFailureCode, string> = {
+    QUOTA: '할당량',
+    KEY: '키/권한',
+    FORMAT: '형식',
+    PARSE: '응답 파싱',
+    PAYLOAD: '입력 데이터',
+    NETWORK: '네트워크',
+    UNKNOWN: '기타',
+};
+
+const getFailureCodeTone = (code: OcrFailureCode): string => {
+    switch (code) {
+        case 'QUOTA':
+            return BRAND_TONE.darkAmber;
+        case 'KEY':
+        case 'NETWORK':
+            return BRAND_TONE.darkRose;
+        case 'FORMAT':
+        case 'PAYLOAD':
+            return BRAND_TONE.darkIndigo;
+        case 'PARSE':
+            return BRAND_TONE.darkViolet;
+        default:
+            return BRAND_TONE.glassSoft;
+    }
+};
+
 const inferHarnessWorkflowState = (record: Partial<WorkerRecord>): HarnessWorkflowState => {
     if (record.secondPassStatus === 'IN_PROGRESS') return 'second_pass_analyzing';
     if (record.reviewStatus === 'PENDING' || record.approvalStatus === 'PENDING') return 'awaiting_manager_approval';
@@ -462,6 +489,13 @@ const getPreflightFailureReason = (record: WorkerRecord): string | null => {
     return null;
 };
 
+const resolveFailureCodeFromRecord = (record: WorkerRecord): OcrFailureCode => {
+    if (record.ocrFailureCode) return record.ocrFailureCode;
+
+    const inferred = inferOcrFailureCode(`${String(record.ocrErrorMessage || '')} ${String(record.aiInsights || '')}`);
+    return inferred;
+};
+
 // [강화된 실패 판단 로직 - 안전성 강화]
 const isFailedRecord = (r: WorkerRecord): boolean => {
     if (r.ocrErrorType) return true;
@@ -656,6 +690,29 @@ const isRecentlyCorrected = (record: WorkerRecord): boolean => {
     const timestamp = getLatestCorrectionTimestamp(record);
     if (!timestamp) return false;
     return Date.now() - timestamp <= 24 * 60 * 60 * 1000;
+};
+
+const parseTimestampToMs = (value?: string | null): number => {
+    if (!value) return 0;
+    const timestamp = new Date(value).getTime();
+    return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const getLatestRecordActivityTimestamp = (record: WorkerRecord): number => {
+    const timestamps: number[] = [];
+    const pushTimestamp = (value?: string | null) => {
+        const parsed = parseTimestampToMs(value);
+        if (parsed > 0) timestamps.push(parsed);
+    };
+
+    (record.auditTrail || []).forEach((entry) => pushTimestamp(entry.timestamp));
+    (record.correctionHistory || []).forEach((entry) => pushTimestamp(entry.timestamp));
+    (record.actionHistory || []).forEach((entry) => pushTimestamp(entry.timestamp));
+    (record.approvalHistory || []).forEach((entry) => pushTimestamp(entry.timestamp));
+    pushTimestamp(record.approvedAt);
+
+    if (timestamps.length === 0) return 0;
+    return Math.max(...timestamps);
 };
 
 type RecordSortMode = 'recent-correction' | 'score-desc' | 'failed-first' | 'error-type';
@@ -1963,6 +2020,72 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             .slice(0, 4);
     }, [failedRecords]);
 
+    const failedFailureCodeSummary = useMemo(() => {
+        const counts: Record<OcrFailureCode, number> = {
+            QUOTA: 0,
+            KEY: 0,
+            FORMAT: 0,
+            PARSE: 0,
+            PAYLOAD: 0,
+            NETWORK: 0,
+            UNKNOWN: 0,
+        };
+
+        failedRecords.forEach((record) => {
+            const code = resolveFailureCodeFromRecord(record);
+            counts[code] = (counts[code] || 0) + 1;
+        });
+
+        return (Object.entries(counts) as Array<[OcrFailureCode, number]>)
+            .filter(([, count]) => count > 0)
+            .sort((a, b) => b[1] - a[1])
+            .map(([code, count]) => ({
+                code,
+                label: FAILURE_CODE_LABELS[code],
+                count,
+            }));
+    }, [failedRecords]);
+
+    const failedFailureCodeRecentSummary = useMemo(() => {
+        const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+        const recentFailedRecords = failedRecords.filter((record) => getLatestRecordActivityTimestamp(record) >= dayAgo);
+
+        const counts: Record<OcrFailureCode, number> = {
+            QUOTA: 0,
+            KEY: 0,
+            FORMAT: 0,
+            PARSE: 0,
+            PAYLOAD: 0,
+            NETWORK: 0,
+            UNKNOWN: 0,
+        };
+
+        recentFailedRecords.forEach((record) => {
+            const code = resolveFailureCodeFromRecord(record);
+            counts[code] = (counts[code] || 0) + 1;
+        });
+
+        const recentCodes = (Object.entries(counts) as Array<[OcrFailureCode, number]>)
+            .filter(([, count]) => count > 0)
+            .sort((a, b) => b[1] - a[1])
+            .map(([code, count]) => ({
+                code,
+                label: FAILURE_CODE_LABELS[code],
+                count,
+            }));
+
+        const totalRecent = recentFailedRecords.length;
+        const totalFailed = failedRecords.length;
+        const recentShare = totalFailed > 0 ? Math.round((totalRecent / totalFailed) * 100) : 0;
+
+        return {
+            totalRecent,
+            recentShare,
+            topRecent: recentCodes[0] || null,
+            recentCodes,
+        };
+    }, [failedRecords]);
+
     const failedHarnessSummary = useMemo(() => {
         return failedRecords.reduce((acc, record) => {
             const workflowState = inferHarnessWorkflowState(record);
@@ -2192,6 +2315,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             `- ${BRAND_STATUS_LABELS.attentionPending}: ${failedRecords.length}건`,
             `- 사유 QA 대상: ${reasonQaPreviewRecords.length}건`,
             '',
+            '[실패코드 집계]',
+            ...(failedFailureCodeSummary.length > 0
+                ? failedFailureCodeSummary.map((item) => `- ${item.code} (${item.label}): ${item.count}건`)
+                : ['- 집계 대상 없음']),
+            '',
+            '[실패코드 최근 24시간]',
+            `- 최근 갱신 실패: ${failedFailureCodeRecentSummary.totalRecent}건 (${failedFailureCodeRecentSummary.recentShare}%)`,
+            ...(failedFailureCodeRecentSummary.recentCodes.length > 0
+                ? failedFailureCodeRecentSummary.recentCodes.map((item) => `- ${item.code} (${item.label}): ${item.count}건`)
+                : ['- 최근 24시간 집계 대상 없음']),
+            '',
             '[최근 재분석 집계]',
             `- 성공률: ${retrySuccessRate}%`,
             `- 총 대상: ${retryDiagnostics?.total || 0}건`,
@@ -2252,6 +2386,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         secondPassTargets.length,
         failedRecords.length,
         reasonQaPreviewRecords.length,
+        failedFailureCodeSummary,
+        failedFailureCodeRecentSummary,
         retrySuccessRate,
         retryDiagnostics,
         recentReassessmentDeltaSummary,
@@ -3422,6 +3558,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <span className="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-slate-100">재분석 가능 {secondPassTargets.length}건</span>
                                 <span className="px-3 py-1.5 rounded-full bg-rose-500/15 border border-rose-400/20 text-rose-200">{BRAND_STATUS_LABELS.attentionPending} {failedRecords.length}건</span>
                                 <span className="px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/20 text-amber-200">저신뢰 {lowConfidenceCount}건</span>
+                                <span className="px-3 py-1.5 rounded-full bg-violet-500/15 border border-violet-400/20 text-violet-200">최근 24h 실패 갱신 {failedFailureCodeRecentSummary.totalRecent}건</span>
                             </div>
                         </div>
 
@@ -3485,6 +3622,33 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 },
                             ]}
                         />
+
+                        {failedFailureCodeSummary.length > 0 && (
+                            <>
+                                <SummaryMetricGrid
+                                    className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-5"
+                                    cardClassName="rounded-2xl border px-4 py-3"
+                                    items={failedFailureCodeSummary.slice(0, 5).map((item) => ({
+                                        key: `overview-failure-code-${item.code}`,
+                                        label: `실패코드 ${item.code}`,
+                                        value: item.count,
+                                        helper: `${item.label} 원인`,
+                                        tone: getFailureCodeTone(item.code),
+                                        labelClassName: 'text-[10px] font-black uppercase tracking-widest text-slate-300',
+                                        valueClassName: 'mt-1 text-xl font-black text-white',
+                                        helperClassName: 'mt-1 text-[11px] font-bold text-slate-300/90',
+                                    }))}
+                                />
+                                <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-200">
+                                    <span className="rounded-full bg-slate-800/70 border border-slate-600/70 px-3 py-1">최근 24h 갱신 실패 {failedFailureCodeRecentSummary.totalRecent}건 ({failedFailureCodeRecentSummary.recentShare}%)</span>
+                                    {failedFailureCodeRecentSummary.topRecent && (
+                                        <span className="rounded-full bg-violet-500/20 border border-violet-300/30 px-3 py-1 text-violet-100">
+                                            집중 코드 {failedFailureCodeRecentSummary.topRecent.code} · {failedFailureCodeRecentSummary.topRecent.count}건
+                                        </span>
+                                    )}
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     <SectionPanelCard

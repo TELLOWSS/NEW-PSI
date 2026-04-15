@@ -22,6 +22,7 @@ const QUOTA_STATE_KEY = 'psi_api_quota_state';
 const QUOTA_RECOVERY_MINUTES = 15; // 기본 복구 대기(짧게) + UI에서 수동 해제 가능
 const OCR_MODEL_PRIMARY = 'gemini-3.0-flash';
 const OCR_MODEL_FALLBACK = 'gemini-3-flash-preview';
+const OCR_MODEL_STABLE_FALLBACK = 'gemini-2.5-flash';
 const REASONING_MODEL_PRIMARY = 'gemini-3.1-pro-preview';
 const REASONING_MODEL_FALLBACK = 'gemini-3-flash-preview';
 const VECTOR_EMBED_MODEL = 'text-embedding-004';
@@ -35,15 +36,21 @@ type BestPracticeCase = {
 
 const getActiveApiKey = (): string => {
     const isPaidApiMode = getIsPaidApiMode();
-    const localKey = isPaidApiMode
+    const primaryLocalKey = isPaidApiMode
         ? (localStorage.getItem('paidApiKey') || '')
         : (localStorage.getItem('freeApiKey') || '');
-
-    const envKey = isPaidApiMode
+    const primaryEnvKey = isPaidApiMode
         ? (import.meta.env.VITE_GEMINI_API_KEY_PAID || '')
         : (import.meta.env.VITE_GEMINI_API_KEY_FREE || '');
 
-    return String(localKey || envKey || '').trim();
+    const secondaryLocalKey = isPaidApiMode
+        ? (localStorage.getItem('freeApiKey') || '')
+        : (localStorage.getItem('paidApiKey') || '');
+    const secondaryEnvKey = isPaidApiMode
+        ? (import.meta.env.VITE_GEMINI_API_KEY_FREE || '')
+        : (import.meta.env.VITE_GEMINI_API_KEY_PAID || '');
+
+    return String(primaryLocalKey || primaryEnvKey || secondaryLocalKey || secondaryEnvKey || '').trim();
 };
 
     const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
@@ -921,19 +928,34 @@ function validateImageFormat(base64Data: string): { isValid: boolean; detectedFo
         return { isValid: false, detectedFormat: 'unknown', supportedFormat: false, error: 'Image data too short' };
     }
 
-    const detectedMime = detectMimeTypeFromBase64(base64Data);
+    const normalizedBase64 = String(base64Data || '')
+        .replace(/[\r\n\s]/g, '')
+        .replace(/-/g, '+')
+        .replace(/_/g, '/');
+
+    const paddingLength = (4 - (normalizedBase64.length % 4)) % 4;
+    const paddedBase64 = `${normalizedBase64}${'='.repeat(paddingLength)}`;
+
+    const detectedMime = detectMimeTypeFromBase64(paddedBase64);
     const supportedFormats = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/tiff', 'image/bmp', 'image/svg+xml'];
     const isSupported = supportedFormats.includes(detectedMime);
 
-    // Additional validation: check for common corruption patterns
-    if (base64Data.includes('null') || base64Data.includes('undefined') || base64Data.includes('NaN')) {
-        return { isValid: false, detectedFormat: detectedMime, supportedFormat: isSupported, error: 'Corrupted data detected' };
+    // Validate base64 format (only alphanumeric + /+= allowed with whitespace)
+    const base64Regex = /^[A-Za-z0-9+/=]*$/;
+    if (!base64Regex.test(paddedBase64)) {
+        return { isValid: false, detectedFormat: detectedMime, supportedFormat: isSupported, error: 'Invalid base64 characters' };
     }
 
-    // Validate base64 format (only alphanumeric + /+= allowed with whitespace)
-    const base64Regex = /^[A-Za-z0-9+/=\s]*$/;
-    if (!base64Regex.test(base64Data)) {
-        return { isValid: false, detectedFormat: detectedMime, supportedFormat: isSupported, error: 'Invalid base64 characters' };
+    // Robust corruption check: decode-level validation (prevents false positives from random substrings like "NaN")
+    try {
+        if (typeof atob === 'function') {
+            const decoded = atob(paddedBase64);
+            if (!decoded || decoded.length < 16) {
+                return { isValid: false, detectedFormat: detectedMime, supportedFormat: isSupported, error: 'Corrupted data detected' };
+            }
+        }
+    } catch {
+        return { isValid: false, detectedFormat: detectedMime, supportedFormat: isSupported, error: 'Corrupted data detected' };
     }
 
     return { isValid: true, detectedFormat: detectedMime, supportedFormat: isSupported };
@@ -1192,11 +1214,19 @@ async function callGeminiWithRetry(
             const errorMsg = errMsg;
             console.warn(`Attempt ${i + 1} failed for ${filenameHint}:`, errorMsg);
 
-            if (fallbackModelName && !fallbackActivated && isModelAvailabilityError(errorMsg)) {
-                console.warn(`[Model Fallback] ${activeModelName} -> ${fallbackModelName}`);
-                activeModelName = fallbackModelName;
-                fallbackActivated = true;
-                continue;
+            if (isModelAvailabilityError(errorMsg)) {
+                if (fallbackModelName && !fallbackActivated) {
+                    console.warn(`[Model Fallback] ${activeModelName} -> ${fallbackModelName}`);
+                    activeModelName = fallbackModelName;
+                    fallbackActivated = true;
+                    continue;
+                }
+
+                if (activeModelName !== OCR_MODEL_STABLE_FALLBACK) {
+                    console.warn(`[Model Stable Fallback] ${activeModelName} -> ${OCR_MODEL_STABLE_FALLBACK}`);
+                    activeModelName = OCR_MODEL_STABLE_FALLBACK;
+                    continue;
+                }
             }
             
             // Critical errors: Don't retry
@@ -1216,7 +1246,7 @@ async function callGeminiWithRetry(
             
             // Rate limit errors: Aggressive Backoff
             // 429: Too Many Requests, RESOURCE_EXHAUSTED
-            if (errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED') || errorMsg.includes('quota')) {
+            if (isRateLimitError(errorMsg)) {
                 // [IMPROVED] Use setQuotaExhausted to track quota state
                 setQuotaExhausted(); // 기본 복구 대기 사용
                 
@@ -1235,7 +1265,7 @@ async function callGeminiWithRetry(
 
     // Ensure 429 is propagated in the error text for the UI to detect
     const lastMsg = extractMessage(lastError);
-    const isQuotaError = lastMsg.includes('429') || lastMsg.includes('RESOURCE_EXHAUSTED');
+    const isQuotaError = isRateLimitError(lastMsg);
     const finalErrorMsg = isQuotaError
         ? `할당량 초과 (429 RESOURCE_EXHAUSTED). 잠시 후 다시 시도됩니다.`
         : `오류 상세: ${lastMsg || '알 수 없는 오류'}`;
