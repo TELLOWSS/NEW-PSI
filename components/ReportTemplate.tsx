@@ -90,42 +90,42 @@ const SAFETY_SIGNS: SafetySignData[] = [
         icon: (
             <g><path d="M50 15 L15 85 H85 L50 15 Z" fill="#FACC15" stroke="black" strokeWidth="3" strokeLinejoin="round"/><path d="M50 35 L50 60" stroke="black" strokeWidth="4" strokeLinecap="round"/><circle cx="50" cy="70" r="3" fill="black"/><path d="M40 45 L30 55 L35 65 M45 45 L55 50 L60 40" stroke="black" strokeWidth="2" fill="none"/><circle cx="48" cy="40" r="3" fill="black"/></g>
         ),
-        labels: { ko: '추락 주의', cn: '当心坠落', vn: 'Chú ý rơi ngã', th: 'ระวังตก', uz: 'Yiqilish xavfi', kh: 'គ្រោះថ្នាក់នៃការធ្លាក់', id: 'Bahaya Jatuh', mn: 'Унах аюултай', en: 'Danger: Falling' }
+        labels: { ko: '추락 주의', cn: '当心坠落', vn: 'Chú ý rơi ngã', th: 'ระวังตก', my: 'ပြုတ်ကျမှု သတိ', uz: 'Yiqilish xavfi', kh: 'គ្រោះថ្នាក់នៃការធ្លាក់', id: 'Bahaya Jatuh', mn: 'Унах аюултай', ru: 'Опасность падения', en: 'Danger: Falling' }
     },
     {
         id: 'electric', type: 'warning', keywords: ['전기', '감전', '누전', '케이블', '전선', '접지'],
         icon: (
             <g><path d="M50 15 L15 85 H85 L50 15 Z" fill="#FACC15" stroke="black" strokeWidth="3" strokeLinejoin="round"/><path d="M50 30 L40 50 L55 50 L45 75" stroke="black" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"/></g>
         ),
-        labels: { ko: '감전 주의', cn: '当心触电', vn: 'Cẩn thận điện giật', th: 'ระวังไฟฟ้าดูด', uz: 'Elektr toki xavfi', kh: 'គ្រោះថ្នាក់ឆក់ខ្សែភ្លើង', id: 'Awas Listrik', mn: 'Цахилгаанд цохиулах', en: 'Danger: Electric Shock' }
+        labels: { ko: '감전 주의', cn: '当心触电', vn: 'Cẩn thận điện giật', th: 'ระวังไฟฟ้าดูด', my: 'လျှပ်စစ်အန္တရာယ် သတိ', uz: 'Elektr toki xavfi', kh: 'គ្រោះថ្នាក់ឆក់ខ្សែភ្លើង', id: 'Awas Listrik', mn: 'Цахилгаанд цохиулах', ru: 'Опасность поражения током', en: 'Danger: Electric Shock' }
     },
     {
         id: 'safety_belt', type: 'mandatory', keywords: ['안전대', '벨트', '고리', '체결', '생명줄'],
         icon: (
             <g><circle cx="50" cy="50" r="40" fill="#2563EB" /><circle cx="50" cy="50" r="36" fill="none" stroke="white" strokeWidth="2" strokeDasharray="4 2"/><path d="M30 50 Q50 80 70 50" stroke="white" strokeWidth="4" fill="none"/><rect x="45" y="45" width="10" height="10" fill="white"/><path d="M30 50 L30 30 M70 50 L70 30" stroke="white" strokeWidth="4"/></g>
         ),
-        labels: { ko: '안전대 착용 철저', cn: '必须系安全带', vn: 'Đeo dây an toàn', th: 'สวมเข็มขัดนิรภัย', uz: 'Xavfsizlik kamarini taqing', kh: 'ពាក់ខ្សែក្រវ៉ាត់', id: 'Pakai Sabuk Pengaman', mn: 'Бүсээ зүүгээрэй', en: 'Wear Safety Belt' }
+        labels: { ko: '안전대 착용 철저', cn: '必须系安全带', vn: 'Đeo dây an toàn', th: 'สวมเข็มขัดนิรภัย', my: 'လုံခြုံရေးခါးပတ် ဝတ်ဆင်ပါ', uz: 'Xavfsizlik kamarini taqing', kh: 'ពាក់ខ្សែក្រវ៉ាត់', id: 'Pakai Sabuk Pengaman', mn: 'Бүсээ зүүгээрэй', ru: 'Наденьте страховочный пояс', en: 'Wear Safety Belt' }
     },
     {
         id: 'helmet', type: 'mandatory', keywords: ['안전모', '머리', '낙하', '보호구', '턱끈'],
         icon: (
             <g><circle cx="50" cy="50" r="40" fill="#2563EB" /><path d="M30 55 C30 40 40 35 50 35 C60 35 70 40 70 55 Z" fill="white"/><rect x="25" y="55" width="50" height="5" fill="white" rx="2"/></g>
         ),
-        labels: { ko: '안전모 착용', cn: '必须戴安全帽', vn: 'Đội mũ bảo hiểm', th: 'สวมหมวกนิรภัย', uz: 'Bosh kiyimini kiying', kh: 'ពាក់មួកសុវត្ថិភាព', id: 'Pakai Helm', mn: 'Малгай өмс', en: 'Wear Hard Hat' }
+        labels: { ko: '안전모 착용', cn: '必须戴安全帽', vn: 'Đội mũ bảo hiểm', th: 'สวมหมวกนิรภัย', my: 'လုံခြုံရေးဦးထုပ် ဝတ်ဆင်ပါ', uz: 'Bosh kiyimini kiying', kh: 'ពាក់មួកសុវត្ថិភាព', id: 'Pakai Helm', mn: 'Малгай өмс', ru: 'Наденьте каску', en: 'Wear Hard Hat' }
     },
     {
         id: 'fire', type: 'warning', keywords: ['화재', '불', '용접', '인화', '폭발'],
         icon: (
             <g><path d="M50 15 L15 85 H85 L50 15 Z" fill="#FACC15" stroke="black" strokeWidth="3" strokeLinejoin="round"/><path d="M50 70 Q40 70 40 60 Q40 50 50 40 Q60 50 60 60 Q60 70 50 70" fill="red"/></g>
         ),
-        labels: { ko: '화재 주의', cn: '当心火灾', vn: 'Cẩn thận hỏa hoạn', th: 'ระวังไฟไหม้', uz: "Yong'in xavfi", kh: 'គ្រោះថ្នាក់អគ្គីភ័យ', id: 'Awas Api', mn: 'Галын аюул', en: 'Danger: Fire' }
+        labels: { ko: '화재 주의', cn: '当心火灾', vn: 'Cẩn thận hỏa hoạn', th: 'ระวังไฟไหม้', my: 'မီးအန္တရာယ် သတိ', uz: "Yong'in xavfi", kh: 'គ្រោះថ្នាក់អគ្គីភ័យ', id: 'Awas Api', mn: 'Галын аюул', ru: 'Пожарная опасность', en: 'Danger: Fire' }
     },
     {
         id: 'default_safety', type: 'mandatory', keywords: ['default'],
         icon: (
             <g><circle cx="50" cy="50" r="40" fill="#10B981" /><path d="M35 50 L45 60 L65 40" stroke="white" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none"/></g>
         ),
-        labels: { ko: '안전 수칙 준수', cn: '遵守安全规定', vn: 'Tuân thủ quy tắc an toàn', th: 'ปฏิบัติตามกฎความปลอดภัย', uz: 'Xavfsizlik qoidalariga rioya', kh: 'គោរពច្បាប់សុវត្ថិភាព', id: 'Patuhi Aturan', mn: 'Дүрэм мөрдөх', en: 'Safety First' }
+        labels: { ko: '안전 수칙 준수', cn: '遵守安全规定', vn: 'Tuân thủ quy tắc an toàn', th: 'ปฏิบัติตามกฎความปลอดภัย', my: 'လုံခြုံရေးစည်းကမ်း လိုက်နာပါ', uz: 'Xavfsizlik qoidalariga rioya', kh: 'គោរពច្បាប់សុវត្ថិភាព', id: 'Patuhi Aturan', mn: 'Дүрэм мөрдөх', ru: 'Соблюдайте правила безопасности', en: 'Safety First' }
     }
 ];
 
@@ -149,6 +149,8 @@ const getSignLabel = (sign: SafetySignData, nationality: string) => {
     if (n.includes('중국')) return sign.labels.cn;
     if (n.includes('베트남')) return sign.labels.vn;
     if (n.includes('태국')) return sign.labels.th;
+    if (n.includes('미얀마') || n.toLowerCase().includes('myanmar') || n.toLowerCase().includes('burma')) return sign.labels.my;
+    if (n.includes('러시아') || n.toLowerCase().includes('russia') || n.toLowerCase().includes('russian') || n.toLowerCase().includes('росси')) return sign.labels.ru;
     if (n.includes('우즈벡')) return sign.labels.uz;
     if (n.includes('캄보디아')) return sign.labels.kh;
     if (n.includes('인도네시아')) return sign.labels.id;
@@ -160,10 +162,12 @@ const LABELS: Record<string, Record<string, string>> = {
     '베트남': { strengths: 'Điểm mạnh (강점)', weaknesses: 'Điểm yếu & Cải thiện (취약점)', trends: 'Xu hướng an toàn (안전 추이)', verdict: 'Đánh giá an toàn tổng hợp (종합진단)', pictogram: 'Biển báo an toàn thiết yếu (필수 안전 표지)', original: 'Bản gốc viết tay', cert: 'Chứng nhận năng lực an toàn' },
     '중국': { strengths: '优势 (강점)', weaknesses: '弱点与改进 (취약점)', trends: '安全趋势 (안전 추이)', verdict: '综合安全诊断 (종합진단)', pictogram: '基本安全标志 (필수 안전 표지)', original: '手写原件', cert: '安全能力认证' },
     '태국': { strengths: 'จุดแข็ง (강점)', weaknesses: 'จุดอ่อน (취약점)', trends: 'แนวโน้ม (안전 추이)', verdict: 'การวินิจฉัย (종합진단)', pictogram: 'ป้ายความปลอดภัยที่จำเป็น (필수 안전 표지)', original: 'ต้นฉบับ', cert: 'ใบรับรองความปลอดภัย' },
+    '미얀마': { strengths: 'အားသာချက်များ (강점)', weaknesses: 'အားနည်းချက်နှင့် ပြုပြင်ရန် (취약점)', trends: 'ဘေးကင်းလုံခြုံရေး လမ်းကြောင်း (안전 추이)', verdict: 'အကျဉ်းချုပ် ဘေးကင်းလုံခြုံရေး သုံးသပ်ချက် (종합진단)', pictogram: 'မရှိမဖြစ် လုံခြုံရေး သင်္ကေတ (필수 안전 표지)', original: 'လက်ရေးမူရင်း', cert: 'ဘေးကင်းလုံခြုံရေး စွမ်းရည် လက်မှတ်' },
     '우즈베키스탄': { strengths: 'Kuchli tomonlari (강점)', weaknesses: 'Zaif tomonlari (취약점)', trends: 'Xavfsizlik (안전 추이)', verdict: 'Keng qamrovli diagnostika (종합진단)', pictogram: 'Muhim xavfsizlik belgilari (필수 안전 표지)', original: 'Asl nusxa', cert: 'Xavfsizlik Sertifikati' },
     '캄보디아': { strengths: 'ចំណុចខ្លាំង (강점)', weaknesses: 'ចំណុចខ្សោយ (취약점)', trends: 'និន្នាការ (안전 추이)', verdict: 'ការវិនិច្ឆ័យ (종합진단)', pictogram: 'ស្លាកសញ្ញា (필수 안전 표지)', original: 'ឯកសារដើម', cert: 'វិញ្ញាបនបត្រសុវត្ថិភាព' },
     '인도네시아': { strengths: 'Kekuatan (강점)', weaknesses: 'Kelemahan (취약점)', trends: 'Tren (안전 추이)', verdict: 'Diagnosis (종합진단)', pictogram: 'Rambu Wajib (필수 안전 표지)', original: 'Asli', cert: 'Sertifikat Keselamatan' },
     '몽골': { strengths: 'Давуу тал (강점)', weaknesses: 'Сул тал (취약점)', trends: 'Хандлага (안전 추이)', verdict: 'Дүгнэлт (종합진단)', pictogram: 'Анхааруулах тэмдэг (필수 안전 표지)', original: 'Эх хувь', cert: 'Аюулгүй байдлын гэрчилгээ' },
+    '러시아': { strengths: 'Сильные стороны (강점)', weaknesses: 'Зоны улучшения (취약점)', trends: 'Тренд безопасности (안전 추이)', verdict: 'Комплексная диагностика (종합진단)', pictogram: 'Обязательные знаки безопасности (필수 안전 표지)', original: 'Оригинал записи', cert: 'Сертификат компетенции по безопасности' },
     '카자흐스탄': { strengths: 'Күшті жақтары (강점)', weaknesses: 'Әлсіз тұстары (취약점)', trends: 'Қауіпсіздік тренді (안전 추이)', verdict: 'Кешенді диагностика (종합진단)', pictogram: 'Қауіпсіздік белгілері (필수 안전 표지)', original: 'Түпнұсқа', cert: 'Қауіпсіздік құзыреті сертификаты' },
     '대한민국': { strengths: '역량 강점 (Strengths)', weaknesses: '개선 권고 (Focus Areas)', trends: '성과 추이 (Trends)', verdict: '종합 안전 진단 (Comprehensive Diagnosis)', pictogram: '직무 맞춤형 필수 안전 표지 (Safety Signs)', original: '수기 기록 원본 (Original Record)', cert: '안전 역량 인증 및 분석서' },
     'default': { strengths: 'Strengths', weaknesses: 'Focus Areas', trends: 'Trends', verdict: 'Comprehensive Diagnosis', pictogram: 'Essential Safety Signs', original: 'Original Record', cert: 'Certificate of Safety Competence' }
@@ -188,10 +192,12 @@ const getCertificateTitleNative = (nationality: string): string => {
     if (nation.includes('베트남') || nation.toLowerCase().includes('vietnam')) return 'Chứng nhận Năng lực An toàn';
     if (nation.includes('중국') || nation.toLowerCase().includes('china')) return '安全能力认证书';
     if (nation.includes('태국') || nation.toLowerCase().includes('thailand')) return 'ใบรับรองสมรรถนะด้านความปลอดภัย';
+    if (nation.includes('미얀마') || nation.toLowerCase().includes('myanmar') || nation.toLowerCase().includes('burma')) return 'လုံခြုံရေး စွမ်းရည် လက်မှတ်';
     if (nation.includes('우즈벡') || nation.toLowerCase().includes('uzbek')) return 'Xavfsizlik malakasi sertifikati';
     if (nation.includes('캄보디아') || nation.toLowerCase().includes('cambodia')) return 'វិញ្ញាបនបត្រសមត្ថភាពសុវត្ថិភាព';
     if (nation.includes('인도네시아') || nation.toLowerCase().includes('indonesia')) return 'Sertifikat Kompetensi Keselamatan';
     if (nation.includes('몽골') || nation.toLowerCase().includes('mongol')) return 'Аюулгүй ажиллагааны чадамжийн гэрчилгээ';
+    if (nation.includes('러시아') || nation.toLowerCase().includes('russia') || nation.toLowerCase().includes('russian') || nation.toLowerCase().includes('росси')) return 'Сертификат компетенции по безопасности';
     if (nation.includes('카자흐') || nation.toLowerCase().includes('kazakh')) return 'Қауіпсіздік құзыреті сертификаты';
     return 'Certificate of Safety Competence';
 };
@@ -233,6 +239,17 @@ const getSixMetricBilingualLabels = (nationality: string): Array<{ ko: string; n
         ];
     }
 
+    if (nation.includes('미얀마') || nation.includes('myanmar') || nation.includes('burma')) {
+        return [
+            { ko: koBase[0].ko, native: 'စိတ်ပိုင်းတည်ငြိမ်မှု', max: 100 },
+            { ko: koBase[1].ko, native: 'အလုပ်နားလည်မှု', max: 100 },
+            { ko: koBase[2].ko, native: 'အန္တရာယ် အကဲဖြတ် နားလည်မှု', max: 100 },
+            { ko: koBase[3].ko, native: 'အလုပ်ကျွမ်းကျင်မှု', max: 100 },
+            { ko: koBase[4].ko, native: 'တိုးတက်မှု အကောင်အထည်ဖော်နိုင်မှု', max: 100 },
+            { ko: koBase[5].ko, native: 'ထပ်ခါတလဲလဲ ချိုးဖောက်မှု ပြစ်ဒဏ်', max: 20, isPenalty: true },
+        ];
+    }
+
     return [
         { ko: koBase[0].ko, native: 'Psychological stability', max: 100 },
         { ko: koBase[1].ko, native: 'Job understanding', max: 100 },
@@ -253,6 +270,8 @@ const getMonthlyEduNativeTitle = (nationality: string): string => {
         return '月度安全健康定期教育能力诊断报告';
     if (nation.includes('태국') || nation.toLowerCase().includes('thailand'))
         return 'รายงานวินิจฉัยศักยภาพการฝึกอบรมความปลอดภัยประจำเดือน';
+    if (nation.includes('미얀마') || nation.toLowerCase().includes('myanmar') || nation.toLowerCase().includes('burma'))
+        return 'လစဉ် လုံခြုံရေးနှင့် ကျန်းမာရေး ပညာပေး အရည်အချင်း စိစစ်အစီရင်ခံစာ';
     if (nation.includes('우즈베키스탄') || nation.includes('우즈벡') || nation.toLowerCase().includes('uzbek'))
         return "Oylik xavfsizlik ta'limi malakasi hisoboti";
     if (nation.includes('캄보디아') || nation.toLowerCase().includes('cambodia'))
@@ -261,6 +280,8 @@ const getMonthlyEduNativeTitle = (nationality: string): string => {
         return 'Laporan Diagnostik Kompetensi Pendidikan Keselamatan Bulanan';
     if (nation.includes('몽골') || nation.toLowerCase().includes('mongol'))
         return 'Сарын аюулгүй ажиллагааны боловсролын чадамжийн тайлан';
+    if (nation.includes('러시아') || nation.toLowerCase().includes('russia') || nation.toLowerCase().includes('russian') || nation.toLowerCase().includes('росси'))
+        return 'Ежемесячный диагностический отчет по компетенциям в области охраны труда';
     if (nation.includes('카자흐') || nation.toLowerCase().includes('kazakh'))
         return 'Ай сайынғы еңбек қауіпсіздігі білімі есебі';
     return 'Monthly Safety & Health Training Competence Diagnostic Report';
@@ -279,6 +300,10 @@ const buildFallbackNativeCoachingText = (record: WorkerRecord): string => {
         return `在${job}作业开始前，请完整确认危险点、个人防护装备和作业顺序。${weak ? `本次重点改进项为“${weak}”。` : ''}作业过程中一旦现场条件变化，请先暂停并重新评估风险，再按照与班组长确认的防护措施继续作业。`;
     }
 
+    if (nation.includes('미얀마') || nation.includes('myanmar') || nation.includes('burma')) {
+        return `${job} အလုပ်မစတင်မီ အန္တရာယ်ဖြစ်နိုင်သောနေရာများ၊ ကိုယ်ရေးကာကွယ်ပစ္စည်းများနှင့် အလုပ်လုပ်ငန်းစဉ်ကို အပြည့်အစုံ စစ်ဆေးပါ။${weak ? ` ယခုအကြိမ် အဓိက ပြုပြင်ရန် အချက်မှာ "${weak}" ဖြစ်ပါသည်။` : ''} အလုပ်လုပ်နေစဉ် လုပ်ငန်းခွင်အခြေအနေပြောင်းလဲပါက ချက်ချင်းရပ်ပြီး အန္တရာယ်ကို ပြန်လည်အကဲဖြတ်ကာ အဖွဲ့ခေါင်းဆောင်နှင့် အတည်ပြုထားသော ကာကွယ်ရေးအစီအမံအတိုင်းသာ ဆက်လုပ်ပါ။`;
+    }
+
     if (nation.includes('한국') || nation.includes('korea')) {
         return `${job} 작업 전 위험요인, 보호구, 작업순서를 빠짐없이 확인하고 시작하세요. ${weak ? `이번 핵심 개선 항목은 '${weak}'입니다. ` : ''}작업 중 조건이 바뀌면 즉시 멈추어 위험평가를 다시 수행한 뒤 팀장과 확인한 보호조치에 따라 재개해야 합니다.`;
     }
@@ -294,10 +319,12 @@ const getLabels = (nationality: string) => {
     if (nation.includes('베트남')) return LABELS['베트남'];
     if (nation.includes('중국')) return LABELS['중국'];
     if (nation.includes('태국')) return LABELS['태국'];
+    if (nation.includes('미얀마') || nation.toLowerCase().includes('myanmar') || nation.toLowerCase().includes('burma')) return LABELS['미얀마'];
     if (nation.includes('우즈벡')) return LABELS['우즈베키스탄'];
     if (nation.includes('캄보디아')) return LABELS['캄보디아'];
     if (nation.includes('인도네시아')) return LABELS['인도네시아'];
     if (nation.includes('몽골')) return LABELS['몽골'];
+    if (nation.includes('러시아') || nation.toLowerCase().includes('russia') || nation.toLowerCase().includes('russian') || nation.toLowerCase().includes('росси')) return LABELS['러시아'];
     if (nation.includes('카자흐')) return LABELS['카자흐스탄'];
     // 한국인 처리: 대한민국, 한국, Korea 등 모두 지원 (최종적으로 '대한민국'으로 정규화)
     if (nation.includes('한국') || nation.includes('korea') || nation === '대한민국') return LABELS['대한민국'];
@@ -344,7 +371,8 @@ const getAuditSpecialRecommendations = (record: WorkerRecord): string[] => {
         .map((entry) => {
             const rawNote = normalizeNarrativeText(entry.note);
             const stageLabel = stageLabelMap[entry.stage] || entry.stage;
-            const shortNote = rawNote.length > 64 ? `${rawNote.slice(0, 64)}…` : rawNote;
+            const isMyanmar = (record.nationality || '').includes('미얀마') || (record.nationality || '').toLowerCase().includes('myanmar') || (record.nationality || '').toLowerCase().includes('burma');
+            const shortNote = !isMyanmar && rawNote.length > 64 ? `${rawNote.slice(0, 64)}…` : rawNote;
             return `감사이력(${stageLabel}) 특이사항 '${shortNote}' 관련 재발 방지를 위해 ${record.jobField} 작업 전 사전점검·역할확인·보호조치 이행 여부를 팀 단위로 즉시 확인하기`;
         });
 
@@ -710,7 +738,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     const monthlyEduNativeTitle = useMemo(() => getMonthlyEduNativeTitle(record.nationality), [record.nationality]);
     const sixMetricBilingualLabels = useMemo(() => getSixMetricBilingualLabels(record.nationality), [record.nationality]);
     const isKorean = record.nationality === '대한민국' || record.nationality === '한국' || (record.nationality || '').toLowerCase().includes('korea');
-    const timelineLocale = isKorean ? 'ko-KR' : 'en-US';
+    const isMyanmar = (record.nationality || '').includes('미얀마') || (record.nationality || '').toLowerCase().includes('myanmar') || (record.nationality || '').toLowerCase().includes('burma');
+    const timelineLocale = isKorean ? 'ko-KR' : isMyanmar ? 'my-MM' : 'en-US';
     const timelineDateOptions: Intl.DateTimeFormatOptions = {
         timeZone: 'Asia/Seoul',
         year: 'numeric',
@@ -718,9 +747,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         day: '2-digit',
     };
     const safetySigns = useMemo(() => getRelevantSigns(record.weakAreas, record.jobField), [record.weakAreas, record.jobField]);
-    const reassessmentTitle = isKorean ? '재평가 타임라인' : 'Reassessment Timeline';
-    const reassessmentFallback = isKorean ? '2차 재가공' : 'Secondary reassessment';
-    const reassessmentTag = isKorean ? '[재평가]' : '[reassessment]';
+    const reassessmentTitle = isKorean ? '재평가 타임라인' : isMyanmar ? 'ပြန်လည်အကဲဖြတ် အချိန်လိုင်း' : 'Reassessment Timeline';
+    const reassessmentFallback = isKorean ? '2차 재가공' : isMyanmar ? 'ထပ်မံ ပြန်လည်အကဲဖြတ်' : 'Secondary reassessment';
+    const reassessmentTag = isKorean ? '[재평가]' : isMyanmar ? '[ပြန်လည်အကဲဖြတ်]' : '[reassessment]';
     const reassessmentTrail = useMemo(
         () => (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-2).reverse(),
         [record.auditTrail]
@@ -904,8 +933,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     ]);
     const frontEntryLimit = frontTuningProfile.entryLimit;
     const frontParagraphLimit = frontTuningProfile.paragraphLimit;
-    const frontKoCharLimit = frontTuningProfile.koCharLimit;
-    const frontNativeCharLimit = frontTuningProfile.nativeCharLimit;
+    const frontKoCharLimit = isMyanmar ? 10000 : frontTuningProfile.koCharLimit;
+    const frontNativeCharLimit = isMyanmar ? 10000 : frontTuningProfile.nativeCharLimit;
     const frontEntryLineClampStyle = createLineClampStyle(frontTuningProfile.key === 'strict' ? 2 : 3);
     const frontCoachingLineClampStyle = createLineClampStyle(frontTuningProfile.key === 'strict' ? 2 : 3);
     const frontVerdictLineClampStyle = createLineClampStyle(
@@ -949,8 +978,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     );
     const appendixEntryLimit = appendixTuningProfile.entryLimit;
     const appendixParagraphLimit = appendixTuningProfile.paragraphLimit;
-    const appendixKoCharLimit = appendixTuningProfile.koCharLimit;
-    const appendixNativeCharLimit = appendixTuningProfile.nativeCharLimit;
+    const appendixKoCharLimit = isMyanmar ? 10000 : appendixTuningProfile.koCharLimit;
+    const appendixNativeCharLimit = isMyanmar ? 10000 : appendixTuningProfile.nativeCharLimit;
     const appendixKoLineClampStyle = createLineClampStyle(appendixTuningProfile.koLineClamp);
     const appendixNativeLineClampStyle = createLineClampStyle(appendixTuningProfile.nativeLineClamp);
     const appendixCoachingLineClampStyle = createLineClampStyle(Math.max(appendixTuningProfile.koLineClamp, 4));
@@ -1014,7 +1043,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                 <div className="absolute inset-0 z-0 pointer-events-none flex items-center justify-center opacity-[0.03] overflow-hidden">
                     <div className="w-[150%] h-[150%] -rotate-12 flex flex-wrap content-center justify-center gap-24 select-none">
                         {Array.from({ length: 20 }).map((_, i) => (
-                            <div key={i} className="text-4xl font-black text-slate-900 whitespace-nowrap">PSI OFFICIAL SAFETY RECORD</div>
+                            <div key={i} className="text-4xl font-black text-slate-900 whitespace-nowrap">{isMyanmar ? 'PSI တရားဝင် လုံခြုံရေး မှတ်တမ်း' : 'PSI OFFICIAL SAFETY RECORD'}</div>
                         ))}
                     </div>
                 </div>
@@ -1027,7 +1056,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 <BrandPhilosophyLogo className="w-6 h-6" />
                             </div>
                         </div>
-                        <h1 className="text-base font-serif font-black text-slate-900 uppercase leading-tight">Certificate of Safety Competence</h1>
+                        <h1 className="text-base font-serif font-black text-slate-900 uppercase leading-tight">{isMyanmar ? 'လုံခြုံရေး စွမ်းရည် လက်မှတ်' : 'Certificate of Safety Competence'}</h1>
                         <p className="text-[10px] font-black text-slate-700 tracking-[0.06em] break-keep leading-tight mt-0.5">{certificateTitleNative}</p>
                         {!isKorean && (
                             <p className="text-[8px] font-bold text-indigo-600 tracking-[0.04em] break-keep mt-0.5">{monthlyEduNativeTitle}</p>
@@ -1041,11 +1070,11 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <div className="grid h-[40mm] grid-cols-[20mm_minmax(0,1fr)_16mm_38mm] items-start gap-3 pb-2.5 border-b-2 border-slate-800 overflow-hidden">
                             <div className="w-[20mm] h-[28mm] bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
                                 {getProfileImage() ? (
-                                    <img src={getProfileImage()!} className="w-full h-full object-cover" alt="Profile" />
+                                    <img src={getProfileImage()!} className="w-full h-full object-cover" alt={isMyanmar ? 'ကိုယ်ရေးဓာတ်ပုံ' : 'Profile'} />
                                 ) : (
                                     <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-300 text-xs text-center">
                                         <PhotoPlaceholderIcon />
-                                        <span className="text-[9px]">Photo</span>
+                                        <span className="text-[9px]">{isMyanmar ? 'ဓာတ်ပုံ' : 'Photo'}</span>
                                     </div>
                                 )}
                             </div>
@@ -1085,11 +1114,11 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <div className="grid grid-cols-[19mm_minmax(0,1fr)_63mm] items-start gap-3 pb-2.5 border-b-2 border-slate-800 min-h-[38mm] overflow-hidden">
                             <div className="w-[19mm] h-[27mm] bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
                                 {getProfileImage() ? (
-                                    <img src={getProfileImage()!} className="w-full h-full object-cover" alt="Profile" />
+                                    <img src={getProfileImage()!} className="w-full h-full object-cover" alt={isMyanmar ? 'ကိုယ်ရေးဓာတ်ပုံ' : 'Profile'} />
                                 ) : (
                                     <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-300 text-xs text-center">
                                         <PhotoPlaceholderIcon />
-                                        <span className="text-[9px]">Photo</span>
+                                        <span className="text-[9px]">{isMyanmar ? 'ဓာတ်ပုံ' : 'Photo'}</span>
                                     </div>
                                 )}
                             </div>
@@ -1103,7 +1132,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         {record.role === 'leader' && <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-[9px] font-black rounded">팀장</span>}
                                     </div>
                                     <div className="space-y-0.5">
-                                        <p className="text-[9px] text-slate-400 font-medium leading-tight">Date: {formatDate(record.date)}</p>
+                                        <p className="text-[9px] text-slate-400 font-medium leading-tight">{isMyanmar ? 'ရက်စွဲ' : 'Date'}: {formatDate(record.date)}</p>
                                         {record.teamLeader && <p className="text-[9px] text-slate-400 font-medium leading-tight">팀장: {record.teamLeader}</p>}
                                     </div>
                                 </div>
@@ -1116,7 +1145,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                             {record.safetyScore}
                                         </span>
                                     </div>
-                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.18em]">TOTAL SCORE</span>
+                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.18em]">{isMyanmar ? 'စုစုပေါင်း ရမှတ်' : 'TOTAL SCORE'}</span>
                                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${record.safetyLevel === '고급' ? 'bg-emerald-100 text-emerald-800' : record.safetyLevel === '중급' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
                                         {record.safetyLevel}
                                     </span>
@@ -1128,7 +1157,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     <div className="w-[36mm] h-[34mm] overflow-hidden">
                                         <IndividualRadarChart record={record} />
                                     </div>
-                                    <span className="mt-0.5 text-[8px] font-black text-slate-500 tracking-[0.16em] uppercase">6 Metrics</span>
+                                    <span className="mt-0.5 text-[8px] font-black text-slate-500 tracking-[0.16em] uppercase">{isMyanmar ? 'ညွှန်းကိန်း ၆ ခု' : '6 Metrics'}</span>
                                 </div>
                             </div>
                         </div>
@@ -1175,7 +1204,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <div className="grid h-[46mm] grid-cols-2 gap-2.5 overflow-hidden">
                             <div className="flex h-[46mm] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
                                 <p className="text-[10px] font-black leading-none text-slate-700 mb-1.5 flex items-center gap-1">
-                                    <SectionSearchIcon /> 상세 채점 근거 (Score Reasoning)
+                                    <SectionSearchIcon /> {isMyanmar ? '상세 채점 근거' : '상세 채점 근거 (Score Reasoning)'}
                                 </p>
                                 {frontScoreReasonEntries.length > 0 ? (
                                     <ul className="space-y-1 overflow-hidden">
@@ -1275,7 +1304,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
 
                                 <div className="grid min-h-0 h-full gap-2.5 grid-rows-[25mm_minmax(0,1fr)]">
                                     <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm overflow-hidden flex flex-col h-full min-h-0">
-                                        <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trends} (6M)</h4>
+                                        <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trends} {isMyanmar ? '(၆ လ)' : '(6M)'}</h4>
                                         <div className="flex-1 w-full relative min-h-0">
                                             <TrendMiniChart history={history} record={record} />
                                         </div>
@@ -1307,9 +1336,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 <p className="absolute top-1.5 left-2 text-[8px] font-bold text-slate-400 uppercase z-10">{labels.original}</p>
                                 <div className="w-full h-full pt-3 flex items-center justify-center overflow-hidden">
                                     {getOriginalImage() ? (
-                                        <img src={getOriginalImage()!} className="block max-w-full max-h-full object-contain mix-blend-multiply" alt="Original handwritten record" />
+                                        <img src={getOriginalImage()!} className="block max-w-full max-h-full object-contain mix-blend-multiply" alt={isMyanmar ? 'လက်ရေး မူရင်း မှတ်တမ်း' : 'Original handwritten record'} />
                                     ) : (
-                                        <div className="text-[10px] text-slate-300">No Image</div>
+                                        <div className="text-[10px] text-slate-300">{isMyanmar ? '이미지 없음' : 'No Image'}</div>
                                     )}
                                 </div>
                             </div>
@@ -1364,7 +1393,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         <HighlightedText text={frontVerdictPrimaryText} />
                                     </p>
                                     <NextActionChecklist
-                                        title="Action checklist"
+                                        title={isMyanmar ? 'လုပ်ဆောင်ရန် စစ်ဆေးစာရင်း' : 'Action checklist'}
                                         items={frontImprovementEntries.slice(0, 2).map((entry, i) => ({
                                             key: `action-${i}`,
                                             content: <span style={frontEntryLineClampStyle}><HighlightedText text={entry.nativeText || entry.text} /></span>,
@@ -1429,22 +1458,22 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-200">
                         <div>
                             <StatusBadge variant="violetSoft" className="gap-2 px-3 py-1 text-[8px] uppercase tracking-[0.24em]">
-                                Official Appendix
+                                {isMyanmar ? 'တရားဝင် နောက်ဆက်တွဲ' : 'Official Appendix'}
                             </StatusBadge>
-                            <h2 className="mt-2 text-[20px] font-serif font-black text-slate-900">Detailed Interpretation & Action Notes</h2>
+                            <h2 className="mt-2 text-[20px] font-serif font-black text-slate-900">{isMyanmar ? 'အသေးစိတ် အဓိပ္ပာယ်ဖွင့်ဆိုချက်နှင့် လုပ်ဆောင်ချက် မှတ်စုများ' : 'Detailed Interpretation & Action Notes'}</h2>
                             <p className="mt-1 text-[10px] font-bold text-slate-500">줄임 표현된 핵심 문구의 상세 해설과 실행 지침을 정식 문서 형식으로 정리한 부록입니다.</p>
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-right shadow-sm backdrop-blur-sm">
-                            <p className="text-[8px] font-black uppercase tracking-[0.22em] text-slate-400">Worker Identity</p>
+                            <p className="text-[8px] font-black uppercase tracking-[0.22em] text-slate-400">{isMyanmar ? 'အလုပ်သမား အချက်အလက်' : 'Worker Identity'}</p>
                             <p className="mt-1 text-lg font-serif font-bold text-slate-900">{record.name}</p>
                             <p className="text-[9px] font-bold text-slate-500">{record.nationality} · {record.jobField}</p>
-                            <p className="text-[8px] text-slate-400">Issued {formatDate(record.date)}</p>
+                            <p className="text-[8px] text-slate-400">{isMyanmar ? 'ထုတ်ပေးသည့်နေ့' : 'Issued'} {formatDate(record.date)}</p>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-12 grid-rows-[3fr_2fr] gap-2.5 flex-1 min-h-0">
                         <WhyThisResultPanel
-                            title="Formal score reasoning"
+                            title={isMyanmar ? 'အမှတ်ပေး အကြောင်းပြချက် အသေးစိတ်' : 'Formal score reasoning'}
                             badge={<StatusBadge variant="slateSoft" className="px-2.5 py-1 text-[8px]">검증용 상세 기술</StatusBadge>}
                             entries={appendixScoreReasonEntries.map((entry, index) => ({
                                 key: `score-detail-${index}`,
@@ -1505,7 +1534,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
 
                             <div className="mt-2.5 rounded-[18px] border border-slate-200 bg-slate-50 px-3 py-3">
                                 <div className="flex items-center justify-between gap-2">
-                                    <h4 className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-700">Comprehensive diagnosis</h4>
+                                    <h4 className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-700">{isMyanmar ? 'အကျဉ်းချုပ် သုံးသပ်ချက်' : 'Comprehensive diagnosis'}</h4>
                                     <span className="text-[8px] font-black text-slate-400">양면 인쇄 상세 해설</span>
                                 </div>
                                 <div className="mt-2 space-y-1.5">
@@ -1523,7 +1552,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </WhyThisResultPanel>
 
                         <WhyThisResultPanel
-                            title="Action coaching"
+                            title={isMyanmar ? 'လုပ်ငန်းခွင် လက်တွေ့ညွှန်ကြားချက်' : 'Action coaching'}
                             badge={<StatusBadge variant="amberSoft" className="px-2.5 py-1 text-[8px] text-amber-700">현장 실행 우선</StatusBadge>}
                             entries={(() => {
                                 const coachingEntries = [] as Array<{ key: string; content: React.ReactNode }>;
@@ -1553,7 +1582,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         >
 
                             <WhyThisResultPanel
-                                title="Reassessment timeline"
+                                title={isMyanmar ? 'ပြန်လည်အကဲဖြတ် အချိန်လိုင်း' : 'Reassessment timeline'}
                                 entries={reassessmentTrail.slice(-1).map((entry, index) => ({
                                     key: `appendix-trail-${entry.timestamp}-${index}`,
                                     content: (
@@ -1572,7 +1601,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
 
                             <NoticeCallout
                                 variant="glassDark"
-                                eyebrow="Authenticity note"
+                                eyebrow={isMyanmar ? 'အတည်ပြု မှတ်ချက်' : 'Authenticity note'}
                                 title="본 부록은 첫 페이지 요약 문구의 축약 해석을 보완하기 위한 정식 해설본입니다."
                                 description="현장 관리자 설명·면담·재교육 기록과 함께 보관할 수 있습니다."
                                 className="mt-2.5 rounded-[18px] border px-3 py-3 shadow-sm border-slate-200 bg-slate-900"
@@ -1584,7 +1613,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </WhyThisResultPanel>
 
                         <WhyThisResultPanel
-                            title="Strength details"
+                            title={isMyanmar ? '강점 상세' : 'Strength details'}
                             badge={<StatusBadge variant="emeraldSoft" className="px-2.5 py-1 text-[8px] text-emerald-700">강점 상세 표현</StatusBadge>}
                             entries={appendixStrengthEntries.map((entry, index) => ({
                                 key: `strength-detail-${index}`,
@@ -1606,7 +1635,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         />
 
                         <WhyThisResultPanel
-                            title="Focus area details"
+                            title={isMyanmar ? '개선 포인트 상세' : 'Focus area details'}
                             badge={<StatusBadge variant="roseSoft" className="px-2.5 py-1 text-[8px] text-rose-700">중복 검증 후 정리</StatusBadge>}
                             entries={appendixImprovementEntries.map((entry, index) => ({
                                 key: `improvement-detail-${index}`,
