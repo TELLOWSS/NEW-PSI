@@ -523,6 +523,7 @@ const inferOcrFailureCode = (rawMessage: string): OcrFailureCode => {
     const message = String(rawMessage || '').toLowerCase();
 
     if (
+        message.includes('ocr_quota') ||
         message.includes('429') ||
         message.includes('resource_exhausted') ||
         message.includes('quota') ||
@@ -530,6 +531,8 @@ const inferOcrFailureCode = (rawMessage: string): OcrFailureCode => {
     ) return 'QUOTA';
 
     if (
+        message.includes('missing_server_gemini_key') ||
+        message.includes('ocr_upstream_auth') ||
         message.includes('api key') ||
         message.includes('api 키') ||
         message.includes('설정 화면') ||
@@ -538,6 +541,9 @@ const inferOcrFailureCode = (rawMessage: string): OcrFailureCode => {
     ) return 'KEY';
 
     if (
+        message.includes('ocr_timeout') ||
+        message.includes('ocr_upstream_network') ||
+        message.includes('ocr_upstream_failure') ||
         message.includes('failed to fetch') ||
         message.includes('network') ||
         message.includes('timeout') ||
@@ -546,6 +552,9 @@ const inferOcrFailureCode = (rawMessage: string): OcrFailureCode => {
     ) return 'NETWORK';
 
     if (
+        message.includes('invalid_image_source') ||
+        message.includes('image_too_large') ||
+        message.includes('invalid_base64') ||
         message.includes('payload') ||
         message.includes('too large') ||
         message.includes('bytes') ||
@@ -555,6 +564,7 @@ const inferOcrFailureCode = (rawMessage: string): OcrFailureCode => {
     ) return 'PAYLOAD';
 
     if (
+        message.includes('ocr_parse_failure') ||
         message.includes('parse') ||
         message.includes('json') ||
         message.includes('schema') ||
@@ -562,6 +572,8 @@ const inferOcrFailureCode = (rawMessage: string): OcrFailureCode => {
     ) return 'PARSE';
 
     if (
+        message.includes('unsupported_image_format') ||
+        message.includes('ocr_invalid_argument') ||
         message.includes('mime') ||
         message.includes('format') ||
         message.includes('invalid_argument') ||

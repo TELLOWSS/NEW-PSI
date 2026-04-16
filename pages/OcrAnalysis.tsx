@@ -156,6 +156,25 @@ const getFailureCodeTone = (code: OcrFailureCode): string => {
     }
 };
 
+const getFailureCodeAction = (code: OcrFailureCode): string => {
+    switch (code) {
+        case 'QUOTA':
+            return '호출량 급증 여부를 확인하고 냉각 후 재분석하거나 브라우저 폴백 성공률을 먼저 확인하세요.';
+        case 'KEY':
+            return '서버 API 키와 권한, 배포 환경변수 누락 여부를 가장 먼저 확인하세요.';
+        case 'FORMAT':
+            return '지원 형식(JPG/PNG/GIF/WebP/HEIC) 여부를 확인하고 원본 이미지를 다시 등록하세요.';
+        case 'PARSE':
+            return 'OCR 응답 본문과 JSON 파싱 실패 여부를 확인하고 모델 출력 이상 징후를 기록하세요.';
+        case 'PAYLOAD':
+            return 'Base64 손상, 이미지 누락, 용량 초과 여부를 먼저 확인하세요.';
+        case 'NETWORK':
+            return '서버 지연 또는 업스트림 연결 문제 가능성이 높으니 네트워크 상태와 브라우저 폴백 경로를 확인하세요.';
+        default:
+            return '동일 코드 반복 여부와 최근 배포 변경점을 함께 확인하세요.';
+    }
+};
+
 const inferHarnessWorkflowState = (record: Partial<WorkerRecord>): HarnessWorkflowState => {
     if (record.secondPassStatus === 'IN_PROGRESS') return 'second_pass_analyzing';
     if (record.reviewStatus === 'PENDING' || record.approvalStatus === 'PENDING') return 'awaiting_manager_approval';
@@ -2043,6 +2062,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 code,
                 label: FAILURE_CODE_LABELS[code],
                 count,
+                action: getFailureCodeAction(code),
             }));
     }, [failedRecords]);
 
@@ -2072,6 +2092,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 code,
                 label: FAILURE_CODE_LABELS[code],
                 count,
+                action: getFailureCodeAction(code),
             }));
 
         const totalRecent = recentFailedRecords.length;
@@ -2085,6 +2106,37 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             recentCodes,
         };
     }, [failedRecords]);
+
+    const failureSurgeSignal = useMemo(() => {
+        const recentCodes = failedFailureCodeRecentSummary.recentCodes;
+        const keyCount = recentCodes.find((item) => item.code === 'KEY')?.count || 0;
+        const networkCount = recentCodes.find((item) => item.code === 'NETWORK')?.count || 0;
+        const quotaCount = recentCodes.find((item) => item.code === 'QUOTA')?.count || 0;
+        const totalRecent = failedFailureCodeRecentSummary.totalRecent;
+
+        if (totalRecent === 0) return null;
+
+        const keyNetworkCount = keyCount + networkCount;
+        const keyNetworkShare = Math.round((keyNetworkCount / totalRecent) * 100);
+
+        if (keyNetworkCount >= 3 || keyNetworkShare >= 45) {
+            return {
+                toneClassName: 'border-rose-300 bg-rose-50 text-rose-900',
+                title: '경보: 키/네트워크 원인 급증',
+                description: `최근 24시간 실패 ${totalRecent}건 중 KEY/NETWORK가 ${keyNetworkCount}건(${keyNetworkShare}%)입니다. OCR_TIMEOUT 포함 서버 지연·권한 설정을 우선 점검하세요.`,
+            };
+        }
+
+        if (quotaCount >= 3) {
+            return {
+                toneClassName: 'border-amber-300 bg-amber-50 text-amber-900',
+                title: '주의: 할당량 원인 집중',
+                description: `최근 24시간 QUOTA ${quotaCount}건입니다. 호출량 분산과 냉각 후 재분석 순서를 우선 적용하세요.`,
+            };
+        }
+
+        return null;
+    }, [failedFailureCodeRecentSummary]);
 
     const failedHarnessSummary = useMemo(() => {
         return failedRecords.reduce((acc, record) => {
@@ -2323,8 +2375,19 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             '[실패코드 최근 24시간]',
             `- 최근 갱신 실패: ${failedFailureCodeRecentSummary.totalRecent}건 (${failedFailureCodeRecentSummary.recentShare}%)`,
             ...(failedFailureCodeRecentSummary.recentCodes.length > 0
-                ? failedFailureCodeRecentSummary.recentCodes.map((item) => `- ${item.code} (${item.label}): ${item.count}건`)
+                ? failedFailureCodeRecentSummary.recentCodes.flatMap((item) => [
+                    `- ${item.code} (${item.label}): ${item.count}건`,
+                    `  · 권장 조치: ${item.action}`,
+                ])
                 : ['- 최근 24시간 집계 대상 없음']),
+            ...(failureSurgeSignal
+                ? [
+                    '',
+                    '[최근 원인 경보]',
+                    `- ${failureSurgeSignal.title}`,
+                    `- ${failureSurgeSignal.description}`,
+                ]
+                : []),
             '',
             '[최근 재분석 집계]',
             `- 성공률: ${retrySuccessRate}%`,
@@ -2388,6 +2451,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         reasonQaPreviewRecords.length,
         failedFailureCodeSummary,
         failedFailureCodeRecentSummary,
+        failureSurgeSignal,
         retrySuccessRate,
         retryDiagnostics,
         recentReassessmentDeltaSummary,
@@ -2472,7 +2536,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data?.ok || !data?.record) {
-            throw new Error(data?.message || '서버 OCR 재분석 실패');
+            const errorCode = String(data?.code || '').trim();
+            const errorMessage = String(data?.message || '서버 OCR 재분석 실패').trim();
+            throw new Error(errorCode ? `[${errorCode}] ${errorMessage}` : errorMessage);
         }
 
         return {
@@ -3560,6 +3626,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <span className="px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/20 text-amber-200">저신뢰 {lowConfidenceCount}건</span>
                                 <span className="px-3 py-1.5 rounded-full bg-violet-500/15 border border-violet-400/20 text-violet-200">최근 24h 실패 갱신 {failedFailureCodeRecentSummary.totalRecent}건</span>
                             </div>
+
+                            {failureSurgeSignal && (
+                                <div className={`mt-4 rounded-2xl border px-4 py-3 ${failureSurgeSignal.toneClassName}`}>
+                                    <p className="text-[11px] font-black uppercase tracking-wider">{failureSurgeSignal.title}</p>
+                                    <p className="mt-1 text-[12px] font-bold leading-relaxed">{failureSurgeSignal.description}</p>
+                                </div>
+                            )}
                         </div>
 
                         <InterpretationCardGrid
@@ -3632,11 +3705,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         key: `overview-failure-code-${item.code}`,
                                         label: `실패코드 ${item.code}`,
                                         value: item.count,
-                                        helper: `${item.label} 원인`,
+                                        helper: item.action,
                                         tone: getFailureCodeTone(item.code),
                                         labelClassName: 'text-[10px] font-black uppercase tracking-widest text-slate-300',
                                         valueClassName: 'mt-1 text-xl font-black text-white',
-                                        helperClassName: 'mt-1 text-[11px] font-bold text-slate-300/90',
+                                        helperClassName: 'mt-1 text-[11px] font-bold text-slate-300/90 line-clamp-3',
                                     }))}
                                 />
                                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-200">
@@ -3644,6 +3717,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     {failedFailureCodeRecentSummary.topRecent && (
                                         <span className="rounded-full bg-violet-500/20 border border-violet-300/30 px-3 py-1 text-violet-100">
                                             집중 코드 {failedFailureCodeRecentSummary.topRecent.code} · {failedFailureCodeRecentSummary.topRecent.count}건
+                                        </span>
+                                    )}
+                                    {failedFailureCodeRecentSummary.topRecent?.action && (
+                                        <span className="rounded-full bg-slate-800/70 border border-slate-600/70 px-3 py-1 text-slate-100">
+                                            우선 조치 {failedFailureCodeRecentSummary.topRecent.action}
                                         </span>
                                     )}
                                 </div>
@@ -4069,6 +4147,32 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         actionsClassName="mt-3 flex flex-wrap gap-2"
                                     />
                                 ))}
+                        </SectionPanelCard>
+                    )}
+
+                    {failedFailureCodeSummary.length > 0 && (
+                        <SectionPanelCard
+                            className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3"
+                            title="실패코드별 우선 조치"
+                            description="최근 잔여 건 기준 상위 코드부터 대응"
+                            titleClassName="text-[11px] font-black text-slate-700 dark:text-slate-200 uppercase tracking-wider"
+                            descriptionClassName="text-[10px] font-bold text-slate-500 dark:text-slate-400"
+                            headerClassName="flex items-center justify-between gap-2"
+                            bodyClassName="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2"
+                        >
+                            {failedFailureCodeSummary.slice(0, 4).map((item) => (
+                                <OperationalPreviewCard
+                                    key={`failure-code-action-${item.code}`}
+                                    variant="slateSoft"
+                                    title={`${item.code} · ${item.label}`}
+                                    badge={<span className="text-[10px] font-black text-slate-600">{item.count}건 잔여</span>}
+                                    body={(
+                                        <p className="text-[11px] font-semibold leading-5 text-slate-600">
+                                            {item.action}
+                                        </p>
+                                    )}
+                                />
+                            ))}
                         </SectionPanelCard>
                     )}
 
