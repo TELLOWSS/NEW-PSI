@@ -1792,16 +1792,16 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const isEssentialMobile = isEssentialMode && viewportWidth < 640;
 
     return (
-        <div className={`${isEssentialMobile ? 'space-y-3' : 'space-y-4 sm:space-y-6 lg:space-y-8'} animate-fade-in-up`}>
+        <div className={`${isEssentialMobile ? 'space-y-3' : 'space-y-3 sm:space-y-4 lg:space-y-6'} animate-fade-in-up`}>
             {/* AI-Powered Safety Command Center */}
-            <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 text-white shadow-2xl relative overflow-hidden border border-white/10">
+            <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 rounded-2xl sm:rounded-3xl p-4 sm:p-5 lg:p-6 text-white shadow-2xl relative overflow-hidden border border-white/10">
                 {/* Animated background elements */}
                 <div className="absolute top-0 right-0 w-64 h-64 sm:w-96 sm:h-96 bg-indigo-500 opacity-10 rounded-full blur-3xl -mr-32 -mt-32 animate-pulse"></div>
                 <div className="absolute bottom-0 left-0 w-48 h-48 sm:w-80 sm:h-80 bg-blue-500 opacity-10 rounded-full blur-3xl -ml-24 -mb-24 animate-pulse" style={{ animationDelay: '1s' }}></div>
                 
                 <div className="relative z-10">
                     {/* System Status Header */}
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
                         <div className="flex items-center gap-2 sm:gap-3">
                             <div className="p-2 sm:p-2.5 bg-indigo-500/20 backdrop-blur-sm rounded-lg sm:rounded-xl border border-indigo-400/30">
                                 <BrandPhilosophyLogo className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -2003,14 +2003,14 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             </div>
 
             {!isEssentialMode && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
                 <div className={`lg:col-span-2 ${audienceView === 'executive' ? 'lg:order-2' : 'lg:order-1'}`}>
                     <div className="h-full rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300">
                         <SafetyActionCenter workerRecords={workerOnlyRecords} />
                     </div>
                 </div>
-                <div className={`bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 dark:border-slate-700 flex flex-col ${audienceView === 'executive' ? 'lg:order-1' : 'lg:order-2'}`}>
-                    <h3 className="text-base sm:text-lg font-bold mb-4 sm:mb-6 text-slate-800 dark:text-slate-100">국적별 근로자 현황</h3>
+                <div className={`bg-white dark:bg-slate-800 p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 dark:border-slate-700 flex flex-col ${audienceView === 'executive' ? 'lg:order-1' : 'lg:order-2'}`}>
+                    <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 text-slate-800 dark:text-slate-100">국적별 근로자 현황</h3>
                     <div className="flex-1 min-h-[200px]">
                         <DeferredSection fallback={<ChartSkeleton minHeight="200px" />} rootMargin="160px">
                             <Suspense fallback={<ChartSkeleton minHeight="200px" />}>
@@ -2023,9 +2023,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             )}
 
             {!isEssentialMode && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
-                <div className={`bg-white dark:bg-slate-800 p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 dark:border-slate-700 ${audienceView === 'executive' ? 'md:order-2' : 'md:order-1'}`}>
-                    <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4 lg:gap-6">
+                <div className={`bg-white dark:bg-slate-800 p-3 sm:p-4 lg:p-5 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 dark:border-slate-700 ${audienceView === 'executive' ? 'md:order-2' : 'md:order-1'}`}>
+                    <div className="flex items-center justify-between mb-3 sm:mb-4">
                         <h3 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100">근로자 주요 취약 분야</h3>
                          <Tooltip text="관리 직군을 제외한 실무 근로자 데이터에서 추출된 주요 취약점입니다.">
                             <div className="flex items-center text-xs sm:text-sm text-slate-400 dark:text-slate-300 cursor-pointer hover:text-slate-600 dark:hover:text-slate-100 transition-colors">
@@ -2042,9 +2042,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         </DeferredSection>
                     </div>
                 </div>
-                      <div className={`bg-white dark:bg-slate-800 p-4 sm:p-6 lg:p-8 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 dark:border-slate-700 ${audienceView === 'executive' ? 'md:order-1' : 'md:order-2'}`}>
-                          <h3 className="text-base sm:text-lg font-bold mb-4 sm:mb-6 text-slate-800 dark:text-slate-100">최근 2주간 안전 점검 동향</h3>
-                    <div className="h-64">
+                      <div className={`bg-white dark:bg-slate-800 p-3 sm:p-4 lg:p-5 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 dark:border-slate-700 ${audienceView === 'executive' ? 'md:order-1' : 'md:order-2'}`}>
+                          <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 text-slate-800 dark:text-slate-100">최근 2주간 안전 점검 동향</h3>
+                    <div className="h-52 sm:h-56">
                         <DeferredSection fallback={<ChartSkeleton minHeight="16rem" />} rootMargin="160px">
                             <Suspense fallback={<ChartSkeleton minHeight="16rem" />}>
                                 <SafetyCheckDonutChart records={safetyCheckRecords} />
