@@ -877,8 +877,22 @@ async function handleOcrRetry(req: any, res: any) {
         return res.status(400).json({ ok: false, message: 'imageSource가 필요합니다.' });
     }
 
+    const traceStartMs = Date.now();
     const record = await analyzeSingleRecord(imageSource, filenameHint || recordId);
-    return res.status(200).json({ ok: true, recordId, record });
+    const traceLatencyMs = Date.now() - traceStartMs;
+
+    return res.status(200).json({
+        ok: true,
+        recordId,
+        record,
+        trace: {
+            providerUsed: 'server_gemini',
+            latencyMs: traceLatencyMs,
+            attempts: 1,
+            fallbackDepth: 0,
+            recordedAt: new Date().toISOString(),
+        },
+    });
 }
 
 const toVectorLiteral = (values: number[]): string => {

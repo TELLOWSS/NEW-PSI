@@ -4129,9 +4129,20 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <textarea
                                     value={overrideReason}
                                     onChange={(e) => setOverrideReason(e.target.value)}
-                                    className={`w-full p-3 rounded-xl border font-bold min-h-[100px] ${BRAND_TONE.slate}`}
+                                    className={`w-full p-3 rounded-xl border font-bold min-h-[100px] ${overrideReason.trim().length > 0 && overrideReason.trim().length < 20 ? 'border-rose-300 bg-rose-50/40' : BRAND_TONE.slate}`}
                                     placeholder="법적/운영상 강제 발급 사유를 구체적으로 입력"
                                 />
+                                {overrideReason.trim().length > 0 && (() => {
+                                    const r = overrideReason.trim();
+                                    const hasCause = /때문|원인|사유|이유|문제/.test(r);
+                                    const hasAction = /조치|확인|처리|발급|승인|요청/.test(r);
+                                    const score = r.length >= 30 && hasCause && hasAction ? 'strong' : r.length >= 15 && (hasCause || hasAction) ? 'adequate' : 'weak';
+                                    return (
+                                        <p className={`mt-1 text-[10px] font-bold ${score === 'strong' ? 'text-emerald-600' : score === 'adequate' ? 'text-amber-600' : 'text-rose-500'}`}>
+                                            {score === 'strong' ? '✓ 사유 충분 — 원인·조치·검증이 포함되었습니다.' : score === 'adequate' ? '△ 사유 보완 권장 — 원인 또는 조치 내용을 추가하면 감사 추적에 유리합니다.' : '✗ 사유 미흡 — 원인·조치·검증을 구체적으로 작성해 주세요.'}
+                                        </p>
+                                    );
+                                })()}
                             </div>
                         </div>
 

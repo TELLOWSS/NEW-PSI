@@ -10,6 +10,7 @@ import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { getApiCallState, incrementApiCallCount, resetApiCallCount, type DailyCounterState } from '../utils/apiCounterUtils';
 import { BRAND_ACTION_LABELS, BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { BRAND_TONE } from '../utils/brandToneTokens';
+import { OCR_POLICY } from '../config/ocrPolicy';
 import { MasterTemplateList, type MasterTemplate } from '../components/shared/MasterTemplateList';
 import { MasterAssignment, type MasterAssignmentItem, type MasterGroup } from '../components/shared/MasterAssignment';
 import { CollapsibleSection } from '../components/shared/CollapsibleSection';
@@ -563,6 +564,57 @@ const hasOperationalFailureSignal = (record: Partial<WorkerRecord>): boolean => 
     if ((Number(record.safetyScore) || 0) <= 0 && !hasSourceText) return true;
 
     return false;
+};
+
+/**
+ * UNKNOWN 실패코드 2차 분류 헬퍼 (P0)
+ * 에러 메시지/insights 텍스트를 바탕으로 sub-category를 결정한다.
+ */
+const classifyUnknownSubCategory = (record: Partial<WorkerRecord>): import('../types').OcrUnknownSubCategory => {
+    const combined = `${String(record.ocrErrorMessage || '')} ${String(record.aiInsights || '')}`.toLowerCase();
+    if (
+        combined.includes('failed to fetch') || combined.includes('network') ||
+        combined.includes('timeout') || combined.includes('gateway') ||
+        combined.includes('econnreset') || combined.includes('연결') ||
+        combined.includes('네트워크') || combined.includes('타임아웃')
+    ) return 'network-like';
+    if (
+        combined.includes('parse') || combined.includes('json') ||
+        combined.includes('파싱') || combined.includes('응답 형식') ||
+        combined.includes('syntax error') || combined.includes('empty result')
+    ) return 'parse-like';
+    if (
+        combined.includes('quota') || combined.includes('429') ||
+        combined.includes('resource_exhausted') || combined.includes('unauthorized') ||
+        combined.includes('forbidden') || combined.includes('api 키') ||
+        combined.includes('할당량') || combined.includes('권한')
+    ) return 'policy-like';
+    return 'uncategorized';
+};
+
+/**
+ * 승인 사유 품질 게이트 헬퍼 (P1)
+ * 원인-조치-검증 구조를 점검하여 사유의 실질적 충실성을 평가한다.
+ */
+const evaluateApprovalReasonQuality = (reason: string): {
+    score: 'strong' | 'adequate' | 'weak';
+    hasCause: boolean;
+    hasAction: boolean;
+    hasVerification: boolean;
+    hint: string;
+} => {
+    const text = reason.trim().toLowerCase();
+    if (text.length === 0) return { score: 'weak', hasCause: false, hasAction: false, hasVerification: false, hint: '사유를 입력해 주세요.' };
+    const hasCause = /원인|이유|때문|인해|발생|확인|누락|오류/.test(text);
+    const hasAction = /조치|수정|보완|재분석|처리|정상|완료|변경|적용/.test(text);
+    const hasVerification = /검증|이상없음|정상확인|재확인|검토 완료|적합|인정/.test(text);
+    const metCount = [hasCause, hasAction, hasVerification].filter(Boolean).length;
+    if (text.length >= 30 || metCount === 3) return { score: 'strong', hasCause, hasAction, hasVerification, hint: '사유 충실도: 우수' };
+    if (metCount >= 2) return { score: 'adequate', hasCause, hasAction, hasVerification, hint: '사유 충실도: 보통 (검증 서술 보완 권장)' };
+    return {
+        score: 'weak', hasCause, hasAction, hasVerification,
+        hint: `사유 충실도: 부족 — ${!hasCause ? '원인 서술' : ''}${!hasAction ? ' · 조치 내용' : ''}${!hasVerification ? ' · 검증/확인' : ''} 추가 권장`,
+    };
 };
 
 const hasManagerCorrections = (record: WorkerRecord): boolean => {
@@ -2068,13 +2120,24 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             NETWORK: 0,
             UNKNOWN: 0,
         };
+        // P0: UNKNOWN 2차 분류 집계
+        const unknownSubCounts: Record<string, number> = {
+            'network-like': 0,
+            'parse-like': 0,
+            'policy-like': 0,
+            'uncategorized': 0,
+        };
 
         failedRecords.forEach((record) => {
             const code = resolveFailureCodeFromRecord(record);
             counts[code] = (counts[code] || 0) + 1;
+            if (code === 'UNKNOWN') {
+                const sub = record.ocrUnknownSubCategory || classifyUnknownSubCategory(record);
+                unknownSubCounts[sub] = (unknownSubCounts[sub] || 0) + 1;
+            }
         });
 
-        return (Object.entries(counts) as Array<[OcrFailureCode, number]>)
+        const summary = (Object.entries(counts) as Array<[OcrFailureCode, number]>)
             .filter(([, count]) => count > 0)
             .sort((a, b) => b[1] - a[1])
             .map(([code, count]) => ({
@@ -2082,7 +2145,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 label: FAILURE_CODE_LABELS[code],
                 count,
                 action: getFailureCodeAction(code),
+                unknownSubCounts: code === 'UNKNOWN' ? unknownSubCounts : undefined,
             }));
+        return summary;
     }, [failedRecords]);
 
     const failedFailureCodeRecentSummary = useMemo(() => {
@@ -2125,6 +2190,89 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             recentCodes,
         };
     }, [failedRecords]);
+
+    /**
+     * P0: 전/후 비교 집계 — 24h vs 7d 실패 추세 자동 비교
+     * 서버성공/처리실패/UNKNOWN 변화를 즉시 감지한다.
+     */
+    const failureTrendComparison = useMemo(() => {
+        const now = Date.now();
+        const dayMs = 24 * 60 * 60 * 1000;
+        const within24h = (ts: number) => ts >= now - dayMs;
+        const within7d = (ts: number) => ts >= now - 7 * dayMs;
+
+        const recent24 = existingRecords.filter(r => within24h(getLatestRecordActivityTimestamp(r)));
+        const recent7d = existingRecords.filter(r => within7d(getLatestRecordActivityTimestamp(r)));
+
+        const failRate = (records: WorkerRecord[]) =>
+            records.length === 0 ? 0 : Math.round((records.filter(r => isFailedRecord(r)).length / records.length) * 100);
+
+        const unknownRate = (records: WorkerRecord[]) => {
+            const failed = records.filter(r => isFailedRecord(r));
+            if (failed.length === 0) return 0;
+            return Math.round((failed.filter(r => resolveFailureCodeFromRecord(r) === 'UNKNOWN').length / failed.length) * 100);
+        };
+
+        const failRate24 = failRate(recent24);
+        const failRate7d = failRate(recent7d);
+        const unknownRate24 = unknownRate(recent24);
+        const unknownRate7d = unknownRate(recent7d);
+        const delta = failRate24 - failRate7d;
+        const trend: 'up' | 'down' | 'stable' = delta > 5 ? 'up' : delta < -5 ? 'down' : 'stable';
+
+        return {
+            recent24Total: recent24.length,
+            recent7dTotal: recent7d.length,
+            failRate24,
+            failRate7d,
+            unknownRate24,
+            unknownRate7d,
+            delta,
+            trend,
+        };
+    }, [existingRecords]);
+
+    // P2: 월간 리스크 인텔리전스 자동화
+    const riskIntelligence = useMemo(() => {
+        const now = Date.now();
+        const ms30d = 30 * 24 * 60 * 60 * 1000;
+        const ms7d = 7 * 24 * 60 * 60 * 1000;
+        const recent30d = existingRecords.filter(r => {
+            const ts = r.lastUpdated || r.createdAt || '';
+            return ts && (now - new Date(ts).getTime()) <= ms30d;
+        });
+        const prev30d = existingRecords.filter(r => {
+            const ts = r.lastUpdated || r.createdAt || '';
+            if (!ts) return false;
+            const age = now - new Date(ts).getTime();
+            return age > ms30d && age <= ms30d * 2;
+        });
+        const failRate = (arr: typeof existingRecords) => arr.length === 0 ? 0 : Math.round((arr.filter(r => (r as any).ocrFailureCode && (r as any).ocrFailureCode !== 'NONE').length / arr.length) * 100);
+        const unknownCount30d = recent30d.filter(r => (r as any).ocrFailureCode === 'UNKNOWN').length;
+        const reanalysisCount30d = recent30d.filter(r => Array.isArray(r.auditTrail) && r.auditTrail.some(a => a.note?.includes('재분석'))).length;
+        const approvalWeakCount = recent30d.filter(r => {
+            const reason = String(r.approvalReason || '').trim();
+            return reason.length > 0 && reason.length < 20;
+        }).length;
+        const currentFailRate = failRate(recent30d);
+        const prevFailRate = failRate(prev30d);
+        const failDelta = currentFailRate - prevFailRate;
+        const trend: 'up' | 'down' | 'stable' = failDelta > 5 ? 'up' : failDelta < -5 ? 'down' : 'stable';
+        const topCode = (['QUOTA','KEY','NETWORK','FORMAT','PARSE','PAYLOAD','UNKNOWN'] as const)
+            .map(code => ({ code, count: recent30d.filter(r => (r as any).ocrFailureCode === code).length }))
+            .sort((a, b) => b.count - a.count)[0];
+        return {
+            total30d: recent30d.length,
+            currentFailRate,
+            prevFailRate,
+            failDelta,
+            trend,
+            unknownCount30d,
+            reanalysisCount30d,
+            approvalWeakCount,
+            topCode: topCode?.count > 0 ? topCode : null,
+        };
+    }, [existingRecords]);
 
     const failureSurgeSignal = useMemo(() => {
         const recentCodes = failedFailureCodeRecentSummary.recentCodes;
@@ -2572,6 +2720,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             isSignalman: record.isSignalman || data.record.isSignalman,
             ocrErrorType: undefined,
             ocrErrorMessage: undefined,
+            // P0: Trace 표준화 — 서버가 반환한 trace 저장
+            ocrTrace: data.trace
+                ? {
+                    providerUsed: data.trace.providerUsed ?? 'server_gemini',
+                    latencyMs: Number(data.trace.latencyMs) || 0,
+                    attempts: Number(data.trace.attempts) || 1,
+                    fallbackDepth: Number(data.trace.fallbackDepth) || 0,
+                    finalCode: data.trace.finalCode,
+                    recordedAt: data.trace.recordedAt ?? new Date().toISOString(),
+                }
+                : undefined,
         } as WorkerRecord;
     }, [getBestRetryImageSource]);
 
@@ -2826,7 +2985,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     // 2. Call API with Retry Logic for Rate Limits
                     let apiResult = null;
                     let retryCount = 0;
-                    const MAX_RETRIES = 3; 
+                    const MAX_RETRIES = OCR_POLICY.RETRY_POLICY.maxRetries; // P1.3: policy-driven
                     let usedClientFallback = false;
 
                     while (retryCount < MAX_RETRIES) {
@@ -2922,6 +3081,24 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                     if (apiResult) {
                         const previousErrorLabel = isFailedRecord(record) ? getOcrErrorTypeKoreanLabel(getOcrErrorTypeFromRecord(record)) : '기타 오류';
+                        // P0: UNKNOWN 2차 분류 — 실패 시 sub-category 결정
+                        const resolvedFailureCode = resolveFailureCodeFromRecord(apiResult);
+                        const unknownSubCategory =
+                            resolvedFailureCode === 'UNKNOWN' ? classifyUnknownSubCategory(apiResult) : undefined;
+                        // P0: Trace 표준화 — 클라이언트 폴백 trace 보완
+                        const traceFromResult: import('../types').OcrTraceInfo | undefined =
+                            apiResult.ocrTrace
+                                ? apiResult.ocrTrace
+                                : usedClientFallback
+                                    ? {
+                                        providerUsed: 'client_fallback',
+                                        latencyMs: 0,
+                                        attempts: retryCount + 1,
+                                        fallbackDepth: 1,
+                                        finalCode: resolvedFailureCode !== 'UNKNOWN' ? resolvedFailureCode : undefined,
+                                        recordedAt: new Date().toISOString(),
+                                    }
+                                    : undefined;
                         const updatedRecord: WorkerRecord = withHarnessState(record, {
                             ...apiResult,
                             id: record.id, 
@@ -2931,13 +3108,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             role: record.role !== 'worker' ? record.role : apiResult.role,
                             isTranslator: record.isTranslator || apiResult.isTranslator,
                             isSignalman: record.isSignalman || apiResult.isSignalman,
+                            ocrTrace: traceFromResult,
+                            ocrUnknownSubCategory: unknownSubCategory,
                             auditTrail: [
                                 ...(record.auditTrail || []),
                                 {
                                     stage: 'reassessment',
                                     timestamp: new Date().toISOString(),
                                     actor: 'manager',
-                                    note: `OCR 재분석 성공 (${previousErrorLabel}) | ${usedClientFallback ? '브라우저 폴백' : '서버 성공'}`,
+                                    note: `OCR 재분석 성공 (${previousErrorLabel}) | ${usedClientFallback ? '브라우저 폴백' : '서버 성공'}${unknownSubCategory ? ` | UNKNOWN[${unknownSubCategory}]` : ''}`,
                                 },
                             ],
                             secondPassStatus: isFailedRecord(apiResult) ? 'NEEDED' : 'DONE',
@@ -3745,6 +3924,41 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         </span>
                                     )}
                                 </div>
+                                {/* P0: UNKNOWN 서브카테고리 표시 */}
+                                {failedFailureCodeSummary.find(i => i.code === 'UNKNOWN' && (i.unknownSubCounts)) && (() => {
+                                    const unknownItem = failedFailureCodeSummary.find(i => i.code === 'UNKNOWN')!;
+                                    const sub = unknownItem.unknownSubCounts!;
+                                    const total = unknownItem.count;
+                                    if (total === 0) return null;
+                                    return (
+                                        <div className="mt-2 p-2.5 rounded-xl bg-slate-900/60 border border-slate-700/50">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">UNKNOWN 2차 분류</p>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {sub['network-like'] > 0 && <span className="px-2 py-0.5 rounded-full bg-rose-900/40 border border-rose-700/40 text-rose-200 text-[10px] font-bold">네트워크 의심 {sub['network-like']}건</span>}
+                                                {sub['parse-like'] > 0 && <span className="px-2 py-0.5 rounded-full bg-violet-900/40 border border-violet-700/40 text-violet-200 text-[10px] font-bold">파싱 의심 {sub['parse-like']}건</span>}
+                                                {sub['policy-like'] > 0 && <span className="px-2 py-0.5 rounded-full bg-amber-900/40 border border-amber-700/40 text-amber-200 text-[10px] font-bold">정책/권한 의심 {sub['policy-like']}건</span>}
+                                                {sub['uncategorized'] > 0 && <span className="px-2 py-0.5 rounded-full bg-slate-700/60 border border-slate-600/40 text-slate-300 text-[10px] font-bold">미분류 {sub['uncategorized']}건</span>}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                                {/* P0: 24h/7d 비교 패널 */}
+                                {failureTrendComparison.recent7dTotal > 0 && (
+                                    <div className={`mt-2 p-2.5 rounded-xl border ${failureTrendComparison.trend === 'up' ? 'bg-rose-950/40 border-rose-700/40' : failureTrendComparison.trend === 'down' ? 'bg-emerald-950/40 border-emerald-700/40' : 'bg-slate-900/50 border-slate-700/40'}`}>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">전/후 추세 (24h vs 7d 평균)</p>
+                                        <div className="flex flex-wrap gap-1.5 text-[10px] font-bold">
+                                            <span className="px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-600/40 text-slate-200">
+                                                실패율 24h {failureTrendComparison.failRate24}% · 7d {failureTrendComparison.failRate7d}%
+                                                {failureTrendComparison.trend === 'up' && <span className="ml-1 text-rose-300">▲ 악화</span>}
+                                                {failureTrendComparison.trend === 'down' && <span className="ml-1 text-emerald-300">▼ 개선</span>}
+                                                {failureTrendComparison.trend === 'stable' && <span className="ml-1 text-slate-400">─ 안정</span>}
+                                            </span>
+                                            <span className="px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-600/40 text-slate-200">
+                                                UNKNOWN 비중 24h {failureTrendComparison.unknownRate24}% · 7d {failureTrendComparison.unknownRate7d}%
+                                            </span>
+                                        </div>
+                                    </div>
+                                )}
                             </>
                         )}
                     </div>
@@ -4420,6 +4634,48 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </div>
                     </SectionPanelCard>
                     </CollapsibleSection>
+                )}
+
+                {/* P2: 월간 리스크 인텔리전스 자동화 패널 */}
+                {riskIntelligence.total30d > 0 && (
+                    <SectionPanelCard
+                        className="rounded-2xl border border-slate-200 bg-white px-4 py-4"
+                        eyebrow="월간 리스크 인텔리전스"
+                        title={`최근 30일 처리 ${riskIntelligence.total30d}건 · 실패율 ${riskIntelligence.currentFailRate}%${riskIntelligence.trend === 'up' ? ' ▲ 악화' : riskIntelligence.trend === 'down' ? ' ▼ 개선' : ' ─ 안정'}`}
+                        description="30일 패턴 분석 — 반복 실패 코드·재분석 회수·승인 사유 품질을 한눈에 확인합니다."
+                        eyebrowClassName="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500"
+                        titleClassName="mt-2 text-base font-black text-slate-900"
+                        descriptionClassName="mt-1 text-[12px] font-semibold text-slate-500"
+                        bodyClassName="mt-4"
+                    >
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                            <div className={`rounded-xl p-3 border ${riskIntelligence.trend === 'up' ? 'bg-rose-50 border-rose-200' : riskIntelligence.trend === 'down' ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-slate-200'}`}>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">실패율 추세</p>
+                                <p className={`mt-1 text-xl font-black ${riskIntelligence.trend === 'up' ? 'text-rose-600' : riskIntelligence.trend === 'down' ? 'text-emerald-600' : 'text-slate-700'}`}>{riskIntelligence.currentFailRate}%</p>
+                                <p className="text-[10px] font-bold text-slate-400">전월 {riskIntelligence.prevFailRate > 0 ? `${riskIntelligence.prevFailRate}%` : '데이터 없음'}</p>
+                            </div>
+                            <div className="rounded-xl p-3 border bg-violet-50 border-violet-200">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">UNKNOWN</p>
+                                <p className="mt-1 text-xl font-black text-violet-700">{riskIntelligence.unknownCount30d}<span className="text-sm ml-0.5">건</span></p>
+                                <p className="text-[10px] font-bold text-slate-400">미분류 실패 30일</p>
+                            </div>
+                            <div className="rounded-xl p-3 border bg-indigo-50 border-indigo-200">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">재분석 회수</p>
+                                <p className="mt-1 text-xl font-black text-indigo-700">{riskIntelligence.reanalysisCount30d}<span className="text-sm ml-0.5">건</span></p>
+                                <p className="text-[10px] font-bold text-slate-400">감사 이력 보유</p>
+                            </div>
+                            <div className={`rounded-xl p-3 border ${riskIntelligence.approvalWeakCount > 0 ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'}`}>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">승인사유 미흡</p>
+                                <p className={`mt-1 text-xl font-black ${riskIntelligence.approvalWeakCount > 0 ? 'text-amber-600' : 'text-slate-700'}`}>{riskIntelligence.approvalWeakCount}<span className="text-sm ml-0.5">건</span></p>
+                                <p className="text-[10px] font-bold text-slate-400">보강 권장</p>
+                            </div>
+                        </div>
+                        {riskIntelligence.topCode && (
+                            <div className="mt-3 rounded-xl p-3 bg-slate-50 border border-slate-200">
+                                <p className="text-[11px] font-black text-slate-600">집중 실패 코드 <span className="text-violet-700">{riskIntelligence.topCode.code}</span> — 30일간 {riskIntelligence.topCode.count}건 발생. 해당 코드에 대한 운영 조치를 점검하세요.</p>
+                            </div>
+                        )}
+                    </SectionPanelCard>
                 )}
 
                 {reasonQaPreviewRecords.length > 0 && (

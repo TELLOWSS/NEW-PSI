@@ -96,6 +96,38 @@ export type OcrFailureCode =
     | 'NETWORK'
     | 'UNKNOWN';
 
+/**
+ * UNKNOWN 실패코드 2차 분류 (P0 운영 안정성)
+ * - network-like  : 네트워크/타임아웃/fetch 오류 의심
+ * - parse-like    : 응답 JSON 파싱 실패/빈 텍스트 의심
+ * - policy-like   : API 키/권한/할당량 정책 제한 의심
+ * - uncategorized : 분류 불가, 수동 확인 필요
+ */
+export type OcrUnknownSubCategory =
+    | 'network-like'
+    | 'parse-like'
+    | 'policy-like'
+    | 'uncategorized';
+
+/**
+ * OCR 추적 정보 (P0 Trace 표준화)
+ * 재분석/OCR 경로마다 저장하여 장애 원인 재현성을 확보한다.
+ */
+export interface OcrTraceInfo {
+    /** 실제 실행된 프로바이더 경로 */
+    providerUsed: 'server_gemini' | 'client_gemini' | 'client_fallback' | 'unknown';
+    /** 총 소요 시간 (ms) */
+    latencyMs: number;
+    /** API 재시도 횟수 */
+    attempts: number;
+    /** 폴백 깊이 (0 = 서버 직성공, 1 = 1단계 폴백 등) */
+    fallbackDepth: number;
+    /** 최종 실패코드 (성공 시 undefined) */
+    finalCode?: OcrFailureCode;
+    /** 추적 기록 타임스탬프 */
+    recordedAt: string;
+}
+
 export interface HandwrittenAnswer {
     questionNumber: string;
     answerText: string;
@@ -233,6 +265,10 @@ export interface WorkerRecord {
     ocrConfidence?: number; // 0-1
     ocrErrorType?: OcrErrorType;
     ocrFailureCode?: OcrFailureCode;
+    /** UNKNOWN 실패코드 2차 분류 (P0: 운영 원인 세분화) */
+    ocrUnknownSubCategory?: OcrUnknownSubCategory;
+    /** OCR 추적 정보 — provider/latency/attempts/fallbackDepth (P0: Trace 표준화) */
+    ocrTrace?: OcrTraceInfo;
     ocrErrorMessage?: string;
     integrityScore?: number; // 0-100
     safetyLevel: '초급' | '중급' | '고급';
