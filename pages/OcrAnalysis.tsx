@@ -4,7 +4,7 @@ import { FileUpload } from '../components/FileUpload';
 import { Spinner } from '../components/Spinner';
 import { analyzeWorkerRiskAssessment, updateAnalysisBasedOnEdits, getQuotaState, setQuotaExhausted, clearQuotaState, isRateLimitError, inferOcrFailureCode, validateImageFormat, isFormatCompatibleWithAI } from '../services/geminiService';
 import { extractMessage } from '../utils/errorUtils';
-import type { WorkerRecord, OcrErrorType, OcrFailureCode, AppSettings, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState } from '../types';
+import type { WorkerRecord, OcrErrorType, OcrFailureCode, AppSettings, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState, OcrUnknownSubCategory } from '../types';
 import { fileToBase64 } from '../utils/fileUtils';
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { getApiCallState, incrementApiCallCount, resetApiCallCount, type DailyCounterState } from '../utils/apiCounterUtils';
@@ -619,6 +619,35 @@ const evaluateApprovalReasonQuality = (reason: string): {
 
 const hasManagerCorrections = (record: WorkerRecord): boolean => {
     return Array.isArray(record.correctionHistory) && record.correctionHistory.length > 0;
+};
+
+/** P0: UNKNOWN 2차 서브 분류 */
+const classifyUnknownSubCategory = (record: Partial<WorkerRecord>): OcrUnknownSubCategory => {
+    const msg = String(record.ocrErrorMessage || record.aiInsights || '').toLowerCase();
+    if (/timeout|network|connection|fetch|econnrefused|socket/.test(msg)) return 'network-like';
+    if (/parse|json|syntax|unexpected token|format/.test(msg)) return 'parse-like';
+    if (/policy|permission|denied|quota|rate.?limit|safety/.test(msg)) return 'policy-like';
+    return 'uncategorized';
+};
+
+/** P1: 승인 사유 품질 게이트 */
+const evaluateApprovalReasonQuality = (reason: string): {
+    score: 'strong' | 'adequate' | 'weak';
+    hasCause: boolean;
+    hasAction: boolean;
+    hasVerification: boolean;
+    hint: string;
+} => {
+    const r = reason.trim();
+    const hasCause = /때문|원인|사유|이유|문제/.test(r);
+    const hasAction = /조치|확인|처리|발급|승인|요청/.test(r);
+    const hasVerification = /검토|검증|확인|완료|점검/.test(r);
+    const score = r.length >= 30 && hasCause && hasAction ? 'strong'
+        : r.length >= 15 && (hasCause || hasAction) ? 'adequate' : 'weak';
+    const hint = score === 'strong' ? '사유 충분'
+        : score === 'adequate' ? '원인 또는 조치 보완 권장'
+        : '원인·조치·검증 구체적 기술 필요';
+    return { score, hasCause, hasAction, hasVerification, hint };
 };
 
 const CORRECTION_FIELD_LABELS: Record<string, string> = {
@@ -2344,6 +2373,94 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         return null;
     }, [failedFailureCodeRecentSummary]);
 
+    // P0: 24h/7d 전/후 비교
+    const failureTrendComparison = useMemo(() => {
+        const now = Date.now();
+        const ms24h = 24 * 60 * 60 * 1000;
+        const ms7d = 7 * ms24h;
+        const recent24 = existingRecords.filter(r => (now - getLatestRecordActivityTimestamp(r)) <= ms24h);
+        const recent7d = existingRecords.filter(r => (now - getLatestRecordActivityTimestamp(r)) <= ms7d);
+        const failRate = (arr: typeof existingRecords) => arr.length === 0 ? 0 : Math.round((arr.filter(r => isFailedRecord(r)).length / arr.length) * 100);
+        const unknownRate = (arr: typeof existingRecords) => arr.length === 0 ? 0 : Math.round((arr.filter(r => resolveFailureCodeFromRecord(r) === 'UNKNOWN').length / arr.length) * 100);
+        const failRate24 = failRate(recent24);
+        const failRate7d = failRate(recent7d);
+        const delta = failRate24 - failRate7d;
+        return {
+            recent24Total: recent24.length,
+            recent7dTotal: recent7d.length,
+            failRate24,
+            failRate7d,
+            unknownRate24: unknownRate(recent24),
+            unknownRate7d: unknownRate(recent7d),
+            delta,
+            trend: (delta > 5 ? 'up' : delta < -5 ? 'down' : 'stable') as 'up' | 'down' | 'stable',
+        };
+    }, [existingRecords]);
+
+    // P2: 월간 리스크 인텔리전스
+    const riskIntelligence = useMemo(() => {
+        const now = Date.now();
+        const ms30d = 30 * 24 * 60 * 60 * 1000;
+        const recent30d = existingRecords.filter(r => {
+            const ts = r.lastUpdated || (r as any).createdAt || '';
+            return ts && (now - new Date(ts).getTime()) <= ms30d;
+        });
+        const prev30d = existingRecords.filter(r => {
+            const ts = r.lastUpdated || (r as any).createdAt || '';
+            if (!ts) return false;
+            const age = now - new Date(ts).getTime();
+            return age > ms30d && age <= ms30d * 2;
+        });
+        const toFailRate = (arr: typeof existingRecords) =>
+            arr.length === 0 ? 0 : Math.round((arr.filter(r => isFailedRecord(r)).length / arr.length) * 100);
+        const currentFailRate = toFailRate(recent30d);
+        const prevFailRate = toFailRate(prev30d);
+        const failDelta = currentFailRate - prevFailRate;
+        const unknownCount30d = recent30d.filter(r => resolveFailureCodeFromRecord(r) === 'UNKNOWN').length;
+        const reanalysisCount30d = recent30d.filter(r =>
+            Array.isArray(r.auditTrail) && r.auditTrail.some(a => a.note?.includes('재분석'))
+        ).length;
+        const approvalWeakCount = recent30d.filter(r => {
+            const reason = String(r.approvalReason || '').trim();
+            return reason.length > 0 && reason.length < 20;
+        }).length;
+        // 공종별 실패율 (P2.2)
+        const jobFieldMap: Record<string, { total: number; failed: number }> = {};
+        recent30d.forEach(r => {
+            const jf = r.jobField || '미기재';
+            if (!jobFieldMap[jf]) jobFieldMap[jf] = { total: 0, failed: 0 };
+            jobFieldMap[jf].total += 1;
+            if (isFailedRecord(r)) jobFieldMap[jf].failed += 1;
+        });
+        const jobFieldRiskRanking = Object.entries(jobFieldMap)
+            .map(([jobField, { total, failed }]) => ({ jobField, total, failed, failRate: total > 0 ? Math.round((failed / total) * 100) : 0 }))
+            .filter(e => e.total >= 3)
+            .sort((a, b) => b.failRate - a.failRate)
+            .slice(0, 3);
+        // 교육-행동 연동 신호 (P2.3): 낮은 점수 + 약점 존재 + 코칭 이력 없음
+        const coachingGapCount = recent30d.filter(r =>
+            r.safetyScore < 60 &&
+            Array.isArray(r.weakAreas) && r.weakAreas.length > 0 &&
+            (!Array.isArray(r.actionHistory) || r.actionHistory.length === 0)
+        ).length;
+        const topCode = (['QUOTA','KEY','NETWORK','FORMAT','PARSE','PAYLOAD','UNKNOWN'] as const)
+            .map(code => ({ code, count: recent30d.filter(r => resolveFailureCodeFromRecord(r) === code).length }))
+            .sort((a, b) => b.count - a.count)[0];
+        return {
+            total30d: recent30d.length,
+            currentFailRate,
+            prevFailRate,
+            failDelta,
+            trend: (failDelta > 5 ? 'up' : failDelta < -5 ? 'down' : 'stable') as 'up' | 'down' | 'stable',
+            unknownCount30d,
+            reanalysisCount30d,
+            approvalWeakCount,
+            jobFieldRiskRanking,
+            coachingGapCount,
+            topCode: topCode?.count > 0 ? topCode : null,
+        };
+    }, [existingRecords]);
+
     const failedHarnessSummary = useMemo(() => {
         return failedRecords.reduce((acc, record) => {
             const workflowState = inferHarnessWorkflowState(record);
@@ -4002,6 +4119,40 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         )}
                     </div>
 
+                    {/* P0.1: UNKNOWN 2차 분류 배지 */}
+                    {failedFailureCodeSummary.find(i => i.code === 'UNKNOWN' && i.unknownSubCounts) && (() => {
+                        const unknownItem = failedFailureCodeSummary.find(i => i.code === 'UNKNOWN')!;
+                        const sub = unknownItem?.unknownSubCounts;
+                        if (!sub || unknownItem.count === 0) return null;
+                        return (
+                            <div className="mt-4 flex items-center gap-2 p-3 rounded-xl bg-slate-900/60 border border-slate-700/50">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 min-w-fit">UNKNOWN 분류:</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {sub['network-like'] > 0 && <span className="px-2 py-0.5 rounded-full bg-rose-900/40 border border-rose-700/40 text-rose-200 text-[9px] font-bold">네트워크 {sub['network-like']}</span>}
+                                    {sub['parse-like'] > 0 && <span className="px-2 py-0.5 rounded-full bg-violet-900/40 border border-violet-700/40 text-violet-200 text-[9px] font-bold">파싱 {sub['parse-like']}</span>}
+                                    {sub['policy-like'] > 0 && <span className="px-2 py-0.5 rounded-full bg-amber-900/40 border border-amber-700/40 text-amber-200 text-[9px] font-bold">정책 {sub['policy-like']}</span>}
+                                    {sub['uncategorized'] > 0 && <span className="px-2 py-0.5 rounded-full bg-slate-700/60 border border-slate-600/40 text-slate-300 text-[9px] font-bold">미분류 {sub['uncategorized']}</span>}
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* P0.3: 24h/7d 추세 비교 */}
+                    {failureTrendComparison.recent7dTotal > 0 && (
+                        <div className={`mt-3 p-3 rounded-xl border ${failureTrendComparison.trend === 'up' ? 'bg-rose-950/40 border-rose-700/40' : failureTrendComparison.trend === 'down' ? 'bg-emerald-950/40 border-emerald-700/40' : 'bg-slate-900/50 border-slate-700/40'}`}>
+                            <div className="flex items-center gap-2">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 min-w-fit">24h/7d 비교:</p>
+                                <span className="px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-600/40 text-slate-200 text-[9px] font-bold">
+                                    실패율 {failureTrendComparison.failRate24}% / {failureTrendComparison.failRate7d}%
+                                    {failureTrendComparison.trend === 'up' && <span className="ml-1 text-rose-300">▲</span>}
+                                    {failureTrendComparison.trend === 'down' && <span className="ml-1 text-emerald-300">▼</span>}
+                                    {failureTrendComparison.trend === 'stable' && <span className="ml-1 text-slate-400">─</span>}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-600/40 text-slate-200 text-[9px] font-bold">UNKNOWN {failureTrendComparison.unknownRate24}% / {failureTrendComparison.unknownRate7d}%</span>
+                            </div>
+                        </div>
+                    )}
+
                     <SectionPanelCard
                         variant="glassDark"
                         eyebrow="빠른 실행"
@@ -4761,9 +4912,28 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <p className="text-[11px] font-black text-slate-600">집중 실패 코드 <span className="text-violet-700">{riskIntelligence.topCode.code}</span> — 30일간 {riskIntelligence.topCode.count}건 발생. 해당 코드에 대한 운영 조치를 점검하세요.</p>
                             </div>
                         )}
+                        {riskIntelligence.jobFieldRiskRanking.length > 0 && (
+                            <div className="mt-3 p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-600 mb-1.5">공종별 위험도 순위 / {riskIntelligence.coachingGapCount > 0 ? `교육갭 ${riskIntelligence.coachingGapCount}명` : '양호'}</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                    {riskIntelligence.jobFieldRiskRanking.map((item, idx) => (
+                                        <span key={idx} className="px-2 py-1 rounded-full bg-slate-700 text-slate-100 text-[9px] font-bold">
+                                            {item.jobField} {item.failRate}% ({item.failed}/{item.total})
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {riskIntelligence.coachingGapCount > 0 && (
+                            <div className="mt-3 p-2.5 rounded-lg bg-amber-50 border border-amber-200">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-amber-700 mb-1.5">⚠ 교육-행동 갭 감지</p>
+                                <p className="text-[10px] font-bold text-amber-700">
+                                    낮은 점수(60점 이하)인데 코칭 이력이 없는 근로자 <span className="font-black text-amber-900">{riskIntelligence.coachingGapCount}명</span> — 현장 교육 실행 후 갱신하세요.
+                                </p>
+                            </div>
+                        )}
                     </SectionPanelCard>
                 )}
-
                 {reasonQaPreviewRecords.length > 0 && (
                     <SectionPanelCard
                         variant="roseGradient"
