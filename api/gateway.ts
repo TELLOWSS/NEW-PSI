@@ -823,7 +823,14 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
         throw createGatewayHttpError('서버 OCR 응답 JSON 파싱에 실패했습니다.', 502, 'OCR_PARSE_FAILURE');
     }
 
-    const safetyScore = Number.isFinite(Number(parsed.safetyScore)) ? Number(parsed.safetyScore) : 0;
+    const parsedSafetyScore = Number(parsed.safetyScore);
+    const hasExtractedText =
+        String(parsed.fullText || '').trim().length > 0 ||
+        String(parsed.koreanTranslation || '').trim().length > 0 ||
+        String(parsed.aiInsights || '').trim().length > 0;
+    const safetyScore = Number.isFinite(parsedSafetyScore)
+        ? parsedSafetyScore
+        : (hasExtractedText ? 60 : 0);
 
     return {
         name: String(parsed.name || '식별 대기').trim(),

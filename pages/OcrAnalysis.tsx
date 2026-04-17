@@ -519,30 +519,49 @@ const resolveFailureCodeFromRecord = (record: WorkerRecord): OcrFailureCode => {
 const isFailedRecord = (r: WorkerRecord): boolean => {
     if (r.ocrErrorType) return true;
 
-    const insight = String(r.aiInsights || '');
-    const normalizedInsight = insight.toLowerCase();
-    const normalizedName = String(r.name || '').toLowerCase();
     const hasSourceText =
         String(r.fullText || '').trim().length > 0 ||
         String(r.koreanTranslation || '').trim().length > 0 ||
         (r.handwrittenAnswers || []).some((answer) => String(answer?.answerText || '').trim().length > 0);
-    const hasErrorKeyword =
-        normalizedInsight.includes('api 요청량') ||
-        normalizedInsight.includes('오류 상세') ||
-        normalizedInsight.includes('resource has been exhausted') ||
-        normalizedInsight.includes('429') ||
-        normalizedInsight.includes('분석 실패') ||
-        normalizedInsight.includes('재시도 필요') ||
-        normalizedInsight.includes('설정 화면') ||
-        normalizedInsight.includes('api 키') ||
-        normalizedName.includes('할당량 초과') ||
-        normalizedName.includes('분석 실패') ||
-        normalizedName.includes('이미지 데이터');
 
-    if (hasErrorKeyword) return true;
+    if (hasOperationalFailureSignal(r)) return true;
 
     if (!String(r.aiInsights || '').trim() && !hasSourceText) return true;
     
+    return false;
+};
+
+const hasOperationalFailureSignal = (record: Partial<WorkerRecord>): boolean => {
+    const insightText = String(record.aiInsights || '').toLowerCase();
+    const errorText = String(record.ocrErrorMessage || '').toLowerCase();
+    const failureCode = String(record.ocrFailureCode || '').toUpperCase();
+    const combined = `${insightText} ${errorText}`;
+    const hasSourceText =
+        String(record.fullText || '').trim().length > 0 ||
+        String(record.koreanTranslation || '').trim().length > 0 ||
+        (record.handwrittenAnswers || []).some((answer) => String(answer?.answerText || '').trim().length > 0);
+
+    if (['QUOTA', 'KEY', 'NETWORK', 'PAYLOAD', 'FORMAT', 'PARSE'].includes(failureCode)) return true;
+
+    const hasHardFailureKeyword =
+        combined.includes('resource_exhausted') ||
+        combined.includes('429') ||
+        combined.includes('api 요청량') ||
+        combined.includes('오류 상세') ||
+        combined.includes('재시도 필요') ||
+        combined.includes('failed to fetch') ||
+        combined.includes('timeout') ||
+        combined.includes('gateway') ||
+        combined.includes('설정 화면') ||
+        combined.includes('api 키') ||
+        combined.includes('분석 실패') ||
+        combined.includes('parsing failed') ||
+        combined.includes('json 파싱');
+
+    if (hasHardFailureKeyword) return true;
+
+    if ((Number(record.safetyScore) || 0) <= 0 && !hasSourceText) return true;
+
     return false;
 };
 
@@ -2870,8 +2889,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                             if (apiResult) {
                                 const insightText = String(apiResult.aiInsights || '');
-                                if ((apiResult.safetyScore === 0 && (insightText.includes('오류') || insightText.includes('실패'))) || insightText.includes('429') || insightText.includes('RESOURCE_EXHAUSTED')) {
-                                    throw new Error(insightText || '분석 실패');
+                                const shouldTreatAsFailure = isFailedRecord(apiResult) || hasOperationalFailureSignal(apiResult);
+                                if (shouldTreatAsFailure) {
+                                    throw new Error(String(apiResult.ocrErrorMessage || insightText || '분석 실패'));
                                 }
                                 break; // Success!
                             }
