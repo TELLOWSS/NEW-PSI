@@ -55,11 +55,12 @@ const CURRENT_SITE_LANGUAGE_SET = [
 ] as const;
 
 const VALID_TRAINING_LANGUAGE_CODES = new Set(TRAINING_LANGUAGE_OPTIONS.map((item) => item.code));
+const isValidTrainingLanguageCode = (code: string): code is (typeof TRAINING_LANGUAGE_OPTIONS)[number]['code'] => VALID_TRAINING_LANGUAGE_CODES.has(code as (typeof TRAINING_LANGUAGE_OPTIONS)[number]['code']);
 
 const normalizeTrainingLanguagePreset = (input?: string[]): string[] => {
     if (!Array.isArray(input)) return [...CURRENT_SITE_LANGUAGE_SET];
 
-    const normalized = Array.from(new Set(input.filter((code) => VALID_TRAINING_LANGUAGE_CODES.has(code))));
+    const normalized = Array.from(new Set(input.filter((code): code is (typeof TRAINING_LANGUAGE_OPTIONS)[number]['code'] => isValidTrainingLanguageCode(code))));
     if (normalized.length === 0) return [...CURRENT_SITE_LANGUAGE_SET];
     return normalized;
 };
@@ -362,10 +363,10 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         return '미설정';
     }, [activeApiKeyStatus]);
 
-    const harnessSourceRecords = useMemo(() => workerRecords.filter((record) => !isManagementRole(record.jobField)), [workerRecords]);
+    const harnessSourceRecords = useMemo<WorkerRecord[]>(() => workerRecords.filter((record) => !isManagementRole(record.jobField)), [workerRecords]);
     const harnessSummary = useMemo(() => summarizeHarnessRecords(harnessSourceRecords), [harnessSourceRecords]);
     const harnessCandidates = useMemo(() => {
-        const latestRecords = Array.from(
+        const latestRecords: WorkerRecord[] = Array.from(
             harnessSourceRecords.reduce((map, record) => {
                 const key = getWorkerIdentityKey(record);
                 const current = map.get(key);
@@ -1012,7 +1013,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     ]), [harnessSummary]);
 
     const harnessProbeSummary = useMemo(() => {
-        return Object.values(harnessProbeResults).reduce((acc, item) => {
+        return (Object.values(harnessProbeResults) as HarnessProbeResult[]).reduce((acc, item) => {
             if (item.status === 'success' && item.diagnostics) {
                 if (item.diagnostics.found && item.diagnostics.resolvedBy === 'workflow_run_id') acc.direct += 1;
                 if (item.diagnostics.found && item.diagnostics.resolvedBy === 'source_record_id') acc.sourceFallback += 1;

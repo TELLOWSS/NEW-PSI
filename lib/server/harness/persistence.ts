@@ -154,7 +154,8 @@ async function ensurePromptVersion(
     supabase: SupabaseLike,
     promptSnapshot: HarnessPromptLayerSnapshot,
 ): Promise<string | null> {
-    const { data, error } = await supabase
+    const client = supabase as any;
+    const { data, error } = await client
         .from('ai_prompt_versions')
         .upsert({
             prompt_version: promptSnapshot.version,
@@ -181,7 +182,8 @@ async function ensurePolicyVersion(
     supabase: SupabaseLike,
     policySnapshot: HarnessPolicySnapshot,
 ): Promise<string | null> {
-    const { data, error } = await supabase
+    const client = supabase as any;
+    const { data, error } = await client
         .from('ai_policy_versions')
         .upsert({
             policy_version: policySnapshot.version,
@@ -212,6 +214,7 @@ export async function persistHarnessAnalysis(options: {
 }) {
     try {
         const supabase = getHarnessSupabaseClient();
+        const client = supabase as any;
         const existingRun = await findWorkflowRun(supabase, options.workflowRunId || String(options.payload.recordId || ''));
         const promptVersionId = options.promptSnapshot
             ? await ensurePromptVersion(supabase, options.promptSnapshot)
@@ -247,27 +250,27 @@ export async function persistHarnessAnalysis(options: {
         let workflowRunId = existingRun?.id || null;
 
         if (existingRun?.id) {
-            const { error } = await supabase
+            const { error } = await client
                 .from('ai_workflow_runs')
                 .update(runRow)
                 .eq('id', existingRun.id);
             if (error) throw error;
         } else {
-            const { data, error } = await supabase
+            const { data, error } = await client
                 .from('ai_workflow_runs')
                 .insert(runRow)
                 .select('id')
                 .limit(1)
                 .single();
             if (error) throw error;
-            workflowRunId = String(data?.id || '');
+            workflowRunId = String((data as any)?.id || '');
         }
 
         if (!workflowRunId) {
             return { persisted: false, workflowRunId: null, warning: 'workflow run id 생성 실패' };
         }
 
-        const { error: contextError } = await supabase
+        const { error: contextError } = await client
             .from('ai_context_snapshots')
             .insert({
                 workflow_run_id: workflowRunId,
@@ -287,7 +290,7 @@ export async function persistHarnessAnalysis(options: {
         if (contextError) throw contextError;
 
         if (options.auditEvents.length > 0) {
-            const { error: eventsError } = await supabase
+            const { error: eventsError } = await client
                 .from('ai_workflow_events')
                 .insert(options.auditEvents.map((event) => ({
                     workflow_run_id: workflowRunId,
@@ -302,7 +305,7 @@ export async function persistHarnessAnalysis(options: {
         }
 
         if (options.overrides.length > 0) {
-            const { error: overridesError } = await supabase
+            const { error: overridesError } = await client
                 .from('ai_guardrail_overrides')
                 .insert(options.overrides.map((override) => ({
                     workflow_run_id: workflowRunId,
@@ -341,6 +344,7 @@ export async function persistHarnessApproval(options: {
 }) {
     try {
         const supabase = getHarnessSupabaseClient();
+        const client = supabase as any;
         const existingRun = await findWorkflowRun(supabase, options.workflowRunId || options.sourceRecordId || '');
 
         const previousDecision = existingRun?.risk_decision || null;
@@ -366,20 +370,20 @@ export async function persistHarnessApproval(options: {
 
         let workflowRunId = existingRun?.id || null;
         if (existingRun?.id) {
-            const { error } = await supabase
+            const { error } = await client
                 .from('ai_workflow_runs')
                 .update(runUpdate)
                 .eq('id', existingRun.id);
             if (error) throw error;
         } else {
-            const { data, error } = await supabase
+            const { data, error } = await client
                 .from('ai_workflow_runs')
                 .insert(runUpdate)
                 .select('id')
                 .limit(1)
                 .single();
             if (error) throw error;
-            workflowRunId = String(data?.id || '');
+            workflowRunId = String((data as any)?.id || '');
         }
 
         if (!workflowRunId) {

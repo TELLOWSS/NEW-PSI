@@ -92,7 +92,6 @@ export const NationalityChart: React.FC<ChartProps> = ({ records }) => {
                         beginAtZero: true,
                         grid: {
                             drawOnChartArea: false,
-                            drawBorder: false,
                         },
                         ticks: {
                            display: false
@@ -101,12 +100,11 @@ export const NationalityChart: React.FC<ChartProps> = ({ records }) => {
                     y: {
                         grid: {
                             display: false,
-                            drawBorder: false,
                         },
                         ticks: {
                            font: {
                                size: 14,
-                               weight: '500'
+                               weight: 500
                            }
                         }
                     }
@@ -134,14 +132,15 @@ export const NationalityChart: React.FC<ChartProps> = ({ records }) => {
                 
                 const meta = chart.getDatasetMeta(0);
                 meta.data.forEach((bar, index) => {
+                    const barElement = bar as unknown as { x: number; y: number; width: number };
                     const data = chart.data.datasets[0].data[index] as number;
                     ctx.fillStyle = '#fff';
-                    const labelPosition = bar.x - 30; // position inside bar
-                    if(bar.width > 40) { // only show if bar is wide enough
-                        ctx.fillText(`${data}명`, labelPosition, bar.y);
+                    const labelPosition = barElement.x - 30; // position inside bar
+                    if(barElement.width > 40) { // only show if bar is wide enough
+                        ctx.fillText(`${data}명`, labelPosition, barElement.y);
                     } else {
                         ctx.fillStyle = '#64748b'; // show outside
-                         ctx.fillText(`${data}명`, bar.x + 5, bar.y);
+                         ctx.fillText(`${data}명`, barElement.x + 5, barElement.y);
                     }
                 });
             }

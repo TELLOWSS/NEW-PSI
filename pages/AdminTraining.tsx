@@ -461,10 +461,11 @@ const CURRENT_SITE_LANGUAGE_SET = [
 ] as const;
 
 const VALID_LANGUAGE_CODES = new Set(LANGUAGE_OPTIONS.map((item) => item.code));
+const isValidLanguageCode = (code: string): code is (typeof LANGUAGE_OPTIONS)[number]['code'] => VALID_LANGUAGE_CODES.has(code as (typeof LANGUAGE_OPTIONS)[number]['code']);
 
 const normalizeLanguagePreset = (input?: string[]): string[] => {
     if (!Array.isArray(input)) return [...CURRENT_SITE_LANGUAGE_SET];
-    const normalized = Array.from(new Set(input.filter((code) => VALID_LANGUAGE_CODES.has(code))));
+    const normalized = Array.from(new Set(input.filter((code): code is (typeof LANGUAGE_OPTIONS)[number]['code'] => isValidLanguageCode(code))));
     if (normalized.length === 0) return [...CURRENT_SITE_LANGUAGE_SET];
     return normalized;
 };

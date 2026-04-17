@@ -4,7 +4,7 @@ import { getWindowProp } from '../utils/windowUtils';
 import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, HandwrittenAnswer, OcrErrorType, OcrFailureCode } from '../types';
 import { extractMessage } from '../utils/errorUtils';
 import { deriveIntegrityScore, enforceSafetyLevel } from '../utils/evidenceUtils';
-import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
+import { getSafetyLevelFromScore, getSafetyLevelThresholds } from '../utils/safetyLevelUtils';
 import { getIsPaidApiMode } from '../utils/apiModeUtils';
 import { supabase } from '../lib/supabaseClient';
 
@@ -1046,6 +1046,10 @@ async function callGeminiWithRetry(
         }
         
         try {
+            const nationality = '미지정';
+            const trade = '일반 공종';
+            const monthlyFocus = '기본 안전수칙';
+            const bestPeerExample = '동일 조건 우수사례 미지정';
             const systemInstruction = `
             /**
              * [최고 수준 안전 채점 System Instructions]
@@ -1168,9 +1172,17 @@ async function callGeminiWithRetry(
                                 improvementExecution: Number((r['scoreBreakdown'] as Record<string, unknown>)['improvementExecution'] ?? 0),
                                 repeatViolationPenalty: Number((r['scoreBreakdown'] as Record<string, unknown>)['repeatViolationPenalty'] ?? 0),
                             } : undefined,
-                            selfAssessedRiskLevel: (r['selfAssessedRiskLevel'] as string) || '중',
+                            selfAssessedRiskLevel:
+                                r['selfAssessedRiskLevel'] === '상' || r['selfAssessedRiskLevel'] === '중' || r['selfAssessedRiskLevel'] === '하'
+                                    ? r['selfAssessedRiskLevel']
+                                    : '중',
                             psychologicalAnalysis: r['psychologicalAnalysis'] ? {
-                                pressureLevel: ((r['psychologicalAnalysis'] as Record<string, unknown>)['pressureLevel'] as string) || 'medium',
+                                pressureLevel:
+                                    (r['psychologicalAnalysis'] as Record<string, unknown>)['pressureLevel'] === 'high'
+                                    || (r['psychologicalAnalysis'] as Record<string, unknown>)['pressureLevel'] === 'medium'
+                                    || (r['psychologicalAnalysis'] as Record<string, unknown>)['pressureLevel'] === 'low'
+                                        ? (r['psychologicalAnalysis'] as Record<string, unknown>)['pressureLevel'] as 'high' | 'medium' | 'low'
+                                        : 'medium',
                                 hasLayoutIssue: Boolean((r['psychologicalAnalysis'] as Record<string, unknown>)['hasLayoutIssue'])
                             } : undefined,
                             actionHistory: [],
@@ -1544,7 +1556,15 @@ export async function generateSafetyBriefing(workers: WorkerRecord[], checks: Sa
             }
         }
         const bestWorker = workers.length > 0 ? [...workers].sort((a, b) => b.safetyScore - a.safetyScore)[0] : null;
-        return { ...result, bestWorker };
+        return {
+            month: result.month || '데이터 없음',
+            avgScore: typeof result.avgScore === 'number' ? result.avgScore : 0,
+            totalWorkers: typeof result.totalWorkers === 'number' ? result.totalWorkers : workers.length,
+            topWeakness: result.topWeakness || '분석 실패',
+            bestWorker,
+            script: result.script || '브리핑 데이터를 생성할 수 없습니다.',
+            kpiAnalysis: result.kpiAnalysis || 'N/A',
+        };
     } catch (error) {
         return {
             month: "데이터 없음",

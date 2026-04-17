@@ -86,7 +86,6 @@ interface ErrorBoundaryState {
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
     declare props: ErrorBoundaryProps;
-    declare state: ErrorBoundaryState;
     declare setState: Component<ErrorBoundaryProps, ErrorBoundaryState>['setState'];
 
     state: ErrorBoundaryState = { hasError: false, error: null, errorInfo: null };
@@ -586,6 +585,10 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
             fullText: toStringSafe(r.fullText, ""),
             koreanTranslation: toStringSafe(r.koreanTranslation, ""),
             language: toStringSafe(r.language, "unknown"),
+            selfAssessedRiskLevel:
+                r.selfAssessedRiskLevel === '상' || r.selfAssessedRiskLevel === '중' || r.selfAssessedRiskLevel === '하'
+                    ? r.selfAssessedRiskLevel
+                    : '중',
             correctionHistory: Array.isArray(r.correctionHistory) ? r.correctionHistory : [],
             actionHistory: Array.isArray(r.actionHistory) ? r.actionHistory : [],
             approvalHistory: Array.isArray(r.approvalHistory) ? r.approvalHistory : [],
@@ -811,7 +814,7 @@ const App: React.FC = () => {
 
                         const report = {
                             runAt: new Date().toISOString(),
-                            totalRecords: sortedData.length,
+                            totalRecords: reconciled.records.length,
                             changedCount,
                             criteria: `${thresholds.advancedMin}/${thresholds.intermediateMin}`,
                             signature: expectedMigrationSignature,

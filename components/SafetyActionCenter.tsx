@@ -17,7 +17,7 @@ export const SafetyActionCenter: React.FC<SafetyActionCenterProps> = ({ workerRe
         
         const lowScoreCount = workerRecords.filter(w => w.safetyLevel === '초급').length;
         const weakMap = workerRecords.flatMap(r => r.weakAreas).reduce((acc: Record<string, number>, cur: string) => { acc[cur] = (acc[cur] || 0) + 1; return acc; }, {} as Record<string, number>);
-        const topEntry = Object.entries(weakMap).sort((a, b) => b[1] - a[1])[0];
+        const topEntry = (Object.entries(weakMap) as Array<[string, number]>).sort((a, b) => b[1] - a[1])[0];
         const topWeakness = topEntry ? topEntry[0] : '일반 안전';
 
         const newTasks: ActionItem[] = [

@@ -17,10 +17,10 @@ import { describe, it, expect, vi } from 'vitest';
 import * as geminiService from './geminiService';
 
 // AI 호출 부분을 모킹 (실제 API 호출 대신 예상 응답 반환)
-vi.mock('./geminiService', async (importOriginal) => {
-  const mod = await importOriginal();
+vi.mock('./geminiService', async (importOriginal: any) => {
+  const mod: any = await importOriginal();
   return {
-    ...mod,
+    ...(mod as Record<string, unknown>),
     callGeminiWithRetry: vi.fn(async ({ nationality, trade, monthlyFocus, bestPeerExample, inputText }) => {
       // Edge Case 1: 내국인 단답형
       if (nationality === 'KO' && inputText.includes('조심해서')) {
@@ -57,7 +57,7 @@ vi.mock('./geminiService', async (importOriginal) => {
 
 describe('geminiService System Prompt 이원화 채점 유닛테스트', () => {
   it('한국인 단답형(태만) → 무결성 과락, 피드백은 한국어', async () => {
-    const result = await geminiService.callGeminiWithRetry({
+    const result = await (geminiService as any).callGeminiWithRetry({
       nationality: 'KO',
       trade: '형틀',
       monthlyFocus: '추락 방지',
@@ -69,7 +69,7 @@ describe('geminiService System Prompt 이원화 채점 유닛테스트', () => {
   });
 
   it('외국인 문법 파괴+키워드 포함 → 점수 높음, 피드백은 베트남어', async () => {
-    const result = await geminiService.callGeminiWithRetry({
+    const result = await (geminiService as any).callGeminiWithRetry({
       nationality: 'VN',
       trade: '철근',
       monthlyFocus: '찔림 방지',
@@ -81,7 +81,7 @@ describe('geminiService System Prompt 이원화 채점 유닛테스트', () => {
   });
 
   it('외국인 키워드 누락+동급비교 → 과락, 피드백에 동료 인용', async () => {
-    const result = await geminiService.callGeminiWithRetry({
+    const result = await (geminiService as any).callGeminiWithRetry({
       nationality: 'CN',
       trade: '시스템',
       monthlyFocus: '추락 방지',

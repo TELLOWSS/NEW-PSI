@@ -108,6 +108,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
     const reassessmentTrail = (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-5).reverse();
     const messageWorkerKey = String(record.worker_uuid || record.workerUuid || record.employeeId || `${record.name}_${record.teamLeader || '미지정'}`).trim();
     const isGenerating = isGeneratingPdf || isGeneratingImage || isSendingMessage;
+<<<<<<< HEAD
     const hasMessageDraft = messagePhoneNumber.replace(/\D/g, '').slice(0, 11).length > 0 || messageNote.trim().length > 0;
     const { guideMessage: mobileBackGuideMessage } = useMobileBackGuard({
         hasActiveWork: isGenerating || hasMessageDraft || isCameraOpen,
@@ -117,6 +118,8 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         idleBackMessage: '한 번 더 누르면 이전 화면으로 이동합니다.',
         exitMessage: '이전 화면으로 이동합니다.',
     });
+=======
+>>>>>>> e84e1ee (chore: finalize remaining validated updates)
     const normalizePhoneInput = (value: string) => value.replace(/\D/g, '').slice(0, 11);
     const formatPhoneForDisplay = (value: string) => {
         const digits = normalizePhoneInput(value);
