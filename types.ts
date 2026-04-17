@@ -4,6 +4,7 @@ export type Page =
     'ocr-analysis' | 
     'worker-management' | 
     'predictive-analysis' |
+    'performance-analysis' |
     'safety-checks' |
     'site-issue-management' |
     'reports' |

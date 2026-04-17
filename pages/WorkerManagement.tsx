@@ -1,6 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { flushSync } from 'react-dom';
+import type { WorkerRecord } from '../types';
 import { ReportTemplate } from '../components/ReportTemplate';
 import { generateReportUrl, getReportShareDiagnostics } from '../utils/qrUtils';
 import { extractMessage } from '../utils/errorUtils';
@@ -1679,7 +1680,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     }, [filteredMessageHistoryRows]);
 
     const cachedMessageRows = useMemo(
-        () => Object.values(messageLogCache).flatMap((entry) => entry.rows || []),
+        () => Object.values(messageLogCache as Record<string, WorkerMessageLogCacheEntry>).flatMap((entry) => entry.rows || []),
         [messageLogCache],
     );
 

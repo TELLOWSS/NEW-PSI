@@ -1547,11 +1547,50 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, [secondPassTargets]);
 
     const secondPassSkippedSummary = useMemo(() => {
-        return Object.entries(secondPassSkippedCounts)
+        return (Object.entries(secondPassSkippedCounts) as Array<[string, number]>)
             .sort((a, b) => b[1] - a[1])
             .map(([reason, count]) => `${reason} ${count}건`)
             .join(', ');
             }, [secondPassSkippedCounts]);
+
+    const secondPassSkippedBreakdown = useMemo(() => {
+        const entries = (Object.entries(secondPassSkippedCounts) as Array<[string, number]>).sort((a, b) => b[1] - a[1]);
+        const total = entries.reduce((sum, [, count]) => sum + Number(count || 0), 0);
+        return {
+            total,
+            items: entries.slice(0, 4).map(([reason, count]) => ({
+                reason,
+                count,
+                share: total > 0 ? Math.round((count / total) * 100) : 0,
+            })),
+        };
+    }, [secondPassSkippedCounts]);
+
+    const filteredFailedCount = useMemo(() => filteredRecords.filter((record) => isFailedRecord(record)).length, [filteredRecords]);
+
+    const activeFilterSummaryItems = useMemo(() => {
+        const items: string[] = [];
+        const normalizedSearch = String(searchTerm || '').trim();
+        if (normalizedSearch) items.push(`검색: ${normalizedSearch}`);
+        if (filterField !== 'all') items.push(`공종: ${filterField}`);
+        if (filterLeader !== 'all') items.push(`팀장: ${filterLeader}`);
+        if (filterTrust !== 'all') items.push(`신뢰: ${filterTrust === 'pending' ? '재검토 대기' : '최종확정'}`);
+        if (filterLevel !== 'all') items.push(`등급: ${filterLevel}`);
+        if (filterStatus !== 'all') items.push(`OCR 결과: ${filterStatus === 'failed' ? BRAND_STATUS_LABELS.attentionPending : '성공'}`);
+        if (filterReason !== 'all') {
+            items.push(`사유 필터: ${
+                filterReason === 'missing-reason'
+                    ? '사유 없음'
+                    : filterReason === 'weak-reason'
+                        ? '사유 보강 필요'
+                        : '사유 있음'
+            }`);
+        }
+        if (secondPassExcludedOnly) items.push('2차 재평가 제외 건만 보기');
+        if (secondPassReasonFilter !== 'all') items.push(`2차 제외 사유: ${secondPassReasonFilter}`);
+        if (recordSortMode !== 'recent-correction') items.push(`정렬: ${getRecordSortModeLabel(recordSortMode)}`);
+        return items;
+    }, [filterField, filterLeader, filterLevel, filterReason, filterStatus, filterTrust, recordSortMode, searchTerm, secondPassExcludedOnly, secondPassReasonFilter]);
 
     const retrySuccessRate = useMemo(() => {
         if (!retryDiagnostics || retryDiagnostics.total === 0) return 0;
@@ -2105,7 +2144,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             return acc;
         }, {});
 
-        return Object.entries(counts)
+        return (Object.entries(counts) as Array<[string, number]>)
             .sort((a, b) => b[1] - a[1])
             .slice(0, 4);
     }, [failedRecords]);
@@ -2492,7 +2531,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, [filteredRecords, recordSortMode, secondPassTargets.length, getReviewTrustState]);
 
     const failureProcessingStats = useMemo(() => {
-        const resolvedCounts = existingRecords.reduce<Record<string, number>>((acc, record) => {
+        const resolvedCounts = existingRecords.reduce((acc: Record<string, number>, record) => {
             (record.auditTrail || []).forEach((entry) => {
                 const note = String(entry.note || '');
                 const normalizedMatch = note.match(/관리자 수동 정상분류 처리 \((.+?)\)/);
@@ -3790,7 +3829,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     return;
                 }
 
-                onImport(validation.objectItems as WorkerRecord[]);
+                onImport(validation.objectItems as unknown as WorkerRecord[]);
                 alert(`백업 복구 요청 완료\n- 원본: ${records.length}건\n- 복구 대상: ${validation.objectItems.length}건\n- 문제 항목: ${validation.problematicItems}건\n\n상세는 화면의 '복구 파일 스키마 검증 결과'를 확인하세요.`);
             } catch (err) {
                 alert('파일 형식이 잘못되었습니다.');
@@ -4226,7 +4265,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </div>
                         <div className="flex flex-wrap gap-2">
                             {failedTypeSummary.map(([label, count]) => (
-                                <span key={label} className="px-3 py-1.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-black">
+                                <span key={label} className="px-3 py-2 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[11px] sm:text-xs font-black">
                                     {label} {count}건
                                 </span>
                             ))}
@@ -4270,14 +4309,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     <button
                                         type="button"
                                         onClick={() => runBatchAnalysis(group.records, `${group.label} 일괄 재분석`)}
-                                        className="px-3 py-2 rounded-xl bg-rose-100 text-rose-700 text-xs font-black hover:bg-rose-200 border border-rose-200"
+                                        className="px-3 py-2.5 min-h-[42px] rounded-xl bg-rose-100 text-rose-700 text-[12px] sm:text-xs font-black hover:bg-rose-200 border border-rose-200"
                                     >
                                         {group.label} 재분석 {group.count}건
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => handleAdminNormalizeFailedGroup(group.records, group.label)}
-                                        className="px-3 py-2 rounded-xl bg-amber-100 text-amber-700 text-xs font-black hover:bg-amber-200 border border-amber-200"
+                                        className="px-3 py-2.5 min-h-[42px] rounded-xl bg-amber-100 text-amber-700 text-[12px] sm:text-xs font-black hover:bg-amber-200 border border-amber-200"
                                     >
                                         {group.label} 정상분류 {group.count}건
                                     </button>
@@ -4565,16 +4604,63 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </div>
                         <div className="rounded-2xl bg-rose-50 border border-rose-200 px-3 py-2">
                             <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest">{BRAND_STATUS_LABELS.attentionPending}</p>
-                            <p className="mt-1 text-lg font-black text-rose-700">{filteredRecords.filter(r => isFailedRecord(r)).length}</p>
+                            <p className="mt-1 text-lg font-black text-rose-700">{filteredFailedCount}</p>
                         </div>
                         <div className="rounded-2xl bg-violet-50 border border-violet-200 px-3 py-2">
                             <p className="text-[10px] font-black text-violet-400 uppercase tracking-widest">제외 사유</p>
-                            <p className="mt-1 text-[11px] font-black text-violet-700 leading-snug">{secondPassSkippedSummary || '없음'}</p>
+                            <div className="mt-1 space-y-1">
+                                {secondPassSkippedBreakdown.items.length > 0 ? secondPassSkippedBreakdown.items.slice(0, 2).map((item) => (
+                                    <p key={item.reason} className="text-[11px] font-black text-violet-700 leading-snug">
+                                        {item.reason} · {item.count}건
+                                    </p>
+                                )) : (
+                                    <p className="text-[11px] font-black text-violet-700 leading-snug">없음</p>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <InterpretationCardGrid items={filteredInterpretationCards} />
+
+                <SectionPanelCard
+                    variant="whiteSoft"
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-4"
+                    eyebrow="운영 포커스"
+                    title={activeFilterSummaryItems.length > 0 ? '현재 필터가 적용된 상태입니다.' : '현재 기본 필터 상태입니다.'}
+                    description={activeFilterSummaryItems.length > 0
+                        ? `${activeFilterSummaryItems.length}개 조건으로 결과를 압축해 보고 있습니다. 필요할 때 초기화 후 전체 흐름으로 복귀하세요.`
+                        : '검색/필터를 적용하면 우선 확인 대상과 제외 사유를 더 빠르게 좁힐 수 있습니다.'}
+                    eyebrowClassName="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400"
+                    titleClassName="mt-1 text-sm font-black text-slate-900"
+                    descriptionClassName="mt-1 text-[12px] font-semibold text-slate-600"
+                    bodyClassName="mt-3"
+                >
+                    {activeFilterSummaryItems.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                            {activeFilterSummaryItems.map((item) => (
+                                <span key={item} className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-black text-indigo-700">
+                                    {item}
+                                </span>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-[12px] font-semibold text-slate-500">적용된 추가 필터가 없습니다.</p>
+                    )}
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-black text-slate-700">조회 결과 {filteredRecords.length}건</span>
+                        <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[11px] font-black text-rose-700">{BRAND_STATUS_LABELS.attentionPending} {filteredFailedCount}건</span>
+                        {activeFilterSummaryItems.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={resetFilters}
+                                className="rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-black text-slate-700 hover:bg-slate-50"
+                            >
+                                필터 전체 해제
+                            </button>
+                        )}
+                    </div>
+                </SectionPanelCard>
 
                 {recentAdminActivities.length > 0 && (
                     <CollapsibleSection
@@ -4693,7 +4779,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             setFilterReason('missing-reason');
                                             handleViewRecordById(reasonQaPreviewRecords.find((record) => record.missingDecisionReason)?.id || '');
                                         }}
-                                        className="rounded-xl bg-rose-600 px-3 py-2 text-xs font-black text-white hover:bg-rose-700"
+                                        className="rounded-xl bg-rose-600 px-3 py-2.5 min-h-[42px] text-[12px] sm:text-xs font-black text-white hover:bg-rose-700"
                                     >
                                         사유 없음 바로 확인
                                     </button>
@@ -4705,7 +4791,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             setFilterReason('weak-reason');
                                             handleViewRecordById(reasonQaPreviewRecords.find((record) => record.weakDecisionReason)?.id || '');
                                         }}
-                                        className="rounded-xl bg-amber-500 px-3 py-2 text-xs font-black text-white hover:bg-amber-600"
+                                        className="rounded-xl bg-amber-500 px-3 py-2.5 min-h-[42px] text-[12px] sm:text-xs font-black text-white hover:bg-amber-600"
                                     >
                                         승인사유 보강 이동
                                     </button>
@@ -4714,7 +4800,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     <button
                                         type="button"
                                         onClick={() => handleViewRecordById(reasonQaPreviewRecords.find((record) => record.weakCorrection)?.id || '')}
-                                        className="rounded-xl bg-violet-600 px-3 py-2 text-xs font-black text-white hover:bg-violet-700"
+                                        className="rounded-xl bg-violet-600 px-3 py-2.5 min-h-[42px] text-[12px] sm:text-xs font-black text-white hover:bg-violet-700"
                                     >
                                         수정사유 보강 이동
                                     </button>
@@ -4739,14 +4825,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         <button
                                             type="button"
                                             onClick={() => handleViewRecordById(reasonInputPrompt.id)}
-                                            className="rounded-xl bg-slate-900 px-3 py-2 text-xs font-black text-white hover:bg-black"
+                                            className="rounded-xl bg-slate-900 px-3 py-2.5 min-h-[42px] text-[12px] sm:text-xs font-black text-white hover:bg-black"
                                         >
                                             해당 기록 바로 열기
                                         </button>
                                         <button
                                             type="button"
                                             onClick={() => setFilterReason(reasonQaSummary.missingDecision > 0 ? 'missing-reason' : 'weak-reason')}
-                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50"
+                                            className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 min-h-[42px] text-[12px] sm:text-xs font-black text-slate-700 hover:bg-slate-50"
                                         >
                                             관련 항목만 보기
                                         </button>
@@ -4783,9 +4869,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     <h5 className="mt-2 text-base font-black text-slate-900">보강이 필요한 승인/수정 사유</h5>
                                 </div>
                                 <div className="flex flex-wrap gap-2 text-[11px] font-black">
-                                    <button type="button" onClick={() => setFilterReason('missing-reason')} className="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-amber-700 hover:bg-amber-100">사유 없음 {reasonQaSummary.missingDecision}</button>
-                                    <button type="button" onClick={() => setFilterReason('weak-reason')} className="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-amber-700 hover:bg-amber-100">사유 보강 필요 {reasonQaSummary.weakDecision}</button>
-                                    <span className="rounded-full border border-amber-200 bg-white px-3 py-1.5 text-amber-700">수정 사유 보강 {reasonQaSummary.weakCorrection}</span>
+                                    <button type="button" onClick={() => setFilterReason('missing-reason')} className="rounded-full border border-amber-200 bg-white px-3 py-2 text-amber-700 hover:bg-amber-100">사유 없음 {reasonQaSummary.missingDecision}</button>
+                                    <button type="button" onClick={() => setFilterReason('weak-reason')} className="rounded-full border border-amber-200 bg-white px-3 py-2 text-amber-700 hover:bg-amber-100">사유 보강 필요 {reasonQaSummary.weakDecision}</button>
+                                    <span className="rounded-full border border-amber-200 bg-white px-3 py-2 text-amber-700">수정 사유 보강 {reasonQaSummary.weakCorrection}</span>
                                 </div>
                             </div>
                         )}
@@ -4858,7 +4944,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 <button
                                                     type="button"
                                                     onClick={() => handleViewRecordById(record.id)}
-                                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-indigo-600 hover:bg-indigo-50"
+                                                    className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 min-h-[42px] text-[12px] sm:text-xs font-black text-indigo-600 hover:bg-indigo-50"
                                                 >
                                                     상세 판단 이동
                                                 </button>
@@ -4866,7 +4952,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                     <button
                                                         type="button"
                                                         onClick={() => setFilterReason('missing-reason')}
-                                                        className="rounded-xl bg-rose-100 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-200"
+                                                        className="rounded-xl bg-rose-100 px-3 py-2.5 min-h-[42px] text-[12px] sm:text-xs font-black text-rose-700 hover:bg-rose-200"
                                                     >
                                                         사유 없음만 보기
                                                     </button>
@@ -4875,7 +4961,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                     <button
                                                         type="button"
                                                         onClick={() => setFilterReason('weak-reason')}
-                                                        className="rounded-xl bg-amber-100 px-3 py-2 text-xs font-black text-amber-700 hover:bg-amber-200"
+                                                        className="rounded-xl bg-amber-100 px-3 py-2.5 min-h-[42px] text-[12px] sm:text-xs font-black text-amber-700 hover:bg-amber-200"
                                                     >
                                                         사유 보강 필요만 보기
                                                     </button>
@@ -4970,10 +5056,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         <ControlPanelCard label="정렬" className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 w-full sm:w-auto">
-                                    <button type="button" onClick={() => setRecordSortMode('recent-correction')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'recent-correction' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>최근 수정순</button>
-                                    <button type="button" onClick={() => setRecordSortMode('score-desc')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'score-desc' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>점수 높은순</button>
-                                    <button type="button" onClick={() => setRecordSortMode('failed-first')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'failed-first' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>우선 {BRAND_STATUS_LABELS.attention}</button>
-                                    <button type="button" onClick={() => setRecordSortMode('error-type')} className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${recordSortMode === 'error-type' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>{BRAND_STATUS_LABELS.attention} 유형순</button>
+                                    <button type="button" onClick={() => setRecordSortMode('recent-correction')} className={`px-3 py-2.5 min-h-[42px] rounded-xl text-[12px] sm:text-xs font-black border transition-all ${recordSortMode === 'recent-correction' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>최근 수정순</button>
+                                    <button type="button" onClick={() => setRecordSortMode('score-desc')} className={`px-3 py-2.5 min-h-[42px] rounded-xl text-[12px] sm:text-xs font-black border transition-all ${recordSortMode === 'score-desc' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>점수 높은순</button>
+                                    <button type="button" onClick={() => setRecordSortMode('failed-first')} className={`px-3 py-2.5 min-h-[42px] rounded-xl text-[12px] sm:text-xs font-black border transition-all ${recordSortMode === 'failed-first' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>우선 {BRAND_STATUS_LABELS.attention}</button>
+                                    <button type="button" onClick={() => setRecordSortMode('error-type')} className={`px-3 py-2.5 min-h-[42px] rounded-xl text-[12px] sm:text-xs font-black border transition-all ${recordSortMode === 'error-type' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>{BRAND_STATUS_LABELS.attention} 유형순</button>
                                 </div>
                             </div>
                             <p className="mt-2 text-[11px] font-bold text-slate-500">현재 정렬: {getRecordSortModeLabel(recordSortMode)}</p>
@@ -5008,14 +5094,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             />
                             관리자 수정 이력 있는 건만 재분석
                         </label>
-                        <div className="mt-4 grid grid-cols-2 gap-2">
+                        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <button
                                 type="button"
                                 onClick={() => {
                                     setSecondPassExcludedOnly(false);
                                     setSecondPassReasonFilter('all');
                                 }}
-                                className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${!secondPassExcludedOnly ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-violet-700 border-violet-200 hover:bg-violet-50'}`}
+                                className={`px-3 py-2.5 min-h-[42px] rounded-xl text-[12px] sm:text-xs font-black border transition-all ${!secondPassExcludedOnly ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-violet-700 border-violet-200 hover:bg-violet-50'}`}
                             >
                                 전체 보기
                             </button>
@@ -5025,38 +5111,49 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     setSecondPassExcludedOnly(true);
                                     setSecondPassReasonFilter('all');
                                 }}
-                                className={`px-3 py-2 rounded-xl text-xs font-black border transition-all ${secondPassExcludedOnly ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-violet-700 border-violet-200 hover:bg-violet-50'}`}
+                                className={`px-3 py-2.5 min-h-[42px] rounded-xl text-[12px] sm:text-xs font-black border transition-all ${secondPassExcludedOnly ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-violet-700 border-violet-200 hover:bg-violet-50'}`}
                             >
                                 제외 건만 보기
                             </button>
                         </div>
                         {Object.keys(secondPassSkippedCounts).length > 0 && (
-                            <div className="mt-4 flex flex-wrap gap-2">
-                                {Object.entries(secondPassSkippedCounts)
-                                    .sort((a, b) => b[1] - a[1])
-                                    .map(([reason, count]) => (
+                            <SectionPanelCard
+                                variant="whiteSoft"
+                                className="mt-4 rounded-2xl border border-violet-200 bg-white/90 p-3"
+                                title="제외 사유 분해"
+                                description={`총 ${secondPassSkippedBreakdown.total}건`}
+                                titleClassName="text-[11px] font-black text-violet-700 uppercase tracking-wider"
+                                descriptionClassName="text-[11px] font-bold text-slate-500"
+                                bodyClassName="mt-3"
+                            >
+                                <div className="grid grid-cols-1 gap-2">
+                                    {secondPassSkippedBreakdown.items.map((item) => (
                                         <button
-                                            key={reason}
+                                            key={item.reason}
                                             type="button"
                                             onClick={() => {
                                                 setSecondPassExcludedOnly(true);
-                                                setSecondPassReasonFilter(current => current === reason ? 'all' : reason);
+                                                setSecondPassReasonFilter((current) => current === item.reason ? 'all' : item.reason);
                                             }}
-                                            className={`px-2.5 py-1 rounded-full border text-[11px] font-black transition-all ${secondPassReasonFilter === reason ? 'bg-violet-600 border-violet-600 text-white' : 'bg-white border-violet-200 text-violet-700 hover:bg-violet-50'}`}
+                                            className={`rounded-xl border px-3 py-2 text-left transition-all ${secondPassReasonFilter === item.reason ? 'bg-violet-600 border-violet-600 text-white' : 'bg-white border-violet-200 hover:bg-violet-50'}`}
                                         >
-                                            {reason} · {count}건
+                                            <div className="flex items-center justify-between gap-2">
+                                                <p className={`text-[12px] font-black ${secondPassReasonFilter === item.reason ? 'text-white' : 'text-violet-700'}`}>{item.reason}</p>
+                                                <span className={`text-[10px] font-black ${secondPassReasonFilter === item.reason ? 'text-violet-100' : 'text-slate-500'}`}>{item.count}건 · {item.share}%</span>
+                                            </div>
                                         </button>
                                     ))}
+                                </div>
                                 {secondPassReasonFilter !== 'all' && (
                                     <button
                                         type="button"
                                         onClick={() => setSecondPassReasonFilter('all')}
-                                        className="px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-600 text-[11px] font-black hover:bg-slate-200 transition-all"
+                                        className="mt-2 w-full rounded-xl bg-slate-100 border border-slate-200 px-3 py-2 text-[11px] font-black text-slate-600 hover:bg-slate-200 transition-all"
                                     >
                                         사유 필터 해제
                                     </button>
                                 )}
-                            </div>
+                            </SectionPanelCard>
                         )}
                         <SectionPanelCard
                             className="mt-4 rounded-2xl border border-violet-200 bg-white/80 p-3"
