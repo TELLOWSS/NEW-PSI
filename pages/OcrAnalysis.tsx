@@ -189,6 +189,52 @@ const getFailureCodeAction = (code: OcrFailureCode): string => {
     }
 };
 
+type FailureImmediateActionType = 'key-check' | 'quota-wait' | 'network-check';
+
+type FailureImmediateAction = {
+    type: FailureImmediateActionType;
+    label: string;
+    title: string;
+    className: string;
+};
+
+const getFailureImmediateActions = (code: OcrFailureCode): FailureImmediateAction[] => {
+    if (code === 'KEY') {
+        return [
+            {
+                type: 'key-check',
+                label: '키 점검',
+                title: '서버 Gemini API 키/권한 상태 체크리스트를 복사합니다.',
+                className: 'bg-rose-100 text-rose-700 hover:bg-rose-200',
+            },
+        ];
+    }
+
+    if (code === 'QUOTA') {
+        return [
+            {
+                type: 'quota-wait',
+                label: '쿼터 대기',
+                title: '쿼터 냉각 안내를 적용하고 재시도 체크리스트를 복사합니다.',
+                className: 'bg-amber-100 text-amber-800 hover:bg-amber-200',
+            },
+        ];
+    }
+
+    if (code === 'NETWORK') {
+        return [
+            {
+                type: 'network-check',
+                label: '네트워크 점검',
+                title: '업스트림/게이트웨이 장애 점검 체크리스트를 복사합니다.',
+                className: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200',
+            },
+        ];
+    }
+
+    return [];
+};
+
 const inferHarnessWorkflowState = (record: Partial<WorkerRecord>): HarnessWorkflowState => {
     if (record.secondPassStatus === 'IN_PROGRESS') return 'second_pass_analyzing';
     if (record.reviewStatus === 'PENDING' || record.approvalStatus === 'PENDING') return 'awaiting_manager_approval';
@@ -2845,8 +2891,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data?.ok || !data?.record) {
             const errorCode = String(data?.code || '').trim();
-            const errorMessage = String(data?.message || '서버 OCR 재분석 실패').trim();
-            throw new Error(errorCode ? `[${errorCode}] ${errorMessage}` : errorMessage);
+            const fallbackHttpCode = Number(response.status) >= 400 ? `HTTP_${response.status}` : '';
+            const normalizedCode = errorCode || fallbackHttpCode;
+            const errorMessage = String(data?.message || response.statusText || '서버 OCR 재분석 실패').trim();
+            throw new Error(normalizedCode ? `[${normalizedCode}] ${errorMessage}` : errorMessage);
         }
 
         return {
@@ -2881,7 +2929,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, []);
 
     const mapGatewayCodeToFailureCode = useCallback((gatewayCode?: string): OcrFailureCode | undefined => {
-        switch (String(gatewayCode || '').trim().toUpperCase()) {
+        const normalizedCode = String(gatewayCode || '').trim().toUpperCase();
+        switch (normalizedCode) {
             case 'OCR_PARSE_FAILURE':
                 return 'PARSE';
             case 'OCR_UPSTREAM_AUTH':
@@ -2901,6 +2950,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             case 'UNSUPPORTED_IMAGE_FORMAT':
                 return 'FORMAT';
             default:
+                if (/^HTTP_5\d\d$/.test(normalizedCode)) return 'NETWORK';
+                if (normalizedCode === 'HTTP_413') return 'PAYLOAD';
+                if (normalizedCode === 'HTTP_415') return 'FORMAT';
+                if (/^HTTP_4\d\d$/.test(normalizedCode)) return 'PAYLOAD';
                 return undefined;
         }
     }, []);
@@ -3180,7 +3233,24 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 lastServerRouteErrorMessage = serverMessage;
                                 lastServerRouteErrorCode = extractGatewayErrorCode(serverMessage);
                                 const normalizedServerMessage = serverMessage.toLowerCase();
+                                const normalizedServerCode = String(lastServerRouteErrorCode || '').toUpperCase();
+                                const shouldBypassClientFallback = [
+                                    'MISSING_SERVER_GEMINI_KEY',
+                                    'OCR_UPSTREAM_AUTH',
+                                    'OCR_QUOTA',
+                                    'OCR_INVALID_ARGUMENT',
+                                    'UNSUPPORTED_IMAGE_FORMAT',
+                                    'INVALID_BASE64',
+                                    'IMAGE_TOO_LARGE',
+                                    'IMAGE_DATA_TOO_SHORT',
+                                    'HTTP_400',
+                                    'HTTP_401',
+                                    'HTTP_403',
+                                    'HTTP_413',
+                                    'HTTP_415',
+                                ].includes(normalizedServerCode);
                                 const shouldFallbackToClient =
+                                    !shouldBypassClientFallback && (
                                     normalizedServerMessage.includes('failed to fetch') ||
                                     normalizedServerMessage.includes('network') ||
                                     normalizedServerMessage.includes('timeout') ||
@@ -3199,7 +3269,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     serverMessage.includes('502') ||
                                     serverMessage.includes('503') ||
                                     serverMessage.includes('504') ||
-                                    serverMessage.includes('Method Not Allowed');
+                                    serverMessage.includes('Method Not Allowed') ||
+                                    normalizedServerCode.startsWith('HTTP_5')
+                                    );
 
                                 if (!shouldFallbackToClient) {
                                     serverRouteFailCount++;
@@ -3369,12 +3441,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         // Final Failure after retries
                         const mappedFailureCode = mapGatewayCodeToFailureCode(lastServerRouteErrorCode);
                         const failureCode = mappedFailureCode || inferOcrFailureCode(lastRetryErrorMessage || '반복적인 API 오류');
+                        const unknownSubCategory =
+                            failureCode === 'UNKNOWN'
+                                ? classifyUnknownSubCategory({ ocrErrorMessage: `${lastServerRouteErrorCode || ''} ${lastRetryErrorMessage || ''}` })
+                                : undefined;
                         const errorRecord: WorkerRecord = withHarnessState(record, {
                             ...record,
                             aiInsights: withFailureCodePrefix(failureCode, `⛔ 반복적인 API 오류로 ${BRAND_STATUS_LABELS.attention} 안내가 필요합니다. 다시 확인해 주세요.`),
                             ocrErrorType: 'UNKNOWN',
                             ocrFailureCode: failureCode,
                             ocrErrorMessage: withFailureCodePrefix(failureCode, lastRetryErrorMessage || '반복적인 API 오류'),
+                            ocrUnknownSubCategory: unknownSubCategory,
                             ocrTrace: {
                                 providerUsed: usedClientFallback ? 'client_fallback' : 'server_gemini',
                                 latencyMs: 0,
@@ -3890,6 +3967,52 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             alert('클립보드 복사에 실패했습니다. 요약 내보내기를 사용해 주세요.');
         }
     };
+
+    const handleFailureImmediateAction = useCallback(async (record: WorkerRecord, actionType: FailureImmediateActionType) => {
+        const failureCode = resolveFailureCodeFromRecord(record);
+        const trace = record.ocrTrace;
+        const traceLine = `trace(provider=${trace?.providerUsed || 'unknown'}, attempts=${trace?.attempts ?? '-'}, fallbackDepth=${trace?.fallbackDepth ?? '-'}, finalCode=${trace?.finalCode || failureCode})`;
+        const baseHeader = `[${failureCode}] ${record.name || '미상'} / ${record.jobField || '미분류'}`;
+
+        let checklist = '';
+        if (actionType === 'key-check') {
+            checklist = [
+                `${baseHeader}`,
+                traceLine,
+                '- 1) 서버 환경변수 GEMINI_API_KEY 존재 여부 확인',
+                '- 2) 키 권한(401/403) 및 프로젝트 제한(IP/도메인) 확인',
+                '- 3) 배포 환경과 로컬 환경 키가 동일한지 확인',
+                '- 4) 수정 후 동일 레코드 1건 재분석으로 복구 확인',
+            ].join('\n');
+        } else if (actionType === 'quota-wait') {
+            setQuotaExhausted(5);
+            checklist = [
+                `${baseHeader}`,
+                traceLine,
+                '- 1) 최근 24h QUOTA 급증 여부 확인',
+                '- 2) 5분 냉각 후 단건 재시도로 정상 복구 확인',
+                '- 3) 대량 재분석은 배치 간격을 늘려 분산 실행',
+                '- 4) 필요 시 브라우저 폴백/서버 체인 전략 점검',
+            ].join('\n');
+        } else {
+            checklist = [
+                `${baseHeader}`,
+                traceLine,
+                '- 1) 게이트웨이/업스트림 5xx 비율 확인',
+                '- 2) timeout 및 응답 지연(latencyMs) 이상 여부 확인',
+                '- 3) 네트워크 복구 후 단건 재시도로 회복 확인',
+                '- 4) 반복 시 운영 로그에 코드/시각/attempts 기록',
+            ].join('\n');
+        }
+
+        try {
+            await navigator.clipboard.writeText(checklist);
+            setProgress(`[즉시조치] ${record.name}: ${actionType === 'key-check' ? '키 점검' : actionType === 'quota-wait' ? '쿼터 대기' : '네트워크 점검'} 체크리스트 복사 완료`);
+            alert('즉시 조치 체크리스트를 클립보드에 복사했습니다. 운영 채널에 그대로 공유해도 됩니다.');
+        } catch {
+            alert(`즉시 조치 체크리스트 복사에 실패했습니다.\n\n${checklist}`);
+        }
+    }, []);
 
     const extractImportRecords = (payload: unknown): unknown[] => {
         if (Array.isArray(payload)) return payload;
@@ -5819,6 +5942,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     {filteredRecords.map((r: WorkerRecord) => {
                         const checked = selectedIds.includes(r.id);
                         const failed = isFailedRecord(r);
+                        const failureCode = failed ? resolveFailureCodeFromRecord(r) : 'UNKNOWN';
+                        const immediateActions = failed ? getFailureImmediateActions(failureCode) : [];
                         const secondPassEligibility = getSecondPassEligibility(r, secondPassEditedOnly);
                         const latestCorrectionPreview = getLatestCorrectionPreview(r);
                         const latestCorrectionTimestampLabel = getLatestCorrectionTimestampLabel(r);
@@ -5951,6 +6076,20 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     {failed && !isAnalyzing && (
                                         <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="col-span-2 px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl" title={`${BRAND_STATUS_LABELS.attention} 안내가 필요한 건을 관리자 검토 후 정상 흐름으로 전환`}>관리자 판단으로 유지</button>
                                     )}
+                                    {failed && immediateActions.length > 0 && (
+                                        <div className="col-span-2 grid grid-cols-1 gap-2">
+                                            {immediateActions.map((action) => (
+                                                <button
+                                                    key={`${r.id}-${action.type}`}
+                                                    onClick={(e) => { e.stopPropagation(); void handleFailureImmediateAction(r, action.type); }}
+                                                    className={`px-3 py-2 font-bold text-xs rounded-xl transition-all ${action.className}`}
+                                                    title={action.title}
+                                                >
+                                                    {action.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                     <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="col-span-2 px-3 py-2 bg-slate-100 text-slate-500 font-bold text-xs rounded-xl">삭제</button>
                                 </div>
                             </div>
@@ -5977,6 +6116,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const isManager = isManagementRole(r.jobField);
                                 const hasImage = hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage);
                                 const failed = isFailedRecord(r);
+                                const failureCode = failed ? resolveFailureCodeFromRecord(r) : 'UNKNOWN';
+                                const immediateActions = failed ? getFailureImmediateActions(failureCode) : [];
                                 const preflightReason = failed ? getPreflightFailureReason(r) : null;
                                 const secondPassEligibility = getSecondPassEligibility(r, secondPassEditedOnly);
                                 const latestCorrectionPreview = getLatestCorrectionPreview(r);
@@ -6155,6 +6296,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                         관리자 판단으로 유지
                                                     </button>
                                                 )}
+                                                {failed && immediateActions.map((action) => (
+                                                    <button
+                                                        key={`${r.id}-${action.type}`}
+                                                        onClick={(e) => { e.stopPropagation(); void handleFailureImmediateAction(r, action.type); }}
+                                                        className={`px-3 py-2 font-bold text-xs rounded-xl transition-all ${action.className}`}
+                                                        title={action.title}
+                                                    >
+                                                        {action.label}
+                                                    </button>
+                                                ))}
                                                 <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-4 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">상세 판단 바로가기</button>
                                                 <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-4 py-2 bg-slate-900 text-white font-black text-xs rounded-xl hover:bg-black transition-all shadow-sm">보호 리포트 바로가기</button>
                                                 <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="p-2 bg-slate-100 text-slate-400 hover:bg-rose-500 hover:text-white rounded-xl transition-all" title="삭제">

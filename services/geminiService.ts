@@ -522,6 +522,10 @@ const classifyOcrErrorType = (rawMessage: string): OcrErrorType => {
 const inferOcrFailureCode = (rawMessage: string): OcrFailureCode => {
     const message = String(rawMessage || '').toLowerCase();
 
+    if (/\bhttp_5\d\d\b/.test(message) || /\b5\d\d\b/.test(message) && message.includes('server')) return 'NETWORK';
+    if (message.includes('http_413')) return 'PAYLOAD';
+    if (message.includes('http_415')) return 'FORMAT';
+
     if (
         message.includes('ocr_quota') ||
         message.includes('429') ||
@@ -533,9 +537,12 @@ const inferOcrFailureCode = (rawMessage: string): OcrFailureCode => {
     if (
         message.includes('missing_server_gemini_key') ||
         message.includes('ocr_upstream_auth') ||
+        message.includes('gemini api key') ||
+        message.includes('gemini_api_key') ||
         message.includes('api key') ||
         message.includes('api 키') ||
         message.includes('설정 화면') ||
+        message.includes('서버 gemini api 키가 설정되지 않았습니다') ||
         message.includes('unauthorized') ||
         message.includes('forbidden')
     ) return 'KEY';
