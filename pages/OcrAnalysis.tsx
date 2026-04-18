@@ -2875,6 +2875,36 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         } as WorkerRecord;
     }, [getBestRetryImageSource]);
 
+    const extractGatewayErrorCode = useCallback((message: string): string | undefined => {
+        const matched = String(message || '').trim().match(/^\[([A-Z0-9_]+)\]/);
+        return matched?.[1] ? matched[1] : undefined;
+    }, []);
+
+    const mapGatewayCodeToFailureCode = useCallback((gatewayCode?: string): OcrFailureCode | undefined => {
+        switch (String(gatewayCode || '').trim().toUpperCase()) {
+            case 'OCR_PARSE_FAILURE':
+                return 'PARSE';
+            case 'OCR_UPSTREAM_AUTH':
+            case 'MISSING_SERVER_GEMINI_KEY':
+                return 'KEY';
+            case 'OCR_QUOTA':
+                return 'QUOTA';
+            case 'OCR_TIMEOUT':
+            case 'OCR_UPSTREAM_NETWORK':
+            case 'OCR_UPSTREAM_FAILURE':
+                return 'NETWORK';
+            case 'OCR_INVALID_ARGUMENT':
+            case 'IMAGE_DATA_TOO_SHORT':
+            case 'IMAGE_TOO_LARGE':
+            case 'INVALID_BASE64':
+                return 'PAYLOAD';
+            case 'UNSUPPORTED_IMAGE_FORMAT':
+                return 'FORMAT';
+            default:
+                return undefined;
+        }
+    }, []);
+
     const getBatchSplitSize = (): number => {
         try {
             const raw = localStorage.getItem('psi_app_settings');
@@ -3127,6 +3157,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     let apiResult = null;
                     let retryCount = 0;
                     let lastRetryErrorMessage = '';
+                    let lastServerRouteErrorCode: string | undefined;
+                    let lastServerRouteErrorMessage = '';
                     const MAX_RETRIES = OCR_POLICY.RETRY_POLICY.maxRetries; // P1.3: policy-driven
                     let usedClientFallback = false;
 
@@ -3141,8 +3173,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             try {
                                 apiResult = await requestServerRetryAnalysis(record);
                                 usedClientFallback = false;
+                                lastServerRouteErrorCode = undefined;
+                                lastServerRouteErrorMessage = '';
                             } catch (serverError: any) {
                                 const serverMessage = extractMessage(serverError);
+                                lastServerRouteErrorMessage = serverMessage;
+                                lastServerRouteErrorCode = extractGatewayErrorCode(serverMessage);
                                 const normalizedServerMessage = serverMessage.toLowerCase();
                                 const shouldFallbackToClient =
                                     normalizedServerMessage.includes('failed to fetch') ||
@@ -3260,10 +3296,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         latencyMs: 0,
                                         attempts: retryCount + 1,
                                         fallbackDepth: 1,
-                                        finalCode: resolvedFailureCode !== 'UNKNOWN' ? resolvedFailureCode : undefined,
                                         recordedAt: new Date().toISOString(),
                                     }
                                     : undefined;
+                        const serverFailureHint = usedClientFallback && lastServerRouteErrorCode
+                            ? ` | 서버실패:${lastServerRouteErrorCode}`
+                            : usedClientFallback && lastServerRouteErrorMessage
+                                ? ` | 서버실패:${lastServerRouteErrorMessage.slice(0, 80)}`
+                                : '';
                         const updatedRecord: WorkerRecord = withHarnessState(record, {
                             ...apiResult,
                             id: record.id, 
@@ -3281,7 +3321,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     stage: 'reassessment',
                                     timestamp: new Date().toISOString(),
                                     actor: 'manager',
-                                    note: `OCR 재분석 성공 (${previousErrorLabel}) | ${usedClientFallback ? '브라우저 폴백' : '서버 성공'}${unknownSubCategory ? ` | UNKNOWN[${unknownSubCategory}]` : ''}`,
+                                    note: `OCR 재분석 성공 (${previousErrorLabel}) | ${usedClientFallback ? '브라우저 폴백' : '서버 성공'}${unknownSubCategory ? ` | UNKNOWN[${unknownSubCategory}]` : ''}${serverFailureHint}`,
                                 },
                             ],
                             secondPassStatus: isFailedRecord(apiResult) ? 'NEEDED' : 'DONE',
@@ -3327,7 +3367,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                     } else {
                         // Final Failure after retries
-                        const failureCode = inferOcrFailureCode(lastRetryErrorMessage || '반복적인 API 오류');
+                        const mappedFailureCode = mapGatewayCodeToFailureCode(lastServerRouteErrorCode);
+                        const failureCode = mappedFailureCode || inferOcrFailureCode(lastRetryErrorMessage || '반복적인 API 오류');
                         const errorRecord: WorkerRecord = withHarnessState(record, {
                             ...record,
                             aiInsights: withFailureCodePrefix(failureCode, `⛔ 반복적인 API 오류로 ${BRAND_STATUS_LABELS.attention} 안내가 필요합니다. 다시 확인해 주세요.`),

@@ -706,29 +706,50 @@ const normalizeImagePayload = (input: string) => {
     return { cleanData, mimeType };
 };
 
+const stripJsonCodeFence = (value: string): string => {
+    const fenced = String(value || '').trim().match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+    return fenced?.[1] ? fenced[1].trim() : String(value || '').trim();
+};
+
+const normalizeParsedCandidate = (parsed: unknown): Record<string, unknown> | null => {
+    if (Array.isArray(parsed)) {
+        const first = parsed[0];
+        return first && typeof first === 'object' && !Array.isArray(first) ? first as Record<string, unknown> : null;
+    }
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+};
+
 const parseJsonCandidate = (rawText: string): Record<string, unknown> | null => {
-    const trimmed = String(rawText || '').trim();
+    const trimmed = stripJsonCodeFence(rawText);
     if (!trimmed) return null;
 
     try {
-        const parsed = JSON.parse(trimmed);
-        if (Array.isArray(parsed)) {
-            const first = parsed[0];
-            return first && typeof first === 'object' && !Array.isArray(first) ? first as Record<string, unknown> : null;
-        }
-        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+        return normalizeParsedCandidate(JSON.parse(trimmed));
     } catch {
+        const candidates: string[] = [];
+
         const arrayStart = trimmed.indexOf('[');
         const arrayEnd = trimmed.lastIndexOf(']');
         if (arrayStart >= 0 && arrayEnd > arrayStart) {
+            candidates.push(trimmed.slice(arrayStart, arrayEnd + 1));
+        }
+
+        const objectStart = trimmed.indexOf('{');
+        const objectEnd = trimmed.lastIndexOf('}');
+        if (objectStart >= 0 && objectEnd > objectStart) {
+            candidates.push(trimmed.slice(objectStart, objectEnd + 1));
+        }
+
+        for (const candidate of candidates) {
             try {
-                const parsed = JSON.parse(trimmed.slice(arrayStart, arrayEnd + 1));
-                const first = Array.isArray(parsed) ? parsed[0] : null;
-                return first && typeof first === 'object' && !Array.isArray(first) ? first as Record<string, unknown> : null;
+                const parsed = JSON.parse(stripJsonCodeFence(candidate));
+                const normalized = normalizeParsedCandidate(parsed);
+                if (normalized) return normalized;
             } catch {
-                return null;
+                // 다음 후보 시도
             }
         }
+
         return null;
     }
 };
@@ -943,6 +964,7 @@ async function handleOcrRetry(req: any, res: any) {
             latencyMs: traceLatencyMs,
             attempts: result.attempts,
             fallbackDepth: result.fallbackDepth,
+            finalCode: 'OK',
             recordedAt: new Date().toISOString(),
         },
     });
