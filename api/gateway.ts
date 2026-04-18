@@ -23,6 +23,7 @@ const TRAINING_ACCESS_BLOCK_THRESHOLD = 2;
 const EMBEDDING_MODEL = 'text-embedding-004';
 const OCR_RETRY_TIMEOUT_MS = 25_000;
 const OCR_RETRY_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const OCR_RETRY_MODEL_CHAIN = ['gemini-2.5-flash', 'gemini-3.0-flash', 'gemini-3-flash-preview'];
 
 type GatewayHttpError = Error & {
     statusCode: number;
@@ -744,6 +745,24 @@ const resolveSafetyLevel = (score: number, rawLevel: unknown): '초급' | '중�
     return '초급';
 };
 
+const shouldTryNextModel = (code?: string): boolean => {
+    const normalized = String(code || '').trim().toUpperCase();
+    if (!normalized) return true;
+    if (
+        normalized === 'OCR_QUOTA' ||
+        normalized === 'OCR_UPSTREAM_AUTH' ||
+        normalized === 'MISSING_SERVER_GEMINI_KEY' ||
+        normalized === 'OCR_INVALID_ARGUMENT' ||
+        normalized === 'UNSUPPORTED_IMAGE_FORMAT' ||
+        normalized === 'INVALID_BASE64' ||
+        normalized === 'IMAGE_TOO_LARGE' ||
+        normalized === 'IMAGE_DATA_TOO_SHORT'
+    ) {
+        return false;
+    }
+    return true;
+};
+
 async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
     const apiKey = resolveGeminiApiKey();
     if (!apiKey) {
@@ -751,76 +770,106 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
     }
 
     const { cleanData, mimeType } = normalizeImagePayload(imageSource);
+    let parsed: Record<string, unknown> | null = null;
+    let attempts = 0;
+    let fallbackDepth = 0;
+    let lastError: GatewayHttpError | null = null;
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), OCR_RETRY_TIMEOUT_MS);
+    for (let modelIndex = 0; modelIndex < OCR_RETRY_MODEL_CHAIN.length; modelIndex++) {
+        const model = OCR_RETRY_MODEL_CHAIN[modelIndex];
+        attempts = modelIndex + 1;
+        fallbackDepth = modelIndex;
 
-    let response: Response;
-    try {
-        response = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                signal: controller.signal,
-                body: JSON.stringify({
-                    contents: [
-                        {
-                            parts: [
-                                {
-                                    text: [
-                                        '건설현장 위험성평가표 이미지를 분석해 JSON 배열 1개만 반환하세요.',
-                                        '마크다운 없이 JSON만 반환하세요.',
-                                        '필수 키: name, jobField, teamLeader, date, nationality, language, safetyScore, safetyLevel, strengths, weakAreas, improvement, suggestions, aiInsights, fullText, koreanTranslation, scoreReasoning, ocrConfidence',
-                                        `파일명: ${filenameHint || 'unknown'}`,
-                                    ].join('\n'),
-                                },
-                                {
-                                    inlineData: {
-                                        data: cleanData,
-                                        mimeType,
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), OCR_RETRY_TIMEOUT_MS);
+
+        try {
+            const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: controller.signal,
+                    body: JSON.stringify({
+                        contents: [
+                            {
+                                parts: [
+                                    {
+                                        text: [
+                                            '건설현장 위험성평가표 이미지를 분석해 JSON 배열 1개만 반환하세요.',
+                                            '마크다운 없이 JSON만 반환하세요.',
+                                            '필수 키: name, jobField, teamLeader, date, nationality, language, safetyScore, safetyLevel, strengths, weakAreas, improvement, suggestions, aiInsights, fullText, koreanTranslation, scoreReasoning, ocrConfidence',
+                                            `파일명: ${filenameHint || 'unknown'}`,
+                                        ].join('\n'),
                                     },
-                                },
-                            ],
+                                    {
+                                        inlineData: {
+                                            data: cleanData,
+                                            mimeType,
+                                        },
+                                    },
+                                ],
+                            },
+                        ],
+                        generationConfig: {
+                            temperature: 0.1,
+                            responseMimeType: 'application/json',
                         },
-                    ],
-                    generationConfig: {
-                        temperature: 0.1,
-                        responseMimeType: 'application/json',
-                    },
-                }),
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                const raw = await response.text();
+                const detail = raw.slice(0, 300);
+                let mappedError: GatewayHttpError;
+                if (response.status === 429) {
+                    mappedError = createGatewayHttpError(`Gemini API 할당량 초과(429): ${detail}`, 429, 'OCR_QUOTA');
+                } else if (response.status === 400) {
+                    mappedError = createGatewayHttpError(`Gemini API 요청 형식 오류(400): ${detail}`, 400, 'OCR_INVALID_ARGUMENT');
+                } else if (response.status === 401 || response.status === 403) {
+                    mappedError = createGatewayHttpError(`Gemini API 인증/권한 오류(${response.status}): 서버 API 키를 확인하세요.`, 502, 'OCR_UPSTREAM_AUTH');
+                } else {
+                    mappedError = createGatewayHttpError(`Gemini API 오류 (${response.status}): ${detail}`, 502, 'OCR_UPSTREAM_FAILURE');
+                }
+                lastError = mappedError;
+                if (!shouldTryNextModel(mappedError.code) || modelIndex === OCR_RETRY_MODEL_CHAIN.length - 1) {
+                    throw mappedError;
+                }
+                continue;
             }
-        );
-    } catch (error: any) {
-        if (error?.name === 'AbortError') {
-            throw createGatewayHttpError(`OCR 엔진 응답 시간이 초과되었습니다. (${Math.floor(OCR_RETRY_TIMEOUT_MS / 1000)}초)`, 504, 'OCR_TIMEOUT');
-        }
-        throw createGatewayHttpError(`OCR 엔진 연결에 실패했습니다: ${String(error?.message || error || 'network_error')}`, 502, 'OCR_UPSTREAM_NETWORK');
-    } finally {
-        clearTimeout(timeout);
-    }
 
-    if (!response.ok) {
-        const raw = await response.text();
-        const detail = raw.slice(0, 300);
-        if (response.status === 429) {
-            throw createGatewayHttpError(`Gemini API 할당량 초과(429): ${detail}`, 429, 'OCR_QUOTA');
-        }
-        if (response.status === 400) {
-            throw createGatewayHttpError(`Gemini API 요청 형식 오류(400): ${detail}`, 400, 'OCR_INVALID_ARGUMENT');
-        }
-        if (response.status === 401 || response.status === 403) {
-            throw createGatewayHttpError(`Gemini API 인증/권한 오류(${response.status}): 서버 API 키를 확인하세요.`, 502, 'OCR_UPSTREAM_AUTH');
-        }
-        throw createGatewayHttpError(`Gemini API 오류 (${response.status}): ${detail}`, 502, 'OCR_UPSTREAM_FAILURE');
-    }
+            const data = await response.json();
+            const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            parsed = parseJsonCandidate(rawText);
 
-    const data = await response.json();
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const parsed = parseJsonCandidate(rawText);
+            if (!parsed) {
+                const parseError = createGatewayHttpError('서버 OCR 응답 JSON 파싱에 실패했습니다.', 502, 'OCR_PARSE_FAILURE');
+                lastError = parseError;
+                if (modelIndex === OCR_RETRY_MODEL_CHAIN.length - 1) {
+                    throw parseError;
+                }
+                continue;
+            }
+
+            break;
+        } catch (error: any) {
+            const gatewayError = (error && typeof error === 'object' && Number((error as any).statusCode) >= 400)
+                ? (error as GatewayHttpError)
+                : (error?.name === 'AbortError'
+                    ? createGatewayHttpError(`OCR 엔진 응답 시간이 초과되었습니다. (${Math.floor(OCR_RETRY_TIMEOUT_MS / 1000)}초)`, 504, 'OCR_TIMEOUT')
+                    : createGatewayHttpError(`OCR 엔진 연결에 실패했습니다: ${String(error?.message || error || 'network_error')}`, 502, 'OCR_UPSTREAM_NETWORK'));
+            lastError = gatewayError;
+            if (!shouldTryNextModel(gatewayError.code) || modelIndex === OCR_RETRY_MODEL_CHAIN.length - 1) {
+                throw gatewayError;
+            }
+        } finally {
+            clearTimeout(timeout);
+        }
+    }
 
     if (!parsed) {
-        throw createGatewayHttpError('서버 OCR 응답 JSON 파싱에 실패했습니다.', 502, 'OCR_PARSE_FAILURE');
+        throw (lastError || createGatewayHttpError('서버 OCR 응답을 해석하지 못했습니다.', 502, 'OCR_UPSTREAM_FAILURE'));
     }
 
     const parsedSafetyScore = Number(parsed.safetyScore);
@@ -833,29 +882,33 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
         : (hasExtractedText ? 60 : 0);
 
     return {
-        name: String(parsed.name || '식별 대기').trim(),
-        jobField: String(parsed.jobField || '기타').trim(),
-        teamLeader: String(parsed.teamLeader || '미지정').trim(),
-        date: String(parsed.date || new Date().toISOString().split('T')[0]).trim(),
-        nationality: normalizeNationality(String(parsed.nationality || '미상')),
-        language: String(parsed.language || 'unknown').trim(),
-        safetyScore,
-        safetyLevel: resolveSafetyLevel(safetyScore, parsed.safetyLevel),
-        strengths: toStringArray(parsed.strengths),
-        strengths_native: toStringArray(parsed.strengths_native),
-        weakAreas: toStringArray(parsed.weakAreas),
-        weakAreas_native: toStringArray(parsed.weakAreas_native),
-        improvement: String(parsed.improvement || '').trim(),
-        improvement_native: String(parsed.improvement_native || '').trim(),
-        suggestions: toStringArray(parsed.suggestions),
-        suggestions_native: toStringArray(parsed.suggestions_native),
-        aiInsights: String(parsed.aiInsights || '').trim(),
-        aiInsights_native: String(parsed.aiInsights_native || '').trim(),
-        fullText: String(parsed.fullText || '').trim(),
-        koreanTranslation: String(parsed.koreanTranslation || '').trim(),
-        scoreReasoning: toStringArray(parsed.scoreReasoning),
-        ocrConfidence: Number.isFinite(Number(parsed.ocrConfidence)) ? Number(parsed.ocrConfidence) : 0.9,
-        handwrittenAnswers: Array.isArray(parsed.handwrittenAnswers) ? parsed.handwrittenAnswers : [],
+        record: {
+            name: String(parsed.name || '식별 대기').trim(),
+            jobField: String(parsed.jobField || '기타').trim(),
+            teamLeader: String(parsed.teamLeader || '미지정').trim(),
+            date: String(parsed.date || new Date().toISOString().split('T')[0]).trim(),
+            nationality: normalizeNationality(String(parsed.nationality || '미상')),
+            language: String(parsed.language || 'unknown').trim(),
+            safetyScore,
+            safetyLevel: resolveSafetyLevel(safetyScore, parsed.safetyLevel),
+            strengths: toStringArray(parsed.strengths),
+            strengths_native: toStringArray(parsed.strengths_native),
+            weakAreas: toStringArray(parsed.weakAreas),
+            weakAreas_native: toStringArray(parsed.weakAreas_native),
+            improvement: String(parsed.improvement || '').trim(),
+            improvement_native: String(parsed.improvement_native || '').trim(),
+            suggestions: toStringArray(parsed.suggestions),
+            suggestions_native: toStringArray(parsed.suggestions_native),
+            aiInsights: String(parsed.aiInsights || '').trim(),
+            aiInsights_native: String(parsed.aiInsights_native || '').trim(),
+            fullText: String(parsed.fullText || '').trim(),
+            koreanTranslation: String(parsed.koreanTranslation || '').trim(),
+            scoreReasoning: toStringArray(parsed.scoreReasoning),
+            ocrConfidence: Number.isFinite(Number(parsed.ocrConfidence)) ? Number(parsed.ocrConfidence) : 0.9,
+            handwrittenAnswers: Array.isArray(parsed.handwrittenAnswers) ? parsed.handwrittenAnswers : [],
+        },
+        attempts,
+        fallbackDepth,
     };
 }
 
@@ -878,18 +931,18 @@ async function handleOcrRetry(req: any, res: any) {
     }
 
     const traceStartMs = Date.now();
-    const record = await analyzeSingleRecord(imageSource, filenameHint || recordId);
+    const result = await analyzeSingleRecord(imageSource, filenameHint || recordId);
     const traceLatencyMs = Date.now() - traceStartMs;
 
     return res.status(200).json({
         ok: true,
         recordId,
-        record,
+        record: result.record,
         trace: {
             providerUsed: 'server_gemini',
             latencyMs: traceLatencyMs,
-            attempts: 1,
-            fallbackDepth: 0,
+            attempts: result.attempts,
+            fallbackDepth: result.fallbackDepth,
             recordedAt: new Date().toISOString(),
         },
     });

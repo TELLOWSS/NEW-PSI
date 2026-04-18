@@ -73,6 +73,19 @@ const isManagementRole = (field: string) =>
 const classifyLegacyOcrErrorType = (raw: string): OcrErrorType => {
     const message = (raw || '').toLowerCase();
 
+    if (
+        message.includes('api key') ||
+        message.includes('api 키') ||
+        message.includes('quota') ||
+        message.includes('429') ||
+        message.includes('network') ||
+        message.includes('timeout') ||
+        message.includes('gateway') ||
+        message.includes('parse') ||
+        message.includes('json') ||
+        message.includes('ocr_')
+    ) return 'QUALITY';
+
     if (message.includes('모서리') || message.includes('잘림') || message.includes('배경') || message.includes('layout') || message.includes('crop')) return 'LAYOUT';
     if (message.includes('해상도') || message.includes('low resolution') || message.includes('too short') || message.includes('멀리')) return 'RESOLUTION';
     if (message.includes('악필') || message.includes('손글씨') || message.includes('handwriting') || message.includes('illegible')) return 'HANDWRITING';
@@ -511,6 +524,7 @@ const getPreflightFailureReason = (record: WorkerRecord): string | null => {
 
 const resolveFailureCodeFromRecord = (record: WorkerRecord): OcrFailureCode => {
     if (record.ocrFailureCode) return record.ocrFailureCode;
+    if (record.ocrTrace?.finalCode) return record.ocrTrace.finalCode;
 
     const inferred = inferOcrFailureCode(`${String(record.ocrErrorMessage || '')} ${String(record.aiInsights || '')}`);
     return inferred;
@@ -3112,6 +3126,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     // 2. Call API with Retry Logic for Rate Limits
                     let apiResult = null;
                     let retryCount = 0;
+                    let lastRetryErrorMessage = '';
                     const MAX_RETRIES = OCR_POLICY.RETRY_POLICY.maxRetries; // P1.3: policy-driven
                     let usedClientFallback = false;
 
@@ -3137,6 +3152,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     normalizedServerMessage.includes('bad gateway') ||
                                     normalizedServerMessage.includes('service unavailable') ||
                                     normalizedServerMessage.includes('internal server error') ||
+                                    normalizedServerMessage.includes('ocr_parse_failure') ||
+                                    normalizedServerMessage.includes('json 파싱') ||
+                                    normalizedServerMessage.includes('json') ||
+                                    normalizedServerMessage.includes('parse') ||
                                     normalizedServerMessage.includes('서버 gemini api 키가 설정되지 않았습니다') ||
                                     normalizedServerMessage.includes('gemini_api_key') ||
                                     serverMessage.includes('404') ||
@@ -3183,6 +3202,21 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             }
                         } catch (err: any) {
                             const errMsg = err.message || JSON.stringify(err);
+                            lastRetryErrorMessage = String(errMsg || '');
+                            const normalizedErr = String(errMsg || '').toLowerCase();
+                            const isTransientRetryableError =
+                                normalizedErr.includes('failed to fetch') ||
+                                normalizedErr.includes('network') ||
+                                normalizedErr.includes('timeout') ||
+                                normalizedErr.includes('gateway') ||
+                                normalizedErr.includes('service unavailable') ||
+                                normalizedErr.includes('internal server error') ||
+                                normalizedErr.includes('ocr_timeout') ||
+                                normalizedErr.includes('ocr_upstream_network') ||
+                                normalizedErr.includes('ocr_upstream_failure') ||
+                                normalizedErr.includes('502') ||
+                                normalizedErr.includes('503') ||
+                                normalizedErr.includes('504');
                             
                             // [CRITICAL] Detect Rate Limit (429 or Resource Exhausted) using utility function
                             if (isRateLimitError(errMsg)) {
@@ -3197,6 +3231,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 // Wait 30 seconds then retry loop
                                 await waitWithCountdown(30, "⚠️ API 할당량 초과! 냉각 중");
                                 retryCount++;
+                            } else if (isTransientRetryableError && retryCount < MAX_RETRIES - 1) {
+                                retryCount++;
+                                const backoffSeconds = Math.min(8, 2 + retryCount);
+                                await waitWithCountdown(backoffSeconds, '⚠️ 일시적 서버 오류 복구 대기');
                             } else {
                                 // Other errors (format, parsing) -> fail immediately
                                 throw err; 
@@ -3289,13 +3327,21 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                     } else {
                         // Final Failure after retries
-                        const failureCode = inferOcrFailureCode('반복적인 API 오류');
+                        const failureCode = inferOcrFailureCode(lastRetryErrorMessage || '반복적인 API 오류');
                         const errorRecord: WorkerRecord = withHarnessState(record, {
                             ...record,
                             aiInsights: withFailureCodePrefix(failureCode, `⛔ 반복적인 API 오류로 ${BRAND_STATUS_LABELS.attention} 안내가 필요합니다. 다시 확인해 주세요.`),
                             ocrErrorType: 'UNKNOWN',
                             ocrFailureCode: failureCode,
-                            ocrErrorMessage: withFailureCodePrefix(failureCode, '반복적인 API 오류'),
+                            ocrErrorMessage: withFailureCodePrefix(failureCode, lastRetryErrorMessage || '반복적인 API 오류'),
+                            ocrTrace: {
+                                providerUsed: usedClientFallback ? 'client_fallback' : 'server_gemini',
+                                latencyMs: 0,
+                                attempts: Math.max(1, retryCount + 1),
+                                fallbackDepth: usedClientFallback ? 1 : 0,
+                                finalCode: failureCode,
+                                recordedAt: new Date().toISOString(),
+                            },
                             secondPassStatus: 'NEEDED',
                             workflowState: 'awaiting_manager_approval',
                             riskDecision: 'IMMEDIATE_ATTENTION',
@@ -3330,6 +3376,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         ocrErrorType: classifyLegacyOcrErrorType(errMsg),
                         ocrFailureCode: failureCode,
                         ocrErrorMessage: withFailureCodePrefix(failureCode, errMsg),
+                        ocrTrace: {
+                            providerUsed: 'unknown',
+                            latencyMs: 0,
+                            attempts: 1,
+                            fallbackDepth: 0,
+                            finalCode: failureCode,
+                            recordedAt: new Date().toISOString(),
+                        },
                         secondPassStatus: 'NEEDED',
                         workflowState: 'manual_review_required',
                         riskDecision: 'IMMEDIATE_ATTENTION',

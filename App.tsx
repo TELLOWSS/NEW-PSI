@@ -533,6 +533,9 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
     .map((r, index) => {
         const rawSource = r.originalImage || r.image || r.photo || r.base64 || r.documentImage || r.file;
         const profileSource = r.profileImage;
+        const hasOcrFailureSignal =
+            String((r as { ocrErrorType?: unknown }).ocrErrorType || '').trim().length > 0 ||
+            String((r as { ocrFailureCode?: unknown }).ocrFailureCode || '').trim().length > 0;
 
         // Ensure unique ID if missing
         const generatedId = `psi-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 6)}`;
@@ -546,7 +549,7 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
             qrId: toOptionalStringSafe(r.qrId),
             safetyScore: toNumberSafe(r.safetyScore, 0),
             safetyLevel: toSafetyLevelSafe(r.safetyLevel),
-            ocrConfidence: typeof r.ocrConfidence === 'number' ? r.ocrConfidence : 1,
+            ocrConfidence: typeof r.ocrConfidence === 'number' ? r.ocrConfidence : (hasOcrFailureSignal ? 0 : 1),
             signatureMatchScore: typeof r.signatureMatchScore === 'number' ? r.signatureMatchScore : undefined,
             matchMethod: (r.matchMethod as WorkerRecord['matchMethod']) || 'unmatched',
             integrityScore: typeof r.integrityScore === 'number' ? r.integrityScore : 100,
