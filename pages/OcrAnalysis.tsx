@@ -621,35 +621,6 @@ const hasManagerCorrections = (record: WorkerRecord): boolean => {
     return Array.isArray(record.correctionHistory) && record.correctionHistory.length > 0;
 };
 
-/** P0: UNKNOWN 2차 서브 분류 */
-const classifyUnknownSubCategory = (record: Partial<WorkerRecord>): OcrUnknownSubCategory => {
-    const msg = String(record.ocrErrorMessage || record.aiInsights || '').toLowerCase();
-    if (/timeout|network|connection|fetch|econnrefused|socket/.test(msg)) return 'network-like';
-    if (/parse|json|syntax|unexpected token|format/.test(msg)) return 'parse-like';
-    if (/policy|permission|denied|quota|rate.?limit|safety/.test(msg)) return 'policy-like';
-    return 'uncategorized';
-};
-
-/** P1: 승인 사유 품질 게이트 */
-const evaluateApprovalReasonQuality = (reason: string): {
-    score: 'strong' | 'adequate' | 'weak';
-    hasCause: boolean;
-    hasAction: boolean;
-    hasVerification: boolean;
-    hint: string;
-} => {
-    const r = reason.trim();
-    const hasCause = /때문|원인|사유|이유|문제/.test(r);
-    const hasAction = /조치|확인|처리|발급|승인|요청/.test(r);
-    const hasVerification = /검토|검증|확인|완료|점검/.test(r);
-    const score = r.length >= 30 && hasCause && hasAction ? 'strong'
-        : r.length >= 15 && (hasCause || hasAction) ? 'adequate' : 'weak';
-    const hint = score === 'strong' ? '사유 충분'
-        : score === 'adequate' ? '원인 또는 조치 보완 권장'
-        : '원인·조치·검증 구체적 기술 필요';
-    return { score, hasCause, hasAction, hasVerification, hint };
-};
-
 const CORRECTION_FIELD_LABELS: Record<string, string> = {
     name: '이름',
     nationality: '국적',

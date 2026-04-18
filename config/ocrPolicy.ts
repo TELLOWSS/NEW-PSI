@@ -183,3 +183,14 @@ export const RISK_INTELLIGENCE = {
     /** 이전 기간 비교 창 (일) */
     previousWindowDays: 7,
 } as const;
+
+export const OCR_POLICY = {
+    OCR_POLICY_VERSION,
+    SCORE_THRESHOLDS,
+    RETRY_POLICY,
+    FAILURE_DETECTION,
+    UNKNOWN_SUBCLASSIFY,
+    APPROVAL_REASON_GATE,
+    HYBRID_OCR,
+    RISK_INTELLIGENCE,
+} as const;

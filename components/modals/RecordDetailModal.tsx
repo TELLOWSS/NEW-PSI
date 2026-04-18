@@ -638,13 +638,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         const ruleVersions = Array.from(
             new Set(
                 harnessOverrides
-<<<<<<< HEAD
-                    .map((override) => override.ruleVersion)
-                    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0),
-=======
                     .map((override) => String(override.ruleVersion || '').trim())
                     .filter((value): value is string => value.length > 0),
->>>>>>> e84e1ee (chore: finalize remaining validated updates)
             ),
         );
         return {
