@@ -970,6 +970,8 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const [photoFilter, setPhotoFilter] = useState<'all' | 'with-photo' | 'missing-photo'>('all');
     const [isUnassignedFilterActive, setIsUnassignedFilterActive] = useState(() => isUnassignedFilterFromUrl());
     const [activeHarnessDashboardFilter, setActiveHarnessDashboardFilter] = useState<{ type: HarnessDashboardDrilldownFilter; trade?: string } | null>(() => getHarnessDashboardDrilldownFilterFromUrl());
+    const [showUnassignedSubData, setShowUnassignedSubData] = useState(false);
+    const [showHarnessDrilldownSubData, setShowHarnessDrilldownSubData] = useState(false);
 
     useEffect(() => {
         const syncFiltersFromUrl = () => {
@@ -3101,6 +3103,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         }
     }, [activeHarnessDashboardFilter]);
 
+    const shouldHideFilteredSubData = useMemo(() => {
+        const hideByUnassigned = isUnassignedFilterActive && !showUnassignedSubData;
+        const hideByHarness = Boolean(activeHarnessDashboardFilterMeta) && !showHarnessDrilldownSubData;
+        return hideByUnassigned || hideByHarness;
+    }, [isUnassignedFilterActive, showUnassignedSubData, activeHarnessDashboardFilterMeta, showHarnessDrilldownSubData]);
+
     const filteredReliabilitySummary = useMemo(() => {
         const evaluations = filteredRecords.map((worker) => verifyIssuanceReliability(worker));
         const trustedCount = evaluations.filter((result) => result.trusted).length;
@@ -4174,13 +4182,22 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         variant="amber"
                         title="⚠️ 식별 불가 데이터 필터링 중"
                         action={(
-                            <button
-                                type="button"
-                                onClick={clearUnassignedFilter}
-                                className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-amber-800 hover:bg-amber-100 ${BRAND_TONE.amberWhiteStrong}`}
-                            >
-                                Clear Filter
-                            </button>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowUnassignedSubData((prev) => !prev)}
+                                    className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-amber-800 hover:bg-amber-100 ${BRAND_TONE.amberWhiteStrong}`}
+                                >
+                                    {showUnassignedSubData ? '식별불가 하위데이터 접기' : '식별불가 하위데이터 보기'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={clearUnassignedFilter}
+                                    className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-amber-800 hover:bg-amber-100 ${BRAND_TONE.amberWhiteStrong}`}
+                                >
+                                    Clear Filter
+                                </button>
+                            </div>
                         )}
                     />
                 )}
@@ -4190,13 +4207,22 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         title={activeHarnessDashboardFilterMeta.title}
                         description={activeHarnessDashboardFilterMeta.description}
                         action={(
-                            <button
-                                type="button"
-                                onClick={clearHarnessDashboardFilter}
-                                className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 ${BRAND_TONE.slateWhite}`}
-                            >
-                                Dashboard 필터 해제
-                            </button>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowHarnessDrilldownSubData((prev) => !prev)}
+                                    className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 ${BRAND_TONE.slateWhite}`}
+                                >
+                                    {showHarnessDrilldownSubData ? '하네스 드릴다운 하위데이터 접기' : '하네스 드릴다운 하위데이터 보기'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={clearHarnessDashboardFilter}
+                                    className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 ${BRAND_TONE.slateWhite}`}
+                                >
+                                    Dashboard 필터 해제
+                                </button>
+                            </div>
                         )}
                     />
                 )}
@@ -4539,6 +4565,35 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             </div>
 
             {/* List */}
+            {shouldHideFilteredSubData ? (
+                <NoticeCallout
+                    variant="slate"
+                    title="하위 데이터가 접혀 있습니다"
+                    description="식별 불가/하네스 드릴다운 필터가 활성화된 상태입니다. 필요할 때만 하위 데이터를 펼쳐서 확인하세요."
+                    action={(
+                        <div className="flex flex-wrap items-center gap-2">
+                            {isUnassignedFilterActive && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowUnassignedSubData(true)}
+                                    className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-amber-800 hover:bg-amber-100 ${BRAND_TONE.amberWhiteStrong}`}
+                                >
+                                    식별불가 하위데이터 펼치기
+                                </button>
+                            )}
+                            {activeHarnessDashboardFilterMeta && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowHarnessDrilldownSubData(true)}
+                                    className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-indigo-700 hover:bg-indigo-100 ${BRAND_TONE.indigo}`}
+                                >
+                                    하네스 드릴다운 하위데이터 펼치기
+                                </button>
+                            )}
+                        </div>
+                    )}
+                />
+            ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {filteredRecords.map(worker => {
                     const s = getGradeStyle(worker.safetyLevel);
@@ -4657,6 +4712,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     );
                 })}
             </div>
+            )}
 
             <div className="mt-8 bg-white rounded-[24px] border border-slate-100 shadow-xl p-5 sm:p-6">
                 <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
