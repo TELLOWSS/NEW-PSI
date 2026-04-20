@@ -2851,6 +2851,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             throw new Error(normalizedCode ? `[${normalizedCode}] ${errorMessage}` : errorMessage);
         }
 
+        const nextHandwrittenAnswers = Array.isArray(data.record.handwrittenAnswers)
+            && data.record.handwrittenAnswers.some((answer: any) => String(answer?.answerText || '').trim().length > 0 || String(answer?.koreanTranslation || '').trim().length > 0)
+            ? data.record.handwrittenAnswers
+            : record.handwrittenAnswers;
+        const nextAiInsightsNative = String(data.record.aiInsights_native || '').trim() || record.aiInsights_native;
+
         return {
             ...record,
             ...data.record,
@@ -2861,6 +2867,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             role: record.role !== 'worker' ? record.role : data.record.role,
             isTranslator: record.isTranslator || data.record.isTranslator,
             isSignalman: record.isSignalman || data.record.isSignalman,
+            handwrittenAnswers: nextHandwrittenAnswers,
+            aiInsights_native: nextAiInsightsNative,
             ocrErrorType: undefined,
             ocrErrorMessage: undefined,
             ocrFailureCode: undefined,

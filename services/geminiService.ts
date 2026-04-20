@@ -561,6 +561,24 @@ const parseWorkerRecordArrayFromText = (rawText: string): Record<string, unknown
     return null;
 };
 
+const normalizeHandwrittenAnswers = (raw: unknown): HandwrittenAnswer[] => {
+    if (!Array.isArray(raw)) return [];
+
+    return raw
+        .map((item, index) => {
+            const entry = item && typeof item === 'object' && !Array.isArray(item)
+                ? item as Record<string, unknown>
+                : {};
+
+            return {
+                questionNumber: String(entry.questionNumber || index + 1).trim(),
+                answerText: String(entry.answerText || '').trim(),
+                koreanTranslation: String(entry.koreanTranslation || '').trim(),
+            };
+        })
+        .filter((item) => item.answerText.length > 0 || item.koreanTranslation.length > 0);
+};
+
 const classifyOcrErrorType = (rawMessage: string): OcrErrorType => {
     const message = (rawMessage || '').toLowerCase();
 
@@ -1190,6 +1208,10 @@ async function callGeminiWithRetry(
             const prompt = `위험성 평가 문서를 분석하십시오. 파일명: ${filenameHint || 'unknown'}.
             한국인은 한국어로, 외국인은 한국어와 모국어를 병기하여 JSON으로 출력하십시오.
             반드시 scoreReasoning 배열을 포함하고, 점수-등급 일치(80/60 기준)를 확인한 후 반환하십시오.
+            문항형 위험성평가표(1~5번 질문)가 보이면 handwrittenAnswers 배열에 각 문항을 순서대로 채우십시오.
+            - answerText: 작업자가 실제로 쓴 원문
+            - koreanTranslation: 각 답변의 관리자 검토용 한국어 해석
+            aiInsights_native는 빈 문자열로 두지 말고, 작업자에게 직접 전달 가능한 보호 안내 문장으로 작성하십시오.
 
             ${bestPracticeSection}
 
@@ -1257,7 +1279,7 @@ async function callGeminiWithRetry(
                             originalImage: imageSource,
                             filename: filenameHint,
                             language: (r['language'] as string) || 'unknown',
-                            handwrittenAnswers: Array.isArray(r['handwrittenAnswers']) ? (r['handwrittenAnswers'] as unknown as HandwrittenAnswer[]) : [],
+                            handwrittenAnswers: normalizeHandwrittenAnswers(r['handwrittenAnswers']),
                             fullText: (r['fullText'] as string) || '',
                             koreanTranslation: (r['koreanTranslation'] as string) || '',
                             strengths: Array.isArray(r['strengths']) ? (r['strengths'] as string[]) : [],

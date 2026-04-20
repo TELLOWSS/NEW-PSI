@@ -25,6 +25,57 @@ const OCR_RETRY_TIMEOUT_MS = 25_000;
 const OCR_RETRY_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const OCR_RETRY_MODEL_CHAIN = ['gemini-2.5-flash', 'gemini-3.0-flash', 'gemini-3-flash-preview'];
 
+const OCR_RETRY_LANGUAGE_POLICY = [
+    '언어 정책:',
+    '- nationality는 대한민국/중국/베트남/태국/우즈베키스탄/인도네시아/캄보디아/몽골/카자흐스탄/러시아/네팔/미얀마 중 표준 한글 국가명으로 반환합니다.',
+    '- aiInsights는 관리자 검토용 한국어 문장입니다.',
+    '- aiInsights_native는 작업자에게 직접 전달할 모국어 보호 안내입니다.',
+    '- 대한민국 근로자도 aiInsights_native를 빈 문자열로 두지 말고 현장 전달용 한국어 안내로 채웁니다.',
+    '- foreign worker는 aiInsights_native를 반드시 해당 모국어로 채웁니다.',
+].join('\n');
+
+const OCR_RETRY_RESPONSE_SCHEMA = {
+    type: 'array',
+    items: {
+        type: 'object',
+        properties: {
+            name: { type: 'string' },
+            jobField: { type: 'string' },
+            teamLeader: { type: 'string' },
+            date: { type: 'string' },
+            nationality: { type: 'string' },
+            language: { type: 'string' },
+            safetyScore: { type: 'number' },
+            safetyLevel: { type: 'string' },
+            strengths: { type: 'array', items: { type: 'string' } },
+            strengths_native: { type: 'array', items: { type: 'string' } },
+            weakAreas: { type: 'array', items: { type: 'string' } },
+            weakAreas_native: { type: 'array', items: { type: 'string' } },
+            improvement: { type: 'string' },
+            improvement_native: { type: 'string' },
+            suggestions: { type: 'array', items: { type: 'string' } },
+            suggestions_native: { type: 'array', items: { type: 'string' } },
+            aiInsights: { type: 'string' },
+            aiInsights_native: { type: 'string' },
+            fullText: { type: 'string' },
+            koreanTranslation: { type: 'string' },
+            scoreReasoning: { type: 'array', items: { type: 'string' } },
+            ocrConfidence: { type: 'number' },
+            handwrittenAnswers: {
+                type: 'array',
+                items: {
+                    type: 'object',
+                    properties: {
+                        questionNumber: { type: 'string' },
+                        answerText: { type: 'string' },
+                        koreanTranslation: { type: 'string' },
+                    },
+                },
+            },
+        },
+    },
+};
+
 type GatewayHttpError = Error & {
     statusCode: number;
     code?: string;
@@ -660,6 +711,24 @@ const normalizeNationality = (rawNationality: string): string => {
     return rawNationality.trim();
 };
 
+const normalizeHandwrittenAnswers = (raw: unknown): Array<{ questionNumber: string; answerText: string; koreanTranslation: string }> => {
+    if (!Array.isArray(raw)) return [];
+
+    return raw
+        .map((item, index) => {
+            const entry = item && typeof item === 'object' && !Array.isArray(item)
+                ? item as Record<string, unknown>
+                : {};
+
+            return {
+                questionNumber: String(entry.questionNumber || index + 1).trim(),
+                answerText: String(entry.answerText || '').trim(),
+                koreanTranslation: String(entry.koreanTranslation || '').trim(),
+            };
+        })
+        .filter((item) => item.answerText.length > 0 || item.koreanTranslation.length > 0);
+};
+
 const normalizeImagePayload = (input: string) => {
     if (!input || typeof input !== 'string') {
         throw createGatewayHttpError('imageSource가 필요합니다.', 400, 'INVALID_IMAGE_SOURCE');
@@ -819,7 +888,13 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
                                         text: [
                                             '건설현장 위험성평가표 이미지를 분석해 JSON 배열 1개만 반환하세요.',
                                             '마크다운 없이 JSON만 반환하세요.',
-                                            '필수 키: name, jobField, teamLeader, date, nationality, language, safetyScore, safetyLevel, strengths, weakAreas, improvement, suggestions, aiInsights, fullText, koreanTranslation, scoreReasoning, ocrConfidence',
+                                            '필수 키: name, jobField, teamLeader, date, nationality, language, safetyScore, safetyLevel, strengths, strengths_native, weakAreas, weakAreas_native, improvement, improvement_native, suggestions, suggestions_native, aiInsights, aiInsights_native, fullText, koreanTranslation, scoreReasoning, ocrConfidence, handwrittenAnswers',
+                                            'handwrittenAnswers는 이미지에 보이는 문항 답변을 번호 순서대로 추출하세요.',
+                                            '- questionNumber: 문항 번호',
+                                            '- answerText: 작업자가 실제로 쓴 원문',
+                                            '- koreanTranslation: 해당 답변의 한국어 해석',
+                                            '문항형 위험성평가표(1~5번)가 보이면 handwrittenAnswers를 비워두지 마세요.',
+                                            OCR_RETRY_LANGUAGE_POLICY,
                                             `파일명: ${filenameHint || 'unknown'}`,
                                         ].join('\n'),
                                     },
@@ -835,6 +910,7 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
                         generationConfig: {
                             temperature: 0.1,
                             responseMimeType: 'application/json',
+                            responseSchema: OCR_RETRY_RESPONSE_SCHEMA,
                         },
                     }),
                 }
@@ -893,17 +969,31 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
         throw (lastError || createGatewayHttpError('서버 OCR 응답을 해석하지 못했습니다.', 502, 'OCR_UPSTREAM_FAILURE'));
     }
 
+    const normalizedNationality = normalizeNationality(String(parsed.nationality || '미상'));
+    const normalizedHandwrittenAnswers = normalizeHandwrittenAnswers(parsed.handwrittenAnswers);
+    const nativeInsights = String(parsed.aiInsights_native || '').trim();
     const parsedSafetyScore = Number(parsed.safetyScore);
     const hasCoreExtractedText =
         String(parsed.fullText || '').trim().length > 0 ||
         String(parsed.koreanTranslation || '').trim().length > 0 ||
-        (Array.isArray(parsed.handwrittenAnswers) && parsed.handwrittenAnswers.length > 0);
+        normalizedHandwrittenAnswers.length > 0;
     const hasExtractedText =
         hasCoreExtractedText ||
         String(parsed.aiInsights || '').trim().length > 0;
+    const combinedText = `${String(parsed.fullText || '')}\n${String(parsed.koreanTranslation || '')}`;
+    const looksLikeQuestionnaire = /(?:^|\s)(?:1|2|3|4|5)[\.\)]|가장\s*큰\s*위험요소|위험등급|안전\s*조치|안전\s*행동|最危险|最大的危险因素|危险等级|安全措施|安全行为/u.test(combinedText);
+    const requiresNativeSupport = normalizedNationality !== '대한민국';
 
     if (!hasCoreExtractedText) {
         throw createGatewayHttpError('서버 OCR 결과에 유효 텍스트가 없어 재분석이 필요합니다.', 502, 'OCR_PARSE_FAILURE');
+    }
+
+    if (looksLikeQuestionnaire && normalizedHandwrittenAnswers.length === 0) {
+        throw createGatewayHttpError('서버 OCR 결과에 문항별 원문 비교 데이터가 없어 재분석이 필요합니다.', 502, 'OCR_PARSE_FAILURE');
+    }
+
+    if (requiresNativeSupport && !nativeInsights) {
+        throw createGatewayHttpError('서버 OCR 결과에 모국어 보호 안내가 없어 재분석이 필요합니다.', 502, 'OCR_PARSE_FAILURE');
     }
 
     const safetyScore = Number.isFinite(parsedSafetyScore)
@@ -916,7 +1006,7 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
             jobField: String(parsed.jobField || '기타').trim(),
             teamLeader: String(parsed.teamLeader || '미지정').trim(),
             date: String(parsed.date || new Date().toISOString().split('T')[0]).trim(),
-            nationality: normalizeNationality(String(parsed.nationality || '미상')),
+            nationality: normalizedNationality,
             language: String(parsed.language || 'unknown').trim(),
             safetyScore,
             safetyLevel: resolveSafetyLevel(safetyScore, parsed.safetyLevel),
@@ -929,12 +1019,12 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
             suggestions: toStringArray(parsed.suggestions),
             suggestions_native: toStringArray(parsed.suggestions_native),
             aiInsights: String(parsed.aiInsights || '').trim(),
-            aiInsights_native: String(parsed.aiInsights_native || '').trim(),
+            aiInsights_native: nativeInsights,
             fullText: String(parsed.fullText || '').trim(),
             koreanTranslation: String(parsed.koreanTranslation || '').trim(),
             scoreReasoning: toStringArray(parsed.scoreReasoning),
             ocrConfidence: Number.isFinite(Number(parsed.ocrConfidence)) ? Number(parsed.ocrConfidence) : 0.9,
-            handwrittenAnswers: Array.isArray(parsed.handwrittenAnswers) ? parsed.handwrittenAnswers : [],
+            handwrittenAnswers: normalizedHandwrittenAnswers,
         },
         attempts,
         fallbackDepth,
