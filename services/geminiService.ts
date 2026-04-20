@@ -592,20 +592,29 @@ const inferOcrFailureCode = (rawMessage: string): OcrFailureCode => {
 
 const detectTextBasedOcrError = (record: WorkerRecord): OcrErrorType | null => {
     const fullText = String(record.fullText || '');
+    const translatedText = String(record.koreanTranslation || '');
+    const insightText = String(record.aiInsights || '');
     const handwrittenCount = Array.isArray(record.handwrittenAnswers) ? record.handwrittenAnswers.length : 0;
-    const compactText = fullText.replace(/\s+/g, '');
+    const compactText = `${fullText} ${translatedText}`.replace(/\s+/g, '');
+    const normalizedConfidence = typeof record.ocrConfidence === 'number'
+        ? Math.max(0, Math.min(1, record.ocrConfidence))
+        : 0.9;
 
-    if (compactText.length <= 18 && handwrittenCount === 0) {
+    if (compactText.length <= 12 && handwrittenCount === 0 && !insightText.trim()) {
+        return 'RESOLUTION';
+    }
+
+    if (compactText.length < 24 && handwrittenCount === 0 && normalizedConfidence < 0.45) {
         return 'RESOLUTION';
     }
 
     const noisyChars = compactText.match(/[^\w\s가-힣ㄱ-ㅎㅏ-ㅣ一-龥ぁ-ゔァ-ヴー々〆〤.,:;()\-_/]/g) || [];
     const noiseRatio = compactText.length > 0 ? noisyChars.length / compactText.length : 0;
-    if (compactText.length > 0 && noiseRatio > 0.35) {
+    if (compactText.length >= 16 && noiseRatio > 0.45 && normalizedConfidence < 0.65) {
         return compactText.length < 40 ? 'RESOLUTION' : 'HANDWRITING';
     }
 
-    if (compactText.length > 0 && compactText.length < 35 && handwrittenCount > 0) {
+    if (compactText.length > 0 && compactText.length < 30 && handwrittenCount > 0 && normalizedConfidence < 0.6) {
         return 'HANDWRITING';
     }
 

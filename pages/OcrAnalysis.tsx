@@ -3299,6 +3299,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             : usedClientFallback && lastServerRouteErrorMessage
                                 ? ` | 서버실패:${lastServerRouteErrorMessage.slice(0, 80)}`
                                 : '';
+                        const apiResultFailed = isFailedRecord(apiResult);
                         const updatedRecord: WorkerRecord = withHarnessState(record, {
                             ...apiResult,
                             id: record.id, 
@@ -3309,7 +3310,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             isTranslator: record.isTranslator || apiResult.isTranslator,
                             isSignalman: record.isSignalman || apiResult.isSignalman,
                             ocrTrace: traceFromResult,
-                            ocrUnknownSubCategory: unknownSubCategory,
+                            ocrUnknownSubCategory: apiResultFailed ? unknownSubCategory : undefined,
+                            ocrErrorType: apiResultFailed ? apiResult.ocrErrorType : undefined,
+                            ocrErrorMessage: apiResultFailed ? apiResult.ocrErrorMessage : undefined,
+                            ocrFailureCode: apiResultFailed ? resolveFailureCodeFromRecord(apiResult) : undefined,
                             auditTrail: [
                                 ...(record.auditTrail || []),
                                 {
@@ -3319,10 +3323,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     note: `OCR 재분석 성공 (${previousErrorLabel}) | ${usedClientFallback ? '브라우저 폴백' : '서버 성공'}${unknownSubCategory ? ` | UNKNOWN[${unknownSubCategory}]` : ''}${serverFailureHint}`,
                                 },
                             ],
-                            secondPassStatus: isFailedRecord(apiResult) ? 'NEEDED' : 'DONE',
-                            workflowState: isFailedRecord(apiResult) ? 'manual_review_required' : 'completed',
-                            riskDecision: isFailedRecord(apiResult) ? 'IMMEDIATE_ATTENTION' : 'SAFE_TO_PROCEED',
-                            approvalState: isFailedRecord(apiResult) ? 'PENDING' : 'APPROVED',
+                            secondPassStatus: apiResultFailed ? 'NEEDED' : 'DONE',
+                            workflowState: apiResultFailed ? 'manual_review_required' : 'completed',
+                            riskDecision: apiResultFailed ? 'IMMEDIATE_ATTENTION' : 'SAFE_TO_PROCEED',
+                            approvalState: apiResultFailed ? 'PENDING' : 'APPROVED',
                         });
                         const harnessSyncedRecord = await syncHarnessReanalyzeResult(updatedRecord, record);
                         onUpdateRecord(harnessSyncedRecord);
@@ -3535,9 +3539,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         if (stopRef.current) { stopped = true; break; }
 
                         if (updatedAnalysis) {
+                            const mergedCandidate = { ...record, ...updatedAnalysis };
+                            const mergedCandidateFailed = isFailedRecord(mergedCandidate);
                             const mergedBase: WorkerRecord = withHarnessState(record, {
                                 ...record,
                                 ...updatedAnalysis,
+                                ocrErrorType: mergedCandidateFailed ? mergedCandidate.ocrErrorType : undefined,
+                                ocrErrorMessage: mergedCandidateFailed ? mergedCandidate.ocrErrorMessage : undefined,
+                                ocrFailureCode: mergedCandidateFailed ? resolveFailureCodeFromRecord(mergedCandidate) : undefined,
+                                ocrUnknownSubCategory: mergedCandidateFailed ? mergedCandidate.ocrUnknownSubCategory : undefined,
                                 auditTrail: [
                                     ...(record.auditTrail || []),
                                     {
@@ -3547,10 +3557,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         note: buildReassessmentAuditNote(record, updatedAnalysis),
                                     }
                                 ],
-                                secondPassStatus: isFailedRecord({ ...record, ...updatedAnalysis }) ? 'NEEDED' : 'DONE',
-                                workflowState: isFailedRecord({ ...record, ...updatedAnalysis }) ? 'awaiting_manager_approval' : 'completed',
-                                riskDecision: isFailedRecord({ ...record, ...updatedAnalysis }) ? 'SUPPLEMENTARY_REVIEW' : 'SAFE_TO_PROCEED',
-                                approvalState: isFailedRecord({ ...record, ...updatedAnalysis }) ? 'PENDING' : 'APPROVED',
+                                secondPassStatus: mergedCandidateFailed ? 'NEEDED' : 'DONE',
+                                workflowState: mergedCandidateFailed ? 'awaiting_manager_approval' : 'completed',
+                                riskDecision: mergedCandidateFailed ? 'SUPPLEMENTARY_REVIEW' : 'SAFE_TO_PROCEED',
+                                approvalState: mergedCandidateFailed ? 'PENDING' : 'APPROVED',
                             });
                             const mergedRecord: WorkerRecord = isFailedRecord(mergedBase)
                                 ? mergedBase
@@ -3558,6 +3568,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     ...mergedBase,
                                     ocrErrorType: undefined,
                                     ocrErrorMessage: undefined,
+                                    ocrFailureCode: undefined,
+                                    ocrUnknownSubCategory: undefined,
                                 };
                             onUpdateRecord(mergedRecord);
                             successCount++;
