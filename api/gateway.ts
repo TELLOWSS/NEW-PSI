@@ -6,6 +6,7 @@ import handleHarnessApprove from '../lib/server/harness/handlers/approve.js';
 import handleHarnessPersistenceHealth from '../lib/server/harness/handlers/persistenceHealth.js';
 import handleHarnessReanalyze from '../lib/server/harness/handlers/reanalyze.js';
 import handleHarnessWorkflowStatus from '../lib/server/harness/handlers/workflowStatus.js';
+import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils.js';
 
 type GatewayAction =
     | 'training.check-access'
@@ -980,20 +981,23 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
     const hasExtractedText =
         hasCoreExtractedText ||
         String(parsed.aiInsights || '').trim().length > 0;
-    const combinedText = `${String(parsed.fullText || '')}\n${String(parsed.koreanTranslation || '')}`;
-    const looksLikeQuestionnaire = /(?:^|\s)(?:1|2|3|4|5)[\.\)]|가장\s*큰\s*위험요소|위험등급|안전\s*조치|안전\s*행동|最危险|最大的危险因素|危险等级|安全措施|安全行为/u.test(combinedText);
-    const requiresNativeSupport = normalizedNationality !== '대한민국';
+    const verificationAudit = evaluateOcrVerificationCompleteness({
+        nationality: normalizedNationality,
+        jobField: String(parsed.jobField || '기타').trim(),
+        weakAreas: toStringArray(parsed.weakAreas),
+        aiInsights: String(parsed.aiInsights || '').trim(),
+        aiInsights_native: nativeInsights,
+        fullText: String(parsed.fullText || '').trim(),
+        koreanTranslation: String(parsed.koreanTranslation || '').trim(),
+        handwrittenAnswers: normalizedHandwrittenAnswers,
+    });
 
     if (!hasCoreExtractedText) {
         throw createGatewayHttpError('서버 OCR 결과에 유효 텍스트가 없어 재분석이 필요합니다.', 502, 'OCR_PARSE_FAILURE');
     }
 
-    if (looksLikeQuestionnaire && normalizedHandwrittenAnswers.length === 0) {
-        throw createGatewayHttpError('서버 OCR 결과에 문항별 원문 비교 데이터가 없어 재분석이 필요합니다.', 502, 'OCR_PARSE_FAILURE');
-    }
-
-    if (requiresNativeSupport && !nativeInsights) {
-        throw createGatewayHttpError('서버 OCR 결과에 모국어 보호 안내가 없어 재분석이 필요합니다.', 502, 'OCR_PARSE_FAILURE');
+    if (!verificationAudit.isComplete) {
+        throw createGatewayHttpError(`서버 OCR 구조 검증 실패: ${verificationAudit.issues.join(', ')}`, 502, 'OCR_PARSE_FAILURE');
     }
 
     const safetyScore = Number.isFinite(parsedSafetyScore)

@@ -10,6 +10,7 @@ import { NoticeCallout } from './shared/NoticeCallout';
 import { StatusBadge } from './shared/StatusBadge';
 import { WhyThisResultPanel } from './shared/WhyThisResultPanel';
 import { PSI_APP_VERSION } from '../lib/appInfo';
+import { buildFallbackNativeCoachingText, buildFallbackNativeVerdictText } from '../utils/ocrVerificationLanguageUtils';
 
 interface ReportTemplateProps {
     record: WorkerRecord;
@@ -329,46 +330,6 @@ const getMonthlyEduNativeTitle = (nationality: string): string => {
     if (nation.includes('카자흐') || nation.toLowerCase().includes('kazakh'))
         return 'Ай сайынғы еңбек қауіпсіздігі білімі есебі';
     return '월간 안전보건정기교육 역량 진단서';
-};
-
-const buildFallbackNativeCoachingText = (record: WorkerRecord): string => {
-    const nation = (record.nationality || '').toLowerCase();
-    const job = String(record.jobField || '작업').trim();
-    const weak = normalizeNarrativeText(record.weakAreas?.[0]);
-
-    if (nation.includes('베트남') || nation.includes('vietnam')) {
-        return `Trong công việc ${job}, hãy kiểm tra đầy đủ khu vực nguy hiểm, thiết bị bảo hộ và trình tự công việc trước khi bắt đầu. ${weak ? `Nội dung cần cải thiện trọng tâm là "${weak}". ` : ''}Trong khi làm việc, nếu điều kiện thay đổi thì phải dừng lại để đánh giá rủi ro lại, sau đó mới tiếp tục theo biện pháp bảo vệ đã thống nhất với đội trưởng.`;
-    }
-
-    if (nation.includes('중국') || nation.includes('china')) {
-        return `在${job}作业开始前，请完整确认危险点、个人防护装备和作业顺序。${weak ? `本次重点改进项为“${weak}”。` : ''}作业过程中一旦现场条件变化，请先暂停并重新评估风险，再按照与班组长确认的防护措施继续作业。`;
-    }
-
-    if (nation.includes('미얀마') || nation.includes('myanmar') || nation.includes('burma')) {
-        return `${job} အလုပ်မစတင်မီ အန္တရာယ်ဖြစ်နိုင်သောနေရာများ၊ ကိုယ်ရေးကာကွယ်ပစ္စည်းများနှင့် အလုပ်လုပ်ငန်းစဉ်ကို အပြည့်အစုံ စစ်ဆေးပါ။${weak ? ` ယခုအကြိမ် အဓိက ပြုပြင်ရန် အချက်မှာ "${weak}" ဖြစ်ပါသည်။` : ''} အလုပ်လုပ်နေစဉ် လုပ်ငန်းခွင်အခြေအနေပြောင်းလဲပါက ချက်ချင်းရပ်ပြီး အန္တရာယ်ကို ပြန်လည်အကဲဖြတ်ကာ အဖွဲ့ခေါင်းဆောင်နှင့် အတည်ပြုထားသော ကာကွယ်ရေးအစီအမံအတိုင်းသာ ဆက်လုပ်ပါ။`;
-    }
-
-    if (nation.includes('캄보디아') || nation.includes('cambodia')) {
-        return `មុនចាប់ផ្តើមការងារ ${job} សូមពិនិត្យឱ្យពេញលេញនូវតំបន់ហានិភ័យ សម្ភារៈការពារ និងលំដាប់ការងារ។${weak ? ` ចំណុចត្រូវកែលម្អសំខាន់គឺ "${weak}"។` : ''} ប្រសិនបើលក្ខខណ្ឌទីតាំងការងារផ្លាស់ប្តូរ សូមឈប់សិន វាយតម្លៃហានិភ័យឡើងវិញ ហើយបន្តតែតាមវិធានការការពារដែលបានយល់ព្រមជាមួយមេក្រុម។`;
-    }
-
-    if (nation.includes('인도네시아') || nation.includes('indonesia')) {
-        return `Sebelum memulai pekerjaan ${job}, periksa secara menyeluruh area bahaya, APD, dan urutan kerja. ${weak ? `Fokus perbaikan utama adalah "${weak}". ` : ''}Jika kondisi lapangan berubah saat bekerja, hentikan dulu, lakukan penilaian risiko ulang, lalu lanjutkan hanya dengan tindakan perlindungan yang telah dikonfirmasi bersama ketua tim.`;
-    }
-
-    if (nation.includes('몽골') || nation.includes('mongol')) {
-        return `${job} ажлыг эхлэхийн өмнө аюултай хэсэг, хамгаалах хэрэгсэл, ажлын дарааллыг бүрэн шалгана уу. ${weak ? `Гол сайжруулах зүйл нь "${weak}" байна. ` : ''}Ажлын явцад талбайн нөхцөл өөрчлөгдвөл түр зогсож, эрсдэлийг дахин үнэлээд багийн ахлагчтай баталгаажуулсан хамгаалалтын арга хэмжээгээр үргэлжлүүлнэ үү.`;
-    }
-
-    if (nation.includes('러시아') || nation.includes('russia') || nation.includes('russian') || nation.includes('росси')) {
-        return `Перед началом работ ${job} полностью проверьте опасные зоны, средства индивидуальной защиты и последовательность операций. ${weak ? `Ключевой пункт улучшения: "${weak}". ` : ''}Если условия на площадке изменились, сначала остановитесь, заново оцените риски и продолжайте работу только с мерами защиты, согласованными с бригадиром.`;
-    }
-
-    if (nation.includes('한국') || nation.includes('korea')) {
-        return `${job} 작업 전 위험요인, 보호구, 작업순서를 빠짐없이 확인하고 시작하세요. ${weak ? `이번 핵심 개선 항목은 '${weak}'입니다. ` : ''}작업 중 조건이 바뀌면 즉시 멈추어 위험평가를 다시 수행한 뒤 팀장과 확인한 보호조치에 따라 재개해야 합니다.`;
-    }
-
-    return `${job} 작업 시작 전에 위험요인, 보호구, 작업순서를 빠짐없이 확인하세요. ${weak ? `핵심 개선 항목은 "${weak}"입니다. ` : ''}작업 중 현장 조건이 바뀌면 먼저 멈추고 위험평가를 다시 수행한 뒤 팀장과 확인한 보호조치에 따라 재개하세요.`;
 };
 
 const getLabels = (nationality: string) => {
@@ -827,7 +788,11 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     const coachingKoParagraphs = useMemo(() => buildNarrativeParagraphs(actionableCoachingText), [actionableCoachingText]);
     const coachingNativeParagraphs = useMemo(() => buildNarrativeParagraphs(record.actionable_coaching_native), [record.actionable_coaching_native]);
     const verdictKoParagraphs = useMemo(() => buildNarrativeParagraphs(record.aiInsights), [record.aiInsights]);
-    const verdictNativeParagraphs = useMemo(() => buildNarrativeParagraphs(record.aiInsights_native), [record.aiInsights_native]);
+    const verdictNativeSourceText = useMemo(
+        () => normalizeNarrativeText(record.aiInsights_native) || buildFallbackNativeVerdictText(record),
+        [record],
+    );
+    const verdictNativeParagraphs = useMemo(() => buildNarrativeParagraphs(verdictNativeSourceText), [verdictNativeSourceText]);
     const competencyProfile = useMemo(() => record.competencyProfile || deriveCompetencyProfile(record), [record]);
     const safetyLevelThresholds = useMemo(() => getSafetyLevelThresholds(), []);
     const isWeaknessContentDense = useMemo(() => {
@@ -853,7 +818,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         const strengthLength = strengthEntries.map((entry) => `${entry.text} ${entry.nativeText || ''}`).join(' ').length;
         const improvementLength = improvementEntries.map((entry) => `${entry.text} ${entry.nativeText || ''}`).join(' ').length;
         const coachingLength = [actionableCoachingText, record.actionable_coaching_native].filter(Boolean).join(' ').length;
-        const verdictLength = [record.aiInsights, record.aiInsights_native].filter(Boolean).join(' ').length;
+        const verdictLength = [record.aiInsights, verdictNativeSourceText].filter(Boolean).join(' ').length;
         const totalLength = scoreLength + strengthLength + improvementLength + coachingLength + verdictLength;
 
         const entryCount = scoreReasonEntries.length + strengthEntries.length + improvementEntries.length;
@@ -928,7 +893,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         actionableCoachingText,
         record.actionable_coaching_native,
         record.aiInsights,
-        record.aiInsights_native,
+        verdictNativeSourceText,
         coachingKoParagraphs.length,
         verdictKoParagraphs.length,
         coachingNativeParagraphs.length,
@@ -940,7 +905,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         const strengthLength = strengthEntries.map((entry) => `${entry.text} ${entry.nativeText || ''}`).join(' ').length;
         const improvementLength = improvementEntries.map((entry) => `${entry.text} ${entry.nativeText || ''}`).join(' ').length;
         const coachingLength = [actionableCoachingText, record.actionable_coaching_native].filter(Boolean).join(' ').length;
-        const verdictLength = [record.aiInsights, record.aiInsights_native].filter(Boolean).join(' ').length;
+        const verdictLength = [record.aiInsights, verdictNativeSourceText].filter(Boolean).join(' ').length;
         const totalLength = scoreLength + strengthLength + improvementLength + coachingLength + verdictLength;
 
         const entryCount = scoreReasonEntries.length + strengthEntries.length + improvementEntries.length;
@@ -991,7 +956,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         actionableCoachingText,
         record.actionable_coaching_native,
         record.aiInsights,
-        record.aiInsights_native,
+        verdictNativeSourceText,
         coachingKoParagraphs.length,
         verdictKoParagraphs.length,
         isKorean,
@@ -1026,8 +991,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         [frontCoachingNativeText, frontCoachingText, frontParagraphLimit],
     );
     const frontVerdictNativeText = useMemo(
-        () => wrapNarrativeText(limitNarrativeText(record.aiInsights_native, frontNativeCharLimit + 15), narrativeWrapWidth.verdictNative),
-        [record.aiInsights_native, frontNativeCharLimit, narrativeWrapWidth.verdictNative],
+        () => wrapNarrativeText(limitNarrativeText(verdictNativeSourceText, frontNativeCharLimit + 15), narrativeWrapWidth.verdictNative),
+        [verdictNativeSourceText, frontNativeCharLimit, narrativeWrapWidth.verdictNative],
     );
     const frontVerdictKoText = useMemo(
         () => wrapNarrativeText(limitNarrativeText(record.aiInsights, frontKoCharLimit + 20), narrativeWrapWidth.verdictKo),
@@ -1081,8 +1046,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         [record.aiInsights, appendixKoCharLimit, appendixParagraphLimit],
     );
     const appendixVerdictNativeParagraphs = useMemo(
-        () => buildNarrativeParagraphs(limitNarrativeText(record.aiInsights_native, appendixNativeCharLimit)).slice(0, appendixParagraphLimit),
-        [record.aiInsights_native, appendixNativeCharLimit, appendixParagraphLimit],
+        () => buildNarrativeParagraphs(limitNarrativeText(verdictNativeSourceText, appendixNativeCharLimit)).slice(0, appendixParagraphLimit),
+        [verdictNativeSourceText, appendixNativeCharLimit, appendixParagraphLimit],
     );
     const workerNameClassName = useMemo(() => {
         const nameLength = (record.name || '').trim().length;

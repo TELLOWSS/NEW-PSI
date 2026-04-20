@@ -28,6 +28,7 @@ import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
 import { useMobileBackGuard } from '../hooks/useMobileBackGuard';
 import { API_MODE_CHANGED_EVENT, getIsPaidApiMode } from '../utils/apiModeUtils';
 import { resolveOcrExecutionKeyStatus } from '../utils/ocrExecutionKeyStatus';
+import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils';
 
 const buildMasterDataLoadErrorMessage = (rawMessage?: string) => {
     const message = String(rawMessage || '알 수 없는 오류');
@@ -3301,14 +3302,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     String(apiResult.fullText || '').trim().length > 0 ||
                                     String(apiResult.koreanTranslation || '').trim().length > 0 ||
                                     (apiResult.handwrittenAnswers || []).some((answer) => String(answer?.answerText || '').trim().length > 0);
+                                const verificationAudit = evaluateOcrVerificationCompleteness(apiResult);
                                 const shouldTreatAsFailure =
                                     Boolean(apiResult.ocrErrorType) ||
                                     hasOperationalFailureSignal(apiResult) ||
-                                    !hasApiSourceText;
+                                    !hasApiSourceText ||
+                                    !verificationAudit.isComplete;
                                 if (shouldTreatAsFailure) {
                                     const gatewayLikeCode = !hasApiSourceText ? 'OCR_PARSE_FAILURE' : undefined;
                                     const fallbackMsg = !hasApiSourceText
                                         ? '서버 OCR 결과에 유효 텍스트가 없습니다.'
+                                        : !verificationAudit.isComplete
+                                            ? `OCR 구조 검증 실패: ${verificationAudit.issues.join(', ')}`
                                         : String(apiResult.ocrErrorMessage || insightText || '분석 실패');
                                     throw new Error(gatewayLikeCode ? `[${gatewayLikeCode}] ${fallbackMsg}` : fallbackMsg);
                                 }

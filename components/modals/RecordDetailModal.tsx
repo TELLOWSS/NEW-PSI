@@ -44,6 +44,7 @@ import {
 } from '../../services/harnessService';
 import { buildHarnessRuleImpactSummary } from '../../utils/harnessRuleImpactSummary';
 import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
+import { buildFallbackNativeGuidanceText, evaluateOcrVerificationCompleteness, getNativeLanguageLabel, isKoreanNationality } from '../../utils/ocrVerificationLanguageUtils';
 import {
     getHarnessAuditItemLabel,
     getHarnessAuditSectionLabel,
@@ -1536,7 +1537,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const hasProfileImage = !!record.profileImage && record.profileImage.length > 50;
     const isPhotoQueueMode = Boolean(queueContext);
     const competencyProfile = useMemo(() => deriveCompetencyProfile(record), [record]);
-    const isKorean = record.nationality === '대한민국' || record.nationality === '한국' || (record.nationality || '').toLowerCase().includes('korea');
+    const isKorean = isKoreanNationality(record.nationality);
     const timelineLocale = isKorean ? 'ko-KR' : 'en-US';
     const timelineDateTimeOptions: Intl.DateTimeFormatOptions = {
         timeZone: 'Asia/Seoul',
@@ -1687,6 +1688,12 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             originalReady,
         };
     }, [record.handwrittenAnswers]);
+    const verificationAudit = useMemo(() => evaluateOcrVerificationCompleteness(record), [record]);
+    const nativeGuidancePreview = useMemo(
+        () => String(record.aiInsights_native || '').trim() || buildFallbackNativeGuidanceText(record),
+        [record],
+    );
+    const nativeLanguageLabel = useMemo(() => getNativeLanguageLabel(record.nationality), [record.nationality]);
     
     // Icon Display
     const isLeader = (record.role === 'leader') || (record.name === record.teamLeader);
@@ -2946,6 +2953,36 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             titleClassName="text-sm font-black text-slate-900"
                                             listClassName="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3"
                                         />
+                                        <SummaryMetricGrid
+                                            className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+                                            cardClassName="rounded-2xl border px-4 py-3"
+                                            items={[
+                                                {
+                                                    key: 'native-language',
+                                                    label: '작업자 안내 언어',
+                                                    value: nativeLanguageLabel,
+                                                    tone: BRAND_TONE.indigo,
+                                                    labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-indigo-400',
+                                                    valueClassName: 'mt-1 text-xs font-black text-indigo-700',
+                                                },
+                                                {
+                                                    key: 'native-guidance-status',
+                                                    label: '모국어 안내 상태',
+                                                    value: String(record.aiInsights_native || '').trim() ? '추출 완료' : '폴백 표시 중',
+                                                    tone: String(record.aiInsights_native || '').trim() ? BRAND_TONE.emerald : BRAND_TONE.amber,
+                                                    labelClassName: String(record.aiInsights_native || '').trim() ? 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500' : 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-500',
+                                                    valueClassName: String(record.aiInsights_native || '').trim() ? 'mt-1 text-xs font-black text-emerald-700' : 'mt-1 text-xs font-black text-amber-700',
+                                                },
+                                                {
+                                                    key: 'verification-status',
+                                                    label: '검증 상태',
+                                                    value: verificationAudit.isComplete ? '정상' : verificationAudit.issues.join(' / '),
+                                                    tone: verificationAudit.isComplete ? BRAND_TONE.emerald : BRAND_TONE.rose,
+                                                    labelClassName: verificationAudit.isComplete ? 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500' : 'text-[10px] font-black uppercase tracking-[0.18em] text-rose-500',
+                                                    valueClassName: verificationAudit.isComplete ? 'mt-1 text-xs font-black text-emerald-700' : 'mt-1 text-xs font-black text-rose-700',
+                                                },
+                                            ]}
+                                        />
                                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                                             <SectionPanelCard
                                                 variant="whiteSoft"
@@ -2976,10 +3013,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 bodyClassName="mt-4"
                                             >
                                                 <textarea 
-                                                    value={record.aiInsights_native} 
+                                                    value={String(record.aiInsights_native || '').trim() ? record.aiInsights_native : nativeGuidancePreview} 
                                                     onChange={(e) => handleChange('aiInsights_native', e.target.value)}
                                                     className="w-full min-h-[220px] text-base text-slate-600 leading-relaxed border-none focus:ring-0 resize-none bg-indigo-50/50 rounded-xl p-4 font-medium"
-                                                    placeholder="작업자에게 바로 전달할 모국어 보호 안내를 확인하거나 수정하세요."
+                                                    placeholder={`작업자에게 바로 전달할 ${nativeLanguageLabel} 보호 안내를 확인하거나 수정하세요.`}
                                                 />
                                             </SectionPanelCard>
                                         </div>

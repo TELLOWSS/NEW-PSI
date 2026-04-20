@@ -7,6 +7,7 @@ import { deriveIntegrityScore, enforceSafetyLevel } from '../utils/evidenceUtils
 import { getSafetyLevelFromScore, getSafetyLevelThresholds } from '../utils/safetyLevelUtils';
 import { getIsPaidApiMode } from '../utils/apiModeUtils';
 import { resolveOcrExecutionKeyStatus } from '../utils/ocrExecutionKeyStatus';
+import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils';
 import { supabase } from '../lib/supabaseClient';
 
 /**
@@ -1348,12 +1349,26 @@ async function callGeminiWithRetry(
                             safetyScore
                         );
 
-                        return {
+                        const auditedRecord: WorkerRecord = {
                             ...enforced,
                             safetyScore: verified.safetyScore,
                             safetyLevel: verified.safetyLevel,
                             scoreReasoning: verified.scoreReasoning,
                         };
+
+                        const verificationAudit = evaluateOcrVerificationCompleteness(auditedRecord);
+
+                        if (!verificationAudit.isComplete) {
+                            return {
+                                ...auditedRecord,
+                                ocrErrorType: 'UNKNOWN',
+                                ocrFailureCode: 'PARSE',
+                                ocrErrorMessage: `OCR 구조 검증 실패: ${verificationAudit.issues.join(', ')}`,
+                                aiInsights: auditedRecord.aiInsights || `OCR 구조 검증 실패: ${verificationAudit.issues.join(', ')}`,
+                            };
+                        }
+
+                        return auditedRecord;
                     });
                 } catch (parseErr: unknown) {
                     console.error("Parsing AI response failed:", parseErr);
