@@ -3153,6 +3153,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 }
                                 const normalizedServerMessage = serverMessage.toLowerCase();
                                 const normalizedServerCode = String(lastServerRouteErrorCode || '').toUpperCase();
+                                const isServerCredentialOrQuotaCode = [
+                                    'MISSING_SERVER_GEMINI_KEY',
+                                    'OCR_UPSTREAM_AUTH',
+                                    'OCR_QUOTA',
+                                    'HTTP_401',
+                                    'HTTP_403',
+                                    'HTTP_429',
+                                ].includes(normalizedServerCode);
                                 const shouldBypassClientFallback = [
                                     'OCR_INVALID_ARGUMENT',
                                     'UNSUPPORTED_IMAGE_FORMAT',
@@ -3165,6 +3173,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 ].includes(normalizedServerCode);
                                 const shouldFallbackToClient =
                                     !shouldBypassClientFallback && (
+                                    isServerCredentialOrQuotaCode ||
                                     normalizedServerMessage.includes('failed to fetch') ||
                                     normalizedServerMessage.includes('network') ||
                                     normalizedServerMessage.includes('timeout') ||
@@ -3173,6 +3182,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     normalizedServerMessage.includes('service unavailable') ||
                                     normalizedServerMessage.includes('internal server error') ||
                                     normalizedServerMessage.includes('ocr_parse_failure') ||
+                                    normalizedServerMessage.includes('ocr_upstream_auth') ||
+                                    normalizedServerMessage.includes('missing_server_gemini_key') ||
+                                    normalizedServerMessage.includes('ocr_quota') ||
                                     normalizedServerMessage.includes('json 파싱') ||
                                     normalizedServerMessage.includes('json') ||
                                     normalizedServerMessage.includes('parse') ||
