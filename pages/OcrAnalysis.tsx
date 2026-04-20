@@ -1062,6 +1062,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [showRetryDetailPanel, setShowRetryDetailPanel] = useState(false);
     const [showFailedQuickActions, setShowFailedQuickActions] = useState(false);
     const [autoScrollFailedQuickActions, setAutoScrollFailedQuickActions] = useState(false);
+    const [showQuickUtilityActions, setShowQuickUtilityActions] = useState(false);
+    const [showExtendedOverviewMetrics, setShowExtendedOverviewMetrics] = useState(false);
+    const [showDashboardIntroDetail, setShowDashboardIntroDetail] = useState(false);
 
     const syncHarnessAnalyzeResult = useCallback(async (record: WorkerRecord, fileNameOverride?: string) => {
         const fallbackPatch: Partial<WorkerRecord> = {
@@ -4077,9 +4080,20 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     <span className="text-xs bg-indigo-600 px-2 py-1 rounded-md font-bold uppercase tracking-widest">PRO</span>
                                 </h3>
                                 <p className="text-slate-300 font-medium max-w-3xl leading-relaxed">
-                                    PC 화면에서는 <span className="text-indigo-300 font-bold">핵심 현황 → 긴급 조치 → 상세 운영</span> 순으로 바로 판단할 수 있어야 합니다.
-                                    {BRAND_STATUS_LABELS.attentionPending} 건, 저신뢰 기록, 재분석 가능 건을 먼저 보고 필요한 조치만 우측에서 바로 실행하도록 구조를 정리했습니다.
+                                    PC 화면은 <span className="text-indigo-300 font-bold">핵심 현황 → 긴급 조치</span> 순서로 바로 판단할 수 있도록 요약해 제공합니다.
+                                    {showDashboardIntroDetail && (
+                                        <>
+                                            {' '}현재 {BRAND_STATUS_LABELS.attentionPending} 건, 저신뢰 기록, 재분석 가능 건을 먼저 보고 필요한 조치만 우측에서 실행하도록 구성되어 있습니다.
+                                        </>
+                                    )}
                                 </p>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowDashboardIntroDetail((prev) => !prev)}
+                                    className="mt-2 rounded-full bg-white/10 border border-white/10 px-3 py-1 text-[11px] font-black text-slate-200 hover:bg-white/20"
+                                >
+                                    {showDashboardIntroDetail ? '설명 접기' : '설명 자세히'}
+                                </button>
                             </div>
                             <div className="flex flex-wrap gap-2 text-[11px] font-black">
                                 <span className="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-slate-100">재분석 가능 {secondPassTargets.length}건</span>
@@ -4106,7 +4120,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         />
 
                         <SummaryMetricGrid
-                            className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4"
+                            className="mt-6 grid grid-cols-2 gap-3"
                             cardClassName="rounded-2xl border px-4 py-4"
                             items={[
                                 {
@@ -4129,33 +4143,51 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     valueClassName: `mt-2 text-2xl font-black ${failedRecords.length > 0 ? 'text-rose-300' : 'text-slate-400'}`,
                                     helperClassName: 'mt-1 text-[11px] font-bold text-rose-200/80',
                                 },
-                                {
-                                    key: 'overview-low-confidence',
-                                    label: '신뢰도 미달',
-                                    value: lowConfidenceCount,
-                                    helper: '70% 미만 재검토',
-                                    tone: BRAND_TONE.darkAmber,
-                                    labelClassName: 'text-[10px] font-black uppercase tracking-widest text-amber-300',
-                                    valueClassName: `mt-2 text-2xl font-black ${lowConfidenceCount > 0 ? 'text-amber-300' : 'text-slate-400'}`,
-                                    helperClassName: 'mt-1 text-[11px] font-bold text-amber-200/80',
-                                },
-                                {
-                                    key: 'overview-api-count',
-                                    label: '오늘 API 호출',
-                                    value: dailyCounter.count,
-                                    helper: (
-                                        <div className="flex items-center justify-between gap-2">
-                                            <span>✓{dailyCounter.successCount} · ✗{dailyCounter.failCount}</span>
-                                            <button onClick={() => { resetApiCallCount(); setDailyCounter(getApiCallState()); }} className="text-[10px] text-slate-300 underline hover:text-white" title="오늘 카운터 초기화">초기화</button>
-                                        </div>
-                                    ),
-                                    tone: BRAND_TONE.darkEmerald,
-                                    labelClassName: 'text-[10px] font-black uppercase tracking-widest text-emerald-300',
-                                    valueClassName: `mt-2 text-2xl font-black ${dailyCounter.count > 800 ? 'text-rose-300' : dailyCounter.count > 400 ? 'text-amber-300' : 'text-emerald-300'}`,
-                                    helperClassName: 'mt-1 text-[11px] font-bold text-slate-300',
-                                },
                             ]}
                         />
+                        <div className="mt-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowExtendedOverviewMetrics((prev) => !prev)}
+                                className="rounded-full bg-white/10 border border-white/10 px-3 py-1.5 text-[11px] font-black text-slate-200 hover:bg-white/20"
+                            >
+                                {showExtendedOverviewMetrics ? '보조 KPI 접기' : '보조 KPI 더 보기'}
+                            </button>
+                        </div>
+
+                        {showExtendedOverviewMetrics && (
+                            <SummaryMetricGrid
+                                className="mt-3 grid grid-cols-2 gap-3"
+                                cardClassName="rounded-2xl border px-4 py-4"
+                                items={[
+                                    {
+                                        key: 'overview-low-confidence',
+                                        label: '신뢰도 미달',
+                                        value: lowConfidenceCount,
+                                        helper: '70% 미만 재검토',
+                                        tone: BRAND_TONE.darkAmber,
+                                        labelClassName: 'text-[10px] font-black uppercase tracking-widest text-amber-300',
+                                        valueClassName: `mt-2 text-2xl font-black ${lowConfidenceCount > 0 ? 'text-amber-300' : 'text-slate-400'}`,
+                                        helperClassName: 'mt-1 text-[11px] font-bold text-amber-200/80',
+                                    },
+                                    {
+                                        key: 'overview-api-count',
+                                        label: '오늘 API 호출',
+                                        value: dailyCounter.count,
+                                        helper: (
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span>✓{dailyCounter.successCount} · ✗{dailyCounter.failCount}</span>
+                                                <button onClick={() => { resetApiCallCount(); setDailyCounter(getApiCallState()); }} className="text-[10px] text-slate-300 underline hover:text-white" title="오늘 카운터 초기화">초기화</button>
+                                            </div>
+                                        ),
+                                        tone: BRAND_TONE.darkEmerald,
+                                        labelClassName: 'text-[10px] font-black uppercase tracking-widest text-emerald-300',
+                                        valueClassName: `mt-2 text-2xl font-black ${dailyCounter.count > 800 ? 'text-rose-300' : dailyCounter.count > 400 ? 'text-amber-300' : 'text-emerald-300'}`,
+                                        helperClassName: 'mt-1 text-[11px] font-bold text-slate-300',
+                                    },
+                                ]}
+                            />
+                        )}
 
                         {failedFailureCodeSummary.length > 0 && (
                             <>
@@ -4225,40 +4257,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         )}
                     </div>
 
-                    {/* P0.1: UNKNOWN 2차 분류 배지 */}
-                    {failedFailureCodeSummary.find(i => i.code === 'UNKNOWN' && i.unknownSubCounts) && (() => {
-                        const unknownItem = failedFailureCodeSummary.find(i => i.code === 'UNKNOWN')!;
-                        const sub = unknownItem?.unknownSubCounts;
-                        if (!sub || unknownItem.count === 0) return null;
-                        return (
-                            <div className="mt-4 flex items-center gap-2 p-3 rounded-xl bg-slate-900/60 border border-slate-700/50">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 min-w-fit">UNKNOWN 분류:</p>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {sub['network-like'] > 0 && <span className="px-2 py-0.5 rounded-full bg-rose-900/40 border border-rose-700/40 text-rose-200 text-[9px] font-bold">네트워크 {sub['network-like']}</span>}
-                                    {sub['parse-like'] > 0 && <span className="px-2 py-0.5 rounded-full bg-violet-900/40 border border-violet-700/40 text-violet-200 text-[9px] font-bold">파싱 {sub['parse-like']}</span>}
-                                    {sub['policy-like'] > 0 && <span className="px-2 py-0.5 rounded-full bg-amber-900/40 border border-amber-700/40 text-amber-200 text-[9px] font-bold">정책 {sub['policy-like']}</span>}
-                                    {sub['uncategorized'] > 0 && <span className="px-2 py-0.5 rounded-full bg-slate-700/60 border border-slate-600/40 text-slate-300 text-[9px] font-bold">미분류 {sub['uncategorized']}</span>}
-                                </div>
-                            </div>
-                        );
-                    })()}
-
-                    {/* P0.3: 24h/7d 추세 비교 */}
-                    {failureTrendComparison.recent7dTotal > 0 && (
-                        <div className={`mt-3 p-3 rounded-xl border ${failureTrendComparison.trend === 'up' ? 'bg-rose-950/40 border-rose-700/40' : failureTrendComparison.trend === 'down' ? 'bg-emerald-950/40 border-emerald-700/40' : 'bg-slate-900/50 border-slate-700/40'}`}>
-                            <div className="flex items-center gap-2">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 min-w-fit">24h/7d 비교:</p>
-                                <span className="px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-600/40 text-slate-200 text-[9px] font-bold">
-                                    실패율 {failureTrendComparison.failRate24}% / {failureTrendComparison.failRate7d}%
-                                    {failureTrendComparison.trend === 'up' && <span className="ml-1 text-rose-300">▲</span>}
-                                    {failureTrendComparison.trend === 'down' && <span className="ml-1 text-emerald-300">▼</span>}
-                                    {failureTrendComparison.trend === 'stable' && <span className="ml-1 text-slate-400">─</span>}
-                                </span>
-                                <span className="px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-600/40 text-slate-200 text-[9px] font-bold">UNKNOWN {failureTrendComparison.unknownRate24}% / {failureTrendComparison.unknownRate7d}%</span>
-                            </div>
-                        </div>
-                    )}
-
                     <SectionPanelCard
                         variant="glassDark"
                         eyebrow="빠른 실행"
@@ -4326,16 +4324,28 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 전체 일괄 재분석 (OCR)
                             </button>
                         )}
-                        
-                        <button onClick={() => importInputRef.current?.click()} className="w-full px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-sm transition-all">JSON 불러오기</button>
-                        <input type="file" ref={importInputRef} className="hidden" accept=".json" onChange={(e) => {
-                             const file = e.target.files?.[0];
-                             if (file) handleImportFile(file);
-                        }} />
-                        <button onClick={() => { void handleCopyReanalysisSummary(); }} className="w-full px-5 py-3 bg-slate-700 hover:bg-slate-800 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 복사</button>
-                        <button onClick={handleExportReanalysisSummary} className="w-full px-5 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 내보내기</button>
-                        <button onClick={handleExport} className="w-full px-5 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-2xl font-black text-sm shadow-xl transition-all">백업 내보내기</button>
-                        <button onClick={onDeleteAll} className="w-full px-5 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all">전체 삭제</button>
+
+                        <button
+                            type="button"
+                            onClick={() => setShowQuickUtilityActions((prev) => !prev)}
+                            className="w-full px-5 py-2.5 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-xs transition-all"
+                        >
+                            {showQuickUtilityActions ? '보조 작업 접기' : '보조 작업 펼치기'}
+                        </button>
+
+                        {showQuickUtilityActions && (
+                            <>
+                                <button onClick={() => importInputRef.current?.click()} className="w-full px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-sm transition-all">JSON 불러오기</button>
+                                <input type="file" ref={importInputRef} className="hidden" accept=".json" onChange={(e) => {
+                                     const file = e.target.files?.[0];
+                                     if (file) handleImportFile(file);
+                                }} />
+                                <button onClick={() => { void handleCopyReanalysisSummary(); }} className="w-full px-5 py-3 bg-slate-700 hover:bg-slate-800 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 복사</button>
+                                <button onClick={handleExportReanalysisSummary} className="w-full px-5 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 내보내기</button>
+                                <button onClick={handleExport} className="w-full px-5 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-2xl font-black text-sm shadow-xl transition-all">백업 내보내기</button>
+                                <button onClick={onDeleteAll} className="w-full px-5 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all">전체 삭제</button>
+                            </>
+                        )}
                             </SectionPanelCard>
                     </SectionPanelCard>
                 </div>
