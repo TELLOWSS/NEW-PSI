@@ -3366,7 +3366,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     } else {
                         // Final Failure after retries
                         const mappedFailureCode = mapGatewayCodeToFailureCode(lastServerRouteErrorCode);
-                        const failureCode = mappedFailureCode || inferOcrFailureCode(lastRetryErrorMessage || '반복적인 API 오류');
+                        const retryMessageCode = extractGatewayErrorCode(lastRetryErrorMessage);
+                        const retryMessageFailureCode = mapGatewayCodeToFailureCode(retryMessageCode);
+                        const failureCode = mappedFailureCode || retryMessageFailureCode || inferOcrFailureCode(lastRetryErrorMessage || '반복적인 API 오류');
                         const unknownSubCategory =
                             failureCode === 'UNKNOWN'
                                 ? classifyUnknownSubCategory({ ocrErrorMessage: `${lastServerRouteErrorCode || ''} ${lastRetryErrorMessage || ''}` })
@@ -3413,7 +3415,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     const errMsg = extractMessage(err);
                     if (errMsg === "STOPPED") { stopped = true; break; }
                     console.error("Batch Error:", err);
-                    const failureCode = inferOcrFailureCode(errMsg);
+                    const catchGatewayCode = extractGatewayErrorCode(errMsg);
+                    const catchMappedFailureCode = mapGatewayCodeToFailureCode(catchGatewayCode);
+                    const failureCode = catchMappedFailureCode || inferOcrFailureCode(errMsg);
                     const errorRecord: WorkerRecord = withHarnessState(record, {
                         ...record,
                         aiInsights: withFailureCodePrefix(failureCode, `⛔ 시스템 오류: ${errMsg}`),

@@ -575,7 +575,10 @@ const inferOcrFailureCode = (rawMessage: string): OcrFailureCode => {
         message.includes('parse') ||
         message.includes('json') ||
         message.includes('schema') ||
-        message.includes('ai response is not an array')
+        message.includes('ai response is not an array') ||
+        message.includes('유효 텍스트') ||
+        message.includes('empty result') ||
+        message.includes('빈 응답')
     ) return 'PARSE';
 
     if (
