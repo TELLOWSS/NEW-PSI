@@ -3192,7 +3192,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     ? Math.ceil((fallbackQuotaState.nextRetryTime - Date.now()) / 1000)
                                     : 0;
                                 if (fallbackRecoverySeconds > 0) {
-                                    throw new Error(`브라우저 OCR 할당량 회복 대기 중입니다. 약 ${fallbackRecoverySeconds}초 후 재시도해주세요.`);
+                                    throw new Error(`[OCR_QUOTA] 브라우저 OCR 할당량 회복 대기 중입니다. 약 ${fallbackRecoverySeconds}초 후 재시도해주세요.`);
                                 }
                                 const fallbackImageSource = retryImageSource || cleanImage;
                                 if (!fallbackImageSource) {
@@ -3417,7 +3417,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     console.error("Batch Error:", err);
                     const catchGatewayCode = extractGatewayErrorCode(errMsg);
                     const catchMappedFailureCode = mapGatewayCodeToFailureCode(catchGatewayCode);
-                    const failureCode = catchMappedFailureCode || inferOcrFailureCode(errMsg);
+                    const lastServerMappedFailureCode = mapGatewayCodeToFailureCode(lastServerRouteErrorCode);
+                    const failureCode = catchMappedFailureCode || lastServerMappedFailureCode || inferOcrFailureCode(errMsg);
                     const errorRecord: WorkerRecord = withHarnessState(record, {
                         ...record,
                         aiInsights: withFailureCodePrefix(failureCode, `⛔ 시스템 오류: ${errMsg}`),
