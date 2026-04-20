@@ -1065,6 +1065,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [showQuickUtilityActions, setShowQuickUtilityActions] = useState(false);
     const [showExtendedOverviewMetrics, setShowExtendedOverviewMetrics] = useState(false);
     const [showDashboardIntroDetail, setShowDashboardIntroDetail] = useState(false);
+    const [showWorkerSignalDetails, setShowWorkerSignalDetails] = useState(false);
+    const [showWorkerExtraActions, setShowWorkerExtraActions] = useState(false);
+    const [showAllFailureCodeCards, setShowAllFailureCodeCards] = useState(false);
 
     const syncHarnessAnalyzeResult = useCallback(async (record: WorkerRecord, fileNameOverride?: string) => {
         const fallbackPatch: Partial<WorkerRecord> = {
@@ -4071,7 +4074,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             {/* Control Panel */}
             <div className="bg-slate-900 rounded-3xl p-5 sm:p-8 shadow-2xl text-white relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-48 -mt-48"></div>
-                <div className="relative z-10 grid grid-cols-1 xl:grid-cols-[minmax(0,1.4fr)_380px] gap-6 xl:gap-8 items-start">
+                <div className="relative z-10 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1.15fr)_360px] gap-6 xl:gap-8 items-start">
                     <div className="min-w-0">
                         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                             <div>
@@ -4099,15 +4102,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <span className="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-slate-100">재분석 가능 {secondPassTargets.length}건</span>
                                 <span className="px-3 py-1.5 rounded-full bg-rose-500/15 border border-rose-400/20 text-rose-200">{BRAND_STATUS_LABELS.attentionPending} {failedRecords.length}건</span>
                                 <span className="px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-400/20 text-amber-200">저신뢰 {lowConfidenceCount}건</span>
-                                <span className="px-3 py-1.5 rounded-full bg-violet-500/15 border border-violet-400/20 text-violet-200">최근 24h 실패 갱신 {failedFailureCodeRecentSummary.totalRecent}건</span>
                             </div>
-
-                            {failureSurgeSignal && (
-                                <div className={`mt-4 rounded-2xl border px-4 py-3 ${failureSurgeSignal.toneClassName}`}>
-                                    <p className="text-[11px] font-black uppercase tracking-wider">{failureSurgeSignal.title}</p>
-                                    <p className="mt-1 text-[12px] font-bold leading-relaxed">{failureSurgeSignal.description}</p>
-                                </div>
-                            )}
                         </div>
 
                         <InterpretationCardGrid
@@ -4194,7 +4189,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <SummaryMetricGrid
                                     className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-5"
                                     cardClassName="rounded-2xl border px-4 py-3"
-                                    items={failedFailureCodeSummary.slice(0, 5).map((item) => ({
+                                    items={failedFailureCodeSummary.slice(0, showAllFailureCodeCards ? 5 : 3).map((item) => ({
                                         key: `overview-failure-code-${item.code}`,
                                         label: `실패코드 ${item.code}`,
                                         value: item.count,
@@ -4205,6 +4200,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         helperClassName: 'mt-1 text-[11px] font-bold text-slate-300/90 line-clamp-3',
                                     }))}
                                 />
+                                {failedFailureCodeSummary.length > 3 && (
+                                    <div className="mt-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAllFailureCodeCards((prev) => !prev)}
+                                            className="rounded-full bg-white/10 border border-white/10 px-3 py-1.5 text-[11px] font-black text-slate-200 hover:bg-white/20"
+                                        >
+                                            {showAllFailureCodeCards ? '실패코드 카드 접기' : '실패코드 카드 전체 보기'}
+                                        </button>
+                                    </div>
+                                )}
                                 <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-200">
                                     <span className="rounded-full bg-slate-800/70 border border-slate-600/70 px-3 py-1">최근 24h 갱신 실패 {failedFailureCodeRecentSummary.totalRecent}건 ({failedFailureCodeRecentSummary.recentShare}%)</span>
                                     {failedFailureCodeRecentSummary.topRecent && (
@@ -4854,10 +4860,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-black text-slate-700">
                                 폴백 회복률 {fallbackRecoveryRate}%
                             </span>
-                        </div>
-                        <div className="relative w-full mt-4 max-w-2xl">
-                            <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={2}/></svg>
-                            <input type="text" placeholder="근로자명 · 공종 · 국적 · 팀장으로 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-900 dark:text-slate-100" />
                         </div>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-2 gap-2 sm:gap-3 w-full">
@@ -5865,6 +5867,33 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         }}
                     >선택 근로자 일괄 적용</button>
                 </div>
+                <div className="px-4 sm:px-6 pt-4 pb-2 border-b border-slate-100 bg-white">
+                    <div className="flex flex-col gap-1.5">
+                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">근로자 정보 검색</p>
+                        <div className="relative w-full max-w-2xl">
+                            <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={2}/></svg>
+                            <input type="text" placeholder="근로자명 · 공종 · 국적 · 팀장으로 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-900 dark:text-slate-100" />
+                        </div>
+                        <label className="mt-1 inline-flex items-center gap-2 text-[11px] font-bold text-slate-600">
+                            <input
+                                type="checkbox"
+                                checked={showWorkerSignalDetails}
+                                onChange={(e) => setShowWorkerSignalDetails(e.target.checked)}
+                                className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            행별 신호 상세(상태·근거·다음 행동) 보기
+                        </label>
+                        <label className="inline-flex items-center gap-2 text-[11px] font-bold text-slate-600">
+                            <input
+                                type="checkbox"
+                                checked={showWorkerExtraActions}
+                                onChange={(e) => setShowWorkerExtraActions(e.target.checked)}
+                                className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            행별 보조 액션(관리자 유지/삭제/즉시조치) 보기
+                        </label>
+                    </div>
+                </div>
                 <div className="sm:hidden p-3 space-y-3">
                     {filteredRecords.map((r: WorkerRecord) => {
                         const checked = selectedIds.includes(r.id);
@@ -5956,68 +5985,74 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     </div>
                                 )}
 
-                                <StatusEvidenceActionPanel
-                                    className="mt-3 grid grid-cols-1 gap-2 text-[11px]"
-                                    cardClassName="rounded-xl border px-3 py-2"
-                                    titleClassName="mt-1 font-semibold leading-snug text-slate-700"
-                                    descriptionClassName="mt-1 font-semibold leading-snug whitespace-pre-wrap break-words text-slate-700"
-                                    items={[
-                                        {
-                                            key: `${r.id}-row-status`,
-                                            eyebrow: '지금 상태',
-                                            title: rowStatusSummary,
-                                            tone: BRAND_TONE.slate,
-                                            eyebrowClassName: 'font-black text-slate-400 uppercase tracking-[0.18em]',
-                                            description: undefined,
-                                        },
-                                        {
-                                            key: `${r.id}-row-evidence`,
-                                            eyebrow: '판단 근거',
-                                            title: rowEvidenceSummary,
-                                            tone: BRAND_TONE.amberSoft,
-                                            eyebrowClassName: 'font-black text-amber-600 uppercase tracking-[0.18em]',
-                                            description: undefined,
-                                        },
-                                        {
-                                            key: `${r.id}-row-action`,
-                                            eyebrow: '다음 행동',
-                                            title: rowNextAction,
-                                            tone: BRAND_TONE.emeraldSoft,
-                                            eyebrowClassName: 'font-black text-emerald-600 uppercase tracking-[0.18em]',
-                                            description: undefined,
-                                        },
-                                    ]}
-                                />
+                                {showWorkerSignalDetails && (
+                                    <StatusEvidenceActionPanel
+                                        className="mt-3 grid grid-cols-1 gap-2 text-[11px]"
+                                        cardClassName="rounded-xl border px-3 py-2"
+                                        titleClassName="mt-1 font-semibold leading-snug text-slate-700"
+                                        descriptionClassName="mt-1 font-semibold leading-snug whitespace-pre-wrap break-words text-slate-700"
+                                        items={[
+                                            {
+                                                key: `${r.id}-row-status`,
+                                                eyebrow: '지금 상태',
+                                                title: rowStatusSummary,
+                                                tone: BRAND_TONE.slate,
+                                                eyebrowClassName: 'font-black text-slate-400 uppercase tracking-[0.18em]',
+                                                description: undefined,
+                                            },
+                                            {
+                                                key: `${r.id}-row-evidence`,
+                                                eyebrow: '판단 근거',
+                                                title: rowEvidenceSummary,
+                                                tone: BRAND_TONE.amberSoft,
+                                                eyebrowClassName: 'font-black text-amber-600 uppercase tracking-[0.18em]',
+                                                description: undefined,
+                                            },
+                                            {
+                                                key: `${r.id}-row-action`,
+                                                eyebrow: '다음 행동',
+                                                title: rowNextAction,
+                                                tone: BRAND_TONE.emeraldSoft,
+                                                eyebrowClassName: 'font-black text-emerald-600 uppercase tracking-[0.18em]',
+                                                description: undefined,
+                                            },
+                                        ]}
+                                    />
+                                )}
 
                                 <div className="mt-3 grid grid-cols-2 gap-2">
                                     <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-3 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl">상세 판단</button>
                                     <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-3 py-2 bg-slate-900 text-white font-black text-xs rounded-xl">보호 리포트</button>
-                                    {failed && preflightReason && (
-                                        <div className="col-span-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-800">
-                                            재분석 사전진단: {preflightReason}
-                                        </div>
-                                    )}
                                     {failed && !isAnalyzing && hasImage && (
                                         <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className={`col-span-2 px-3 py-2 font-bold text-xs rounded-xl border transition-all ${retryActionButtonClass}`}>원문 다시 읽기</button>
                                     )}
-                                    {failed && !isAnalyzing && (
-                                        <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="col-span-2 px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl" title={`${BRAND_STATUS_LABELS.attention} 안내가 필요한 건을 관리자 검토 후 정상 흐름으로 전환`}>관리자 판단으로 유지</button>
+                                    {showWorkerExtraActions && (
+                                        <>
+                                            {failed && preflightReason && (
+                                                <div className="col-span-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-800">
+                                                    재분석 사전진단: {preflightReason}
+                                                </div>
+                                            )}
+                                            {failed && !isAnalyzing && (
+                                                <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="col-span-2 px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl" title={`${BRAND_STATUS_LABELS.attention} 안내가 필요한 건을 관리자 검토 후 정상 흐름으로 전환`}>관리자 판단으로 유지</button>
+                                            )}
+                                            {failed && immediateActions.length > 0 && (
+                                                <div className="col-span-2 grid grid-cols-1 gap-2">
+                                                    {immediateActions.map((action) => (
+                                                        <button
+                                                            key={`${r.id}-${action.type}`}
+                                                            onClick={(e) => { e.stopPropagation(); void handleFailureImmediateAction(r, action.type); }}
+                                                            className={`px-3 py-2 font-bold text-xs rounded-xl transition-all ${action.className}`}
+                                                            title={action.title}
+                                                        >
+                                                            {action.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="col-span-2 px-3 py-2 bg-slate-100 text-slate-500 font-bold text-xs rounded-xl">삭제</button>
+                                        </>
                                     )}
-                                    {failed && immediateActions.length > 0 && (
-                                        <div className="col-span-2 grid grid-cols-1 gap-2">
-                                            {immediateActions.map((action) => (
-                                                <button
-                                                    key={`${r.id}-${action.type}`}
-                                                    onClick={(e) => { e.stopPropagation(); void handleFailureImmediateAction(r, action.type); }}
-                                                    className={`px-3 py-2 font-bold text-xs rounded-xl transition-all ${action.className}`}
-                                                    title={action.title}
-                                                >
-                                                    {action.label}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    )}
-                                    <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="col-span-2 px-3 py-2 bg-slate-100 text-slate-500 font-bold text-xs rounded-xl">삭제</button>
                                 </div>
                             </div>
                         );
@@ -6149,34 +6184,36 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                         사전검증: {preflightReason}
                                                     </span>
                                                 )}
-                                                <StatusEvidenceActionPanel
-                                                    className="mt-2 grid grid-cols-1 gap-1.5 text-[10px] font-semibold"
-                                                    cardClassName="rounded-lg border px-2 py-2"
-                                                    titleClassName="mt-0.5 block text-[10px] font-semibold leading-snug"
-                                                    items={[
-                                                        {
-                                                            key: `${r.id}-row-status`,
-                                                            eyebrow: '지금 상태',
-                                                            title: rowStatusSummary,
-                                                            tone: BRAND_TONE.slateText,
-                                                            eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-slate-400',
-                                                        },
-                                                        {
-                                                            key: `${r.id}-row-evidence`,
-                                                            eyebrow: '판단 근거',
-                                                            title: <span className="whitespace-pre-wrap break-words">{rowEvidenceSummary}</span>,
-                                                            tone: BRAND_TONE.amberSoftTextStrong,
-                                                            eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-amber-600',
-                                                        },
-                                                        {
-                                                            key: `${r.id}-row-action`,
-                                                            eyebrow: '다음 행동',
-                                                            title: rowNextAction,
-                                                            tone: BRAND_TONE.emeraldSoftTextStrong,
-                                                            eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600',
-                                                        },
-                                                    ]}
-                                                />
+                                                {showWorkerSignalDetails && (
+                                                    <StatusEvidenceActionPanel
+                                                        className="mt-2 grid grid-cols-1 gap-1.5 text-[10px] font-semibold"
+                                                        cardClassName="rounded-lg border px-2 py-2"
+                                                        titleClassName="mt-0.5 block text-[10px] font-semibold leading-snug"
+                                                        items={[
+                                                            {
+                                                                key: `${r.id}-row-status`,
+                                                                eyebrow: '지금 상태',
+                                                                title: rowStatusSummary,
+                                                                tone: BRAND_TONE.slateText,
+                                                                eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-slate-400',
+                                                            },
+                                                            {
+                                                                key: `${r.id}-row-evidence`,
+                                                                eyebrow: '판단 근거',
+                                                                title: <span className="whitespace-pre-wrap break-words">{rowEvidenceSummary}</span>,
+                                                                tone: BRAND_TONE.amberSoftTextStrong,
+                                                                eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-amber-600',
+                                                            },
+                                                            {
+                                                                key: `${r.id}-row-action`,
+                                                                eyebrow: '다음 행동',
+                                                                title: rowNextAction,
+                                                                tone: BRAND_TONE.emeraldSoftTextStrong,
+                                                                eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600',
+                                                            },
+                                                        ]}
+                                                    />
+                                                )}
                                             </div>
                                         </td>
                                         <td className="px-4 sm:px-8 py-5 text-slate-500 font-bold">{r.jobField}</td>
@@ -6213,31 +6250,35 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         </td>
                                         <td className="px-4 sm:px-8 py-5 text-right">
                                             <div className="flex justify-end gap-2">
+                                                <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-4 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">상세 판단 바로가기</button>
+                                                <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-4 py-2 bg-slate-900 text-white font-black text-xs rounded-xl hover:bg-black transition-all shadow-sm">보호 리포트 바로가기</button>
                                                 {failed && !isAnalyzing && hasImage && (
                                                     <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className={`px-3 py-2 font-bold text-xs rounded-xl border transition-all ${retryActionButtonClass}`} title={preflightReason || '사전진단 통과'}>
                                                         원문 다시 읽기
                                                     </button>
                                                 )}
-                                                {failed && !isAnalyzing && (
-                                                    <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl hover:bg-amber-200 transition-all" title="다시 확인이 어려운 건을 관리자 확인 후 정상 분류">
-                                                        관리자 판단으로 유지
-                                                    </button>
+                                                {showWorkerExtraActions && (
+                                                    <>
+                                                        {failed && !isAnalyzing && (
+                                                            <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl hover:bg-amber-200 transition-all" title="다시 확인이 어려운 건을 관리자 확인 후 정상 분류">
+                                                                관리자 판단으로 유지
+                                                            </button>
+                                                        )}
+                                                        {failed && immediateActions.map((action) => (
+                                                            <button
+                                                                key={`${r.id}-${action.type}`}
+                                                                onClick={(e) => { e.stopPropagation(); void handleFailureImmediateAction(r, action.type); }}
+                                                                className={`px-3 py-2 font-bold text-xs rounded-xl transition-all ${action.className}`}
+                                                                title={action.title}
+                                                            >
+                                                                {action.label}
+                                                            </button>
+                                                        ))}
+                                                        <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="p-2 bg-slate-100 text-slate-400 hover:bg-rose-500 hover:text-white rounded-xl transition-all" title="삭제">
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                        </button>
+                                                    </>
                                                 )}
-                                                {failed && immediateActions.map((action) => (
-                                                    <button
-                                                        key={`${r.id}-${action.type}`}
-                                                        onClick={(e) => { e.stopPropagation(); void handleFailureImmediateAction(r, action.type); }}
-                                                        className={`px-3 py-2 font-bold text-xs rounded-xl transition-all ${action.className}`}
-                                                        title={action.title}
-                                                    >
-                                                        {action.label}
-                                                    </button>
-                                                ))}
-                                                <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-4 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">상세 판단 바로가기</button>
-                                                <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-4 py-2 bg-slate-900 text-white font-black text-xs rounded-xl hover:bg-black transition-all shadow-sm">보호 리포트 바로가기</button>
-                                                <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="p-2 bg-slate-100 text-slate-400 hover:bg-rose-500 hover:text-white rounded-xl transition-all" title="삭제">
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                                </button>
                                             </div>
                                         </td>
                                     </tr>
