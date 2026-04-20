@@ -2920,6 +2920,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         let preflightFailCount = 0;
         let processingFailCount = 0;
         let serverRouteFailCount = 0;
+        let lastUnhandledBatchErrorMessage = '';
+        let lastUnhandledBatchErrorCode: string | undefined;
         
         // [Adaptive Throttling State]
         // Start with a 4s buffer. If we hit limits, increase this dynamically.
@@ -2934,14 +2936,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 const record = processQueue[i];
                 setBatchProgress(p => ({ ...p, current: i + 1 }));
                 setProgress(`[${title}] ${record.name || '미상'} 처리 중...`);
-                // 2차 재가공 시작: 상태 IN_PROGRESS
-                onUpdateRecord(withHarnessState(record, {
-                    secondPassStatus: 'IN_PROGRESS',
-                    workflowState: 'second_pass_analyzing',
-                    riskDecision: 'SUPPLEMENTARY_REVIEW',
-                    approvalState: 'PENDING',
-                }));
                 try {
+                    // 2차 재가공 시작: 상태 IN_PROGRESS
+                    onUpdateRecord(withHarnessState(record, {
+                        secondPassStatus: 'IN_PROGRESS',
+                        workflowState: 'second_pass_analyzing',
+                        riskDecision: 'SUPPLEMENTARY_REVIEW',
+                        approvalState: 'PENDING',
+                    }));
+
                     const retryImageSource = getBestRetryImageSource(record);
 
                     if (!retryImageSource) {
@@ -3456,8 +3459,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             }
         } catch (globalErr: unknown) {
             const gMsg = extractMessage(globalErr);
+            const gCode = extractGatewayErrorCode(gMsg) || lastServerRouteErrorCode;
+            lastUnhandledBatchErrorMessage = gMsg;
+            lastUnhandledBatchErrorCode = gCode;
             console.error("Global Batch Error:", gMsg);
-            alert("일괄 처리 중 예상치 못한 오류가 발생하여 중단되었습니다.");
+            alert(
+                `일괄 처리 중 예상치 못한 오류가 발생하여 중단되었습니다.\n\n` +
+                `- 오류 코드: ${gCode || 'UNKNOWN'}\n` +
+                `- 오류 메시지: ${gMsg || '알 수 없는 오류'}\n\n` +
+                `오류 코드를 관리자에게 전달해 원인 확인을 진행해 주세요.`
+            );
         } finally {
             setIsAnalyzing(false);
             setProgress('');
@@ -3472,7 +3483,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             const fallbackRecoveryState = fallbackOpportunity <= 0
                 ? '집계 대기'
                 : (Number(fallbackRecoveryRateText.replace('%', '')) < 30 ? '위험' : Number(fallbackRecoveryRateText.replace('%', '')) < 70 ? '주의' : '안정');
-            const reasonsReport = `\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 폴백 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}\n- 폴백 회복률: ${fallbackRecoveryRateText} (${fallbackRecoveryState})`;
+            const reasonsReport = `\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 폴백 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}\n- 폴백 회복률: ${fallbackRecoveryRateText} (${fallbackRecoveryState})${lastUnhandledBatchErrorMessage ? `\n- 전역중단코드: ${lastUnhandledBatchErrorCode || 'UNKNOWN'}\n- 전역중단메시지: ${lastUnhandledBatchErrorMessage.slice(0, 140)}` : ''}`;
             
             if (stopped) {
                 alert(`${modeLabel} 분석이 중단되었습니다.\n(완료: ${successCount}, ${BRAND_STATUS_LABELS.attentionPending}: ${failCount})${reasonsReport}`);
