@@ -403,8 +403,24 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     useEffect(() => {
         const savedSettings = localStorage.getItem('psi_app_settings');
         setIsPaidApiModeState(getIsPaidApiMode());
-        setFreeApiKey(localStorage.getItem('freeApiKey') || '');
-        setPaidApiKey(localStorage.getItem('paidApiKey') || '');
+
+        const savedFreeKey = localStorage.getItem('freeApiKey') || '';
+        const savedPaidKey = localStorage.getItem('paidApiKey') || '';
+        const envFreeKey = import.meta.env.VITE_GEMINI_API_KEY_FREE || '';
+        const envPaidKey = import.meta.env.VITE_GEMINI_API_KEY_PAID || '';
+
+        const resolvedFreeKey = savedFreeKey || envFreeKey;
+        const resolvedPaidKey = savedPaidKey || envPaidKey;
+
+        if (!savedFreeKey && envFreeKey) {
+            localStorage.setItem('freeApiKey', envFreeKey);
+        }
+        if (!savedPaidKey && envPaidKey) {
+            localStorage.setItem('paidApiKey', envPaidKey);
+        }
+
+        setFreeApiKey(resolvedFreeKey);
+        setPaidApiKey(resolvedPaidKey);
         setAdminPinState(localStorage.getItem('adminPin') || '');
         if (savedSettings) {
             try {

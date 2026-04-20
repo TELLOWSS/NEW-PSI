@@ -53,6 +53,38 @@ const getActiveApiKey = (): string => {
     return '';
 };
 
+const getApiKeyForMode = (options?: {
+    isPaidApiMode?: boolean;
+    freeLocalKey?: string;
+    paidLocalKey?: string;
+    freeEnvKey?: string;
+    paidEnvKey?: string;
+}): { apiKey: string; keyStatus: ReturnType<typeof resolveOcrExecutionKeyStatus> } => {
+    const isPaidApiMode = options?.isPaidApiMode ?? getIsPaidApiMode();
+    const keyStatus = resolveOcrExecutionKeyStatus({
+        isPaidApiMode,
+        freeLocalKey: options?.freeLocalKey,
+        paidLocalKey: options?.paidLocalKey,
+        freeEnvKey: options?.freeEnvKey,
+        paidEnvKey: options?.paidEnvKey,
+    });
+
+    if (!keyStatus.ready) {
+        return { apiKey: '', keyStatus };
+    }
+
+    const localFree = String(options?.freeLocalKey ?? localStorage.getItem('freeApiKey') || '').trim();
+    const localPaid = String(options?.paidLocalKey ?? localStorage.getItem('paidApiKey') || '').trim();
+    const envFree = String(options?.freeEnvKey ?? import.meta.env.VITE_GEMINI_API_KEY_FREE || '').trim();
+    const envPaid = String(options?.paidEnvKey ?? import.meta.env.VITE_GEMINI_API_KEY_PAID || '').trim();
+
+    if (keyStatus.source === 'local-primary') return { apiKey: isPaidApiMode ? localPaid : localFree, keyStatus };
+    if (keyStatus.source === 'env-primary') return { apiKey: isPaidApiMode ? envPaid : envFree, keyStatus };
+    if (keyStatus.source === 'local-secondary') return { apiKey: isPaidApiMode ? localFree : localPaid, keyStatus };
+    if (keyStatus.source === 'env-secondary') return { apiKey: isPaidApiMode ? envFree : envPaid, keyStatus };
+    return { apiKey: '', keyStatus };
+};
+
     const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {
         let timer: ReturnType<typeof setTimeout> | null = null;
         try {
@@ -128,6 +160,66 @@ const getAiInstance = () => {
     }
 
     return new GoogleGenAI({ apiKey });
+};
+
+const verifyActiveOcrApiKey = async (): Promise<{
+    ok: boolean;
+    failureCode?: OcrFailureCode;
+    message: string;
+    sourceLabel: string;
+    modeLabel: string;
+}> => verifyOcrApiKeyByMode();
+
+const verifyOcrApiKeyByMode = async (options?: {
+    isPaidApiMode?: boolean;
+    freeLocalKey?: string;
+    paidLocalKey?: string;
+}): Promise<{
+    ok: boolean;
+    failureCode?: OcrFailureCode;
+    message: string;
+    sourceLabel: string;
+    modeLabel: string;
+}> => {
+    const { apiKey, keyStatus } = getApiKeyForMode(options);
+
+    if (!keyStatus.ready) {
+        return {
+            ok: false,
+            failureCode: 'KEY',
+            message: '활성 OCR 실행 키가 설정되지 않았습니다.',
+            sourceLabel: keyStatus.sourceLabel,
+            modeLabel: keyStatus.modeApiLabel,
+        };
+    }
+
+    try {
+        const ai = new GoogleGenAI({ apiKey });
+        await ai.models.generateContent({
+            model: OCR_MODEL_STABLE_FALLBACK,
+            contents: 'ping',
+            config: {
+                temperature: 0,
+                maxOutputTokens: 4,
+            },
+        });
+
+        return {
+            ok: true,
+            message: '활성 OCR 실행 키 확인 완료',
+            sourceLabel: keyStatus.sourceLabel,
+            modeLabel: keyStatus.modeApiLabel,
+        };
+    } catch (error) {
+        const message = extractMessage(error);
+        return {
+            ok: false,
+            failureCode: isRateLimitError(message) ? 'QUOTA' : inferOcrFailureCode(message),
+            message,
+            sourceLabel: keyStatus.sourceLabel,
+            modeLabel: keyStatus.modeApiLabel,
+        };
+    }
 };
 
 const toVectorLiteral = (vector: number[]): string => {
@@ -1749,6 +1841,8 @@ export {
     setQuotaExhausted,
     clearQuotaState,
     isRateLimitError,
+    verifyActiveOcrApiKey,
+    verifyOcrApiKeyByMode,
     inferOcrFailureCode,
     validateImageFormat,
     isFormatCompatibleWithAI

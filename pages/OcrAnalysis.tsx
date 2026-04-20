@@ -2,7 +2,7 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { FileUpload } from '../components/FileUpload';
 import { Spinner } from '../components/Spinner';
-import { analyzeWorkerRiskAssessment, updateAnalysisBasedOnEdits, getQuotaState, setQuotaExhausted, clearQuotaState, isRateLimitError, inferOcrFailureCode, validateImageFormat, isFormatCompatibleWithAI } from '../services/geminiService';
+import { analyzeWorkerRiskAssessment, updateAnalysisBasedOnEdits, getQuotaState, setQuotaExhausted, clearQuotaState, isRateLimitError, inferOcrFailureCode, validateImageFormat, isFormatCompatibleWithAI, verifyActiveOcrApiKey } from '../services/geminiService';
 import { extractMessage } from '../utils/errorUtils';
 import type { WorkerRecord, OcrErrorType, OcrFailureCode, AppSettings, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState, OcrUnknownSubCategory } from '../types';
 import { fileToBase64 } from '../utils/fileUtils';
@@ -3803,11 +3803,29 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         setFilterStatus(failedOnlyDefault ? 'failed' : 'all');
     }, [failedOnlyDefault]);
 
-    const handleBatchReanalyze = () => {
+    const ensureOcrExecutionPreflight = useCallback(async (): Promise<boolean> => {
+        const verified = await verifyActiveOcrApiKey();
+        if (verified.ok) return true;
+
+        const prefix = verified.failureCode === 'QUOTA'
+            ? 'OCR 실행 키는 확인되었지만 현재 할당량/호출 제한 상태입니다.'
+            : verified.failureCode === 'KEY'
+                ? 'OCR 실행 키가 유효하지 않거나 권한이 없습니다.'
+                : 'OCR 실행 전 사전검증에 실패했습니다.';
+
+        alert(
+            `${prefix}\n현재 모드: ${verified.modeLabel}\n키 출처: ${verified.sourceLabel}\n실패 코드: ${verified.failureCode || 'UNKNOWN'}\n\n${verified.message}`
+        );
+        return false;
+    }, []);
+
+    const handleBatchReanalyze = async () => {
         if (!ocrExecutionKeyStatus.ready) {
             alert(`OCR 실행 키가 설정되지 않았습니다.\n현재 모드: ${ocrExecutionKeyStatus.modeApiLabel}\n키 출처: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 API 키를 먼저 등록해 주세요.`);
             return;
         }
+
+        if (!(await ensureOcrExecutionPreflight())) return;
 
         const splitSize = getBatchSplitSize();
         const total = recordsWithImages.length;
@@ -3822,11 +3840,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         }
     };
 
-    const handleRetryFailed = () => {
+    const handleRetryFailed = async () => {
         if (!ocrExecutionKeyStatus.ready) {
             alert(`OCR 실행 키가 설정되지 않았습니다.\n현재 모드: ${ocrExecutionKeyStatus.modeApiLabel}\n키 출처: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 API 키를 먼저 등록해 주세요.`);
             return;
         }
+
+        if (!(await ensureOcrExecutionPreflight())) return;
 
         const hardTargets = failedRecords.filter(isHardRetryTarget);
         if (hardTargets.length === 0) {
@@ -3839,11 +3859,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         }
     };
 
-    const handleForceReanalyze = () => {
+    const handleForceReanalyze = async () => {
         if (!ocrExecutionKeyStatus.ready) {
             alert(`OCR 실행 키가 설정되지 않았습니다.\n현재 모드: ${ocrExecutionKeyStatus.modeApiLabel}\n키 출처: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 API 키를 먼저 등록해 주세요.`);
             return;
         }
+
+        if (!(await ensureOcrExecutionPreflight())) return;
 
         if (failedRecords.length === 0) {
             alert(`재분석할 ${BRAND_STATUS_LABELS.attentionPending} 건이 없습니다.`);
