@@ -2922,6 +2922,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         let serverRouteFailCount = 0;
         let lastUnhandledBatchErrorMessage = '';
         let lastUnhandledBatchErrorCode: string | undefined;
+        let lastObservedServerRouteErrorCode: string | undefined;
         
         // [Adaptive Throttling State]
         // Start with a 4s buffer. If we hit limits, increase this dynamically.
@@ -3147,6 +3148,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const serverMessage = extractMessage(serverError);
                                 lastServerRouteErrorMessage = serverMessage;
                                 lastServerRouteErrorCode = extractGatewayErrorCode(serverMessage);
+                                if (lastServerRouteErrorCode) {
+                                    lastObservedServerRouteErrorCode = lastServerRouteErrorCode;
+                                }
                                 const normalizedServerMessage = serverMessage.toLowerCase();
                                 const normalizedServerCode = String(lastServerRouteErrorCode || '').toUpperCase();
                                 const shouldBypassClientFallback = [
@@ -3235,6 +3239,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             const parsedGatewayCode = extractGatewayErrorCode(lastRetryErrorMessage);
                             if (parsedGatewayCode) {
                                 lastServerRouteErrorCode = parsedGatewayCode;
+                                lastObservedServerRouteErrorCode = parsedGatewayCode;
                             }
                             const normalizedErr = String(errMsg || '').toLowerCase();
                             const isTransientRetryableError =
@@ -3420,7 +3425,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     console.error("Batch Error:", err);
                     const catchGatewayCode = extractGatewayErrorCode(errMsg);
                     const catchMappedFailureCode = mapGatewayCodeToFailureCode(catchGatewayCode);
-                    const lastServerMappedFailureCode = mapGatewayCodeToFailureCode(lastServerRouteErrorCode);
+                    const lastServerMappedFailureCode = mapGatewayCodeToFailureCode(lastObservedServerRouteErrorCode);
                     const failureCode = catchMappedFailureCode || lastServerMappedFailureCode || inferOcrFailureCode(errMsg);
                     const errorRecord: WorkerRecord = withHarnessState(record, {
                         ...record,
@@ -3459,7 +3464,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             }
         } catch (globalErr: unknown) {
             const gMsg = extractMessage(globalErr);
-            const gCode = extractGatewayErrorCode(gMsg) || lastServerRouteErrorCode;
+            const gCode = extractGatewayErrorCode(gMsg) || lastObservedServerRouteErrorCode;
             lastUnhandledBatchErrorMessage = gMsg;
             lastUnhandledBatchErrorCode = gCode;
             console.error("Global Batch Error:", gMsg);
