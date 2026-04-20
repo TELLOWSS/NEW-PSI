@@ -2964,6 +2964,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         let preflightFailCount = 0;
         let processingFailCount = 0;
         let serverRouteFailCount = 0;
+        let keyFailureCount = 0;
+        let consecutiveKeyFailureCount = 0;
+        const KEY_FAILURE_ABORT_THRESHOLD = 3;
+        let keyFailureAbortTriggered = false;
         let lastUnhandledBatchErrorMessage = '';
         let lastUnhandledBatchErrorCode: string | undefined;
         let lastObservedServerRouteErrorCode: string | undefined;
@@ -3172,6 +3176,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     let lastRetryErrorMessage = '';
                     let lastServerRouteErrorCode: string | undefined;
                     let lastServerRouteErrorMessage = '';
+                    let serverRouteFailedForCurrentRecord = false;
+                    let serverRouteFailureCountedForCurrentRecord = false;
                     const MAX_RETRIES = OCR_POLICY.RETRY_POLICY.maxRetries; // P1.3: policy-driven
                     let usedClientFallback = false;
 
@@ -3192,6 +3198,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const serverMessage = extractMessage(serverError);
                                 lastServerRouteErrorMessage = serverMessage;
                                 lastServerRouteErrorCode = extractGatewayErrorCode(serverMessage);
+                                serverRouteFailedForCurrentRecord = true;
                                 if (lastServerRouteErrorCode) {
                                     lastObservedServerRouteErrorCode = lastServerRouteErrorCode;
                                 }
@@ -3407,14 +3414,30 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         if (isFailedRecord(harnessSyncedRecord)) {
                             failCount++;
                             processingFailCount++;
+                            const failedCode = resolveFailureCodeFromRecord(harnessSyncedRecord);
+                            if (failedCode === 'KEY') {
+                                keyFailureCount++;
+                                consecutiveKeyFailureCount++;
+                            } else {
+                                consecutiveKeyFailureCount = 0;
+                            }
+                            if (serverRouteFailedForCurrentRecord && !serverRouteFailureCountedForCurrentRecord) {
+                                serverRouteFailCount++;
+                                serverRouteFailureCountedForCurrentRecord = true;
+                            }
                             const next = incrementApiCallCount('fail');
                             setDailyCounter(next);
                         } else {
                             successCount++;
+                            consecutiveKeyFailureCount = 0;
                             if (usedClientFallback) {
                                 clientFallbackSuccessCount++;
                             } else {
                                 serverSuccessCount++;
+                            }
+                            if (serverRouteFailedForCurrentRecord && !serverRouteFailureCountedForCurrentRecord) {
+                                serverRouteFailCount++;
+                                serverRouteFailureCountedForCurrentRecord = true;
                             }
                             const next = incrementApiCallCount('success');
                             setDailyCounter(next);
@@ -3431,6 +3454,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             serverRouteFail: serverRouteFailCount,
                             lastUpdatedAt: new Date().toISOString(),
                         });
+
+                        if (!keyFailureAbortTriggered && successCount === 0 && consecutiveKeyFailureCount >= KEY_FAILURE_ABORT_THRESHOLD) {
+                            keyFailureAbortTriggered = true;
+                            stopped = true;
+                            stopRef.current = true;
+                            alert(
+                                `KEY/권한 실패가 연속 ${consecutiveKeyFailureCount}건 발생하여 일괄 재분석을 중단했습니다.\n\n` +
+                                `현재 모드의 실행 키와 권한/할당량 상태를 먼저 확인한 뒤 다시 실행해 주세요.\n` +
+                                `설정 화면의 OCR 실행 키 출처/모드가 실제 운영키와 일치하는지 점검이 필요합니다.`
+                            );
+                            break;
+                        }
 
                         // Adaptive Rate Limit Buffer
                         if (i < processQueue.length - 1) {
@@ -3470,6 +3505,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         onUpdateRecord(await syncHarnessReanalyzeResult(errorRecord, record));
                         failCount++;
                         processingFailCount++;
+                        if (failureCode === 'KEY') {
+                            keyFailureCount++;
+                            consecutiveKeyFailureCount++;
+                        } else {
+                            consecutiveKeyFailureCount = 0;
+                        }
+                        if (serverRouteFailedForCurrentRecord && !serverRouteFailureCountedForCurrentRecord) {
+                            serverRouteFailCount++;
+                            serverRouteFailureCountedForCurrentRecord = true;
+                        }
                         setRetryDiagnostics({
                             total,
                             success: successCount,
@@ -3481,6 +3526,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             serverRouteFail: serverRouteFailCount,
                             lastUpdatedAt: new Date().toISOString(),
                         });
+                        if (!keyFailureAbortTriggered && successCount === 0 && consecutiveKeyFailureCount >= KEY_FAILURE_ABORT_THRESHOLD) {
+                            keyFailureAbortTriggered = true;
+                            stopped = true;
+                            stopRef.current = true;
+                            alert(
+                                `KEY/권한 실패가 연속 ${consecutiveKeyFailureCount}건 발생하여 일괄 재분석을 중단했습니다.\n\n` +
+                                `현재 모드의 실행 키와 권한/할당량 상태를 먼저 확인한 뒤 다시 실행해 주세요.\n` +
+                                `설정 화면의 OCR 실행 키 출처/모드가 실제 운영키와 일치하는지 점검이 필요합니다.`
+                            );
+                            break;
+                        }
                         // Safety cooldown even on fail
                         await waitWithCountdown(2, "오류 복구 중");
                     }
@@ -3515,6 +3571,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     onUpdateRecord(await syncHarnessReanalyzeResult(errorRecord, record));
                     failCount++;
                     processingFailCount++;
+                    if (failureCode === 'KEY') {
+                        keyFailureCount++;
+                        consecutiveKeyFailureCount++;
+                    } else {
+                        consecutiveKeyFailureCount = 0;
+                    }
                     setRetryDiagnostics({
                         total,
                         success: successCount,
@@ -3526,6 +3588,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         serverRouteFail: serverRouteFailCount,
                         lastUpdatedAt: new Date().toISOString(),
                     });
+                    if (!keyFailureAbortTriggered && successCount === 0 && consecutiveKeyFailureCount >= KEY_FAILURE_ABORT_THRESHOLD) {
+                        keyFailureAbortTriggered = true;
+                        stopped = true;
+                        stopRef.current = true;
+                        alert(
+                            `KEY/권한 실패가 연속 ${consecutiveKeyFailureCount}건 발생하여 일괄 재분석을 중단했습니다.\n\n` +
+                            `현재 모드의 실행 키와 권한/할당량 상태를 먼저 확인한 뒤 다시 실행해 주세요.\n` +
+                            `설정 화면의 OCR 실행 키 출처/모드가 실제 운영키와 일치하는지 점검이 필요합니다.`
+                        );
+                        break;
+                    }
                 }
             }
         } catch (globalErr: unknown) {
@@ -3554,7 +3627,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             const fallbackRecoveryState = fallbackOpportunity <= 0
                 ? '집계 대기'
                 : (Number(fallbackRecoveryRateText.replace('%', '')) < 30 ? '위험' : Number(fallbackRecoveryRateText.replace('%', '')) < 70 ? '주의' : '안정');
-            const reasonsReport = `\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 폴백 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}\n- 폴백 회복률: ${fallbackRecoveryRateText} (${fallbackRecoveryState})${lastUnhandledBatchErrorMessage ? `\n- 전역중단코드: ${lastUnhandledBatchErrorCode || 'UNKNOWN'}\n- 전역중단메시지: ${lastUnhandledBatchErrorMessage.slice(0, 140)}` : ''}`;
+            const reasonsReport = `\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 폴백 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}\n- KEY/권한 실패: ${keyFailureCount}\n- 폴백 회복률: ${fallbackRecoveryRateText} (${fallbackRecoveryState})${keyFailureAbortTriggered ? `\n- 자동중단: KEY 연속 실패 ${consecutiveKeyFailureCount}건` : ''}${lastUnhandledBatchErrorMessage ? `\n- 전역중단코드: ${lastUnhandledBatchErrorCode || 'UNKNOWN'}\n- 전역중단메시지: ${lastUnhandledBatchErrorMessage.slice(0, 140)}` : ''}`;
             
             if (stopped) {
                 alert(`${modeLabel} 분석이 중단되었습니다.\n(완료: ${successCount}, ${BRAND_STATUS_LABELS.attentionPending}: ${failCount})${reasonsReport}`);
