@@ -972,7 +972,6 @@ async function handleOcrRetry(req: any, res: any) {
             latencyMs: traceLatencyMs,
             attempts: result.attempts,
             fallbackDepth: result.fallbackDepth,
-            finalCode: 'OK',
             recordedAt: new Date().toISOString(),
         },
     });

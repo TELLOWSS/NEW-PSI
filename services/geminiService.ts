@@ -6,6 +6,7 @@ import { extractMessage } from '../utils/errorUtils';
 import { deriveIntegrityScore, enforceSafetyLevel } from '../utils/evidenceUtils';
 import { getSafetyLevelFromScore, getSafetyLevelThresholds } from '../utils/safetyLevelUtils';
 import { getIsPaidApiMode } from '../utils/apiModeUtils';
+import { resolveOcrExecutionKeyStatus } from '../utils/ocrExecutionKeyStatus';
 import { supabase } from '../lib/supabaseClient';
 
 /**
@@ -36,21 +37,20 @@ type BestPracticeCase = {
 
 const getActiveApiKey = (): string => {
     const isPaidApiMode = getIsPaidApiMode();
-    const primaryLocalKey = isPaidApiMode
-        ? (localStorage.getItem('paidApiKey') || '')
-        : (localStorage.getItem('freeApiKey') || '');
-    const primaryEnvKey = isPaidApiMode
-        ? (import.meta.env.VITE_GEMINI_API_KEY_PAID || '')
-        : (import.meta.env.VITE_GEMINI_API_KEY_FREE || '');
+    const status = resolveOcrExecutionKeyStatus({ isPaidApiMode });
 
-    const secondaryLocalKey = isPaidApiMode
-        ? (localStorage.getItem('freeApiKey') || '')
-        : (localStorage.getItem('paidApiKey') || '');
-    const secondaryEnvKey = isPaidApiMode
-        ? (import.meta.env.VITE_GEMINI_API_KEY_FREE || '')
-        : (import.meta.env.VITE_GEMINI_API_KEY_PAID || '');
+    if (!status.ready) return '';
 
-    return String(primaryLocalKey || primaryEnvKey || secondaryLocalKey || secondaryEnvKey || '').trim();
+    const localFree = String(localStorage.getItem('freeApiKey') || '').trim();
+    const localPaid = String(localStorage.getItem('paidApiKey') || '').trim();
+    const envFree = String(import.meta.env.VITE_GEMINI_API_KEY_FREE || '').trim();
+    const envPaid = String(import.meta.env.VITE_GEMINI_API_KEY_PAID || '').trim();
+
+    if (status.source === 'local-primary') return isPaidApiMode ? localPaid : localFree;
+    if (status.source === 'env-primary') return isPaidApiMode ? envPaid : envFree;
+    if (status.source === 'local-secondary') return isPaidApiMode ? localFree : localPaid;
+    if (status.source === 'env-secondary') return isPaidApiMode ? envFree : envPaid;
+    return '';
 };
 
     const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> => {

@@ -26,6 +26,8 @@ import { StatusEvidenceActionPanel } from '../components/shared/StatusEvidenceAc
 import { analyzeHarnessRecord, reanalyzeHarnessRecord } from '../services/harnessService';
 import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
 import { useMobileBackGuard } from '../hooks/useMobileBackGuard';
+import { API_MODE_CHANGED_EVENT, getIsPaidApiMode } from '../utils/apiModeUtils';
+import { resolveOcrExecutionKeyStatus } from '../utils/ocrExecutionKeyStatus';
 
 const buildMasterDataLoadErrorMessage = (rawMessage?: string) => {
     const message = String(rawMessage || '알 수 없는 오류');
@@ -576,6 +578,22 @@ const resolveFailureCodeFromRecord = (record: WorkerRecord): OcrFailureCode => {
     return inferred;
 };
 
+const normalizeFailureCode = (value: unknown): OcrFailureCode | undefined => {
+    const normalized = String(value || '').trim().toUpperCase();
+    switch (normalized) {
+        case 'QUOTA':
+        case 'KEY':
+        case 'FORMAT':
+        case 'PARSE':
+        case 'PAYLOAD':
+        case 'NETWORK':
+        case 'UNKNOWN':
+            return normalized;
+        default:
+            return undefined;
+    }
+};
+
 // [강화된 실패 판단 로직 - 안전성 강화]
 const isFailedRecord = (r: WorkerRecord): boolean => {
     if (r.ocrErrorType) return true;
@@ -618,6 +636,11 @@ const hasOperationalFailureSignal = (record: Partial<WorkerRecord>): boolean => 
  * 에러 메시지/insights 텍스트를 바탕으로 sub-category를 결정한다.
  */
 const classifyUnknownSubCategory = (record: Partial<WorkerRecord>): import('../types').OcrUnknownSubCategory => {
+    const explicitFailureCode = String(record.ocrFailureCode || '').toUpperCase();
+    if (explicitFailureCode === 'KEY' || explicitFailureCode === 'QUOTA') return 'policy-like';
+    if (explicitFailureCode === 'NETWORK') return 'network-like';
+    if (explicitFailureCode === 'PARSE' || explicitFailureCode === 'FORMAT' || explicitFailureCode === 'PAYLOAD') return 'parse-like';
+
     const combined = `${String(record.ocrErrorMessage || '')} ${String(record.aiInsights || '')}`.toLowerCase();
     if (
         combined.includes('failed to fetch') || combined.includes('network') ||
@@ -1055,6 +1078,22 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [showWorkerSignalDetails, setShowWorkerSignalDetails] = useState(false);
     const [showWorkerExtraActions, setShowWorkerExtraActions] = useState(false);
     const [showAllFailureCodeCards, setShowAllFailureCodeCards] = useState(false);
+    const [isPaidApiMode, setIsPaidApiMode] = useState<boolean>(() => getIsPaidApiMode());
+
+    useEffect(() => {
+        const syncApiMode = () => setIsPaidApiMode(getIsPaidApiMode());
+        syncApiMode();
+        window.addEventListener(API_MODE_CHANGED_EVENT, syncApiMode);
+        window.addEventListener('storage', syncApiMode);
+        return () => {
+            window.removeEventListener(API_MODE_CHANGED_EVENT, syncApiMode);
+            window.removeEventListener('storage', syncApiMode);
+        };
+    }, []);
+
+    const ocrExecutionKeyStatus = useMemo(() => resolveOcrExecutionKeyStatus({
+        isPaidApiMode,
+    }), [isPaidApiMode]);
 
     const syncHarnessAnalyzeResult = useCallback(async (record: WorkerRecord, fileNameOverride?: string) => {
         const fallbackPatch: Partial<WorkerRecord> = {
@@ -2323,12 +2362,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         const recent7d = existingRecords.filter(r => (now - getLatestRecordActivityTimestamp(r)) <= ms7d);
         const failRate = (arr: typeof existingRecords) => arr.length === 0 ? 0 : Math.round((arr.filter(r => isFailedRecord(r)).length / arr.length) * 100);
         const unknownRate = (arr: typeof existingRecords) => arr.length === 0 ? 0 : Math.round((arr.filter(r => resolveFailureCodeFromRecord(r) === 'UNKNOWN').length / arr.length) * 100);
+        const serverSuccessRate = (arr: typeof existingRecords) => arr.length === 0
+            ? 0
+            : Math.round((arr.filter(r => r.ocrTrace?.providerUsed === 'server_gemini' && !isFailedRecord(r)).length / arr.length) * 100);
         const failRate24 = failRate(recent24);
         const failRate7d = failRate(recent7d);
         const delta = failRate24 - failRate7d;
         return {
             recent24Total: recent24.length,
             recent7dTotal: recent7d.length,
+            serverSuccessRate24: serverSuccessRate(recent24),
+            serverSuccessRate7d: serverSuccessRate(recent7d),
             failRate24,
             failRate7d,
             unknownRate24: unknownRate(recent24),
@@ -2828,7 +2872,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     latencyMs: Number(data.trace.latencyMs) || 0,
                     attempts: Number(data.trace.attempts) || 1,
                     fallbackDepth: Number(data.trace.fallbackDepth) || 0,
-                    finalCode: data.trace.finalCode,
+                    finalCode: normalizeFailureCode(data.trace.finalCode),
                     recordedAt: data.trace.recordedAt ?? new Date().toISOString(),
                 }
                 : undefined,
@@ -3161,6 +3205,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     'HTTP_403',
                                     'HTTP_429',
                                 ].includes(normalizedServerCode);
+                                const isServerCredentialCode = [
+                                    'MISSING_SERVER_GEMINI_KEY',
+                                    'OCR_UPSTREAM_AUTH',
+                                    'HTTP_401',
+                                    'HTTP_403',
+                                ].includes(normalizedServerCode);
                                 const shouldBypassClientFallback = [
                                     'OCR_INVALID_ARGUMENT',
                                     'UNSUPPORTED_IMAGE_FORMAT',
@@ -3210,7 +3260,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const fallbackRecoverySeconds = fallbackQuotaState.isExhausted
                                     ? Math.ceil((fallbackQuotaState.nextRetryTime - Date.now()) / 1000)
                                     : 0;
-                                if (fallbackRecoverySeconds > 0) {
+                                // 서버 키/권한 실패 경로에서는 브라우저 쿼터 잠금 상태를 우회해 실제 폴백 가능 여부를 확인한다.
+                                if (isServerCredentialCode) {
+                                    clearQuotaState();
+                                }
+                                if (fallbackRecoverySeconds > 0 && !isServerCredentialCode) {
                                     throw new Error(`[OCR_QUOTA] 브라우저 OCR 할당량 회복 대기 중입니다. 약 ${fallbackRecoverySeconds}초 후 재시도해주세요.`);
                                 }
                                 const fallbackImageSource = retryImageSource || cleanImage;
@@ -3677,6 +3731,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, [failedOnlyDefault]);
 
     const handleBatchReanalyze = () => {
+        if (!ocrExecutionKeyStatus.ready) {
+            alert(`OCR 실행 키가 설정되지 않았습니다.\n현재 모드: ${ocrExecutionKeyStatus.modeApiLabel}\n키 출처: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 API 키를 먼저 등록해 주세요.`);
+            return;
+        }
+
         const splitSize = getBatchSplitSize();
         const total = recordsWithImages.length;
         const splitWarning = total > splitSize
@@ -3691,6 +3750,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     };
 
     const handleRetryFailed = () => {
+        if (!ocrExecutionKeyStatus.ready) {
+            alert(`OCR 실행 키가 설정되지 않았습니다.\n현재 모드: ${ocrExecutionKeyStatus.modeApiLabel}\n키 출처: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 API 키를 먼저 등록해 주세요.`);
+            return;
+        }
+
         const hardTargets = failedRecords.filter(isHardRetryTarget);
         if (hardTargets.length === 0) {
             alert('다시 확인할 우선 점검 건이 없습니다.\n(점수 미달/저신뢰 건은 개별 검토를 권장합니다.)');
@@ -3703,6 +3767,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     };
 
     const handleForceReanalyze = () => {
+        if (!ocrExecutionKeyStatus.ready) {
+            alert(`OCR 실행 키가 설정되지 않았습니다.\n현재 모드: ${ocrExecutionKeyStatus.modeApiLabel}\n키 출처: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 API 키를 먼저 등록해 주세요.`);
+            return;
+        }
+
         if (failedRecords.length === 0) {
             alert(`재분석할 ${BRAND_STATUS_LABELS.attentionPending} 건이 없습니다.`);
             return;
@@ -4289,10 +4358,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 {/* P0: 24h/7d 비교 패널 */}
                                 {failureTrendComparison.recent7dTotal > 0 && (
                                     <div className={`mt-2 p-2.5 rounded-xl border ${failureTrendComparison.trend === 'up' ? 'bg-rose-950/40 border-rose-700/40' : failureTrendComparison.trend === 'down' ? 'bg-emerald-950/40 border-emerald-700/40' : 'bg-slate-900/50 border-slate-700/40'}`}>
-                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">전/후 추세 (24h vs 7d 평균)</p>
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">전/후 비교 (24h vs 7d)</p>
                                         <div className="flex flex-wrap gap-1.5 text-[10px] font-bold">
                                             <span className="px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-600/40 text-slate-200">
-                                                실패율 24h {failureTrendComparison.failRate24}% · 7d {failureTrendComparison.failRate7d}%
+                                                서버성공 24h {failureTrendComparison.serverSuccessRate24}% · 7d {failureTrendComparison.serverSuccessRate7d}%
+                                            </span>
+                                            <span className="px-2 py-0.5 rounded-full bg-slate-800/60 border border-slate-600/40 text-slate-200">
+                                                처리실패 24h {failureTrendComparison.failRate24}% · 7d {failureTrendComparison.failRate7d}%
                                                 {failureTrendComparison.trend === 'up' && <span className="ml-1 text-rose-300">▲ 악화</span>}
                                                 {failureTrendComparison.trend === 'down' && <span className="ml-1 text-emerald-300">▼ 개선</span>}
                                                 {failureTrendComparison.trend === 'stable' && <span className="ml-1 text-slate-400">─ 안정</span>}
@@ -4327,7 +4399,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         {failedRecords.length > 0 && !isAnalyzing && (
                             <button 
                                 onClick={handleRetryFailed}
-                                className="w-full px-5 py-3 bg-rose-600 hover:bg-rose-700 rounded-2xl font-black text-sm shadow-xl transition-all border border-rose-500 flex items-center justify-center gap-2 group"
+                                disabled={!ocrExecutionKeyStatus.ready}
+                                className={`w-full px-5 py-3 rounded-2xl font-black text-sm shadow-xl transition-all border flex items-center justify-center gap-2 group ${ocrExecutionKeyStatus.ready ? 'bg-rose-600 hover:bg-rose-700 border-rose-500' : 'bg-slate-700 border-slate-600 text-slate-300 cursor-not-allowed'}`}
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                                 {BRAND_STATUS_LABELS.attentionPending} 건 {BRAND_ACTION_LABELS.smartReanalyze} ({failedRecords.length})
@@ -4338,7 +4411,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         {failedRecords.length > 0 && !isAnalyzing && (
                             <button 
                                 onClick={handleForceReanalyze}
-                                className="w-full px-5 py-3 bg-red-700 hover:bg-red-800 rounded-2xl font-black text-sm shadow-xl transition-all border border-red-600 flex items-center justify-center gap-2 group"
+                                disabled={!ocrExecutionKeyStatus.ready}
+                                className={`w-full px-5 py-3 rounded-2xl font-black text-sm shadow-xl transition-all border flex items-center justify-center gap-2 group ${ocrExecutionKeyStatus.ready ? 'bg-red-700 hover:bg-red-800 border-red-600' : 'bg-slate-700 border-slate-600 text-slate-300 cursor-not-allowed'}`}
                                 title={`Preflight 검증을 우회하고 모든 ${BRAND_STATUS_LABELS.attentionPending} 건을 직접 API로 재분석합니다`}
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
@@ -4364,11 +4438,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 titleClassName="text-[10px] font-black uppercase tracking-widest text-emerald-300"
                                 bodyClassName="mt-3 grid grid-cols-1 gap-2.5"
                             >
+                        <div className={`w-full px-3 py-2 rounded-xl border text-[11px] font-bold ${ocrExecutionKeyStatus.ready ? 'bg-emerald-900/30 border-emerald-500/30 text-emerald-200' : 'bg-rose-900/30 border-rose-500/30 text-rose-200'}`}>
+                            OCR 실행 키: {ocrExecutionKeyStatus.sourceLabel} · {ocrExecutionKeyStatus.modeApiLabel}
+                        </div>
                         
                         {recordsWithImages.length > 0 && !isAnalyzing && (
                             <button 
                                 onClick={handleBatchReanalyze}
-                                className="w-full px-5 py-3 bg-emerald-600 hover:bg-emerald-700 rounded-2xl font-black text-sm shadow-xl transition-all border border-emerald-500 flex items-center justify-center gap-2 group"
+                                disabled={!ocrExecutionKeyStatus.ready}
+                                className={`w-full px-5 py-3 rounded-2xl font-black text-sm shadow-xl transition-all border flex items-center justify-center gap-2 group ${ocrExecutionKeyStatus.ready ? 'bg-emerald-600 hover:bg-emerald-700 border-emerald-500' : 'bg-slate-700 border-slate-600 text-slate-300 cursor-not-allowed'}`}
                             >
                                 <svg className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeWidth={2.5}/></svg>
                                 전체 일괄 재분석 (OCR)
