@@ -2819,6 +2819,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             isSignalman: record.isSignalman || data.record.isSignalman,
             ocrErrorType: undefined,
             ocrErrorMessage: undefined,
+            ocrFailureCode: undefined,
+            ocrUnknownSubCategory: undefined,
             // P0: Trace 표준화 — 서버가 반환한 trace 저장
             ocrTrace: data.trace
                 ? {
@@ -3207,7 +3209,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                             if (apiResult) {
                                 const insightText = String(apiResult.aiInsights || '');
-                                const shouldTreatAsFailure = isFailedRecord(apiResult) || hasOperationalFailureSignal(apiResult);
+                                const shouldTreatAsFailure = Boolean(apiResult.ocrErrorType) || hasOperationalFailureSignal(apiResult);
                                 if (shouldTreatAsFailure) {
                                     throw new Error(String(apiResult.ocrErrorMessage || insightText || '분석 실패'));
                                 }
@@ -3281,7 +3283,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             : usedClientFallback && lastServerRouteErrorMessage
                                 ? ` | 서버실패:${lastServerRouteErrorMessage.slice(0, 80)}`
                                 : '';
-                        const apiResultFailed = isFailedRecord(apiResult);
+                        const apiResultFailed = Boolean(apiResult.ocrErrorType) || hasOperationalFailureSignal(apiResult);
                         const updatedRecord: WorkerRecord = withHarnessState(record, {
                             ...apiResult,
                             id: record.id, 
