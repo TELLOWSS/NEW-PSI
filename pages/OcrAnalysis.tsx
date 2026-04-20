@@ -3209,15 +3209,30 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                             if (apiResult) {
                                 const insightText = String(apiResult.aiInsights || '');
-                                const shouldTreatAsFailure = Boolean(apiResult.ocrErrorType) || hasOperationalFailureSignal(apiResult);
+                                const hasApiSourceText =
+                                    String(apiResult.fullText || '').trim().length > 0 ||
+                                    String(apiResult.koreanTranslation || '').trim().length > 0 ||
+                                    (apiResult.handwrittenAnswers || []).some((answer) => String(answer?.answerText || '').trim().length > 0);
+                                const shouldTreatAsFailure =
+                                    Boolean(apiResult.ocrErrorType) ||
+                                    hasOperationalFailureSignal(apiResult) ||
+                                    !hasApiSourceText;
                                 if (shouldTreatAsFailure) {
-                                    throw new Error(String(apiResult.ocrErrorMessage || insightText || '분석 실패'));
+                                    const gatewayLikeCode = !hasApiSourceText ? 'OCR_PARSE_FAILURE' : undefined;
+                                    const fallbackMsg = !hasApiSourceText
+                                        ? '서버 OCR 결과에 유효 텍스트가 없습니다.'
+                                        : String(apiResult.ocrErrorMessage || insightText || '분석 실패');
+                                    throw new Error(gatewayLikeCode ? `[${gatewayLikeCode}] ${fallbackMsg}` : fallbackMsg);
                                 }
                                 break; // Success!
                             }
                         } catch (err: any) {
                             const errMsg = err.message || JSON.stringify(err);
                             lastRetryErrorMessage = String(errMsg || '');
+                            const parsedGatewayCode = extractGatewayErrorCode(lastRetryErrorMessage);
+                            if (parsedGatewayCode) {
+                                lastServerRouteErrorCode = parsedGatewayCode;
+                            }
                             const normalizedErr = String(errMsg || '').toLowerCase();
                             const isTransientRetryableError =
                                 normalizedErr.includes('failed to fetch') ||

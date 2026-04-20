@@ -894,10 +894,18 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
     }
 
     const parsedSafetyScore = Number(parsed.safetyScore);
-    const hasExtractedText =
+    const hasCoreExtractedText =
         String(parsed.fullText || '').trim().length > 0 ||
         String(parsed.koreanTranslation || '').trim().length > 0 ||
+        (Array.isArray(parsed.handwrittenAnswers) && parsed.handwrittenAnswers.length > 0);
+    const hasExtractedText =
+        hasCoreExtractedText ||
         String(parsed.aiInsights || '').trim().length > 0;
+
+    if (!hasCoreExtractedText) {
+        throw createGatewayHttpError('서버 OCR 결과에 유효 텍스트가 없어 재분석이 필요합니다.', 502, 'OCR_PARSE_FAILURE');
+    }
+
     const safetyScore = Number.isFinite(parsedSafetyScore)
         ? parsedSafetyScore
         : (hasExtractedText ? 60 : 0);
