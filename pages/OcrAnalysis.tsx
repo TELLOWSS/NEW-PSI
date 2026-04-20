@@ -3145,17 +3145,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const normalizedServerMessage = serverMessage.toLowerCase();
                                 const normalizedServerCode = String(lastServerRouteErrorCode || '').toUpperCase();
                                 const shouldBypassClientFallback = [
-                                    'MISSING_SERVER_GEMINI_KEY',
-                                    'OCR_UPSTREAM_AUTH',
-                                    'OCR_QUOTA',
                                     'OCR_INVALID_ARGUMENT',
                                     'UNSUPPORTED_IMAGE_FORMAT',
                                     'INVALID_BASE64',
                                     'IMAGE_TOO_LARGE',
                                     'IMAGE_DATA_TOO_SHORT',
                                     'HTTP_400',
-                                    'HTTP_401',
-                                    'HTTP_403',
                                     'HTTP_413',
                                     'HTTP_415',
                                 ].includes(normalizedServerCode);
