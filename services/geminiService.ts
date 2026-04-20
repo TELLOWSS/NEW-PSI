@@ -1219,10 +1219,6 @@ async function callGeminiWithRetry(
                         const withOcrTag: WorkerRecord = textBasedErrorType
                             ? {
                                 ...withIntegrity,
-                                ocrErrorType: textBasedErrorType,
-                                ocrErrorMessage: textBasedErrorType === 'HANDWRITING'
-                                    ? '필기 인식 난이도가 높습니다.'
-                                    : '추출 텍스트가 너무 적어 해상도/거리 문제 가능성이 큽니다.',
                                 ocrConfidence: normalizedConfidence,
                             }
                             : withIntegrity;

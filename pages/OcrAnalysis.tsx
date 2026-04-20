@@ -593,31 +593,18 @@ const isFailedRecord = (r: WorkerRecord): boolean => {
 };
 
 const hasOperationalFailureSignal = (record: Partial<WorkerRecord>): boolean => {
-    const insightText = String(record.aiInsights || '').toLowerCase();
     const errorText = String(record.ocrErrorMessage || '').toLowerCase();
     const failureCode = String(record.ocrFailureCode || '').toUpperCase();
-    const combined = `${insightText} ${errorText}`;
     const hasSourceText =
         String(record.fullText || '').trim().length > 0 ||
         String(record.koreanTranslation || '').trim().length > 0 ||
         (record.handwrittenAnswers || []).some((answer) => String(answer?.answerText || '').trim().length > 0);
 
-    if (['QUOTA', 'KEY', 'NETWORK', 'PAYLOAD', 'FORMAT', 'PARSE'].includes(failureCode)) return true;
+    if (OCR_POLICY.FAILURE_DETECTION.hardFailureCodes.includes(failureCode as typeof OCR_POLICY.FAILURE_DETECTION.hardFailureCodes[number])) return true;
 
-    const hasHardFailureKeyword =
-        combined.includes('resource_exhausted') ||
-        combined.includes('429') ||
-        combined.includes('api 요청량') ||
-        combined.includes('오류 상세') ||
-        combined.includes('재시도 필요') ||
-        combined.includes('failed to fetch') ||
-        combined.includes('timeout') ||
-        combined.includes('gateway') ||
-        combined.includes('설정 화면') ||
-        combined.includes('api 키') ||
-        combined.includes('분석 실패') ||
-        combined.includes('parsing failed') ||
-        combined.includes('json 파싱');
+    const hasHardFailureKeyword = OCR_POLICY.FAILURE_DETECTION.hardFailureKeywords.some((keyword) =>
+        errorText.includes(String(keyword).toLowerCase())
+    );
 
     if (hasHardFailureKeyword) return true;
 
