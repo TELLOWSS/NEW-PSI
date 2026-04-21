@@ -84,6 +84,17 @@ type DashboardTeamComparisonPreset = {
     createdAt: number;
     lastUsedAt?: number;
     pinned?: boolean;
+    appliedAtHistory?: number[];
+};
+
+type DashboardTradeComparisonPreset = {
+    id: string;
+    name: string;
+    trades: string[];
+    createdAt: number;
+    lastUsedAt?: number;
+    pinned?: boolean;
+    appliedAtHistory?: number[];
 };
 
 // 관리 직군 여부 확인 함수
@@ -125,7 +136,9 @@ const getHarnessPersistenceState = (record: Partial<WorkerRecord>): 'connected' 
 const DASHBOARD_VIEW_MODE_STORAGE_KEY = 'psi_dashboard_view_mode';
 const DASHBOARD_VIEW_MODE_MANUAL_KEY = 'psi_dashboard_view_mode_manual';
 const DASHBOARD_TEAM_COMPARISON_PRESETS_KEY = 'psi_dashboard_team_comparison_presets';
+const DASHBOARD_TRADE_COMPARISON_PRESETS_KEY = 'psi_dashboard_trade_comparison_presets';
 const TEAM_COMPARISON_MAX_SELECTION = 3;
+const TRADE_COMPARISON_MAX_SELECTION = 3;
 
 const getStoredDashboardTeamComparisonPresets = (): DashboardTeamComparisonPreset[] => {
     if (typeof window === 'undefined') return [];
@@ -151,6 +164,44 @@ const getStoredDashboardTeamComparisonPresets = (): DashboardTeamComparisonPrese
             createdAt: preset.createdAt,
             lastUsedAt: typeof preset.lastUsedAt === 'number' ? preset.lastUsedAt : undefined,
             pinned: Boolean(preset.pinned),
+            appliedAtHistory: Array.isArray((preset as Partial<DashboardTeamComparisonPreset>).appliedAtHistory)
+                ? (preset as Partial<DashboardTeamComparisonPreset>).appliedAtHistory
+                    ?.filter((value): value is number => typeof value === 'number')
+                    .slice(-60)
+                : [],
+        })).slice(0, 12);
+    } catch {
+        return [];
+    }
+};
+
+const getStoredDashboardTradeComparisonPresets = (): DashboardTradeComparisonPreset[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+        const raw = window.localStorage.getItem(DASHBOARD_TRADE_COMPARISON_PRESETS_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter((preset): preset is DashboardTradeComparisonPreset => {
+            return Boolean(
+                preset
+                && typeof preset.id === 'string'
+                && typeof preset.name === 'string'
+                && Array.isArray(preset.trades)
+                && typeof preset.createdAt === 'number',
+            );
+        }).map((preset) => ({
+            id: preset.id,
+            name: String(preset.name || '').trim() || `공종 ${preset.trades.length}개 비교`,
+            trades: preset.trades.filter((trade) => typeof trade === 'string' && trade.trim().length > 0),
+            createdAt: preset.createdAt,
+            lastUsedAt: typeof preset.lastUsedAt === 'number' ? preset.lastUsedAt : undefined,
+            pinned: Boolean(preset.pinned),
+            appliedAtHistory: Array.isArray((preset as Partial<DashboardTradeComparisonPreset>).appliedAtHistory)
+                ? (preset as Partial<DashboardTradeComparisonPreset>).appliedAtHistory
+                    ?.filter((value): value is number => typeof value === 'number')
+                    .slice(-60)
+                : [],
         })).slice(0, 12);
     } catch {
         return [];
@@ -164,6 +215,13 @@ const areSameTeamList = (left: string[], right: string[]): boolean => {
     return leftSorted.every((value, index) => value === rightSorted[index]);
 };
 
+const areSameTradeList = (left: string[], right: string[]): boolean => {
+    if (left.length !== right.length) return false;
+    const leftSorted = [...left].sort((a, b) => a.localeCompare(b, 'ko'));
+    const rightSorted = [...right].sort((a, b) => a.localeCompare(b, 'ko'));
+    return leftSorted.every((value, index) => value === rightSorted[index]);
+};
+
 const formatPresetUsedAt = (timestamp?: number): string => {
     if (!timestamp) return '최근 사용 없음';
     const diffMs = Date.now() - timestamp;
@@ -171,6 +229,12 @@ const formatPresetUsedAt = (timestamp?: number): string => {
     if (diffMs < 3_600_000) return `${Math.max(1, Math.round(diffMs / 60_000))}분 전 사용`;
     if (diffMs < 86_400_000) return `${Math.max(1, Math.round(diffMs / 3_600_000))}시간 전 사용`;
     return `${Math.max(1, Math.round(diffMs / 86_400_000))}일 전 사용`;
+};
+
+const getRecentPresetApplyCount = (appliedAtHistory?: number[], days: number = 7): number => {
+    if (!Array.isArray(appliedAtHistory) || appliedAtHistory.length === 0) return 0;
+    const windowStart = Date.now() - (days * 24 * 60 * 60 * 1000);
+    return appliedAtHistory.filter((timestamp) => typeof timestamp === 'number' && timestamp >= windowStart).length;
 };
 
 const downloadDashboardTextFile = (fileName: string, content: string, mimeType: string) => {
@@ -340,14 +404,22 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const [detailViewMode, setDetailViewMode] = useState<'integrated' | 'nationality'>('integrated');
     const [teamViewFilter, setTeamViewFilter] = useState<'all' | 'top3' | 'risk-only'>('all');
     const [selectedTeamsForComparison, setSelectedTeamsForComparison] = useState<string[]>([]);
+    const [selectedTradesForComparison, setSelectedTradesForComparison] = useState<string[]>([]);
     const [isComparisonAdvancedOpen, setIsComparisonAdvancedOpen] = useState<boolean>(false);
     const [teamComparisonPresets, setTeamComparisonPresets] = useState<DashboardTeamComparisonPreset[]>(() => getStoredDashboardTeamComparisonPresets());
+    const [tradeComparisonPresets, setTradeComparisonPresets] = useState<DashboardTradeComparisonPreset[]>(() => getStoredDashboardTradeComparisonPresets());
     const [presetNameDraft, setPresetNameDraft] = useState<string>('');
+    const [tradePresetNameDraft, setTradePresetNameDraft] = useState<string>('');
+    const [tradePresetSearchQuery, setTradePresetSearchQuery] = useState<string>('');
+    const [tradePresetScope, setTradePresetScope] = useState<'current-trade' | 'all-trades'>('all-trades');
     const [presetSearchQuery, setPresetSearchQuery] = useState<string>('');
     const [presetScope, setPresetScope] = useState<'current-trade' | 'all-trades'>('current-trade');
     const [presetPinLimitNotice, setPresetPinLimitNotice] = useState<string | null>(null);
+    const [tradePresetPinLimitNotice, setTradePresetPinLimitNotice] = useState<string | null>(null);
     const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
     const [editingPresetName, setEditingPresetName] = useState<string>('');
+    const [editingTradePresetId, setEditingTradePresetId] = useState<string | null>(null);
+    const [editingTradePresetName, setEditingTradePresetName] = useState<string>('');
     const [audienceView, setAudienceView] = useState<DashboardAudience>('manager');
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
     const [isDashboardViewModeManual, setIsDashboardViewModeManual] = useState<boolean>(() => getStoredDashboardViewModeManual());
@@ -416,12 +488,26 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     }, [presetScope, selectedTradeForComparison]);
 
     useEffect(() => {
+        if (!selectedTradeForComparison && tradePresetScope === 'current-trade') {
+            setTradePresetScope('all-trades');
+        }
+    }, [tradePresetScope, selectedTradeForComparison]);
+
+    useEffect(() => {
         try {
             window.localStorage.setItem(DASHBOARD_TEAM_COMPARISON_PRESETS_KEY, JSON.stringify(teamComparisonPresets.slice(0, 12)));
         } catch {
             // ignore localStorage write failures
         }
     }, [teamComparisonPresets]);
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(DASHBOARD_TRADE_COMPARISON_PRESETS_KEY, JSON.stringify(tradeComparisonPresets.slice(0, 12)));
+        } catch {
+            // ignore localStorage write failures
+        }
+    }, [tradeComparisonPresets]);
 
     useEffect(() => {
         trackUIViewMetric('view_enter', 'dashboard', viewMetricSessionRef.current, {
@@ -500,6 +586,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         setDetailViewMode('integrated');
         setTeamViewFilter('all');
         setSelectedTeamsForComparison([]);
+        setSelectedTradesForComparison([]);
     };
 
     const openTradeIntegratedAnalysis = (trade: string, nextTab: DashboardInsightTab = 'team') => {
@@ -1076,6 +1163,67 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         });
     }, [selectedTradeForComparison, teamComparisonSort, workerOnlyRecords]);
 
+    const selectedTradeComparison = useMemo(() => {
+        return dashboardData.trades.map((trade) => {
+            const records = workerOnlyRecords.filter((record) => normalizeDashboardTrade(record.jobField) === trade);
+            const uniqueWorkers = new Set(records.map((record) => record.name));
+            const latestWorkerSnapshots = Array.from(uniqueWorkers).map((name) => {
+                const history = records
+                    .filter((record) => record.name === name)
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+                return {
+                    latest: history[0],
+                    previous: history[1] ?? null,
+                };
+            }).filter((item): item is { latest: WorkerRecord; previous: WorkerRecord | null } => Boolean(item.latest));
+
+            const latestRecords = latestWorkerSnapshots.map((item) => item.latest);
+            const avgScore = latestRecords.length > 0
+                ? latestRecords.reduce((sum, record) => sum + record.safetyScore, 0) / latestRecords.length
+                : 0;
+            const riskCount = latestRecords.filter((record) => record.safetyScore < 60).length;
+            const cautionCount = latestRecords.filter((record) => record.safetyScore >= 60 && record.safetyScore < 75).length;
+            const goodCount = latestRecords.filter((record) => record.safetyScore >= 75).length;
+            const unresolvedCount = latestRecords.filter((record) => {
+                const workflowState = inferHarnessWorkflowState(record);
+                const approvalState = inferHarnessApprovalState(record, workflowState);
+                return workflowState !== 'completed' || approvalState === 'PENDING' || approvalState === 'REQUIRED';
+            }).length;
+            const deltaValues = latestWorkerSnapshots
+                .filter((item) => item.previous)
+                .map((item) => item.latest.safetyScore - (item.previous?.safetyScore || 0));
+            const avgDelta = deltaValues.length > 0
+                ? deltaValues.reduce((sum, delta) => sum + delta, 0) / deltaValues.length
+                : 0;
+            const trendDirection = avgDelta > 1 ? 'up' : avgDelta < -1 ? 'down' : 'flat';
+
+            return {
+                trade,
+                workerCount: uniqueWorkers.size,
+                avgScore,
+                riskCount,
+                cautionCount,
+                goodCount,
+                unresolvedCount,
+                avgDelta,
+                trendDirection,
+            };
+        }).sort((a, b) => {
+            switch (teamComparisonSort) {
+                case 'score-desc':
+                    return b.avgScore - a.avgScore;
+                case 'risk-desc':
+                    return b.riskCount - a.riskCount || a.avgScore - b.avgScore;
+                case 'workers-desc':
+                    return b.workerCount - a.workerCount || a.avgScore - b.avgScore;
+                case 'score-asc':
+                default:
+                    return a.avgScore - b.avgScore;
+            }
+        });
+    }, [dashboardData.trades, teamComparisonSort, workerOnlyRecords]);
+
     useEffect(() => {
         if (selectedTeamsForComparison.length === 0) return;
         const validTeamSet = new Set(selectedTradeTeamComparison.map((item) => item.team));
@@ -1084,6 +1232,24 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             setSelectedTeamsForComparison(nextTeams);
         }
     }, [selectedTeamsForComparison, selectedTradeTeamComparison]);
+
+    useEffect(() => {
+        if (selectedTradeComparison.length === 0) {
+            if (selectedTradesForComparison.length > 0) setSelectedTradesForComparison([]);
+            return;
+        }
+        const validTradeSet = new Set(selectedTradeComparison.map((item) => item.trade));
+        const nextTrades = selectedTradesForComparison.filter((trade) => validTradeSet.has(trade));
+        if (nextTrades.length !== selectedTradesForComparison.length) {
+            setSelectedTradesForComparison(nextTrades);
+        }
+    }, [selectedTradeComparison, selectedTradesForComparison]);
+
+    useEffect(() => {
+        if (!selectedTradeForComparison) return;
+        if (selectedTradesForComparison.includes(selectedTradeForComparison)) return;
+        setSelectedTradesForComparison((previous) => [selectedTradeForComparison, ...previous].slice(0, TRADE_COMPARISON_MAX_SELECTION));
+    }, [selectedTradeForComparison, selectedTradesForComparison]);
 
     const tradeQuickAccess = useMemo(() => {
         return dashboardData.trades
@@ -1141,6 +1307,13 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             .filter((team): team is NonNullable<typeof team> => Boolean(team && visibleTeamSet.has(team.team)));
     }, [selectedTeamsForComparison, selectedTradeTeamComparison, visibleTeamComparison]);
 
+    const comparedTradeRows = useMemo(() => {
+        if (selectedTradesForComparison.length === 0) return [];
+        return selectedTradesForComparison
+            .map((tradeName) => selectedTradeComparison.find((trade) => trade.trade === tradeName))
+            .filter((trade): trade is NonNullable<typeof trade> => Boolean(trade));
+    }, [selectedTradeComparison, selectedTradesForComparison]);
+
     const selectedTeamSummaryBarRows = useMemo(() => {
         return selectedTeamsForComparison
             .map((teamName) => selectedTradeTeamComparison.find((team) => team.team === teamName))
@@ -1152,6 +1325,11 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         if (comparedTeamRows.length === 0) return `${selectedTradeForComparison} 팀 비교`;
         return `${selectedTradeForComparison} ${comparedTeamRows.map((team) => team.team).slice(0, TEAM_COMPARISON_MAX_SELECTION).join(' vs ')}`;
     }, [comparedTeamRows, selectedTradeForComparison]);
+
+    const tradeComparisonHeadline = useMemo(() => {
+        if (comparedTradeRows.length === 0) return '공종 비교';
+        return comparedTradeRows.map((trade) => trade.trade).slice(0, TRADE_COMPARISON_MAX_SELECTION).join(' vs ');
+    }, [comparedTradeRows]);
 
     const teamNationalityDrilldownStatus = useMemo(() => {
         if (!selectedTeamOption || !selectedTradeForComparison) return null;
@@ -1228,6 +1406,33 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             .slice(0, 3);
     }, [applicableComparisonPresets]);
 
+    const applicableTradeComparisonPresets = useMemo(() => {
+        const normalizedQuery = tradePresetSearchQuery.trim().toLowerCase();
+        return [...tradeComparisonPresets]
+            .filter((preset) => {
+                if (tradePresetScope === 'current-trade') {
+                    if (!selectedTradeForComparison) return false;
+                    if (!preset.trades.includes(selectedTradeForComparison)) return false;
+                }
+                if (!normalizedQuery) return true;
+                const presetName = preset.name.toLowerCase();
+                const trades = preset.trades.join(' ').toLowerCase();
+                return presetName.includes(normalizedQuery) || trades.includes(normalizedQuery);
+            })
+            .sort((left, right) => {
+                const pinDelta = Number(Boolean(right.pinned)) - Number(Boolean(left.pinned));
+                if (pinDelta !== 0) return pinDelta;
+                return (right.lastUsedAt ?? right.createdAt) - (left.lastUsedAt ?? left.createdAt);
+            })
+            .slice(0, 8);
+    }, [selectedTradeForComparison, tradeComparisonPresets, tradePresetScope, tradePresetSearchQuery]);
+
+    const pinnedQuickTradePresets = useMemo(() => {
+        return applicableTradeComparisonPresets
+            .filter((preset) => preset.pinned)
+            .slice(0, 3);
+    }, [applicableTradeComparisonPresets]);
+
     const toggleTeamComparisonSelection = (teamName: string) => {
         setSelectedTeamsForComparison((previous) => {
             if (previous.includes(teamName)) {
@@ -1237,6 +1442,189 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 return previous;
             }
             return [...previous, teamName];
+        });
+    };
+
+    const toggleTradeComparisonSelection = (tradeName: string) => {
+        setSelectedTradesForComparison((previous) => {
+            if (previous.includes(tradeName)) {
+                return previous.filter((item) => item !== tradeName);
+            }
+            if (previous.length >= TRADE_COMPARISON_MAX_SELECTION) {
+                return previous;
+            }
+            return [...previous, tradeName];
+        });
+    };
+
+    const saveCurrentTradeComparisonPreset = () => {
+        const selectedTrades = Array.from(new Set(selectedTradesForComparison));
+        if (selectedTrades.length < 2) return;
+
+        const presetName = String(tradePresetNameDraft || '').trim() || `${selectedTrades.length}개 공종 비교`;
+        const nextPreset: DashboardTradeComparisonPreset = {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            name: presetName,
+            trades: selectedTrades,
+            createdAt: Date.now(),
+            lastUsedAt: Date.now(),
+            pinned: false,
+            appliedAtHistory: [],
+        };
+
+        setTradeComparisonPresets((previous) => {
+            const deduped = previous.filter((preset) => !areSameTradeList(preset.trades, nextPreset.trades));
+            return [nextPreset, ...deduped].slice(0, 12);
+        });
+        setTradePresetNameDraft('');
+
+        trackUIViewMetric('cta_click', 'dashboard', viewMetricSessionRef.current, {
+            actionKey: 'trade_comparison_preset_save',
+            tradeCount: selectedTrades.length,
+            presetName,
+            audienceView,
+            viewMode: dashboardViewMode,
+        });
+    };
+
+    const applyTradeComparisonPreset = (preset: DashboardTradeComparisonPreset) => {
+        const appliedAt = Date.now();
+        setSelectedTradesForComparison(preset.trades.slice(0, TRADE_COMPARISON_MAX_SELECTION));
+        if (preset.trades[0]) {
+            openTradeIntegratedAnalysis(preset.trades[0], 'team');
+        }
+        setTradeComparisonPresets((previous) => previous.map((item) => item.id === preset.id
+            ? {
+                ...item,
+                lastUsedAt: appliedAt,
+                appliedAtHistory: [...(item.appliedAtHistory || []), appliedAt].slice(-60),
+            }
+            : item,
+        ));
+
+        trackUIViewMetric('control_change', 'dashboard', viewMetricSessionRef.current, {
+            control: 'trade_comparison_preset_apply',
+            presetName: preset.name,
+            tradeCount: preset.trades.length,
+            audienceView,
+            viewMode: dashboardViewMode,
+        });
+    };
+
+    const removeTradeComparisonPreset = (presetId: string) => {
+        setTradeComparisonPresets((previous) => previous.filter((preset) => preset.id !== presetId));
+        if (editingTradePresetId === presetId) {
+            setEditingTradePresetId(null);
+            setEditingTradePresetName('');
+        }
+    };
+
+    const startEditingTradeComparisonPreset = (preset: DashboardTradeComparisonPreset) => {
+        setEditingTradePresetId(preset.id);
+        setEditingTradePresetName(preset.name);
+    };
+
+    const commitEditingTradeComparisonPreset = (presetId: string) => {
+        const trimmed = String(editingTradePresetName || '').trim();
+        if (!trimmed) return;
+
+        setTradeComparisonPresets((previous) => previous.map((preset) => (
+            preset.id === presetId
+                ? { ...preset, name: trimmed }
+                : preset
+        )));
+
+        trackUIViewMetric('control_change', 'dashboard', viewMetricSessionRef.current, {
+            control: 'trade_comparison_preset_rename',
+            presetId,
+            nextName: trimmed,
+            audienceView,
+            viewMode: dashboardViewMode,
+        });
+
+        setEditingTradePresetId(null);
+        setEditingTradePresetName('');
+    };
+
+    const cancelEditingTradeComparisonPreset = () => {
+        setEditingTradePresetId(null);
+        setEditingTradePresetName('');
+    };
+
+    const handleTradePresetScopeChange = (nextScope: 'current-trade' | 'all-trades') => {
+        setTradePresetScope(nextScope);
+        trackUIViewMetric('control_change', 'dashboard', viewMetricSessionRef.current, {
+            control: 'trade_comparison_preset_scope',
+            scope: nextScope,
+            selectedTradeForComparison,
+            audienceView,
+            viewMode: dashboardViewMode,
+        });
+    };
+
+    const handleToggleTradeComparisonPresetPin = (presetId: string) => {
+        setTradeComparisonPresets((previous) => {
+            const target = previous.find((preset) => preset.id === presetId);
+            if (!target) return previous;
+
+            const activePinCount = previous.filter((preset) => preset.pinned).length;
+            const isPinning = !target.pinned;
+            if (isPinning && activePinCount >= 3) {
+                setTradePresetPinLimitNotice('공종 프리셋 고정은 최대 3개까지 가능합니다.');
+                return previous;
+            }
+
+            setTradePresetPinLimitNotice(null);
+            return previous.map((preset) => (
+                preset.id === presetId
+                    ? { ...preset, pinned: isPinning }
+                    : preset
+            ));
+        });
+    };
+
+    const handleExportTradeComparisonPresetsCsv = () => {
+        if (tradeComparisonPresets.length === 0) return;
+
+        const escapeCsv = (value: unknown): string => {
+            const str = String(value ?? '');
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        };
+
+        const rows: string[][] = [
+            ['id', 'name', 'trades', 'tradeCount', 'pinned', 'appliedRecent7d', 'appliedTotal', 'lastUsedAt', 'createdAt'],
+        ];
+
+        tradeComparisonPresets.forEach((preset) => {
+            rows.push([
+                preset.id,
+                preset.name,
+                preset.trades.join(' | '),
+                String(preset.trades.length),
+                preset.pinned ? 'YES' : 'NO',
+                String(getRecentPresetApplyCount(preset.appliedAtHistory, 7)),
+                String((preset.appliedAtHistory || []).length),
+                preset.lastUsedAt ? new Date(preset.lastUsedAt).toISOString() : '',
+                new Date(preset.createdAt).toISOString(),
+            ]);
+        });
+
+        const bom = '\uFEFF';
+        const csv = rows.map((row) => row.map(escapeCsv).join(',')).join('\n');
+        downloadDashboardTextFile(
+            `PSI_Dashboard_TradeComparisonPresets_${new Date().toISOString().slice(0, 10)}.csv`,
+            bom + csv,
+            'text/csv;charset=utf-8;'
+        );
+
+        trackUIViewMetric('cta_click', 'dashboard', viewMetricSessionRef.current, {
+            actionKey: 'trade_comparison_preset_export_csv',
+            presetCount: tradeComparisonPresets.length,
+            audienceView,
+            viewMode: dashboardViewMode,
         });
     };
 
@@ -1253,6 +1641,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             teams: selectedTeams,
             createdAt: Date.now(),
             lastUsedAt: Date.now(),
+            appliedAtHistory: [],
         };
 
         setTeamComparisonPresets((previous) => {
@@ -1271,6 +1660,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     };
 
     const applyTeamComparisonPreset = (preset: DashboardTeamComparisonPreset, source: 'preset_list' | 'pinned_lane' = 'preset_list') => {
+        const appliedAt = Date.now();
         skipTeamSelectionResetRef.current = true;
         setSelectedTarget({ trade: preset.trade, nationality: ALL_NATIONALITY_LABEL });
         setSelectedTradeForComparison(preset.trade);
@@ -1280,7 +1670,11 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         setSelectedTeamsForComparison(preset.teams);
         setIsComparisonAdvancedOpen(true);
         setTeamComparisonPresets((previous) => previous.map((item) => item.id === preset.id
-            ? { ...item, lastUsedAt: Date.now() }
+            ? {
+                ...item,
+                lastUsedAt: appliedAt,
+                appliedAtHistory: [...(item.appliedAtHistory || []), appliedAt].slice(-60),
+            }
             : item,
         ));
 
@@ -1400,7 +1794,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         };
 
         const rows: string[][] = [
-            ['id', 'name', 'trade', 'teams', 'teamCount', 'pinned', 'lastUsedAt', 'createdAt'],
+            ['id', 'name', 'trade', 'teams', 'teamCount', 'pinned', 'appliedRecent7d', 'appliedTotal', 'lastUsedAt', 'createdAt'],
         ];
 
         teamComparisonPresets.forEach((preset) => {
@@ -1411,6 +1805,8 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 preset.teams.join(' | '),
                 String(preset.teams.length),
                 preset.pinned ? 'YES' : 'NO',
+                String(getRecentPresetApplyCount(preset.appliedAtHistory, 7)),
+                String((preset.appliedAtHistory || []).length),
                 preset.lastUsedAt ? new Date(preset.lastUsedAt).toISOString() : '',
                 new Date(preset.createdAt).toISOString(),
             ]);
@@ -2634,6 +3030,269 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
                 {selectedTradeForComparison && selectedTradeTeamComparison.length > 0 && (
                     <div className={`${mobileInsightTab === 'team' ? 'block' : 'hidden md:block'} bg-white dark:bg-slate-800 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-700 p-4 sm:p-6 space-y-4`}>
+                        {selectedTradeComparison.length > 1 && (
+                            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3 sm:p-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <div>
+                                        <p className="text-xs font-black text-emerald-700">공종 비교 분석</p>
+                                        <p className="text-[11px] text-emerald-700/80 mt-1">팀 비교와 별개로 공종 2~3개를 같은 축에서 비교할 수 있습니다.</p>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white text-emerald-700 rounded-lg text-xs font-black border border-emerald-200">
+                                            선택 공종 {selectedTradesForComparison.length} / {TRADE_COMPARISON_MAX_SELECTION}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedTradesForComparison([])}
+                                            className="px-3 py-1.5 rounded-lg bg-white text-slate-700 text-xs font-bold border border-slate-200 hover:bg-slate-50 transition-colors"
+                                        >
+                                            공종 선택 초기화
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                                    {selectedTradeComparison.map((trade) => {
+                                        const isSelectedForComparison = selectedTradesForComparison.includes(trade.trade);
+                                        const isSelectionLocked = !isSelectedForComparison && selectedTradesForComparison.length >= TRADE_COMPARISON_MAX_SELECTION;
+                                        return (
+                                            <button
+                                                key={`trade-select-${trade.trade}`}
+                                                type="button"
+                                                onClick={() => toggleTradeComparisonSelection(trade.trade)}
+                                                disabled={isSelectionLocked}
+                                                className={`shrink-0 rounded-xl border px-3 py-2 text-left min-w-[148px] transition-colors ${
+                                                    isSelectedForComparison
+                                                        ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
+                                                        : isSelectionLocked
+                                                            ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                                                            : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                                                }`}
+                                            >
+                                                <p className="text-xs font-black truncate">{trade.trade}</p>
+                                                <p className="mt-1 text-[10px] font-bold opacity-70">{trade.workerCount}명 · {trade.avgScore.toFixed(1)}점</p>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+
+                                <div className="mt-3 rounded-xl border border-emerald-200 bg-white px-3 py-2.5">
+                                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                        <input
+                                            value={tradePresetNameDraft}
+                                            onChange={(event) => setTradePresetNameDraft(event.target.value)}
+                                            placeholder="예: 형틀·철근·타설 비교"
+                                            className="w-full sm:max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 placeholder:text-slate-400"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={saveCurrentTradeComparisonPreset}
+                                            disabled={selectedTradesForComparison.length < 2}
+                                            className="px-3 py-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 text-[11px] font-black enabled:hover:bg-emerald-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            현재 공종 조합 저장
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleExportTradeComparisonPresetsCsv}
+                                            disabled={tradeComparisonPresets.length === 0}
+                                            className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-[11px] font-black enabled:hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            공종 프리셋 CSV
+                                        </button>
+                                    </div>
+                                    <div className="mt-2">
+                                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleTradePresetScopeChange('current-trade')}
+                                                    disabled={!selectedTradeForComparison}
+                                                    className={`px-3 py-1.5 rounded-lg border text-[11px] font-black transition-colors ${
+                                                        tradePresetScope === 'current-trade'
+                                                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                                            : 'border-slate-200 bg-white text-slate-600'
+                                                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                                >
+                                                    현재 공종
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleTradePresetScopeChange('all-trades')}
+                                                    className={`px-3 py-1.5 rounded-lg border text-[11px] font-black transition-colors ${
+                                                        tradePresetScope === 'all-trades'
+                                                            ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                                            : 'border-slate-200 bg-white text-slate-600'
+                                                    }`}
+                                                >
+                                                    전체 공종
+                                                </button>
+                                            </div>
+                                            <input
+                                                value={tradePresetSearchQuery}
+                                                onChange={(event) => setTradePresetSearchQuery(event.target.value)}
+                                                placeholder="공종 프리셋 검색"
+                                                className="w-full sm:max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 placeholder:text-slate-400"
+                                            />
+                                        </div>
+                                    </div>
+                                    <p className="mt-1 text-[10px] text-slate-500">자주 비교하는 공종 조합을 저장해 다시 불러올 수 있습니다.</p>
+                                    {tradePresetPinLimitNotice && (
+                                        <p className="mt-1 text-[10px] font-bold text-amber-700">{tradePresetPinLimitNotice}</p>
+                                    )}
+                                    {pinnedQuickTradePresets.length > 0 && (
+                                        <div className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50/60 px-2.5 py-2">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">고정 공종 프리셋 · 최근 사용 순</p>
+                                            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                                                {pinnedQuickTradePresets.map((preset) => {
+                                                    const recent7dApplyCount = getRecentPresetApplyCount(preset.appliedAtHistory, 7);
+                                                    const totalApplyCount = (preset.appliedAtHistory || []).length;
+                                                    return (
+                                                        <button
+                                                            key={`trade-quick-${preset.id}`}
+                                                            type="button"
+                                                            onClick={() => applyTradeComparisonPreset(preset)}
+                                                            className="shrink-0 rounded-lg border border-emerald-300 bg-white px-3 py-2 text-left min-w-[184px]"
+                                                        >
+                                                            <p className="text-[11px] font-black text-emerald-700 truncate">📌 {preset.name}</p>
+                                                            <p className="text-[10px] font-semibold text-slate-500">{preset.trades.join(' · ')}</p>
+                                                            <p className="mt-1 text-[10px] font-bold text-emerald-700">최근 사용: {formatPresetUsedAt(preset.lastUsedAt)}</p>
+                                                            <p className="text-[10px] font-bold text-slate-500">최근7일 {recent7dApplyCount}회 · 누적 {totalApplyCount}회</p>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {applicableTradeComparisonPresets.length > 0 && (
+                                        <div className="mt-2 flex flex-wrap gap-2">
+                                            {applicableTradeComparisonPresets.map((preset) => {
+                                                const recent7dApplyCount = getRecentPresetApplyCount(preset.appliedAtHistory, 7);
+                                                const totalApplyCount = (preset.appliedAtHistory || []).length;
+                                                return (
+                                                <div key={`trade-preset-${preset.id}`} className={`inline-flex items-center gap-2 rounded-lg border px-2 py-1.5 ${preset.pinned ? 'border-emerald-300 bg-emerald-50/70' : 'border-slate-200 bg-slate-50'}`}>
+                                                    {editingTradePresetId === preset.id ? (
+                                                        <div className="flex items-center gap-1.5">
+                                                            <input
+                                                                value={editingTradePresetName}
+                                                                onChange={(event) => setEditingTradePresetName(event.target.value)}
+                                                                className="w-36 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700"
+                                                            />
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => commitEditingTradeComparisonPreset(preset.id)}
+                                                                disabled={String(editingTradePresetName || '').trim().length === 0}
+                                                                className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700 enabled:hover:bg-emerald-100 disabled:opacity-50"
+                                                            >
+                                                                저장
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={cancelEditingTradeComparisonPreset}
+                                                                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-black text-slate-600 hover:bg-slate-50"
+                                                            >
+                                                                취소
+                                                            </button>
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => applyTradeComparisonPreset(preset)}
+                                                            className="text-left"
+                                                        >
+                                                            <p className="text-[11px] font-black text-slate-700 hover:text-emerald-700 transition-colors">{preset.pinned ? '📌 ' : ''}{preset.name}</p>
+                                                            <p className="text-[10px] font-semibold text-slate-500">{preset.trades.join(' · ')}</p>
+                                                            <p className="text-[10px] font-bold text-slate-400">{formatPresetUsedAt(preset.lastUsedAt)}</p>
+                                                            <p className="text-[10px] font-bold text-slate-400">최근7일 {recent7dApplyCount}회 · 누적 {totalApplyCount}회</p>
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleToggleTradeComparisonPresetPin(preset.id)}
+                                                        className={`text-[11px] font-black transition-colors ${preset.pinned ? 'text-emerald-700 hover:text-emerald-800' : 'text-slate-400 hover:text-emerald-600'}`}
+                                                    >
+                                                        {preset.pinned ? '고정해제' : '고정'}
+                                                    </button>
+                                                    {editingTradePresetId !== preset.id && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => startEditingTradeComparisonPreset(preset)}
+                                                            className="text-[11px] font-black text-slate-400 hover:text-emerald-600 transition-colors"
+                                                        >
+                                                            수정
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeTradeComparisonPreset(preset.id)}
+                                                        className="text-[11px] font-black text-slate-400 hover:text-rose-500 transition-colors"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {selectedTradesForComparison.length < 2 ? (
+                                    <p className="mt-3 text-[11px] font-bold text-amber-700">공종 비교를 시작하려면 공종을 2개 이상 선택하세요.</p>
+                                ) : (
+                                    <>
+                                        <div className="mt-3 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-[11px] font-bold text-emerald-800">
+                                            현재 공종 비교: {tradeComparisonHeadline}
+                                        </div>
+                                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                                            {comparedTradeRows.map((trade) => {
+                                                const trendLabel = trade.trendDirection === 'up'
+                                                    ? `상승 ${trade.avgDelta.toFixed(1)}점`
+                                                    : trade.trendDirection === 'down'
+                                                        ? `하락 ${Math.abs(trade.avgDelta).toFixed(1)}점`
+                                                        : '보합';
+
+                                                return (
+                                                    <div key={`trade-card-${trade.trade}`} className="rounded-2xl border border-emerald-200 bg-white p-3">
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div>
+                                                                <p className="text-sm font-black text-slate-800">{trade.trade}</p>
+                                                                <p className="mt-1 text-[11px] font-bold text-slate-500">인원 {trade.workerCount}명</p>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openTradeIntegratedAnalysis(trade.trade, 'team')}
+                                                                className="shrink-0 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700 hover:bg-emerald-100"
+                                                            >
+                                                                상세 보기
+                                                            </button>
+                                                        </div>
+                                                        <div className="mt-2 grid grid-cols-4 gap-1.5 text-center">
+                                                            <div className="rounded-lg bg-slate-100 px-2 py-1.5">
+                                                                <p className="text-[9px] font-bold text-slate-400">점수</p>
+                                                                <p className="mt-1 text-[11px] font-black text-slate-700">{trade.avgScore.toFixed(1)}</p>
+                                                            </div>
+                                                            <div className="rounded-lg bg-red-50 px-2 py-1.5">
+                                                                <p className="text-[9px] font-bold text-red-400">위험</p>
+                                                                <p className="mt-1 text-[11px] font-black text-red-600">{trade.riskCount}</p>
+                                                            </div>
+                                                            <div className="rounded-lg bg-amber-50 px-2 py-1.5">
+                                                                <p className="text-[9px] font-bold text-amber-500">미처리</p>
+                                                                <p className="mt-1 text-[11px] font-black text-amber-600">{trade.unresolvedCount}</p>
+                                                            </div>
+                                                            <div className="rounded-lg bg-emerald-50 px-2 py-1.5">
+                                                                <p className="text-[9px] font-bold text-emerald-500">추세</p>
+                                                                <p className="mt-1 text-[11px] font-black text-emerald-700">{trendLabel}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        )}
+
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                             <div>
                                 <h3 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100">
@@ -2924,24 +3583,32 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 <div className="rounded-xl border border-indigo-100 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/20 px-2.5 py-2">
                                     <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-700 dark:text-indigo-200">고정 프리셋 빠른 실행</p>
                                     <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-                                        {pinnedQuickPresets.map((preset) => (
-                                            <button
-                                                key={`quick-${preset.id}`}
-                                                type="button"
-                                                onClick={() => applyTeamComparisonPreset(preset, 'pinned_lane')}
-                                                className="shrink-0 rounded-xl border border-indigo-200 dark:border-indigo-700 bg-white dark:bg-slate-900 px-3 py-2 text-left min-w-[156px]"
-                                            >
-                                                <p className="text-[11px] font-black text-indigo-700 dark:text-indigo-200 truncate">📌 {preset.name}</p>
-                                                <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-300">{preset.trade} · {formatPresetUsedAt(preset.lastUsedAt)}</p>
-                                            </button>
-                                        ))}
+                                        {pinnedQuickPresets.map((preset) => {
+                                            const recent7dApplyCount = getRecentPresetApplyCount(preset.appliedAtHistory, 7);
+                                            const totalApplyCount = (preset.appliedAtHistory || []).length;
+                                            return (
+                                                <button
+                                                    key={`quick-${preset.id}`}
+                                                    type="button"
+                                                    onClick={() => applyTeamComparisonPreset(preset, 'pinned_lane')}
+                                                    className="shrink-0 rounded-xl border border-indigo-200 dark:border-indigo-700 bg-white dark:bg-slate-900 px-3 py-2 text-left min-w-[170px]"
+                                                >
+                                                    <p className="text-[11px] font-black text-indigo-700 dark:text-indigo-200 truncate">📌 {preset.name}</p>
+                                                    <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-300">{preset.trade} · {formatPresetUsedAt(preset.lastUsedAt)}</p>
+                                                    <p className="text-[10px] font-bold text-slate-500 dark:text-slate-300">최근7일 {recent7dApplyCount}회 · 누적 {totalApplyCount}회</p>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             )}
 
                             {applicableComparisonPresets.length > 0 ? (
                                 <div className="flex flex-wrap gap-2">
-                                    {applicableComparisonPresets.map((preset) => (
+                                    {applicableComparisonPresets.map((preset) => {
+                                        const recent7dApplyCount = getRecentPresetApplyCount(preset.appliedAtHistory, 7);
+                                        const totalApplyCount = (preset.appliedAtHistory || []).length;
+                                        return (
                                         <div key={preset.id} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2 py-1.5">
                                             {editingPresetId === preset.id ? (
                                                 <div className="flex items-center gap-1.5">
@@ -2979,6 +3646,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                                         <p className="text-[10px] font-semibold text-slate-500">{preset.trade}</p>
                                                     )}
                                                     <p className="text-[10px] font-semibold text-slate-400">{formatPresetUsedAt(preset.lastUsedAt)}</p>
+                                                    <p className="text-[10px] font-bold text-slate-400">최근7일 {recent7dApplyCount}회 · 누적 {totalApplyCount}회</p>
                                                 </button>
                                             )}
                                             {editingPresetId !== preset.id && (
@@ -3007,7 +3675,8 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                                 ✕
                                             </button>
                                         </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             ) : (
                                 <p className="text-[11px] text-slate-500 dark:text-slate-300">조건에 맞는 프리셋이 없습니다. 팀 2개 이상 선택 후 저장하거나 검색/공종 범위를 조정해 보세요.</p>
