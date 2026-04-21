@@ -66,6 +66,9 @@ const UX_TEXT: Record<UiLocale, {
     submitReadyCta: string;
     submitBlockedCta: string;
     checklistStatus: string;
+    audioNotAvailable: string;
+    audioNotAvailableDetail: string;
+    audioNotAvailableContactHint: string;
 }> = {
     ko: {
         stepLanguage: '1. 언어 선택',
@@ -93,6 +96,9 @@ const UX_TEXT: Record<UiLocale, {
         submitReadyCta: '제출 준비 완료',
         submitBlockedCta: '체크/서명 후 제출 가능',
         checklistStatus: '체크 완료',
+        audioNotAvailable: '🔇 음성 준비 중',
+        audioNotAvailableDetail: '죄송합니다. 선택한 언어의 음성 안내는 현재 준비 중입니다.',
+        audioNotAvailableContactHint: '관리자에게 문의하시거나, 다른 언어를 선택해 주세요.',
     },
     en: {
         stepLanguage: '1. Select Language',
@@ -120,6 +126,9 @@ const UX_TEXT: Record<UiLocale, {
         submitReadyCta: 'Ready to submit',
         submitBlockedCta: 'Complete checks/signature first',
         checklistStatus: 'Checks done',
+        audioNotAvailable: '🔇 Audio In Preparation',
+        audioNotAvailableDetail: 'Sorry, the audio guidance for the selected language is currently being prepared.',
+        audioNotAvailableContactHint: 'Please contact the administrator or select another language.',
     },
     vi: {
         stepLanguage: '1. Chọn ngôn ngữ',
@@ -147,6 +156,9 @@ const UX_TEXT: Record<UiLocale, {
         submitReadyCta: 'Sẵn sàng gửi',
         submitBlockedCta: 'Hãy chọn mục và ký trước',
         checklistStatus: 'Mục đã chọn',
+        audioNotAvailable: '🔇 Âm thanh đang chuẩn bị',
+        audioNotAvailableDetail: 'Xin lỗi, hướng dẫn âm thanh cho ngôn ngữ đã chọn hiện đang được chuẩn bị.',
+        audioNotAvailableContactHint: 'Vui lòng liên hệ với quản trị viên hoặc chọn ngôn ngữ khác.',
     },
     zh: {
         stepLanguage: '1. 选择语言',
@@ -174,6 +186,9 @@ const UX_TEXT: Record<UiLocale, {
         submitReadyCta: '可以提交',
         submitBlockedCta: '请先完成勾选和签名',
         checklistStatus: '已勾选项目',
+        audioNotAvailable: '🔇 语音准备中',
+        audioNotAvailableDetail: '抱歉，所选语言的语音指引目前正在准备中。',
+        audioNotAvailableContactHint: '请联系管理员或选择其他语言。',
     },
 };
 
@@ -646,11 +661,11 @@ const resolveUiLocaleByLangCode = (code: string): UiLocale => {
 };
 
 const resolveLanguageCandidates = (code: string): string[] => {
-    const alias = LANGUAGE_CODE_ALIASES[code];
+    const normalized = String(code || '').trim() || 'en-US';
+    const alias = LANGUAGE_CODE_ALIASES[normalized];
     return Array.from(new Set([
-        code,
+        normalized,
         alias,
-        'vi-VN',
         'en-US',
         'ko-KR',
     ].filter((item): item is string => Boolean(item))));
@@ -731,6 +746,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     const audioSectionRef = useRef<HTMLDivElement | null>(null);
     const comprehensionRef = useRef<HTMLDivElement | null>(null);
     const signatureWrapRef = useRef<HTMLDivElement | null>(null);
+    const languageInitDoneRef = useRef(false);
     const [signatureWidth, setSignatureWidth] = useState(700);
 
     const langKey = useMemo(() => resolveLanguageCodeByNationality(nationality), [nationality]);
@@ -778,8 +794,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             if (typeof value === 'string' && value.trim()) return value;
         }
 
-        const firstAvailable = Object.values(normalizedAudioMap).find((value) => typeof value === 'string' && value.trim());
-        return (firstAvailable as string) || '';
+        return '';
     }, [normalizedAudioMap, effectiveLangKey]);
 
     const selectedTranslatedText = useMemo(() => {
@@ -976,13 +991,34 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     }, [simplifiedMode, submitted]);
 
     useEffect(() => {
-        if (!sessionData) return;
+        languageInitDoneRef.current = false;
+    }, [sessionId]);
 
-        const preferred = 'ko-KR';
+    useEffect(() => {
+        if (!sessionData || languageInitDoneRef.current) return;
 
+        const queryLang = String(searchParams.get('lang') || '').trim();
+        const queryNationality = String(searchParams.get('nationality') || '').trim();
+
+        const normalizedQueryLang = queryLang
+            ? (LANGUAGE_LABELS[queryLang] ? queryLang : (LANGUAGE_CODE_ALIASES[queryLang] || ''))
+            : '';
+        const queryNationalityLang = queryNationality ? resolveLanguageCodeByNationality(queryNationality) : '';
+
+        const candidateChain = [
+            normalizedQueryLang,
+            queryNationalityLang,
+            availableLanguageCodes.includes('ko-KR') ? 'ko-KR' : '',
+            availableLanguageCodes.includes('en-US') ? 'en-US' : '',
+            availableLanguageCodes[0] || '',
+            'en-US',
+        ].filter((item): item is string => Boolean(item));
+
+        const preferred = candidateChain.find((code) => availableLanguageCodes.includes(code)) || candidateChain[0] || 'en-US';
         setSelectedLanguageCode(preferred);
-        setNationality(resolveNationalityByLanguageCode(preferred));
-    }, [sessionData, availableLanguageCodes]);
+        setNationality(queryNationality || resolveNationalityByLanguageCode(preferred));
+        languageInitDoneRef.current = true;
+    }, [sessionData, availableLanguageCodes, searchParams]);
 
     useEffect(() => {
         const run = async () => {
@@ -1446,59 +1482,84 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                 </div>
 
                 <div ref={audioSectionRef} className="mt-4 scroll-mt-28">
-                    <label className="block text-xs font-black text-slate-500 mb-2">{t.audioGuideLabel}</label>
-                    <div className="mt-2 flex flex-col items-center">
-                        <button
-                            type="button"
-                            onClick={() => void handleToggleAudio()}
-                            disabled={!selectedAudioUrl}
-                            className={`relative w-40 h-40 sm:w-36 sm:h-36 rounded-full border-4 font-black text-5xl flex items-center justify-center transition-all ${isPlaying ? 'bg-indigo-600 border-indigo-700 text-white animate-pulse scale-105 shadow-2xl' : 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-lg'} ${!selectedAudioUrl ? 'opacity-60 cursor-not-allowed' : 'hover:scale-105'}`}
-                        >
-                            {isPlaying ? '⏸' : '🔊'}
-                            {isPlaying && <span className="absolute inset-0 rounded-full border-4 border-indigo-300 animate-ping" />}
-                        </button>
-                        <p className="mt-3 text-sm font-black text-slate-700">
-                            {selectedAudioUrl ? (isPlaying ? t.audioPlaying : t.audioReady) : t.audioMissing}
-                        </p>
-                        <div className="mt-3 flex w-full flex-col sm:flex-row justify-center gap-2">
-                            <button
-                                type="button"
-                                onClick={() => void handleToggleAudio()}
-                                disabled={!selectedAudioUrl}
-                                className="w-full sm:w-auto px-4 py-3 rounded-xl bg-indigo-600 text-white text-sm font-black hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                                {ux.listenNow}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => signatureWrapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-                                className="w-full sm:w-auto px-4 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-black hover:bg-slate-50"
-                            >
-                                {ux.signNow}
-                            </button>
+                    {!selectedAudioUrl ? (
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-6 py-8 text-center">
+                            <div className="text-5xl mb-4">🔇</div>
+                            <h3 className="text-lg font-black text-amber-900">{ux.audioNotAvailable}</h3>
+                            <p className="mt-3 text-sm font-bold text-amber-800">{ux.audioNotAvailableDetail}</p>
+                            <p className="mt-2 text-[12px] font-bold text-amber-700">{ux.audioNotAvailableContactHint}</p>
+                            <div className="mt-6 flex flex-col sm:flex-row justify-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => languageSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                                    className="px-6 py-3 rounded-xl bg-amber-600 text-white text-sm font-black hover:bg-amber-700"
+                                >
+                                    🌐 {t.languageLabel || 'Language'}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => signatureWrapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                                    className="px-6 py-3 rounded-xl bg-white border border-amber-200 text-amber-700 text-sm font-black hover:bg-amber-50"
+                                >
+                                    📝 {ux.signNow}
+                                </button>
+                            </div>
                         </div>
-                        {!simplifiedMode && (
-                            <button
-                                type="button"
-                                onClick={() => void handleToggleAudio()}
-                                disabled={!selectedAudioUrl}
-                                className="mt-2 px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-black border border-slate-200 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                                {isPlaying ? t.audioPause : t.audioPlay}
-                            </button>
-                        )}
-                    </div>
-                    <audio
-                        ref={audioRef}
-                        src={selectedAudioUrl || undefined}
-                        preload="none"
-                        onPlay={() => setIsPlaying(true)}
-                        onPause={() => setIsPlaying(false)}
-                        onEnded={() => setIsPlaying(false)}
-                    />
-                    <div className="mt-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
-                        <p className="text-[11px] font-black text-slate-500 mb-1">{t.guidanceLabel}</p>
-                        <div
+                    ) : (
+                        <>
+                            <label className="block text-xs font-black text-slate-500 mb-2">{t.audioGuideLabel}</label>
+                            <div className="mt-2 flex flex-col items-center">
+                                <button
+                                    type="button"
+                                    onClick={() => void handleToggleAudio()}
+                                    disabled={!selectedAudioUrl}
+                                    className={`relative w-40 h-40 sm:w-36 sm:h-36 rounded-full border-4 font-black text-5xl flex items-center justify-center transition-all ${isPlaying ? 'bg-indigo-600 border-indigo-700 text-white animate-pulse scale-105 shadow-2xl' : 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-lg'} ${!selectedAudioUrl ? 'opacity-60 cursor-not-allowed' : 'hover:scale-105'}`}
+                                >
+                                    {isPlaying ? '⏸' : '🔊'}
+                                    {isPlaying && <span className="absolute inset-0 rounded-full border-4 border-indigo-300 animate-ping" />}
+                                </button>
+                                <p className="mt-3 text-sm font-black text-slate-700">
+                                    {selectedAudioUrl ? (isPlaying ? t.audioPlaying : t.audioReady) : t.audioMissing}
+                                </p>
+                                <div className="mt-3 flex w-full flex-col sm:flex-row justify-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleToggleAudio()}
+                                        disabled={!selectedAudioUrl}
+                                        className="w-full sm:w-auto px-4 py-3 rounded-xl bg-indigo-600 text-white text-sm font-black hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                                    >
+                                        {ux.listenNow}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => signatureWrapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                                        className="w-full sm:w-auto px-4 py-3 rounded-xl bg-white border border-slate-200 text-slate-700 text-sm font-black hover:bg-slate-50"
+                                    >
+                                        {ux.signNow}
+                                    </button>
+                                </div>
+                                {!simplifiedMode && (
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleToggleAudio()}
+                                        disabled={!selectedAudioUrl}
+                                        className="mt-2 px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-xs font-black border border-slate-200 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-not-allowed"
+                                    >
+                                        {isPlaying ? t.audioPause : t.audioPlay}
+                                    </button>
+                                )}
+                            </div>
+                            <audio
+                                ref={audioRef}
+                                src={selectedAudioUrl || undefined}
+                                preload="none"
+                                onPlay={() => setIsPlaying(true)}
+                                onPause={() => setIsPlaying(false)}
+                                onEnded={() => setIsPlaying(false)}
+                            />
+                            <div className="mt-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
+                                <p className="text-[11px] font-black text-slate-500 mb-1">{t.guidanceLabel}</p>
+                                <div
                             ref={guidanceRef}
                             onScroll={() => {
                                 const node = guidanceRef.current;
@@ -1519,6 +1580,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                             <p className="text-[15px] leading-7 font-bold text-slate-700 whitespace-pre-wrap">{selectedTranslatedText}</p>
                         </div>
                     </div>
+                        </>
+                    )}
                 </div>
 
                 <div ref={comprehensionRef} className={`mt-4 p-4 rounded-xl border scroll-mt-28 transition-all ${comprehensionWarning ? 'border-rose-300 bg-rose-50 ring-4 ring-rose-100' : 'border-indigo-200 bg-indigo-50/50'}`}>
