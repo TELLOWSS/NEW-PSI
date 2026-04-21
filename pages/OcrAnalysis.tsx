@@ -4481,6 +4481,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 },
                             ]}
                         />
+                        {isDevMode && (
                         <div className="mt-2">
                             <button
                                 type="button"
@@ -4490,8 +4491,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 {showExtendedOverviewMetrics ? '보조 KPI 접기' : '보조 KPI 더 보기'}
                             </button>
                         </div>
+                        )}
 
-                        {showExtendedOverviewMetrics && (
+                        {isDevMode && showExtendedOverviewMetrics && (
                             <SummaryMetricGrid
                                 className="mt-3 grid grid-cols-2 gap-3"
                                 cardClassName="rounded-2xl border px-4 py-4"
@@ -4525,7 +4527,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             />
                         )}
 
-                        {failedFailureCodeSummary.length > 0 && (
+                        {isDevMode && failedFailureCodeSummary.length > 0 && (
                             <>
                                 <SummaryMetricGrid
                                     className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-5"
@@ -4903,7 +4905,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         items={[
                             {
                                 key: 'failed-harness-status',
-                                eyebrow: '하네스 상태',
+                                eyebrow: isDevMode ? '하네스 상태' : 'OCR 처리 상태',
                                 title: `${failedHarnessSummary.pendingApprovalCount}건이 관리자 판단 또는 승인 대기입니다`,
                                 description: isDevMode
                                     ? `실패 건 중 ${failedHarnessSummary.manualReviewCount}건은 수동 검토 흐름으로 묶여 있으며, ${failedHarnessSummary.immediateAttentionCount}건은 즉시 확인 우선 대상입니다. 저장 연결 ${failedHarnessSummary.connectedCount}건 · 폴백 ${failedHarnessSummary.fallbackCount}건 · 대기 ${failedHarnessSummary.pendingPersistenceCount}건입니다.`
@@ -5048,7 +5050,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </SectionPanelCard>
                     )}
 
-                    {failedFailureCodeSummary.length > 0 && (
+                    {isDevMode && failedFailureCodeSummary.length > 0 && (
                         <SectionPanelCard
                             className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3"
                             title="실패코드별 우선 조치"
