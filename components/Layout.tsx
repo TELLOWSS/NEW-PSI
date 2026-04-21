@@ -232,9 +232,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                        : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-600'
                                }`}
                                aria-label={isDevMode ? '개발자 모드 끄기' : '개발자 모드 켜기'}
-                               title={isDevMode ? '개발자 모드 ON – 클릭하면 끔' : '개발자 모드 OFF – 클릭하면 켬'}
+                               title={isDevMode ? '개발자 모드 ON – 클릭하면 꺼짐 (탭 닫으면 자동 OFF)' : '개발자 모드 OFF – 클릭하면 켜짐'}
                            >
-                               DEV
+                               {isDevMode ? 'DEV ON' : 'DEV OFF'}
                            </button>
                            {/* 다크모드 토글 */}
                            <button

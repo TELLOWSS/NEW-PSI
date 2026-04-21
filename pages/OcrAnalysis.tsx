@@ -4742,7 +4742,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
                 )}
 
-                {retryDiagnostics && (
+                {isDevMode && retryDiagnostics && (
                     <div className="mt-6 pt-5 border-t border-white/10 animate-fade-in">
                         <SummaryMetricGrid
                             className="grid grid-cols-2 gap-3 lg:grid-cols-5"
@@ -5209,6 +5209,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     <div className="min-w-0">
                         <h4 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">운영 탐색 및 우선순위 정리</h4>
                         <p className="mt-1 text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-300">검색·필터·정렬을 통해 지금 봐야 할 보호 신호와 재평가 대상을 한 번에 정리합니다.</p>
+                        {isDevMode && (
                         <div className="mt-2 flex flex-wrap items-center gap-2">
                             <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black ${fallbackRecoveryBadge.className}`}>
                                 {fallbackRecoveryBadge.text}
@@ -5217,6 +5218,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 폴백 회복률 {fallbackRecoveryRate}%
                             </span>
                         </div>
+                        )}
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-2 gap-2 sm:gap-3 w-full">
                         <div className="rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-2">
@@ -5833,7 +5835,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 />
                             )}
                         </SectionPanelCard>
-                        {retryDiagnostics && (
+                        {isDevMode && retryDiagnostics && (
                             <SectionPanelCard
                                 variant="emerald"
                                 className="mt-4"
