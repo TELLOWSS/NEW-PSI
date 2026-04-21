@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
+import { DevModeProvider } from './contexts/DevModeContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -34,7 +35,9 @@ const root = ReactDOM.createRoot(rootElement);
 try {
   root.render(
     <React.StrictMode>
-      <App />
+      <DevModeProvider>
+        <App />
+      </DevModeProvider>
     </React.StrictMode>
   );
 } catch (error) {

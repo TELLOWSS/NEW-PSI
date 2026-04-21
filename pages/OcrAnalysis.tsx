@@ -28,6 +28,7 @@ import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
 import { useMobileBackGuard } from '../hooks/useMobileBackGuard';
 import { API_MODE_CHANGED_EVENT, getIsPaidApiMode } from '../utils/apiModeUtils';
 import { resolveOcrExecutionKeyStatus } from '../utils/ocrExecutionKeyStatus';
+import { useDevMode } from '../contexts/DevModeContext';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils';
 
 const buildMasterDataLoadErrorMessage = (rawMessage?: string) => {
@@ -1087,6 +1088,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     onDeleteRecord, 
     onUpdateRecord 
 }) => {
+    const { isDevMode } = useDevMode();
     const storedViewState = getStoredOcrViewState();
     const [files, setFiles] = useState<File[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -4903,7 +4905,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 key: 'failed-harness-status',
                                 eyebrow: '하네스 상태',
                                 title: `${failedHarnessSummary.pendingApprovalCount}건이 관리자 판단 또는 승인 대기입니다`,
-                                description: `실패 건 중 ${failedHarnessSummary.manualReviewCount}건은 수동 검토 흐름으로 묶여 있으며, ${failedHarnessSummary.immediateAttentionCount}건은 즉시 확인 우선 대상입니다. 저장 연결 ${failedHarnessSummary.connectedCount}건 · 폴백 ${failedHarnessSummary.fallbackCount}건 · 대기 ${failedHarnessSummary.pendingPersistenceCount}건입니다.`,
+                                description: isDevMode
+                                    ? `실패 건 중 ${failedHarnessSummary.manualReviewCount}건은 수동 검토 흐름으로 묶여 있으며, ${failedHarnessSummary.immediateAttentionCount}건은 즉시 확인 우선 대상입니다. 저장 연결 ${failedHarnessSummary.connectedCount}건 · 폴백 ${failedHarnessSummary.fallbackCount}건 · 대기 ${failedHarnessSummary.pendingPersistenceCount}건입니다.`
+                                    : `실패 건 중 ${failedHarnessSummary.manualReviewCount}건은 수동 확인이 필요하며, ${failedHarnessSummary.immediateAttentionCount}건은 즉시 조치가 우선입니다.`,
                                 tone: BRAND_TONE.slateWhite,
                             },
                             {
@@ -5095,10 +5099,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     badge={(
                                         <div className="flex flex-wrap items-center gap-1.5">
                                             <StatusBadge variant="rose" className="shrink-0 px-2 py-1">{getOcrErrorTypeKoreanLabel(errorType)}</StatusBadge>
-                                            <StatusBadge variant={getHarnessWorkflowBadgeVariant(workflowState)} className="shrink-0 px-2 py-1">{getHarnessWorkflowStateLabel(workflowState)}</StatusBadge>
+                                            {isDevMode && <StatusBadge variant={getHarnessWorkflowBadgeVariant(workflowState)} className="shrink-0 px-2 py-1">{getHarnessWorkflowStateLabel(workflowState)}</StatusBadge>}
                                             <StatusBadge variant={getHarnessRiskBadgeVariant(riskDecision)} className="shrink-0 px-2 py-1">{getHarnessRiskDecisionLabel(riskDecision)}</StatusBadge>
-                                            <StatusBadge variant={getHarnessApprovalBadgeVariant(approvalState)} className="shrink-0 px-2 py-1">{getHarnessApprovalStateLabel(approvalState)}</StatusBadge>
-                                            <StatusBadge variant={getHarnessPersistenceBadgeVariant(persistenceState)} className="shrink-0 px-2 py-1">{getHarnessPersistenceLabel(persistenceState)}</StatusBadge>
+                                            {isDevMode && <StatusBadge variant={getHarnessApprovalBadgeVariant(approvalState)} className="shrink-0 px-2 py-1">{getHarnessApprovalStateLabel(approvalState)}</StatusBadge>}
+                                            {isDevMode && <StatusBadge variant={getHarnessPersistenceBadgeVariant(persistenceState)} className="shrink-0 px-2 py-1">{getHarnessPersistenceLabel(persistenceState)}</StatusBadge>}
                                         </div>
                                     )}
                                     body={(
@@ -5122,8 +5126,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                     title: preflightReason ? `사전검증: ${preflightReason}` : '사전검증 경고는 없지만 원문/배치/필기 품질을 다시 확인할 필요가 있습니다.',
                                                     tone: BRAND_TONE.amberSoft,
                                                     eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-600',
-                                                    description: `${getHarnessWorkflowStateLabel(workflowState)} · ${getHarnessApprovalStateLabel(approvalState)} · ${getHarnessPersistenceLabel(persistenceState)}`,
-                                                    content: (
+                                                    description: isDevMode
+                                                        ? `${getHarnessWorkflowStateLabel(workflowState)} · ${getHarnessApprovalStateLabel(approvalState)} · ${getHarnessPersistenceLabel(persistenceState)}`
+                                                        : '관리자 확인이 필요한 상태로 분류되어 있습니다.',
+                                                    content: isDevMode ? (
                                                         <div className="mt-2 space-y-2">
                                                             <div className="flex flex-wrap gap-1.5">
                                                                 <StatusBadge variant={getHarnessWorkflowBadgeVariant(workflowState)}>{getHarnessWorkflowStateLabel(workflowState)}</StatusBadge>
@@ -5136,7 +5142,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                                 </p>
                                                             )}
                                                         </div>
-                                                    ),
+                                                    ) : undefined,
                                                 },
                                                 {
                                                     key: `${record.id}-action`,

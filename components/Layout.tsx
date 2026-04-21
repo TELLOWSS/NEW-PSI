@@ -14,6 +14,7 @@ import {
     type BestPracticeSyncState,
 } from '../utils/bestPracticeSyncStatus';
 import { getStoredTheme, getResolvedTheme, toggleTheme, applyTheme, watchSystemThemeChange, THEME_CHANGED_EVENT, type ThemeMode } from '../utils/themeUtils';
+import { useDevMode } from '../contexts/DevModeContext';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -30,6 +31,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const [isDark, setIsDark] = useState(() => getResolvedTheme(getStoredTheme()) === 'dark');
     const [showScrollTop, setShowScrollTop] = useState(false);
     const mainRef = useRef<HTMLElement>(null);
+    const { isDevMode, toggle: toggleDevMode } = useDevMode();
 
     const handleScrollToTop = useCallback(() => {
         mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -219,7 +221,21 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                <span className="sm:hidden">{isPaidApiMode ? '유료' : '무료'}</span>
                                <span className="hidden sm:inline">{isPaidApiMode ? '유료 API' : '무료 API'}</span>
                            </StatusBadge>
-                           <BestPracticeSyncBadge state={bestPracticeSyncState} failureLogs={bestPracticeFailureLogs} />
+                           {isDevMode && <BestPracticeSyncBadge state={bestPracticeSyncState} failureLogs={bestPracticeFailureLogs} />}
+                           {/* 개발자 모드 토글 */}
+                           <button
+                               type="button"
+                               onClick={toggleDevMode}
+                               className={`ml-1 flex items-center justify-center rounded-lg border px-2 h-8 text-[10px] font-black tracking-wider transition-colors ${
+                                   isDevMode
+                                       ? 'border-violet-400 bg-violet-600 text-white hover:bg-violet-500'
+                                       : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-600'
+                               }`}
+                               aria-label={isDevMode ? '개발자 모드 끄기' : '개발자 모드 켜기'}
+                               title={isDevMode ? '개발자 모드 ON – 클릭하면 끔' : '개발자 모드 OFF – 클릭하면 켬'}
+                           >
+                               DEV
+                           </button>
                            {/* 다크모드 토글 */}
                            <button
                                type="button"
