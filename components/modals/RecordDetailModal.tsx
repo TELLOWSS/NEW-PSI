@@ -44,7 +44,7 @@ import {
 } from '../../services/harnessService';
 import { buildHarnessRuleImpactSummary } from '../../utils/harnessRuleImpactSummary';
 import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
-import { buildFallbackNativeGuidanceText, evaluateOcrVerificationCompleteness, getNativeLanguageLabel, isKoreanNationality } from '../../utils/ocrVerificationLanguageUtils';
+import { buildFallbackNativeGuidanceText, evaluateOcrVerificationCompleteness, evaluateOcrVerificationQuality, getNativeLanguageLabel, getNativeWritingGuide, isKoreanNationality } from '../../utils/ocrVerificationLanguageUtils';
 import {
     getHarnessAuditItemLabel,
     getHarnessAuditSectionLabel,
@@ -1689,6 +1689,66 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         };
     }, [record.handwrittenAnswers]);
     const verificationAudit = useMemo(() => evaluateOcrVerificationCompleteness(record), [record]);
+    const qualityAudit = useMemo(() => evaluateOcrVerificationQuality(record), [record]);
+    const nativeWritingGuide = useMemo(() => getNativeWritingGuide(record.nationality), [record.nationality]);
+    const finalAuditVerdict = useMemo(() => {
+        if (!verificationAudit.isComplete) {
+            return {
+                label: '반려 권고',
+                reason: verificationAudit.issues.join(' / '),
+                tone: BRAND_TONE.rose,
+                labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-rose-500',
+                valueClassName: 'mt-1 text-xs font-black text-rose-700',
+            };
+        }
+
+        if (!qualityAudit.isHealthy) {
+            return {
+                label: '보정 필요',
+                reason: qualityAudit.issues.join(' / '),
+                tone: BRAND_TONE.amber,
+                labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-500',
+                valueClassName: 'mt-1 text-xs font-black text-amber-700',
+            };
+        }
+
+        return {
+            label: '합격',
+            reason: '검증 상태/영어 혼입/모국어 문항 번역/점수 과대 의심 모두 정상',
+            tone: BRAND_TONE.emerald,
+            labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500',
+            valueClassName: 'mt-1 text-xs font-black text-emerald-700',
+        };
+    }, [qualityAudit, verificationAudit]);
+    const auditTemplateLine = useMemo(() => {
+        return [
+            `국가=${record.nationality}`,
+            `검증=${verificationAudit.isComplete ? '정상' : '미달'}`,
+            `영어혼입=${qualityAudit.hasEnglishInKorean || qualityAudit.hasEnglishInNative ? '있음' : '없음'}`,
+            `문항모국어누락=${qualityAudit.missingNativeAnswerTranslationCount}건`,
+            `점수과대의심=${qualityAudit.scoreOverestimateRisk ? '예' : '아니오'}`,
+            `최종판정=${finalAuditVerdict.label}`,
+        ].join(' | ');
+    }, [finalAuditVerdict.label, qualityAudit, record.nationality, verificationAudit.isComplete]);
+    const auditOnePageSummary = useMemo(() => {
+        const issueText = [
+            ...verificationAudit.issues,
+            ...qualityAudit.issues,
+        ].filter((value, index, array) => array.indexOf(value) === index);
+
+        return [
+            `[OCR 재분석 검증 요약]`,
+            `- 근로자: ${record.name || '미상'}`,
+            `- 국가/언어: ${record.nationality} / ${nativeLanguageLabel}`,
+            `- 공종: ${record.jobField || '미상'}`,
+            `- 점수: ${Number(record.safetyScore || 0).toFixed(1)}점`,
+            `- 최종 판정: ${finalAuditVerdict.label}`,
+            `- 구조 검증: ${verificationAudit.isComplete ? '정상' : verificationAudit.issues.join(', ')}`,
+            `- 품질 점검: ${qualityAudit.isHealthy ? '정상' : qualityAudit.issues.join(', ')}`,
+            `- 문항 원문/한국어/모국어: ${answerComparisonSummary.originalReady} / ${answerComparisonSummary.translated} / ${verificationAudit.nativeTranslatedAnswerCount ?? 0}`,
+            `- 조치 의견: ${issueText.length === 0 ? '추가 보정 없이 운영 가능' : issueText.join(' / ')}`,
+        ].join('\n');
+    }, [answerComparisonSummary.originalReady, answerComparisonSummary.translated, finalAuditVerdict.label, nativeLanguageLabel, qualityAudit, record.jobField, record.name, record.nationality, record.safetyScore, verificationAudit]);
     const nativeGuidancePreview = useMemo(
         () => String(record.aiInsights_native || '').trim() || buildFallbackNativeGuidanceText(record),
         [record],
@@ -2983,6 +3043,76 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 },
                                             ]}
                                         />
+                                        <SummaryMetricGrid
+                                            className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+                                            cardClassName="rounded-2xl border px-4 py-3"
+                                            items={[
+                                                {
+                                                    key: 'lang-mix-status',
+                                                    label: '영어 혼입 점검',
+                                                    value: qualityAudit.hasEnglishInKorean || qualityAudit.hasEnglishInNative ? '혼입 감지' : '정상',
+                                                    tone: qualityAudit.hasEnglishInKorean || qualityAudit.hasEnglishInNative ? BRAND_TONE.rose : BRAND_TONE.emerald,
+                                                    labelClassName: qualityAudit.hasEnglishInKorean || qualityAudit.hasEnglishInNative ? 'text-[10px] font-black uppercase tracking-[0.18em] text-rose-500' : 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500',
+                                                    valueClassName: qualityAudit.hasEnglishInKorean || qualityAudit.hasEnglishInNative ? 'mt-1 text-xs font-black text-rose-700' : 'mt-1 text-xs font-black text-emerald-700',
+                                                },
+                                                {
+                                                    key: 'native-answer-status',
+                                                    label: '문항 모국어 번역',
+                                                    value: qualityAudit.missingNativeAnswerTranslationCount > 0 ? `누락 ${qualityAudit.missingNativeAnswerTranslationCount}건` : '정상',
+                                                    tone: qualityAudit.missingNativeAnswerTranslationCount > 0 ? BRAND_TONE.amber : BRAND_TONE.emerald,
+                                                    labelClassName: qualityAudit.missingNativeAnswerTranslationCount > 0 ? 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-500' : 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500',
+                                                    valueClassName: qualityAudit.missingNativeAnswerTranslationCount > 0 ? 'mt-1 text-xs font-black text-amber-700' : 'mt-1 text-xs font-black text-emerald-700',
+                                                },
+                                                {
+                                                    key: 'score-overrisk',
+                                                    label: '점수 과대 의심',
+                                                    value: qualityAudit.scoreOverestimateRisk ? '의심' : '정상',
+                                                    tone: qualityAudit.scoreOverestimateRisk ? BRAND_TONE.amber : BRAND_TONE.emerald,
+                                                    labelClassName: qualityAudit.scoreOverestimateRisk ? 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-500' : 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500',
+                                                    valueClassName: qualityAudit.scoreOverestimateRisk ? 'mt-1 text-xs font-black text-amber-700' : 'mt-1 text-xs font-black text-emerald-700',
+                                                },
+                                            ]}
+                                        />
+                                        <SummaryMetricGrid
+                                            className="grid grid-cols-1 gap-3 sm:grid-cols-1"
+                                            cardClassName="rounded-2xl border px-4 py-3"
+                                            items={[
+                                                {
+                                                    key: 'final-audit-verdict',
+                                                    label: '최종 판정',
+                                                    value: `${finalAuditVerdict.label} · ${finalAuditVerdict.reason}`,
+                                                    tone: finalAuditVerdict.tone,
+                                                    labelClassName: finalAuditVerdict.labelClassName,
+                                                    valueClassName: finalAuditVerdict.valueClassName,
+                                                },
+                                            ]}
+                                        />
+                                        {!qualityAudit.isHealthy && (
+                                            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                                                <p className="text-[11px] font-black text-amber-700">추가 점검 필요</p>
+                                                <p className="mt-1 text-xs font-semibold text-amber-700">{qualityAudit.issues.join(' / ')}</p>
+                                            </div>
+                                        )}
+                                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                                            <p className="text-[11px] font-black text-slate-700">3건 검증 기록 템플릿</p>
+                                            <p className="mt-1 text-xs font-semibold text-slate-600 break-words">{auditTemplateLine}</p>
+                                        </div>
+                                        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
+                                            <p className="text-[11px] font-black text-slate-700">보고용 1페이지 요약</p>
+                                            <textarea
+                                                readOnly
+                                                value={auditOnePageSummary}
+                                                className="mt-2 w-full min-h-[140px] text-xs text-slate-700 leading-relaxed border border-slate-200 rounded-xl p-3 bg-slate-50 resize-none"
+                                            />
+                                        </div>
+                                        <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+                                            <p className="text-[11px] font-black text-indigo-700">{nativeLanguageLabel} 작성 가이드</p>
+                                            <ul className="mt-1 space-y-1 text-xs font-semibold text-indigo-700">
+                                                {nativeWritingGuide.map((line, idx) => (
+                                                    <li key={`${line}-${idx}`}>• {line}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
                                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                                             <SectionPanelCard
                                                 variant="whiteSoft"

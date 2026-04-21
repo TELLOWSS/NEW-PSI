@@ -2,6 +2,8 @@ import type { WorkerRecord } from '../types';
 
 type OcrVerificationLikeRecord = Pick<WorkerRecord, 'nationality' | 'jobField' | 'weakAreas' | 'aiInsights' | 'aiInsights_native' | 'fullText' | 'koreanTranslation' | 'handwrittenAnswers'>;
 
+type OcrVerificationQualityRecord = Pick<WorkerRecord, 'nationality' | 'jobField' | 'aiInsights' | 'aiInsights_native' | 'handwrittenAnswers' | 'safetyScore'>;
+
 const normalizeNation = (nationality: string): string => String(nationality || '').trim().toLowerCase();
 
 export const isKoreanNationality = (nationality: string): boolean => {
@@ -181,4 +183,98 @@ export const evaluateOcrVerificationCompleteness = (record: OcrVerificationLikeR
         issues,
         isComplete: issues.length === 0,
     };
+};
+
+export const evaluateOcrVerificationQuality = (record: OcrVerificationQualityRecord) => {
+    const nativeLanguageLabel = getNativeLanguageLabel(record.nationality);
+    const aiInsights = String(record.aiInsights || '').trim();
+    const aiInsightsNative = String(record.aiInsights_native || '').trim();
+    const jobField = String(record.jobField || '').trim();
+    const handwrittenAnswers = Array.isArray(record.handwrittenAnswers) ? record.handwrittenAnswers : [];
+
+    const latinRegex = /[A-Za-z]{2,}/;
+    const hasEnglishInKorean = latinRegex.test(aiInsights);
+    const hasEnglishInNative = latinRegex.test(aiInsightsNative);
+
+    const answerRows = handwrittenAnswers.filter((item) => String(item?.answerText || '').trim().length > 0);
+    const missingNativeAnswerTranslationCount = isKoreanNationality(record.nationality)
+        ? 0
+        : answerRows.filter((item) => String((item as { nativeTranslation?: string })?.nativeTranslation || '').trim().length === 0).length;
+
+    const hasJobContextInInsights = jobField.length > 0 && (aiInsights.includes(jobField) || aiInsightsNative.includes(jobField));
+    const hasConcreteActionSignal = /(작업\s*전|작업\s*중|작업\s*후|체결|점검|통제|확인|\d+\s*(?:m|미터|cm|개|회|분)|ก่อน|前|后|检查|确认|kiểm tra|trước|sau|провер|контрол)/u.test(`${aiInsights}\n${aiInsightsNative}`);
+    const scoreOverestimateRisk = Number(record.safetyScore || 0) >= 80 && (!hasJobContextInInsights || !hasConcreteActionSignal);
+
+    const issues: string[] = [];
+    if (hasEnglishInKorean) issues.push('한국어 분석문에 영어 혼입');
+    if (hasEnglishInNative) issues.push(`${nativeLanguageLabel} 분석문에 영어 혼입`);
+    if (missingNativeAnswerTranslationCount > 0) issues.push(`${nativeLanguageLabel} 문항 번역 누락 ${missingNativeAnswerTranslationCount}건`);
+    if (scoreOverestimateRisk) issues.push('점수 과대 의심(공종 맥락/행동근거 부족)');
+
+    return {
+        nativeLanguageLabel,
+        hasEnglishInKorean,
+        hasEnglishInNative,
+        missingNativeAnswerTranslationCount,
+        scoreOverestimateRisk,
+        issues,
+        isHealthy: issues.length === 0,
+    };
+};
+
+export const getNativeWritingGuide = (nationality: string): string[] => {
+    const nation = normalizeNation(nationality);
+    const common = [
+        '작업 전/중/후 순서로 작성합니다.',
+        '수치·거리·횟수 같은 검증 가능한 기준을 포함합니다.',
+        '영어 혼용 없이 해당 언어만 사용합니다.',
+    ];
+
+    if (isKoreanNationality(nationality)) {
+        return [
+            ...common,
+            '예: 작업 전 안전대 체결 확인 → 작업 중 단부 2m 이내 통제 → 작업 후 해체 전 재점검.',
+        ];
+    }
+    if (nation.includes('중국') || nation.includes('china')) {
+        return [
+            ...common,
+            '중국어 간체로 작성하고, 先/中/后 구조(作业前/作业中/作业后)를 유지합니다.',
+        ];
+    }
+    if (nation.includes('베트남') || nation.includes('vietnam') || nation.includes('việt')) {
+        return [
+            ...common,
+            '베트남어로 작성하고, trước khi làm/trong khi làm/sau khi làm 순서를 명확히 적습니다.',
+        ];
+    }
+    if (nation.includes('몽골') || nation.includes('mongolia') || nation.includes('монгол')) {
+        return [
+            ...common,
+            '몽골어로 작성하고, 행동 주체(본인/팀장)와 확인 시점을 같이 적습니다.',
+        ];
+    }
+    if (nation.includes('캄보디아') || nation.includes('cambodia') || nation.includes('កម្ពុជា')) {
+        return [
+            ...common,
+            '크메르어로 작성하고, 중단 조건(위험 변경 시 즉시 정지)을 반드시 포함합니다.',
+        ];
+    }
+    if (nation.includes('러시아') || nation.includes('russia') || nation.includes('росси') || nation.includes('русск')) {
+        return [
+            ...common,
+            '러시아어로 작성하고, 점검 항목과 통제 범위를 짧은 명령형으로 작성합니다.',
+        ];
+    }
+    if (nation.includes('인도네시아') || nation.includes('indonesia')) {
+        return [
+            ...common,
+            '인도네시아어로 작성하고, APD 점검·현장변경 시 재평가를 반드시 포함합니다.',
+        ];
+    }
+
+    return [
+        ...common,
+        '국적별 모국어 표기 규칙을 우선 적용해 현장 전달 문장으로 작성합니다.',
+    ];
 };
