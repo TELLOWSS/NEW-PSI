@@ -2853,7 +2853,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         }
 
         const nextHandwrittenAnswers = Array.isArray(data.record.handwrittenAnswers)
-            && data.record.handwrittenAnswers.some((answer: any) => String(answer?.answerText || '').trim().length > 0 || String(answer?.koreanTranslation || '').trim().length > 0)
+            && data.record.handwrittenAnswers.some((answer: any) =>
+                String(answer?.answerText || '').trim().length > 0
+                || String(answer?.koreanTranslation || '').trim().length > 0
+                || String(answer?.nativeTranslation || '').trim().length > 0
+            )
             ? data.record.handwrittenAnswers
             : record.handwrittenAnswers;
         const nextAiInsightsNative = String(data.record.aiInsights_native || '').trim() || record.aiInsights_native;

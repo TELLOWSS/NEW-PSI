@@ -102,6 +102,49 @@ export const buildFallbackNativeVerdictText = (record: Pick<OcrVerificationLikeR
     return koreanSummary;
 };
 
+export const buildFallbackNativeCoachingText = (record: Pick<OcrVerificationLikeRecord, 'nationality' | 'jobField' | 'weakAreas' | 'aiInsights'>): string => {
+    const nation = normalizeNation(record.nationality);
+    const job = String(record.jobField || '작업').trim();
+    const weak = String(record.weakAreas?.[0] || '').trim();
+    const improvement = weak ? `"${weak}"` : '확인된 위험요인';
+
+    if (nation.includes('베트남') || nation.includes('vietnam')) {
+        return `Để cải thiện độ an toàn trong công việc ${job}, hãy tập trung vào ${improvement}. Hãy thực hiện kiểm tra thiết bị bảo hộ đầy đủ trước mỗi ca làm việc và tuân thủ nghiêm ngặt quy trình an toàn đã được hướng dẫn.`;
+    }
+    if (nation.includes('중국') || nation.includes('china')) {
+        return `为改善${job}作业安全，重点关注${improvement}。每班作业前务必检查个人防护装备，并严格遵守已经培训的安全操作规程。`;
+    }
+    if (nation.includes('태국') || nation.includes('thailand')) {
+        return `เพื่อปรับปรุงความปลอดภัยในงาน${job} ให้เน้นที่${improvement} ตรวจสอบอุปกรณ์ป้องกันส่วนบุคคลให้ครบถ้วนก่อนทุกกะงาน และปฏิบัติตามขั้นตอนความปลอดภัยที่ได้รับการอบรมอย่างเคร่งครัด`;
+    }
+    if (nation.includes('우즈벡') || nation.includes('uzbekistan') || nation.includes('ўзбек') || nation.includes('узбек')) {
+        return `${job} ishida xavfsizlikni yaxshilash uchun ${improvement} ga e'tibor qarating. Har smenadan oldin himoya vositalarini to'liq tekshiring va o'rgatilgan xavfsizlik qoidalariga qat'iy rioya qiling.`;
+    }
+    if (nation.includes('인도네시아') || nation.includes('indonesia')) {
+        return `Untuk meningkatkan keselamatan dalam pekerjaan ${job}, fokuslah pada ${improvement}. Periksa APD secara lengkap sebelum setiap shift dan patuhi prosedur keselamatan yang telah dilatihkan dengan ketat.`;
+    }
+    if (nation.includes('캄보디아') || nation.includes('cambodia')) {
+        return `ដើម្បីកែលម្អសុវត្ថិភាពក្នុងការងារ ${job} សូមផ្តោតលើ ${improvement}។ ត្រូវពិនិត្យឧបករណ៍ការពារឱ្យបានគ្រប់គ្រាន់មុនគ្រប់វេន ហើយអនុវត្តតាមនីតិវិធីសុវត្ថិភាពដែលបានបង្ហាត់ប្រាប់យ៉ាងតឹងរ៉ឹង។`;
+    }
+    if (nation.includes('몽골') || nation.includes('mongolia') || nation.includes('монгол')) {
+        return `${job} ажлын аюулгүй байдлыг сайжруулахын тулд ${improvement}-д анхааран хандаарай. Ажлын ээлж бүрийн өмнө хамгаалах хэрэгслийг бүрэн шалгаад, зааварчилгаанд заасан аюулгүй байдлын журмыг чанд мөрдөөрэй.`;
+    }
+    if (nation.includes('카자흐') || nation.includes('kazakhstan') || nation.includes('қазақ') || nation.includes('казах')) {
+        return `${job} жұмысындағы қауіпсіздікті жақсарту үшін ${improvement}-ге назар аударыңыз. Әр ауысымнан бұрын қорғаныс құралдарын толық тексеріп, үйретілген қауіпсіздік ережелерін қатаң сақтаңыз.`;
+    }
+    if (nation.includes('러시아') || nation.includes('russia') || nation.includes('росси') || nation.includes('русск')) {
+        return `Для повышения безопасности при ${job} сосредоточьтесь на ${improvement}. Перед каждой сменой полностью проверяйте средства индивидуальной защиты и строго соблюдайте инструктированные правила безопасности.`;
+    }
+    if (nation.includes('네팔') || nation.includes('nepal')) {
+        return `${job} कामको सुरक्षा सुधार गर्न ${improvement} मा ध्यान दिनुहोस्। प्रत्येक सिफ्ट अघि सुरक्षात्मक उपकरण पूर्ण रूपमा जाँच गर्नुहोस् र सिकाइएको सुरक्षा प्रक्रिया कडाइका साथ पालना गर्नुहोस्।`;
+    }
+    if (nation.includes('미얀마') || nation.includes('myanmar') || nation.includes('burma')) {
+        return `${job} အလုပ်တွင် ဘေးကင်းလုံခြုံမှုကို တိုးတက်စေရန် ${improvement} ကို အာရုံစိုက်ပါ။ လုပ်ငန်းဆိုင်းတိုင်း မစတင်မီ ကိုယ်ကာကွယ်ပစ္စည်းကို အပြည့်စစ်ဆေးပြီး သင်ကြားပေးထားသော ဘေးကင်းရေးလုပ်ထုံးလုပ်နည်းကို တင်းတင်းကျပ်ကျပ် လိုက်နာပါ။`;
+    }
+    // 한국어 및 기본 폴백
+    return `${job} 작업의 안전 개선을 위해 ${improvement}에 집중적으로 대응하십시오. 매 작업 전 보호구를 빠짐없이 점검하고, 교육받은 안전 절차를 엄수하여 재발을 방지하십시오.`;
+};
+
 export const evaluateOcrVerificationCompleteness = (record: OcrVerificationLikeRecord) => {
     const fullText = String(record.fullText || '').trim();
     const koreanTranslation = String(record.koreanTranslation || '').trim();
@@ -109,6 +152,7 @@ export const evaluateOcrVerificationCompleteness = (record: OcrVerificationLikeR
     const handwrittenAnswers = Array.isArray(record.handwrittenAnswers) ? record.handwrittenAnswers : [];
     const answerCount = handwrittenAnswers.filter((item) => String(item?.answerText || '').trim().length > 0).length;
     const translatedAnswerCount = handwrittenAnswers.filter((item) => String(item?.koreanTranslation || '').trim().length > 0).length;
+    const nativeTranslatedAnswerCount = handwrittenAnswers.filter((item) => String((item as { nativeTranslation?: string })?.nativeTranslation || '').trim().length > 0).length;
     const combinedText = `${fullText}\n${koreanTranslation}`;
     const hasQuestionnairePattern = /(?:^|\s)(?:1|2|3|4|5)[\.\)]|가장\s*큰\s*위험요소|위험등급|안전\s*조치|안전\s*행동|最危险|最大的危险因素|危险等级|安全措施|安全行为/u.test(combinedText);
     const nativeLanguageLabel = getNativeLanguageLabel(record.nationality);
@@ -120,6 +164,9 @@ export const evaluateOcrVerificationCompleteness = (record: OcrVerificationLikeR
     if (hasQuestionnairePattern && translatedAnswerCount === 0) {
         issues.push('문항별 한국어 해석 누락');
     }
+    if (hasQuestionnairePattern && !isKoreanNationality(record.nationality) && nativeTranslatedAnswerCount === 0) {
+        issues.push(`${nativeLanguageLabel} 문항 해석 누락`);
+    }
     if (!aiInsightsNative) {
         issues.push(`${nativeLanguageLabel} 보호 안내 누락`);
     }
@@ -129,6 +176,7 @@ export const evaluateOcrVerificationCompleteness = (record: OcrVerificationLikeR
         hasQuestionnairePattern,
         answerCount,
         translatedAnswerCount,
+        nativeTranslatedAnswerCount,
         hasNativeGuidance: aiInsightsNative.length > 0,
         issues,
         isComplete: issues.length === 0,

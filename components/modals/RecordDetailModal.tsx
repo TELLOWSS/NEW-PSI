@@ -1262,7 +1262,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         alert('최종 승인이 기록되었습니다. 코멘트 기반 확정 데이터로 2차 가공이 실행되었습니다.');
     };
 
-    const handleAnswerChange = (index: number, field: 'answerText' | 'koreanTranslation', value: string) => {
+    const handleAnswerChange = (index: number, field: 'answerText' | 'koreanTranslation' | 'nativeTranslation', value: string) => {
         const updated = [...(record.handwrittenAnswers || [])];
         if (!updated[index]) return;
         updated[index] = {
@@ -3083,7 +3083,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 titleClassName="mt-1 text-sm font-black text-slate-900"
                                                 bodyClassName="mt-4"
                                                 body={
-                                                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                                                         <SectionPanelCard
                                                             variant="slate"
                                                             eyebrow="원문 신호"
@@ -3117,6 +3117,24 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                                 onChange={(e) => handleAnswerChange(idx, 'koreanTranslation', e.target.value)}
                                                                 className="w-full min-h-[110px] text-sm text-slate-700 bg-white border border-indigo-100 rounded-lg p-3 font-bold"
                                                                 placeholder="관리자 검토용 한국어 해석을 확인하거나 수정하세요."
+                                                            />
+                                                        </SectionPanelCard>
+                                                        <SectionPanelCard
+                                                            variant="violet"
+                                                            eyebrow="작업자 모국어"
+                                                            title="모국어 전달 문맥 점검"
+                                                            description="현장 작업자가 바로 이해할 수 있는 모국어 문장인지 확인합니다."
+                                                            className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-4"
+                                                            eyebrowClassName="text-xs font-bold uppercase tracking-[0.18em] text-violet-400"
+                                                            titleClassName="mt-1 text-xs font-black text-violet-700"
+                                                            descriptionClassName="mt-1 text-[11px] font-semibold text-violet-500"
+                                                            bodyClassName="mt-3"
+                                                        >
+                                                            <textarea
+                                                                value={String((ans as any).nativeTranslation || '')}
+                                                                onChange={(e) => handleAnswerChange(idx, 'nativeTranslation', e.target.value)}
+                                                                className="w-full min-h-[110px] text-sm text-slate-700 bg-white border border-violet-100 rounded-lg p-3 font-bold"
+                                                                placeholder="작업자 모국어 번역을 확인하거나 수정하세요."
                                                             />
                                                         </SectionPanelCard>
                                                     </div>

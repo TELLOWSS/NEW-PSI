@@ -398,7 +398,8 @@ const workerRecordSchema = {
                     properties: {
                         questionNumber: { type: Type.STRING },
                         answerText: { type: Type.STRING },
-                        koreanTranslation: { type: Type.STRING },
+                        koreanTranslation: { type: Type.STRING, description: '관리자 검토용 한국어 해석 — 항상 한국어로 작성' },
+                        nativeTranslation: { type: Type.STRING, description: '작업자 전달용 모국어 해석 — 외국인은 LANGUAGE_POLICY 기준 해당 국적 모국어로 전문 번역, 한국인은 빈 문자열' },
                     }
                 }
             },
@@ -575,9 +576,10 @@ const normalizeHandwrittenAnswers = (raw: unknown): HandwrittenAnswer[] => {
                 questionNumber: String(entry.questionNumber || index + 1).trim(),
                 answerText: String(entry.answerText || '').trim(),
                 koreanTranslation: String(entry.koreanTranslation || '').trim(),
+                nativeTranslation: String(entry.nativeTranslation || '').trim(),
             };
         })
-        .filter((item) => item.answerText.length > 0 || item.koreanTranslation.length > 0);
+        .filter((item) => item.answerText.length > 0 || item.koreanTranslation.length > 0 || String(item.nativeTranslation || '').trim().length > 0);
 };
 
 const classifyOcrErrorType = (rawMessage: string): OcrErrorType => {
@@ -859,23 +861,32 @@ export interface ExternalIssueAnalysisResult {
 
 const LANGUAGE_POLICY = `
 **언어 및 국적 표준화 정책 (엄격 준수)**:
+
+[절대 원칙 — 위반 금지]
+- 모든 분석 결과에서 **영어 단독 사용 절대 금지**. 영어 단어/문장을 분석 내용(aiInsights, aiInsights_native, score_reason, actionable_coaching, strengths, weakAreas, improvement, suggestions 등)에 혼용하지 마라.
+- aiInsights는 반드시 **한국어로만** 작성한다.
+- aiInsights_native는 반드시 **해당 국적 모국어로만** 작성한다. 빈 문자열 반환은 규칙 위반.
+- _native 계열 필드(strengths_native, weakAreas_native, improvement_native, suggestions_native, score_reason_native, actionable_coaching_native, aiInsights_native, handwrittenAnswers[].nativeTranslation)에 영어나 한국어를 혼입하지 마라.
+
 1. **국적 표기 통일**: 분석 대상의 국적(Nationality)이 '한국', 'Korea', 'South Korea', 'ROK' 등으로 식별될 경우, 반드시 **'대한민국'**으로 저장하라.
    그 외 국가는 통용되는 한글 명칭을 사용한다 (예: 베트남, 중국, 태국, 우즈베키스탄 등).
 
-2. **모국어 필드(_native)**:
-   - **대한민국** -> 한국어 (Korean) (native 필드도 한국어로 전문적으로 재기술)
-   - **중국** -> 중국어 간체 (Simplified Chinese)
-   - **베트남** -> 베트남어 (Vietnamese)
-   - **태국** -> 태국어 (Thai)
-   - **우즈베키스탄** -> 우즈베크어 (Uzbek)
-   - **인도네시아** -> 인도네시아어 (Indonesian)
-   - **몽골** -> 몽골어 (Mongolian)
-   - **캄보디아** -> 크메르어 (Khmer)
-   - **러시아/카자흐스탄** -> 러시아어 (Russian)
+2. **모국어 필드(_native) — 국가별 언어 배정 (절대 준수)**:
+   - **대한민국** → 한국어 (Korean) — native 필드도 한국어로 전문적으로 재기술. 한국 근로자에게는 영어 혼용 불가.
+   - **중국** → 중국어 간체 (Simplified Chinese)
+   - **베트남** → 베트남어 (Vietnamese)
+   - **태국** → 태국어 (Thai)
+   - **우즈베키스탄** → 우즈베크어 (Uzbek)
+   - **인도네시아** → 인도네시아어 (Indonesian)
+   - **몽골** → 몽골어 (Mongolian)
+   - **캄보디아** → 크메르어 (Khmer)
+   - **러시아/카자흐스탄** → 러시아어 (Russian)
+   - **네팔** → 네팔어 (Nepali / देवनागरी)
+   - **미얀마** → 미얀마어 (Burmese / မြန်မာဘာသာ)
 
 **번역 지침**:
 단순 직역이 아닌, 건설 현장에서 통용되는 '안전 전문 용어'로 의역하라.
-(예: 'Falling' -> '추락(Fall from height)', 'Struck by' -> '협착/충돌')
+(예: '추락' → 베트남어: 'té ngã từ trên cao', 중국어: '高处坠落', 태국어: 'การตกจากที่สูง')
 `;
 
 const STRICT_SCORE_POLICY = `
@@ -898,7 +909,9 @@ const STRICT_SCORE_POLICY = `
   - "이번 달 본인 공종(예: 골조 슬래브 폼 조립)의 핵심 자재·도구를 정확히 명시"하면 13~20점.
 
 ③ 위험성평가 이해도 (0~20점)
-  - 교육 내용과 무관한 일반 위험 언급이면 0~5점.
+  - **[업무 무관 과락 규칙]** 작성된 위험요인·대책이 본인 공종(jobField)과 전혀 무관한 내용이면(예: 철근공이 '화재 진압' 위험만 언급, 비계공이 '전기 감전'만 언급 등) 이 항목을 **즉시 0점** 처리하고 scoreReasoning에 "공종 무관 내용으로 위험성평가 이해도 0점" 취지를 명시.
+  - 예시 참조형(교육 예시를 그대로 베낀 흔적)도 공종 무관으로 판정해 0~3점만 부여.
+  - 교육 내용과 무관한 일반 위험 언급이면 3~5점.
   - 교육에서 전파받은 중대재해 핵심 위험요인을 일부 언급하면 6~12점.
   - "해당 위험요인을 본인 작업과 정확히 연결(예: 단부 추락, 낙하물 맞음 등)"하면 13~20점.
 
@@ -1207,12 +1220,16 @@ async function callGeminiWithRetry(
             `;
 
             const prompt = `위험성 평가 문서를 분석하십시오. 파일명: ${filenameHint || 'unknown'}.
-            한국인은 한국어로, 외국인은 한국어와 모국어를 병기하여 JSON으로 출력하십시오.
+            [언어 규칙 — 절대 준수]
+            - aiInsights는 반드시 한국어로만 작성. 영어 단어 혼용 절대 금지.
+            - aiInsights_native는 반드시 작업자 국적 모국어로만 작성. 빈 문자열 반환 절대 금지. 한국 근로자도 한국어 안내로 반드시 채울 것.
+            - _native 계열 모든 필드에 영어·한국어 혼입 금지. 해당 국적 언어로만 완성.
             반드시 scoreReasoning 배열을 포함하고, 점수-등급 일치(80/60 기준)를 확인한 후 반환하십시오.
             문항형 위험성평가표(1~5번 질문)가 보이면 handwrittenAnswers 배열에 각 문항을 순서대로 채우십시오.
             - answerText: 작업자가 실제로 쓴 원문
-            - koreanTranslation: 각 답변의 관리자 검토용 한국어 해석
-            aiInsights_native는 빈 문자열로 두지 말고, 작업자에게 직접 전달 가능한 보호 안내 문장으로 작성하십시오.
+            - koreanTranslation: 각 답변의 관리자 검토용 한국어 해석 (항상 한국어)
+            - nativeTranslation: 각 답변을 작업자 모국어로 번역한 내용 — 외국인 근로자는 LANGUAGE_POLICY 기준 해당 국적 모국어로 번역하여 반드시 채울 것. 한국인은 빈 문자열.
+            문항형 평가표의 handwrittenAnswers는 절대 비워두지 마십시오.
 
             ${bestPracticeSection}
 

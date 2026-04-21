@@ -27,12 +27,23 @@ const OCR_RETRY_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const OCR_RETRY_MODEL_CHAIN = ['gemini-2.5-flash', 'gemini-3.0-flash', 'gemini-3-flash-preview'];
 
 const OCR_RETRY_LANGUAGE_POLICY = [
-    '언어 정책:',
-    '- nationality는 대한민국/중국/베트남/태국/우즈베키스탄/인도네시아/캄보디아/몽골/카자흐스탄/러시아/네팔/미얀마 중 표준 한글 국가명으로 반환합니다.',
-    '- aiInsights는 관리자 검토용 한국어 문장입니다.',
-    '- aiInsights_native는 작업자에게 직접 전달할 모국어 보호 안내입니다.',
-    '- 대한민국 근로자도 aiInsights_native를 빈 문자열로 두지 말고 현장 전달용 한국어 안내로 채웁니다.',
-    '- foreign worker는 aiInsights_native를 반드시 해당 모국어로 채웁니다.',
+    '[언어 정책 — 엄격 준수 / 위반 시 실패체제]',
+    '',
+    '[절대 원칙]',
+    '- 모든 분석 결과에서 영어 단독 사용 절대 금지. aiInsights, aiInsights_native, 필드에 영어 단어/문장 혼용 금지.',
+    '- nationality 표준: 대한민국/베트남/중국/태국/우즈베키스탄/인도네시아/캄보디아/몽골/카자흐스탄/러시아/네팔/미얀마 중 표준 한글로 반환.',
+    '- aiInsights는 관리자 검토용 한국어 문장. 영어 혼용 금지.',
+    '- aiInsights_native는 작업자에게 직접 전달할 모국어 보호 안내. 빈 문자열 반환 절대 금지. 영어 혼용 금지.',
+    '- 대한민국 근로자도 aiInsights_native를 한국어로 현장 전달용 안내로 반드시 채울 것.',
+    '- 외국인 근로자는 aiInsights_native를 모국어로만 반드시 채울 것 (영어/한국어 혼용 절대 금지).',
+    '- handwrittenAnswers[].koreanTranslation: 항상 한국어로만 작성 (영어 금지).',
+    '- handwrittenAnswers[].nativeTranslation: 외국인은 해당 모국어로 완전 번역하여 반드시 채울 것. 한국인은 빈 문자열.',
+    '',
+    '[국가별 모국어 배정]',
+    '- 대한민국 → 한국어 | 베트남 → 베트남어 | 중국 → 중국어 간체',
+    '- 태국 → 태국어 | 우즈베키스탄 → 우즈베크어 | 인도네시아 → 인도네시아어',
+    '- 캄보디아 → 크메르어 | 몽골 → 몽골어 | 카자흐스탄 → 러시아어 | 러시아 → 러시아어',
+    '- 네팔 → 네팔어(देवनागरी) | 미얀마 → 미얀마어(မြန်မာဘာသာ)',
 ].join('\n');
 
 const OCR_RETRY_RESPONSE_SCHEMA = {
@@ -69,7 +80,8 @@ const OCR_RETRY_RESPONSE_SCHEMA = {
                     properties: {
                         questionNumber: { type: 'string' },
                         answerText: { type: 'string' },
-                        koreanTranslation: { type: 'string' },
+                        koreanTranslation: { type: 'string', description: '관리자 검토용 한국어 해석 — 항상 한국어로만 작성' },
+                        nativeTranslation: { type: 'string', description: '작업자 전달용 모국어 해석 — 외국인은 해당 국적 모국어로 별도 번역, 한국인은 빈 문자열' },
                     },
                 },
             },
@@ -712,7 +724,7 @@ const normalizeNationality = (rawNationality: string): string => {
     return rawNationality.trim();
 };
 
-const normalizeHandwrittenAnswers = (raw: unknown): Array<{ questionNumber: string; answerText: string; koreanTranslation: string }> => {
+const normalizeHandwrittenAnswers = (raw: unknown): Array<{ questionNumber: string; answerText: string; koreanTranslation: string; nativeTranslation?: string }> => {
     if (!Array.isArray(raw)) return [];
 
     return raw
@@ -725,9 +737,10 @@ const normalizeHandwrittenAnswers = (raw: unknown): Array<{ questionNumber: stri
                 questionNumber: String(entry.questionNumber || index + 1).trim(),
                 answerText: String(entry.answerText || '').trim(),
                 koreanTranslation: String(entry.koreanTranslation || '').trim(),
+                nativeTranslation: String(entry.nativeTranslation || '').trim(),
             };
         })
-        .filter((item) => item.answerText.length > 0 || item.koreanTranslation.length > 0);
+        .filter((item) => item.answerText.length > 0 || item.koreanTranslation.length > 0 || String(item.nativeTranslation || '').trim().length > 0);
 };
 
 const normalizeImagePayload = (input: string) => {
@@ -893,8 +906,9 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
                                             'handwrittenAnswers는 이미지에 보이는 문항 답변을 번호 순서대로 추출하세요.',
                                             '- questionNumber: 문항 번호',
                                             '- answerText: 작업자가 실제로 쓴 원문',
-                                            '- koreanTranslation: 해당 답변의 한국어 해석',
-                                            '문항형 위험성평가표(1~5번)가 보이면 handwrittenAnswers를 비워두지 마세요.',
+                                            '- koreanTranslation: 해당 답변의 한국어 해석 (항상 한국어만)',
+                                            '- nativeTranslation: 외국인 근로자는 해당 모국어로 완전 번역하여 반드시 채울 것. 한국인은 빈 문자열.',
+                                            '문항형 위험성평가표(1~5번)가 보이면 handwrittenAnswers를 절대 비워두지 마세요.',
                                             OCR_RETRY_LANGUAGE_POLICY,
                                             `파일명: ${filenameHint || 'unknown'}`,
                                         ].join('\n'),

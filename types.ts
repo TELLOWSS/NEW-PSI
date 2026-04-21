@@ -132,6 +132,7 @@ export interface HandwrittenAnswer {
     questionNumber: string;
     answerText: string;
     koreanTranslation: string;
+    nativeTranslation?: string; // 작업자 모국어 번역 (외국인 근로자 전용, 한국인은 빈 문자열)
 }
 
 export interface PsychologicalAnalysis {

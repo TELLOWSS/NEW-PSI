@@ -3240,7 +3240,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                                     }`}
                                                 >
                                                     <span className="sm:hidden">
-                                                        {isSelectedForComparison ? '➖' : isSelectionLocked ? '⛔' : '➕'}
+                                                        {isSelectedForComparison ? '선택해제' : isSelectionLocked ? '최대3팀' : '비교추가'}
                                                     </span>
                                                     <span className="hidden sm:inline">
                                                         {isSelectedForComparison ? '선택 해제' : isSelectionLocked ? '최대 3팀' : '메인 비교에 추가'}
@@ -3255,7 +3255,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                                     title="팀 내부 국적 보기"
                                                     className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-[11px] sm:text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                                                 >
-                                                    <span className="sm:hidden">🌐</span>
+                                                    <span className="sm:hidden">국적보기</span>
                                                     <span className="hidden sm:inline">국적 보기</span>
                                                 </button>
                                                 <button
@@ -3268,8 +3268,8 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                                     title="이 팀만 보기"
                                                     className="px-3 py-2 rounded-xl bg-slate-900 text-white text-[11px] sm:text-xs font-bold hover:bg-slate-800 transition-colors"
                                                 >
-                                                    <span className="sm:hidden">👁</span>
-                                                    <span className="hidden sm:inline">👁 팀만</span>
+                                                    <span className="sm:hidden">팀만보기</span>
+                                                    <span className="hidden sm:inline">팀만 보기</span>
                                                 </button>
                                             </div>
                                         </div>
