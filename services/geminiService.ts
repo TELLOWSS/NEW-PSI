@@ -74,10 +74,10 @@ const getApiKeyForMode = (options?: {
         return { apiKey: '', keyStatus };
     }
 
-    const localFree = String(options?.freeLocalKey ?? localStorage.getItem('freeApiKey') || '').trim();
-    const localPaid = String(options?.paidLocalKey ?? localStorage.getItem('paidApiKey') || '').trim();
-    const envFree = String(options?.freeEnvKey ?? import.meta.env.VITE_GEMINI_API_KEY_FREE || '').trim();
-    const envPaid = String(options?.paidEnvKey ?? import.meta.env.VITE_GEMINI_API_KEY_PAID || '').trim();
+    const localFree = String((options?.freeLocalKey ?? localStorage.getItem('freeApiKey')) || '').trim();
+    const localPaid = String((options?.paidLocalKey ?? localStorage.getItem('paidApiKey')) || '').trim();
+    const envFree = String((options?.freeEnvKey ?? import.meta.env.VITE_GEMINI_API_KEY_FREE) || '').trim();
+    const envPaid = String((options?.paidEnvKey ?? import.meta.env.VITE_GEMINI_API_KEY_PAID) || '').trim();
 
     if (keyStatus.source === 'local-primary') return { apiKey: isPaidApiMode ? localPaid : localFree, keyStatus };
     if (keyStatus.source === 'env-primary') return { apiKey: isPaidApiMode ? envPaid : envFree, keyStatus };
