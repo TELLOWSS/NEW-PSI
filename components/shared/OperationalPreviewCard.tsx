@@ -42,7 +42,7 @@ export const OperationalPreviewCard: React.FC<OperationalPreviewCardProps> = ({
     footerClassName = 'mt-3 text-[11px] font-bold text-slate-500',
     actionsClassName = 'mt-3 flex flex-wrap gap-2',
 }) => {
-    const toneStyles = OPERATIONAL_PREVIEW_TONE_STYLES[variant];
+    const toneStyles = OPERATIONAL_PREVIEW_TONE_STYLES[variant] || OPERATIONAL_PREVIEW_TONE_STYLES.whiteCompact;
 
     return (
         <div className={`${toneStyles.container}${className ? ` ${className}` : ''}`}>

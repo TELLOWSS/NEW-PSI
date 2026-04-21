@@ -3250,7 +3250,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                             />
                                                         </SectionPanelCard>
                                                         <SectionPanelCard
-                                                            variant="violet"
+                                                            variant="indigoSoft"
                                                             eyebrow="작업자 모국어"
                                                             title="모국어 전달 문맥 점검"
                                                             description="현장 작업자가 바로 이해할 수 있는 모국어 문장인지 확인합니다."

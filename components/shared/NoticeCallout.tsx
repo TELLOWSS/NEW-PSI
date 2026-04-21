@@ -28,7 +28,7 @@ export const NoticeCallout: React.FC<NoticeCalloutProps> = ({
     bodyClassName = 'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between',
     actionWrapperClassName,
 }) => {
-    const styles = NOTICE_CALLOUT_TONE_STYLES[variant];
+    const styles = NOTICE_CALLOUT_TONE_STYLES[variant] || NOTICE_CALLOUT_TONE_STYLES.white;
 
     return (
         <div className={className ?? `w-full rounded-2xl border px-4 py-3 ${styles.container}`}>

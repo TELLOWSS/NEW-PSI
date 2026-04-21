@@ -32,7 +32,7 @@ export const SectionPanelCard: React.FC<SectionPanelCardProps> = ({
     descriptionClassName = 'mt-1 text-[11px] font-bold text-slate-500',
     bodyClassName = 'mt-4',
 }) => {
-    const toneStyles = SECTION_PANEL_TONE_STYLES[variant];
+    const toneStyles = SECTION_PANEL_TONE_STYLES[variant] || SECTION_PANEL_TONE_STYLES.slate;
 
     return (
         <div className={`${toneStyles.container}${className ? ` ${className}` : ''}`}>
