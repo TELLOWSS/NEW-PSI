@@ -32,6 +32,7 @@ import {
 } from '../utils/roleViewModel';
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
+import { useDevMode } from '../contexts/DevModeContext';
 
 const NationalityChart = lazy(() => import('../components/charts/NationalityChart').then(module => ({ default: module.NationalityChart })));
 const TopWeaknessesChart = lazy(() => import('../components/charts/TopWeaknessesChart').then(module => ({ default: module.TopWeaknessesChart })));
@@ -263,6 +264,7 @@ const DeferredSection: React.FC<{ children: React.ReactNode; fallback?: React.Re
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords, setCurrentPage }) => {
+    const { isDevMode } = useDevMode();
     // 순수 근로자 데이터만 필터링 (관리 직군 제외)
 
     const workerOnlyRecords = useMemo(() => 
@@ -2083,7 +2085,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             </div>
             )}
 
-            {(harnessDashboardSummary.approvalBacklog > 0 || harnessDashboardSummary.fallback > 0 || harnessDashboardSummary.immediateAttention > 0) && (
+            {isDevMode && (harnessDashboardSummary.approvalBacklog > 0 || harnessDashboardSummary.fallback > 0 || harnessDashboardSummary.immediateAttention > 0) && (
                 <NoticeCallout
                     variant={harnessDashboardSummary.immediateAttention > 0 ? 'rose' : harnessDashboardSummary.fallback > 0 ? 'amber' : 'indigo'}
                     title={harnessDashboardSummary.immediateAttention > 0
@@ -2101,13 +2103,15 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 />
             )}
 
-            <SummaryMetricGrid
-                items={harnessSummaryMetrics}
-                columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
-                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
-            />
+            {isDevMode && (
+                <SummaryMetricGrid
+                    items={harnessSummaryMetrics}
+                    columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
+                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                />
+            )}
 
-            {isFullMode && harnessRecentTradeHotspots.length > 0 ? (
+            {isFullMode && isDevMode && harnessRecentTradeHotspots.length > 0 ? (
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm shadow-slate-100">
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div>
@@ -2171,7 +2175,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 </div>
             ) : null}
 
-            {isFullMode && (
+            {isFullMode && isDevMode && (
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800 p-4 shadow-sm shadow-slate-100">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div>
@@ -2284,14 +2288,14 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             </div>
             )}
 
-            {isFullMode && (
+            {isFullMode && isDevMode && (
                 <InterpretationCardGrid
                     items={harnessOperationalInsights}
                     cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
                 />
             )}
 
-            {isFullMode && (
+            {isFullMode && isDevMode && (
                 <SummaryMetricGrid
                     items={harnessAuditMetrics}
                     columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
@@ -2299,14 +2303,14 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 />
             )}
 
-            {isFullMode && (
+            {isFullMode && isDevMode && (
                 <InterpretationCardGrid
                     items={harnessAuditInsights}
                     cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
                 />
             )}
 
-            {isFullMode && (
+            {isFullMode && isDevMode && (
                 <SummaryMetricGrid
                     items={harnessRecentOpsMetrics}
                     columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
@@ -2314,7 +2318,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 />
             )}
 
-            {isFullMode && (
+            {isFullMode && isDevMode && (
                 <InterpretationCardGrid
                     items={harnessRecentOpsInsights}
                     cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
