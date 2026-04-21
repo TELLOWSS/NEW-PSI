@@ -240,6 +240,18 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
         setActiveFilter('all');
     }, [targetGroup?.trade, targetGroup?.nationality]);
 
+    // 근로자 선택 시 해당 항목으로 자동 스크롤
+    useEffect(() => {
+        if (selectedWorker) {
+            setTimeout(() => {
+                const element = document.querySelector(`[data-worker-id="${selectedWorker.workerId}"]`);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 50);
+        }
+    }, [selectedWorker]);
+
     const workers = [...(targetGroup?.workers || [])].sort((a, b) => {
         if (a.latestScore !== b.latestScore) return a.latestScore - b.latestScore;
         return a.averageScore - b.averageScore;
@@ -338,12 +350,12 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
             <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 mb-4">
                 <div>
                     <h3 className="text-base sm:text-lg font-bold text-slate-800">
-                        팀 내부 개인추이
+                        팀 내부 개인별 평가 기록
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
                         {isIntegratedNationality
-                            ? '선택 팀의 국적 통합 기준 개인추이를 보여줍니다. 필요 시 국적 세부 기준으로 내려가 차이를 확인할 수 있습니다.'
-                            : `선택 팀 내부 ${targetGroup?.nationality} 세부 기준 개인추이를 보여줍니다.`}
+                            ? '선택 팀의 국적 통합 기준 개인별 평가 기록을 보여줍니다. 필요 시 국적 세부 기준으로 내려가 차이를 확인할 수 있습니다.'
+                            : `선택 팀 내부 ${targetGroup?.nationality} 세부 기준 개인별 평가 기록을 보여줍니다.`}
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -445,6 +457,7 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
                                     return (
                                         <tr
                                             key={worker.workerId}
+                                            data-worker-id={worker.workerId}
                                             className="hover:bg-indigo-50/60 transition-colors cursor-pointer group"
                                             onClick={() => setSelectedWorker(worker)}
                                         >
@@ -493,6 +506,7 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
                                 <button
                                     key={worker.workerId}
                                     type="button"
+                                    data-worker-id={worker.workerId}
                                     onClick={() => setSelectedWorker(worker)}
                                     className="text-left rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm active:scale-[0.99] transition"
                                 >
