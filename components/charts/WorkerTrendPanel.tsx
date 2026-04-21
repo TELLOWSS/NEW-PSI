@@ -240,18 +240,6 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
         setActiveFilter('all');
     }, [targetGroup?.trade, targetGroup?.nationality]);
 
-    // 근로자 선택 시 해당 항목으로 자동 스크롤
-    useEffect(() => {
-        if (selectedWorker) {
-            setTimeout(() => {
-                const element = document.querySelector(`[data-worker-id="${selectedWorker.workerId}"]`);
-                if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            }, 50);
-        }
-    }, [selectedWorker]);
-
     const workers = [...(targetGroup?.workers || [])].sort((a, b) => {
         if (a.latestScore !== b.latestScore) return a.latestScore - b.latestScore;
         return a.averageScore - b.averageScore;

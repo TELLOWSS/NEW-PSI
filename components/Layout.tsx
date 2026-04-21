@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Sidebar } from './Sidebar';
 import { Footer } from './Footer';
 import type { Page } from '../types';
@@ -28,6 +28,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const [bestPracticeFailureLogs, setBestPracticeFailureLogs] = useState<BestPracticeSyncFailureLog[]>(() => getBestPracticeSyncFailureLogs());
     const [themeMode, setThemeMode] = useState<ThemeMode>(() => getStoredTheme());
     const [isDark, setIsDark] = useState(() => getResolvedTheme(getStoredTheme()) === 'dark');
+    const [showScrollTop, setShowScrollTop] = useState(false);
+    const mainRef = useRef<HTMLElement>(null);
+
+    const handleScrollToTop = useCallback(() => {
+        mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }, []);
 
     const pageTitles: { [key in Page]: string } = {
         'dashboard': '대시보드',
@@ -134,6 +140,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         };
     }, []);
 
+    useEffect(() => {
+        const el = mainRef.current;
+        if (!el) return;
+        const onScroll = () => setShowScrollTop(el.scrollTop > 250);
+        el.addEventListener('scroll', onScroll, { passive: true });
+        return () => el.removeEventListener('scroll', onScroll);
+    }, []);
+
     return (
         <div className="flex h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors duration-200">
             {/* Desktop Sidebar - Hidden on mobile */}
@@ -228,11 +242,25 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                        </div>
                     </div>
                 </header>
-                <main className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 pb-10">
+                <main ref={mainRef} className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 pb-10">
                     <div key={currentPage} className="mx-auto max-w-7xl animate-fade-in-up">
                         {children}
                     </div>
                 </main>
+                {/* 최상단으로 이동 버튼 */}
+                {showScrollTop && (
+                    <button
+                        type="button"
+                        onClick={handleScrollToTop}
+                        className="fixed bottom-6 right-5 z-[300] flex h-11 w-11 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg ring-1 ring-indigo-700 transition-all duration-200 hover:bg-indigo-500 active:scale-95 no-print"
+                        aria-label="최상단으로 이동"
+                        title="최상단으로 이동"
+                    >
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+                        </svg>
+                    </button>
+                )}
             </div>
             <Footer />
         </div>
