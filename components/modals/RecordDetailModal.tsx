@@ -1691,6 +1691,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const verificationAudit = useMemo(() => evaluateOcrVerificationCompleteness(record), [record]);
     const qualityAudit = useMemo(() => evaluateOcrVerificationQuality(record), [record]);
     const nativeWritingGuide = useMemo(() => getNativeWritingGuide(record.nationality), [record.nationality]);
+    const nativeLanguageLabel = useMemo(() => getNativeLanguageLabel(record.nationality), [record.nationality]);
     const finalAuditVerdict = useMemo(() => {
         if (!verificationAudit.isComplete) {
             return {
@@ -1753,7 +1754,6 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         () => String(record.aiInsights_native || '').trim() || buildFallbackNativeGuidanceText(record),
         [record],
     );
-    const nativeLanguageLabel = useMemo(() => getNativeLanguageLabel(record.nationality), [record.nationality]);
     
     // Icon Display
     const isLeader = (record.role === 'leader') || (record.name === record.teamLeader);

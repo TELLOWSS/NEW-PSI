@@ -15,6 +15,7 @@ import { appendBestPracticeSyncFailureLog, setBestPracticeSyncState } from './ut
 import { analyzeWorkerRiskAssessment } from './services/geminiService';
 
 const DYNAMIC_IMPORT_RELOAD_KEY = 'psi_dynamic_import_reload_once';
+const APP_RUNTIME_RECOVERY_RELOAD_KEY = 'psi_app_runtime_recovery_reload_once';
 
 const isDynamicImportFetchError = (message: string): boolean => {
     const normalized = message.toLowerCase();
@@ -24,6 +25,27 @@ const isDynamicImportFetchError = (message: string): boolean => {
         || normalized.includes('chunkloaderror')
         || normalized.includes('loading chunk')
         || normalized.includes('fetch dynamically imported');
+};
+
+const isRuntimeInitializationError = (message: string): boolean => {
+    const normalized = String(message || '').toLowerCase();
+    return normalized.includes('cannot access')
+        && normalized.includes('before initialization');
+};
+
+const triggerAppRuntimeRecoveryReload = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    try {
+        const hasRetried = sessionStorage.getItem(APP_RUNTIME_RECOVERY_RELOAD_KEY) === '1';
+        if (hasRetried) return false;
+        sessionStorage.setItem(APP_RUNTIME_RECOVERY_RELOAD_KEY, '1');
+        const url = new URL(window.location.href);
+        url.searchParams.set('__recover', String(Date.now()));
+        window.location.replace(url.toString());
+        return true;
+    } catch {
+        return false;
+    }
 };
 
 const lazyWithRecovery = <T extends { default: React.ComponentType<any> }>(
@@ -96,6 +118,10 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo) {
         console.error("Uncaught error:", error, errorInfo);
+        const message = String(error?.message || error || '');
+        if ((isDynamicImportFetchError(message) || isRuntimeInitializationError(message)) && triggerAppRuntimeRecoveryReload()) {
+            return;
+        }
         this.setState({ errorInfo });
     }
 
