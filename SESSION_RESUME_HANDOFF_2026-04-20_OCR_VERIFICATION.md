@@ -136,3 +136,57 @@
 - API 키 문제는 해결됨(환경변수 경로 정상)
 - 현재 남은 실제 리스크는 기능 구현이 아니라 데이터 품질 확인(재분석 후 샘플 검수)
 - 내일은 문서 기준으로 바로 실행 가능
+
+---
+
+## 7) 2026-04-21 추가 개선 로그 (역할별 즉시 이해 + 무료 API 한도 보호)
+
+### 7-1. 대시보드 역할별 보기 즉시 이해 보강
+- `utils/roleViewModel.ts`
+  - 관리자(`manager`) 전용 분기 신설/강화
+    - `buildOverviewStatCards`
+    - `buildDashboardSummaryCards`
+    - `buildOperationalFocusCards`
+    - `buildMobileInsightTabs`
+    - `buildComparisonSectionMeta`
+  - 신규 함수: `buildAudienceQuickGuide(...)`
+    - 역할 전환 직후 3칸 가이드(지금 보는 대상/판단 기준/첫 클릭 행동)
+- `pages/Dashboard.tsx`
+  - 역할 토글 하단에 역할별 즉시 이해 가이드 카드 3개 노출
+  - 기존 설명 1줄 + 버튼 구조를 보완해 전환 직후 행동 경로를 즉시 제시
+
+### 7-2. 무료 API 한도(Vercel/Gemini) 보호 및 중단 복구
+- `pages/OcrAnalysis.tsx`
+  - 신규 체크포인트 키: `psi_ocr_batch_checkpoint_v1`
+  - 일괄 재분석(`runBatchAnalysis`) 자동 재개 지원
+    - 동일 실행 조건(제목/모드/총건수)에서 중단 인덱스부터 자동 재개
+    - 성공/실패/서버성공/폴백성공/사전실패 등 집계값도 함께 복원
+  - 무료 플랜 보호 로직 추가
+    - 기본 대기 버퍼 상향(기본 5초, quota 회복 대기 상태면 8초)
+    - `QUOTA` 실패가 반복될 경우(2회) 일괄 재분석 자동 중단
+  - 정상 완주 시 체크포인트 자동 삭제 (중단/비정상 종료 시 유지)
+
+### 7-3. 운영자 재개 지침 (프로그램 강제 종료 대비)
+1. `OcrAnalysis` 진입 후 동일 버튼으로 재분석 재실행
+2. 체크포인트가 남아 있으면 중단 지점부터 자동 재개됨
+3. 자동 재개 메시지 예시:
+   - `[제목] 이전 중단 지점(n/total)부터 자동 재개 중...`
+4. 작업 완료 후 체크포인트는 자동 삭제됨
+
+### 7-4. 오늘 기준 검증 결과
+- `utils/roleViewModel.ts` 오류 없음
+- `pages/Dashboard.tsx` 오류 없음
+- `pages/OcrAnalysis.tsx` 오류 없음
+- `npm run build` 성공
+
+### 7-5. 3초 이해형 문구 미세튜닝 (2026-04-21 추가)
+- `utils/roleViewModel.ts`
+  - `DASHBOARD_AUDIENCE_META.description`를 역할별 행동 문구로 압축
+    - 근로자: 누가 위험한지 보고 바로 행동
+    - 관리자: 근거로 오늘 처리 순서 결정
+    - 경영진: 추세로 자원 배분 우선순위 결정
+  - `buildAudienceInsightMessage`를 1문장 행동 지시형으로 축약
+    - 긴 설명 제거, 역할별 우선 행동만 즉시 제시
+
+운영 메모:
+- 역할 전환 직후 텍스트 이해 부담을 줄여, 상단 가이드 카드와 함께 첫 행동(클릭) 유도가 더 빠르게 작동하도록 조정함.

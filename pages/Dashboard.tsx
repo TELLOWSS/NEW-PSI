@@ -19,6 +19,7 @@ import {
 import {
     DASHBOARD_AUDIENCE_META,
     buildAudienceInsightMessage,
+    buildAudienceQuickGuide,
     buildComparisonSectionMeta,
     buildDashboardSummaryCards,
     buildMobileInsightTabs,
@@ -1474,6 +1475,23 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         return buildAudienceInsightMessage(audienceView, stats.highRiskWorkers);
     }, [audienceView, stats.highRiskWorkers]);
 
+    const audienceQuickGuide = useMemo(() => {
+        return buildAudienceQuickGuide({
+            audience: audienceView,
+            stats: {
+                totalWorkers: stats.totalWorkers,
+                averageScore: stats.averageScore,
+                highRiskWorkers: stats.highRiskWorkers,
+                totalChecks: stats.totalChecks,
+            },
+            harnessSummary: {
+                approvalBacklog: harnessDashboardSummary.approvalBacklog,
+                fallback: harnessDashboardSummary.fallback,
+                immediateAttention: harnessDashboardSummary.immediateAttention,
+            },
+        });
+    }, [audienceView, harnessDashboardSummary.approvalBacklog, harnessDashboardSummary.fallback, harnessDashboardSummary.immediateAttention, stats.averageScore, stats.highRiskWorkers, stats.totalChecks, stats.totalWorkers]);
+
     const overviewStatCards = useMemo<DashboardStatCardConfig[]>(() => {
         return buildOverviewStatCards(audienceView, {
             totalWorkers: stats.totalWorkers,
@@ -1873,6 +1891,16 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 </button>
                             ))}
                         </div>
+                    </div>
+
+                    <div className="mb-4 grid grid-cols-1 gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm sm:grid-cols-3">
+                        {audienceQuickGuide.map((item) => (
+                            <div key={item.key} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-200">{item.title}</p>
+                                <p className="mt-1 text-xs font-bold text-white">{item.focus}</p>
+                                <p className="mt-1 text-[11px] font-medium text-indigo-100">{item.action}</p>
+                            </div>
+                        ))}
                     </div>
 
                     <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">

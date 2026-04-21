@@ -46,35 +46,42 @@ export type DashboardInsightTabConfig = {
     label: string;
 };
 
+export type DashboardAudienceQuickGuideItem = {
+    key: string;
+    title: string;
+    focus: string;
+    action: string;
+};
+
 export const DASHBOARD_AUDIENCE_META: Record<DashboardAudience, { label: string; description: string }> = {
     worker: {
         label: '근로자 관점',
-        description: '의미와 다음 행동 중심으로 읽습니다.',
+        description: '누가 위험한지 보고 바로 행동합니다.',
     },
     manager: {
         label: '관리자 관점',
-        description: '근거와 우선순위 중심으로 읽습니다.',
+        description: '근거로 오늘 처리 순서를 정합니다.',
     },
     executive: {
         label: '경영진 관점',
-        description: '추세와 리스크 중심으로 읽습니다.',
+        description: '추세로 자원 배분 우선순위를 정합니다.',
     },
 };
 
 export const buildAudienceInsightMessage = (audience: DashboardAudience, highRiskWorkers: number): string => {
     if (audience === 'worker') {
         return highRiskWorkers > 0
-            ? `현재 ${highRiskWorkers}명의 보호 우선 대상이 보입니다. 누구를 먼저 코칭하고 다시 확인할지 순서를 잡아주세요.`
-            : '전반적으로 안정 흐름입니다. 지금 상태를 유지하면서 작은 이상 신호만 먼저 확인하면 됩니다.';
+            ? `보호 우선 ${highRiskWorkers}명입니다. 취약 팀부터 코칭 순서를 바로 잠그세요.`
+            : '안정 흐름입니다. 작은 이상 신호만 먼저 확인하세요.';
     }
     if (audience === 'executive') {
         return highRiskWorkers > 0
-            ? `현재 ${highRiskWorkers}명의 고위험 인원이 감지되었습니다. 취약 공종과 팀 편차를 함께 보며 보호 자원 배분이 필요합니다.`
-            : '전반적으로 안정 흐름입니다. 취약 팀과 식별 불가 데이터만 선별 관리하면 현재 수준을 유지할 수 있습니다.';
+            ? `고위험 ${highRiskWorkers}명입니다. 취약 공종·팀에 자원을 우선 배분하세요.`
+            : '안정 흐름입니다. 취약 팀만 선별 관리해 수준을 유지하세요.';
     }
     return highRiskWorkers > 0
-        ? `현재 ${highRiskWorkers}명의 고위험 근로자가 감지되었습니다. 즉시 교육 및 점검이 필요합니다.`
-        : '모든 근로자가 안전 기준을 충족하고 있습니다. 현재 상태를 유지하세요.';
+        ? `즉시 조치 ${highRiskWorkers}명입니다. 재점검·승인 순서를 먼저 고정하세요.`
+        : '안정 상태입니다. 반복 취약 신호만 선제 점검하세요.';
 };
 
 export const buildOverviewStatCards = (audience: DashboardAudience, stats: DashboardStatsSnapshot): DashboardStatCardConfig[] => {
@@ -107,6 +114,39 @@ export const buildOverviewStatCards = (audience: DashboardAudience, stats: Dashb
                 value: `${stats.totalChecks}건`,
                 iconType: 'check',
                 page: 'safety-checks',
+            },
+        ];
+    }
+
+    if (audience === 'manager') {
+        return [
+            {
+                key: 'immediate-attention',
+                title: '즉시 조치 대상',
+                value: `${stats.highRiskWorkers}명`,
+                iconType: 'warning',
+                page: 'predictive-analysis',
+            },
+            {
+                key: 'checks',
+                title: '오늘 점검 이행',
+                value: `${stats.totalChecks}건`,
+                iconType: 'check',
+                page: 'safety-checks',
+            },
+            {
+                key: 'avg-score',
+                title: '현장 평균 점수',
+                value: `${stats.averageScore.toFixed(1)}점`,
+                iconType: 'chart',
+                page: 'performance-analysis',
+            },
+            {
+                key: 'workers',
+                title: '관리 대상 인원',
+                value: `${stats.totalWorkers}명`,
+                iconType: 'users',
+                page: 'worker-management',
             },
         ];
     }
@@ -245,6 +285,47 @@ export const buildDashboardSummaryCards = (options: {
         ];
     }
 
+    if (audience === 'manager') {
+        return [
+            {
+                key: 'dashboard-status',
+                eyebrow: '운영 상태',
+                title: `${stats.totalWorkers}명 관리 대상 중 우선 조치 대상을 추려 보고 있습니다.`,
+                description: selectedTeamOption
+                    ? `${selectedTeamOption.label} 기준으로 범위를 좁혀 즉시 조치 대상과 재점검 대상을 정리하고 있습니다.`
+                    : '전체 현장 기준으로 즉시 조치·재점검·보고 대상을 동시에 확인하고 있습니다.',
+                tone: BRAND_TONE.indigoSoft70,
+            },
+            {
+                key: 'dashboard-evidence',
+                eyebrow: '우선순위 근거',
+                title: `고위험 ${stats.highRiskWorkers}명 · 평균 ${stats.averageScore.toFixed(1)}점 · 점검 ${stats.totalChecks}건`,
+                description: '즉시 조치 인원, 평균 점수, 점검 이행 건수를 묶어서 보면 오늘 어떤 팀을 먼저 붙잡아야 하는지 빠르게 결정할 수 있습니다.',
+                tone: BRAND_TONE.whiteSoft,
+            },
+            {
+                key: 'dashboard-action',
+                eyebrow: '즉시 행동',
+                title: stats.highRiskWorkers > 0 ? '고위험 인원부터 코칭·재점검·승인 흐름으로 연결하세요.' : '안정 구간을 유지하되 반복 취약 신호를 선제 점검하세요.',
+                description: stats.highRiskWorkers > 0
+                    ? '행동 센터에서 우선 대상을 고른 뒤 팀 비교로 내려가 편차를 확인하고, 필요한 건은 OCR/리포트로 즉시 넘기면 됩니다.'
+                    : '공종·팀 비교에서 반복 신호만 선별해 사전 코칭과 점검 계획을 잠그는 것이 효과적입니다.',
+                tone: stats.highRiskWorkers > 0 ? BRAND_TONE.amberSoft80 : BRAND_TONE.emeraldSoft80,
+            },
+            {
+                key: 'dashboard-harness',
+                eyebrow: '승인·보류 상태',
+                title: `${harnessSummary.approvalBacklog}명 승인 대기 · ${harnessSummary.immediateAttention}명 즉시 확인 필요`,
+                description: harnessSummary.fallback > 0
+                    ? `${harnessSummary.fallback}명은 persistence 폴백 상태이므로 저장 연결과 보호 해석을 함께 확인해야 합니다.`
+                    : '승인 백로그와 즉시 확인 대상을 함께 보면 관리자 처리 순서를 하루 단위로 고정하기 쉽습니다.',
+                tone: harnessSummary.approvalBacklog > 0 || harnessSummary.immediateAttention > 0
+                    ? BRAND_TONE.violetSoft80
+                    : BRAND_TONE.slate,
+            },
+        ];
+    }
+
     return [
         {
             key: 'dashboard-status',
@@ -322,6 +403,25 @@ export const buildOperationalFocusCards = (audience: DashboardAudience): Interpr
         ];
     }
 
+    if (audience === 'manager') {
+        return [
+            {
+                key: 'operational-focus-status',
+                eyebrow: '오늘의 운영 초점',
+                title: '행동 센터와 팀 비교를 먼저 보면 관리자 처리 순서를 즉시 정할 수 있습니다.',
+                description: '즉시 조치 대상, 반복 취약 분야, 최근 점검 흐름을 함께 보며 코칭·재점검·승인 순서를 확정합니다.',
+                tone: BRAND_TONE.indigoSoft70,
+            },
+            {
+                key: 'operational-focus-action',
+                eyebrow: '관리자 액션',
+                title: '취약 공종의 팀 편차부터 확인하고, 필요한 건을 OCR/리포트로 바로 연결하세요.',
+                description: '오늘 처리할 대상 수를 먼저 잠그고, 팀별 편차 근거를 붙여 승인·보류·재점검 흐름을 끊기지 않게 운영합니다.',
+                tone: BRAND_TONE.amberSoft80,
+            },
+        ];
+    }
+
     return [
         {
             key: 'operational-focus-status',
@@ -354,6 +454,14 @@ export const buildMobileInsightTabs = (audience: DashboardAudience): DashboardIn
             { key: 'chart', label: '리스크차트' },
             { key: 'team', label: '팀편차' },
             { key: 'worker', label: '개인추이' },
+        ];
+    }
+
+    if (audience === 'manager') {
+        return [
+            { key: 'team', label: '팀우선' },
+            { key: 'chart', label: '근거차트' },
+            { key: 'worker', label: '개인확인' },
         ];
     }
 
@@ -422,6 +530,25 @@ export const buildComparisonSectionMeta = (options: {
         };
     }
 
+    if (audience === 'manager') {
+        return {
+            title: '공종 × 팀 운영 우선순위 설정',
+            description: '팀 비교를 메인 축으로 고정하고, 국적은 원인 검증이 필요할 때만 보조로 내려가 확인합니다.',
+            tradeQuickAccessTitle: '즉시 조치 공종',
+            tradeQuickAccessDescription: '평균점수가 낮은 공종부터 열어 오늘 코칭/재점검할 팀 2~3개를 먼저 고릅니다.',
+            tradeQuickAccessBadge: '관리자 우선 처리',
+            teamQuickAccessTitle: '오늘 처리 팀 바로가기',
+            teamQuickAccessDescription: '같은 팀장명이라도 공종이 다르면 별도 팀으로 분리합니다. 메인 비교는 선택한 팀만 남겨 운영합니다.',
+            teamQuickAccessBadge: '공종 포함 팀명 기준',
+            teamComparisonDescription: '팀 비교는 전체 국적 통합 기준으로 유지해 오늘의 우선 처리 순서를 흔들림 없이 정할 수 있습니다.',
+            teamSortDescription: '고급 보기에서는 정렬 기준만 바꿔 취약 팀부터 처리 순서를 고정합니다.',
+            detailModeDescription: '메인 비교는 통합 기준 유지, 팀 내부 국적은 원인 검증이 필요할 때만 내려가 확인합니다.',
+            emptyRadarTitle: '위 그래프에서 오늘 먼저 처리할 팀을 선택하세요',
+            emptyRadarDescription: '막대는 보조 국적 드릴다운 진입점이며, 메인 비교는 팀 우선 통합 기준으로 유지됩니다.',
+            emptyWorkerTrend: '대상을 선택하면 개인별 추이가 열려 즉시 코칭/재점검 대상을 확정할 수 있습니다.',
+        };
+    }
+
     return {
         title: '공종 × 국적 교차 안전 숙련도 분석',
         description: '기본 축은 팀 비교이며, 국적은 팀 내부 해석 근거가 필요할 때만 고급 보기에서 확인합니다.',
@@ -438,6 +565,81 @@ export const buildComparisonSectionMeta = (options: {
         emptyRadarDescription: '막대는 공종·국적 기준의 보조 드릴다운이며, 팀 비교와 공종 칩은 전체 국적 통합 기준입니다.',
         emptyWorkerTrend: '작업조를 선택하면 개인별 트렌드 목록이 활성화됩니다.',
     };
+};
+
+export const buildAudienceQuickGuide = (options: {
+    audience: DashboardAudience;
+    stats: DashboardStatsSnapshot;
+    harnessSummary: DashboardHarnessSnapshot;
+}): DashboardAudienceQuickGuideItem[] => {
+    const { audience, stats, harnessSummary } = options;
+
+    if (audience === 'worker') {
+        return [
+            {
+                key: 'worker-target',
+                title: '지금 보는 대상',
+                focus: `보호 우선 ${stats.highRiskWorkers}명과 취약 팀 흐름`,
+                action: '보호 우선 공종 → 팀 2~3개 선택 → 개인추이 확인',
+            },
+            {
+                key: 'worker-evidence',
+                title: '판단 기준',
+                focus: `평균 ${stats.averageScore.toFixed(1)}점 · 점검 ${stats.totalChecks}건`,
+                action: '반복 취약 신호가 있는 팀부터 코칭 순서 고정',
+            },
+            {
+                key: 'worker-first-action',
+                title: '첫 클릭 행동',
+                focus: '행동 센터와 팀비교를 먼저 연계',
+                action: '취약 팀 선택 후 오늘 보완 항목 1~2개 즉시 확정',
+            },
+        ];
+    }
+
+    if (audience === 'executive') {
+        return [
+            {
+                key: 'exec-target',
+                title: '지금 보는 대상',
+                focus: `고위험 ${stats.highRiskWorkers}명과 팀 편차`,
+                action: '리스크 우선 공종 → 팀편차 → 보고 대상 확정',
+            },
+            {
+                key: 'exec-evidence',
+                title: '판단 기준',
+                focus: `평균 ${stats.averageScore.toFixed(1)}점 · 점검 ${stats.totalChecks}건`,
+                action: '취약 공종·팀에 교육/점검 자원 우선 배분',
+            },
+            {
+                key: 'exec-first-action',
+                title: '첫 클릭 행동',
+                focus: '자원 배분 우선순위 잠금',
+                action: '팀 편차 상위 구간부터 실행/보고 루트로 연결',
+            },
+        ];
+    }
+
+    return [
+        {
+            key: 'manager-target',
+            title: '지금 보는 대상',
+            focus: `즉시 조치 ${stats.highRiskWorkers}명 · 승인대기 ${harnessSummary.approvalBacklog}명`,
+            action: '행동 센터에서 오늘 처리 대상 먼저 잠금',
+        },
+        {
+            key: 'manager-evidence',
+            title: '판단 기준',
+            focus: `평균 ${stats.averageScore.toFixed(1)}점 · 점검 ${stats.totalChecks}건`,
+            action: '팀 편차와 반복 취약 신호를 같이 보고 순서 확정',
+        },
+        {
+            key: 'manager-first-action',
+            title: '첫 클릭 행동',
+            focus: '팀우선 → 근거차트 → 개인확인',
+            action: `즉시확인 ${harnessSummary.immediateAttention}명부터 코칭·재점검·승인으로 연결`,
+        },
+    ];
 };
 
 export const buildReportsSummaryCards = (options: {

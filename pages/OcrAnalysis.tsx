@@ -458,6 +458,7 @@ const hasRetryableOriginalImage = (image?: string): boolean => {
 
 const OCR_FAILED_ONLY_DEFAULT_KEY = 'psi_ocr_failed_only_default';
 const OCR_VIEW_STATE_KEY = 'psi_ocr_view_state_v1';
+const OCR_BATCH_CHECKPOINT_KEY = 'psi_ocr_batch_checkpoint_v1';
 
 type OcrViewState = {
     savedAt: number;
@@ -474,7 +475,25 @@ type OcrViewState = {
     recordSortMode: RecordSortMode;
 };
 
+type OcrBatchCheckpoint = {
+    savedAt: number;
+    title: string;
+    forceReanalyze: boolean;
+    total: number;
+    nextIndex: number;
+    successCount: number;
+    failCount: number;
+    serverSuccessCount: number;
+    clientFallbackSuccessCount: number;
+    preflightFailCount: number;
+    processingFailCount: number;
+    serverRouteFailCount: number;
+    keyFailureCount: number;
+    lastRecordName?: string;
+};
+
 const OCR_VIEW_STATE_TTL_MS = 1000 * 60 * 60 * 24 * 3;
+const OCR_BATCH_CHECKPOINT_TTL_MS = 1000 * 60 * 60 * 24;
 
 const getStoredOcrViewState = (): Partial<OcrViewState> => {
     try {
@@ -498,6 +517,37 @@ const getFailedOnlyDefaultOption = (): boolean => {
         return raw === '1';
     } catch {
         return true;
+    }
+};
+
+const getStoredBatchCheckpoint = (): OcrBatchCheckpoint | null => {
+    try {
+        const raw = localStorage.getItem(OCR_BATCH_CHECKPOINT_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as OcrBatchCheckpoint;
+        if (!parsed?.savedAt || Date.now() - parsed.savedAt > OCR_BATCH_CHECKPOINT_TTL_MS) {
+            localStorage.removeItem(OCR_BATCH_CHECKPOINT_KEY);
+            return null;
+        }
+        return parsed;
+    } catch {
+        return null;
+    }
+};
+
+const saveBatchCheckpoint = (checkpoint: OcrBatchCheckpoint): void => {
+    try {
+        localStorage.setItem(OCR_BATCH_CHECKPOINT_KEY, JSON.stringify({ ...checkpoint, savedAt: Date.now() }));
+    } catch {
+        // ignore quota/localstorage errors
+    }
+};
+
+const clearBatchCheckpoint = (): void => {
+    try {
+        localStorage.removeItem(OCR_BATCH_CHECKPOINT_KEY);
+    } catch {
+        // ignore
     }
 };
 
@@ -2952,9 +3002,23 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             console.log(`[강제 재분석] Preflight 검증 스킵, 직접 API 호출 모드`);
         }
         
+        const storedCheckpoint = getStoredBatchCheckpoint();
+        const canResumeFromCheckpoint = Boolean(
+            storedCheckpoint
+            && storedCheckpoint.title === title
+            && storedCheckpoint.forceReanalyze === forceReanalyze
+            && storedCheckpoint.total === total
+            && storedCheckpoint.nextIndex > 0
+            && storedCheckpoint.nextIndex < total
+        );
+
         setIsAnalyzing(true);
-        setProgress(`[${title}] 재분석 준비 중...`);
-        setBatchProgress({ current: 0, total });
+        setProgress(
+            canResumeFromCheckpoint
+                ? `[${title}] 이전 중단 지점(${storedCheckpoint?.nextIndex}/${total})부터 자동 재개 중...`
+                : `[${title}] 재분석 준비 중...`
+        );
+        setBatchProgress({ current: canResumeFromCheckpoint ? (storedCheckpoint?.nextIndex || 0) : 0, total });
         stopRef.current = false;
         setRetryDiagnostics({
             total,
@@ -2969,15 +3033,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         });
         await new Promise((resolve) => window.requestAnimationFrame(() => resolve(null)));
         
-        let successCount = 0;
-        let failCount = 0;
+        let successCount = canResumeFromCheckpoint ? (storedCheckpoint?.successCount || 0) : 0;
+        let failCount = canResumeFromCheckpoint ? (storedCheckpoint?.failCount || 0) : 0;
         let stopped = false;
-        let serverSuccessCount = 0;
-        let clientFallbackSuccessCount = 0;
-        let preflightFailCount = 0;
-        let processingFailCount = 0;
-        let serverRouteFailCount = 0;
-        let keyFailureCount = 0;
+        let serverSuccessCount = canResumeFromCheckpoint ? (storedCheckpoint?.serverSuccessCount || 0) : 0;
+        let clientFallbackSuccessCount = canResumeFromCheckpoint ? (storedCheckpoint?.clientFallbackSuccessCount || 0) : 0;
+        let preflightFailCount = canResumeFromCheckpoint ? (storedCheckpoint?.preflightFailCount || 0) : 0;
+        let processingFailCount = canResumeFromCheckpoint ? (storedCheckpoint?.processingFailCount || 0) : 0;
+        let serverRouteFailCount = canResumeFromCheckpoint ? (storedCheckpoint?.serverRouteFailCount || 0) : 0;
+        let keyFailureCount = canResumeFromCheckpoint ? (storedCheckpoint?.keyFailureCount || 0) : 0;
+        let quotaFailureCount = 0;
         let consecutiveKeyFailureCount = 0;
         const KEY_FAILURE_ABORT_THRESHOLD = 3;
         let keyFailureAbortTriggered = false;
@@ -2987,13 +3052,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         
         // [Adaptive Throttling State]
         // Start with a 4s buffer. If we hit limits, increase this dynamically.
-        let dynamicDelayBuffer = 4;
+        let dynamicDelayBuffer = quotaRecoveryTime > 0 ? 8 : 5;
 
         // [Priority Queue] 고위험→실패→저신뢰 순으로 정렬
         const processQueue = [...targetRecords].sort((a, b) => getRetryPriorityScore(a) - getRetryPriorityScore(b));
 
         try {
-            for (let i = 0; i < processQueue.length; i++) {
+            const startIndex = canResumeFromCheckpoint ? Math.max(0, storedCheckpoint?.nextIndex || 0) : 0;
+            for (let i = startIndex; i < processQueue.length; i++) {
                 if (stopRef.current) { stopped = true; break; }
                 const record = processQueue[i];
                 setBatchProgress(p => ({ ...p, current: i + 1 }));
@@ -3432,6 +3498,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             failCount++;
                             processingFailCount++;
                             const failedCode = resolveFailureCodeFromRecord(harnessSyncedRecord);
+                            if (failedCode === 'QUOTA') {
+                                quotaFailureCount++;
+                            }
                             if (failedCode === 'KEY') {
                                 keyFailureCount++;
                                 consecutiveKeyFailureCount++;
@@ -3458,6 +3527,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             }
                             const next = incrementApiCallCount('success');
                             setDailyCounter(next);
+                        }
+
+                        if (!forceReanalyze && quotaFailureCount >= 2) {
+                            stopped = true;
+                            stopRef.current = true;
+                            alert('할당량(QUOTA) 실패가 반복되어 무료 플랜 보호를 위해 일괄 재분석을 자동 중단했습니다. 잠시 후 재개하세요.');
+                            break;
                         }
 
                         setRetryDiagnostics({
@@ -3522,6 +3598,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         onUpdateRecord(await syncHarnessReanalyzeResult(errorRecord, record));
                         failCount++;
                         processingFailCount++;
+                        if (failureCode === 'QUOTA') {
+                            quotaFailureCount++;
+                        }
                         if (failureCode === 'KEY') {
                             keyFailureCount++;
                             consecutiveKeyFailureCount++;
@@ -3552,6 +3631,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 `현재 모드의 실행 키와 권한/할당량 상태를 먼저 확인한 뒤 다시 실행해 주세요.\n` +
                                 `설정 화면의 OCR 실행 키 출처/모드가 실제 운영키와 일치하는지 점검이 필요합니다.`
                             );
+                            break;
+                        }
+                        if (!forceReanalyze && quotaFailureCount >= 2) {
+                            stopped = true;
+                            stopRef.current = true;
+                            alert('할당량(QUOTA) 실패가 반복되어 무료 플랜 보호를 위해 일괄 재분석을 자동 중단했습니다. 잠시 후 재개하세요.');
                             break;
                         }
                         // Safety cooldown even on fail
@@ -3588,6 +3673,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     onUpdateRecord(await syncHarnessReanalyzeResult(errorRecord, record));
                     failCount++;
                     processingFailCount++;
+                    if (failureCode === 'QUOTA') {
+                        quotaFailureCount++;
+                    }
                     if (failureCode === 'KEY') {
                         keyFailureCount++;
                         consecutiveKeyFailureCount++;
@@ -3616,6 +3704,29 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         );
                         break;
                     }
+                    if (!forceReanalyze && quotaFailureCount >= 2) {
+                        stopped = true;
+                        stopRef.current = true;
+                        alert('할당량(QUOTA) 실패가 반복되어 무료 플랜 보호를 위해 일괄 재분석을 자동 중단했습니다. 잠시 후 재개하세요.');
+                        break;
+                    }
+                } finally {
+                    saveBatchCheckpoint({
+                        savedAt: Date.now(),
+                        title,
+                        forceReanalyze,
+                        total,
+                        nextIndex: Math.min(i + 1, processQueue.length),
+                        successCount,
+                        failCount,
+                        serverSuccessCount,
+                        clientFallbackSuccessCount,
+                        preflightFailCount,
+                        processingFailCount,
+                        serverRouteFailCount,
+                        keyFailureCount,
+                        lastRecordName: record.name,
+                    });
                 }
             }
         } catch (globalErr: unknown) {
@@ -3635,6 +3746,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             setProgress('');
             setCooldownTime(0);
             setBatchProgress({ current: 0, total: 0 });
+            if (!stopped && !lastUnhandledBatchErrorMessage) {
+                clearBatchCheckpoint();
+            }
             
             const modeLabel = forceReanalyze ? `[${BRAND_ACTION_LABELS.directReanalyze}]` : '';
             const fallbackOpportunity = clientFallbackSuccessCount + serverRouteFailCount;
