@@ -114,13 +114,21 @@ const TrendModal: React.FC<TrendModalProps> = ({ worker, onClose }) => {
         return () => window.removeEventListener('keydown', handler);
     }, [onClose]);
 
+    useEffect(() => {
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = originalOverflow;
+        };
+    }, []);
+
     return (
         <div
-            className="fixed inset-0 z-[200] flex items-center justify-center px-4"
+            className="fixed inset-0 z-[200] flex items-start sm:items-center justify-center overflow-y-auto px-4 py-4 sm:py-6"
             style={{ background: 'rgba(15,23,42,0.75)', backdropFilter: 'blur(4px)' }}
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg sm:max-w-2xl mx-auto overflow-hidden animate-[fadeInScale_0.2s_ease-out]">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg sm:max-w-2xl mx-auto max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-3rem)] overflow-y-auto animate-[fadeInScale_0.2s_ease-out]">
                 <div className="bg-gradient-to-r from-indigo-600 to-indigo-800 px-5 py-4 text-white flex justify-between items-start">
                     <div>
                         <h4 className="font-bold text-base sm:text-lg">{worker.name}</h4>
@@ -137,6 +145,71 @@ const TrendModal: React.FC<TrendModalProps> = ({ worker, onClose }) => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
+                </div>
+
+                <div className="p-4 sm:p-6">
+                    {worker.trend.length < 2 ? (
+                        <EmptyStatePanel
+                            title="추이 분석을 위한 기록이 부족합니다."
+                            description="최소 2건 이상 평가가 쌓이면 선형 추이가 표시됩니다."
+                            variant="slate"
+                            className="flex h-[220px] flex-col items-center justify-center text-center"
+                            titleClassName="text-sm font-semibold text-slate-400"
+                            descriptionClassName="mt-1 text-xs text-slate-400"
+                        />
+                    ) : (
+                        <>
+                            <div className="h-[240px] sm:h-[280px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <LineChart data={worker.trend} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                                        <XAxis
+                                            dataKey="label"
+                                            tick={{ fontSize: 11, fill: '#64748b' }}
+                                            axisLine={false}
+                                            tickLine={false}
+                                        />
+                                        <YAxis
+                                            domain={[0, 100]}
+                                            tick={{ fontSize: 10, fill: '#94a3b8' }}
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tickFormatter={(v) => `${v}`}
+                                            width={32}
+                                        />
+                                        <Tooltip content={<TrendTooltip />} />
+                                        <ReferenceLine y={75} stroke="#10b981" strokeDasharray="4 4" label={{ value: '양호', fontSize: 9, fill: '#10b981', position: 'right' }} />
+                                        <ReferenceLine y={60} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: '주의', fontSize: 9, fill: '#f59e0b', position: 'right' }} />
+                                        <Line
+                                            type="monotone"
+                                            dataKey="score"
+                                            name="종합 점수"
+                                            stroke="#6366f1"
+                                            strokeWidth={2.5}
+                                            dot={(props) => {
+                                                const { cx, cy, payload } = props;
+                                                return (
+                                                    <circle
+                                                        key={payload.date}
+                                                        cx={cx}
+                                                        cy={cy}
+                                                        r={5}
+                                                        fill={SCORE_COLOR(payload.score)}
+                                                        stroke="#fff"
+                                                        strokeWidth={2}
+                                                    />
+                                                );
+                                            }}
+                                            activeDot={{ r: 7, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }}
+                                        />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </div>
+                            <p className="text-right text-[10px] text-slate-400 mt-1">
+                                ※ 초록 75점 이상 양호 / 노랑 60~75점 주의 / 빨강 60점 미만 고위험
+                            </p>
+                        </>
+                    )}
                 </div>
 
                 <SummaryMetricGrid
@@ -156,72 +229,9 @@ const TrendModal: React.FC<TrendModalProps> = ({ worker, onClose }) => {
                             </span>
                         ),
                     }))}
-                    className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100"
+                    className="grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100"
                     cardClassName="p-3 text-center sm:p-4 border-0 rounded-none"
                 />
-
-                <div className="p-4 sm:p-6">
-                    {worker.trend.length < 2 ? (
-                        <EmptyStatePanel
-                            title="추이 분석을 위한 기록이 부족합니다."
-                            description="최소 2건 이상 평가가 쌓이면 선형 추이가 표시됩니다."
-                            variant="slate"
-                            className="flex h-[220px] flex-col items-center justify-center text-center"
-                            titleClassName="text-sm font-semibold text-slate-400"
-                            descriptionClassName="mt-1 text-xs text-slate-400"
-                        />
-                    ) : (
-                        <>
-                            <ResponsiveContainer width="100%" height={220}>
-                                <LineChart data={worker.trend} margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                                    <XAxis
-                                        dataKey="label"
-                                        tick={{ fontSize: 11, fill: '#64748b' }}
-                                        axisLine={false}
-                                        tickLine={false}
-                                    />
-                                    <YAxis
-                                        domain={[0, 100]}
-                                        tick={{ fontSize: 10, fill: '#94a3b8' }}
-                                        axisLine={false}
-                                        tickLine={false}
-                                        tickFormatter={(v) => `${v}`}
-                                        width={32}
-                                    />
-                                    <Tooltip content={<TrendTooltip />} />
-                                    <ReferenceLine y={75} stroke="#10b981" strokeDasharray="4 4" label={{ value: '양호', fontSize: 9, fill: '#10b981', position: 'right' }} />
-                                    <ReferenceLine y={60} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: '주의', fontSize: 9, fill: '#f59e0b', position: 'right' }} />
-                                    <Line
-                                        type="monotone"
-                                        dataKey="score"
-                                        name="종합 점수"
-                                        stroke="#6366f1"
-                                        strokeWidth={2.5}
-                                        dot={(props) => {
-                                            const { cx, cy, payload } = props;
-                                            return (
-                                                <circle
-                                                    key={payload.date}
-                                                    cx={cx}
-                                                    cy={cy}
-                                                    r={5}
-                                                    fill={SCORE_COLOR(payload.score)}
-                                                    stroke="#fff"
-                                                    strokeWidth={2}
-                                                />
-                                            );
-                                        }}
-                                        activeDot={{ r: 7, fill: '#6366f1', stroke: '#fff', strokeWidth: 2 }}
-                                    />
-                                </LineChart>
-                            </ResponsiveContainer>
-                            <p className="text-right text-[10px] text-slate-400 mt-1">
-                                ※ 초록 75점 이상 양호 / 노랑 60~75점 주의 / 빨강 60점 미만 고위험
-                            </p>
-                        </>
-                    )}
-                </div>
             </div>
         </div>
     );
