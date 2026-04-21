@@ -1,5 +1,5 @@
 /**
- * 개인별 트렌드 추적 패널 + 상세 모달
+ * 개인별 평가 기록 추적 패널 + 상세 모달
  * - 선택된 타겟 그룹(공종+국적) 근로자 목록
  * - 검색/페이지네이션으로 스크롤 압박 완화
  * - 모바일에서는 카드형 목록으로 최적화
@@ -295,7 +295,7 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
     if (!targetGroup) {
         return (
             <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 flex items-center justify-center min-h-[100px]">
-                <p className="text-xs text-slate-400 font-medium">작업조를 선택하면 개인별 트렌드 목록이 활성화됩니다.</p>
+                <p className="text-xs text-slate-400 font-medium">작업조를 선택하면 개인별 평가 기록 목록이 활성화됩니다.</p>
             </div>
         );
     }

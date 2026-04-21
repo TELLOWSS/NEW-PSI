@@ -1561,7 +1561,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const comparisonCards: InterpretationCardItem[] = useMemo(() => {
         const sharedStatusDescription = selectedTradeForComparison
             ? `${selectedTradeTeamComparison.length}개 팀을 같은 공종 기준으로 비교하며${selectedTeamsForComparison.length > 0 ? `, 현재 ${selectedTeamsForComparison.length}개 팀을 직접 선택해 좁혀 보고 있습니다.` : ' 전체 팀 흐름을 먼저 보고 있습니다.'}`
-            : '개선 필요한 분야 바로가기나 팀 비교 바로가기에서 대상을 고르면 상세 해석이 활성화됩니다.';
+            : '취약 공종 바로가기나 팀 비교 바로가기에서 대상을 고르면 상세 해석이 활성화됩니다.';
 
         if (audienceView === 'worker') {
             return [
@@ -1575,7 +1575,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 {
                     key: 'comparison-evidence',
                     eyebrow: '근거',
-                    title: '공종과 팀장 기준이 유사 작업 흐름 비교의 기준입니다.',
+                    title: '공종(작업 종류)·팀장 기준이 유사 작업 흐름 비교의 기준입니다.',
                     description: hasNationalityDetail && selectedTarget
                         ? `${selectedTarget.trade} · ${selectedTarget.nationality} 세부 기준이 열려 있어 같은 작업군 안의 세부 차이도 함께 볼 수 있습니다.`
                         : '팀 비교는 전체 국적 통합 기준으로 유지되어, 같은 공종 안에서 어느 작업조가 더 보호가 필요한지 빠르게 읽을 수 있습니다.',
@@ -1584,10 +1584,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 {
                     key: 'comparison-action',
                     eyebrow: '다음 행동',
-                    title: weakestTeam ? `${weakestTeam.team} 등 보호가 더 필요한 팀부터 확인하세요.` : '먼저 개선 필요한 분야 또는 팀을 선택하세요.',
+                    title: weakestTeam ? `${weakestTeam.team} 등 보호가 더 필요한 팀부터 확인하세요.` : '먼저 취약 공종 또는 팀을 선택하세요.',
                     description: weakestTeam
                         ? `평균 ${weakestTeam.avgScore.toFixed(1)}점과 고위험 ${weakestTeam.riskCount}명을 기준으로 어떤 작업조에 코칭이 먼저 필요한지 이어서 확인할 수 있습니다.`
-                        : '차트에서 작업조를 고르면 레이더와 개인 추이로 바로 이어져 보완 순서를 구체화할 수 있습니다.',
+                        : '차트에서 작업조를 고르면 역량 분포도와 개인별 평가 기록으로 바로 이어져 보완 순서를 구체화할 수 있습니다.',
                     tone: weakestTeam ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
                 },
             ];
@@ -1605,7 +1605,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 {
                     key: 'comparison-evidence',
                     eyebrow: '근거',
-                    title: '공종, 국적, 팀장 기준 분리가 리스크 분배 판단의 기준입니다.',
+                    title: '공종(작업 종류)·국적·팀장 기준 분리가 리스크 분배 판단의 기준입니다.',
                     description: hasNationalityDetail && selectedTarget
                         ? `${selectedTarget.trade} · ${selectedTarget.nationality} 세부 기준이 열려 있어 통합 흐름과 세부 리스크를 번갈아 읽을 수 있습니다.`
                         : '팀 비교는 전체 국적 통합 기준으로 유지되어, 동일 공종 내 팀 편차를 안정적으로 읽을 수 있습니다.',
@@ -1614,10 +1614,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 {
                     key: 'comparison-action',
                     eyebrow: '의사결정 포인트',
-                    title: weakestTeam ? `${weakestTeam.team} 등 취약 팀부터 자원 배분 우선순위를 잡으세요.` : '먼저 개선 필요한 분야 또는 팀을 선택하세요.',
+                    title: weakestTeam ? `${weakestTeam.team} 등 취약 팀부터 자원 배분 우선순위를 잡으세요.` : '먼저 취약 공종 또는 팀을 선택하세요.',
                     description: weakestTeam
                         ? `가장 취약한 팀의 평균 ${weakestTeam.avgScore.toFixed(1)}점과 고위험 ${weakestTeam.riskCount}명을 기준으로 교육·점검·보고 자원 배분 순서를 정할 수 있습니다.`
-                        : '차트에서 작업조를 고르면 레이더와 개인별 트렌드가 이어져 다음 보호 행동을 구체화할 수 있습니다.',
+                        : '차트에서 작업조를 고르면 역량 분포도와 개인별 평가 기록이 이어져 다음 보호 행동을 구체화할 수 있습니다.',
                     tone: weakestTeam ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
                 },
             ];
@@ -1634,7 +1634,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             {
                 key: 'comparison-evidence',
                 eyebrow: '근거',
-                title: '공종, 국적, 팀장 기준 분리가 비교의 기준입니다.',
+                title: '공종(작업 종류)·국적·팀장 기준 분리가 비교의 기준입니다.',
                 description: hasNationalityDetail && selectedTarget
                     ? `${selectedTarget.trade} · ${selectedTarget.nationality} 세부 기준이 열려 있어 통합 흐름과 세부 흐름을 번갈아 읽을 수 있습니다.`
                     : '팀 비교는 전체 국적 통합 기준으로 유지되어, 동일 공종 내 팀 편차를 안정적으로 읽을 수 있습니다.',
@@ -1643,10 +1643,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             {
                 key: 'comparison-action',
                 eyebrow: '다음 행동',
-                title: weakestTeam ? `${weakestTeam.team} 등 취약 팀부터 보완 우선순위를 잡으세요.` : '먼저 개선 필요한 분야 또는 팀을 선택하세요.',
+                title: weakestTeam ? `${weakestTeam.team} 등 취약 팀부터 보완 우선순위를 잡으세요.` : '먼저 취약 공종 또는 팀을 선택하세요.',
                 description: weakestTeam
                     ? `가장 취약한 팀의 평균 ${weakestTeam.avgScore.toFixed(1)}점과 고위험 ${weakestTeam.riskCount}명을 기준으로 코칭·점검·보고 흐름을 연결할 수 있습니다.`
-                    : '차트에서 작업조를 고르면 레이더와 개인별 트렌드가 이어져 다음 보호 행동을 구체화할 수 있습니다.',
+                    : '차트에서 작업조를 고르면 역량 분포도와 개인별 평가 기록이 이어져 다음 보호 행동을 구체화할 수 있습니다.',
                 tone: weakestTeam ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
             },
         ];
@@ -2419,7 +2419,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         <div className="flex flex-wrap items-center gap-2">
                             {selectedTradeForComparison && (
                                 <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-black text-indigo-700">
-                                    공종 {selectedTradeForComparison}
+                                    <span className="sm:hidden">공종 </span>
+                                    <span className="hidden sm:inline">공종(작업 종류) </span>
+                                    {selectedTradeForComparison}
                                 </span>
                             )}
                             <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[11px] font-black text-slate-700 dark:text-slate-100">
@@ -3322,7 +3324,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/80 px-3 py-2">
                                     <p className="text-[11px] font-black text-indigo-700">현재 {teamNationalityDrilldownStatus.teamLabel} 내부 분석 중</p>
                                     <p className="mt-0.5 text-[11px] text-indigo-600">
-                                        레이더는 팀 기준 통합 흐름을 유지하며, 선택 국적은 <span className="font-black">{teamNationalityDrilldownStatus.nationalityLabel}</span> 상태입니다.
+                                        역량 분포도는 팀 기준 통합 흐름을 유지하며, 선택 국적은 <span className="font-black">{teamNationalityDrilldownStatus.nationalityLabel}</span> 상태입니다.
                                     </p>
                                 </div>
                             )}
@@ -3346,13 +3348,13 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     )}
                 </div>
 
-                {/* ③ 개인별 트렌드 패널 */}
+                {/* ③ 개인별 평가 기록 패널 */}
                 <div className={mobileInsightTab === 'worker' ? 'block' : 'hidden md:block'}>
                     {selectedTarget ? (
                         <>
                             {teamNationalityDrilldownStatus && (
                                 <div className="mb-3 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2">
-                                    <p className="text-[11px] font-black text-slate-700">개인추이 해석 기준</p>
+                                    <p className="text-[11px] font-black text-slate-700">개인별 평가 기록 해석 기준</p>
                                     <p className="mt-0.5 text-[11px] text-slate-600">
                                         현재 <span className="font-black">{teamNationalityDrilldownStatus.teamLabel}</span> 내부 기록만 중심으로 추이를 확인 중입니다.
                                     </p>

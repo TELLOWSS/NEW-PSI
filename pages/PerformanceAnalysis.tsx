@@ -365,8 +365,8 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
         {
             key: 'performance-action',
             eyebrow: '다음 행동',
-            title: compareMode === 'team' ? '팀 간 편차가 큰 구간부터 보완하세요.' : '공종 간 차이가 큰 영역부터 확인하세요.',
-            description: '성과가 낮은 공종이나 팀을 찾았다면 보고서, 교육, 코칭 흐름과 연결해 왜 점수가 흔들리는지 설명 중심으로 보완할 수 있습니다.',
+            title: compareMode === 'team' ? '팀 간 편차가 큰 구간부터 보완하세요.' : '공종(작업 종류) 간 차이가 큰 영역부터 확인하세요.',
+            description: '성과가 낮은 공종(작업 종류)이나 팀을 찾았다면 보고서, 교육, 코칭 흐름과 연결해 왜 점수가 흔들리는지 설명 중심으로 보완할 수 있습니다.',
             tone: compareMode === 'team' ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
         },
     ], [compareMode, filteredBaseRecords.length, kpiData, timeRange]);
@@ -375,7 +375,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
         {
             key: 'chart-status',
             eyebrow: '지금 상태',
-            title: '시계열, 레이더, 히트맵, 등급 분포를 함께 읽는 구조입니다.',
+            title: '시계열, 역량 분포도, 히트맵, 등급 분포를 함께 읽는 구조입니다.',
             description: '한 차트만 보면 놓치는 흔들림을 여러 관점에서 동시에 확인하도록 배치했습니다.',
             tone: BRAND_TONE.slate,
         },
