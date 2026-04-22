@@ -44,7 +44,7 @@ import {
 } from '../../services/harnessService';
 import { buildHarnessRuleImpactSummary } from '../../utils/harnessRuleImpactSummary';
 import { exportEvidencePackageCsv, exportEvidencePackagePdf } from '../../utils/evidenceReportUtils';
-import { buildFallbackNativeGuidanceText, evaluateOcrVerificationCompleteness, evaluateOcrVerificationQuality, getNativeLanguageLabel, getNativeWritingGuide, isKoreanNationality } from '../../utils/ocrVerificationLanguageUtils';
+import { buildFallbackNativeGuidanceText, evaluateOcrVerificationCompleteness, evaluateOcrVerificationQuality, getNativeLanguageLabel, getNativeWritingGuide, isKoreanNationality, sanitizeOperationalNote } from '../../utils/ocrVerificationLanguageUtils';
 import {
     getHarnessAuditItemLabel,
     getHarnessAuditSectionLabel,
@@ -1547,9 +1547,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         hour: '2-digit',
         minute: '2-digit',
     };
-    const reassessmentTitle = isKorean ? '재평가(Reassessment) 전용 타임라인' : 'Reassessment Timeline';
-    const reassessmentEmpty = isKorean ? '재평가 이력이 없습니다.' : 'No reassessment history.';
-    const reassessmentTag = isKorean ? '[재평가]' : '[reassessment]';
+    const reassessmentTitle = '재평가 전용 타임라인';
+    const reassessmentEmpty = '재평가 이력이 없습니다.';
+    const reassessmentTag = '[재평가]';
     const reassessmentTrail = (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-10).reverse();
     const latestApprovalEntry = (record.approvalHistory || []).slice(-1)[0];
     const latestScoreAdjustment = (record.scoreAdjustmentHistory || []).slice(-1)[0];
@@ -2646,7 +2646,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                         <div className="text-xs bg-slate-50 border border-slate-200 rounded-lg p-2">
                                                             <div className="font-black text-slate-700">[{entry.stage}] {entry.actor}</div>
                                                             <div className="text-slate-500">{new Date(entry.timestamp).toLocaleString()}</div>
-                                                            {entry.note ? <div className="mt-1 text-slate-600">{entry.note}</div> : null}
+                                                            {entry.note ? <div className="mt-1 text-slate-600">{sanitizeOperationalNote(entry.note, record.nationality)}</div> : null}
                                                         </div>
                                                     ),
                                                 }))}
@@ -2666,7 +2666,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                         <div className="text-xs bg-violet-50 border border-violet-200 rounded-lg p-2">
                                                             <div className="font-black text-violet-800">{reassessmentTag} {entry.actor}</div>
                                                             <div className="text-violet-500">{new Date(entry.timestamp).toLocaleString(timelineLocale, timelineDateTimeOptions)}</div>
-                                                            {entry.note ? <div className="mt-1 text-violet-700">{entry.note}</div> : null}
+                                                            {entry.note ? <div className="mt-1 text-violet-700">{sanitizeOperationalNote(entry.note, record.nationality)}</div> : null}
                                                         </div>
                                                     ),
                                                 }))}
@@ -2693,7 +2693,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                                 {entry.actor ? <StatusBadge variant="amberSoft">{entry.actor}</StatusBadge> : null}
                                                             </div>
                                                             <div className="text-amber-600">{new Date(entry.timestamp).toLocaleString(timelineLocale, timelineDateTimeOptions)}</div>
-                                                            <div className="mt-1 text-amber-700">{entry.note}</div>
+                                                            <div className="mt-1 text-amber-700">{sanitizeOperationalNote(entry.note, record.nationality)}</div>
                                                         </div>
                                                     ),
                                                 }))}
@@ -2711,7 +2711,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             variant="whiteSoft"
                                             eyebrow="TIMELINE GUIDE"
                                             title="타임라인 단계 의미를 먼저 맞추고 승인 판단을 이어갑니다."
-                                            description="validation / approval / reassessment 단계가 무엇을 의미하는지 짧게 확인할 수 있습니다."
+                                            description="검증 / 승인 / 재평가 단계가 무엇을 의미하는지 짧게 확인할 수 있습니다."
                                             className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6 sm:py-6"
                                             titleClassName="mt-1 text-sm font-black text-slate-800"
                                             descriptionClassName="mt-2 text-xs font-bold text-slate-500"
@@ -3116,7 +3116,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                                             <SectionPanelCard
                                                 variant="whiteSoft"
-                                                eyebrow="KOREAN INTERPRETATION"
+                                                eyebrow="한국어 해석 (KO)"
                                                 title="관리자 관점의 한국어 보호 해석"
                                                 description="AI가 읽은 의미와 보완 방향을 관리자 검토 문장으로 정리합니다."
                                                 className="rounded-3xl border border-slate-200 bg-white px-6 py-6 shadow-sm h-full"
@@ -3133,7 +3133,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             </SectionPanelCard>
                                             <SectionPanelCard
                                                 variant="indigo"
-                                                eyebrow={`NATIVE SUPPORT (${record.nationality})`}
+                                                eyebrow={`모국어 안내 (${nativeLanguageLabel})`}
                                                 title="작업자 전달용 모국어 보호 안내"
                                                 description="국적 변경 후 AI 분석 갱신을 실행하면 번역 초안이 자동으로 갱신됩니다."
                                                 className="rounded-3xl border border-indigo-200 bg-white px-6 py-6 shadow-sm h-full"

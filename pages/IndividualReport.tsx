@@ -10,6 +10,7 @@ import { ensureFileSaver, ensureHtml2Canvas, ensureJsPdfConstructor, ensureJsZip
 import { canvasToBlob, captureReportCanvases, saveCanvasesAsA4Pdf } from '../utils/pdfCapture';
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { useMobileBackGuard } from '../hooks/useMobileBackGuard';
+import { sanitizeOperationalNote } from '../utils/ocrVerificationLanguageUtils';
 
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
 
@@ -102,9 +103,9 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         hour: '2-digit',
         minute: '2-digit',
     };
-    const reassessmentTitle = isKorean ? '재평가(Reassessment) 타임라인' : 'Reassessment Timeline';
-    const reassessmentFallback = isKorean ? '2차 재가공' : 'Secondary reassessment';
-    const reassessmentTag = isKorean ? '[재평가]' : '[reassessment]';
+    const reassessmentTitle = '재평가 타임라인';
+    const reassessmentFallback = '2차 재가공';
+    const reassessmentTag = '[재평가]';
     const reassessmentTrail = (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-5).reverse();
     const messageWorkerKey = String(record.worker_uuid || record.workerUuid || record.employeeId || `${record.name}_${record.teamLeader || '미지정'}`).trim();
     const isGenerating = isGeneratingPdf || isGeneratingImage || isSendingMessage;
@@ -940,10 +941,10 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                             {reassessmentTrail.map((entry, index) => (
                                 <div key={`${entry.timestamp}-${index}`} className="text-[11px] text-violet-700 bg-white/70 border border-violet-100 rounded p-1.5">
                                     <div className="font-bold">{reassessmentTag} {new Date(entry.timestamp).toLocaleString(timelineLocale, timelineDateTimeOptions)}</div>
-                                    <div className="mt-0.5">{entry.note || reassessmentFallback}</div>
+                                    <div className="mt-0.5">{sanitizeOperationalNote(entry.note || reassessmentFallback, record.nationality)}</div>
                                 </div>
                             ))}
-                            {reassessmentTrail.length === 0 && <div className="text-[11px] text-violet-500">{isKorean ? '재평가 이력이 없습니다.' : 'No reassessment history.'}</div>}
+                            {reassessmentTrail.length === 0 && <div className="text-[11px] text-violet-500">재평가 이력이 없습니다.</div>}
                         </div>
                     </div>
                 </div>

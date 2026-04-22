@@ -10,7 +10,7 @@ import { NoticeCallout } from './shared/NoticeCallout';
 import { StatusBadge } from './shared/StatusBadge';
 import { WhyThisResultPanel } from './shared/WhyThisResultPanel';
 import { PSI_APP_VERSION } from '../lib/appInfo';
-import { buildFallbackNativeCoachingText, buildFallbackNativeVerdictText } from '../utils/ocrVerificationLanguageUtils';
+import { buildFallbackNativeCoachingText, buildFallbackNativeVerdictText, sanitizeOperationalNote } from '../utils/ocrVerificationLanguageUtils';
 
 interface ReportTemplateProps {
     record: WorkerRecord;
@@ -201,6 +201,38 @@ const getCertificateTitleNative = (nationality: string): string => {
     if (nation.includes('러시아') || nation.toLowerCase().includes('russia') || nation.toLowerCase().includes('russian') || nation.toLowerCase().includes('росси')) return 'Сертификат компетенции по безопасности';
     if (nation.includes('카자흐') || nation.toLowerCase().includes('kazakh')) return 'Қауіпсіздік құзыреті сертификаты';
     return '안전 역량 인증서';
+};
+
+const getAppendixTitleNative = (nationality: string): string => {
+    const nation = (nationality || '').trim().toLowerCase();
+    if (nation.includes('한국') || nation.includes('korea')) return '상세 해석 및 실행 노트';
+    if (nation.includes('베트남') || nation.includes('vietnam')) return 'Ghi chú diễn giải chi tiết & hướng dẫn thực hành';
+    if (nation.includes('중국') || nation.includes('china')) return '详细解读与执行说明';
+    if (nation.includes('태국') || nation.includes('thailand')) return 'บันทึกคำอธิบายเชิงลึกและแนวทางปฏิบัติ';
+    if (nation.includes('미얀마') || nation.includes('myanmar') || nation.includes('burma')) return 'အသေးစိတ် အဓိပ္ပာယ်ဖွင့်ဆိုချက်နှင့် လုပ်ဆောင်ချက် မှတ်စုများ';
+    if (nation.includes('우즈벡') || nation.includes('uzbek')) return 'Batafsil talqin va amaliy ijro eslatmalari';
+    if (nation.includes('캄보디아') || nation.includes('cambodia')) return 'កំណត់ចំណាំបកស្រាយលម្អិត និងការអនុវត្ត';
+    if (nation.includes('인도네시아') || nation.includes('indonesia')) return 'Catatan Interpretasi Rinci & Eksekusi Lapangan';
+    if (nation.includes('몽골') || nation.includes('mongol')) return 'Дэлгэрэнгүй тайлбар ба хэрэгжилтийн тэмдэглэл';
+    if (nation.includes('러시아') || nation.includes('russia') || nation.includes('росси')) return 'Подробный разбор и практические инструкции';
+    if (nation.includes('카자흐') || nation.includes('kazakh')) return 'Толық түсіндірме және орындау нұсқаулығы';
+    return '상세 해석 및 실행 노트';
+};
+
+const getWorkerInfoNative = (nationality: string): string => {
+    const nation = (nationality || '').trim().toLowerCase();
+    if (nation.includes('한국') || nation.includes('korea')) return '근로자 정보';
+    if (nation.includes('베트남') || nation.includes('vietnam')) return 'Thông tin công nhân';
+    if (nation.includes('중국') || nation.includes('china')) return '工人信息';
+    if (nation.includes('태국') || nation.includes('thailand')) return 'ข้อมูลคนงาน';
+    if (nation.includes('미얀마') || nation.includes('myanmar') || nation.includes('burma')) return 'အလုပ်သမား အချက်အလက်';
+    if (nation.includes('우즈벡') || nation.includes('uzbek')) return 'Ishchi maʼlumotlari';
+    if (nation.includes('캄보디아') || nation.includes('cambodia')) return 'ព័ត៌មានកម្មករ';
+    if (nation.includes('인도네시아') || nation.includes('indonesia')) return 'Informasi pekerja';
+    if (nation.includes('몽골') || nation.includes('mongol')) return 'Ажилтны мэдээлэл';
+    if (nation.includes('러시아') || nation.includes('russia') || nation.includes('росси')) return 'Информация о работнике';
+    if (nation.includes('카자흐') || nation.includes('kazakh')) return 'Жұмысшы туралы ақпарат';
+    return '근로자 정보';
 };
 
 const getSixMetricBilingualLabels = (nationality: string): Array<{ ko: string; native: string; max: number; isPenalty?: boolean }> => {
@@ -760,6 +792,8 @@ const createLineClampStyle = (lines: number): React.CSSProperties => ({
 export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>(({ record, history = [], onPhotoClick }, ref) => {
     const labels = useMemo(() => getLabels(record.nationality), [record.nationality]);
     const certificateTitleNative = useMemo(() => getCertificateTitleNative(record.nationality), [record.nationality]);
+    const appendixTitleNative = useMemo(() => getAppendixTitleNative(record.nationality), [record.nationality]);
+    const workerInfoNative = useMemo(() => getWorkerInfoNative(record.nationality), [record.nationality]);
     const monthlyEduNativeTitle = useMemo(() => getMonthlyEduNativeTitle(record.nationality), [record.nationality]);
     const sixMetricBilingualLabels = useMemo(() => getSixMetricBilingualLabels(record.nationality), [record.nationality]);
     const isKorean = record.nationality === '대한민국' || record.nationality === '한국' || (record.nationality || '').toLowerCase().includes('korea');
@@ -774,8 +808,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     };
     const safetySigns = useMemo(() => getRelevantSigns(record.weakAreas, record.jobField), [record.weakAreas, record.jobField]);
     const reassessmentTitle = isKorean ? '재평가 타임라인' : isMyanmar ? 'ပြန်လည်အကဲဖြတ် အချိန်လိုင်း' : '재평가 타임라인';
-    const reassessmentFallback = isKorean ? '2차 재가공' : isMyanmar ? 'ထပ်မံ ပြန်လည်အကဲဖြတ်' : 'Secondary reassessment';
-    const reassessmentTag = isKorean ? '[재평가]' : isMyanmar ? '[ပြန်လည်အကဲဖြတ်]' : '[reassessment]';
+    const reassessmentFallback = isKorean ? '2차 재가공' : isMyanmar ? 'ထပ်မံ ပြန်လည်အကဲဖြတ်' : '2차 재가공';
+    const reassessmentTag = isKorean ? '[재평가]' : isMyanmar ? '[ပြန်လည်အကဲဖြတ်]' : '[재평가]';
     const reassessmentTrail = useMemo(
         () => (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-2).reverse(),
         [record.auditTrail]
@@ -1086,7 +1120,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 <BrandPhilosophyLogo className="w-6 h-6" />
                             </div>
                         </div>
-                        <h1 className="text-base font-serif font-black text-slate-900 uppercase leading-tight">{isMyanmar ? 'လုံခြုံရေး စွမ်းရည် လက်မှတ်' : '안전 역량 인증서'}</h1>
+                        <h1 className="text-base font-serif font-black text-slate-900 uppercase leading-tight">안전 역량 인증서</h1>
                         <p className="text-[10px] font-black text-slate-700 tracking-[0.06em] break-keep leading-tight mt-0.5">{certificateTitleNative}</p>
                         {!isKorean && (
                             <p className="text-[8px] font-bold text-indigo-600 tracking-[0.04em] break-keep mt-0.5">{monthlyEduNativeTitle}</p>
@@ -1241,9 +1275,16 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         {frontScoreReasonEntries.map((entry, i) => (
                                             <li key={`score-reason-${i}`} className="flex items-start gap-1 text-[8.5px] leading-[1.35] text-slate-700">
                                                 <span className="mt-[2px] text-slate-400">•</span>
-                                                <span style={frontEntryLineClampStyle}>
-                                                    <HighlightedText text={entry.nativeText || entry.text} />
-                                                </span>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="break-words" style={frontEntryLineClampStyle}>
+                                                        <HighlightedText text={entry.nativeText || entry.text} />
+                                                    </p>
+                                                    {entry.nativeText ? (
+                                                        <p className="mt-0.5 border-t border-slate-200 pt-0.5 text-[7px] font-bold text-slate-500 break-words" style={frontEntryLineClampStyle}>
+                                                            [KO] <HighlightedText text={entry.text} />
+                                                        </p>
+                                                    ) : null}
+                                                </div>
                                             </li>
                                         ))}
                                     </ul>
@@ -1265,7 +1306,14 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     {frontCoachingSummaryParagraphs.map((paragraph, index) => (
                                         <li key={`coaching-summary-${index}`} className="flex items-start gap-1">
                                             <span className="mt-[2px] text-amber-500">•</span>
-                                            <span style={frontCoachingLineClampStyle}><HighlightedText text={paragraph} /></span>
+                                            <div className="min-w-0 flex-1">
+                                                <p style={frontCoachingLineClampStyle}><HighlightedText text={paragraph} /></p>
+                                                {coachingNativeParagraphs.length > 0 && coachingKoParagraphs[index] ? (
+                                                    <p className="mt-0.5 border-t border-amber-200 pt-0.5 text-[7px] font-bold text-amber-700" style={frontCoachingLineClampStyle}>
+                                                        [KO] <HighlightedText text={coachingKoParagraphs[index]} />
+                                                    </p>
+                                                ) : null}
+                                            </div>
                                         </li>
                                     ))}
                                 </ul>
@@ -1325,7 +1373,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         <div className="mt-1 pt-1 border-t border-slate-100 overflow-hidden">
                                             {reassessmentTrail.slice(0, 1).map((entry, i) => (
                                                 <p key={`${entry.timestamp}-${i}`} className="text-[8px] text-violet-700 leading-tight">
-                                                    • {reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)} {entry.note || reassessmentFallback}
+                                                    • {reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)} {sanitizeOperationalNote(entry.note || reassessmentFallback, record.nationality)}
                                                 </p>
                                             ))}
                                         </div>
@@ -1386,9 +1434,16 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                             <li key={`strength-${i}`}>
                                                 <div className="text-[8.5px] leading-[1.35] text-slate-800 flex items-start gap-1 min-w-0">
                                                     <CheckBulletIcon className="text-emerald-600" />
-                                                    <span className="min-w-0 break-words font-bold leading-[1.35]" style={frontEntryLineClampStyle}>
-                                                        <HighlightedText text={entry.nativeText || entry.text} />
-                                                    </span>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="break-words font-bold leading-[1.35]" style={frontEntryLineClampStyle}>
+                                                            <HighlightedText text={entry.nativeText || entry.text} />
+                                                        </p>
+                                                        {entry.nativeText ? (
+                                                            <p className="mt-0.5 border-t border-emerald-100 pt-0.5 text-[7px] font-bold text-emerald-700 break-words" style={frontEntryLineClampStyle}>
+                                                                [KO] <HighlightedText text={entry.text} />
+                                                            </p>
+                                                        ) : null}
+                                                    </div>
                                                 </div>
                                             </li>
                                         ))}
@@ -1405,9 +1460,16 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                             <li key={`improvement-${i}`}>
                                                 <div className="text-[8.5px] leading-[1.35] text-rose-900 flex items-start gap-1 min-w-0">
                                                     <WarningBulletIcon />
-                                                    <span className="min-w-0 break-words font-bold leading-[1.35]" style={frontEntryLineClampStyle}>
-                                                        <HighlightedText text={entry.nativeText || entry.text} />
-                                                    </span>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="break-words font-bold leading-[1.35]" style={frontEntryLineClampStyle}>
+                                                            <HighlightedText text={entry.nativeText || entry.text} />
+                                                        </p>
+                                                        {entry.nativeText ? (
+                                                            <p className="mt-0.5 border-t border-rose-200 pt-0.5 text-[7px] font-bold text-rose-700 break-words" style={frontEntryLineClampStyle}>
+                                                                [KO] <HighlightedText text={entry.text} />
+                                                            </p>
+                                                        ) : null}
+                                                    </div>
                                                 </div>
                                             </li>
                                         ))}
@@ -1422,6 +1484,12 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     <p className="text-[8.5px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line" style={frontVerdictLineClampStyle}>
                                         <HighlightedText text={frontVerdictPrimaryText} />
                                     </p>
+                                    {!isKorean && frontVerdictKoText ? (
+                                        <p className="mt-1 border-t border-slate-200 pt-1 text-[7px] leading-relaxed text-slate-600 overflow-hidden whitespace-pre-line" style={frontVerdictLineClampStyle}>
+                                            <span className="font-black text-slate-400">[KO] </span>
+                                            <HighlightedText text={frontVerdictKoText} />
+                                        </p>
+                                    ) : null}
                                     <NextActionChecklist
                                         title={isMyanmar ? 'လုပ်ဆောင်ရန် စစ်ဆေးစာရင်း' : '실천 체크리스트'}
                                         items={frontImprovementEntries.slice(0, 2).map((entry, i) => ({
@@ -1433,7 +1501,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         <div className="mt-1 pt-1 border-t border-slate-100 overflow-hidden">
                                             {reassessmentTrail.slice(0, 1).map((entry, i) => (
                                                 <p key={`${entry.timestamp}-${i}`} className="text-[8px] text-violet-700 leading-tight">
-                                                    • {reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)} {entry.note || reassessmentFallback}
+                                                    • {reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)} {sanitizeOperationalNote(entry.note || reassessmentFallback, record.nationality)}
                                                 </p>
                                             ))}
                                         </div>
@@ -1488,13 +1556,14 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-200">
                         <div>
                             <StatusBadge variant="violetSoft" className="gap-2 px-3 py-1 text-[8px] uppercase tracking-[0.24em]">
-                                {isMyanmar ? 'တရားဝင် နောက်ဆက်တွဲ' : '공식 부록'}
+                                {isKorean ? '공식 부록' : `공식 부록 · ${appendixTitleNative}`}
                             </StatusBadge>
-                            <h2 className="mt-2 text-[20px] font-serif font-black text-slate-900">{isMyanmar ? 'အသေးစိတ် အဓိပ္ပာယ်ဖွင့်ဆိုချက်နှင့် လုပ်ဆောင်ချက် မှတ်စုများ' : '상세 해석 및 실행 노트'}</h2>
+                            <h2 className="mt-2 text-[20px] font-serif font-black text-slate-900">상세 해석 및 실행 노트</h2>
+                            {!isKorean && <p className="mt-1 text-[10px] font-black text-indigo-700">{appendixTitleNative}</p>}
                             <p className="mt-1 text-[10px] font-bold text-slate-500">줄임 표현된 핵심 문구의 상세 해설과 실행 지침을 정식 문서 형식으로 정리한 부록입니다.</p>
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-right shadow-sm backdrop-blur-sm">
-                            <p className="text-[8px] font-black uppercase tracking-[0.22em] text-slate-400">{isMyanmar ? 'အလုပ်သမား အချက်အလက်' : '근로자 정보'}</p>
+                            <p className="text-[8px] font-black uppercase tracking-[0.22em] text-slate-400">{isKorean ? '근로자 정보' : `근로자 정보 · ${workerInfoNative}`}</p>
                             <p className="mt-1 text-lg font-serif font-bold text-slate-900">{record.name}</p>
                             <p className="text-[9px] font-bold text-slate-500">{record.nationality} · {record.jobField}</p>
                             <p className="text-[8px] text-slate-400">{isMyanmar ? 'ထုတ်ပေးသည့်နေ့' : '발행일'} {formatDate(record.date)}</p>
@@ -1618,7 +1687,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     content: (
                                         <div className="rounded-xl border border-violet-100 bg-white/90 px-3 py-2">
                                             <p className="text-[8px] font-black text-violet-700">{reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)}</p>
-                                            <p className="mt-0.5 text-[8.5px] leading-relaxed text-violet-900 break-words" style={appendixTimelineLineClampStyle}>{entry.note || reassessmentFallback}</p>
+                                            <p className="mt-0.5 text-[8.5px] leading-relaxed text-violet-900 break-words" style={appendixTimelineLineClampStyle}>{sanitizeOperationalNote(entry.note || reassessmentFallback, record.nationality)}</p>
                                         </div>
                                     ),
                                 }))}

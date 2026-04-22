@@ -278,3 +278,50 @@ export const getNativeWritingGuide = (nationality: string): string[] => {
         '국적별 모국어 표기 규칙을 우선 적용해 현장 전달 문장으로 작성합니다.',
     ];
 };
+
+const hasTechnicalErrorSignal = (text: string): boolean => {
+    const normalized = String(text || '').toLowerCase();
+    return /(could not find|relation .* does not exist|syntax error|unknown\s*\(|public\.|table|uncategorized|database|sql|runtimeerror|exception)/i.test(normalized);
+};
+
+export const sanitizeOperationalNote = (note: string, nationality: string): string => {
+    const raw = String(note || '').trim();
+    if (!raw) return '';
+    if (!hasTechnicalErrorSignal(raw)) return raw;
+
+    const nation = normalizeNation(nationality);
+    const koFallback = '재평가 과정에서 시스템 오류가 감지되어 자동 문구를 정제했습니다. 현장 관리자 코멘트로 작업자 보호조치를 다시 명확히 안내해 주세요.';
+
+    if (nation.includes('베트남') || nation.includes('vietnam')) {
+        return 'Trong quá trình tái đánh giá, hệ thống phát hiện lỗi kỹ thuật nên nội dung được chuẩn hóa lại. Vui lòng giải thích lại biện pháp bảo vệ bằng hướng dẫn của quản lý hiện trường.';
+    }
+    if (nation.includes('중국') || nation.includes('china')) {
+        return '再评估过程中检测到系统技术错误，内容已自动规范化。请由现场管理人员重新明确说明作业保护措施。';
+    }
+    if (nation.includes('태국') || nation.includes('thailand')) {
+        return 'ระหว่างการประเมินซ้ำ พบข้อผิดพลาดทางเทคนิคของระบบ จึงปรับข้อความให้อ่านเข้าใจได้ใหม่ กรุณาให้ผู้จัดการหน้างานอธิบายมาตรการป้องกันอีกครั้ง';
+    }
+    if (nation.includes('미얀마') || nation.includes('myanmar') || nation.includes('burma')) {
+        return 'ပြန်လည်အကဲဖြတ်လုပ်ငန်းစဉ်တွင် စနစ်ပိုင်းဆိုင်ရာ အမှားကို တွေ့ရှိသဖြင့် စာသားကို ဖတ်ရှုလွယ်အောင် ပြန်လည်တင်ပြထားပါသည်။ လုပ်ငန်းခွင်မန်နေဂျာမှ ကာကွယ်ရေးအစီအမံကို ထပ်မံရှင်းပြပါ။';
+    }
+    if (nation.includes('우즈벡') || nation.includes('uzbek')) {
+        return 'Qayta baholash jarayonida tizim texnik xatosi aniqlandi va matn tushunarli shaklga keltirildi. Iltimos, maydon rahbari himoya choralarini yana bir bor aniq tushuntirsin.';
+    }
+    if (nation.includes('캄보디아') || nation.includes('cambodia')) {
+        return 'ក្នុងដំណើរការវាយតម្លៃឡើងវិញ ប្រព័ន្ធបានរកឃើញកំហុសបច្ចេកទេស ហើយអត្ថបទត្រូវបានកែសម្រួលឱ្យអាចយល់បាន។ សូមឱ្យអ្នកគ្រប់គ្រងការដ្ឋានពន្យល់វិធានការការពារឡើងវិញ។';
+    }
+    if (nation.includes('인도네시아') || nation.includes('indonesia')) {
+        return 'Dalam proses penilaian ulang, sistem mendeteksi kesalahan teknis sehingga teks dinormalisasi. Mohon manajer lapangan menjelaskan kembali langkah perlindungan kepada pekerja.';
+    }
+    if (nation.includes('몽골') || nation.includes('mongol')) {
+        return 'Дахин үнэлгээний явцад системийн техникийн алдаа илэрч, тайлбарыг ойлгомжтой хэлбэрт орууллаа. Талбайн менежер хамгаалалтын арга хэмжээг дахин тодорхой тайлбарлана уу.';
+    }
+    if (nation.includes('러시아') || nation.includes('russia') || nation.includes('росси') || nation.includes('русск')) {
+        return 'В ходе повторной оценки обнаружена техническая ошибка системы, поэтому текст приведён в понятный формат. Попросите руководителя участка повторно чётко объяснить защитные меры.';
+    }
+    if (nation.includes('카자흐') || nation.includes('kazakh')) {
+        return 'Қайта бағалау кезінде жүйелік техникалық қате анықталды, сондықтан мәтін түсінікті форматқа келтірілді. Алаң менеджері қорғаныс шараларын қайта нақты түсіндірсін.';
+    }
+
+    return koFallback;
+};
