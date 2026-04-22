@@ -2,7 +2,6 @@
 import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import type { WorkerRecord, SafetyCheckRecord, Page } from '../types';
 import { StatCard } from '../components/StatCard';
-import { SafetyActionCenter } from '../components/SafetyActionCenter';
 import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { Tooltip } from '../components/shared/Tooltip';
@@ -220,6 +219,29 @@ const areSameTradeList = (left: string[], right: string[]): boolean => {
     const leftSorted = [...left].sort((a, b) => a.localeCompare(b, 'ko'));
     const rightSorted = [...right].sort((a, b) => a.localeCompare(b, 'ko'));
     return leftSorted.every((value, index) => value === rightSorted[index]);
+};
+
+const DASHBOARD_SURVEY_RISK_KEYWORDS = ['추락', '끼임', '감전', '충돌'];
+
+const parseSurveyRiskLevel = (text: string): '상' | '중' | '하' | null => {
+    const normalized = String(text || '').trim();
+    if (!normalized) return null;
+    if (normalized.includes('상') || /high/i.test(normalized)) return '상';
+    if (normalized.includes('중') || /mid/i.test(normalized)) return '중';
+    if (normalized.includes('하') || /low/i.test(normalized)) return '하';
+    return null;
+};
+
+const getSurveySpecificityScore = (text: string): number => {
+    const normalized = String(text || '').trim();
+    if (normalized.length < 4) return 0;
+    const highSpecific = /매일|항상|출근|작업 전|사용 전|확인하겠|착용하겠|실시하겠|점검하겠|체결하겠|신고하겠/;
+    const midSpecific = /안전|조심|주의|확인|착용|점검|벨트|안전모|장갑|안전화/;
+    if (highSpecific.test(normalized) && normalized.length > 10) return 5;
+    if (highSpecific.test(normalized)) return 4;
+    if (midSpecific.test(normalized) && normalized.length > 8) return 3;
+    if (midSpecific.test(normalized)) return 2;
+    return 1;
 };
 
 const formatPresetUsedAt = (timestamp?: number): string => {
@@ -2206,6 +2228,99 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const isFullMode = dashboardViewMode === 'full';
     const isEssentialMode = dashboardViewMode === 'essential';
     const isEssentialMobile = isEssentialMode && viewportWidth < 640;
+    const surveyDashboardSummary = useMemo(() => {
+        const recordsWithAnswers = workerOnlyRecords.filter((record) => Array.isArray(record.handwrittenAnswers) && record.handwrittenAnswers.length > 0);
+        if (recordsWithAnswers.length === 0) {
+            return {
+                topGapTrade: '-',
+                topGapScore: 0,
+                risingKeyword: '-',
+                risingKeywordDelta: 0,
+                latestSpecificity: 0,
+                specificityDelta: 0,
+                hasData: false,
+            };
+        }
+
+        const tradeSet = Array.from(new Set(recordsWithAnswers.map((record) => normalizeDashboardTrade(record.jobField) || '기타')));
+        const tradeGapRows = tradeSet.map((trade) => {
+            const tradeRecords = recordsWithAnswers.filter((record) => (normalizeDashboardTrade(record.jobField) || '기타') === trade);
+            const q3Answers = tradeRecords.flatMap((record) => (record.handwrittenAnswers || [])
+                .filter((answer) => answer.questionNumber === '3' || answer.questionNumber === 'Q3')
+                .map((answer) => answer.koreanTranslation || answer.answerText));
+            const total = q3Answers.length || 1;
+            const managerHigh = Math.round((q3Answers.filter((text) => parseSurveyRiskLevel(text) === '상').length / total) * 100);
+            const workerLow = q3Answers.filter((text) => parseSurveyRiskLevel(text) === '하').length;
+            const workerHigh = 100 - Math.round((workerLow / total) * 100);
+            return {
+                trade,
+                gap: Math.max(0, managerHigh - workerHigh),
+            };
+        });
+        const topGap = [...tradeGapRows].sort((left, right) => right.gap - left.gap)[0] || { trade: '-', gap: 0 };
+
+        const monthKeys = Array.from(new Set(recordsWithAnswers.map((record) => {
+            const date = record.date ? new Date(record.date) : null;
+            if (!date || Number.isNaN(date.getTime())) return '';
+            const month = `${date.getMonth() + 1}`.padStart(2, '0');
+            return `${date.getFullYear()}-${month}`;
+        }).filter(Boolean))).sort((left, right) => left.localeCompare(right));
+        const latestMonth = monthKeys[monthKeys.length - 1] || '';
+        const previousMonth = monthKeys[monthKeys.length - 2] || '';
+
+        const getMonthKeywordCount = (monthKey: string, keyword: string): number => {
+            if (!monthKey) return 0;
+            const monthTexts = recordsWithAnswers
+                .filter((record) => {
+                    const date = record.date ? new Date(record.date) : null;
+                    if (!date || Number.isNaN(date.getTime())) return false;
+                    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+                    return `${date.getFullYear()}-${month}` === monthKey;
+                })
+                .flatMap((record) => (record.handwrittenAnswers || [])
+                    .filter((answer) => answer.questionNumber === '1' || answer.questionNumber === '2')
+                    .map((answer) => answer.koreanTranslation || answer.answerText));
+            const merged = monthTexts.join(' ');
+            return (merged.match(new RegExp(keyword, 'g')) || []).length;
+        };
+
+        const keywordDeltas = DASHBOARD_SURVEY_RISK_KEYWORDS.map((keyword) => {
+            const current = getMonthKeywordCount(latestMonth, keyword);
+            const previous = getMonthKeywordCount(previousMonth, keyword);
+            const delta = previous > 0 ? Math.round(((current - previous) / previous) * 100) : (current > 0 ? 100 : 0);
+            return { keyword, current, delta };
+        }).sort((left, right) => right.current - left.current || right.delta - left.delta);
+        const risingKeyword = keywordDeltas[0] || { keyword: '-', delta: 0 };
+
+        const getMonthSpecificityAverage = (monthKey: string): number => {
+            if (!monthKey) return 0;
+            const scores = recordsWithAnswers
+                .filter((record) => {
+                    const date = record.date ? new Date(record.date) : null;
+                    if (!date || Number.isNaN(date.getTime())) return false;
+                    const month = `${date.getMonth() + 1}`.padStart(2, '0');
+                    return `${date.getFullYear()}-${month}` === monthKey;
+                })
+                .flatMap((record) => (record.handwrittenAnswers || [])
+                    .filter((answer) => answer.questionNumber === '4' || answer.questionNumber === '5' || answer.questionNumber === 'Q4' || answer.questionNumber === 'Q5')
+                    .map((answer) => getSurveySpecificityScore(answer.koreanTranslation || answer.answerText)));
+            if (scores.length === 0) return 0;
+            return Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 10) / 10;
+        };
+
+        const latestSpecificity = getMonthSpecificityAverage(latestMonth);
+        const previousSpecificity = getMonthSpecificityAverage(previousMonth);
+
+        return {
+            topGapTrade: topGap.trade,
+            topGapScore: topGap.gap,
+            risingKeyword: risingKeyword.keyword,
+            risingKeywordDelta: risingKeyword.delta,
+            latestSpecificity,
+            specificityDelta: Math.round((latestSpecificity - previousSpecificity) * 10) / 10,
+            hasData: true,
+        };
+    }, [workerOnlyRecords]);
 
     return (
         <div className={`${isEssentialMobile ? 'space-y-3' : 'space-y-3 sm:space-y-4 lg:space-y-6'} animate-fade-in-up`}>
@@ -2431,8 +2546,41 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             {!isEssentialMode && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
                 <div className={`lg:col-span-2 ${audienceView === 'executive' ? 'lg:order-2' : 'lg:order-1'}`}>
-                    <div className="h-full rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300">
-                        <SafetyActionCenter workerRecords={workerOnlyRecords} />
+                    <div className="h-full rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-4 sm:p-5 lg:p-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                            <div>
+                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-indigo-500 dark:text-indigo-300">Survey Intelligence</p>
+                                <h3 className="mt-1 text-base sm:text-lg font-black text-slate-800 dark:text-slate-100">설문 기반 핵심지표 포지셔닝</h3>
+                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">스마트액션센터 대신 현장 설문 분석 지표를 대시보드 핵심 영역에 배치했습니다.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setCurrentPage('survey-intelligence')}
+                                className="px-3 py-2 rounded-xl bg-indigo-600 text-white text-xs font-black hover:bg-indigo-500 transition-colors"
+                            >
+                                설문 인텔리전스 상세 보기
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="rounded-xl border border-rose-200 dark:border-rose-800/50 bg-rose-50 dark:bg-rose-900/20 p-3">
+                                <p className="text-[11px] font-black text-rose-700 dark:text-rose-300">최대 인지 갭 공종</p>
+                                <p className="mt-1 text-xl font-black text-rose-800 dark:text-rose-200">{surveyDashboardSummary.topGapTrade}</p>
+                                <p className="mt-1 text-xs font-semibold text-rose-600 dark:text-rose-300">갭 {surveyDashboardSummary.topGapScore}pt</p>
+                            </div>
+                            <div className="rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/20 p-3">
+                                <p className="text-[11px] font-black text-amber-700 dark:text-amber-300">이번 달 급증 위험어</p>
+                                <p className="mt-1 text-xl font-black text-amber-800 dark:text-amber-200">{surveyDashboardSummary.risingKeyword}</p>
+                                <p className="mt-1 text-xs font-semibold text-amber-600 dark:text-amber-300">{surveyDashboardSummary.risingKeywordDelta >= 0 ? `▲ ${surveyDashboardSummary.risingKeywordDelta}%` : `▼ ${Math.abs(surveyDashboardSummary.risingKeywordDelta)}%`}</p>
+                            </div>
+                            <div className="rounded-xl border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50 dark:bg-emerald-900/20 p-3">
+                                <p className="text-[11px] font-black text-emerald-700 dark:text-emerald-300">자기규율 구체성 지수</p>
+                                <p className="mt-1 text-xl font-black text-emerald-800 dark:text-emerald-200">{surveyDashboardSummary.latestSpecificity.toFixed(1)}점</p>
+                                <p className="mt-1 text-xs font-semibold text-emerald-600 dark:text-emerald-300">{surveyDashboardSummary.specificityDelta >= 0 ? `+${surveyDashboardSummary.specificityDelta.toFixed(1)}pt` : `${surveyDashboardSummary.specificityDelta.toFixed(1)}pt`} 전월 대비</p>
+                            </div>
+                        </div>
+                        {!surveyDashboardSummary.hasData && (
+                            <p className="mt-3 text-xs font-semibold text-slate-500 dark:text-slate-400">설문 수기답변 데이터(Q1~Q5) 누적 후 지표가 자동 계산됩니다.</p>
+                        )}
                     </div>
                 </div>
                 <div className={`bg-white dark:bg-slate-800 p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 dark:border-slate-700 flex flex-col ${audienceView === 'executive' ? 'lg:order-1' : 'lg:order-2'}`}>
