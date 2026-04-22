@@ -144,3 +144,38 @@
 - "글쓰기 점수"와 "현장 이행 점수"를 분리해 평가 공정성을 높였다.
 - 동일 맥락 비교 게이트(±8)와 릴리즈 검증 파이프라인으로 재현성을 확보했다.
 - 리포트에 시간/커밋/브랜치가 남아 외부 검증 가능성을 확보했다.
+
+---
+
+## 기존 데이터 재활용(OCR 예외 선별) 운영 절차
+
+목적:
+- 수개월 누적 데이터에서 전수 OCR을 피하고, 텍스트 기반 백필이 가능한 건을 우선 재활용
+
+실행 명령:
+- 기본 분석:
+	- `npm run analyze:backfill-readiness`
+- 가정값 명시 실행(토큰/단가 커스터마이즈):
+	- `npm run analyze:backfill-readiness:tuned`
+	- 또는
+	- `node scripts/analyze-backfill-readiness.cjs --input <입력파일> --output-json <결과json> --output-md <결과md> --est-input-tokens 900 --est-output-tokens 350 --ocr-input-tokens 1800 --ocr-output-tokens 250 --cost-input-1k 0.002 --cost-output-1k 0.006`
+
+출력 산출물:
+- `reports/backfill-readiness.json`
+- `reports/backfill-readiness.md`
+
+분류 기준:
+- `NO_OCR_NEEDED`: 텍스트 기반 6지표 백필 가능
+- `NO_OCR_NEEDED`: 텍스트/이미지가 부족해도 `scoreBreakdown`, `auditTrail`, `actionHistory` 등 구조화 이력이 충분하면 백필 가능
+- `OCR_REQUIRED`: 텍스트 누락/깨짐/과소 + 이미지 존재 (예외 OCR 재처리)
+- `TEXT_ONLY_REVIEW`: 텍스트 누락/깨짐/과소 + 이미지 없음 (수기 검토)
+
+운영 권장:
+- 1차: `NO_OCR_NEEDED` 전량 백필
+- 2차: `OCR_REQUIRED`만 배치 OCR
+- 3차: `TEXT_ONLY_REVIEW`는 관리자 큐로 분리
+
+대외 보고 포인트:
+- 전수 OCR 가정 대비 선택적 처리 절감률(%)
+- OCR 재실행 필요군 비율(운영 리스크)
+- 공종/국적별 품질 편중 구간(집중 개선 타겟)

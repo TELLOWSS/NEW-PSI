@@ -20,6 +20,8 @@
     "analyze:policy-impact": "node scripts/analyze-operational-penalty-impact.cjs --input reports/records-export.json --output-json reports/policy-impact.json --output-md reports/policy-impact.md",
     "analyze:policy-impact:onepager": "node scripts/generate-policy-impact-onepager.cjs --input reports/policy-impact.json --output reports/policy-impact-onepager.md",
     "analyze:policy-impact:full": "npm run analyze:policy-impact && npm run analyze:policy-impact:onepager",
+    "analyze:backfill-readiness": "node scripts/analyze-backfill-readiness.cjs --input reports/records-export.json --output-json reports/backfill-readiness.json --output-md reports/backfill-readiness.md",
+    "analyze:backfill-readiness:tuned": "node scripts/analyze-backfill-readiness.cjs --input reports/records-export.json --output-json reports/backfill-readiness.json --output-md reports/backfill-readiness.md --est-input-tokens 900 --est-output-tokens 350 --ocr-input-tokens 1800 --ocr-output-tokens 250 --cost-input-1k 0.002 --cost-output-1k 0.006",
     "check:types": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
