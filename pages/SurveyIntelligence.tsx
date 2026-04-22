@@ -7,12 +7,12 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * 데이터 소스 : WorkerRecord.handwrittenAnswers (questionNumber 1~5)
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
     ResponsiveContainer, Tooltip, Legend,
     LineChart, Line, XAxis, YAxis, CartesianGrid,
-    BarChart, Bar, Cell, ReferenceLine,
+    BarChart, Bar, ReferenceLine,
 } from 'recharts';
 import type { WorkerRecord } from '../types';
 
@@ -20,8 +20,6 @@ import type { WorkerRecord } from '../types';
 interface Props {
     workerRecords: WorkerRecord[];
 }
-
-type TradeKey = string;
 
 // ─── 위험어 사전 ──────────────────────────────────────────────────────────────
 const RISK_KEYWORDS: string[] = [
@@ -40,6 +38,8 @@ const TRADE_COLORS: Record<string, string> = {
     '기타': '#94a3b8',
 };
 const tradeColor = (trade: string) => TRADE_COLORS[trade] ?? '#94a3b8';
+const QUERY_TRADE_KEY = 'siTrade';
+const QUERY_MONTH_KEY = 'siMonth';
 
 // ─── 데모 데이터 (실데이터 없을 때 사용) ──────────────────────────────────────
 const DEMO_GAP_DATA = [
@@ -111,9 +111,27 @@ const specificityScore = (text: string): number => {
 // ─── 데이터 처리 훅 ───────────────────────────────────────────────────────────
 function useSurveyData(records: WorkerRecord[]) {
     return useMemo(() => {
+        const hasSourceData = records.length > 0;
         const hasData = records.some(r => (r.handwrittenAnswers || []).length > 0);
 
         if (!hasData) {
+            if (hasSourceData) {
+                return {
+                    isDemo: false,
+                    gapData: [] as Array<{ trade: string; managerHigh: number; workerHigh: number; gap: number }>,
+                    radarData: [] as Array<{ trade: string; A: number; B: number }>,
+                    keywordTrend: [] as Array<Record<string, number | string>>,
+                    wordData: [] as Array<{ word: string; count: number }>,
+                    specificityTrend: [] as Array<Record<string, number | string>>,
+                    specificityTrades: [] as string[],
+                    topGapTrade: '-',
+                    avgSpecificityLatest: 0,
+                    avgSpecificityPrev: 0,
+                    latestTopKeyword: '-',
+                    latestTopKeywordDelta: 0,
+                };
+            }
+
             return {
                 isDemo: true,
                 gapData: DEMO_GAP_DATA,
@@ -346,8 +364,66 @@ const ChartTooltip = ({ active, payload, label }: any) => {
 
 // ─── 메인 컴포넌트 ────────────────────────────────────────────────────────────
 const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
-    const data = useSurveyData(workerRecords);
+    const [selectedTrade, setSelectedTrade] = useState<string>(() => {
+        if (typeof window === 'undefined') return '전체 공종';
+        return new URLSearchParams(window.location.search).get(QUERY_TRADE_KEY) || '전체 공종';
+    });
+    const [selectedMonth, setSelectedMonth] = useState<string>(() => {
+        if (typeof window === 'undefined') return '전체 월';
+        return new URLSearchParams(window.location.search).get(QUERY_MONTH_KEY) || '전체 월';
+    });
     const [activeKeywords] = useState<string[]>(['추락', '끼임', '감전', '충돌']);
+
+    const monthOptions = useMemo(() => {
+        const months = Array.from(new Set(workerRecords.map((record) => {
+            const d = record.date ? new Date(record.date) : null;
+            return d ? `${d.getMonth() + 1}월` : '?';
+        })));
+        return ['전체 월', ...months];
+    }, [workerRecords]);
+
+    const tradeOptions = useMemo(() => {
+        const trades = Array.from(new Set(workerRecords.map((record) => record.jobField || '기타')));
+        return ['전체 공종', ...trades];
+    }, [workerRecords]);
+
+    useEffect(() => {
+        if (!tradeOptions.includes(selectedTrade)) {
+            setSelectedTrade('전체 공종');
+        }
+    }, [tradeOptions, selectedTrade]);
+
+    useEffect(() => {
+        if (!monthOptions.includes(selectedMonth)) {
+            setSelectedMonth('전체 월');
+        }
+    }, [monthOptions, selectedMonth]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const currentUrl = new URL(window.location.href);
+        if (selectedTrade === '전체 공종') currentUrl.searchParams.delete(QUERY_TRADE_KEY);
+        else currentUrl.searchParams.set(QUERY_TRADE_KEY, selectedTrade);
+
+        if (selectedMonth === '전체 월') currentUrl.searchParams.delete(QUERY_MONTH_KEY);
+        else currentUrl.searchParams.set(QUERY_MONTH_KEY, selectedMonth);
+
+        const nextUrl = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
+        window.history.replaceState(null, '', nextUrl);
+    }, [selectedTrade, selectedMonth]);
+
+    const filteredRecords = useMemo(() => {
+        return workerRecords.filter((record) => {
+            const trade = record.jobField || '기타';
+            const d = record.date ? new Date(record.date) : null;
+            const month = d ? `${d.getMonth() + 1}월` : '?';
+            const tradeMatch = selectedTrade === '전체 공종' || trade === selectedTrade;
+            const monthMatch = selectedMonth === '전체 월' || month === selectedMonth;
+            return tradeMatch && monthMatch;
+        });
+    }, [workerRecords, selectedTrade, selectedMonth]);
+
+    const data = useSurveyData(filteredRecords);
 
     const specificityDelta = data.avgSpecificityLatest - data.avgSpecificityPrev;
 
@@ -374,10 +450,45 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                             근로자 자필 응답(Q1~Q5)에서 추출한 3개 핵심 지표 · 용인 푸르지오 현장
                         </p>
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                            필터 결과: 총 {filteredRecords.length}건
+                        </p>
                     </div>
-                    <p className="text-xs text-slate-400 dark:text-slate-500 shrink-0">
-                        기준: {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' })}
-                    </p>
+                    <div className="flex flex-col sm:items-end gap-2">
+                        <p className="text-xs text-slate-400 dark:text-slate-500 shrink-0">
+                            기준: {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' })}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <select
+                                value={selectedTrade}
+                                onChange={(event) => setSelectedTrade(event.target.value)}
+                                className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
+                            >
+                                {tradeOptions.map((trade) => (
+                                    <option key={trade} value={trade}>{trade}</option>
+                                ))}
+                            </select>
+                            <select
+                                value={selectedMonth}
+                                onChange={(event) => setSelectedMonth(event.target.value)}
+                                className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
+                            >
+                                {monthOptions.map((month) => (
+                                    <option key={month} value={month}>{month}</option>
+                                ))}
+                            </select>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSelectedTrade('전체 공종');
+                                    setSelectedMonth('전체 월');
+                                }}
+                                className="px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-200 text-slate-600 bg-slate-100 hover:bg-slate-200 dark:border-slate-700 dark:text-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700"
+                            >
+                                필터 초기화
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 {/* ── 상단 KPI 3개 ────────────────────────────────────────── */}
@@ -657,16 +768,37 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                     </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         {[
-                            { color: 'rose', icon: '🔴', condition: '갭지수 ≥ 20pt', action: '해당 공종 위험인식 집중교육 의무화' },
-                            { color: 'amber', icon: '🟡', condition: '특정 위험어 2개월 연속 ↑', action: '현장 설비 긴급 점검 + 관리자 보고' },
-                            { color: 'indigo', icon: '🟣', condition: '구체성 점수 ≤ 3.5점', action: '해당 협력사 작성 교육 재실시 권고' },
+                            {
+                                icon: '🔴',
+                                condition: '갭지수 ≥ 20pt',
+                                action: '해당 공종 위험인식 집중교육 의무화',
+                                cardClass: 'rounded-xl border border-rose-200 dark:border-rose-800/40 bg-rose-50 dark:bg-rose-900/20 p-3',
+                                titleClass: 'text-xs font-black text-rose-700 dark:text-rose-300',
+                                bodyClass: 'text-xs text-rose-600 dark:text-rose-400',
+                            },
+                            {
+                                icon: '🟡',
+                                condition: '특정 위험어 2개월 연속 ↑',
+                                action: '현장 설비 긴급 점검 + 관리자 보고',
+                                cardClass: 'rounded-xl border border-amber-200 dark:border-amber-800/40 bg-amber-50 dark:bg-amber-900/20 p-3',
+                                titleClass: 'text-xs font-black text-amber-700 dark:text-amber-300',
+                                bodyClass: 'text-xs text-amber-600 dark:text-amber-400',
+                            },
+                            {
+                                icon: '🟣',
+                                condition: '구체성 점수 ≤ 3.5점',
+                                action: '해당 협력사 작성 교육 재실시 권고',
+                                cardClass: 'rounded-xl border border-indigo-200 dark:border-indigo-800/40 bg-indigo-50 dark:bg-indigo-900/20 p-3',
+                                titleClass: 'text-xs font-black text-indigo-700 dark:text-indigo-300',
+                                bodyClass: 'text-xs text-indigo-600 dark:text-indigo-400',
+                            },
                         ].map(item => (
-                            <div key={item.condition} className={`rounded-xl border border-${item.color}-200 dark:border-${item.color}-800/40 bg-${item.color}-50 dark:bg-${item.color}-900/20 p-3`}>
+                            <div key={item.condition} className={item.cardClass}>
                                 <div className="flex items-center gap-2 mb-1">
                                     <span className="text-base">{item.icon}</span>
-                                    <span className={`text-xs font-black text-${item.color}-700 dark:text-${item.color}-300`}>{item.condition}</span>
+                                    <span className={item.titleClass}>{item.condition}</span>
                                 </div>
-                                <p className={`text-xs text-${item.color}-600 dark:text-${item.color}-400`}>→ {item.action}</p>
+                                <p className={item.bodyClass}>→ {item.action}</p>
                             </div>
                         ))}
                     </div>
