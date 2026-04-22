@@ -114,6 +114,9 @@
 - [reports/policy-impact-onepager.md](reports/policy-impact-onepager.md)
 - [reports/score-consistency-strict8.md](reports/score-consistency-strict8.md)
 
+### E. 신뢰성 입증 원페이지
+- [METRIC_RULE_RELIABILITY_PROOF_ONEPAGE_2026-04-23.md](METRIC_RULE_RELIABILITY_PROOF_ONEPAGE_2026-04-23.md)
+
 ---
 
 ## 6) 더 발전시키는 다음 단계(권장 백로그)
@@ -167,3 +170,8 @@
 - 변경: 백필/OCR 예외선별 자동화, 스토리 운영일지 체계, 자동집계·전일 Delta 로그, 일일 부트스트랩 자동 실행을 통합함
 - 영향: 백필 3건, NO_OCR 100%, OCR_REQUIRED 0%, 절감률 23.53% | strict8 PASS(비교쌍 8, 허용편차 ±8) | 정책 평균Δ -13.33, 운영패널티 적용률 33.33% | 전일대비 절감률 0.00%p, OCR_REQUIRED 0.00%p, 비교쌍 0건, strict8 PASS→PASS
 - 다음: 실데이터 투입 후 Delta 변동(절감률/OCR_REQUIRED/비교쌍) 추세를 운영일지에 일자별 누적
+
+### 2026-04-23
+- 변경: 근로자별 지표 규칙 적용 시 신뢰성을 설명하기 위한 원페이지 기준서를 추가하고, 설명 가능성/일관성/재현성/현업 성과 4축 입증 프레임을 정리함
+- 영향: 실무자·평가자·경영자 각각에게 다른 질문에 맞는 증빙과 KPI를 같은 체계로 제시할 수 있게 되어 규칙 설명력과 대외 보고 일관성이 강화됨
+- 다음: 샘플 30~50건 표본검증, 전문가 2인 합치도 확인, strict8·release 리포트 기준으로 신뢰성 KPI를 실제 수치화
