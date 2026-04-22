@@ -1,0 +1,42 @@
+{
+  "entries": [
+    {
+      "timestamp": "2026-04-22T10:51:05.214Z",
+      "date": "2026-04-22",
+      "backfill": {
+        "totalRecords": 3,
+        "noOcrNeededRate": 100,
+        "ocrRequiredRate": 0,
+        "savingsRate": 23.53
+      },
+      "score": {
+        "status": "PASS",
+        "pairCount": 8,
+        "maxGap": 8
+      },
+      "policy": {
+        "averageDelta": -13.33,
+        "operationalPenaltyAppliedRate": 33.33
+      }
+    },
+    {
+      "timestamp": "2026-04-22T10:51:40.461Z",
+      "date": "2026-04-22",
+      "backfill": {
+        "totalRecords": 3,
+        "noOcrNeededRate": 100,
+        "ocrRequiredRate": 0,
+        "savingsRate": 23.53
+      },
+      "score": {
+        "status": "PASS",
+        "pairCount": 8,
+        "maxGap": 8
+      },
+      "policy": {
+        "averageDelta": -13.33,
+        "operationalPenaltyAppliedRate": 33.33
+      }
+    }
+  ]
+}
