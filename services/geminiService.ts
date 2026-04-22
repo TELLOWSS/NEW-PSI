@@ -849,6 +849,106 @@ const enforceScoreGradeConsistency = (
     };
 };
 
+const normalizeComparableText = (value: unknown): string => {
+    return String(value || '')
+        .toLowerCase()
+        .replace(/[\s\u3000]+/g, ' ')
+        .replace(/[^\p{L}\p{N}\s]/gu, '')
+        .trim();
+};
+
+const buildBigramSet = (text: string): Set<string> => {
+    const clean = normalizeComparableText(text).replace(/\s+/g, '');
+    if (clean.length < 2) {
+        return new Set(clean ? [clean] : []);
+    }
+    const result = new Set<string>();
+    for (let i = 0; i < clean.length - 1; i++) {
+        result.add(clean.slice(i, i + 2));
+    }
+    return result;
+};
+
+const calcTextSimilarity = (left: unknown, right: unknown): number => {
+    const lSet = buildBigramSet(String(left || ''));
+    const rSet = buildBigramSet(String(right || ''));
+    if (lSet.size === 0 && rSet.size === 0) return 1;
+    if (lSet.size === 0 || rSet.size === 0) return 0;
+
+    let intersection = 0;
+    for (const token of lSet) {
+        if (rSet.has(token)) intersection += 1;
+    }
+    return (2 * intersection) / (lSet.size + rSet.size);
+};
+
+const normalizeStringArray = (value: unknown): string[] => {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map(item => normalizeComparableText(item))
+        .filter(Boolean);
+};
+
+const calcArrayOverlap = (left: unknown, right: unknown): number => {
+    const l = new Set(normalizeStringArray(left));
+    const r = new Set(normalizeStringArray(right));
+    if (l.size === 0 && r.size === 0) return 1;
+    if (l.size === 0 || r.size === 0) return 0;
+    let intersection = 0;
+    for (const item of l) {
+        if (r.has(item)) intersection += 1;
+    }
+    return intersection / Math.max(l.size, r.size);
+};
+
+const calibrateReanalysisScore = (params: {
+    previousScore: number;
+    proposedScore: number;
+    originalFullText: unknown;
+    editedFullText: unknown;
+    originalWeakAreas: unknown;
+    editedWeakAreas: unknown;
+    originalJobField: unknown;
+    editedJobField: unknown;
+}): { safetyScore: number; reasoning: string[] } => {
+    const previousScore = clampScore(params.previousScore, 0);
+    const proposedScore = clampScore(params.proposedScore, previousScore);
+    const textSimilarity = calcTextSimilarity(params.originalFullText, params.editedFullText);
+    const weakAreasOverlap = calcArrayOverlap(params.originalWeakAreas, params.editedWeakAreas);
+    const sameJobField = normalizeComparableText(params.originalJobField) === normalizeComparableText(params.editedJobField);
+
+    const reasoning: string[] = [];
+    let calibrated = proposedScore;
+
+    if (sameJobField && textSimilarity >= 0.95 && weakAreasOverlap >= 0.85) {
+        calibrated = previousScore;
+        reasoning.push('경미 수정(문맥 유사도 높음)으로 판정되어 점수를 기존값으로 고정함');
+    } else if (sameJobField && textSimilarity >= 0.88 && weakAreasOverlap >= 0.65) {
+        const deltaCap = 6;
+        const minScore = previousScore - deltaCap;
+        const maxScore = previousScore + deltaCap;
+        const bounded = Math.max(minScore, Math.min(maxScore, proposedScore));
+        if (bounded !== proposedScore) {
+            calibrated = bounded;
+            reasoning.push(`유사 맥락 재분석 변동폭 제한(±${deltaCap}) 적용`);
+        }
+    } else if (textSimilarity >= 0.78) {
+        const deltaCap = 12;
+        const minScore = previousScore - deltaCap;
+        const maxScore = previousScore + deltaCap;
+        const bounded = Math.max(minScore, Math.min(maxScore, proposedScore));
+        if (bounded !== proposedScore) {
+            calibrated = bounded;
+            reasoning.push(`중간 유사도 재분석 변동폭 제한(±${deltaCap}) 적용`);
+        }
+    }
+
+    return {
+        safetyScore: clampScore(calibrated, previousScore),
+        reasoning,
+    };
+};
+
 export interface ExternalIssueAnalysisResult {
     issueDate: string;
     location: string;
@@ -1571,7 +1671,7 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
             systemInstruction: systemInstruction,
             responseMimeType: "application/json",
             responseSchema: updateSchema,
-            temperature: 0.3,
+            temperature: 0.15,
         }
     };
 
@@ -1601,11 +1701,29 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
                         record.safetyScore
                     );
 
+                    const calibrated = calibrateReanalysisScore({
+                        previousScore: clampScore(record.safetyScore, 0),
+                        proposedScore: normalized.safetyScore,
+                        originalFullText: originalSnapshot.fullText,
+                        editedFullText: finalSnapshot.fullText,
+                        originalWeakAreas: originalSnapshot.weakAreas,
+                        editedWeakAreas: finalSnapshot.weakAreas,
+                        originalJobField: originalSnapshot.jobField,
+                        editedJobField: finalSnapshot.jobField,
+                    });
+
+                    const finalized = enforceScoreGradeConsistency(
+                        calibrated.safetyScore,
+                        normalized.safetyLevel,
+                        [...normalized.scoreReasoning, ...calibrated.reasoning],
+                        record.safetyScore,
+                    );
+
                     const normalizedResult: Partial<WorkerRecord> = {
                         ...parsed,
-                        safetyScore: normalized.safetyScore,
-                        safetyLevel: normalized.safetyLevel,
-                        scoreReasoning: normalized.scoreReasoning,
+                        safetyScore: finalized.safetyScore,
+                        safetyLevel: finalized.safetyLevel,
+                        scoreReasoning: finalized.scoreReasoning,
                     };
 
                     clearQuotaState();
