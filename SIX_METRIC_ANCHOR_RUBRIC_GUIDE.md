@@ -101,3 +101,46 @@
 	- `generatedAt`(UTC)
 	- `workspace`
 	- `git.branch`, `git.commit`, `git.dirty`
+
+---
+
+## 운영 패널티 전환 실증 방법 (대외 시연용)
+
+목적:
+- "반복위반 패널티"를 문장 패턴 기반이 아닌 현장 이행기반으로 전환했을 때의 효과를 수치로 증명
+
+실행 절차:
+1) 월간 기록 JSON 준비
+- 파일 예시: `reports/records-export.json`
+- 허용 포맷: 배열 자체 또는 `{ workerRecords: [...] }`
+
+2) 실증 분석 실행
+- 기본 실행:
+	- `npm run analyze:policy-impact`
+- 커스텀 실행(입력/출력/패널티 상한 지정):
+	- `node scripts/analyze-operational-penalty-impact.cjs --input <입력파일> --output-json <결과json> --output-md <결과md> --max-penalty 20`
+
+3) 결과 산출물 확인
+- `reports/policy-impact.json`
+- `reports/policy-impact.md`
+
+4) 발표 자료 반영 (권장 1페이지)
+- Legacy 평균 vs Proposed 평균
+- 공종별 표준편차(변동성) 비교
+- 반려군/승인군 점수 분리도
+- 운영 패널티 상위 사례(근거 로그 포함)
+
+실데이터 투입 권장 절차(수개월 누적 데이터):
+- 월별/분기별 원천 데이터를 단일 JSON으로 병합하여 `reports/records-export.json`에 저장
+- 아래 순서로 실행
+	- `npm run analyze:policy-impact`
+	- `npm run analyze:policy-impact:onepager`
+- 한 번에 실행
+	- `npm run analyze:policy-impact:full`
+- 산출물
+	- 상세 분석: `reports/policy-impact.json`, `reports/policy-impact.md`
+	- 발표용 1장 요약: `reports/policy-impact-onepager.md`
+대외 발표 메시지 프레임:
+- "글쓰기 점수"와 "현장 이행 점수"를 분리해 평가 공정성을 높였다.
+- 동일 맥락 비교 게이트(±8)와 릴리즈 검증 파이프라인으로 재현성을 확보했다.
+- 리포트에 시간/커밋/브랜치가 남아 외부 검증 가능성을 확보했다.
