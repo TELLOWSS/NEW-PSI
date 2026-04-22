@@ -21,6 +21,7 @@
 ---
 
 ## 3) 재시작 실행 순서(고정)
+※ `npm run dev` 시작 시 `predev`로 일일 자동 부트스트랩(`ops:auto:daily`)이 하루 1회 선실행됩니다.
 1. npm run analyze:backfill-readiness
 2. npm run analyze:policy-impact:full
 3. npm run check:score-consistency:strict8

@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/auto-daily-bootstrap.cjs",
     "dev": "vite",
     "dev:web": "vite",
     "dev:api": "vercel dev --listen 3001",
@@ -28,6 +29,7 @@
     "log:story:auto:no-delta": "node scripts/append-upgrade-story-log.cjs --auto-from-reports --no-delta",
     "log:story:today": "node scripts/append-upgrade-story-log.cjs --date 2026-04-22 --change \"오늘 변경사항 입력\" --impact \"비용/품질/재현성 영향 입력\" --next \"내일 첫 작업 입력\"",
     "log:story:auto:today": "node scripts/append-upgrade-story-log.cjs --auto-from-reports --date 2026-04-22 --change \"오늘 변경사항 입력\" --next \"내일 첫 작업 입력\"",
+    "ops:auto:daily": "node scripts/auto-daily-bootstrap.cjs",
     "check:types": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

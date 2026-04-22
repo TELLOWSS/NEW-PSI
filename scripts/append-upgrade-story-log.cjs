@@ -312,7 +312,7 @@ function buildEntry({ date, change, impact, next }) {
   ].join('\n');
 }
 
-function appendEntry(text, entry) {
+function appendEntry(text, entry, date) {
   const lines = text
     .split('\n')
     .filter(
@@ -323,6 +323,19 @@ function appendEntry(text, entry) {
   const sectionIndex = lines.findIndex((line) => line.trim() === SECTION_TITLE);
   if (sectionIndex === -1) {
     return `${text.trimEnd()}\n\n${SECTION_TITLE}\n\n${entry}`;
+  }
+
+  const dateHeader = `### ${date}`;
+  const firstDateIndex = lines.findIndex((line) => line.trim() === dateHeader);
+  if (firstDateIndex !== -1) {
+    let endIndex = lines.length;
+    for (let index = firstDateIndex + 1; index < lines.length; index += 1) {
+      if (lines[index].startsWith('### ')) {
+        endIndex = index;
+        break;
+      }
+    }
+    lines.splice(firstDateIndex, endIndex - firstDateIndex);
   }
 
   const insertIndex = lines.length;
@@ -353,7 +366,7 @@ function main() {
   const original = fs.readFileSync(journalPath, 'utf8');
   const withSection = ensureSection(original);
   const entry = buildEntry({ date, change, impact, next });
-  const updated = appendEntry(withSection, entry);
+  const updated = appendEntry(withSection, entry, date);
 
   fs.writeFileSync(journalPath, `${updated.trimEnd()}\n`, 'utf8');
 
