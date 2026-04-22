@@ -15,6 +15,7 @@ export type Page =
     'worker-training' |
     'safety-behavior-management' |
     'safety-compliance-hub' |
+    'survey-intelligence' |
     'settings'; // Added
 
 export type ModalState = {

@@ -89,6 +89,7 @@ const AdminTraining = lazyWithRecovery('AdminTraining', () => import('./pages/Ad
 const WorkerTraining = lazyWithRecovery('WorkerTraining', () => import('./pages/WorkerTraining'));
 const SafetyBehaviorManagement = lazyWithRecovery('SafetyBehaviorManagement', () => import('./pages/SafetyBehaviorManagement'));
 const FieldSafetyComplianceHub = lazyWithRecovery('FieldSafetyComplianceHub', () => import('./pages/FieldSafetyComplianceHub'));
+const SurveyIntelligence = lazyWithRecovery('SurveyIntelligence', () => import('./pages/SurveyIntelligence'));
 
 const IDB_NAME = 'PSI_Enterprise_V4';
 const IDB_VERSION = 1;
@@ -1167,6 +1168,7 @@ const App: React.FC = () => {
                                 }}
                             />
                         )}
+                        {currentPage === 'survey-intelligence' && <SurveyIntelligence workerRecords={workerRecords} />}
                         {currentPage === 'predictive-analysis' && <PredictiveAnalysis workerRecords={workerRecords} />}
                         {currentPage === 'performance-analysis' && <PerformanceAnalysis workerRecords={workerRecords} />}
                         {currentPage === 'safety-checks' && <SafetyChecks workerRecords={workerRecords} checkRecords={safetyCheckRecords} onAddCheck={(r: unknown) => setSafetyCheckRecords(p => [{...(r as SafetyCheckRecord), id:Date.now().toString()}, ...p])} />}
