@@ -826,6 +826,76 @@ const normalizeScoreReasoning = (value: unknown): string[] => {
         .slice(0, 8);
 };
 
+type NormalizedScoreBreakdown = NonNullable<WorkerRecord['scoreBreakdown']>;
+
+const normalizeScoreMetric = (value: unknown, min: number, max: number): number => {
+    const numeric = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(numeric)) return min;
+    return Math.max(min, Math.min(max, Math.round(numeric)));
+};
+
+const normalizeScoreBreakdown = (value: unknown): NormalizedScoreBreakdown | undefined => {
+    if (!value || typeof value !== 'object') return undefined;
+    const source = value as Record<string, unknown>;
+    return {
+        psychological: normalizeScoreMetric(source['psychological'], 0, 10),
+        jobUnderstanding: normalizeScoreMetric(source['jobUnderstanding'], 0, 20),
+        riskAssessmentUnderstanding: normalizeScoreMetric(source['riskAssessmentUnderstanding'], 0, 20),
+        proficiency: normalizeScoreMetric(source['proficiency'], 0, 30),
+        improvementExecution: normalizeScoreMetric(source['improvementExecution'], 0, 20),
+        repeatViolationPenalty: normalizeScoreMetric(source['repeatViolationPenalty'], 0, 30),
+    };
+};
+
+const computeScoreFromBreakdown = (breakdown: NormalizedScoreBreakdown): number => {
+    const total =
+        breakdown.psychological +
+        breakdown.jobUnderstanding +
+        breakdown.riskAssessmentUnderstanding +
+        breakdown.proficiency +
+        breakdown.improvementExecution -
+        breakdown.repeatViolationPenalty;
+    return clampScore(total, 0);
+};
+
+const enforceBreakdownDrivenScore = (
+    scoreInput: unknown,
+    levelInput: unknown,
+    reasoningInput: unknown,
+    breakdownInput: unknown,
+    fallbackScore: number,
+): { safetyScore: number; safetyLevel: WorkerRecord['safetyLevel']; scoreReasoning: string[]; scoreBreakdown?: NormalizedScoreBreakdown } => {
+    const normalizedBreakdown = normalizeScoreBreakdown(breakdownInput);
+    const firstPass = enforceScoreGradeConsistency(scoreInput, levelInput, reasoningInput, fallbackScore);
+
+    if (!normalizedBreakdown) {
+        return {
+            ...firstPass,
+            scoreBreakdown: undefined,
+        };
+    }
+
+    const breakdownScore = computeScoreFromBreakdown(normalizedBreakdown);
+    const reasons = [...firstPass.scoreReasoning];
+    const scoreGap = Math.abs(firstPass.safetyScore - breakdownScore);
+
+    if (scoreGap >= 2) {
+        reasons.push(`6대 지표 합산 정합성 검증에 따라 점수를 ${breakdownScore}점으로 보정함`);
+    }
+
+    const finalized = enforceScoreGradeConsistency(
+        breakdownScore,
+        firstPass.safetyLevel,
+        reasons,
+        fallbackScore,
+    );
+
+    return {
+        ...finalized,
+        scoreBreakdown: normalizedBreakdown,
+    };
+};
+
 const enforceScoreGradeConsistency = (
     scoreInput: unknown,
     levelInput: unknown,
@@ -1063,6 +1133,19 @@ const STRICT_SCORE_POLICY = `
     * 단순 직역 금지 — 건설 현장 안전 전문 용어를 해당 언어 현장 표준으로 의역.
     * 두 _native 필드 모두 빈 문자열로 반환하는 것은 규칙 위반. 반드시 번역된 내용을 반환할 것.
   - 한국인(대한민국 또는 한국)인 경우: score_reason_native = "", actionable_coaching_native = "" (빈 문자열만 허용).
+`;
+
+const SIX_METRIC_ANCHOR_RUBRIC = `
+[6대 지표 앵커 루브릭 - 자유기술 평가용]
+- 원칙: 정답 단어 매칭이 아니라, 근로자 자유기술의 "구체성·실행가능성·검증가능성"을 평가한다.
+- A(상): 위험상황(조건/원인) + 실행행동(작업전/중/후) + 검증기준(수치/범위/체크포인트)까지 드러남.
+- B(중): 위험/행동은 있으나 조건 또는 검증기준 일부가 빠져 추적성이 낮음.
+- C(하): 추상적 구호, 단답형, 공종 무관 문장 위주로 실무 실행 정보가 부족함.
+
+[평가 일관성 강제]
+- 같은 공종, 같은 위험맥락, 유사한 행동수준이면 점수 편차를 최소화한다.
+- scoreReasoning에는 최소 1개 이상 "앵커 판정 근거(A/B/C)"를 포함한다.
+- 표현이 달라도 의미가 같으면 동등 점수대(근접 점수)로 처리한다.
 `;
 
 
@@ -1317,6 +1400,7 @@ async function callGeminiWithRetry(
              *   - 피드백은 반드시 ${nationality}로 출력.
              *   - 점수가 낮은 근로자에게는 질책 대신 "같은 국적의 동료는 이렇게 훌륭하게 위험을 찾아냈습니다: [${bestPeerExample}의 핵심 내용 요약]. 다음에는 이처럼 명확한 대책을 확인하세요."라는 형태로, 동급 우수 사례를 인용한 긍정적이고 구체적인 행동 지침을 제공.
              */
+            ${SIX_METRIC_ANCHOR_RUBRIC}
             `;
 
             const prompt = `위험성 평가 문서를 분석하십시오. 파일명: ${filenameHint || 'unknown'}.
@@ -1368,10 +1452,11 @@ async function callGeminiWithRetry(
                         const date = (r['date'] as string) || new Date().toISOString().split('T')[0];
                         // [CRITICAL] 국적 정규화 (LANGUAGE_POLICY 준수)
                         const nationality = normalizeNationality((r['nationality'] as string) || '미상');
-                        const normalizedScoreAndLevel = enforceScoreGradeConsistency(
+                        const normalizedScoreAndLevel = enforceBreakdownDrivenScore(
                             r['safetyScore'],
                             r['safetyLevel'],
                             r['scoreReasoning'],
+                            r['scoreBreakdown'],
                             0
                         );
                         const safetyScore = normalizedScoreAndLevel.safetyScore;
@@ -1415,14 +1500,7 @@ async function callGeminiWithRetry(
                             score_reason_native: (r['score_reason_native'] as string) || '',
                             actionable_coaching: (r['actionable_coaching'] as string) || '',
                             actionable_coaching_native: (r['actionable_coaching_native'] as string) || '',
-                            scoreBreakdown: r['scoreBreakdown'] ? {
-                                psychological: Number((r['scoreBreakdown'] as Record<string, unknown>)['psychological'] ?? 0),
-                                jobUnderstanding: Number((r['scoreBreakdown'] as Record<string, unknown>)['jobUnderstanding'] ?? 0),
-                                riskAssessmentUnderstanding: Number((r['scoreBreakdown'] as Record<string, unknown>)['riskAssessmentUnderstanding'] ?? 0),
-                                proficiency: Number((r['scoreBreakdown'] as Record<string, unknown>)['proficiency'] ?? 0),
-                                improvementExecution: Number((r['scoreBreakdown'] as Record<string, unknown>)['improvementExecution'] ?? 0),
-                                repeatViolationPenalty: Number((r['scoreBreakdown'] as Record<string, unknown>)['repeatViolationPenalty'] ?? 0),
-                            } : undefined,
+                            scoreBreakdown: normalizedScoreAndLevel.scoreBreakdown,
                             selfAssessedRiskLevel:
                                 r['selfAssessedRiskLevel'] === '상' || r['selfAssessedRiskLevel'] === '중' || r['selfAssessedRiskLevel'] === '하'
                                     ? r['selfAssessedRiskLevel']
@@ -1631,6 +1709,7 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
     **임무**: [근로자 원본 데이터]와 [관리자 수정 최종 데이터]를 비교해 기존 분석을 감사 방식으로 갱신.
     ${LANGUAGE_POLICY}
     ${STRICT_SCORE_POLICY}
+    ${SIX_METRIC_ANCHOR_RUBRIC}
 
     **2차 분석 편차 규칙 (강제)**:
     1. 중대 페널티: 관리자 최종본에 원본에 없던 '치명적 위험(High)' 또는 '핵심 안전 대책'이 새로 추가되면,
@@ -1694,10 +1773,11 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
 
                 const parsed = response.text ? parseJsonObjectFromText(response.text) : null;
                 if (parsed) {
-                    const normalized = enforceScoreGradeConsistency(
+                    const normalized = enforceBreakdownDrivenScore(
                         parsed['safetyScore'],
                         parsed['safetyLevel'],
                         parsed['scoreReasoning'],
+                        parsed['scoreBreakdown'],
                         record.safetyScore
                     );
 
@@ -1724,6 +1804,7 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
                         safetyScore: finalized.safetyScore,
                         safetyLevel: finalized.safetyLevel,
                         scoreReasoning: finalized.scoreReasoning,
+                        scoreBreakdown: normalized.scoreBreakdown,
                     };
 
                     clearQuotaState();
