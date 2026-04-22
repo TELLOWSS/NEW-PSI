@@ -13,6 +13,7 @@ import { getAdminAuthToken, isAdminAuthenticated, setAdminAuthenticated, setAdmi
 import { getSafetyLevelThresholds } from './utils/safetyLevelUtils';
 import { appendBestPracticeSyncFailureLog, setBestPracticeSyncState } from './utils/bestPracticeSyncStatus';
 import { analyzeWorkerRiskAssessment } from './services/geminiService';
+import { qaBilingualWorkerSeedRecords } from './mockData';
 
 const DYNAMIC_IMPORT_RELOAD_KEY = 'psi_dynamic_import_reload_once';
 const APP_RUNTIME_RECOVERY_RELOAD_KEY = 'psi_app_runtime_recovery_reload_once';
@@ -808,10 +809,35 @@ const App: React.FC = () => {
 
     useEffect(() => {
         loadWorkerRecordsFromDB().then(data => {
-            const sanitizedData = sanitizeRecords(data).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            const qaSeedMode = typeof window !== 'undefined'
+                ? new URL(window.location.href).searchParams.get('qaSeed')
+                : null;
+            const useQaSeed = qaSeedMode === 'multilang' || qaSeedMode === 'multilang-force';
+            const forceQaSeed = qaSeedMode === 'multilang-force';
+            const sourceData = (useQaSeed && (forceQaSeed || data.length === 0))
+                ? (qaBilingualWorkerSeedRecords as unknown[])
+                : data;
+
+            const sanitizedData = sanitizeRecords(sourceData).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             const reconciled = reconcileWorkerProfiles(sanitizedData);
             setWorkerRecords(reconciled.records);
             setIsDataLoaded(true);
+
+            if (useQaSeed && (forceQaSeed || data.length === 0) && reconciled.records.length > 0) {
+                void (async () => {
+                    try {
+                        for (const record of reconciled.records) {
+                            await saveRecordToDB(record);
+                        }
+                        console.info('[PSI][QASeed] 다국어 QA 샘플 데이터가 DB에 주입되었습니다.', {
+                            count: reconciled.records.length,
+                            mode: qaSeedMode,
+                        });
+                    } catch (error) {
+                        console.warn('[PSI][QASeed] 샘플 데이터 저장 실패:', error);
+                    }
+                })();
+            }
 
             if (reconciled.changedIds.length > 0) {
                 void (async () => {
