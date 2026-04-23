@@ -22,6 +22,7 @@ import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { compressImage } from '../utils/imageCompression';
 import { buildFieldHubSummaryCards, buildFieldReviewCards } from '../utils/roleViewModel';
 import { BRAND_TONE } from '../utils/brandToneTokens';
+import { useDevMode } from '../contexts/DevModeContext';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 공통 유틸
@@ -1439,6 +1440,7 @@ const ViolationsTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerReco
 // 탭 4: 이행 종합 판정
 // ─────────────────────────────────────────────────────────────────────────────
 const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[]; workerRecords: WorkerRecord[] }> = ({ assessmentMonth, workers, workerRecords }) => {
+    const { isDevMode } = useDevMode();
     const [loading, setLoading] = useState(false);
     const [reviews, setReviews] = useState<IntegrityRow[]>([]);
     const [error, setError] = useState<string | null>(null);
@@ -1546,55 +1548,59 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[]; wo
                     cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
                 />
 
-                <SummaryMetricGrid
-                    items={[
-                        {
-                            key: 'review-harness-connected',
-                            label: '하네스 저장 연결',
-                            value: `${reviewHarnessSummary.connected}명`,
-                            helper: `${reviewHarnessSummary.runLinked}명이 workflow run과 연결되어 있습니다.`,
-                            tone: BRAND_TONE.emeraldSoft80,
-                        },
-                        {
-                            key: 'review-harness-backlog',
-                            label: '승인 백로그',
-                            value: `${reviewHarnessSummary.approvalBacklog}명`,
-                            helper: `재확인 필요 ${reviewHarnessSummary.reviewNeeded}명을 포함합니다.`,
-                            tone: reviewHarnessSummary.approvalBacklog > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
-                        },
-                        {
-                            key: 'review-harness-risk',
-                            label: '즉시 보호 대상',
-                            value: `${reviewHarnessSummary.immediateAttention}명`,
-                            helper: '행동 무결성 판정 전에 먼저 설명·보완이 필요한 대상입니다.',
-                            tone: reviewHarnessSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-slate-200 bg-slate-50',
-                        },
-                        {
-                            key: 'review-harness-fallback',
-                            label: '폴백/저장 대기',
-                            value: `${reviewHarnessSummary.fallback + reviewHarnessSummary.pending}명`,
-                            helper: `폴백 ${reviewHarnessSummary.fallback}명 · 저장 대기 ${reviewHarnessSummary.pending}명`,
-                            tone: reviewHarnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
-                        },
-                    ]}
-                    columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
-                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
-                />
+                {isDevMode && (
+                    <>
+                        <SummaryMetricGrid
+                            items={[
+                                {
+                                    key: 'review-harness-connected',
+                                    label: '하네스 저장 연결',
+                                    value: `${reviewHarnessSummary.connected}명`,
+                                    helper: `${reviewHarnessSummary.runLinked}명이 workflow run과 연결되어 있습니다.`,
+                                    tone: BRAND_TONE.emeraldSoft80,
+                                },
+                                {
+                                    key: 'review-harness-backlog',
+                                    label: '승인 백로그',
+                                    value: `${reviewHarnessSummary.approvalBacklog}명`,
+                                    helper: `재확인 필요 ${reviewHarnessSummary.reviewNeeded}명을 포함합니다.`,
+                                    tone: reviewHarnessSummary.approvalBacklog > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
+                                },
+                                {
+                                    key: 'review-harness-risk',
+                                    label: '즉시 보호 대상',
+                                    value: `${reviewHarnessSummary.immediateAttention}명`,
+                                    helper: '행동 무결성 판정 전에 먼저 설명·보완이 필요한 대상입니다.',
+                                    tone: reviewHarnessSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-slate-200 bg-slate-50',
+                                },
+                                {
+                                    key: 'review-harness-fallback',
+                                    label: '폴백/저장 대기',
+                                    value: `${reviewHarnessSummary.fallback + reviewHarnessSummary.pending}명`,
+                                    helper: `폴백 ${reviewHarnessSummary.fallback}명 · 저장 대기 ${reviewHarnessSummary.pending}명`,
+                                    tone: reviewHarnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+                                },
+                            ]}
+                            columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
+                            cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                        />
 
-                {(reviewHarnessSummary.approvalBacklog > 0 || reviewHarnessSummary.immediateAttention > 0 || reviewHarnessSummary.fallback > 0) && (
-                    <NoticeCallout
-                        variant={reviewHarnessSummary.immediateAttention > 0 ? 'rose' : reviewHarnessSummary.fallback > 0 ? 'amber' : 'indigo'}
-                        title={reviewHarnessSummary.immediateAttention > 0
-                            ? `즉시 보호 대상 ${reviewHarnessSummary.immediateAttention}명이 있어 종합판정 전 설명·보완 우선순위를 먼저 확인해야 합니다.`
-                            : reviewHarnessSummary.fallback > 0
-                                ? `persistence 폴백 ${reviewHarnessSummary.fallback}명이 있어 저장 연결 상태를 함께 읽어야 합니다.`
-                                : `승인 백로그 ${reviewHarnessSummary.approvalBacklog}명이 남아 있어 종합판정 전에 관리자 검토 순서를 정리해야 합니다.`}
-                        description="행동 무결성 판정 결과를 단독 점수로 보지 않고 하네스 승인·저장 상태와 함께 읽으면 실제 현장 보호 흐름이 더 선명해집니다."
-                        className="rounded-2xl border px-4 py-3"
-                        bodyClassName="block"
-                        titleClassName="text-sm font-black"
-                        descriptionClassName="mt-1 text-xs font-semibold leading-relaxed"
-                    />
+                        {(reviewHarnessSummary.approvalBacklog > 0 || reviewHarnessSummary.immediateAttention > 0 || reviewHarnessSummary.fallback > 0) && (
+                            <NoticeCallout
+                                variant={reviewHarnessSummary.immediateAttention > 0 ? 'rose' : reviewHarnessSummary.fallback > 0 ? 'amber' : 'indigo'}
+                                title={reviewHarnessSummary.immediateAttention > 0
+                                    ? `즉시 보호 대상 ${reviewHarnessSummary.immediateAttention}명이 있어 종합판정 전 설명·보완 우선순위를 먼저 확인해야 합니다.`
+                                    : reviewHarnessSummary.fallback > 0
+                                        ? `persistence 폴백 ${reviewHarnessSummary.fallback}명이 있어 저장 연결 상태를 함께 읽어야 합니다.`
+                                        : `승인 백로그 ${reviewHarnessSummary.approvalBacklog}명이 남아 있어 종합판정 전에 관리자 검토 순서를 정리해야 합니다.`}
+                                description="행동 무결성 판정 결과를 단독 점수로 보지 않고 하네스 승인·저장 상태와 함께 읽으면 실제 현장 보호 흐름이 더 선명해집니다."
+                                className="rounded-2xl border px-4 py-3"
+                                bodyClassName="block"
+                                titleClassName="text-sm font-black"
+                                descriptionClassName="mt-1 text-xs font-semibold leading-relaxed"
+                            />
+                        )}
+                    </>
                 )}
 
                 {error && <div className="mb-3 rounded-xl border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-800">❌ {error}</div>}
@@ -1686,6 +1692,7 @@ interface FieldSafetyComplianceHubProps {
 }
 
 const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ workerRecords }) => {
+    const { isDevMode } = useDevMode();
     const [activeTab, setActiveTab] = useState<ActiveTab>('risk-check');
     const [assessmentMonth, setAssessmentMonth] = useState(getCurrentMonth());
     const harnessSummary = useMemo(() => summarizeHarnessRecords(workerRecords), [workerRecords]);
@@ -1696,7 +1703,7 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
         const openViolations = violations.filter(v => v.status === 'open').length;
         const recentRisk = riskSessions[0];
 
-        return buildFieldHubSummaryCards({
+        const cards = buildFieldHubSummaryCards({
             workerRecordsLength: workerRecords.length,
             recentRisk: recentRisk
                 ? {
@@ -1708,6 +1715,7 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
             activeTab,
             harnessSummary,
         });
+        return isDevMode ? cards : cards.filter((card) => card.key !== 'hub-harness');
     }, [activeTab, harnessSummary.approvalBacklog, harnessSummary.fallback, harnessSummary.immediateAttention, workerRecords.length]);
 
     const workerOptions: WorkerOption[] = useMemo(() => {
@@ -1760,55 +1768,59 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
             />
 
-            <SummaryMetricGrid
-                items={[
-                    {
-                        key: 'hub-harness-connected',
-                        label: '하네스 저장 연결',
-                        value: `${harnessSummary.connected}명`,
-                        helper: `${harnessSummary.runLinked}명이 workflow run과 연결되어 있습니다.`,
-                        tone: BRAND_TONE.emeraldSoft80,
-                    },
-                    {
-                        key: 'hub-harness-backlog',
-                        label: '승인 백로그',
-                        value: `${harnessSummary.approvalBacklog}명`,
-                        helper: `재확인 필요 ${harnessSummary.reviewNeeded}명을 포함합니다.`,
-                        tone: harnessSummary.approvalBacklog > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
-                    },
-                    {
-                        key: 'hub-harness-risk',
-                        label: '즉시 보호 대상',
-                        value: `${harnessSummary.immediateAttention}명`,
-                        helper: '이행점검·코칭·지적 등록 전에 먼저 확인할 대상입니다.',
-                        tone: harnessSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-slate-200 bg-slate-50',
-                    },
-                    {
-                        key: 'hub-harness-fallback',
-                        label: '폴백/저장 대기',
-                        value: `${harnessSummary.fallback + harnessSummary.pending}명`,
-                        helper: `폴백 ${harnessSummary.fallback}명 · 저장 대기 ${harnessSummary.pending}명`,
-                        tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
-                    },
-                ]}
-                columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
-                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
-            />
+            {isDevMode && (
+                <>
+                    <SummaryMetricGrid
+                        items={[
+                            {
+                                key: 'hub-harness-connected',
+                                label: '하네스 저장 연결',
+                                value: `${harnessSummary.connected}명`,
+                                helper: `${harnessSummary.runLinked}명이 workflow run과 연결되어 있습니다.`,
+                                tone: BRAND_TONE.emeraldSoft80,
+                            },
+                            {
+                                key: 'hub-harness-backlog',
+                                label: '승인 백로그',
+                                value: `${harnessSummary.approvalBacklog}명`,
+                                helper: `재확인 필요 ${harnessSummary.reviewNeeded}명을 포함합니다.`,
+                                tone: harnessSummary.approvalBacklog > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
+                            },
+                            {
+                                key: 'hub-harness-risk',
+                                label: '즉시 보호 대상',
+                                value: `${harnessSummary.immediateAttention}명`,
+                                helper: '이행점검·코칭·지적 등록 전에 먼저 확인할 대상입니다.',
+                                tone: harnessSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-slate-200 bg-slate-50',
+                            },
+                            {
+                                key: 'hub-harness-fallback',
+                                label: '폴백/저장 대기',
+                                value: `${harnessSummary.fallback + harnessSummary.pending}명`,
+                                helper: `폴백 ${harnessSummary.fallback}명 · 저장 대기 ${harnessSummary.pending}명`,
+                                tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+                            },
+                        ]}
+                        columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
+                        cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                    />
 
-            {(harnessSummary.approvalBacklog > 0 || harnessSummary.immediateAttention > 0 || harnessSummary.fallback > 0) && (
-                <NoticeCallout
-                    variant={harnessSummary.immediateAttention > 0 ? 'rose' : harnessSummary.fallback > 0 ? 'amber' : 'indigo'}
-                    title={harnessSummary.immediateAttention > 0
-                        ? `즉시 보호 대상 ${harnessSummary.immediateAttention}명이 있어 이행점검·코칭·지적 등록보다 먼저 보호 설명 순서를 정해야 합니다.`
-                        : harnessSummary.fallback > 0
-                            ? `하네스 persistence 폴백 ${harnessSummary.fallback}명이 있어 저장 연결 여부를 함께 점검해야 합니다.`
-                            : `승인 백로그 ${harnessSummary.approvalBacklog}명이 남아 있어 종합판정 전 관리자 검토 순서를 먼저 정리해야 합니다.`}
-                    description="허브 화면에서 하네스 우선순위를 먼저 읽으면 탭별 입력이 단편 기록이 아니라 실제 보호 워크플로우로 이어집니다."
-                    className="rounded-2xl border px-4 py-3"
-                    bodyClassName="block"
-                    titleClassName="text-sm font-black"
-                    descriptionClassName="mt-1 text-xs font-semibold leading-relaxed"
-                />
+                    {(harnessSummary.approvalBacklog > 0 || harnessSummary.immediateAttention > 0 || harnessSummary.fallback > 0) && (
+                        <NoticeCallout
+                            variant={harnessSummary.immediateAttention > 0 ? 'rose' : harnessSummary.fallback > 0 ? 'amber' : 'indigo'}
+                            title={harnessSummary.immediateAttention > 0
+                                ? `즉시 보호 대상 ${harnessSummary.immediateAttention}명이 있어 이행점검·코칭·지적 등록보다 먼저 보호 설명 순서를 정해야 합니다.`
+                                : harnessSummary.fallback > 0
+                                    ? `하네스 persistence 폴백 ${harnessSummary.fallback}명이 있어 저장 연결 여부를 함께 점검해야 합니다.`
+                                    : `승인 백로그 ${harnessSummary.approvalBacklog}명이 남아 있어 종합판정 전 관리자 검토 순서를 먼저 정리해야 합니다.`}
+                            description="허브 화면에서 하네스 우선순위를 먼저 읽으면 탭별 입력이 단편 기록이 아니라 실제 보호 워크플로우로 이어집니다."
+                            className="rounded-2xl border px-4 py-3"
+                            bodyClassName="block"
+                            titleClassName="text-sm font-black"
+                            descriptionClassName="mt-1 text-xs font-semibold leading-relaxed"
+                        />
+                    )}
+                </>
             )}
 
             {/* 탭 네비게이션 */}

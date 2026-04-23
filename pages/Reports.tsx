@@ -44,6 +44,7 @@ import { buildPdfBlobFromCanvases, canvasToBlob, captureReportCanvases, getCanva
 import { fetchHarnessWorkflowStatus } from '../services/harnessService';
 import { buildReportsSummaryCards, buildReportsViewCards } from '../utils/roleViewModel';
 import { BRAND_TONE } from '../utils/brandToneTokens';
+import { useDevMode } from '../contexts/DevModeContext';
 
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
 
@@ -198,6 +199,7 @@ interface ReportsProps {
 }
 
 const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecords = [], briefingData, setBriefingData, forecastData, setForecastData }) => {
+    const { isDevMode } = useDevMode();
     const [activeTab, setActiveTab] = useState<ReportType>('team-report');
     const [isGenerating, setIsGenerating] = useState(false);
     const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
@@ -1132,7 +1134,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     }, [verificationHarnessMetaSummary, verificationTemplateMismatchWarnings]);
 
     const reportSummaryCards: InterpretationCardItem[] = useMemo(() => {
-        return buildReportsSummaryCards({
+        const cards = buildReportsSummaryCards({
             filteredRecordsLength: filteredRecords.length,
             activeTab,
             selectedTeam,
@@ -1141,6 +1143,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             viewMode,
             harnessSummary,
         });
+        return isDevMode ? cards : cards.filter((card) => card.key !== 'report-harness');
     }, [activeTab, dateFilterLabel, filterLevel, filteredRecords.length, harnessSummary, selectedTeam, viewMode]);
 
     const filterInterpretationCards: InterpretationCardItem[] = useMemo(() => [
@@ -2378,21 +2381,23 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
             />
 
-            <div className="space-y-3">
-                <SummaryMetricGrid
-                    items={harnessSummaryMetrics}
-                    className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"
-                    cardClassName="rounded-2xl border px-4 py-3 shadow-sm shadow-slate-100"
-                />
-                {harnessSummary.fallback > 0 && (
-                    <NoticeCallout
-                        variant="amber"
-                        eyebrow="하네스 저장 상태"
-                        title={`현재 보고서 범위에서 ${harnessSummary.fallback}건이 영속 저장 폴백 상태입니다.`}
-                        description="보고서 해석과 증빙 JSON 내보내기는 계속 가능하지만, 저장 연결 여부를 함께 읽어 재확인 순서를 정해야 합니다."
+            {isDevMode && (
+                <div className="space-y-3">
+                    <SummaryMetricGrid
+                        items={harnessSummaryMetrics}
+                        className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4"
+                        cardClassName="rounded-2xl border px-4 py-3 shadow-sm shadow-slate-100"
                     />
-                )}
-            </div>
+                    {harnessSummary.fallback > 0 && (
+                        <NoticeCallout
+                            variant="amber"
+                            eyebrow="하네스 저장 상태"
+                            title={`현재 보고서 범위에서 ${harnessSummary.fallback}건이 영속 저장 폴백 상태입니다.`}
+                            description="보고서 해석과 증빙 JSON 내보내기는 계속 가능하지만, 저장 연결 여부를 함께 읽어 재확인 순서를 정해야 합니다."
+                        />
+                    )}
+                </div>
+            )}
 
             <div className="overflow-x-auto pb-2 -mb-2 shrink-0 no-print">
                 <div className="flex space-x-6 border-b border-slate-200 min-w-max">
@@ -2593,6 +2598,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 </div>
             )}
 
+            {isDevMode && (
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 no-print space-y-4">
                 <InterpretationCardGrid
                     items={verificationInterpretationCards}
@@ -2965,7 +2971,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     </div>
                 </div>
 
-                {verificationHarnessMetaSummary && (
+                {isDevMode && verificationHarnessMetaSummary && (
                     <div className="space-y-3">
                     {verificationTemplateMismatchWarnings.length > 0 ? (
                         <NoticeCallout
@@ -3286,6 +3292,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     </div>
                 )}
             </div>
+            )}
 
             {/* Hidden Rendering Area for Bulk Generation */}
             <div style={{ position: 'fixed', top: 0, left: 0, zIndex: -50, width: '210mm', minHeight: '297mm', pointerEvents: 'none', visibility: isGenerating ? 'visible' : 'hidden' }}>
@@ -3317,12 +3324,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 items={viewInterpretationCards}
                                 cardClassName="rounded-2xl border p-4"
                             />
-                            <div className="mt-4">
-                                <InterpretationCardGrid
-                                    items={harnessReportOperationalCards}
-                                    cardClassName="rounded-2xl border p-4"
-                                />
-                            </div>
+                            {isDevMode && (
+                                <div className="mt-4">
+                                    <InterpretationCardGrid
+                                        items={harnessReportOperationalCards}
+                                        cardClassName="rounded-2xl border p-4"
+                                    />
+                                </div>
+                            )}
                         </div>
                         <div className="overflow-y-auto flex-1 p-0 custom-scrollbar">
                             <table className="w-full text-left text-sm">
@@ -3332,7 +3341,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                         <th className="px-6 py-3">직종 (Team)</th>
                                         <th className="px-6 py-3">안전점수</th>
                                         <th className="px-6 py-3">등급</th>
-                                        <th className="px-6 py-3">하네스 상태</th>
+                                        {isDevMode && <th className="px-6 py-3">하네스 상태</th>}
                                         <th className="px-6 py-3">주요 취약점</th>
                                         <th className="px-6 py-3 text-right">작업</th>
                                     </tr>
@@ -3362,16 +3371,18 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                                     );
                                                 })()}
                                             </td>
-                                            <td className="px-6 py-3">
-                                                <div className="flex flex-wrap gap-1.5">
-                                                    <StatusBadge variant={getHarnessWorkflowBadgeVariant(workflowState)} className="px-2 py-1">{getHarnessWorkflowStateLabel(workflowState)}</StatusBadge>
-                                                    <StatusBadge variant={getHarnessRiskBadgeVariant(riskDecision)} className="px-2 py-1">{getHarnessRiskDecisionLabel(riskDecision)}</StatusBadge>
-                                                    <StatusBadge variant={getHarnessApprovalBadgeVariant(approvalState)} className="px-2 py-1">{getHarnessApprovalStateLabel(approvalState)}</StatusBadge>
-                                                    <StatusBadge variant={getHarnessPersistenceBadgeVariant(persistenceState)} className="px-2 py-1">{getHarnessPersistenceLabel(persistenceState)}</StatusBadge>
-                                                </div>
-                                                {r.workflowRunId ? <p className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">Run {r.workflowRunId}</p> : null}
-                                                {r.harnessPersistenceWarning ? <p className="mt-1 text-[11px] font-bold text-amber-700">{r.harnessPersistenceWarning}</p> : null}
-                                            </td>
+                                            {isDevMode && (
+                                                <td className="px-6 py-3">
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        <StatusBadge variant={getHarnessWorkflowBadgeVariant(workflowState)} className="px-2 py-1">{getHarnessWorkflowStateLabel(workflowState)}</StatusBadge>
+                                                        <StatusBadge variant={getHarnessRiskBadgeVariant(riskDecision)} className="px-2 py-1">{getHarnessRiskDecisionLabel(riskDecision)}</StatusBadge>
+                                                        <StatusBadge variant={getHarnessApprovalBadgeVariant(approvalState)} className="px-2 py-1">{getHarnessApprovalStateLabel(approvalState)}</StatusBadge>
+                                                        <StatusBadge variant={getHarnessPersistenceBadgeVariant(persistenceState)} className="px-2 py-1">{getHarnessPersistenceLabel(persistenceState)}</StatusBadge>
+                                                    </div>
+                                                    {r.workflowRunId ? <p className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">Run {r.workflowRunId}</p> : null}
+                                                    {r.harnessPersistenceWarning ? <p className="mt-1 text-[11px] font-bold text-amber-700">{r.harnessPersistenceWarning}</p> : null}
+                                                </td>
+                                            )}
                                             <td className="px-6 py-3 text-slate-500 dark:text-slate-400 truncate max-w-xs">{r.weakAreas.join(', ')}</td>
                                             <td className="px-6 py-3 text-right">
                                                 <button onClick={(e) => { e.stopPropagation(); setViewMode('preview'); setPreviewIndex(idx); }} className="text-xs font-bold text-indigo-600 hover:underline">
@@ -3412,7 +3423,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             </div>
                             
                             <div className="flex gap-2">
-                                {currentPreviewHarnessMeta && (
+                                {isDevMode && currentPreviewHarnessMeta && (
                                     <div className="hidden xl:flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 py-2">
                                         <StatusBadge variant={getHarnessWorkflowBadgeVariant(currentPreviewHarnessMeta.workflowState)} className="px-2 py-1">{getHarnessWorkflowStateLabel(currentPreviewHarnessMeta.workflowState)}</StatusBadge>
                                         <StatusBadge variant={getHarnessRiskBadgeVariant(currentPreviewHarnessMeta.riskDecision)} className="px-2 py-1">{getHarnessRiskDecisionLabel(currentPreviewHarnessMeta.riskDecision)}</StatusBadge>
@@ -3436,7 +3447,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 items={viewInterpretationCards}
                                 cardClassName="rounded-2xl border p-4"
                             />
-                            {currentPreviewRecord && currentPreviewHarnessMeta && (
+                            {isDevMode && currentPreviewRecord && currentPreviewHarnessMeta && (
                                 <div className="mt-4 space-y-3">
                                     <NoticeCallout
                                         variant={currentPreviewHarnessMeta.persistenceState === 'fallback' ? 'amber' : currentPreviewHarnessMeta.riskDecision === 'IMMEDIATE_ATTENTION' || currentPreviewHarnessMeta.riskDecision === 'CRITICAL_STOP' ? 'rose' : 'white'}
