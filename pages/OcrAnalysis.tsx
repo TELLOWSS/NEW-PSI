@@ -470,6 +470,7 @@ type OcrViewState = {
     filterTrust: 'all' | 'pending' | 'finalized';
     filterReason: 'all' | 'has-reason' | 'missing-reason' | 'weak-reason';
     filterStatus: 'all' | 'success' | 'failed';
+    secondPassStatusFilter: 'all' | 'done' | 'not-done';
     secondPassEditedOnly: boolean;
     secondPassExcludedOnly: boolean;
     secondPassReasonFilter: string;
@@ -1101,6 +1102,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [filterLeader, setFilterLeader] = useState<string>(() => storedViewState.filterLeader || 'all');
     const [filterTrust, setFilterTrust] = useState<'all' | 'pending' | 'finalized'>(() => storedViewState.filterTrust || 'all');
     const [filterReason, setFilterReason] = useState<'all' | 'has-reason' | 'missing-reason' | 'weak-reason'>(() => storedViewState.filterReason || 'all');
+    const [secondPassStatusFilter, setSecondPassStatusFilter] = useState<'all' | 'done' | 'not-done'>(() => storedViewState.secondPassStatusFilter || 'all');
     const [secondPassEditedOnly, setSecondPassEditedOnly] = useState(() => storedViewState.secondPassEditedOnly ?? true);
     const [secondPassExcludedOnly, setSecondPassExcludedOnly] = useState(() => storedViewState.secondPassExcludedOnly ?? false);
     const [secondPassReasonFilter, setSecondPassReasonFilter] = useState<string>(() => storedViewState.secondPassReasonFilter || 'all');
@@ -1357,6 +1359,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 filterTrust,
                 filterReason,
                 filterStatus,
+                secondPassStatusFilter,
                 secondPassEditedOnly,
                 secondPassExcludedOnly,
                 secondPassReasonFilter,
@@ -1366,7 +1369,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         } catch {
             // ignore storage errors
         }
-    }, [searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterReason, filterStatus, secondPassEditedOnly, secondPassExcludedOnly, secondPassReasonFilter, recordSortMode]);
+    }, [searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterReason, filterStatus, secondPassStatusFilter, secondPassEditedOnly, secondPassExcludedOnly, secondPassReasonFilter, recordSortMode]);
 
     const handleCreateMasterTemplate = async (payload: { name: string; version: string; fieldSchema: string }) => {
         const result = await supabase
@@ -1616,9 +1619,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 filterStatus === 'all' ||
                 (filterStatus === 'success' && !recordFailed) ||
                 (filterStatus === 'failed' && recordFailed);
-            return matchesSearch && matchesLevel && matchesField && matchesLeader && matchesTrust && matchesReason && matchesStatus;
+            const matchesSecondPassStatus =
+                secondPassStatusFilter === 'all' ||
+                (secondPassStatusFilter === 'done' && r.secondPassStatus === 'DONE') ||
+                (secondPassStatusFilter === 'not-done' && r.secondPassStatus !== 'DONE');
+            return matchesSearch && matchesLevel && matchesField && matchesLeader && matchesTrust && matchesReason && matchesStatus && matchesSecondPassStatus;
         });
-    }, [existingRecords, searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterReason, filterStatus, getReviewTrustState]);
+    }, [existingRecords, searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterReason, filterStatus, secondPassStatusFilter, getReviewTrustState]);
 
     const secondPassSkippedCounts = useMemo(() => {
         return baseFilteredRecords.reduce<Record<string, number>>((acc, record) => {
@@ -1726,6 +1733,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         if (filterTrust !== 'all') items.push(`신뢰: ${filterTrust === 'pending' ? '재검토 대기' : '최종확정'}`);
         if (filterLevel !== 'all') items.push(`등급: ${filterLevel}`);
         if (filterStatus !== 'all') items.push(`OCR 결과: ${filterStatus === 'failed' ? BRAND_STATUS_LABELS.attentionPending : '성공'}`);
+        if (secondPassStatusFilter !== 'all') items.push(`2차 상태: ${secondPassStatusFilter === 'done' ? '완료(DONE)만' : '미완료만'}`);
         if (filterReason !== 'all') {
             items.push(`사유 필터: ${
                 filterReason === 'missing-reason'
@@ -1739,7 +1747,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         if (secondPassReasonFilter !== 'all') items.push(`2차 제외 사유: ${secondPassReasonFilter}`);
         if (recordSortMode !== 'recent-correction') items.push(`정렬: ${getRecordSortModeLabel(recordSortMode)}`);
         return items;
-    }, [filterField, filterLeader, filterLevel, filterReason, filterStatus, filterTrust, recordSortMode, searchTerm, secondPassExcludedOnly, secondPassReasonFilter]);
+    }, [filterField, filterLeader, filterLevel, filterReason, filterStatus, secondPassStatusFilter, filterTrust, recordSortMode, searchTerm, secondPassExcludedOnly, secondPassReasonFilter]);
 
     const retrySuccessRate = useMemo(() => {
         if (!retryDiagnostics || retryDiagnostics.total === 0) return 0;
@@ -3934,6 +3942,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         setFilterReason('all');
         setFilterLevel('all');
         setFilterField('all');
+        setSecondPassStatusFilter('all');
         setSecondPassExcludedOnly(false);
         setSecondPassReasonFilter('all');
         setRecordSortMode('recent-correction');
@@ -5652,7 +5661,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     title="고급 필터 · 정렬 · 2차 재분석 설정"
                     isOpen={showAdvancedOcrControls}
                     onToggle={() => setShowAdvancedOcrControls((prev) => !prev)}
-                    summary={<span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-black text-violet-700">필터 {filterField !== 'all' || filterLeader !== 'all' || filterTrust !== 'all' || filterLevel !== 'all' || filterStatus !== 'all' || filterReason !== 'all' ? '적용 중' : '기본값'} · 재분석 {secondPassTargets.length}건</span>}
+                    summary={<span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-black text-violet-700">필터 {filterField !== 'all' || filterLeader !== 'all' || filterTrust !== 'all' || filterLevel !== 'all' || filterStatus !== 'all' || filterReason !== 'all' || secondPassStatusFilter !== 'all' ? '적용 중' : '기본값'} · 재분석 {secondPassTargets.length}건</span>}
                 >
                 <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-4 items-start">
                     <div className="space-y-3">
@@ -5693,6 +5702,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     <option value="all">전체</option>
                                     <option value="success">성공</option>
                                     <option value="failed">{BRAND_STATUS_LABELS.attentionPending}</option>
+                                </select>
+                            </ControlPanelCard>
+                            <ControlPanelCard label="2차 상태">
+                                <select value={secondPassStatusFilter} onChange={(e) => setSecondPassStatusFilter(e.target.value as 'all' | 'done' | 'not-done')} className="w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
+                                    <option value="all">전체</option>
+                                    <option value="done">완료(DONE)만</option>
+                                    <option value="not-done">미완료만</option>
                                 </select>
                             </ControlPanelCard>
                             <ControlPanelCard label="승인/검토 사유">
