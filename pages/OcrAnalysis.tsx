@@ -1679,6 +1679,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         return existingRecords.filter(r => hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage));
     }, [existingRecords]);
 
+    const recordsWithImagesBatchTargets = useMemo(() => {
+        return recordsWithImages.filter((record) => record.secondPassStatus !== 'DONE');
+    }, [recordsWithImages]);
+
     const failedRecords = useMemo(() => {
         return existingRecords.filter(r => isFailedRecord(r));
     }, [existingRecords]);
@@ -3961,13 +3965,25 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         if (!(await ensureOcrExecutionPreflight())) return;
 
         const splitSize = getBatchSplitSize();
-        const total = recordsWithImages.length;
+        const total = recordsWithImagesBatchTargets.length;
+        const excludedDoneCount = recordsWithImages.length - recordsWithImagesBatchTargets.length;
+        if (total === 0) {
+            if (excludedDoneCount > 0) {
+                alert(`재분석 대상이 없습니다.\n\n전체 이미지 보유 ${recordsWithImages.length}건은 이미 2차 재분석 완료(DONE) 상태여서 일괄 재분석에서 자동 제외됩니다.`);
+            } else {
+                alert('재분석 가능한 이미지 대상이 없습니다.');
+            }
+            return;
+        }
         const splitWarning = total > splitSize
             ? `\n\n⚠️ 현재 분할 단위: ${splitSize}건 (설정에서 변경 가능)\n${total}건 중 ${splitSize}건씩 우선순위 순으로 처리됩니다.`
             : '';
-        if (confirm(`전체 ${total}건 재분석 하시겠습니까?\n[주의] 무료 티어 한도는 시점/계정 상태에 따라 변동됩니다.${splitWarning}\n\n계속하시겠습니까?`)) {
+        const doneExcludeHint = excludedDoneCount > 0
+            ? `\n\n※ 2차 재분석 완료(DONE) ${excludedDoneCount}건은 자동 제외됩니다.`
+            : '';
+        if (confirm(`전체 ${total}건 재분석 하시겠습니까?\n[주의] 무료 티어 한도는 시점/계정 상태에 따라 변동됩니다.${splitWarning}${doneExcludeHint}\n\n계속하시겠습니까?`)) {
             // 분할 단위가 total보다 작으면 우선순위 상위 splitSize건만 처리
-            const sortedByPriority = [...recordsWithImages].sort((a, b) => getRetryPriorityScore(a) - getRetryPriorityScore(b));
+            const sortedByPriority = [...recordsWithImagesBatchTargets].sort((a, b) => getRetryPriorityScore(a) - getRetryPriorityScore(b));
             const batch = total > splitSize ? sortedByPriority.slice(0, splitSize) : sortedByPriority;
             runBatchAnalysis(batch, total > splitSize ? `전체 재분석 (${batch.length}/${total}건 우선 처리)` : "전체 재분석");
         }
@@ -4675,12 +4691,19 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         {recordsWithImages.length > 0 && !isAnalyzing && (
                             <button 
                                 onClick={handleBatchReanalyze}
+                                title={recordsWithImagesBatchTargets.length < recordsWithImages.length ? `2차 완료 ${recordsWithImages.length - recordsWithImagesBatchTargets.length}건 자동 제외` : '이미지 보유 대상 전체 재분석'}
                                 disabled={!ocrExecutionKeyStatus.ready}
                                 className={`w-full px-5 py-3 rounded-2xl font-black text-sm shadow-xl transition-all border flex items-center justify-center gap-2 group ${ocrExecutionKeyStatus.ready ? 'bg-emerald-600 hover:bg-emerald-700 border-emerald-500' : 'bg-slate-700 border-slate-600 text-slate-300 cursor-not-allowed'}`}
                             >
                                 <svg className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeWidth={2.5}/></svg>
-                                전체 일괄 재분석 (OCR)
+                                전체 일괄 재분석 (OCR) {recordsWithImagesBatchTargets.length > 0 ? `${recordsWithImagesBatchTargets.length}건` : ''}
                             </button>
+                        )}
+
+                        {recordsWithImages.length > recordsWithImagesBatchTargets.length && !isAnalyzing && (
+                            <p className="mt-1 text-[11px] font-bold text-emerald-200">
+                                2차 재분석 완료(DONE) {recordsWithImages.length - recordsWithImagesBatchTargets.length}건은 자동 제외됩니다.
+                            </p>
                         )}
 
                         <button

@@ -394,6 +394,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const [harnessEvaluatorSummary, setHarnessEvaluatorSummary] = useState<HarnessWorkflowEvaluatorSummary>({ evidenceSufficiency: null, requiresHumanApproval: null, flags: [] });
     const [harnessLatestApprovalDiff, setHarnessLatestApprovalDiff] = useState<HarnessWorkflowApprovalDiff | null>(null);
     const [harnessTransitionActions, setHarnessTransitionActions] = useState<HarnessWorkflowTransitionAction[]>([]);
+    const [showHarnessTechnicalDetails, setShowHarnessTechnicalDetails] = useState(false);
     const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     const docInputRef = useRef<HTMLInputElement>(null); // For Document Image
@@ -2753,6 +2754,23 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 items={harnessEvidenceChecklistItems}
                                             />
 
+                                            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3">
+                                                <div>
+                                                    <p className="text-[11px] font-black text-violet-700">개발자 상세 정보</p>
+                                                    <p className="mt-1 text-[11px] font-semibold text-violet-600">실무자는 요약만 보고, 필요할 때만 하네스/버전 상세를 펼쳐 확인합니다.</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowHarnessTechnicalDetails((prev) => !prev)}
+                                                    className="rounded-xl border border-violet-300 bg-white px-3 py-2 text-xs font-black text-violet-700 hover:bg-violet-100 transition-all"
+                                                >
+                                                    {showHarnessTechnicalDetails ? '상세 숨기기' : '상세 보기'}
+                                                </button>
+                                            </div>
+
+                                            {showHarnessTechnicalDetails ? (
+                                            <>
+
                                             <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
                                                 <WhyThisResultPanel
                                                     title="분석기/평가기 요약"
@@ -2970,6 +2988,15 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                     </div>
                                                 </div>
                                             ) : null}
+                                            </>
+                                            ) : (
+                                                <NoticeCallout
+                                                    variant="info"
+                                                    title="개발자 상세 정보는 현재 숨김 상태입니다."
+                                                    description="오버라이드 로그, 컨텍스트/버전 스냅샷, 버전 변경 요약은 '상세 보기' 버튼으로 필요 시에만 확인하세요."
+                                                    className="mt-4"
+                                                />
+                                            )}
                                         </SectionPanelCard>
                                     </div>
                                 )}
