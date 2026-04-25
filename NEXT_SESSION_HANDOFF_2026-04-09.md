@@ -238,6 +238,19 @@
     - 판단 체크포인트/AI 해석 검토/감사·재평가 이력 패널을 `WhyThisResultPanel` 기반으로 정리
     - 사진 등록 자동 진행/추가 확인 안내를 `NoticeCallout` 기반으로 추가 정리
     - 프로필 등록/기본 정보/판단·조치 입력 카드 래퍼를 `SectionPanelCard` 기반으로 추가 정리
+
+  ## 2026-04-25 델타 업데이트
+  - 시작 전 필독 로그를 `UPGRADE_LOG_2026-04-25.md`로 신규 생성했습니다.
+  - `components/modals/RecordDetailModal.tsx`
+    - 간단 보기/상세 보기 토글 강화 및 모바일 임시 확장(`상세 잠깐 보기`) 적용
+    - 간단 보기 초경량화(상태칩 최소화, 관리자 판단 중심 노출, 텍스트 길이 축소)
+  - `pages/OcrAnalysis.tsx`
+    - 선택 근로자 대상 `선택 삭제` 기능 추가
+    - 선택 근로자 대상 `선택만 재분석` 기능 추가(재분석 가능 대상 자동 선별)
+  - `components/ReportTemplate.tsx`
+    - 외국인 리포트에서 native 필드 누락 시 모국어 병기가 끊기던 경로 보강
+    - 채점근거/강점/개선/코칭/종합진단 영역에 국적 기반 fallback 모국어 문구를 강제 적용
+    - 전면/부록 코칭 모국어 소스 로직을 일원화해 병기 일관성을 강화
     - AI 해석 textarea 카드와 원문 비교 문항 카드를 `SectionPanelCard` / `OperationalPreviewCard` 기반으로 추가 정리
   - 재분석 상세 비교 내부의 인사이트/내용/OCR 비교 래퍼를 `SectionPanelCard`로 정리
   - 실패 미리보기 카드 래퍼도 `OperationalPreviewCard` 기반으로 정리
