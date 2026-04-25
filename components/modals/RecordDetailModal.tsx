@@ -1603,7 +1603,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const latestScoreAdjustment = (record.scoreAdjustmentHistory || []).slice(-1)[0];
     const approvalSnapshot = approvalComment.trim() || record.reviewReason || record.adminComment || '';
     const sourcePreviewPanels = useMemo(() => {
-        const previewLength = isCompactViewActive ? 95 : 180;
+        const previewLength = isCompactViewActive ? 40 : 180;
         const originalPreview = truncateText(record.fullText, previewLength) || 'OCR 원문이 아직 정리되지 않았습니다.';
         const translatedPreview = truncateText(record.koreanTranslation || record.aiInsights, previewLength) || 'AI 해석이 아직 정리되지 않았습니다.';
         const managerPreview = truncateText(approvalSnapshot, previewLength)
@@ -1727,7 +1727,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             { key: 'history', label: '최근 승인', value: latestApprovalEntry ? `${latestApprovalEntry.status} · ${new Date(latestApprovalEntry.timestamp).toLocaleDateString('ko-KR')}` : '이력 없음' },
         ];
     }, [latestApprovalEntry, record]);
-    const compactReviewMetaChips = useMemo(() => reviewMetaChips.filter((chip) => ['review', 'approval', 'risk'].includes(chip.key)), [reviewMetaChips]);
+    const compactReviewMetaChips = useMemo(() => reviewMetaChips.filter((chip) => chip.key === 'approval'), [reviewMetaChips]);
+    const compactSourcePreviewPanels = useMemo(() => sourcePreviewPanels.filter((panel) => panel.key === 'manager'), [sourcePreviewPanels]);
     const secondaryMetaText = useMemo(() => {
         const workflowChip = reviewMetaChips.find((chip) => chip.key === 'workflow');
         const historyChip = reviewMetaChips.find((chip) => chip.key === 'history');
@@ -1893,32 +1894,34 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     {/* RIGHT: PROFILE & INFO EDIT AREA */}
                     <div className="w-full lg:w-[50%] flex flex-col bg-slate-50 overflow-hidden">
                         <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-5 sm:space-y-8 custom-scrollbar">
-                            <SectionPanelCard
-                                variant="indigo"
-                                eyebrow="모바일 작업 순서 안내"
-                                title="저장 → 판단 근거 → 보호 판단 확정 흐름을 빠르게 이어갑니다."
-                                description="현장 검수자가 가장 적은 클릭으로 보호 판단을 마칠 수 있게 정리했습니다."
-                                className="rounded-3xl px-5 py-5 shadow-sm"
-                                titleClassName="mt-2 text-sm font-black text-indigo-900"
-                                descriptionClassName="mt-2 text-xs font-bold leading-relaxed text-indigo-700"
-                                bodyClassName="mt-4"
-                            >
-                                <NextActionChecklist
-                                    title="권장 순서"
-                                    className="mt-0 border-t-0 pt-0"
-                                    titleClassName="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500"
-                                    listClassName="space-y-1.5 text-xs font-bold leading-relaxed text-indigo-800"
-                                    itemClassName="flex items-start gap-2"
-                                    bulletClassName="mt-[2px] text-indigo-500"
-                                    items={[
-                                        { key: 'step-1', content: '근로자 정보와 원문/해석 내용을 먼저 수정합니다.' },
-                                        { key: 'step-2', content: '상단 1차 저장으로 수정본을 고정합니다.' },
-                                        { key: 'step-3', content: '하단 승인영역에 검토 근거를 남깁니다.' },
-                                        { key: 'step-4', content: '최종 승인으로 2차 가공을 실행합니다.' },
-                                        { key: 'step-5', content: '보호 리포트로 연결해 현장 공유를 이어갑니다.' },
-                                    ]}
-                                />
-                            </SectionPanelCard>
+                            {!isCompactViewActive && (
+                                <SectionPanelCard
+                                    variant="indigo"
+                                    eyebrow="모바일 작업 순서 안내"
+                                    title="저장 → 판단 근거 → 보호 판단 확정 흐름을 빠르게 이어갑니다."
+                                    description="현장 검수자가 가장 적은 클릭으로 보호 판단을 마칠 수 있게 정리했습니다."
+                                    className="rounded-3xl px-5 py-5 shadow-sm"
+                                    titleClassName="mt-2 text-sm font-black text-indigo-900"
+                                    descriptionClassName="mt-2 text-xs font-bold leading-relaxed text-indigo-700"
+                                    bodyClassName="mt-4"
+                                >
+                                    <NextActionChecklist
+                                        title="권장 순서"
+                                        className="mt-0 border-t-0 pt-0"
+                                        titleClassName="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500"
+                                        listClassName="space-y-1.5 text-xs font-bold leading-relaxed text-indigo-800"
+                                        itemClassName="flex items-start gap-2"
+                                        bulletClassName="mt-[2px] text-indigo-500"
+                                        items={[
+                                            { key: 'step-1', content: '근로자 정보와 원문/해석 내용을 먼저 수정합니다.' },
+                                            { key: 'step-2', content: '상단 1차 저장으로 수정본을 고정합니다.' },
+                                            { key: 'step-3', content: '하단 승인영역에 검토 근거를 남깁니다.' },
+                                            { key: 'step-4', content: '최종 승인으로 2차 가공을 실행합니다.' },
+                                            { key: 'step-5', content: '보호 리포트로 연결해 현장 공유를 이어갑니다.' },
+                                        ]}
+                                    />
+                                </SectionPanelCard>
+                            )}
 
                             {hasChanges && hasWeakSaveReason && (
                                 <NoticeCallout
@@ -1948,8 +1951,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                     <div>
                                         <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-500">3초 판단 구조</p>
-                                        <h3 className="mt-2 text-lg font-black text-slate-900">원문 → AI 해석 → 관리자 판단을 한 번에 봅니다.</h3>
-                                        <p className="mt-2 text-sm font-semibold text-slate-600">핵심만 먼저 보여줘 빠르게 판단하고, 상세 정보는 아래에서 이어서 확인할 수 있게 정리했습니다.</p>
+                                        <h3 className="mt-2 text-lg font-black text-slate-900">{isCompactViewActive ? '핵심 판단 요약' : '원문 → AI 해석 → 관리자 판단을 한 번에 봅니다.'}</h3>
+                                        {!isCompactViewActive && <p className="mt-2 text-sm font-semibold text-slate-600">간단 보기에서는 승인 판단에 필요한 핵심만 보여줍니다.</p>}
                                     </div>
                                     <div className="flex items-center gap-2">
                                         {!isMobileViewport ? (
@@ -1980,7 +1983,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         )}
                                     </div>
                                     <SummaryMetricGrid
-                                        className={isCompactViewActive ? 'grid grid-cols-1 gap-2 sm:grid-cols-3' : 'grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5'}
+                                        className={isCompactViewActive ? 'grid grid-cols-1 gap-2' : 'grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5'}
                                         cardClassName="rounded-2xl border px-3 py-2"
                                         items={(isCompactViewActive ? compactReviewMetaChips : reviewMetaChips).map((chip) => ({
                                             key: chip.key,
@@ -2010,13 +2013,13 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         }))}
                                     />
                                 </div>
-                                {isCompactViewActive && <p className="mt-3 text-xs font-semibold text-slate-500">{secondaryMetaText}</p>}
-                                <div className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3">
-                                    {sourcePreviewPanels.map((panel) => (
-                                            <div key={panel.key} className={`h-full ${isCompactViewActive ? 'min-h-[220px]' : 'min-h-[260px]'} rounded-2xl border p-4 ${panel.tone}`}>
+                                {!isCompactViewActive && <p className="mt-3 text-xs font-semibold text-slate-500">{secondaryMetaText}</p>}
+                                <div className={`mt-4 grid ${isCompactViewActive ? 'grid-cols-1' : 'grid-cols-1 xl:grid-cols-3'} gap-3`}>
+                                    {(isCompactViewActive ? compactSourcePreviewPanels : sourcePreviewPanels).map((panel) => (
+                                            <div key={panel.key} className={`h-full ${isCompactViewActive ? 'min-h-[120px]' : 'min-h-[260px]'} rounded-2xl border ${isCompactViewActive ? 'p-3' : 'p-4'} ${panel.tone}`}>
                                             <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">{panel.eyebrow}</p>
                                             <h4 className="mt-2 text-sm font-black">{panel.title}</h4>
-                                                <p className="mt-2 text-sm font-semibold leading-relaxed whitespace-pre-wrap">{panel.body}</p>
+                                                <p className={`mt-2 ${isCompactViewActive ? 'text-xs' : 'text-sm'} font-semibold leading-relaxed whitespace-pre-wrap`}>{panel.body}</p>
                                         </div>
                                     ))}
                                 </div>
