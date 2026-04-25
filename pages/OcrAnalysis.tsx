@@ -1686,6 +1686,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         return existingRecords.filter(r => hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage));
     }, [existingRecords]);
 
+    const selectedRecords = useMemo(() => {
+        if (selectedIds.length === 0) return [];
+        const selectedIdSet = new Set(selectedIds);
+        return existingRecords.filter((record) => selectedIdSet.has(record.id));
+    }, [existingRecords, selectedIds]);
+
+    const selectedReanalyzeTargets = useMemo(() => {
+        return selectedRecords
+            .filter((record) => hasRetryableOriginalImage(record.originalImage) || hasRetryableOriginalImage(record.profileImage))
+            .filter((record) => record.secondPassStatus !== 'DONE');
+    }, [selectedRecords]);
+
     const recordsWithImagesBatchTargets = useMemo(() => {
         return recordsWithImages.filter((record) => record.secondPassStatus !== 'DONE');
     }, [recordsWithImages]);
@@ -1701,6 +1713,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const secondPassPreviewRecords = useMemo(() => {
         return secondPassTargets.slice(0, 5);
     }, [secondPassTargets]);
+
+    useEffect(() => {
+        setSelectedIds((prev) => {
+            if (prev.length === 0) return prev;
+            const validIdSet = new Set(existingRecords.map((record) => record.id));
+            const next = prev.filter((id) => validIdSet.has(id));
+            return next.length === prev.length ? prev : next;
+        });
+    }, [existingRecords]);
 
     const secondPassSkippedSummary = useMemo(() => {
         return (Object.entries(secondPassSkippedCounts) as Array<[string, number]>)
@@ -3998,6 +4019,54 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         }
     };
 
+    const handleSelectedReanalyze = async () => {
+        if (selectedRecords.length === 0) {
+            alert('재분석할 근로자를 먼저 선택해 주세요.');
+            return;
+        }
+
+        if (!ocrExecutionKeyStatus.ready) {
+            alert(`OCR 실행 키가 설정되지 않았습니다.\n현재 모드: ${ocrExecutionKeyStatus.modeApiLabel}\n키 출처: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 API 키를 먼저 등록해 주세요.`);
+            return;
+        }
+
+        if (!(await ensureOcrExecutionPreflight())) return;
+
+        const totalSelected = selectedRecords.length;
+        const eligibleCount = selectedReanalyzeTargets.length;
+        const excludedCount = totalSelected - eligibleCount;
+
+        if (eligibleCount === 0) {
+            alert(`선택된 ${totalSelected}건 중 재분석 가능한 대상이 없습니다.\n\n이미지 미보유 또는 2차 재분석 완료(DONE) 상태는 자동 제외됩니다.`);
+            return;
+        }
+
+        const excludedHint = excludedCount > 0
+            ? `\n\n※ 선택 ${totalSelected}건 중 ${excludedCount}건은 자동 제외됩니다.`
+            : '';
+
+        if (confirm(`선택 근로자 ${eligibleCount}건만 재분석하시겠습니까?${excludedHint}`)) {
+            runBatchAnalysis(selectedReanalyzeTargets, `선택 근로자 재분석 (${eligibleCount}건)`);
+        }
+    };
+
+    const handleDeleteSelectedRecords = () => {
+        if (selectedRecords.length === 0) {
+            alert('삭제할 근로자를 먼저 선택해 주세요.');
+            return;
+        }
+
+        const selectedCount = selectedRecords.length;
+        if (!confirm(`선택된 근로자 ${selectedCount}명을 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.`)) {
+            return;
+        }
+
+        selectedRecords.forEach((record) => {
+            onDeleteRecord(record.id);
+        });
+        setSelectedIds([]);
+    };
+
     const handleRetryFailed = async () => {
         if (!ocrExecutionKeyStatus.ready) {
             alert(`OCR 실행 키가 설정되지 않았습니다.\n현재 모드: ${ocrExecutionKeyStatus.modeApiLabel}\n키 출처: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 API 키를 먼저 등록해 주세요.`);
@@ -6227,6 +6296,19 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         className="px-3 py-1 text-xs rounded bg-slate-50 text-slate-500 border border-slate-200 font-bold hover:bg-slate-100"
                         onClick={() => setSelectedIds([])}
                     >전체 해제</button>
+                    <span className="px-2 py-1 text-[11px] rounded bg-slate-100 text-slate-700 font-black">선택 {selectedRecords.length}건</span>
+                    <button
+                        className="px-3 py-1 text-xs rounded bg-violet-50 text-violet-700 border border-violet-200 font-bold hover:bg-violet-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={() => { void handleSelectedReanalyze(); }}
+                        disabled={isAnalyzing || selectedRecords.length === 0}
+                        title={selectedRecords.length === 0 ? '선택된 근로자가 없습니다.' : '선택된 근로자만 재분석'}
+                    >선택만 재분석</button>
+                    <button
+                        className="px-3 py-1 text-xs rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={handleDeleteSelectedRecords}
+                        disabled={selectedRecords.length === 0}
+                        title={selectedRecords.length === 0 ? '선택된 근로자가 없습니다.' : '선택된 근로자 삭제'}
+                    >선택 삭제</button>
                     <span className="mx-3 text-slate-400 text-xs">|</span>
                     <label className="text-xs font-bold text-slate-600 mr-1">공종 일괄 변경</label>
                     <select
