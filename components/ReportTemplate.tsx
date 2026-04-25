@@ -581,6 +581,21 @@ const buildNarrativeParagraphs = (value?: string, fallbackList?: string[]): stri
     return dedupeNarrativeEntries((fallbackList || []).map((text) => ({ text }))).map((entry) => entry.text);
 };
 
+const applyFallbackNativeToEntries = (entries: NarrativeEntry[], fallbackNativeText: string, isKorean: boolean): NarrativeEntry[] => {
+    if (isKorean) return entries;
+    const normalizedFallback = normalizeNarrativeText(fallbackNativeText);
+    if (!normalizedFallback) return entries;
+
+    return entries.map((entry) => {
+        if (normalizeNarrativeText(entry.nativeText)) return entry;
+        if (areEquivalentNarratives(entry.text, normalizedFallback)) return entry;
+        return {
+            ...entry,
+            nativeText: normalizedFallback,
+        };
+    });
+};
+
 const buildScoreReasonEntries = (record: WorkerRecord): NarrativeEntry[] => {
     if (!isEmptyNarrative(record.score_reason)) {
         return dedupeNarrativeEntries([{ text: normalizeNarrativeText(record.score_reason), nativeText: normalizeNarrativeText(record.score_reason_native) }]);
@@ -814,17 +829,33 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         () => (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-2).reverse(),
         [record.auditTrail]
     );
-    const strengthEntries = useMemo(() => buildNarrativeEntries(record.strengths, record.strengths_native), [record.strengths, record.strengths_native]);
+    const fallbackNativeCoachingText = useMemo(() => buildFallbackNativeCoachingText(record), [record]);
+    const fallbackNativeVerdictText = useMemo(() => buildFallbackNativeVerdictText(record), [record]);
+    const fallbackNativeGuidanceText = useMemo(() => buildFallbackNativeGuidanceText(record), [record]);
+    const strengthEntries = useMemo(
+        () => applyFallbackNativeToEntries(buildNarrativeEntries(record.strengths, record.strengths_native), fallbackNativeGuidanceText, isKorean),
+        [record.strengths, record.strengths_native, fallbackNativeGuidanceText, isKorean],
+    );
     const actionableCoachingText = useMemo(() => buildActionableCoachingText(record), [record]);
-    const improvementEntries = useMemo(() => buildImprovementEntries(record), [record]);
+    const improvementEntries = useMemo(
+        () => applyFallbackNativeToEntries(buildImprovementEntries(record), fallbackNativeCoachingText, isKorean),
+        [record, fallbackNativeCoachingText, isKorean],
+    );
     const improvementItems = useMemo(() => improvementEntries.map((entry) => entry.text), [improvementEntries]);
-    const scoreReasonEntries = useMemo(() => buildScoreReasonEntries(record), [record]);
+    const scoreReasonEntries = useMemo(
+        () => applyFallbackNativeToEntries(buildScoreReasonEntries(record), fallbackNativeVerdictText, isKorean),
+        [record, fallbackNativeVerdictText, isKorean],
+    );
     const coachingKoParagraphs = useMemo(() => buildNarrativeParagraphs(actionableCoachingText), [actionableCoachingText]);
-    const coachingNativeParagraphs = useMemo(() => buildNarrativeParagraphs(record.actionable_coaching_native), [record.actionable_coaching_native]);
+    const coachingNativeSourceText = useMemo(
+        () => normalizeNarrativeText(record.actionable_coaching_native) || fallbackNativeCoachingText,
+        [record.actionable_coaching_native, fallbackNativeCoachingText],
+    );
+    const coachingNativeParagraphs = useMemo(() => buildNarrativeParagraphs(coachingNativeSourceText), [coachingNativeSourceText]);
     const verdictKoParagraphs = useMemo(() => buildNarrativeParagraphs(record.aiInsights), [record.aiInsights]);
     const verdictNativeSourceText = useMemo(
-        () => normalizeNarrativeText(record.aiInsights_native) || buildFallbackNativeVerdictText(record),
-        [record],
+        () => normalizeNarrativeText(record.aiInsights_native) || fallbackNativeVerdictText,
+        [record.aiInsights_native, fallbackNativeVerdictText],
     );
     const verdictNativeParagraphs = useMemo(() => buildNarrativeParagraphs(verdictNativeSourceText), [verdictNativeSourceText]);
     const competencyProfile = useMemo(() => record.competencyProfile || deriveCompetencyProfile(record), [record]);
@@ -1066,10 +1097,6 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     const appendixCoachingKoParagraphs = useMemo(
         () => buildNarrativeParagraphs(actionableCoachingText).slice(0, Math.max(appendixParagraphLimit, 3)),
         [actionableCoachingText, appendixParagraphLimit],
-    );
-    const coachingNativeSourceText = useMemo(
-        () => normalizeNarrativeText(record.actionable_coaching_native) || buildFallbackNativeCoachingText(record),
-        [record],
     );
     const appendixCoachingNativeParagraphs = useMemo(
         () => buildNarrativeParagraphs(coachingNativeSourceText).slice(0, Math.max(appendixParagraphLimit, 3)),
