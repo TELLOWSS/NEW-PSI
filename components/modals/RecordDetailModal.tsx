@@ -395,7 +395,11 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const [harnessLatestApprovalDiff, setHarnessLatestApprovalDiff] = useState<HarnessWorkflowApprovalDiff | null>(null);
     const [harnessTransitionActions, setHarnessTransitionActions] = useState<HarnessWorkflowTransitionAction[]>([]);
     const [showHarnessTechnicalDetails, setShowHarnessTechnicalDetails] = useState(false);
+    const [isCompactReviewView, setIsCompactReviewView] = useState(true);
+    const [isMobileViewport, setIsMobileViewport] = useState(false);
+    const [isMobileDetailExpanded, setIsMobileDetailExpanded] = useState(false);
     const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const mobileDetailTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     const docInputRef = useRef<HTMLInputElement>(null); // For Document Image
     const profileInputRef = useRef<HTMLInputElement>(null); // For Profile Photo
@@ -420,6 +424,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         setScoreEvidenceSummary('');
         setIsPhotoAutoSaving(false);
         setPhotoQueueNotice(null);
+        setIsCompactReviewView(true);
+        setIsMobileDetailExpanded(false);
     }, [initialRecord]);
 
     useEffect(() => {
@@ -428,8 +434,49 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 clearTimeout(autoAdvanceTimerRef.current);
                 autoAdvanceTimerRef.current = null;
             }
+            if (mobileDetailTimerRef.current) {
+                clearTimeout(mobileDetailTimerRef.current);
+                mobileDetailTimerRef.current = null;
+            }
         };
     }, []);
+
+    useEffect(() => {
+        const updateViewport = () => {
+            if (typeof window === 'undefined') return;
+            const isMobile = window.innerWidth < 640;
+            setIsMobileViewport(isMobile);
+            if (!isMobile) {
+                setIsMobileDetailExpanded(false);
+            }
+        };
+
+        updateViewport();
+        window.addEventListener('resize', updateViewport);
+        return () => window.removeEventListener('resize', updateViewport);
+    }, []);
+
+    useEffect(() => {
+        if (!isMobileViewport || !isMobileDetailExpanded) return;
+
+        if (mobileDetailTimerRef.current) {
+            clearTimeout(mobileDetailTimerRef.current);
+        }
+
+        mobileDetailTimerRef.current = setTimeout(() => {
+            setIsMobileDetailExpanded(false);
+            mobileDetailTimerRef.current = null;
+        }, 45000);
+
+        return () => {
+            if (mobileDetailTimerRef.current) {
+                clearTimeout(mobileDetailTimerRef.current);
+                mobileDetailTimerRef.current = null;
+            }
+        };
+    }, [isMobileDetailExpanded, isMobileViewport]);
+
+    const isCompactViewActive = isMobileViewport ? !isMobileDetailExpanded : isCompactReviewView;
 
     useEffect(() => {
         try {
@@ -1556,9 +1603,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const latestScoreAdjustment = (record.scoreAdjustmentHistory || []).slice(-1)[0];
     const approvalSnapshot = approvalComment.trim() || record.reviewReason || record.adminComment || '';
     const sourcePreviewPanels = useMemo(() => {
-        const originalPreview = truncateText(record.fullText, 150) || 'OCR 원문이 아직 정리되지 않았습니다.';
-        const translatedPreview = truncateText(record.koreanTranslation || record.aiInsights, 150) || 'AI 해석이 아직 정리되지 않았습니다.';
-        const managerPreview = truncateText(approvalSnapshot, 150)
+        const previewLength = isCompactViewActive ? 95 : 180;
+        const originalPreview = truncateText(record.fullText, previewLength) || 'OCR 원문이 아직 정리되지 않았습니다.';
+        const translatedPreview = truncateText(record.koreanTranslation || record.aiInsights, previewLength) || 'AI 해석이 아직 정리되지 않았습니다.';
+        const managerPreview = truncateText(approvalSnapshot, previewLength)
             || (hasCriticalReviewEdits
                 ? '수정된 항목이 있어 검토 근거를 남겨야 합니다.'
                 : '아직 관리자 판단 메모가 없습니다. 승인 전 근거를 남겨주세요.');
@@ -1588,7 +1636,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     : BRAND_TONE.emeraldText,
             },
         ];
-    }, [approvalSnapshot, hasCriticalReviewEdits, pendingApprovalAction, record.aiInsights, record.fullText, record.koreanTranslation]);
+    }, [approvalSnapshot, hasCriticalReviewEdits, isCompactViewActive, pendingApprovalAction, record.aiInsights, record.fullText, record.koreanTranslation]);
     const reviewDecisionCards = useMemo(() => {
         const confidenceLabel = typeof record.ocrConfidence === 'number' ? `${(record.ocrConfidence * 100).toFixed(0)}%` : '확인 필요';
         const integrityLabel = typeof record.integrityScore === 'number' ? `${record.integrityScore}점` : '확인 필요';
@@ -1679,6 +1727,12 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             { key: 'history', label: '최근 승인', value: latestApprovalEntry ? `${latestApprovalEntry.status} · ${new Date(latestApprovalEntry.timestamp).toLocaleDateString('ko-KR')}` : '이력 없음' },
         ];
     }, [latestApprovalEntry, record]);
+    const compactReviewMetaChips = useMemo(() => reviewMetaChips.filter((chip) => ['review', 'approval', 'risk'].includes(chip.key)), [reviewMetaChips]);
+    const secondaryMetaText = useMemo(() => {
+        const workflowChip = reviewMetaChips.find((chip) => chip.key === 'workflow');
+        const historyChip = reviewMetaChips.find((chip) => chip.key === 'history');
+        return `${workflowChip?.label}: ${workflowChip?.value || '-'} · ${historyChip?.label}: ${historyChip?.value || '-'}`;
+    }, [reviewMetaChips]);
     const answerComparisonSummary = useMemo(() => {
         const total = record.handwrittenAnswers.length;
         const translated = record.handwrittenAnswers.filter((answer) => answer.koreanTranslation.trim().length > 0).length;
@@ -1880,25 +1934,55 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                 />
                             )}
 
-                            <InterpretationCardGrid
-                                items={reviewDecisionCards}
-                                className="grid grid-cols-1 xl:grid-cols-3 gap-3"
-                                cardClassName="rounded-3xl border p-5 shadow-sm"
-                                titleClassName="mt-2 text-base font-black text-slate-900"
-                                descriptionClassName="mt-2 text-sm font-semibold leading-relaxed text-slate-600"
-                            />
+                            {!isCompactViewActive && (
+                                <InterpretationCardGrid
+                                    items={reviewDecisionCards}
+                                    className="grid grid-cols-1 xl:grid-cols-3 gap-3"
+                                    cardClassName="rounded-3xl border p-5 shadow-sm"
+                                    titleClassName="mt-2 text-base font-black text-slate-900"
+                                    descriptionClassName="mt-2 text-sm font-semibold leading-relaxed text-slate-600"
+                                />
+                            )}
 
                             <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
                                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                     <div>
                                         <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-500">3초 판단 구조</p>
                                         <h3 className="mt-2 text-lg font-black text-slate-900">원문 → AI 해석 → 관리자 판단을 한 번에 봅니다.</h3>
-                                        <p className="mt-2 text-sm font-semibold text-slate-600">감점이나 승인보다 먼저, 무엇이 읽혔고 어떻게 해석됐으며 현장에서 어떤 보완이 필요한지 빠르게 파악하도록 정리했습니다.</p>
+                                        <p className="mt-2 text-sm font-semibold text-slate-600">핵심만 먼저 보여줘 빠르게 판단하고, 상세 정보는 아래에서 이어서 확인할 수 있게 정리했습니다.</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {!isMobileViewport ? (
+                                            <>
+                                                <ActionButton
+                                                    variant={isCompactReviewView ? 'indigoSolid' : 'slateSoft'}
+                                                    onClick={() => setIsCompactReviewView(true)}
+                                                    className="px-3 py-2 text-xs border-0"
+                                                >
+                                                    간단 보기
+                                                </ActionButton>
+                                                <ActionButton
+                                                    variant={isCompactReviewView ? 'slateSoft' : 'indigoSolid'}
+                                                    onClick={() => setIsCompactReviewView(false)}
+                                                    className="px-3 py-2 text-xs border-0"
+                                                >
+                                                    상세 보기
+                                                </ActionButton>
+                                            </>
+                                        ) : (
+                                            <ActionButton
+                                                variant={isMobileDetailExpanded ? 'slateSoft' : 'indigoSolid'}
+                                                onClick={() => setIsMobileDetailExpanded((prev) => !prev)}
+                                                className="px-3 py-2 text-xs border-0"
+                                            >
+                                                {isMobileDetailExpanded ? '간단으로 복귀' : '상세 잠깐 보기'}
+                                            </ActionButton>
+                                        )}
                                     </div>
                                     <SummaryMetricGrid
-                                        className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5"
+                                        className={isCompactViewActive ? 'grid grid-cols-1 gap-2 sm:grid-cols-3' : 'grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5'}
                                         cardClassName="rounded-2xl border px-3 py-2"
-                                        items={reviewMetaChips.map((chip) => ({
+                                        items={(isCompactViewActive ? compactReviewMetaChips : reviewMetaChips).map((chip) => ({
                                             key: chip.key,
                                             label: chip.label,
                                             value: chip.value,
@@ -1926,12 +2010,13 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         }))}
                                     />
                                 </div>
+                                {isCompactViewActive && <p className="mt-3 text-xs font-semibold text-slate-500">{secondaryMetaText}</p>}
                                 <div className="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3">
                                     {sourcePreviewPanels.map((panel) => (
-                                        <div key={panel.key} className={`rounded-2xl border p-4 ${panel.tone}`}>
+                                            <div key={panel.key} className={`h-full ${isCompactViewActive ? 'min-h-[220px]' : 'min-h-[260px]'} rounded-2xl border p-4 ${panel.tone}`}>
                                             <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">{panel.eyebrow}</p>
                                             <h4 className="mt-2 text-sm font-black">{panel.title}</h4>
-                                            <p className="mt-2 text-sm font-semibold leading-relaxed whitespace-pre-wrap">{panel.body}</p>
+                                                <p className="mt-2 text-sm font-semibold leading-relaxed whitespace-pre-wrap">{panel.body}</p>
                                         </div>
                                     ))}
                                 </div>
