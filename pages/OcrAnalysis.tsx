@@ -1597,7 +1597,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
     const baseFilteredRecords = useMemo(() => {
         return existingRecords.filter(r => {
-            const searchStr = `${r.name || ''} ${r.jobField || ''} ${r.nationality || ''} ${r.teamLeader || ''}`.toLowerCase();
+            const searchStr = `${r.name || ''} ${r.jobField || ''} ${r.nationality || ''} ${r.teamLeader || ''} ${r.filename || ''}`.toLowerCase();
             const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
             const matchesLevel = filterLevel === 'all' || r.safetyLevel === filterLevel;
             const matchesField = filterField === 'all' || r.jobField === filterField;
@@ -6360,7 +6360,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">근로자 정보 검색</p>
                         <div className="relative w-full max-w-2xl">
                             <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={2}/></svg>
-                            <input type="text" placeholder="근로자명 · 공종 · 국적 · 팀장으로 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-900 dark:text-slate-100" />
+                            <input type="text" placeholder="근로자명 · 공종 · 국적 · 팀장 · 파일명으로 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-900 dark:text-slate-100" />
                         </div>
                         <label className="mt-1 inline-flex items-center gap-2 text-[11px] font-bold text-slate-600">
                             <input
@@ -6432,6 +6432,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         </p>
                                         <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.nationality} · {r.date}</p>
                                         <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.jobField} · 팀장 {r.teamLeader || '미지정'}</p>
+                                        {r.filename && (
+                                            <p className="mt-1 inline-flex max-w-full items-center rounded-lg border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600" title={r.filename}>
+                                                파일: {r.filename}
+                                            </p>
+                                        )}
                                         {latestCorrectionPreview && (
                                             <p className="mt-1 text-[10px] text-violet-700 font-black leading-snug" title={latestCorrectionReason || latestCorrectionPreview}>최근 수정: {latestCorrectionPreview}</p>
                                         )}
@@ -6618,6 +6623,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                     {getLeaderIcon(r)}
                                                 </span>
                                                 <span className="text-[10px] text-slate-400 font-bold tracking-wider">{r.nationality} | {r.date}</span>
+                                                {r.filename && (
+                                                    <span
+                                                        className="mt-1 inline-flex max-w-full items-center rounded-lg border border-slate-200 bg-slate-100 px-2 py-0.5 text-[9px] font-black text-slate-600"
+                                                        title={r.filename}
+                                                    >
+                                                        파일: {r.filename}
+                                                    </span>
+                                                )}
                                                 {typeof r.ocrConfidence === 'number' && (
                                                     <span className="text-[9px] text-slate-500 font-bold">OCR 신뢰도: {(r.ocrConfidence * 100).toFixed(0)}%</span>
                                                 )}
