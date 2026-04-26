@@ -6433,9 +6433,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.nationality} · {r.date}</p>
                                         <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.jobField} · 팀장 {r.teamLeader || '미지정'}</p>
                                         {r.filename && (
-                                            <p className="mt-1 inline-flex max-w-full items-center rounded-lg border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600" title={r.filename}>
-                                                파일: {r.filename}
-                                            </p>
+                                            <StatusBadge variant="slateSoft" className="mt-1 max-w-full rounded px-2.5 py-1 text-[10px]" title={r.filename}>
+                                                📄 {r.filename}
+                                            </StatusBadge>
                                         )}
                                         {latestCorrectionPreview && (
                                             <p className="mt-1 text-[10px] text-violet-700 font-black leading-snug" title={latestCorrectionReason || latestCorrectionPreview}>최근 수정: {latestCorrectionPreview}</p>
@@ -6624,12 +6624,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 </span>
                                                 <span className="text-[10px] text-slate-400 font-bold tracking-wider">{r.nationality} | {r.date}</span>
                                                 {r.filename && (
-                                                    <span
-                                                        className="mt-1 inline-flex max-w-full items-center rounded-lg border border-slate-200 bg-slate-100 px-2 py-0.5 text-[9px] font-black text-slate-600"
-                                                        title={r.filename}
-                                                    >
-                                                        파일: {r.filename}
-                                                    </span>
+                                                    <StatusBadge variant="slateSoft" className="mt-1 max-w-full rounded px-2.5 py-1 text-[9px]" title={r.filename}>
+                                                        📄 {r.filename}
+                                                    </StatusBadge>
                                                 )}
                                                 {typeof r.ocrConfidence === 'number' && (
                                                     <span className="text-[9px] text-slate-500 font-bold">OCR 신뢰도: {(r.ocrConfidence * 100).toFixed(0)}%</span>
