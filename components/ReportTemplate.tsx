@@ -982,6 +982,45 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         () => scoreReasonEntries.slice(0, frontEntryLimit).map((entry) => limitNarrativeEntry(entry, frontKoCharLimit, frontNativeCharLimit)),
         [scoreReasonEntries, frontEntryLimit, frontKoCharLimit, frontNativeCharLimit],
     );
+    const normalizedScoreBreakdown = useMemo(
+        () => (hasValidScoreBreakdown(record.scoreBreakdown) ? record.scoreBreakdown : buildFallbackScoreBreakdown(record)),
+        [record],
+    );
+    const backSixMetricRows = useMemo(
+        () => [
+            {
+                key: 'psychological',
+                ...sixMetricBilingualLabels[0],
+                value: clampMetric(normalizedScoreBreakdown.psychological, sixMetricBilingualLabels[0].max),
+            },
+            {
+                key: 'jobUnderstanding',
+                ...sixMetricBilingualLabels[1],
+                value: clampMetric(normalizedScoreBreakdown.jobUnderstanding, sixMetricBilingualLabels[1].max),
+            },
+            {
+                key: 'riskAssessmentUnderstanding',
+                ...sixMetricBilingualLabels[2],
+                value: clampMetric(normalizedScoreBreakdown.riskAssessmentUnderstanding, sixMetricBilingualLabels[2].max),
+            },
+            {
+                key: 'proficiency',
+                ...sixMetricBilingualLabels[3],
+                value: clampMetric(normalizedScoreBreakdown.proficiency, sixMetricBilingualLabels[3].max),
+            },
+            {
+                key: 'improvementExecution',
+                ...sixMetricBilingualLabels[4],
+                value: clampMetric(normalizedScoreBreakdown.improvementExecution, sixMetricBilingualLabels[4].max),
+            },
+            {
+                key: 'repeatViolationPenalty',
+                ...sixMetricBilingualLabels[5],
+                value: clampMetric(normalizedScoreBreakdown.repeatViolationPenalty, sixMetricBilingualLabels[5].max),
+            },
+        ],
+        [normalizedScoreBreakdown, sixMetricBilingualLabels],
+    );
     const workerNameClassName = useMemo(() => {
         const nameLength = (record.name || '').trim().length;
 
@@ -1471,100 +1510,145 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </div>
                     </div>
 
-                    {/* ── 메인 2열: 왼(채점근거+6대지표+종합진단) / 우(코칭+재평가+진위메모) ── */}
-                    <div className="flex-1 min-h-0 grid grid-cols-[1.6fr_1fr] gap-2 overflow-hidden">
+                    {/* ── 메인 레이아웃: 상단 2열 + 하단 강점/개선 2열 ── */}
+                    <div className="flex-1 min-h-0 flex flex-col gap-2 overflow-hidden">
+                        <div className="grid min-h-0 flex-1 grid-cols-[1.6fr_1fr] gap-2 overflow-hidden">
+                            <div className="min-h-0 rounded-2xl border border-slate-200 bg-slate-50/55 p-2.5 shadow-sm overflow-hidden flex flex-col gap-1.5">
+                                <div className="flex items-center justify-between gap-2">
+                                    <h3 className="text-[9px] font-black tracking-[0.12em] text-slate-700 flex items-center gap-1">
+                                        <SectionSearchIcon />
+                                        상세 채점 근거
+                                    </h3>
+                                    <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[7px] font-black text-slate-500">검증용 상세 기술</span>
+                                </div>
 
-                        {/* ──── 왼쪽 열 ─── */}
-                        <div className="flex flex-col gap-1.5 min-h-0 overflow-hidden">
-                            {/* 채점 근거 */}
-                            <div className="shrink-0 rounded-xl border border-slate-200 bg-white/95 p-2 overflow-hidden">
-                                <h3 className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-600 mb-1 flex items-center gap-1">
-                                    <SectionSearchIcon />
-                                    상세 채점 근거
-                                </h3>
-                                <ul className="space-y-0.5">
-                                    {scoreReasonEntries.slice(0, 4).map((entry, i) => (
-                                        <li key={`score-reason-${i}`} className="rounded-lg bg-slate-50 border border-slate-100 px-2 py-1">
+                                <div className="rounded-xl border border-slate-200 bg-white px-2 py-1.5 space-y-0.5">
+                                    {scoreReasonEntries.slice(0, 2).map((entry, i) => (
+                                        <div key={`score-reason-back-${i}`} className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1">
                                             {!isKorean && entry.nativeText ? (
-                                                <p className="text-[7px] font-bold leading-[1.3] text-slate-700 break-words" style={createLineClampStyle(1)}>{entry.nativeText}</p>
+                                                <p className="text-[7px] font-bold leading-[1.32] text-slate-700 break-words" style={createLineClampStyle(2)}>{entry.nativeText}</p>
                                             ) : null}
-                                            <p className={`leading-[1.3] break-words ${!isKorean && entry.nativeText ? 'text-[6.5px] text-slate-400 mt-0.5' : 'text-[7px] text-slate-700'}`} style={createLineClampStyle(1)}>
+                                            <p className={`leading-[1.32] break-words ${!isKorean && entry.nativeText ? 'text-[6.5px] text-slate-500 mt-0.5' : 'text-[7px] text-slate-700'}`} style={createLineClampStyle(2)}>
                                                 {!isKorean && entry.nativeText ? <span className="font-black text-slate-300">[KO] </span> : null}
                                                 <HighlightedText text={entry.text} />
                                             </p>
-                                        </li>
+                                        </div>
                                     ))}
-                                </ul>
+                                </div>
+
+                                <div className="rounded-xl border border-indigo-100 bg-white px-2 py-1.5 space-y-1">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-[8px] font-black tracking-[0.1em] text-slate-700 uppercase">6대 지표 상세</h4>
+                                        <span className="text-[7px] font-bold text-slate-400">전면 레이더맵에 대응</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                                        {backSixMetricRows.map((metric) => {
+                                            const ratio = metric.max > 0 ? metric.value / metric.max : 0;
+                                            const barColor = metric.isPenalty ? 'bg-rose-400' : 'bg-indigo-500';
+                                            const scoreText = metric.isPenalty ? `-${metric.value}` : `${metric.value}`;
+                                            return (
+                                                <div key={metric.key} className="min-w-0">
+                                                    <p className="text-[6.8px] font-black text-slate-700 leading-tight" style={createLineClampStyle(1)}>{isKorean ? metric.ko : metric.native}</p>
+                                                    <p className="text-[6.1px] text-slate-400 leading-tight" style={createLineClampStyle(1)}>{isKorean ? '' : `[KO] ${metric.ko}`}</p>
+                                                    <div className="mt-0.5 flex items-center gap-1">
+                                                        <div className="h-1.5 flex-1 rounded-full bg-slate-200 overflow-hidden">
+                                                            <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.max(0, Math.min(100, ratio * 100))}%` }} />
+                                                        </div>
+                                                        <span className={`text-[6.5px] font-black ${metric.isPenalty ? 'text-rose-600' : 'text-indigo-700'}`}>{scoreText}</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div className="flex-1 min-h-0 rounded-xl border border-slate-200 bg-white px-2 py-1.5 overflow-hidden">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-[8px] font-black tracking-[0.1em] text-slate-700">종합 진단</h4>
+                                        <span className="text-[7px] font-bold text-slate-400">양면 연쇄 상세 해설</span>
+                                    </div>
+                                    <div className="mt-1 space-y-1 overflow-hidden">
+                                        {!isKorean && verdictNativeParagraphs.length > 0 ? (
+                                            <div className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1">
+                                                <p className="text-[7px] font-bold leading-[1.35] text-slate-700 whitespace-pre-line" style={createLineClampStyle(3)}>
+                                                    <HighlightedText text={verdictNativeParagraphs[0]} />
+                                                </p>
+                                            </div>
+                                        ) : null}
+                                        {verdictKoParagraphs.length > 0 ? (
+                                            <div className={`rounded-lg border px-2 py-1 ${!isKorean && verdictNativeParagraphs.length > 0 ? 'border-slate-100 bg-slate-100/70' : 'border-slate-100 bg-slate-50'}`}>
+                                                {verdictKoParagraphs.slice(0, 2).map((para, i) => (
+                                                    <p key={`verdict-detail-${i}`} className={`leading-[1.35] whitespace-pre-line break-words ${!isKorean && verdictNativeParagraphs.length > 0 ? 'text-[6.5px] text-slate-500' : 'text-[7px] text-slate-700'}`} style={createLineClampStyle(2)}>
+                                                        {!isKorean && verdictNativeParagraphs.length > 0 ? <span className="font-black text-slate-300">[KO] </span> : null}
+                                                        <HighlightedText text={para} />
+                                                    </p>
+                                                ))}
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                </div>
                             </div>
 
-                            {/* 종합 진단 */}
-                            <div className="shrink-0 rounded-xl border border-slate-200 bg-white/95 p-2 overflow-hidden h-[140px]">
-                                <h3 className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-600 mb-1 shrink-0">종합 진단</h3>
-                                <div className="overflow-hidden space-y-0.5 h-[120px]">
-                                    {!isKorean && verdictNativeParagraphs.length > 0 ? (
-                                        <div className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1">
-                                            {verdictNativeParagraphs.slice(0, 1).map((para, i) => (
-                                                <p key={`verdict-native-${i}`} className="text-[7px] font-bold leading-[1.3] text-slate-700 break-words whitespace-pre-line" style={createLineClampStyle(2)}>{para}</p>
-                                            ))}
-                                        </div>
-                                    ) : null}
-                                    {verdictKoParagraphs.length > 0 ? (
-                                        <div className={`rounded-lg px-2 py-1 ${!isKorean && verdictNativeParagraphs.length > 0 ? 'border border-slate-100 bg-slate-100/70' : 'border border-slate-100 bg-slate-50'}`}>
-                                            {verdictKoParagraphs.slice(0, 2).map((para, i) => (
-                                                <p key={`verdict-ko-${i}`} className={`leading-[1.3] break-words whitespace-pre-line ${!isKorean && verdictNativeParagraphs.length > 0 ? 'text-[6.5px] text-slate-500' : 'text-[7px] text-slate-700'}`} style={createLineClampStyle(2)}>
-                                                    {!isKorean && verdictNativeParagraphs.length > 0 ? <span className="font-black text-slate-300">[KO] </span> : null}
-                                                    <HighlightedText text={para} />
+                            <div className="min-h-0 rounded-2xl border border-amber-300 bg-amber-50/65 p-2.5 shadow-sm overflow-hidden flex flex-col gap-1.5">
+                                <div className="flex items-center justify-between gap-2">
+                                    <h3 className="text-[9px] font-black tracking-[0.12em] text-amber-800 flex items-center gap-1">
+                                        <SectionCoachingIcon />
+                                        실행 코칭
+                                    </h3>
+                                    <span className="rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[7px] font-black text-amber-700">현장 실행 우선</span>
+                                </div>
+
+                                <div className="space-y-1">
+                                    {(coachingNativeParagraphs.length > 0 ? coachingNativeParagraphs : coachingKoParagraphs).slice(0, 2).map((para, i) => (
+                                        <div key={`coaching-block-${i}`} className="rounded-xl border border-amber-300 bg-white/85 px-2 py-1">
+                                            <p className="text-[7px] font-bold leading-[1.34] text-amber-900 whitespace-pre-line" style={createLineClampStyle(3)}>
+                                                <HighlightedText text={para} />
+                                            </p>
+                                            {!isKorean && coachingNativeParagraphs.length > 0 && coachingKoParagraphs[i] ? (
+                                                <p className="mt-0.5 border-t border-amber-200 pt-0.5 text-[6.5px] text-amber-700" style={createLineClampStyle(2)}>
+                                                    [KO] <HighlightedText text={coachingKoParagraphs[i]} />
                                                 </p>
-                                            ))}
+                                            ) : null}
                                         </div>
-                                    ) : null}
+                                    ))}
+                                </div>
+
+                                {reassessmentTrail.length > 0 && (
+                                    <div className="rounded-xl border border-violet-200 bg-violet-50/90 px-2 py-1 space-y-0.5">
+                                        <p className="text-[8px] font-black tracking-[0.1em] text-violet-700">{reassessmentTitle}</p>
+                                        {reassessmentTrail.slice(0, 1).map((entry, i) => (
+                                            <div key={`reassessment-inline-${i}`}>
+                                                <p className="text-[7px] font-black text-violet-600">{reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)}</p>
+                                                <p className="text-[6.8px] leading-[1.35] text-violet-800" style={createLineClampStyle(2)}>{sanitizeOperationalNote(entry.note || reassessmentFallback, record.nationality)}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <div className="mt-auto rounded-2xl border border-slate-800 bg-slate-950 px-2.5 py-2 text-white">
+                                    <p className="text-[7.5px] font-black tracking-[0.1em] text-slate-100">진위 확인 메모</p>
+                                    <p className="mt-0.5 text-[7px] leading-[1.35] text-slate-200">본 부록은 첫 페이지 요약 문구의 맥락 해석을 보완하기 위한 정식 해설본입니다.</p>
+                                    <p className="mt-0.5 text-[6.5px] leading-[1.3] text-slate-300">현장 관리자 설명·면담 기록과 함께 보관할 수 있습니다.</p>
                                 </div>
                             </div>
                         </div>
 
-                        {/* ──── 오른쪽 열: 코칭 + 강점 + 개선 ─── */}
-                        <div className="flex flex-col gap-1.5 min-h-0 overflow-hidden">
-
-                            {/* 실행 코칭 */}
-                            <div className="shrink-0 rounded-xl border border-amber-200 bg-amber-50/90 p-2 overflow-hidden">
-                                <h3 className="text-[8px] font-black uppercase tracking-[0.12em] text-amber-800 mb-1 flex items-center gap-1">
-                                    <SectionCoachingIcon />
-                                    실행 코칭
-                                </h3>
-                                <div className="space-y-0.5">
-                                    {!isKorean && coachingNativeParagraphs.length > 0 ? (
-                                        <div className="rounded-lg border border-amber-100 bg-white/80 px-2 py-1">
-                                            {coachingNativeParagraphs.slice(0, 1).map((para, i) => (
-                                                <p key={`coaching-native-${i}`} className="text-[7px] font-bold leading-[1.3] text-amber-900 break-words whitespace-pre-line" style={createLineClampStyle(2)}>{para}</p>
-                                            ))}
-                                        </div>
-                                    ) : null}
-                                    {coachingKoParagraphs.length > 0 ? (
-                                        <div className={`rounded-lg px-2 py-1 ${!isKorean && coachingNativeParagraphs.length > 0 ? 'border border-amber-100 bg-amber-100/60' : 'border border-amber-100 bg-white/80'}`}>
-                                            {coachingKoParagraphs.slice(0, 2).map((para, i) => (
-                                                <p key={`coaching-ko-${i}`} className={`leading-[1.3] break-words whitespace-pre-line ${!isKorean && coachingNativeParagraphs.length > 0 ? 'text-[6.5px] text-amber-700' : 'text-[7px] text-amber-900'}`} style={createLineClampStyle(2)}>
-                                                    {!isKorean && coachingNativeParagraphs.length > 0 ? <span className="font-black text-amber-400">[KO] </span> : null}
-                                                    <HighlightedText text={para} />
-                                                </p>
-                                            ))}
-                                        </div>
-                                    ) : null}
+                        <div className="shrink-0 grid h-[75mm] grid-cols-2 gap-2 overflow-hidden">
+                            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/55 p-2.5 shadow-sm overflow-hidden flex flex-col">
+                                <div className="flex items-center justify-between gap-2 mb-1">
+                                    <h3 className="text-[9px] font-black tracking-[0.12em] text-emerald-800 flex items-center gap-1">
+                                        <CheckBulletIcon />
+                                        강점 상세
+                                    </h3>
+                                    <span className="rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[7px] font-black text-emerald-700">강점 상세 표준</span>
                                 </div>
-                            </div>
-
-                            {/* 강점 */}
-                            <div className="shrink-0 rounded-xl border border-emerald-200 bg-emerald-50/85 p-2 overflow-hidden">
-                                <h3 className="text-[8px] font-black uppercase tracking-[0.12em] text-emerald-800 mb-1 flex items-center gap-1">
-                                    <CheckBulletIcon />
-                                    강점
-                                </h3>
-                                <ul className="space-y-0.5">
-                                    {strengthEntries.slice(0, 2).map((entry, i) => (
-                                        <li key={`strength-${i}`} className="rounded-lg border border-emerald-100 bg-white/80 px-2 py-1">
+                                <ul className="space-y-1 overflow-hidden">
+                                    {strengthEntries.slice(0, 3).map((entry, i) => (
+                                        <li key={`strength-detail-${i}`} className="rounded-xl border border-emerald-200 bg-white/80 px-2 py-1">
                                             {!isKorean && entry.nativeText ? (
-                                                <p className="text-[7px] font-bold leading-[1.3] text-emerald-900 break-words" style={createLineClampStyle(1)}>{entry.nativeText}</p>
+                                                <p className="text-[7px] font-bold leading-[1.32] text-emerald-900 break-words" style={createLineClampStyle(2)}>{entry.nativeText}</p>
                                             ) : null}
-                                            <p className={`leading-[1.3] break-words ${!isKorean && entry.nativeText ? 'text-[6.5px] text-emerald-600 mt-0.5' : 'text-[7px] text-emerald-900'}`} style={createLineClampStyle(1)}>
+                                            <p className={`leading-[1.32] break-words ${!isKorean && entry.nativeText ? 'text-[6.5px] text-emerald-600 mt-0.5' : 'text-[7px] text-emerald-900'}`} style={createLineClampStyle(2)}>
                                                 {!isKorean && entry.nativeText ? <span className="font-black text-emerald-300">[KO] </span> : null}
                                                 <HighlightedText text={entry.text} />
                                             </p>
@@ -1573,19 +1657,21 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 </ul>
                             </div>
 
-                            {/* 개선 포인트 */}
-                            <div className="flex-1 min-h-0 rounded-xl border border-rose-200 bg-rose-50/85 p-2 overflow-hidden flex flex-col">
-                                <h3 className="text-[8px] font-black uppercase tracking-[0.12em] text-rose-800 mb-1 flex items-center gap-1 shrink-0">
-                                    <WarningBulletIcon />
-                                    개선 포인트
-                                </h3>
-                                <ul className="space-y-0.5 overflow-hidden flex-1 min-h-0">
-                                    {improvementEntries.slice(0, 2).map((entry, i) => (
-                                        <li key={`improvement-${i}`} className="rounded-lg border border-rose-100 bg-white/80 px-2 py-1">
+                            <div className="rounded-2xl border border-rose-200 bg-rose-50/55 p-2.5 shadow-sm overflow-hidden flex flex-col">
+                                <div className="flex items-center justify-between gap-2 mb-1">
+                                    <h3 className="text-[9px] font-black tracking-[0.12em] text-rose-800 flex items-center gap-1">
+                                        <WarningBulletIcon />
+                                        개선 포인트 상세
+                                    </h3>
+                                    <span className="rounded-full border border-rose-300 bg-rose-100 px-2 py-0.5 text-[7px] font-black text-rose-700">중복 검증 후 정리</span>
+                                </div>
+                                <ul className="space-y-1 overflow-hidden">
+                                    {improvementEntries.slice(0, 3).map((entry, i) => (
+                                        <li key={`improvement-detail-${i}`} className="rounded-xl border border-rose-200 bg-white/80 px-2 py-1">
                                             {!isKorean && entry.nativeText ? (
-                                                <p className="text-[7px] font-bold leading-[1.3] text-rose-900 break-words" style={createLineClampStyle(1)}>{entry.nativeText}</p>
+                                                <p className="text-[7px] font-bold leading-[1.32] text-rose-900 break-words" style={createLineClampStyle(2)}>{entry.nativeText}</p>
                                             ) : null}
-                                            <p className={`leading-[1.3] break-words ${!isKorean && entry.nativeText ? 'text-[6.5px] text-rose-600 mt-0.5' : 'text-[7px] text-rose-900'}`} style={createLineClampStyle(1)}>
+                                            <p className={`leading-[1.32] break-words ${!isKorean && entry.nativeText ? 'text-[6.5px] text-rose-600 mt-0.5' : 'text-[7px] text-rose-900'}`} style={createLineClampStyle(2)}>
                                                 {!isKorean && entry.nativeText ? <span className="font-black text-rose-300">[KO] </span> : null}
                                                 <HighlightedText text={entry.text} />
                                             </p>
@@ -1595,21 +1681,6 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             </div>
                         </div>
                     </div>
-
-                    {/* ── 재평가 타임라인 (있을 때만) ───────────── */}
-                    {reassessmentTrail.length > 0 && (
-                        <div className="shrink-0 rounded-xl border border-violet-200 bg-violet-50/90 p-2.5 overflow-hidden">
-                            <h3 className="text-[9px] font-black uppercase tracking-[0.14em] text-violet-700 mb-1.5">{reassessmentTitle}</h3>
-                            <div className="flex gap-2">
-                                {reassessmentTrail.slice(0, 2).map((entry, i) => (
-                                    <div key={`reassessment-${i}`} className="flex-1 min-w-0 rounded-lg border border-violet-100 bg-white/80 px-2.5 py-1.5">
-                                        <p className="text-[7.5px] font-black text-violet-700">{reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)}</p>
-                                        <p className="mt-0.5 text-[8px] leading-[1.45] text-violet-900 break-words" style={createLineClampStyle(2)}>{sanitizeOperationalNote(entry.note || reassessmentFallback, record.nationality)}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
 
                     {/* ── 푸터 ───────────────────────────────────── */}
                     <div className="pt-1.5 border-t border-slate-200 shrink-0 flex justify-between items-end">
