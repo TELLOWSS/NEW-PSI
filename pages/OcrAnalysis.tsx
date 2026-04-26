@@ -466,6 +466,7 @@ type OcrViewState = {
     searchTerm: string;
     filterLevel: string;
     filterField: string;
+    filterNationality: string;
     filterLeader: string;
     filterTrust: 'all' | 'pending' | 'finalized';
     filterReason: 'all' | 'has-reason' | 'missing-reason' | 'weak-reason';
@@ -1099,6 +1100,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [searchTerm, setSearchTerm] = useState(() => storedViewState.searchTerm || '');
     const [filterLevel, setFilterLevel] = useState<string>(() => storedViewState.filterLevel || 'all');
     const [filterField, setFilterField] = useState<string>(() => storedViewState.filterField || 'all');
+    const [filterNationality, setFilterNationality] = useState<string>(() => storedViewState.filterNationality || 'all');
     const [filterLeader, setFilterLeader] = useState<string>(() => storedViewState.filterLeader || 'all');
     const [filterTrust, setFilterTrust] = useState<'all' | 'pending' | 'finalized'>(() => storedViewState.filterTrust || 'all');
     const [filterReason, setFilterReason] = useState<'all' | 'has-reason' | 'missing-reason' | 'weak-reason'>(() => storedViewState.filterReason || 'all');
@@ -1356,6 +1358,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 searchTerm,
                 filterLevel,
                 filterField,
+                filterNationality,
                 filterLeader,
                 filterTrust,
                 filterReason,
@@ -1370,7 +1373,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         } catch {
             // ignore storage errors
         }
-    }, [searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterReason, filterStatus, secondPassStatusFilter, secondPassEditedOnly, secondPassExcludedOnly, secondPassReasonFilter, recordSortMode]);
+    }, [searchTerm, filterLevel, filterField, filterNationality, filterLeader, filterTrust, filterReason, filterStatus, secondPassStatusFilter, secondPassEditedOnly, secondPassExcludedOnly, secondPassReasonFilter, recordSortMode]);
 
     const handleCreateMasterTemplate = async (payload: { name: string; version: string; fieldSchema: string }) => {
         const result = await supabase
@@ -1590,6 +1593,11 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         return Array.from(leaders).sort();
     }, [existingRecords]);
 
+    const nationalities = useMemo(() => {
+        const values = new Set(existingRecords.map(r => r.nationality).filter(Boolean));
+        return Array.from(values).sort();
+    }, [existingRecords]);
+
     const jobFields = useMemo(() => {
         const fields = new Set(existingRecords.map(r => r.jobField).filter(Boolean));
         return Array.from(fields).sort();
@@ -1601,6 +1609,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
             const matchesLevel = filterLevel === 'all' || r.safetyLevel === filterLevel;
             const matchesField = filterField === 'all' || r.jobField === filterField;
+            const matchesNationality = filterNationality === 'all' || r.nationality === filterNationality;
             const matchesLeader = filterLeader === 'all' || (r.teamLeader || '미지정') === filterLeader;
             const trustState = getReviewTrustState(r);
             const matchesTrust =
@@ -1624,9 +1633,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 secondPassStatusFilter === 'all' ||
                 (secondPassStatusFilter === 'done' && r.secondPassStatus === 'DONE') ||
                 (secondPassStatusFilter === 'not-done' && r.secondPassStatus !== 'DONE');
-            return matchesSearch && matchesLevel && matchesField && matchesLeader && matchesTrust && matchesReason && matchesStatus && matchesSecondPassStatus;
+            return matchesSearch && matchesLevel && matchesField && matchesNationality && matchesLeader && matchesTrust && matchesReason && matchesStatus && matchesSecondPassStatus;
         });
-    }, [existingRecords, searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterReason, filterStatus, secondPassStatusFilter, getReviewTrustState]);
+    }, [existingRecords, searchTerm, filterLevel, filterField, filterNationality, filterLeader, filterTrust, filterReason, filterStatus, secondPassStatusFilter, getReviewTrustState]);
 
     const secondPassSkippedCounts = useMemo(() => {
         return baseFilteredRecords.reduce<Record<string, number>>((acc, record) => {
@@ -1751,6 +1760,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         const normalizedSearch = String(searchTerm || '').trim();
         if (normalizedSearch) items.push(`검색: ${normalizedSearch}`);
         if (filterField !== 'all') items.push(`공종: ${filterField}`);
+        if (filterNationality !== 'all') items.push(`국적: ${filterNationality}`);
         if (filterLeader !== 'all') items.push(`팀장: ${filterLeader}`);
         if (filterTrust !== 'all') items.push(`신뢰: ${filterTrust === 'pending' ? '재검토 대기' : '최종확정'}`);
         if (filterLevel !== 'all') items.push(`등급: ${filterLevel}`);
@@ -1769,7 +1779,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         if (secondPassReasonFilter !== 'all') items.push(`2차 제외 사유: ${secondPassReasonFilter}`);
         if (recordSortMode !== 'recent-correction') items.push(`정렬: ${getRecordSortModeLabel(recordSortMode)}`);
         return items;
-    }, [filterField, filterLeader, filterLevel, filterReason, filterStatus, secondPassStatusFilter, filterTrust, recordSortMode, searchTerm, secondPassExcludedOnly, secondPassReasonFilter]);
+    }, [filterField, filterNationality, filterLeader, filterLevel, filterReason, filterStatus, secondPassStatusFilter, filterTrust, recordSortMode, searchTerm, secondPassExcludedOnly, secondPassReasonFilter]);
 
     const retrySuccessRate = useMemo(() => {
         if (!retryDiagnostics || retryDiagnostics.total === 0) return 0;
@@ -3959,6 +3969,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
     const resetFilters = useCallback(() => {
         setSearchTerm('');
+        setFilterNationality('all');
         setFilterLeader('all');
         setFilterTrust('all');
         setFilterReason('all');
@@ -5731,7 +5742,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     title="고급 필터 · 정렬 · 2차 재분석 설정"
                     isOpen={showAdvancedOcrControls}
                     onToggle={() => setShowAdvancedOcrControls((prev) => !prev)}
-                    summary={<span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-black text-violet-700">필터 {filterField !== 'all' || filterLeader !== 'all' || filterTrust !== 'all' || filterLevel !== 'all' || filterStatus !== 'all' || filterReason !== 'all' || secondPassStatusFilter !== 'all' ? '적용 중' : '기본값'} · 재분석 {secondPassTargets.length}건</span>}
+                    summary={<span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-black text-violet-700">필터 {filterField !== 'all' || filterNationality !== 'all' || filterLeader !== 'all' || filterTrust !== 'all' || filterLevel !== 'all' || filterStatus !== 'all' || filterReason !== 'all' || secondPassStatusFilter !== 'all' ? '적용 중' : '기본값'} · 재분석 {secondPassTargets.length}건</span>}
                 >
                 <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-4 items-start">
                     <div className="space-y-3">
@@ -5749,6 +5760,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     <option value="all">전체</option>
                                     {teamLeaders.map(leader => (
                                         <option key={leader} value={leader}>{leader}</option>
+                                    ))}
+                                </select>
+                            </ControlPanelCard>
+                            <ControlPanelCard label="국적">
+                                <select value={filterNationality} onChange={(e) => setFilterNationality(e.target.value)} className="w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
+                                    <option value="all">전체</option>
+                                    {nationalities.map((nationality) => (
+                                        <option key={nationality} value={nationality}>{nationality}</option>
                                     ))}
                                 </select>
                             </ControlPanelCard>

@@ -41,6 +41,18 @@
 - `pages/OcrAnalysis.tsx`: 오류 없음
 - `components/ReportTemplate.tsx`: 오류 없음
 
+## 2026-04-26 규칙 실시 결과
+- 고정 실행 순서(운영 규칙):
+  1. `npm run analyze:backfill-readiness`
+  2. `npm run analyze:policy-impact:full`
+  3. `npm run check:score-consistency:strict8`
+  4. `npm run verify:release`
+- 실행 상태: 시도함
+- 차단 원인: 현재 터미널 환경에서 `npm`/`node` 명령 미인식(`CommandNotFoundException`)
+- 조치 사항:
+  - 런타임 복구 전까지 규칙 실행은 보류
+  - 복구 즉시 동일 순서로 재실행 후 결과를 운영일지/업그레이드 로그에 반영
+
 ## 다음 시작 시 우선 확인 순서
 1. 본 문서: `UPGRADE_LOG_2026-04-25.md`
 2. 세션 체크리스트: `NEXT_SESSION_ONEPAGE_CHECKLIST_2026-04-22.md`
