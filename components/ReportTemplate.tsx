@@ -548,20 +548,66 @@ const chunkArray = <T,>(items: T[], size: number): T[][] => {
     return chunks;
 };
 
+const splitAppendixTextChunks = (value: string, maxChars: number): string[] => {
+    const normalized = normalizeNarrativeText(value);
+    if (!normalized) return [];
+
+    const byLine = normalized
+        .replace(/\r/g, '')
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+    return byLine.flatMap((line) => {
+        if (line.length <= maxChars) return [line];
+
+        const wrapped = hardWrapText(line, maxChars)
+            .split('\n')
+            .map((segment) => segment.trim())
+            .filter(Boolean);
+
+        return wrapped.length > 0 ? wrapped : [line];
+    });
+};
+
+const splitAppendixEntries = (
+    entries: NarrativeEntry[],
+    isKorean: boolean,
+    textMaxChars: number,
+    nativeMaxChars: number,
+): NarrativeEntry[] => {
+    return entries.flatMap((entry) => {
+        const textChunks = splitAppendixTextChunks(entry.text, textMaxChars);
+        const nativeChunks = isKorean ? [] : splitAppendixTextChunks(entry.nativeText || '', nativeMaxChars);
+        const total = Math.max(textChunks.length, nativeChunks.length, 1);
+
+        return Array.from({ length: total }, (_, index) => ({
+            text: textChunks[index] || '',
+            nativeText: isKorean ? undefined : (nativeChunks[index] || undefined),
+        })).filter((chunk) => normalizeNarrativeText(chunk.text) || normalizeNarrativeText(chunk.nativeText));
+    });
+};
+
 const buildAppendixParagraphSegments = (
     koParagraphs: string[],
     nativeParagraphs: string[],
     isKorean: boolean,
     size: number,
+    koMaxChars: number = 150,
+    nativeMaxChars: number = 140,
 ): AppendixParagraphSegment[] => {
-    const total = Math.max(koParagraphs.length, isKorean ? 0 : nativeParagraphs.length);
+    const normalizedKoParagraphs = koParagraphs.flatMap((paragraph) => splitAppendixTextChunks(paragraph, koMaxChars));
+    const normalizedNativeParagraphs = isKorean
+        ? []
+        : nativeParagraphs.flatMap((paragraph) => splitAppendixTextChunks(paragraph, nativeMaxChars));
+    const total = Math.max(normalizedKoParagraphs.length, isKorean ? 0 : normalizedNativeParagraphs.length);
     if (total === 0) return [];
 
     const segments: AppendixParagraphSegment[] = [];
     for (let index = 0; index < total; index += size) {
         segments.push({
-            koParagraphs: koParagraphs.slice(index, index + size),
-            nativeParagraphs: isKorean ? [] : nativeParagraphs.slice(index, index + size),
+            koParagraphs: normalizedKoParagraphs.slice(index, index + size),
+            nativeParagraphs: isKorean ? [] : normalizedNativeParagraphs.slice(index, index + size),
         });
     }
 
@@ -569,9 +615,19 @@ const buildAppendixParagraphSegments = (
 };
 
 const getAppendixBlockWeight = (block: AppendixSectionBlock): number => {
-    if (block.entries) return 2 + block.entries.length;
-    if (block.paragraphSegment) return 2 + Math.max(block.paragraphSegment.koParagraphs.length, block.paragraphSegment.nativeParagraphs.length);
-    if (block.timelineEntries) return 2 + block.timelineEntries.length;
+    if (block.entries) {
+        const totalChars = block.entries.reduce((sum, entry) => sum + entry.text.length + (entry.nativeText || '').length, 0);
+        return Math.max(2, Math.ceil(totalChars / 220) + block.entries.length);
+    }
+    if (block.paragraphSegment) {
+        const totalChars = [...block.paragraphSegment.koParagraphs, ...block.paragraphSegment.nativeParagraphs]
+            .reduce((sum, paragraph) => sum + paragraph.length, 0);
+        return Math.max(2, Math.ceil(totalChars / 260) + Math.max(block.paragraphSegment.koParagraphs.length, block.paragraphSegment.nativeParagraphs.length));
+    }
+    if (block.timelineEntries) {
+        const totalChars = block.timelineEntries.reduce((sum, entry) => sum + (entry.note || '').length, 0);
+        return Math.max(2, Math.ceil(totalChars / 220) + block.timelineEntries.length);
+    }
     return 1;
 };
 
@@ -1080,7 +1136,11 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     const appendixBlocks = useMemo(() => {
         const blocks: AppendixSectionBlock[] = [];
 
-        chunkArray(scoreReasonEntries, 3).forEach((entries, index) => {
+        const appendixScoreEntries = splitAppendixEntries(scoreReasonEntries, isKorean, 150, 140);
+        const appendixStrengthEntries = splitAppendixEntries(strengthEntries, isKorean, 150, 140);
+        const appendixImprovementEntries = splitAppendixEntries(improvementEntries, isKorean, 150, 140);
+
+        chunkArray(appendixScoreEntries, 2).forEach((entries, index) => {
             blocks.push({
                 key: `appendix-score-${index}`,
                 title: index === 0 ? '상세 채점 근거' : '상세 채점 근거 계속',
@@ -1090,7 +1150,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
             });
         });
 
-        buildAppendixParagraphSegments(appendixVerdictKoParagraphs, appendixVerdictNativeParagraphs, isKorean, 3).forEach((paragraphSegment, index) => {
+        buildAppendixParagraphSegments(appendixVerdictKoParagraphs, appendixVerdictNativeParagraphs, isKorean, 2, 150, 140).forEach((paragraphSegment, index) => {
             blocks.push({
                 key: `appendix-verdict-${index}`,
                 title: index === 0 ? '종합 진단' : '종합 진단 계속',
@@ -1100,7 +1160,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
             });
         });
 
-        buildAppendixParagraphSegments(appendixCoachingKoParagraphs, appendixCoachingNativeParagraphs, isKorean, 3).forEach((paragraphSegment, index) => {
+        buildAppendixParagraphSegments(appendixCoachingKoParagraphs, appendixCoachingNativeParagraphs, isKorean, 2, 150, 140).forEach((paragraphSegment, index) => {
             blocks.push({
                 key: `appendix-coaching-${index}`,
                 title: index === 0 ? '실행 코칭' : '실행 코칭 계속',
@@ -1110,7 +1170,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
             });
         });
 
-        chunkArray(strengthEntries, 3).forEach((entries, index) => {
+        chunkArray(appendixStrengthEntries, 2).forEach((entries, index) => {
             blocks.push({
                 key: `appendix-strength-${index}`,
                 title: index === 0 ? '강점 상세' : '강점 상세 계속',
@@ -1120,7 +1180,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
             });
         });
 
-        chunkArray(improvementEntries, 3).forEach((entries, index) => {
+        chunkArray(appendixImprovementEntries, 2).forEach((entries, index) => {
             blocks.push({
                 key: `appendix-improvement-${index}`,
                 title: index === 0 ? '개선 포인트 상세' : '개선 포인트 상세 계속',
@@ -1130,7 +1190,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
             });
         });
 
-        chunkArray(reassessmentTrail, 2).forEach((timelineEntries, index) => {
+        chunkArray(reassessmentTrail, 1).forEach((timelineEntries, index) => {
             blocks.push({
                 key: `appendix-timeline-${index}`,
                 title: index === 0 ? reassessmentTitle : `${reassessmentTitle} 계속`,
@@ -1164,7 +1224,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         reassessmentTitle,
         reassessmentTrail,
     ]);
-    const appendixPages = useMemo(() => paginateAppendixBlocks(appendixBlocks, 10), [appendixBlocks]);
+    const appendixPages = useMemo(() => paginateAppendixBlocks(appendixBlocks, 8), [appendixBlocks]);
     const workerNameClassName = useMemo(() => {
         const nameLength = (record.name || '').trim().length;
 
