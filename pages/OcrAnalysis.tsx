@@ -1603,6 +1603,30 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         return Array.from(fields).sort();
     }, [existingRecords]);
 
+    useEffect(() => {
+        if (filterField !== 'all' && !jobFields.includes(filterField)) {
+            setFilterField('all');
+        }
+    }, [filterField, jobFields]);
+
+    useEffect(() => {
+        if (filterLeader !== 'all' && !teamLeaders.includes(filterLeader)) {
+            setFilterLeader('all');
+        }
+    }, [filterLeader, teamLeaders]);
+
+    useEffect(() => {
+        if (filterNationality !== 'all' && !nationalities.includes(filterNationality)) {
+            setFilterNationality('all');
+        }
+    }, [filterNationality, nationalities]);
+
+    useEffect(() => {
+        if (batchJobField && !jobFields.includes(batchJobField)) {
+            setBatchJobField('');
+        }
+    }, [batchJobField, jobFields]);
+
     const baseFilteredRecords = useMemo(() => {
         return existingRecords.filter(r => {
             const searchStr = `${r.name || ''} ${r.jobField || ''} ${r.nationality || ''} ${r.teamLeader || ''} ${r.filename || ''}`.toLowerCase();
