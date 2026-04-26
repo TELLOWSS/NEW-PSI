@@ -10,7 +10,7 @@ import { NoticeCallout } from './shared/NoticeCallout';
 import { StatusBadge } from './shared/StatusBadge';
 import { WhyThisResultPanel } from './shared/WhyThisResultPanel';
 import { PSI_APP_VERSION } from '../lib/appInfo';
-import { buildFallbackNativeCoachingText, buildFallbackNativeVerdictText, sanitizeOperationalNote } from '../utils/ocrVerificationLanguageUtils';
+import { buildFallbackNativeCoachingText, buildFallbackNativeGuidanceText, buildFallbackNativeVerdictText, sanitizeOperationalNote } from '../utils/ocrVerificationLanguageUtils';
 
 interface ReportTemplateProps {
     record: WorkerRecord;
