@@ -1110,6 +1110,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [batchJobField, setBatchJobField] = useState('');
     const [batchTeamLeader, setBatchTeamLeader] = useState('');
+    const [batchRecordDate, setBatchRecordDate] = useState('');
     const [failedOnlyDefault, setFailedOnlyDefault] = useState<boolean>(() => getFailedOnlyDefaultOption());
     const [filterStatus, setFilterStatus] = useState<'all' | 'success' | 'failed'>(() => storedViewState.filterStatus || (getFailedOnlyDefaultOption() ? 'failed' : 'all'));
     const [dailyCounter, setDailyCounter] = useState<DailyCounterState>(() => getApiCallState());
@@ -6328,17 +6329,25 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         onChange={e => setBatchTeamLeader(e.target.value)}
                         placeholder="팀장명 입력"
                     />
+                    <label className="text-xs font-bold text-slate-600 mr-1">작성일 일괄 변경</label>
+                    <input
+                        type="date"
+                        className="w-full sm:w-auto text-xs border border-slate-200 rounded px-2 py-1 mr-0 sm:mr-2"
+                        value={batchRecordDate}
+                        onChange={e => setBatchRecordDate(e.target.value)}
+                    />
                     <button
                         className="w-full sm:w-auto px-4 py-2 text-xs rounded bg-emerald-600 text-white font-bold hover:bg-emerald-700"
                         onClick={() => {
                             if (selectedIds.length === 0) return alert('수정할 근로자를 선택하세요.');
-                            if (!batchJobField && !batchTeamLeader) return alert('공종 또는 팀장 중 하나 이상 입력하세요.');
+                            if (!batchJobField && !batchTeamLeader && !batchRecordDate) return alert('공종, 팀장, 작성일 중 하나 이상 입력하세요.');
                             filteredRecords.forEach(r => {
                                 if (selectedIds.includes(r.id)) {
                                     onUpdateRecord({
                                         ...r,
                                         ...(batchJobField ? { jobField: batchJobField } : {}),
                                         ...(batchTeamLeader ? { teamLeader: batchTeamLeader } : {}),
+                                        ...(batchRecordDate ? { date: batchRecordDate } : {}),
                                     });
                                 }
                             });
