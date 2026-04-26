@@ -670,7 +670,7 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
 };
 
 const App: React.FC = () => {
-    const [currentPage, setCurrentPage] = useState<Page>('dashboard');
+    const [currentPage, setCurrentPage] = useState<Page>('introduction');
     const [isWorkerKioskMode, setIsWorkerKioskMode] = useState(false);
     const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
     const [adminUnlockError, setAdminUnlockError] = useState('');

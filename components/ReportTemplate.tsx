@@ -6,9 +6,7 @@ import { deriveCompetencyProfile } from '../utils/evidenceUtils';
 import { getSafetyLevelThresholds } from '../utils/safetyLevelUtils';
 import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
 import { NextActionChecklist } from './shared/NextActionChecklist';
-import { NoticeCallout } from './shared/NoticeCallout';
 import { StatusBadge } from './shared/StatusBadge';
-import { WhyThisResultPanel } from './shared/WhyThisResultPanel';
 import { PSI_APP_VERSION } from '../lib/appInfo';
 import { buildFallbackNativeCoachingText, buildFallbackNativeGuidanceText, buildFallbackNativeVerdictText, sanitizeOperationalNote } from '../utils/ocrVerificationLanguageUtils';
 
@@ -466,6 +464,22 @@ interface NarrativeEntry {
     nativeText?: string;
 }
 
+interface AppendixParagraphSegment {
+    koParagraphs: string[];
+    nativeParagraphs: string[];
+}
+
+interface AppendixSectionBlock {
+    key: string;
+    title: string;
+    badge: string;
+    tone: 'slate' | 'amber' | 'emerald' | 'rose' | 'violet';
+    entries?: NarrativeEntry[];
+    paragraphSegment?: AppendixParagraphSegment;
+    timelineEntries?: Array<{ timestamp: string; note?: string }>;
+    description?: string;
+}
+
 const normalizeComparisonText = (value?: string): string => {
     return String(value || '')
         .normalize('NFKC')
@@ -522,6 +536,69 @@ const buildNarrativeEntries = (texts?: string[], nativeTexts?: string[]): Narrat
             nativeText: safeNativeTexts[index],
         })),
     );
+};
+
+const chunkArray = <T,>(items: T[], size: number): T[][] => {
+    if (size <= 0 || items.length === 0) return items.length > 0 ? [items] : [];
+
+    const chunks: T[][] = [];
+    for (let index = 0; index < items.length; index += size) {
+        chunks.push(items.slice(index, index + size));
+    }
+    return chunks;
+};
+
+const buildAppendixParagraphSegments = (
+    koParagraphs: string[],
+    nativeParagraphs: string[],
+    isKorean: boolean,
+    size: number,
+): AppendixParagraphSegment[] => {
+    const total = Math.max(koParagraphs.length, isKorean ? 0 : nativeParagraphs.length);
+    if (total === 0) return [];
+
+    const segments: AppendixParagraphSegment[] = [];
+    for (let index = 0; index < total; index += size) {
+        segments.push({
+            koParagraphs: koParagraphs.slice(index, index + size),
+            nativeParagraphs: isKorean ? [] : nativeParagraphs.slice(index, index + size),
+        });
+    }
+
+    return segments.filter((segment) => segment.koParagraphs.length > 0 || segment.nativeParagraphs.length > 0);
+};
+
+const getAppendixBlockWeight = (block: AppendixSectionBlock): number => {
+    if (block.entries) return 2 + block.entries.length;
+    if (block.paragraphSegment) return 2 + Math.max(block.paragraphSegment.koParagraphs.length, block.paragraphSegment.nativeParagraphs.length);
+    if (block.timelineEntries) return 2 + block.timelineEntries.length;
+    return 1;
+};
+
+const paginateAppendixBlocks = (blocks: AppendixSectionBlock[], maxWeight: number): AppendixSectionBlock[][] => {
+    if (blocks.length === 0) return [];
+
+    const pages: AppendixSectionBlock[][] = [];
+    let currentPage: AppendixSectionBlock[] = [];
+    let currentWeight = 0;
+
+    blocks.forEach((block) => {
+        const blockWeight = getAppendixBlockWeight(block);
+        if (currentPage.length > 0 && currentWeight + blockWeight > maxWeight) {
+            pages.push(currentPage);
+            currentPage = [];
+            currentWeight = 0;
+        }
+
+        currentPage.push(block);
+        currentWeight += blockWeight;
+    });
+
+    if (currentPage.length > 0) {
+        pages.push(currentPage);
+    }
+
+    return pages;
 };
 
 const buildImprovementEntries = (record: WorkerRecord): NarrativeEntry[] => {
@@ -878,93 +955,6 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         verdictNative: getNarrativeWrapWidth(record.nationality, isWeaknessContentDense, 'verdictNative'),
         verdictKo: getNarrativeWrapWidth(record.nationality, isWeaknessContentDense, 'verdictKo'),
     }), [record.nationality, isWeaknessContentDense]);
-    const appendixTuningProfile = useMemo(() => {
-        const scoreLength = scoreReasonEntries.map((entry) => `${entry.text} ${entry.nativeText || ''}`).join(' ').length;
-        const strengthLength = strengthEntries.map((entry) => `${entry.text} ${entry.nativeText || ''}`).join(' ').length;
-        const improvementLength = improvementEntries.map((entry) => `${entry.text} ${entry.nativeText || ''}`).join(' ').length;
-        const coachingLength = [actionableCoachingText, record.actionable_coaching_native].filter(Boolean).join(' ').length;
-        const verdictLength = [record.aiInsights, verdictNativeSourceText].filter(Boolean).join(' ').length;
-        const totalLength = scoreLength + strengthLength + improvementLength + coachingLength + verdictLength;
-
-        const entryCount = scoreReasonEntries.length + strengthEntries.length + improvementEntries.length;
-        const paragraphCount = coachingKoParagraphs.length + verdictKoParagraphs.length;
-        const hasNativeLayer = !isKorean && (
-            scoreReasonEntries.some((entry) => Boolean(entry.nativeText)) ||
-            strengthEntries.some((entry) => Boolean(entry.nativeText)) ||
-            improvementEntries.some((entry) => Boolean(entry.nativeText)) ||
-            coachingNativeParagraphs.length > 0 ||
-            verdictNativeParagraphs.length > 0
-        );
-
-        const pressureScore =
-            totalLength +
-            (entryCount * 70) +
-            (paragraphCount * 60) +
-            (hasNativeLayer ? 140 : 0);
-
-        if (pressureScore >= 2800) {
-            return {
-                key: 'strict' as const,
-                entryLimit: 2,
-                paragraphLimit: 2,
-                koCharLimit: 165,
-                nativeCharLimit: 145,
-                koLineClamp: 2,
-                nativeLineClamp: 2,
-                timelineLineClamp: 2,
-            };
-        }
-
-        if (pressureScore >= 2200) {
-            return {
-                key: 'compact' as const,
-                entryLimit: 3,
-                paragraphLimit: 3,
-                koCharLimit: 185,
-                nativeCharLimit: 160,
-                koLineClamp: 3,
-                nativeLineClamp: 3,
-                timelineLineClamp: 2,
-            };
-        }
-
-        if (pressureScore >= 1500) {
-            return {
-                key: 'balanced' as const,
-                entryLimit: 3,
-                paragraphLimit: 3,
-                koCharLimit: 230,
-                nativeCharLimit: 190,
-                koLineClamp: 3,
-                nativeLineClamp: 3,
-                timelineLineClamp: 3,
-            };
-        }
-
-        return {
-            key: 'rich' as const,
-            entryLimit: 3,
-            paragraphLimit: 3,
-            koCharLimit: 250,
-            nativeCharLimit: 220,
-            koLineClamp: 4,
-            nativeLineClamp: 4,
-            timelineLineClamp: 3,
-        };
-    }, [
-        scoreReasonEntries,
-        strengthEntries,
-        improvementEntries,
-        actionableCoachingText,
-        record.actionable_coaching_native,
-        record.aiInsights,
-        verdictNativeSourceText,
-        coachingKoParagraphs.length,
-        verdictKoParagraphs.length,
-        coachingNativeParagraphs.length,
-        verdictNativeParagraphs.length,
-        isKorean,
-    ]);
     const frontTuningProfile = useMemo(() => {
         const scoreLength = scoreReasonEntries.map((entry) => `${entry.text} ${entry.nativeText || ''}`).join(' ').length;
         const strengthLength = strengthEntries.map((entry) => `${entry.text} ${entry.nativeText || ''}`).join(' ').length;
@@ -1071,45 +1061,110 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         () => scoreReasonEntries.slice(0, frontEntryLimit).map((entry) => limitNarrativeEntry(entry, frontKoCharLimit, frontNativeCharLimit)),
         [scoreReasonEntries, frontEntryLimit, frontKoCharLimit, frontNativeCharLimit],
     );
-    const appendixEntryLimit = appendixTuningProfile.entryLimit;
-    const appendixParagraphLimit = appendixTuningProfile.paragraphLimit;
-    const appendixKoCharLimit = isMyanmar ? 10000 : appendixTuningProfile.koCharLimit;
-    const appendixNativeCharLimit = isMyanmar ? 10000 : appendixTuningProfile.nativeCharLimit;
-    const appendixKoLineClampStyle = createLineClampStyle(appendixTuningProfile.koLineClamp);
-    const appendixNativeLineClampStyle = createLineClampStyle(appendixTuningProfile.nativeLineClamp);
-    const appendixCoachingLineClampStyle = createLineClampStyle(Math.max(appendixTuningProfile.koLineClamp, 4));
-    const appendixTimelineLineClampStyle = createLineClampStyle(appendixTuningProfile.timelineLineClamp);
-    // 하단 패널(강점상세·개선상세)은 정보 밀도가 낮으므로 클램프를 1줄 더 허용
-    const appendixBottomKoLineClampStyle = createLineClampStyle(appendixTuningProfile.koLineClamp + 1);
-    const appendixBottomNativeLineClampStyle = createLineClampStyle(appendixTuningProfile.nativeLineClamp + 1);
-    const appendixScoreReasonEntries = useMemo(
-        () => scoreReasonEntries.slice(0, appendixEntryLimit).map((entry) => limitNarrativeEntry(entry, appendixKoCharLimit, appendixNativeCharLimit)),
-        [scoreReasonEntries, appendixEntryLimit, appendixKoCharLimit, appendixNativeCharLimit],
-    );
-    const appendixStrengthEntries = useMemo(
-        () => strengthEntries.slice(0, appendixEntryLimit).map((entry) => limitNarrativeEntry(entry, appendixKoCharLimit, appendixNativeCharLimit)),
-        [strengthEntries, appendixEntryLimit, appendixKoCharLimit, appendixNativeCharLimit],
-    );
-    const appendixImprovementEntries = useMemo(
-        () => improvementEntries.slice(0, appendixEntryLimit).map((entry) => limitNarrativeEntry(entry, appendixKoCharLimit, appendixNativeCharLimit)),
-        [improvementEntries, appendixEntryLimit, appendixKoCharLimit, appendixNativeCharLimit],
-    );
     const appendixCoachingKoParagraphs = useMemo(
-        () => buildNarrativeParagraphs(actionableCoachingText).slice(0, Math.max(appendixParagraphLimit, 3)),
-        [actionableCoachingText, appendixParagraphLimit],
+        () => buildNarrativeParagraphs(actionableCoachingText),
+        [actionableCoachingText],
     );
     const appendixCoachingNativeParagraphs = useMemo(
-        () => buildNarrativeParagraphs(coachingNativeSourceText).slice(0, Math.max(appendixParagraphLimit, 3)),
-        [coachingNativeSourceText, appendixParagraphLimit],
+        () => buildNarrativeParagraphs(coachingNativeSourceText),
+        [coachingNativeSourceText],
     );
     const appendixVerdictKoParagraphs = useMemo(
-        () => buildNarrativeParagraphs(limitNarrativeText(record.aiInsights, appendixKoCharLimit)).slice(0, appendixParagraphLimit),
-        [record.aiInsights, appendixKoCharLimit, appendixParagraphLimit],
+        () => buildNarrativeParagraphs(record.aiInsights),
+        [record.aiInsights],
     );
     const appendixVerdictNativeParagraphs = useMemo(
-        () => buildNarrativeParagraphs(limitNarrativeText(verdictNativeSourceText, appendixNativeCharLimit)).slice(0, appendixParagraphLimit),
-        [verdictNativeSourceText, appendixNativeCharLimit, appendixParagraphLimit],
+        () => buildNarrativeParagraphs(verdictNativeSourceText),
+        [verdictNativeSourceText],
     );
+    const appendixBlocks = useMemo(() => {
+        const blocks: AppendixSectionBlock[] = [];
+
+        chunkArray(scoreReasonEntries, 3).forEach((entries, index) => {
+            blocks.push({
+                key: `appendix-score-${index}`,
+                title: index === 0 ? '상세 채점 근거' : '상세 채점 근거 계속',
+                badge: '검증용 상세 기술',
+                tone: 'slate',
+                entries,
+            });
+        });
+
+        buildAppendixParagraphSegments(appendixVerdictKoParagraphs, appendixVerdictNativeParagraphs, isKorean, 3).forEach((paragraphSegment, index) => {
+            blocks.push({
+                key: `appendix-verdict-${index}`,
+                title: index === 0 ? '종합 진단' : '종합 진단 계속',
+                badge: '양면 인쇄 상세 해설',
+                tone: 'slate',
+                paragraphSegment,
+            });
+        });
+
+        buildAppendixParagraphSegments(appendixCoachingKoParagraphs, appendixCoachingNativeParagraphs, isKorean, 3).forEach((paragraphSegment, index) => {
+            blocks.push({
+                key: `appendix-coaching-${index}`,
+                title: index === 0 ? '실행 코칭' : '실행 코칭 계속',
+                badge: '현장 실행 우선',
+                tone: 'amber',
+                paragraphSegment,
+            });
+        });
+
+        chunkArray(strengthEntries, 3).forEach((entries, index) => {
+            blocks.push({
+                key: `appendix-strength-${index}`,
+                title: index === 0 ? '강점 상세' : '강점 상세 계속',
+                badge: '강점 상세 표현',
+                tone: 'emerald',
+                entries,
+            });
+        });
+
+        chunkArray(improvementEntries, 3).forEach((entries, index) => {
+            blocks.push({
+                key: `appendix-improvement-${index}`,
+                title: index === 0 ? '개선 포인트 상세' : '개선 포인트 상세 계속',
+                badge: '중복 검증 후 정리',
+                tone: 'rose',
+                entries,
+            });
+        });
+
+        chunkArray(reassessmentTrail, 2).forEach((timelineEntries, index) => {
+            blocks.push({
+                key: `appendix-timeline-${index}`,
+                title: index === 0 ? reassessmentTitle : `${reassessmentTitle} 계속`,
+                badge: '재평가 흐름',
+                tone: 'violet',
+                timelineEntries: timelineEntries.map((entry) => ({
+                    timestamp: entry.timestamp,
+                    note: entry.note,
+                })),
+            });
+        });
+
+        blocks.push({
+            key: 'appendix-verification-note',
+            title: '진위 확인 메모',
+            badge: '공식 부록 안내',
+            tone: 'violet',
+            description: '본 부록은 첫 페이지 요약 문구의 축약 해석을 보완하기 위한 정식 해설본입니다. 현장 관리자 설명, 면담, 재교육 기록과 함께 보관할 수 있습니다.',
+        });
+
+        return blocks;
+    }, [
+        scoreReasonEntries,
+        appendixVerdictKoParagraphs,
+        appendixVerdictNativeParagraphs,
+        isKorean,
+        appendixCoachingKoParagraphs,
+        appendixCoachingNativeParagraphs,
+        strengthEntries,
+        improvementEntries,
+        reassessmentTitle,
+        reassessmentTrail,
+    ]);
+    const appendixPages = useMemo(() => paginateAppendixBlocks(appendixBlocks, 10), [appendixBlocks]);
     const workerNameClassName = useMemo(() => {
         const nameLength = (record.name || '').trim().length;
 
@@ -1576,225 +1631,134 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                 </div>
             </div>
 
-            <div data-report-page="true" className="bg-white w-[210mm] h-[297mm] relative shadow-2xl overflow-hidden text-slate-900 flex flex-col print:shadow-none print:m-0 print:w-full">
-                <div className="absolute inset-0 z-0 pointer-events-none bg-[radial-gradient(circle_at_top_right,_rgba(79,70,229,0.08),_transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.03),transparent_45%)]"></div>
-                <div className="absolute inset-0 m-4 border border-slate-200 z-10 pointer-events-none"></div>
-                <div className="relative z-10 px-[11mm] py-[9mm] flex h-full flex-col justify-between gap-2.5">
-                    <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-200">
-                        <div>
-                            <StatusBadge variant="violetSoft" className="gap-2 px-3 py-1 text-[8px] uppercase tracking-[0.24em]">
-                                {isKorean ? '공식 부록' : `공식 부록 · ${appendixTitleNative}`}
-                            </StatusBadge>
-                            <h2 className="mt-2 text-[20px] font-serif font-black text-slate-900">상세 해석 및 실행 노트</h2>
-                            {!isKorean && <p className="mt-1 text-[10px] font-black text-indigo-700">{appendixTitleNative}</p>}
-                            <p className="mt-1 text-[10px] font-bold text-slate-500">줄임 표현된 핵심 문구의 상세 해설과 실행 지침을 정식 문서 형식으로 정리한 부록입니다.</p>
-                        </div>
-                        <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-right shadow-sm backdrop-blur-sm">
-                            <p className="text-[8px] font-black uppercase tracking-[0.22em] text-slate-400">{isKorean ? '근로자 정보' : `근로자 정보 · ${workerInfoNative}`}</p>
-                            <p className="mt-1 text-lg font-serif font-bold text-slate-900">{record.name}</p>
-                            <p className="text-[9px] font-bold text-slate-500">{record.nationality} · {record.jobField}</p>
-                            <p className="text-[8px] text-slate-400">{isMyanmar ? 'ထုတ်ပေးသည့်နေ့' : '발행일'} {formatDate(record.date)}</p>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-12 grid-rows-[3fr_2fr] gap-2.5 flex-1 min-h-0">
-                        <WhyThisResultPanel
-                            title={isMyanmar ? 'အမှတ်ပေး အကြောင်းပြချက် အသေးစိတ်' : '상세 채점 근거'}
-                            badge={<StatusBadge variant="slateSoft" className="px-2.5 py-1 text-[8px]">검증용 상세 기술</StatusBadge>}
-                            entries={appendixScoreReasonEntries.map((entry, index) => ({
-                                key: `score-detail-${index}`,
-                                content: (
-                                    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-                                        {!isKorean && entry.nativeText ? <p className="text-[8.5px] font-bold leading-[1.5] text-slate-800 break-words" style={appendixNativeLineClampStyle}>{entry.nativeText}</p> : null}
-                                        <p className={`leading-[1.5] break-words ${!isKorean && entry.nativeText ? 'mt-1 border-t border-slate-200 pt-1 text-[8px] text-slate-500' : 'text-[8.5px] text-slate-700'}`} style={appendixKoLineClampStyle}>
-                                            {!isKorean && entry.nativeText ? <span className="mr-1 text-[7px] font-black text-slate-300">[KO]</span> : null}
-                                            <HighlightedText text={entry.text} />
-                                        </p>
-                                    </div>
-                                ),
-                            }))}
-                            emptyState="상세 채점 근거 데이터가 아직 등록되지 않았습니다."
-                            className="col-span-7 rounded-[18px] border border-slate-200 bg-white/95 p-3.5 shadow-sm min-h-0 overflow-hidden flex flex-col"
-                            titleClassName="text-[11px] font-black uppercase tracking-[0.16em] text-slate-700"
-                            listClassName="mt-3 space-y-1.5 overflow-hidden"
-                            emptyStateClassName="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-[9px] font-bold text-slate-400"
-                        >
-
-                            <div className="mt-2.5 rounded-[18px] border border-slate-200 bg-white px-3 py-3">
-                                <div className="flex items-center justify-between gap-2">
-                                    <h4 className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-700">6대 지표 상세</h4>
-                                    <span className="text-[8px] font-black text-slate-400">전면 막대영역 이동</span>
-                                </div>
-                                <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5">
-                                    {([
-                                        [sixMetricBilingualLabels[0], competencyProfile.psychologicalScore],
-                                        [sixMetricBilingualLabels[1], competencyProfile.jobUnderstandingScore],
-                                        [sixMetricBilingualLabels[2], competencyProfile.riskAssessmentUnderstandingScore],
-                                        [sixMetricBilingualLabels[3], competencyProfile.proficiencyScore],
-                                        [sixMetricBilingualLabels[4], competencyProfile.improvementExecutionScore],
-                                        [sixMetricBilingualLabels[5], competencyProfile.repeatViolationPenalty],
-                                    ] as [{ ko: string; native: string; max: number; isPenalty?: boolean }, number][]).map(([labelSet, rawVal]) => {
-                                        const max = labelSet.max;
-                                        const isPenalty = Boolean(labelSet.isPenalty);
-                                        const val = clampMetric(rawVal, max);
-                                        return (
-                                            <div key={`appendix-metric-${labelSet.ko}`} className="flex items-center gap-1.5">
-                                                <div className="w-[78px] shrink-0">
-                                                    <p className="text-[7px] font-black text-slate-600 leading-tight">{labelSet.native}</p>
-                                                    <p className="text-[6.8px] font-bold text-slate-400 leading-tight">{labelSet.ko}</p>
-                                                </div>
-                                                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200">
-                                                    <div
-                                                        className={`h-full rounded-full ${isPenalty ? 'bg-rose-400' : 'bg-indigo-500'}`}
-                                                        style={{ width: `${Math.min(100, (val / max) * 100)}%` }}
-                                                    />
-                                                </div>
-                                                <span className={`w-8 text-right text-[7.5px] font-black ${isPenalty ? 'text-rose-600' : 'text-indigo-700'}`}>
-                                                    {isPenalty ? `-${val}` : `${val}`}
-                                                </span>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+            {appendixPages.map((pageBlocks, pageIndex) => (
+                <div key={`appendix-page-${pageIndex}`} data-report-page="true" className="bg-white w-[210mm] h-[297mm] relative shadow-2xl overflow-hidden text-slate-900 flex flex-col print:shadow-none print:m-0 print:w-full">
+                    <div className="absolute inset-0 z-0 pointer-events-none bg-[radial-gradient(circle_at_top_right,_rgba(79,70,229,0.08),_transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.03),transparent_45%)]"></div>
+                    <div className="absolute inset-0 m-4 border border-slate-200 z-10 pointer-events-none"></div>
+                    <div className="relative z-10 px-[11mm] py-[9mm] flex h-full flex-col justify-between gap-2.5">
+                        <div className="flex items-start justify-between gap-4 pb-3 border-b border-slate-200">
+                            <div>
+                                <StatusBadge variant="violetSoft" className="gap-2 px-3 py-1 text-[8px] uppercase tracking-[0.24em]">
+                                    {isKorean ? '공식 부록' : `공식 부록 · ${appendixTitleNative}`}
+                                </StatusBadge>
+                                <h2 className="mt-2 text-[20px] font-serif font-black text-slate-900">
+                                    {pageIndex === 0 ? '상세 해석 및 실행 노트' : '상세 해석 및 실행 노트 계속'}
+                                </h2>
+                                {!isKorean && <p className="mt-1 text-[10px] font-black text-indigo-700">{appendixTitleNative}</p>}
+                                <p className="mt-1 text-[10px] font-bold text-slate-500">
+                                    {pageIndex === 0
+                                        ? '줄임 표현된 핵심 문구의 상세 해설과 실행 지침을 정식 문서 형식으로 정리한 부록입니다.'
+                                        : '앞장에서 이어지는 한국어·모국어 상세 해설을 계속 제공합니다.'}
+                                </p>
                             </div>
-
-                            <div className="mt-2.5 rounded-[18px] border border-slate-200 bg-slate-50 px-3 py-3">
-                                <div className="flex items-center justify-between gap-2">
-                                    <h4 className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-700">{isMyanmar ? 'အကျဉ်းချုပ် သုံးသပ်ချက်' : '종합 진단'}</h4>
-                                    <span className="text-[8px] font-black text-slate-400">양면 인쇄 상세 해설</span>
-                                </div>
-                                <div className="mt-2 space-y-1.5">
-                                    {!isKorean && appendixVerdictNativeParagraphs.length > 0 && (
-                                        <div className="rounded-xl bg-white px-3 py-2 text-[8.5px] font-bold leading-[1.5] text-slate-800 shadow-sm space-y-1">
-                                            {appendixVerdictNativeParagraphs.map((paragraph, index) => <p key={`verdict-native-${index}`} className="break-words" style={appendixNativeLineClampStyle}>{paragraph}</p>)}
-                                        </div>
-                                    )}
-                                    <div className={`rounded-xl px-3 py-2 leading-[1.5] space-y-1 break-words ${!isKorean && appendixVerdictNativeParagraphs.length > 0 ? 'border border-slate-200 bg-slate-100/80 text-[8px] text-slate-600' : 'bg-white text-[8.5px] text-slate-700 shadow-sm'}`}>
-                                        {!isKorean && appendixVerdictNativeParagraphs.length > 0 && <span className="mr-1 text-[7px] font-black text-slate-400">[KO]</span>}
-                                        {appendixVerdictKoParagraphs.map((paragraph, index) => <p key={`verdict-ko-${index}`} style={appendixKoLineClampStyle}><HighlightedText text={paragraph} /></p>)}
-                                    </div>
-                                </div>
+                            <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-right shadow-sm backdrop-blur-sm">
+                                <p className="text-[8px] font-black uppercase tracking-[0.22em] text-slate-400">{isKorean ? '근로자 정보' : `근로자 정보 · ${workerInfoNative}`}</p>
+                                <p className="mt-1 text-lg font-serif font-bold text-slate-900">{record.name}</p>
+                                <p className="text-[9px] font-bold text-slate-500">{record.nationality} · {record.jobField}</p>
+                                <p className="text-[8px] text-slate-400">{isMyanmar ? 'ထုတ်ပေးသည့်နေ့' : '발행일'} {formatDate(record.date)}</p>
                             </div>
-                        </WhyThisResultPanel>
-
-                        <WhyThisResultPanel
-                            title={isMyanmar ? 'လုပ်ငန်းခွင် လက်တွေ့ညွှန်ကြားချက်' : '실행 코칭'}
-                            badge={<StatusBadge variant="amberSoft" className="px-2.5 py-1 text-[8px] text-amber-700">현장 실행 우선</StatusBadge>}
-                            entries={(() => {
-                                const coachingEntries = [] as Array<{ key: string; content: React.ReactNode }>;
-                                if (!isKorean && appendixCoachingNativeParagraphs.length > 0) {
-                                    coachingEntries.push({
-                                        key: 'coaching-native',
-                                        content: (
-                                            <div className="rounded-2xl border border-amber-200 bg-white/90 px-3 py-2.5 text-[8.5px] font-bold leading-[1.5] text-amber-950 shadow-sm space-y-1">
-                                                {appendixCoachingNativeParagraphs.map((paragraph, index) => <p key={`coaching-native-${index}`} className="break-words" style={appendixCoachingLineClampStyle}>{paragraph}</p>)}
-                                            </div>
-                                        ),
-                                    });
-                                }
-                                coachingEntries.push({
-                                    key: 'coaching-ko',
-                                    content: (
-                                        <div className={`rounded-2xl px-3 py-2.5 leading-[1.5] space-y-1 break-words ${!isKorean && appendixCoachingNativeParagraphs.length > 0 ? 'border border-amber-200 bg-amber-100/70 text-[8px] text-amber-900' : 'bg-white/90 text-[8.5px] text-amber-950 shadow-sm'}`}>
-                                            {appendixCoachingKoParagraphs.map((paragraph, index) => <p key={`coaching-ko-${index}`} style={appendixCoachingLineClampStyle}><HighlightedText text={paragraph} /></p>)}
-                                        </div>
-                                    ),
-                                });
-                                return coachingEntries;
-                            })()}
-                            className="col-span-5 rounded-[18px] border border-amber-200 bg-[linear-gradient(180deg,rgba(255,251,235,0.98),rgba(255,247,237,0.96))] p-3.5 shadow-sm min-h-0 overflow-hidden flex flex-col"
-                            titleClassName="text-[11px] font-black uppercase tracking-[0.16em] text-amber-900"
-                            listClassName="mt-3 space-y-1.5 overflow-hidden"
-                        >
-
-                            <WhyThisResultPanel
-                                title={isMyanmar ? 'ပြန်လည်အကဲဖြတ် အချိန်လိုင်း' : reassessmentTitle}
-                                entries={reassessmentTrail.slice(-1).map((entry, index) => ({
-                                    key: `appendix-trail-${entry.timestamp}-${index}`,
-                                    content: (
-                                        <div className="rounded-xl border border-violet-100 bg-white/90 px-3 py-2">
-                                            <p className="text-[8px] font-black text-violet-700">{reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)}</p>
-                                            <p className="mt-0.5 text-[8.5px] leading-relaxed text-violet-900 break-words" style={appendixTimelineLineClampStyle}>{sanitizeOperationalNote(entry.note || reassessmentFallback, record.nationality)}</p>
-                                        </div>
-                                    ),
-                                }))}
-                                emptyState="재평가 이력 없음"
-                                className="mt-2.5 rounded-[18px] border border-violet-200 bg-violet-50/90 px-3 py-3"
-                                titleClassName="text-[10px] font-black uppercase tracking-[0.14em] text-violet-800"
-                                listClassName="mt-2 space-y-1.5"
-                                emptyStateClassName="text-[8.5px] font-bold text-violet-500"
-                            />
-
-                            <NoticeCallout
-                                variant="glassDark"
-                                eyebrow={isMyanmar ? 'အတည်ပြု မှတ်ချက်' : '진위 확인 메모'}
-                                title="본 부록은 첫 페이지 요약 문구의 축약 해석을 보완하기 위한 정식 해설본입니다."
-                                description="현장 관리자 설명·면담·재교육 기록과 함께 보관할 수 있습니다."
-                                className="mt-2.5 rounded-[18px] border px-3 py-3 shadow-sm border-slate-200 bg-slate-900"
-                                bodyClassName="block"
-                                eyebrowClassName="text-[8px] font-black uppercase tracking-[0.18em] text-slate-300"
-                                titleClassName="mt-1 text-[8.5px] font-semibold leading-relaxed text-slate-100"
-                                descriptionClassName="mt-1 text-[8.5px] leading-relaxed text-slate-100"
-                            />
-                        </WhyThisResultPanel>
-
-                        <WhyThisResultPanel
-                            title="강점 상세"
-                            badge={<StatusBadge variant="emeraldSoft" className="px-2.5 py-1 text-[8px] text-emerald-700">강점 상세 표현</StatusBadge>}
-                            entries={appendixStrengthEntries.map((entry, index) => ({
-                                key: `strength-detail-${index}`,
-                                content: (
-                                    <div className="rounded-2xl border border-emerald-100 bg-white/90 px-3 py-2.5 shadow-sm">
-                                        {!isKorean && entry.nativeText ? <p className="text-[8.5px] font-bold leading-[1.5] text-emerald-950 break-words" style={appendixBottomNativeLineClampStyle}>{entry.nativeText}</p> : null}
-                                        <p className={`leading-[1.5] break-words ${!isKorean && entry.nativeText ? 'mt-1 border-t border-emerald-100 pt-1 text-[8px] text-emerald-900/80' : 'text-[8.5px] text-emerald-950'}`} style={appendixBottomKoLineClampStyle}>
-                                            {!isKorean && entry.nativeText ? <span className="mr-1 text-[7px] font-black text-emerald-600">[KO]</span> : null}
-                                            <HighlightedText text={entry.text} />
-                                        </p>
-                                    </div>
-                                ),
-                            }))}
-                            emptyState="강점 상세 데이터가 없습니다."
-                            className="col-span-6 rounded-[18px] border border-emerald-200 bg-emerald-50/80 p-3.5 shadow-sm min-h-0 overflow-hidden flex flex-col"
-                            titleClassName="text-[11px] font-black uppercase tracking-[0.16em] text-emerald-900"
-                            listClassName="mt-3 space-y-1.5 overflow-hidden"
-                            emptyStateClassName="rounded-2xl border border-dashed border-emerald-200 bg-white/80 px-3 py-3 text-[9px] font-bold text-emerald-500"
-                        />
-
-                        <WhyThisResultPanel
-                            title="개선 포인트 상세"
-                            badge={<StatusBadge variant="roseSoft" className="px-2.5 py-1 text-[8px] text-rose-700">중복 검증 후 정리</StatusBadge>}
-                            entries={appendixImprovementEntries.map((entry, index) => ({
-                                key: `improvement-detail-${index}`,
-                                content: (
-                                    <div className="rounded-2xl border border-rose-100 bg-white/90 px-3 py-2.5 shadow-sm">
-                                        {!isKorean && entry.nativeText ? <p className="text-[8.5px] font-bold leading-[1.5] text-rose-950 break-words" style={appendixBottomNativeLineClampStyle}>{entry.nativeText}</p> : null}
-                                        <p className={`leading-[1.5] break-words ${!isKorean && entry.nativeText ? 'mt-1 border-t border-rose-100 pt-1 text-[8px] text-rose-900/80' : 'text-[8.5px] text-rose-950'}`} style={appendixBottomKoLineClampStyle}>
-                                            {!isKorean && entry.nativeText ? <span className="mr-1 text-[7px] font-black text-rose-600">[KO]</span> : null}
-                                            <HighlightedText text={entry.text} />
-                                        </p>
-                                    </div>
-                                ),
-                            }))}
-                            emptyState="개선 상세 데이터가 없습니다."
-                            className="col-span-6 rounded-[18px] border border-rose-200 bg-rose-50/85 p-3.5 shadow-sm min-h-0 overflow-hidden flex flex-col"
-                            titleClassName="text-[11px] font-black uppercase tracking-[0.16em] text-rose-900"
-                            listClassName="mt-3 space-y-1.5 overflow-hidden"
-                            emptyStateClassName="rounded-2xl border border-dashed border-rose-200 bg-white/80 px-3 py-3 text-[9px] font-bold text-rose-500"
-                        />
-                    </div>
-
-                    <div className="pt-1.5 border-t border-slate-200 flex items-center justify-between gap-4">
-                        <div>
-                            <p className="text-[8px] font-black tracking-[0.08em] text-slate-400">부록 안내</p>
-                            <p className="text-[8.5px] font-bold text-slate-500">앞장 요약과 뒷장 상세 해설이 양면 인쇄 기준으로 연동됩니다.</p>
                         </div>
-                        <div className="text-right">
-                            <p className="text-[8px] font-black tracking-[0.08em] text-slate-400">PSI 공식 발행</p>
-                            <p className="text-[9px] font-bold text-slate-700">안전 인텔리전스 시스템 · 상세 해설 부록</p>
+
+                        <div className="flex-1 min-h-0 space-y-2.5">
+                            {pageBlocks.map((block) => {
+                                const panelClassName = block.tone === 'amber'
+                                    ? 'border-amber-200 bg-amber-50/90'
+                                    : block.tone === 'emerald'
+                                        ? 'border-emerald-200 bg-emerald-50/85'
+                                        : block.tone === 'rose'
+                                            ? 'border-rose-200 bg-rose-50/85'
+                                            : block.tone === 'violet'
+                                                ? 'border-violet-200 bg-violet-50/90'
+                                                : 'border-slate-200 bg-white/95';
+                                const badgeVariant = block.tone === 'amber'
+                                    ? 'amberSoft'
+                                    : block.tone === 'emerald'
+                                        ? 'emeraldSoft'
+                                        : block.tone === 'rose'
+                                            ? 'roseSoft'
+                                            : block.tone === 'violet'
+                                                ? 'violetSoft'
+                                                : 'slateSoft';
+
+                                return (
+                                    <div key={block.key} className={`rounded-[18px] border p-3.5 shadow-sm ${panelClassName}`}>
+                                        <div className="flex items-center justify-between gap-3">
+                                            <h3 className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-800">{block.title}</h3>
+                                            <StatusBadge variant={badgeVariant} className="px-2.5 py-1 text-[8px]">{block.badge}</StatusBadge>
+                                        </div>
+
+                                        {block.entries && (
+                                            <div className="mt-3 space-y-1.5">
+                                                {block.entries.map((entry, index) => (
+                                                    <div key={`${block.key}-entry-${index}`} className="rounded-2xl border border-white/70 bg-white/90 px-3 py-2.5 shadow-sm">
+                                                        {!isKorean && entry.nativeText ? (
+                                                            <p className="text-[8.5px] font-bold leading-[1.6] text-slate-800 break-words whitespace-pre-line">{entry.nativeText}</p>
+                                                        ) : null}
+                                                        <p className={`leading-[1.6] break-words whitespace-pre-line ${!isKorean && entry.nativeText ? 'mt-1 border-t border-slate-200 pt-1 text-[8px] text-slate-600' : 'text-[8.5px] text-slate-700'}`}>
+                                                            {!isKorean && entry.nativeText ? <span className="mr-1 text-[7px] font-black text-slate-300">[KO]</span> : null}
+                                                            <HighlightedText text={entry.text} />
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {block.paragraphSegment && (
+                                            <div className="mt-3 space-y-1.5">
+                                                {!isKorean && block.paragraphSegment.nativeParagraphs.length > 0 ? (
+                                                    <div className="rounded-2xl border border-white/70 bg-white/90 px-3 py-2.5 shadow-sm space-y-1">
+                                                        {block.paragraphSegment.nativeParagraphs.map((paragraph, index) => (
+                                                            <p key={`${block.key}-native-${index}`} className="text-[8.5px] font-bold leading-[1.6] text-slate-800 break-words whitespace-pre-line">{paragraph}</p>
+                                                        ))}
+                                                    </div>
+                                                ) : null}
+                                                {block.paragraphSegment.koParagraphs.length > 0 ? (
+                                                    <div className={`rounded-2xl px-3 py-2.5 shadow-sm space-y-1 ${!isKorean && block.paragraphSegment.nativeParagraphs.length > 0 ? 'border border-slate-200 bg-slate-100/80' : 'border border-white/70 bg-white/90'}`}>
+                                                        {block.paragraphSegment.koParagraphs.map((paragraph, index) => (
+                                                            <p key={`${block.key}-ko-${index}`} className={`leading-[1.6] break-words whitespace-pre-line ${!isKorean && block.paragraphSegment.nativeParagraphs.length > 0 ? 'text-[8px] text-slate-600' : 'text-[8.5px] text-slate-700'}`}>
+                                                                {!isKorean && block.paragraphSegment.nativeParagraphs.length > 0 ? <span className="mr-1 text-[7px] font-black text-slate-300">[KO]</span> : null}
+                                                                <HighlightedText text={paragraph} />
+                                                            </p>
+                                                        ))}
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        )}
+
+                                        {block.timelineEntries && (
+                                            <div className="mt-3 space-y-1.5">
+                                                {block.timelineEntries.map((entry, index) => (
+                                                    <div key={`${block.key}-timeline-${index}`} className="rounded-xl border border-violet-100 bg-white/90 px-3 py-2 shadow-sm">
+                                                        <p className="text-[8px] font-black text-violet-700">{reassessmentTag} {new Date(entry.timestamp).toLocaleDateString(timelineLocale, timelineDateOptions)}</p>
+                                                        <p className="mt-0.5 text-[8.5px] leading-[1.6] text-violet-900 break-words whitespace-pre-line">{sanitizeOperationalNote(entry.note || reassessmentFallback, record.nationality)}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {block.description ? (
+                                            <p className="mt-3 rounded-2xl border border-white/70 bg-slate-900 px-3 py-3 text-[8.5px] leading-[1.6] text-slate-100 shadow-sm break-words whitespace-pre-line">
+                                                {block.description}
+                                            </p>
+                                        ) : null}
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        <div className="pt-1.5 border-t border-slate-200 flex items-center justify-between gap-4">
+                            <div>
+                                <p className="text-[8px] font-black tracking-[0.08em] text-slate-400">부록 안내</p>
+                                <p className="text-[8.5px] font-bold text-slate-500">앞장 요약과 부록 상세 해설이 페이지 단위로 이어집니다.</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[8px] font-black tracking-[0.08em] text-slate-400">PSI 공식 발행</p>
+                                <p className="text-[9px] font-bold text-slate-700">안전 인텔리전스 시스템 · 상세 해설 부록 {pageIndex + 1}/{appendixPages.length}</p>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            ))}
         </div>
     );
 });
