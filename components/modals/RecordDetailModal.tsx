@@ -1083,7 +1083,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         }
     };
 
-    const showReviewCommentField = hasCriticalReviewEdits || pendingApprovalAction === 'rejected' || approvalComment.trim().length > 0;
+    const showReviewCommentField = true;
 
     const handleOpenReportClick = () => {
         if (hasChanges) {
@@ -2659,33 +2659,21 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                     />
                                                 )}
                                             </div>
-                                            {showReviewCommentField ? (
-                                                <>
-                                                    <textarea
-                                                        value={approvalComment}
-                                                        onChange={(e) => setApprovalComment(e.target.value)}
-                                                        placeholder="수정/반려 사유(Comment)를 입력하세요"
-                                                        className={`w-full p-3 bg-slate-50 border rounded-xl font-medium min-h-[80px] ${hasWeakApprovalReason ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200'}`}
-                                                    />
-                                                    <NoticeCallout
-                                                        variant="slate"
-                                                        eyebrow="권장 입력 예시"
-                                                        title={approvalReasonGuide}
-                                                        className="mt-2 w-full rounded-xl border px-3 py-2"
-                                                        bodyClassName="block"
-                                                        eyebrowClassName="text-[11px] font-black text-slate-500"
-                                                        titleClassName="mt-1 text-[11px] font-semibold leading-relaxed text-slate-700"
-                                                    />
-                                                </>
-                                            ) : (
-                                                <NoticeCallout
-                                                    variant="slate"
-                                                    title="점수·해석·원문 판독을 수정하거나 보완 요청을 선택하면 판단 근거 입력창이 열립니다."
-                                                    className="w-full rounded-xl border px-3 py-3"
-                                                    bodyClassName="block"
-                                                    titleClassName="text-xs font-bold text-slate-500"
-                                                />
-                                            )}
+                                            <textarea
+                                                value={approvalComment}
+                                                onChange={(e) => setApprovalComment(e.target.value)}
+                                                placeholder="관리자 판단 근거를 입력하세요 (최종승인·보완요청 모두 필수) · 비워두면 '사유없음' 배지가 표시됩니다"
+                                                className={`w-full p-3 bg-slate-50 border rounded-xl font-medium min-h-[80px] ${hasWeakApprovalReason ? 'border-rose-300 bg-rose-50/40' : 'border-slate-200'}`}
+                                            />
+                                            <NoticeCallout
+                                                variant="slate"
+                                                eyebrow="권장 입력 예시"
+                                                title={approvalReasonGuide}
+                                                className="mt-2 w-full rounded-xl border px-3 py-2"
+                                                bodyClassName="block"
+                                                eyebrowClassName="text-[11px] font-black text-slate-500"
+                                                titleClassName="mt-1 text-[11px] font-semibold leading-relaxed text-slate-700"
+                                            />
                                             {(hasCriticalReviewEdits || pendingApprovalAction === 'rejected') && (
                                                 <p className="mt-2 text-[11px] font-black text-rose-600">
                                                     수정 또는 보완 요청 처리 시 판단 근거 입력은 필수입니다.
