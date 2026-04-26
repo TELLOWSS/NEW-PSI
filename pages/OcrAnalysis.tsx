@@ -6318,7 +6318,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         onChange={e => setBatchJobField(e.target.value)}
                     >
                         <option value="">선택</option>
-                        {[...new Set(filteredRecords.map(r => r.jobField).filter(Boolean))].map(f => (
+                        {jobFields.map(f => (
                             <option key={f} value={f}>{f}</option>
                         ))}
                     </select>
