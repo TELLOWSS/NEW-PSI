@@ -99,6 +99,17 @@ export type OcrFailureCode =
     | 'UNKNOWN';
 
 /**
+ * OCR 처리 경로 상태 (비용 통제 운영 규칙)
+ * - TEXT_READY: 현재 텍스트 품질로 운영 가능
+ * - OCR_REQUIRED: 이미지 재처리가 필요한 대상
+ * - TEXT_ONLY_REVIEW: 이미지가 없어 관리자 텍스트 검토가 필요한 대상
+ */
+export type OcrProcessingStatus =
+    | 'TEXT_READY'
+    | 'OCR_REQUIRED'
+    | 'TEXT_ONLY_REVIEW';
+
+/**
  * UNKNOWN 실패코드 2차 분류 (P0 운영 안정성)
  * - network-like  : 네트워크/타임아웃/fetch 오류 의심
  * - parse-like    : 응답 JSON 파싱 실패/빈 텍스트 의심
@@ -267,6 +278,7 @@ export interface WorkerRecord {
     ocrConfidence?: number; // 0-1
     ocrErrorType?: OcrErrorType;
     ocrFailureCode?: OcrFailureCode;
+    ocrStatus?: OcrProcessingStatus;
     /** UNKNOWN 실패코드 2차 분류 (P0: 운영 원인 세분화) */
     ocrUnknownSubCategory?: OcrUnknownSubCategory;
     /** OCR 추적 정보 — provider/latency/attempts/fallbackDepth (P0: Trace 표준화) */

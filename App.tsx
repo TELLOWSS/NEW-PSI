@@ -512,6 +512,17 @@ const toSafetyLevelSafe = (value: unknown): WorkerRecord['safetyLevel'] => {
     return '초급';
 };
 
+const toOcrStatusSafe = (value: unknown): WorkerRecord['ocrStatus'] | undefined => {
+    switch (value) {
+        case 'TEXT_READY':
+        case 'OCR_REQUIRED':
+        case 'TEXT_ONLY_REVIEW':
+            return value;
+        default:
+            return undefined;
+    }
+};
+
 const toWorkflowStateSafe = (value: unknown): HarnessWorkflowState | undefined => {
     switch (value) {
         case 'uploaded':
@@ -561,9 +572,15 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
     .map((r, index) => {
         const rawSource = r.originalImage || r.image || r.photo || r.base64 || r.documentImage || r.file;
         const profileSource = r.profileImage;
+        const normalizedOriginalImage = normalizeImage(rawSource);
+        const normalizedProfileImage = normalizeImage(profileSource);
         const hasOcrFailureSignal =
             String((r as { ocrErrorType?: unknown }).ocrErrorType || '').trim().length > 0 ||
             String((r as { ocrFailureCode?: unknown }).ocrFailureCode || '').trim().length > 0;
+        const resolvedOcrStatus = toOcrStatusSafe(r.ocrStatus)
+            || (hasOcrFailureSignal
+                ? (normalizedOriginalImage ? 'OCR_REQUIRED' : 'TEXT_ONLY_REVIEW')
+                : 'TEXT_READY');
 
         // Ensure unique ID if missing
         const generatedId = `psi-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 6)}`;
@@ -578,11 +595,12 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
             safetyScore: toNumberSafe(r.safetyScore, 0),
             safetyLevel: toSafetyLevelSafe(r.safetyLevel),
             ocrConfidence: typeof r.ocrConfidence === 'number' ? r.ocrConfidence : (hasOcrFailureSignal ? 0 : 1),
+            ocrStatus: resolvedOcrStatus,
             signatureMatchScore: typeof r.signatureMatchScore === 'number' ? r.signatureMatchScore : undefined,
             matchMethod: (r.matchMethod as WorkerRecord['matchMethod']) || 'unmatched',
             integrityScore: typeof r.integrityScore === 'number' ? r.integrityScore : 100,
-            originalImage: normalizeImage(rawSource),
-            profileImage: normalizeImage(profileSource),
+            originalImage: normalizedOriginalImage,
+            profileImage: normalizedProfileImage,
             date: toStringSafe(r.date, new Date().toISOString().split('T')[0]),
             nationality: normalizeNationality(toStringSafe(r.nationality, "미상")),
             jobField: toStringSafe(r.jobField, "미분류"),
