@@ -243,3 +243,9 @@ PC는 모바일 확대판이 아니라 운영 콘솔이어야 한다.
 2. 하단 탭 및 CTA 우선순위 정식 확정
 3. 모바일 연결 흐름(리포트/상세/알림) 설계
 4. PC 후속 재편용 기능군 분류표 작성
+
+---
+
+## 12) 연결 문서
+- [MOBILE_HOME_ANALYSIS_OCR_DETAILED_IA_TABLE_2026-05-04.md](MOBILE_HOME_ANALYSIS_OCR_DETAILED_IA_TABLE_2026-05-04.md)
+- [PC_FUNCTION_RECLASSIFICATION_TABLE_2026-05-04.md](PC_FUNCTION_RECLASSIFICATION_TABLE_2026-05-04.md)
