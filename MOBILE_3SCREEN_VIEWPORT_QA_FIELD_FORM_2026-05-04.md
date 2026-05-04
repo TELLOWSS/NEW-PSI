@@ -6,6 +6,22 @@
 - 입력자:
 - 입력일:
 
+## 빠른 입력 코드
+- `P`: PASS
+- `F`: FAIL
+- `C`: CONDITIONAL PASS
+
+---
+
+## 0) 12칸 빠른 매트릭스 (먼저 이 표부터 입력)
+
+| Viewport \ Screen | Dashboard | OcrAnalysis | PredictiveAnalysis |
+| --- | --- | --- | --- |
+| 320x568 | P/F/C | P/F/C | P/F/C |
+| 360x800 | P/F/C | P/F/C | P/F/C |
+| 375x812 | P/F/C | P/F/C | P/F/C |
+| 390x844 | P/F/C | P/F/C | P/F/C |
+
 ---
 
 ## A) 320x568
@@ -86,6 +102,7 @@
 
 ## E) 최종 집계
 - 전체 결과: PASS / CONDITIONAL PASS / FAIL
+- 최종 판정 근거(한 줄):
 - 필수 수정 항목(없으면 `없음`):
   1.
   2.
