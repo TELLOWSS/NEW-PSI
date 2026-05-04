@@ -1,6 +1,6 @@
 # MOBILE QA EVIDENCE STATUS
 
-- generatedAt: 2026-05-04T04:43:58.630Z
+- generatedAt: 2026-05-04T04:46:51.374Z
 - baseDir: C:\Users\user\OneDrive\Desktop\개발실\new-psi\NEW-PSI\artifacts\mobile-qa\2026-05-04
 - totalExisting: 0
 - totalMissing: 16

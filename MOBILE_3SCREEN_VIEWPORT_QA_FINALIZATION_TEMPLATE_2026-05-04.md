@@ -9,7 +9,7 @@
 
 ## 1) 최종 판정
 - 전체 결과: CONDITIONAL PASS (임시)
-- 판정 근거(요약): 화면 정상 가동 및 핵심 UI 반영 확인 완료. 단, 4개 뷰포트 실측 캡처 증빙 입력 전이므로 임시 판정 유지.
+- 판정 근거(요약): 자동 점검 기준 증빙 부족 상태로 최종 확정 보류.
 
 ### 자동 점검 스냅샷 (2026-05-04)
 - 캡처 존재: 0/16
@@ -61,7 +61,9 @@
 - [ ] 본 템플릿의 `전체 결과`를 `PASS` 또는 `FAIL`로 확정
 
 ### 점검 명령 (PowerShell)
-`npm run check:mobile-qa:evidence`
+`npm run qa:mobile:refresh`
+
+`npm run qa:mobile:finalize`
 
 또는 아래 상세 명령을 직접 실행:
 
