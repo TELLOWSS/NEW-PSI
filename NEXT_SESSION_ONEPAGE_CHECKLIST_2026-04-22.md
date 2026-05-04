@@ -11,13 +11,12 @@
 ---
 
 ## 2) 오늘 기준 종료 지점(복원 기준)
-- 마지막 명령: npm test -- --run
+- 마지막 명령: npm run qa:mobile:finalize
 - 종료 코드: 0
 - 최근 결과 요약:
-  - 타입 체크: PASS
-  - 빌드: PASS
-  - 테스트: PASS (34/34)
-  - 상태: 화면 정상 가동 확인, 모바일 하단 5탭/PC 운영 재분류/기본 진입 `dashboard` 전환 완료, 모바일 3화면 QA는 `CONDITIONAL PASS` 선입력 완료(실뷰포트 캡처 16장 증빙 대기: 화면 12 + nav 4, 자동 점검 기준 현재 0/16)
+  - 빌드: PASS (`built in 5.63s`)
+  - 모바일 QA: FINALIZED_PASS (16/16)
+  - 상태: 모바일 3코어(Home/OCR/AI Risk) 감량·연결·터치타겟·최근리포트 3건 제한 완료, Phase 3 PC Kickoff(Dashboard/OCR 운영 바로가기) 반영 완료
 
 ---
 
@@ -81,12 +80,28 @@
 ---
 
 ## 7) 세션 종료 전 저장 메모(템플릿)
-- 오늘 실행 명령: npm run check:types, npm run build, npm test -- --run
-- 마지막 성공 명령: npm test -- --run
-- 산출물 파일: MOBILE_3SCREEN_VIEWPORT_QA_REPORT_2026-05-04.md, NEXT_SESSION_ONEPAGE_CHECKLIST_2026-04-22.md
+- 오늘 실행 명령: npm run build, npm run qa:mobile:capture, npm run check:mobile-qa:evidence, npm run qa:mobile:refresh, npm run qa:mobile:finalize
+- 마지막 성공 명령: npm run qa:mobile:finalize
+- 산출물 파일: MOBILE_3SCREEN_VIEWPORT_QA_FINALIZATION_TEMPLATE_2026-05-04.md, MOBILE_FIRST_IA_AND_PC_RESTRUCTURE_ROADMAP_2026-05-04.md, NEXT_SESSION_ONEPAGE_CHECKLIST_2026-04-22.md
 - OCR_REQUIRED 건수: 0 (변경 없음)
-- 주요 의사결정(변경/유지): 모바일 3화면은 로컬 실행 저장소 기준으로 반영/기동 정상, Supabase 미설정 환경에서도 앱 마운트 유지, 모바일 하단 5탭과 기본 진입 `dashboard`를 적용
-- 다음 세션 첫 작업 1개: 320/360/375/390 실뷰포트 캡처 16장(화면 12 + nav 4) 저장 후 `npm run qa:mobile:refresh` 재실행(현재 0/16), 이어서 `npm run qa:mobile:finalize`로 최종 PASS/FAIL 확정
+- 주요 의사결정(변경/유지): 모바일 완료 상태를 고정하고 Phase 3는 PC 운영 생산성 패널을 기존 상태값 재사용 방식으로 점진 도입
+- 다음 세션 첫 작업 1개: PredictiveAnalysis에 PC 운영 바로가기 패널 1차 추가(버킷 중심 조치/인사이트/리포트 연계) 후 빌드+QA 상태 재기록
+
+---
+
+## 10) 종료 즉시 확인 + 다음사항 착수 게이트
+### A. 종료 즉시 확인(2분)
+1. `npm run build` 결과가 PASS인지 확인
+2. `npm run check:mobile-qa:evidence` 결과가 `READY_FOR_FINALIZATION`인지 확인
+3. `npm run qa:mobile:finalize` 결과가 `FINALIZED_PASS`인지 확인
+
+### B. 다음사항 바로 시작(5분)
+1. [MOBILE_FIRST_IA_AND_PC_RESTRUCTURE_ROADMAP_2026-05-04.md](MOBILE_FIRST_IA_AND_PC_RESTRUCTURE_ROADMAP_2026-05-04.md) 17-3.2 이후 미완료 항목 확인
+2. PredictiveAnalysis PC 운영 바로가기 1차 반영
+3. 종료 전 3줄 기록:
+  - 무엇을 끝냈는지
+  - 무엇이 다음 1순위인지
+  - 어떤 명령 결과가 PASS인지
 
 ---
 

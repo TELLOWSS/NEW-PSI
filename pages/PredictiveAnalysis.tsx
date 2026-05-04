@@ -1966,6 +1966,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                     )}
 
                     {(!isCompactMobile || showMobileExtendedPanels) && (
+                    <>
                     <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[30px] shadow-lg border border-slate-100">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
                             <div>
@@ -2058,6 +2059,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                             </p>
                         </div>
                     </div>
+                    </>
                     )}
                 </div>
             </div>

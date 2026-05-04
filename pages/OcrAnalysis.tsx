@@ -5387,6 +5387,34 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
                 </div>
 
+                {!isCompactMobile && (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">PC 운영 배치 바로가기</p>
+                                <p className="mt-1 text-[12px] font-semibold text-slate-600">실패 큐, 재분석, 관리자 점검 패널을 즉시 열어 대량 처리 흐름을 유지합니다.</p>
+                            </div>
+                        </div>
+                        <div className="mt-3 grid grid-cols-1 gap-2 xl:grid-cols-5">
+                            <button type="button" onClick={() => setRecordSortMode('failed-first')} className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-xs font-black text-slate-700 hover:bg-slate-100">
+                                실패 우선 정렬
+                            </button>
+                            <button type="button" onClick={() => setShowRetryDetailPanel(true)} className="min-h-[44px] rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-xs font-black text-emerald-700 hover:bg-emerald-100">
+                                재분석 상세 열기
+                            </button>
+                            <button type="button" onClick={() => setShowFailedQuickActions((prev) => !prev)} className="min-h-[44px] rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-left text-xs font-black text-rose-700 hover:bg-rose-100">
+                                실패 큐 빠른조치
+                            </button>
+                            <button type="button" onClick={() => setShowReasonQaDetailPanel(true)} className="min-h-[44px] rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-left text-xs font-black text-violet-700 hover:bg-violet-100">
+                                사유 QA 패널
+                            </button>
+                            <button type="button" onClick={() => setShowAdminActivityPanel(true)} className="min-h-[44px] rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-left text-xs font-black text-sky-700 hover:bg-sky-100">
+                                관리자 활동 패널
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 <InterpretationCardGrid items={filteredInterpretationCards} />
 
                 <SectionPanelCard
