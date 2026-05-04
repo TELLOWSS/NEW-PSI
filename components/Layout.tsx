@@ -22,6 +22,8 @@ interface LayoutProps {
     setCurrentPage: (page: Page) => void;
 }
 
+type MobileTabId = 'home' | 'analysis' | 'reports' | 'workers' | 'more';
+
 export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isPaidApiMode, setIsPaidApiMode] = useState(false);
@@ -53,8 +55,82 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         'individual-report': '개인별 안전 분석 리포트',
         'admin-training': '관리자 다국어 음성 안내 생성',
         'worker-training': '근로자 전자서명 제출',
+        'survey-intelligence': '설문 인텔리전스',
         'settings': '시스템 설정 (System Configuration)'
     };
+
+    const mobilePageGroups: Record<Exclude<MobileTabId, 'more'>, Page[]> = {
+        home: ['dashboard', 'introduction'],
+        analysis: ['ocr-analysis', 'predictive-analysis', 'performance-analysis', 'safety-checks', 'individual-report', 'survey-intelligence'],
+        reports: ['reports', 'feedback'],
+        workers: ['worker-management', 'admin-training', 'worker-training', 'safety-behavior-management', 'safety-compliance-hub', 'site-issue-management'],
+    };
+
+    const mobileBottomTabs: Array<{ id: MobileTabId; label: string; page?: Page; icon: React.ReactNode }> = [
+        {
+            id: 'home',
+            label: '홈',
+            page: 'dashboard',
+            icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>,
+        },
+        {
+            id: 'analysis',
+            label: '분석',
+            page: 'predictive-analysis',
+            icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6m4 6V7m4 10v-3M5 19h14" /></svg>,
+        },
+        {
+            id: 'reports',
+            label: '리포트',
+            page: 'reports',
+            icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+        },
+        {
+            id: 'workers',
+            label: '근로자',
+            page: 'worker-management',
+            icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
+        },
+        {
+            id: 'more',
+            label: '더보기',
+            icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6h.01M12 12h.01M12 18h.01" /></svg>,
+        },
+    ];
+
+    const activeMobileTab = (Object.entries(mobilePageGroups).find(([, pages]) => pages.includes(currentPage))?.[0] as Exclude<MobileTabId, 'more'> | undefined) ?? 'more';
+
+    const mobileQuickLinks: Array<{ page: Page; label: string }> =
+        activeMobileTab === 'home'
+            ? [
+                { page: 'dashboard', label: '현장 홈' },
+                { page: 'introduction', label: '서비스 소개' },
+            ]
+            : activeMobileTab === 'analysis'
+                ? [
+                    { page: 'predictive-analysis', label: 'AI 리스크' },
+                    { page: 'ocr-analysis', label: 'OCR 분석' },
+                    { page: 'performance-analysis', label: '성과 추이' },
+                    { page: 'survey-intelligence', label: '설문 인텔리전스' },
+                ]
+                : activeMobileTab === 'reports'
+                    ? [
+                        { page: 'reports', label: '통합 리포트' },
+                        { page: 'individual-report', label: '개인별 리포트' },
+                        { page: 'feedback', label: '피드백' },
+                    ]
+                    : activeMobileTab === 'workers'
+                        ? [
+                            { page: 'worker-management', label: '근로자 현황' },
+                            { page: 'worker-training', label: '전자서명' },
+                            { page: 'admin-training', label: '관리자 교육' },
+                            { page: 'safety-behavior-management', label: '행동관찰' },
+                        ]
+                        : [
+                            { page: 'safety-compliance-hub', label: '종합관리' },
+                            { page: 'site-issue-management', label: '현장 지적사항' },
+                            { page: 'settings', label: '설정' },
+                        ];
 
     const handlePageChange = (page: Page) => {
         setCurrentPage(page);
@@ -256,19 +332,63 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                )}
                            </button>
                        </div>
+                       <div className="lg:hidden pb-3 -mt-1 flex gap-2 overflow-x-auto no-scrollbar">
+                           {mobileQuickLinks.map((item) => {
+                               const isActive = currentPage === item.page;
+                               return (
+                                   <button
+                                       key={item.page}
+                                       type="button"
+                                       onClick={() => handlePageChange(item.page)}
+                                       className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${isActive ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200'}`}
+                                   >
+                                       {item.label}
+                                   </button>
+                               );
+                           })}
+                       </div>
                     </div>
                 </header>
-                <main ref={mainRef} className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 pb-10">
+                <main ref={mainRef} className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 pb-24 lg:pb-10">
                     <div key={currentPage} className="mx-auto max-w-7xl animate-fade-in-up">
                         {children}
                     </div>
                 </main>
+                <nav className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] pt-2 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 no-print" aria-label="모바일 하단 탐색">
+                    <div className="grid grid-cols-5 gap-1">
+                        {mobileBottomTabs.map((tab) => {
+                            const isActive = tab.id === 'more' ? activeMobileTab === 'more' && isMobileMenuOpen : tab.id === activeMobileTab;
+                            const handleClick = () => {
+                                if (tab.id === 'more') {
+                                    setIsMobileMenuOpen(true);
+                                    return;
+                                }
+                                if (tab.page) {
+                                    handlePageChange(tab.page);
+                                }
+                            };
+
+                            return (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    onClick={handleClick}
+                                    className={`flex min-h-[60px] flex-col items-center justify-center rounded-2xl px-1 py-2 text-[11px] font-bold transition-colors ${isActive ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200' : 'text-slate-500 dark:text-slate-400'}`}
+                                    aria-current={isActive ? 'page' : undefined}
+                                >
+                                    <span>{tab.icon}</span>
+                                    <span className="mt-1">{tab.label}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </nav>
                 {/* 최상단으로 이동 버튼 */}
                 {showScrollTop && (
                     <button
                         type="button"
                         onClick={handleScrollToTop}
-                        className="fixed bottom-6 right-5 z-[300] flex h-11 w-11 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg ring-1 ring-indigo-700 transition-all duration-200 hover:bg-indigo-500 active:scale-95 no-print"
+                        className="fixed bottom-24 right-5 z-[300] flex h-11 w-11 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg ring-1 ring-indigo-700 transition-all duration-200 hover:bg-indigo-500 active:scale-95 lg:bottom-6 no-print"
                         aria-label="최상단으로 이동"
                         title="최상단으로 이동"
                     >

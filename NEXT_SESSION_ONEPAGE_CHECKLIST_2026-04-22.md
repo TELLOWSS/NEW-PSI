@@ -17,7 +17,7 @@
   - 타입 체크: PASS
   - 빌드: PASS
   - 테스트: PASS (34/34)
-  - 상태: 화면 정상 가동 확인, 모바일 3화면 QA는 `CONDITIONAL PASS` 선입력 완료(실뷰포트 캡처 증빙 대기)
+  - 상태: 화면 정상 가동 확인, 모바일 하단 5탭/PC 운영 재분류/기본 진입 `dashboard` 전환 완료, 모바일 3화면 QA는 `CONDITIONAL PASS` 선입력 완료(실뷰포트 캡처 증빙 대기)
 
 ---
 
@@ -83,7 +83,7 @@
 - 마지막 성공 명령: npm test -- --run
 - 산출물 파일: MOBILE_3SCREEN_VIEWPORT_QA_REPORT_2026-05-04.md, NEXT_SESSION_ONEPAGE_CHECKLIST_2026-04-22.md
 - OCR_REQUIRED 건수: 0 (변경 없음)
-- 주요 의사결정(변경/유지): 모바일 3화면은 로컬 실행 저장소 기준으로 반영/기동 정상, Supabase 미설정 환경에서도 앱 마운트 유지
+- 주요 의사결정(변경/유지): 모바일 3화면은 로컬 실행 저장소 기준으로 반영/기동 정상, Supabase 미설정 환경에서도 앱 마운트 유지, 모바일 하단 5탭과 기본 진입 `dashboard`를 적용
 - 다음 세션 첫 작업 1개: 320/360/375/390 실뷰포트 캡처 경로 입력 후 `CONDITIONAL PASS`를 `PASS/FAIL`로 최종 확정
 
 ---

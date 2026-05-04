@@ -34,20 +34,20 @@ const navItems: Record<Page, NavItem> = {
 
 const navSections: NavSection[] = [
     {
-        title: '기본 운영',
+        title: '운영 홈',
         items: [navItems.dashboard, navItems['worker-management'], navItems['ocr-analysis']],
     },
     {
-        title: '교육 관리',
+        title: 'AI 분석',
+        items: [navItems['predictive-analysis'], navItems['performance-analysis'], navItems['survey-intelligence'], navItems.reports, navItems['individual-report']],
+    },
+    {
+        title: '현장 실행',
+        items: [navItems['safety-checks'], navItems['site-issue-management'], navItems['safety-behavior-management'], navItems['safety-compliance-hub']],
+    },
+    {
+        title: '교육/서명',
         items: [navItems['admin-training'], navItems['worker-training']],
-    },
-    {
-        title: '현장 안전이행 관리',
-        items: [navItems['safety-compliance-hub'], navItems['site-issue-management']],
-    },
-    {
-        title: '분석/보고',
-        items: [navItems['survey-intelligence'], navItems['predictive-analysis'], navItems['performance-analysis'], navItems.reports],
     },
     {
         title: '시스템',
@@ -107,6 +107,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
                 </div>
             </div>
             <nav className="flex-1 px-2 py-3 sm:py-4 space-y-4 overflow-y-auto custom-scrollbar">
+                <div className="mx-2 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-sky-50 px-3 py-3 text-left shadow-sm dark:border-indigo-500/20 dark:from-slate-800 dark:to-slate-800">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-indigo-500">Mobile First</p>
+                    <p className="mt-1 text-sm font-bold text-slate-900 dark:text-slate-100">모바일은 5탭 중심, PC는 운영그룹 중심으로 재구성되었습니다.</p>
+                </div>
                 {navSections.map((section) => (
                     <div key={section.title}>
                         <p className="px-3 mb-1.5 text-[10px] sm:text-[11px] font-extrabold tracking-wide text-slate-400 dark:text-slate-500 uppercase">
