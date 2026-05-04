@@ -1137,6 +1137,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [showAllFailureCodeCards, setShowAllFailureCodeCards] = useState(false);
     const [showMobileUtilityPanel, setShowMobileUtilityPanel] = useState(false);
     const [showPostAnalysisCta, setShowPostAnalysisCta] = useState(false);
+    const [mobileMode, setMobileMode] = useState<'quick' | 'detailed'>('quick');
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
     const [isPaidApiMode, setIsPaidApiMode] = useState<boolean>(() => getIsPaidApiMode());
 
@@ -4568,16 +4569,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                         <InterpretationCardGrid
                             items={heroInterpretationCards}
-                            className="mt-6 grid grid-cols-1 xl:grid-cols-3 gap-3"
-                            cardClassName="rounded-2xl border px-4 py-4"
+                            className="mt-3 sm:mt-6 grid grid-cols-1 xl:grid-cols-3 gap-2 sm:gap-3"
+                            cardClassName="rounded-2xl border px-3 py-2.5 sm:px-4 sm:py-4"
                             eyebrowClassName="text-[10px] font-black uppercase tracking-[0.18em] opacity-80"
                             titleClassName="mt-2 text-base font-black text-white"
                             descriptionClassName="mt-2 text-[12px] font-semibold leading-relaxed text-white/80"
                         />
 
                         <SummaryMetricGrid
-                            className="mt-6 grid grid-cols-2 gap-3"
-                            cardClassName="rounded-2xl border px-4 py-4"
+                            className="mt-3 sm:mt-6 grid grid-cols-2 gap-2 sm:gap-3"
+                            cardClassName="rounded-2xl border px-3 py-2.5 sm:px-4 sm:py-4"
                             items={[
                                 {
                                     key: 'overview-total-records',
@@ -4601,7 +4602,27 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 },
                             ]}
                         />
-                        {isDevMode && (
+
+                        {isCompactMobile && (
+                            <div className="mt-2 flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setMobileMode('quick')}
+                                    className={`flex-1 px-3 py-1.5 rounded-lg font-black text-[11px] transition-all ${mobileMode === 'quick' ? 'bg-indigo-600 text-white border border-indigo-500' : 'bg-white/10 border border-white/10 text-slate-200 hover:bg-white/20'}`}
+                                >
+                                    ⚡ 빠른분석
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setMobileMode('detailed')}
+                                    className={`flex-1 px-3 py-1.5 rounded-lg font-black text-[11px] transition-all ${mobileMode === 'detailed' ? 'bg-indigo-600 text-white border border-indigo-500' : 'bg-white/10 border border-white/10 text-slate-200 hover:bg-white/20'}`}
+                                >
+                                    📋 상세검수
+                                </button>
+                            </div>
+                        )}
+
+                        {(!isCompactMobile || isDevMode || mobileMode === 'detailed') && (
                         <div className="mt-2">
                             <button
                                 type="button"
@@ -4613,10 +4634,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </div>
                         )}
 
-                        {isDevMode && showExtendedOverviewMetrics && (
+                        {(!isCompactMobile || isDevMode || mobileMode === 'detailed') && showExtendedOverviewMetrics && (
                             <SummaryMetricGrid
-                                className="mt-3 grid grid-cols-2 gap-3"
-                                cardClassName="rounded-2xl border px-4 py-4"
+                                className="mt-2 sm:mt-3 grid grid-cols-2 gap-2 sm:gap-3"
+                                cardClassName="rounded-2xl border px-3 py-2.5 sm:px-4 sm:py-4"
                                 items={[
                                     {
                                         key: 'overview-low-confidence',
@@ -4647,7 +4668,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             />
                         )}
 
-                        {isDevMode && failedFailureCodeSummary.length > 0 && (
+                        {(!isCompactMobile || isDevMode || mobileMode === 'detailed') && failedFailureCodeSummary.length > 0 && (
                             <>
                                 <SummaryMetricGrid
                                     className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-5"
@@ -4729,6 +4750,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         )}
                     </div>
 
+                    {(!isCompactMobile || mobileMode === 'detailed') ? (
                     <SectionPanelCard
                         variant="glassDark"
                         eyebrow="빠른 실행"
@@ -4845,6 +4867,22 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             </SectionPanelCard>
                             )}
                     </SectionPanelCard>
+                    ) : (
+                    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-200">빠른분석 모드</p>
+                        <h4 className="mt-2 text-sm font-black text-white">긴급 조치 패널은 상세검수에서만 펼칩니다.</h4>
+                        <p className="mt-2 text-[11px] font-semibold leading-relaxed text-slate-300">
+                            모바일에서는 핵심 현황만 먼저 보여주고, 재분석·백업·관리자 일괄 처리 버튼은 상세검수에서 이어서 확인하도록 분리했습니다.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => setMobileMode('detailed')}
+                            className="mt-3 w-full rounded-2xl border border-indigo-400/40 bg-indigo-500/20 px-4 py-2.5 text-xs font-black text-indigo-100 hover:bg-indigo-500/30"
+                        >
+                            상세검수로 전환
+                        </button>
+                    </div>
+                    )}
                 </div>
 
                 {/* Progress Bar with Cooldown Indicator */}

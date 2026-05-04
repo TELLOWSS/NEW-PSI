@@ -1220,6 +1220,20 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
         },
     ], [graphData.nodes.length, riskInsights.length]);
 
+    const ontologyMobileSummary = useMemo(() => {
+        const topWorkers = riskInsights.slice(0, 3).map((item) => `${item.name}(${item.jobField})`).join(', ') || '대상 집계 대기';
+        const firstAgenda = meetingAgenda[0]?.title || '다음 달 중점 안건 정리 대기';
+        const firstFocusJob = jobActionRateSummary.focusLabels[0] || '공종 재집계 필요';
+
+        return [
+            `상위 위험 대상: ${topWorkers}`,
+            `반복 위험 테마: ${summary.topRiskLabel}`,
+            `즉시 개입 필요: ${summary.highRiskCount}명`,
+            `우선 확인 공종/팀: ${firstFocusJob}`,
+            `다음 안건 연결: ${firstAgenda}`,
+        ];
+    }, [jobActionRateSummary.focusLabels, meetingAgenda, riskInsights, summary.highRiskCount, summary.topRiskLabel]);
+
     const executionInterpretationCards: InterpretationCardItem[] = useMemo(() => [
         {
             key: 'execution-status',
@@ -1657,6 +1671,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                                 <p className="mt-1 text-[11px] sm:text-xs font-semibold text-slate-400 break-keep">노드에 마우스를 올리면 전체 라벨과 분류를 확인할 수 있습니다.</p>
                             </div>
 
+                            {(!isCompactMobile || showOntologyMobile) && (
                             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                                 <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-2 py-1">
                                 <button
@@ -1706,21 +1721,37 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                                     <span className="text-[11px] font-black text-slate-200 w-8 text-right">{Math.round(ontologySpacingStrength * 100)}</span>
                                 </div>
                             </div>
+                            )}
                         </div>
 
+                        {(!isCompactMobile || showOntologyMobile) && (
                         <div className="mt-3 flex flex-wrap gap-2 text-[10px] sm:text-[11px] font-bold text-slate-200">
                             <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-400/30 bg-blue-500/10 px-2.5 py-1"><div className="w-2 h-2 rounded-full bg-blue-500"></div>근로자</span>
                             <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-2.5 py-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div>공종</span>
                             <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-2.5 py-1"><div className="w-2 h-2 rounded-full bg-rose-500"></div>위험요인</span>
                             <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-500/10 px-2.5 py-1"><div className="w-2 h-2 rounded-full bg-amber-500"></div>예방대책</span>
                         </div>
+                        )}
                     </div>
+                    {isCompactMobile && (
+                        <div className="mb-3 rounded-2xl border border-slate-700 bg-slate-900/70 px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">모바일 요약</p>
+                            <ul className="mt-2 space-y-1.5 text-[11px] font-semibold leading-relaxed text-slate-200">
+                                {ontologyMobileSummary.map((item) => (
+                                    <li key={item} className="flex items-start gap-2">
+                                        <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-cyan-300" />
+                                        <span>{item}</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
                     <button
                         type="button"
                         onClick={() => setShowOntologyMobile((prev) => !prev)}
                         className="sm:hidden mb-3 w-full min-h-[48px] rounded-2xl border border-slate-700 bg-slate-800/60 px-4 py-3 text-sm font-black text-slate-100 transition-colors hover:bg-slate-700/70 active:scale-[0.99]"
                     >
-                        {showOntologyMobile ? '온톨로지 맵 숨기기' : '온톨로지 맵 보기'}
+                        {showOntologyMobile ? '텍스트 요약만 보기' : '온톨로지 맵 보기'}
                     </button>
                     <div
                         ref={ontologyViewportRef}
