@@ -211,3 +211,11 @@
 - [ ] `360x800`으로 변경 후 동일 항목 재확인
 - [ ] 콘솔 에러 0건 확인
 
+---
+
+## 10) 2026-05-04 모바일 3화면 QA 증빙
+
+- 증빙 문서: [MOBILE_3SCREEN_VIEWPORT_QA_REPORT_2026-05-04.md](MOBILE_3SCREEN_VIEWPORT_QA_REPORT_2026-05-04.md)
+- 범위: Dashboard / OcrAnalysis / PredictiveAnalysis(AI 리스크)
+- 상태: 1차 정적 QA 완료, 2차 실뷰포트 PASS/FAIL 확정 대기
+

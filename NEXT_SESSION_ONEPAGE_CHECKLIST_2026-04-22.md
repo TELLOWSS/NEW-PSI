@@ -48,8 +48,8 @@
 - [ ] TEXT_ONLY_REVIEW는 관리자 큐 분리
 
 ### D. 다국적 규칙
-- [ ] 핵심 9개국 QA 기준 유지
-  - 베트남, 중국, 태국, 캄보디아, 인도네시아, 몽골, 러시아, 카자흐스탄, 미얀마
+- [ ] 핵심 10개국 QA 기준 유지(우즈벡 포함)
+  - 베트남, 중국, 태국, 캄보디아, 인도네시아, 몽골, 러시아, 카자흐스탄, 미얀마, 우즈베키스탄
 - [ ] 모국어+한국어 병기/폴백/공란 방지 유지
 
 ---
@@ -69,21 +69,23 @@
 - [reports/score-consistency-strict8.md](reports/score-consistency-strict8.md)
 - [reports/backfill-readiness.md](reports/backfill-readiness.md)
 - [reports/story-metrics-history.json](reports/story-metrics-history.json)
+- [MOBILE_3SCREEN_VIEWPORT_QA_REPORT_2026-05-04.md](MOBILE_3SCREEN_VIEWPORT_QA_REPORT_2026-05-04.md)
+- [MOBILE_3SCREEN_VIEWPORT_QA_FIELD_FORM_2026-05-04.md](MOBILE_3SCREEN_VIEWPORT_QA_FIELD_FORM_2026-05-04.md)
 
 ---
 
 ## 7) 세션 종료 전 저장 메모(템플릿)
-- 오늘 실행 명령:
-- 마지막 성공 명령:
-- 산출물 파일:
-- OCR_REQUIRED 건수:
-- 주요 의사결정(변경/유지):
-- 다음 세션 첫 작업 1개:
+- 오늘 실행 명령: 문서 기록 갱신(업그레이드 로그/체크리스트)
+- 마지막 성공 명령: npm run analyze:backfill-readiness
+- 산출물 파일: UPGRADE_LOG_2026-04-25.md, NEXT_SESSION_ONEPAGE_CHECKLIST_2026-04-22.md
+- OCR_REQUIRED 건수: 0
+- 주요 의사결정(변경/유지): 유지(6지표 앵커, strict8, 전수 OCR 금지, 10개국 QA 기준)
+- 다음 세션 첫 작업 1개: Dashboard/OCR/AI 리스크 3화면 모바일 상세 스펙 문서화 + QA 매핑
 
 ---
 
 ## 8) 운영일지 템플릿
-- [OPS_DAILY_LOG_TEMPLATE_BACKFILL_OCR_2026-04-22.md](OPS_DAILY_LOG_TEMPLATE_BACKFILL_OCR_2026-04-22.md)
+- [OPS_DAILY_LOG_2026-05-04.md](OPS_DAILY_LOG_2026-05-04.md)
 
 ---
 

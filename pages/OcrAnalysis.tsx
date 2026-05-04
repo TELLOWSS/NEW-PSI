@@ -466,7 +466,6 @@ type OcrViewState = {
     searchTerm: string;
     filterLevel: string;
     filterField: string;
-    filterNationality: string;
     filterLeader: string;
     filterTrust: 'all' | 'pending' | 'finalized';
     filterReason: 'all' | 'has-reason' | 'missing-reason' | 'weak-reason';
@@ -1100,7 +1099,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [searchTerm, setSearchTerm] = useState(() => storedViewState.searchTerm || '');
     const [filterLevel, setFilterLevel] = useState<string>(() => storedViewState.filterLevel || 'all');
     const [filterField, setFilterField] = useState<string>(() => storedViewState.filterField || 'all');
-    const [filterNationality, setFilterNationality] = useState<string>(() => storedViewState.filterNationality || 'all');
     const [filterLeader, setFilterLeader] = useState<string>(() => storedViewState.filterLeader || 'all');
     const [filterTrust, setFilterTrust] = useState<'all' | 'pending' | 'finalized'>(() => storedViewState.filterTrust || 'all');
     const [filterReason, setFilterReason] = useState<'all' | 'has-reason' | 'missing-reason' | 'weak-reason'>(() => storedViewState.filterReason || 'all');
@@ -1112,7 +1110,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [batchJobField, setBatchJobField] = useState('');
     const [batchTeamLeader, setBatchTeamLeader] = useState('');
-    const [batchRecordDate, setBatchRecordDate] = useState('');
     const [failedOnlyDefault, setFailedOnlyDefault] = useState<boolean>(() => getFailedOnlyDefaultOption());
     const [filterStatus, setFilterStatus] = useState<'all' | 'success' | 'failed'>(() => storedViewState.filterStatus || (getFailedOnlyDefaultOption() ? 'failed' : 'all'));
     const [dailyCounter, setDailyCounter] = useState<DailyCounterState>(() => getApiCallState());
@@ -1358,7 +1355,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 searchTerm,
                 filterLevel,
                 filterField,
-                filterNationality,
                 filterLeader,
                 filterTrust,
                 filterReason,
@@ -1373,7 +1369,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         } catch {
             // ignore storage errors
         }
-    }, [searchTerm, filterLevel, filterField, filterNationality, filterLeader, filterTrust, filterReason, filterStatus, secondPassStatusFilter, secondPassEditedOnly, secondPassExcludedOnly, secondPassReasonFilter, recordSortMode]);
+    }, [searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterReason, filterStatus, secondPassStatusFilter, secondPassEditedOnly, secondPassExcludedOnly, secondPassReasonFilter, recordSortMode]);
 
     const handleCreateMasterTemplate = async (payload: { name: string; version: string; fieldSchema: string }) => {
         const result = await supabase
@@ -1593,47 +1589,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         return Array.from(leaders).sort();
     }, [existingRecords]);
 
-    const nationalities = useMemo(() => {
-        const values = new Set(existingRecords.map(r => r.nationality).filter(Boolean));
-        return Array.from(values).sort();
-    }, [existingRecords]);
-
     const jobFields = useMemo(() => {
         const fields = new Set(existingRecords.map(r => r.jobField).filter(Boolean));
         return Array.from(fields).sort();
     }, [existingRecords]);
 
-    useEffect(() => {
-        if (filterField !== 'all' && !jobFields.includes(filterField)) {
-            setFilterField('all');
-        }
-    }, [filterField, jobFields]);
-
-    useEffect(() => {
-        if (filterLeader !== 'all' && !teamLeaders.includes(filterLeader)) {
-            setFilterLeader('all');
-        }
-    }, [filterLeader, teamLeaders]);
-
-    useEffect(() => {
-        if (filterNationality !== 'all' && !nationalities.includes(filterNationality)) {
-            setFilterNationality('all');
-        }
-    }, [filterNationality, nationalities]);
-
-    useEffect(() => {
-        if (batchJobField && !jobFields.includes(batchJobField)) {
-            setBatchJobField('');
-        }
-    }, [batchJobField, jobFields]);
-
     const baseFilteredRecords = useMemo(() => {
         return existingRecords.filter(r => {
-            const searchStr = `${r.name || ''} ${r.jobField || ''} ${r.nationality || ''} ${r.teamLeader || ''} ${r.filename || ''}`.toLowerCase();
+            const searchStr = `${r.name || ''} ${r.jobField || ''} ${r.nationality || ''} ${r.teamLeader || ''}`.toLowerCase();
             const matchesSearch = searchStr.includes(searchTerm.toLowerCase());
             const matchesLevel = filterLevel === 'all' || r.safetyLevel === filterLevel;
             const matchesField = filterField === 'all' || r.jobField === filterField;
-            const matchesNationality = filterNationality === 'all' || r.nationality === filterNationality;
             const matchesLeader = filterLeader === 'all' || (r.teamLeader || '미지정') === filterLeader;
             const trustState = getReviewTrustState(r);
             const matchesTrust =
@@ -1657,9 +1623,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 secondPassStatusFilter === 'all' ||
                 (secondPassStatusFilter === 'done' && r.secondPassStatus === 'DONE') ||
                 (secondPassStatusFilter === 'not-done' && r.secondPassStatus !== 'DONE');
-            return matchesSearch && matchesLevel && matchesField && matchesNationality && matchesLeader && matchesTrust && matchesReason && matchesStatus && matchesSecondPassStatus;
+            return matchesSearch && matchesLevel && matchesField && matchesLeader && matchesTrust && matchesReason && matchesStatus && matchesSecondPassStatus;
         });
-    }, [existingRecords, searchTerm, filterLevel, filterField, filterNationality, filterLeader, filterTrust, filterReason, filterStatus, secondPassStatusFilter, getReviewTrustState]);
+    }, [existingRecords, searchTerm, filterLevel, filterField, filterLeader, filterTrust, filterReason, filterStatus, secondPassStatusFilter, getReviewTrustState]);
 
     const secondPassSkippedCounts = useMemo(() => {
         return baseFilteredRecords.reduce<Record<string, number>>((acc, record) => {
@@ -1784,7 +1750,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         const normalizedSearch = String(searchTerm || '').trim();
         if (normalizedSearch) items.push(`검색: ${normalizedSearch}`);
         if (filterField !== 'all') items.push(`공종: ${filterField}`);
-        if (filterNationality !== 'all') items.push(`국적: ${filterNationality}`);
         if (filterLeader !== 'all') items.push(`팀장: ${filterLeader}`);
         if (filterTrust !== 'all') items.push(`신뢰: ${filterTrust === 'pending' ? '재검토 대기' : '최종확정'}`);
         if (filterLevel !== 'all') items.push(`등급: ${filterLevel}`);
@@ -1803,7 +1768,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         if (secondPassReasonFilter !== 'all') items.push(`2차 제외 사유: ${secondPassReasonFilter}`);
         if (recordSortMode !== 'recent-correction') items.push(`정렬: ${getRecordSortModeLabel(recordSortMode)}`);
         return items;
-    }, [filterField, filterNationality, filterLeader, filterLevel, filterReason, filterStatus, secondPassStatusFilter, filterTrust, recordSortMode, searchTerm, secondPassExcludedOnly, secondPassReasonFilter]);
+    }, [filterField, filterLeader, filterLevel, filterReason, filterStatus, secondPassStatusFilter, filterTrust, recordSortMode, searchTerm, secondPassExcludedOnly, secondPassReasonFilter]);
 
     const retrySuccessRate = useMemo(() => {
         if (!retryDiagnostics || retryDiagnostics.total === 0) return 0;
@@ -3993,7 +3958,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
     const resetFilters = useCallback(() => {
         setSearchTerm('');
-        setFilterNationality('all');
         setFilterLeader('all');
         setFilterTrust('all');
         setFilterReason('all');
@@ -4561,6 +4525,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         </>
                                     )}
                                 </p>
+                                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-bold text-slate-200">
+                                    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 다국어 OCR 인식(한/영/중 포함) 지원</div>
+                                    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 손글씨·저해상도 이미지 보정 분석</div>
+                                    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 오류 코드 기반 즉시 재시도 동선 제공</div>
+                                    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 분석 후 위험 매핑/관리자 검토 연계</div>
+                                </div>
                                 <button
                                     type="button"
                                     onClick={() => setShowDashboardIntroDetail((prev) => !prev)}
@@ -5766,7 +5736,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     title="고급 필터 · 정렬 · 2차 재분석 설정"
                     isOpen={showAdvancedOcrControls}
                     onToggle={() => setShowAdvancedOcrControls((prev) => !prev)}
-                    summary={<span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-black text-violet-700">필터 {filterField !== 'all' || filterNationality !== 'all' || filterLeader !== 'all' || filterTrust !== 'all' || filterLevel !== 'all' || filterStatus !== 'all' || filterReason !== 'all' || secondPassStatusFilter !== 'all' ? '적용 중' : '기본값'} · 재분석 {secondPassTargets.length}건</span>}
+                    summary={<span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-black text-violet-700">필터 {filterField !== 'all' || filterLeader !== 'all' || filterTrust !== 'all' || filterLevel !== 'all' || filterStatus !== 'all' || filterReason !== 'all' || secondPassStatusFilter !== 'all' ? '적용 중' : '기본값'} · 재분석 {secondPassTargets.length}건</span>}
                 >
                 <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-4 items-start">
                     <div className="space-y-3">
@@ -5784,14 +5754,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     <option value="all">전체</option>
                                     {teamLeaders.map(leader => (
                                         <option key={leader} value={leader}>{leader}</option>
-                                    ))}
-                                </select>
-                            </ControlPanelCard>
-                            <ControlPanelCard label="국적">
-                                <select value={filterNationality} onChange={(e) => setFilterNationality(e.target.value)} className="w-full bg-white border border-slate-200 text-slate-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold">
-                                    <option value="all">전체</option>
-                                    {nationalities.map((nationality) => (
-                                        <option key={nationality} value={nationality}>{nationality}</option>
                                     ))}
                                 </select>
                             </ControlPanelCard>
@@ -6361,7 +6323,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         onChange={e => setBatchJobField(e.target.value)}
                     >
                         <option value="">선택</option>
-                        {jobFields.map(f => (
+                        {[...new Set(filteredRecords.map(r => r.jobField).filter(Boolean))].map(f => (
                             <option key={f} value={f}>{f}</option>
                         ))}
                     </select>
@@ -6372,25 +6334,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         onChange={e => setBatchTeamLeader(e.target.value)}
                         placeholder="팀장명 입력"
                     />
-                    <label className="text-xs font-bold text-slate-600 mr-1">작성일 일괄 변경</label>
-                    <input
-                        type="date"
-                        className="w-full sm:w-auto text-xs border border-slate-200 rounded px-2 py-1 mr-0 sm:mr-2"
-                        value={batchRecordDate}
-                        onChange={e => setBatchRecordDate(e.target.value)}
-                    />
                     <button
                         className="w-full sm:w-auto px-4 py-2 text-xs rounded bg-emerald-600 text-white font-bold hover:bg-emerald-700"
                         onClick={() => {
                             if (selectedIds.length === 0) return alert('수정할 근로자를 선택하세요.');
-                            if (!batchJobField && !batchTeamLeader && !batchRecordDate) return alert('공종, 팀장, 작성일 중 하나 이상 입력하세요.');
+                            if (!batchJobField && !batchTeamLeader) return alert('공종 또는 팀장 중 하나 이상 입력하세요.');
                             filteredRecords.forEach(r => {
                                 if (selectedIds.includes(r.id)) {
                                     onUpdateRecord({
                                         ...r,
                                         ...(batchJobField ? { jobField: batchJobField } : {}),
                                         ...(batchTeamLeader ? { teamLeader: batchTeamLeader } : {}),
-                                        ...(batchRecordDate ? { date: batchRecordDate } : {}),
                                     });
                                 }
                             });
@@ -6403,7 +6357,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">근로자 정보 검색</p>
                         <div className="relative w-full max-w-2xl">
                             <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={2}/></svg>
-                            <input type="text" placeholder="근로자명 · 공종 · 국적 · 팀장 · 파일명으로 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-900 dark:text-slate-100" />
+                            <input type="text" placeholder="근로자명 · 공종 · 국적 · 팀장으로 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-900 dark:text-slate-100" />
                         </div>
                         <label className="mt-1 inline-flex items-center gap-2 text-[11px] font-bold text-slate-600">
                             <input
@@ -6475,11 +6429,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         </p>
                                         <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.nationality} · {r.date}</p>
                                         <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.jobField} · 팀장 {r.teamLeader || '미지정'}</p>
-                                        {r.filename && (
-                                            <StatusBadge variant="slateSoft" className="mt-1 max-w-full rounded px-2.5 py-1 text-[10px]" title={r.filename}>
-                                                📄 {r.filename}
-                                            </StatusBadge>
-                                        )}
                                         {latestCorrectionPreview && (
                                             <p className="mt-1 text-[10px] text-violet-700 font-black leading-snug" title={latestCorrectionReason || latestCorrectionPreview}>최근 수정: {latestCorrectionPreview}</p>
                                         )}
@@ -6666,11 +6615,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                     {getLeaderIcon(r)}
                                                 </span>
                                                 <span className="text-[10px] text-slate-400 font-bold tracking-wider">{r.nationality} | {r.date}</span>
-                                                {r.filename && (
-                                                    <StatusBadge variant="slateSoft" className="mt-1 max-w-full rounded px-2.5 py-1 text-[9px]" title={r.filename}>
-                                                        📄 {r.filename}
-                                                    </StatusBadge>
-                                                )}
                                                 {typeof r.ocrConfidence === 'number' && (
                                                     <span className="text-[9px] text-slate-500 font-bold">OCR 신뢰도: {(r.ocrConfidence * 100).toFixed(0)}%</span>
                                                 )}
@@ -6843,6 +6787,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             {mobileBackGuideMessage && (
                 <div className="fixed bottom-4 left-1/2 z-[120] w-[calc(100%-32px)] max-w-sm -translate-x-1/2 rounded-2xl border border-slate-200 bg-slate-900/95 px-4 py-3 text-center text-[12px] font-bold text-white shadow-2xl sm:hidden">
                     {mobileBackGuideMessage}
+                </div>
+            )}
+
+            {files.length > 0 && !isAnalyzing && (
+                <div className="fixed bottom-4 left-4 right-4 z-[130] sm:hidden">
+                    <button
+                        type="button"
+                        onClick={handleAnalyze}
+                        className="w-full min-h-[48px] rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-black text-white shadow-2xl hover:bg-indigo-500"
+                    >
+                        분석 시작
+                    </button>
                 </div>
             )}
         </div>

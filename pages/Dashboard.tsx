@@ -2528,7 +2528,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 <button
                                     key={action.key}
                                     onClick={() => handleQuickActionClick(action)}
-                                    className={`px-4 sm:px-5 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 hover:scale-105 active:scale-95 ${
+                                    className={`w-full sm:w-auto min-h-[44px] px-4 sm:px-5 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 hover:scale-105 active:scale-95 ${
                                         action.variant === 'solid'
                                             ? 'bg-white text-slate-900 shadow-lg hover:bg-slate-50'
                                             : 'bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white'
@@ -4197,6 +4197,16 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 </div>
             </div>
             )}
+
+            <div className="sm:hidden fixed bottom-4 left-4 right-4 z-40">
+                <button
+                    type="button"
+                    onClick={() => setCurrentPage('ocr-analysis')}
+                    className="w-full min-h-[48px] rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-black text-white shadow-2xl hover:bg-indigo-500"
+                >
+                    분석 시작
+                </button>
+            </div>
         </div>
     );
 };

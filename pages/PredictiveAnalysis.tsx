@@ -737,6 +737,20 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
         };
     }, [riskInsights]);
 
+    const aiRiskScore = useMemo(() => {
+        if (riskInsights.length === 0) return 0;
+        const topSamples = riskInsights.slice(0, 5);
+        const score = topSamples.reduce((acc, item) => acc + item.riskScore, 0) / topSamples.length;
+        return clampRiskScore(score);
+    }, [riskInsights]);
+
+    const riskBucketSummary = useMemo(() => {
+        const red = riskInsights.filter((item) => item.riskScore >= 70).length;
+        const yellow = riskInsights.filter((item) => item.riskScore >= 40 && item.riskScore < 70).length;
+        const green = riskInsights.filter((item) => item.riskScore < 40).length;
+        return { red, yellow, green };
+    }, [riskInsights]);
+
     const harnessSummaryMetrics = useMemo(() => ([
         {
             key: 'predictive-harness-connected',
@@ -1459,7 +1473,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                             <span className="bg-indigo-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg">Monthly Meeting</span>
                             <span className="text-indigo-300 text-xs font-bold">{todayDate} 기준 분석</span>
                         </div>
-                        <h2 className="text-2xl sm:text-3xl font-black mb-2">예측적 안전관리 · 우선 개입 대시보드</h2>
+                        <h2 className="text-2xl sm:text-3xl font-black mb-2">AI 리스크 분석 · 우선 개입 대시보드</h2>
                         <p className="text-slate-300 max-w-2xl text-xs sm:text-sm font-medium leading-relaxed">
                             1) 현재 위험군 식별 → 2) 다음 달 악화 가능성 예측 → 3) 개입 우선순위 제시 순서로 구성했습니다.
                         </p>
@@ -1468,6 +1482,36 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                         회의 자료 인쇄
                     </button>
+                </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
+                <div className="grid grid-cols-1 md:grid-cols-[160px_minmax(0,1fr)] gap-4 items-center">
+                    <div className="mx-auto h-36 w-36 rounded-full border-8 border-indigo-100 bg-slate-50 flex flex-col items-center justify-center">
+                        <p className="text-4xl font-black text-slate-900 leading-none">{aiRiskScore}</p>
+                        <p className="mt-1 text-xs font-black text-slate-500">/100 위험 점수</p>
+                    </div>
+                    <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
+                                <p className="text-[10px] font-black text-rose-700">위험 (Red)</p>
+                                <p className="mt-1 text-xl font-black text-rose-900">{riskBucketSummary.red}건</p>
+                            </div>
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                                <p className="text-[10px] font-black text-amber-700">주의 (Yellow)</p>
+                                <p className="mt-1 text-xl font-black text-amber-900">{riskBucketSummary.yellow}건</p>
+                            </div>
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+                                <p className="text-[10px] font-black text-emerald-700">안정 (Green)</p>
+                                <p className="mt-1 text-xl font-black text-emerald-900">{riskBucketSummary.green}건</p>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <button type="button" onClick={() => setShowAllRiskInsights((prev) => !prev)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">경향 분석</button>
+                            <button type="button" onClick={() => setExecutionPlanFilter('urgent')} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">개별 점검 영역</button>
+                            <button type="button" onClick={() => setShowAllExecutionPlans((prev) => !prev)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">AI 인사이트</button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
