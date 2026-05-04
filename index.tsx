@@ -105,6 +105,7 @@ try {
       </DevModeProvider>
     </React.StrictMode>
   );
+  document.documentElement.dataset.psiMounted = '1';
 } catch (error) {
   const msg = error instanceof Error ? error.message : String(error);
   if (tryRuntimeRecoveryReload(msg)) {

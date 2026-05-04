@@ -11,13 +11,13 @@
 ---
 
 ## 2) 오늘 기준 종료 지점(복원 기준)
-- 마지막 명령: npm run analyze:backfill-readiness
+- 마지막 명령: npm test -- --run
 - 종료 코드: 0
 - 최근 결과 요약:
-  - NO_OCR_NEEDED: 3
-  - OCR_REQUIRED: 0
-  - TEXT_ONLY_REVIEW: 0
-  - 절감률(가정): 23.53%
+  - 타입 체크: PASS
+  - 빌드: PASS
+  - 테스트: PASS (34/34)
+  - 상태: 모바일 3화면 로컬 반영 완료, 실뷰포트 최종확정 대기
 
 ---
 
@@ -76,12 +76,12 @@
 ---
 
 ## 7) 세션 종료 전 저장 메모(템플릿)
-- 오늘 실행 명령: 문서 기록 갱신(업그레이드 로그/체크리스트)
-- 마지막 성공 명령: npm run analyze:backfill-readiness
-- 산출물 파일: UPGRADE_LOG_2026-04-25.md, NEXT_SESSION_ONEPAGE_CHECKLIST_2026-04-22.md
-- OCR_REQUIRED 건수: 0
-- 주요 의사결정(변경/유지): 유지(6지표 앵커, strict8, 전수 OCR 금지, 10개국 QA 기준)
-- 다음 세션 첫 작업 1개: Dashboard/OCR/AI 리스크 3화면 모바일 상세 스펙 문서화 + QA 매핑
+- 오늘 실행 명령: npm run check:types, npm run build, npm test -- --run
+- 마지막 성공 명령: npm test -- --run
+- 산출물 파일: MOBILE_3SCREEN_VIEWPORT_QA_REPORT_2026-05-04.md, NEXT_SESSION_ONEPAGE_CHECKLIST_2026-04-22.md
+- OCR_REQUIRED 건수: 0 (변경 없음)
+- 주요 의사결정(변경/유지): 모바일 3화면은 로컬 실행 저장소 기준으로 최종 반영 상태 유지, 실뷰포트 증빙 후 PASS/FAIL 확정
+- 다음 세션 첫 작업 1개: 320/360/375/390 실뷰포트 점검값을 FIELD_FORM에 입력하고 QA 리포트 PENDING 확정
 
 ---
 

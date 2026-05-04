@@ -160,7 +160,54 @@
 </script>
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root">
+        <div id="boot-fallback" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f8fafc;color:#0f172a;">
+            <div style="width:100%;max-width:560px;background:#ffffff;border:1px solid #e2e8f0;border-radius:20px;padding:24px;box-shadow:0 20px 48px rgba(15,23,42,.08);font-family:'Pretendard','Noto Sans KR',sans-serif;">
+                <div style="display:inline-flex;align-items:center;border-radius:9999px;background:#e0e7ff;color:#3730a3;padding:6px 10px;font-size:11px;font-weight:800;">PSI 부트스트랩 확인</div>
+                <h1 style="margin:14px 0 8px;font-size:24px;line-height:1.3;font-weight:900;">앱 초기화 중입니다.</h1>
+                <p id="boot-fallback-message" style="margin:0;color:#475569;font-size:14px;line-height:1.7;">몇 초 이상 이 화면이 유지되면 현재 탭이 오래된 캐시를 보고 있거나 다른 실행 주소에 접속한 상태일 수 있습니다.</p>
+                <div style="margin-top:16px;border-radius:14px;background:#f8fafc;border:1px solid #e2e8f0;padding:14px;">
+                    <div style="font-size:12px;font-weight:800;color:#334155;">빠른 확인</div>
+                    <ul style="margin:10px 0 0 18px;padding:0;color:#475569;font-size:13px;line-height:1.7;">
+                        <li>개발 서버: http://127.0.0.1:4173/</li>
+                        <li>프리뷰 서버: http://127.0.0.1:4174/</li>
+                        <li>강력 새로고침: Ctrl+F5</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
     <script type="module" src="/index.tsx"></script>
+    <script>
+        window.setTimeout(function () {
+            if (document.documentElement.dataset.psiMounted === '1') return;
+            var message = document.getElementById('boot-fallback-message');
+            if (message) {
+                message.textContent = '앱 초기화가 지연되고 있습니다. 모듈 로딩 상태를 진단 중입니다...';
+            }
+
+            var moduleScript = document.querySelector('script[type="module"][src*="/index.tsx"],script[type="module"][src*="/assets/index-"]');
+            if (!moduleScript || !moduleScript.src) {
+                if (message) {
+                    message.textContent = '앱 엔트리 스크립트를 찾지 못했습니다. 실행 주소를 다시 확인해 주세요.';
+                }
+                return;
+            }
+
+            var probeUrl = moduleScript.src + (moduleScript.src.indexOf('?') >= 0 ? '&' : '?') + '__probe=' + Date.now();
+            import(probeUrl)
+                .then(function () {
+                    if (document.documentElement.dataset.psiMounted === '1') return;
+                    if (message) {
+                        message.textContent = '모듈은 로드되었지만 앱 마운트 신호가 없습니다. Ctrl+F5 후에도 동일하면 현재 URL 전체를 공유해 주세요.';
+                    }
+                })
+                .catch(function (error) {
+                    if (!message) return;
+                    var reason = (error && error.message) ? error.message : String(error);
+                    message.textContent = '앱 모듈 로드 실패: ' + reason;
+                });
+        }, 4000);
+    </script>
 </body>
 </html>

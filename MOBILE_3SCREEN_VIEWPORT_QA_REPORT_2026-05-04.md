@@ -17,10 +17,27 @@
 
 본 문서는 1차 정적 QA 결과를 기록하며, 2차 실뷰포트 검증은 다음 세션에서 PASS/FAIL 확정한다.
 
+### 실행 환경 동기화 조치 (2026-05-04)
+- 증상: 문서/가상 워크스페이스 반영 대비 로컬 실행 화면에서 변경 미노출
+- 원인: 가상 워크스페이스와 로컬 실행 저장소 간 반영 시점 불일치
+- 조치: 로컬 실행 저장소(`C:/Users/user/OneDrive/Desktop/개발실/new-psi/NEW-PSI`)에 3개 화면 패치 재적용 완료
+  - `pages/Dashboard.tsx`
+  - `pages/OcrAnalysis.tsx`
+  - `pages/PredictiveAnalysis.tsx`
+- 상태: 재현 종료, 현재 로컬 실행 기준으로 모바일 UI 변경 확인 가능한 상태
+
+### 빈 화면 이슈 조치 (2026-05-04)
+- 증상: 부트스트랩 화면에서 정지, 앱 본문 미마운트
+- 원인: Supabase 환경변수 미설정 시 `lib/supabaseClient.ts`에서 초기화 예외 발생
+- 조치:
+  - 부트스트랩 진단 메시지 화면 출력 강화
+  - `lib/supabaseClient.ts`를 비중단 폴백 구조로 변경(앱 마운트 유지, Supabase 기능만 비활성)
+- 상태: 화면 정상 가동 확인(사용자 확인 완료)
+
 ### 선행 게이트 실행 결과 (2026-05-04)
 - `npm run check:types`: PASS
 - `npm run build`: PASS
-- `npm run test`: PASS (34/34)
+- `npm test -- --run`: PASS (34/34)
 - 비고: 실행 경로는 로컬 미러 저장소(`C:/Users/user/OneDrive/Desktop/개발실/new-psi/NEW-PSI`) 기준
 
 ---
@@ -43,6 +60,7 @@
 - [x] 상단 점수 게이지(78/100 형태 대응 구조) 추가
 - [x] 위험 3버킷(Red/Yellow/Green) 카드 추가
 - [x] 빠른 액션 3개(경향 분석/개별 점검 영역/AI 인사이트) 추가
+- [x] AI 리스크 헤더 카피 정렬(모바일 우선 가독성)
 - [ ] 320 폭 1스크롤 내 핵심 정보 노출 최종 확인
 
 ---

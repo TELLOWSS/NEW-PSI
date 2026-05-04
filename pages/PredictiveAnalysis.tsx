@@ -1472,6 +1472,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                             <span className="bg-indigo-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg">Monthly Meeting</span>
                             <span className="text-indigo-300 text-xs font-bold">{todayDate} 기준 분석</span>
+                            <span className="sm:hidden inline-flex items-center rounded-full border border-cyan-300/60 bg-cyan-400/20 px-2.5 py-1 text-[10px] font-black text-cyan-100 shadow-sm">모바일 검증 2026-05-04</span>
                         </div>
                         <h2 className="text-2xl sm:text-3xl font-black mb-2">AI 리스크 분석 · 우선 개입 대시보드</h2>
                         <p className="text-slate-300 max-w-2xl text-xs sm:text-sm font-medium leading-relaxed">

@@ -6,14 +6,31 @@ const resolveSupabaseEnv = () => {
 
     if (!supabaseUrl || !supabaseAnonKey) {
         const message = '[Supabase] 환경변수 누락: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY 또는 NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY를 확인하세요.';
-        throw new Error(message);
+        return {
+            supabaseUrl: 'https://placeholder.supabase.co',
+            supabaseAnonKey: 'placeholder-anon-key',
+            isConfigured: false,
+            errorMessage: message,
+        };
     }
 
-    return { supabaseUrl, supabaseAnonKey };
+    return {
+        supabaseUrl,
+        supabaseAnonKey,
+        isConfigured: true,
+        errorMessage: '',
+    };
 };
 
-const { supabaseUrl, supabaseAnonKey } = resolveSupabaseEnv();
+const { supabaseUrl, supabaseAnonKey, isConfigured, errorMessage } = resolveSupabaseEnv();
 const psiAdminSecret = import.meta.env.VITE_PSI_ADMIN_SECRET;
+
+export const isSupabaseConfigured = isConfigured;
+export const supabaseConfigError = errorMessage;
+
+if (!isConfigured && typeof console !== 'undefined') {
+    console.warn(errorMessage);
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     global: {
