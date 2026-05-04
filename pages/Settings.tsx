@@ -75,6 +75,38 @@ const toFiniteOr = (value: unknown, fallback: number): number => {
 const isManagementRole = (field: string) => /관리|팀장|부장|과장|기사|공무|소장/.test(field);
 const UI_VIEW_MODE_METRICS_KEY = 'psi_view_mode_metrics';
 const PRESET_PINNED_SOURCE_TARGET_RATE = 60;
+const GUIDE_COPY_WINNER_LOCK_KEY = 'psi_settings_guide_copy_winner_v1';
+const GUIDE_COPY_OBSERVE_MS = 24 * 60 * 60 * 1000;
+const GUIDE_COPY_MIN_EVENTS = 8;
+const GUIDE_COPY_MIN_GAP = 2;
+
+type GuideCopyVariant = 'A' | 'B';
+type GuideCopyWinnerLock = {
+    winner: GuideCopyVariant;
+    lockedAt: string;
+    sampleA: number;
+    sampleB: number;
+    windowHours: number;
+};
+
+const readGuideCopyWinnerLock = (): GuideCopyWinnerLock | null => {
+    try {
+        if (typeof window === 'undefined') return null;
+        const raw = window.localStorage.getItem(GUIDE_COPY_WINNER_LOCK_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as Partial<GuideCopyWinnerLock>;
+        if (parsed?.winner !== 'A' && parsed?.winner !== 'B') return null;
+        return {
+            winner: parsed.winner,
+            lockedAt: typeof parsed.lockedAt === 'string' ? parsed.lockedAt : new Date().toISOString(),
+            sampleA: Number(parsed.sampleA || 0),
+            sampleB: Number(parsed.sampleB || 0),
+            windowHours: Number(parsed.windowHours || 24),
+        };
+    } catch {
+        return null;
+    }
+};
 
 const getWorkerIdentityKey = (record: WorkerRecord): string => {
     return String(
@@ -340,7 +372,8 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(() => (typeof window !== 'undefined' ? window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false : false));
     const [uiViewMetrics, setUIViewMetrics] = useState<UIViewMetricRecord[]>([]);
     const quickActionMetricSessionRef = useRef<string>(createMetricSessionId('settings'));
-    const guideCopyVariant = useMemo<'A' | 'B'>(() => {
+    const [guideCopyWinnerLock, setGuideCopyWinnerLock] = useState<GuideCopyWinnerLock | null>(() => readGuideCopyWinnerLock());
+    const guideCopyVariantBySession = useMemo<GuideCopyVariant>(() => {
         const seed = quickActionMetricSessionRef.current;
         let hash = 0;
         for (let i = 0; i < seed.length; i += 1) {
@@ -348,6 +381,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         }
         return hash % 2 === 0 ? 'A' : 'B';
     }, []);
+    const guideCopyVariant: GuideCopyVariant = guideCopyWinnerLock?.winner ?? guideCopyVariantBySession;
     const guideCopyLabel = guideCopyVariant === 'A' ? '빠른 시작 가이드' : '처음 사용 안내';
 
     const trackQuickAction = (actionKey: string, payload?: Record<string, unknown>) => {
@@ -1017,6 +1051,26 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 : 0;
         const guideV2TodayClicks = guideV2Events.filter((item) => toLocalDayKey(item.timestamp) === todayKey).length;
         const guideV3TodayClicks = guideV3Events.filter((item) => toLocalDayKey(item.timestamp) === todayKey).length;
+        const observeFrom = Date.now() - GUIDE_COPY_OBSERVE_MS;
+        const guideV3RecentA = guideV3CopyAEvents.filter((item) => {
+            const timestamp = new Date(item.timestamp).getTime();
+            return !Number.isNaN(timestamp) && timestamp >= observeFrom;
+        }).length;
+        const guideV3RecentB = guideV3CopyBEvents.filter((item) => {
+            const timestamp = new Date(item.timestamp).getTime();
+            return !Number.isNaN(timestamp) && timestamp >= observeFrom;
+        }).length;
+        const guideV3RecentTotal = guideV3RecentA + guideV3RecentB;
+        const guideV3Gap = Math.abs(guideV3RecentA - guideV3RecentB);
+        const guideV3WinnerCandidate: GuideCopyVariant | null = guideV3RecentA === guideV3RecentB
+            ? null
+            : guideV3RecentA > guideV3RecentB
+                ? 'A'
+                : 'B';
+        const shouldAutoLockWinner = !guideCopyWinnerLock
+            && guideV3RecentTotal >= GUIDE_COPY_MIN_EVENTS
+            && guideV3Gap >= GUIDE_COPY_MIN_GAP
+            && guideV3WinnerCandidate !== null;
 
         const grouped = quickActionEvents.reduce((acc, item) => {
             const page = String(item.page || 'unknown').trim() || 'unknown';
@@ -1067,9 +1121,31 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             guideV3TodayClicks,
             guideV3CopyAClicks: guideV3CopyAEvents.length,
             guideV3CopyBClicks: guideV3CopyBEvents.length,
+            guideV3RecentA,
+            guideV3RecentB,
+            guideV3RecentTotal,
+            guideV3WinnerCandidate,
+            shouldAutoLockWinner,
             topActions,
         };
-    }, [uiViewMetrics]);
+    }, [guideCopyWinnerLock, uiViewMetrics]);
+
+    useEffect(() => {
+        if (!quickActionSummary.shouldAutoLockWinner || !quickActionSummary.guideV3WinnerCandidate) return;
+        const nextLock: GuideCopyWinnerLock = {
+            winner: quickActionSummary.guideV3WinnerCandidate,
+            lockedAt: new Date().toISOString(),
+            sampleA: quickActionSummary.guideV3RecentA,
+            sampleB: quickActionSummary.guideV3RecentB,
+            windowHours: 24,
+        };
+        setGuideCopyWinnerLock(nextLock);
+        try {
+            window.localStorage.setItem(GUIDE_COPY_WINNER_LOCK_KEY, JSON.stringify(nextLock));
+        } catch {
+            return;
+        }
+    }, [quickActionSummary]);
 
     const recentUIViewMetrics = useMemo(() => uiViewMetrics.slice(0, 3), [uiViewMetrics]);
 
@@ -1446,6 +1522,11 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </p>
                     <p className="mt-1 text-xs font-semibold text-indigo-700">
                         v3 카피 A/B: A {quickActionSummary.guideV3CopyAClicks}건 · B {quickActionSummary.guideV3CopyBClicks}건 · 현재 세션 노출 {guideCopyVariant}안
+                    </p>
+                    <p className={`mt-1 text-xs font-black ${guideCopyWinnerLock ? 'text-emerald-700' : 'text-slate-600'}`}>
+                        {guideCopyWinnerLock
+                            ? `승자 고정 완료: ${guideCopyWinnerLock.winner}안 (표본 A ${guideCopyWinnerLock.sampleA} / B ${guideCopyWinnerLock.sampleB}, ${guideCopyWinnerLock.windowHours}h 기준)`
+                            : `승자 관찰 중: 최근 24h 표본 A ${quickActionSummary.guideV3RecentA} / B ${quickActionSummary.guideV3RecentB} (최소 ${GUIDE_COPY_MIN_EVENTS}건, 격차 ${GUIDE_COPY_MIN_GAP}건 필요)`}
                     </p>
                     {quickActionSummary.topActions.length === 0 ? (
                         <p className="mt-3 text-sm font-semibold text-slate-500">pc_quick_actions 클릭 로그가 아직 없습니다.</p>

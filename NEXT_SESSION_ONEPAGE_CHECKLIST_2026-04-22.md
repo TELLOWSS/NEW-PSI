@@ -14,9 +14,9 @@
 - 마지막 명령: npm run qa:mobile:finalize
 - 종료 코드: 0
 - 최근 결과 요약:
-  - 빌드: PASS (`built in 5.42s`)
+  - 빌드: PASS (`built in 5.33s`)
   - 모바일 QA: FINALIZED_PASS (16/16)
-  - 상태: 모바일 3코어(Home/OCR/AI Risk) 감량·연결·터치타겟·최근리포트 3건 제한 완료 + PC 패널 클릭 계측/Top5 KPI/v2 일간추이/가이드 액션 v3 2차 보정 + v3 카피 A/B 실험 활성화 완료
+  - 상태: 모바일 3코어(Home/OCR/AI Risk) 감량·연결·터치타겟·최근리포트 3건 제한 완료 + PC 패널 클릭 계측/Top5 KPI/v2 일간추이/가이드 액션 v3 2차 보정 + v3 카피 A/B + 1일 관찰 기준 승자 자동 고정 구현 완료
 
 ---
 
@@ -104,9 +104,9 @@
   - 어떤 명령 결과가 PASS인지
 
 ### C. 배포 체크용 변경 요약 3줄 (2026-05-04)
-- 완료: `open_beginner_guide` v3 카피 A/B 실험 적용(`A: 빠른 시작 가이드`, `B: 처음 사용 안내`) + KPI A/B 집계행 반영
-- 다음: v3 카피 A/B 1일 클릭 비중 관찰 후 승자 카피 고정
-- 검증: `npm run build` PASS (`built in 5.42s`)
+- 완료: v3 카피 A/B 1일 관찰 기준 승자 자동 고정 로직 반영(24h 표본·격차 기준)
+- 다음: 자동 고정 미발동 시 표본 확보 동선 보정 1차 반영
+- 검증: `npm run build` PASS (`built in 5.33s`)
 
 ### E. 사용성 보정 델타 (2026-05-04)
 - Reports/Settings PC 바로가기 패널에 실행 가이드 문구 및 비활성 조건 연동 반영
@@ -116,7 +116,12 @@
 ### D. 다음 진행 1순위(검증 후 실행)
 - ✅ 배포 리허설 실행 완료: `npm run build` → `npm run check:mobile-qa:evidence` → `npm run qa:mobile:finalize`
 - ✅ 검증 결과: `READY_FOR_FINALIZATION` (16/16) + `FINALIZED_PASS`
-- 다음 착수: `open_beginner_guide` v3 카피 A/B 클릭 비중 1일 관찰 + 승자 카피 고정
+- 다음 착수: 승자 자동 고정 발동 여부 1일 모니터링 + 미발동 시 표본 확보 동선 보정
+
+### G. `check:mobile-qa:evidence` 실패 원인 정리 (배포 체크용)
+- 실패 조건: `artifacts/mobile-qa/2026-05-04` 기준 16개 증적 중 누락이 1개라도 있으면 `RESULT=NOT_READY` + Exit 1
+- 확인 포인트: 로그의 `TOTAL_MISSING` 값(>0이면 실패)
+- 현재 재실행 결과: `TOTAL_MISSING=0`, `RESULT=READY_FOR_FINALIZATION`
 
 ### F. 계측 반영 델타 (2026-05-04)
 - PredictiveAnalysis/Reports/Settings에 `createMetricSessionId` + `trackUIViewMetric` 연동으로 PC 운영 바로가기 액션 클릭 로그 추가
@@ -127,7 +132,8 @@
 - `open_beginner_guide`를 `uiVariant=v3-targeted-tuning-1`로 분리하고 선행 배치/라벨(`빠른 시작 가이드`) 2차 보정 반영
 - Settings KPI에 가이드 액션 v2/v3 비교 행(누적·오늘) 추가
 - Settings v3 가이드 CTA에 카피 A/B 분기(`copyVariant`, `copyLabel`) 및 KPI A/B 집계행 추가
-- 검증: `npm run build` PASS (`built in 5.42s`)
+- 24h 관찰 기준 승자 자동 고정(`psi_settings_guide_copy_winner_v1`) 및 고정/관찰 상태 표시 추가
+- 검증: `npm run build` PASS (`built in 5.33s`)
 
 ---
 

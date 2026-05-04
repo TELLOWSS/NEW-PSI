@@ -150,6 +150,7 @@
 - [x] Settings KPI에 `v2` 일간 추이 자동 계산(오늘/어제/증감 건·%) 반영
 - [x] `open_beginner_guide` 2차 보정(v3): 선행 배치 + 라벨 `빠른 시작 가이드` + v2/v3 비교행 반영
 - [x] `open_beginner_guide` v3 카피 A/B 실험(세션 해시 분기) + A/B 집계행 반영
+- [x] `open_beginner_guide` 1일 관찰 기준 승자 자동 고정(24h 표본·격차 기준, lock key 저장) 반영
 - [x] 빌드 재검증 통과 (`built in 7.02s`)
 
 ### 완료(증적/QA) — 2026-05-04 확정

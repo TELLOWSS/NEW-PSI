@@ -422,6 +422,17 @@ PC는 모바일 확대판이 아니라 운영 콘솔이어야 한다.
 - Settings KPI에 `v3 카피 A/B` 요약 행(누적 클릭 + 현재 세션 노출안) 추가
 - 빌드 재검증 통과 (`built in 5.42s`)
 
+### 17-3.13 승자 자동 고정 구현 — 1일 관찰 기준
+- `open_beginner_guide` v3 카피 A/B의 최근 24시간 표본을 기준으로 승자 자동 고정 로직 추가
+- 자동 고정 조건: 최근 24h 표본 8건 이상, A/B 격차 2건 이상일 때 승자 고정(`psi_settings_guide_copy_winner_v1`)
+- Settings KPI에 승자 고정 상태(또는 관찰 중 표본 현황) 표시를 추가해 운영자가 현재 판단 상태를 즉시 확인 가능
+- 빌드 재검증 통과 (`built in 5.33s`)
+
+### 17-4.1 배포 체크 보강 — `check:mobile-qa:evidence` 실패 원인 정리
+- 스크립트(`scripts/check-mobile-qa-evidence.cjs`)는 `artifacts/mobile-qa/2026-05-04` 경로의 16개 PNG 중 누락이 1개라도 있으면 `RESULT=NOT_READY`와 함께 Exit 1 반환
+- 따라서 실패 원인은 코드 빌드 이슈가 아니라 `증적 파일 누락(미캡처/경로 불일치/작업 디렉터리 불일치)` 분기이며, 재현 시 `TOTAL_MISSING` 값으로 즉시 확인 가능
+- 현재 워크스페이스 재실행 결과는 `TOTAL_MISSING=0`, `RESULT=READY_FOR_FINALIZATION` 확인
+
 ### 17-4. 다음 후속 액션 (Phase 2.5 — Home 구조 정밀화)
 1. ✅ 모바일 홈 KPI 카드 3개 + 위험도 요약 1차 노출 구조 유지(추가 중복 카드 모바일 숨김 반영)
 2. ✅ "시작하기" CTA 모바일 단일 고정 반영
@@ -438,7 +449,7 @@ PC는 모바일 확대판이 아니라 운영 콘솔이어야 한다.
 - [x] `npm run qa:mobile:finalize` → `FINALIZED_PASS`
 
 ### 18-2. 다음사항(바로 실행 1건)
-1. `open_beginner_guide` v3 카피 A/B(안 A vs 안 B) 클릭 비중을 1일 관찰하고 승자 카피를 고정
+1. 승자 자동 고정 발동 여부를 1일 단위로 확인하고, 미발동 시 표본 확보를 위한 노출 동선(가이드 CTA 근접 설명) 1차 보정
 2. 반영 직후 `npm run build` 재확인
 3. `17) 실행 상태 업데이트`에 델타 4줄 기록
 
