@@ -68,28 +68,28 @@
 ## 3) 뷰포트별 결과 기록 (2차 실측용)
 
 ### 320x568
-- 결과: PENDING
+- 결과: CONDITIONAL PASS (실측 캡처 증빙 대기)
 - 확인 예정 항목:
   - [ ] Dashboard 하단 고정 CTA와 기존 하단 UI 겹침 없음
   - [ ] OcrAnalysis 고정 CTA + 안내 토스트 동시 노출 시 가림 없음
   - [ ] AI 리스크 게이지/3버킷/액션 1스크롤 가독성 유지
 
 ### 360x800
-- 결과: PENDING
+- 결과: CONDITIONAL PASS (실측 캡처 증빙 대기)
 - 확인 예정 항목:
   - [ ] Dashboard KPI/상단 배지 줄바꿈 가독성
   - [ ] OcrAnalysis 상단 체크리스트 2열 가독성
   - [ ] AI 리스크 요약 카드 탭 반응
 
 ### 375x812
-- 결과: PENDING
+- 결과: CONDITIONAL PASS (실측 캡처 증빙 대기)
 - 확인 예정 항목:
   - [ ] iOS 계열 안전영역(inset)에서 하단 CTA 터치 정상
   - [ ] OcrAnalysis 테이블/카드 가독성 유지
   - [ ] AI 리스크 액션 버튼 오터치 없음
 
 ### 390x844
-- 결과: PENDING
+- 결과: CONDITIONAL PASS (실측 캡처 증빙 대기)
 - 확인 예정 항목:
   - [ ] 카드 간격 확장 상태에서 시각 균형 유지
   - [ ] 하단 고정 CTA shadow/겹침 이슈 없음
@@ -101,6 +101,7 @@
 - 현재는 코드 기준 정적 QA 완료 상태이며 실기기/실뷰포트 캡처 증빙은 미수집.
 - 고정 CTA가 있는 2개 화면(Dashboard/OcrAnalysis)은 실제 브라우저 하단 UI와의 중첩 여부를 반드시 실측해야 함.
 - 자동 게이트는 통과했으나, 뷰포트/터치/노치 안전영역 이슈는 실측 없이는 최종 PASS 확정 불가.
+- 현재 판정은 `CONDITIONAL PASS`이며, FIELD_FORM 캡처 경로 입력 완료 시 `PASS` 또는 `FAIL`로 최종 확정한다.
 
 ---
 
@@ -110,5 +111,13 @@
 3. 콘솔 에러 확인
 4. [MOBILE_3SCREEN_VIEWPORT_QA_FIELD_FORM_2026-05-04.md](MOBILE_3SCREEN_VIEWPORT_QA_FIELD_FORM_2026-05-04.md)에 실측값 입력
 5. [MOBILE_3SCREEN_VIEWPORT_QA_FINALIZATION_TEMPLATE_2026-05-04.md](MOBILE_3SCREEN_VIEWPORT_QA_FINALIZATION_TEMPLATE_2026-05-04.md) 작성
-6. 본 문서의 PENDING을 PASS/FAIL로 확정
+6. 본 문서의 `CONDITIONAL PASS`를 `PASS/FAIL`로 최종 확정
 7. 운영일지에 최종 결과 반영
+
+---
+
+## 6) 마감 조건 (Close Criteria)
+- [ ] `artifacts/mobile-qa/2026-05-04/`에 12개 캡처 파일 저장 완료
+- [ ] FIELD_FORM의 12칸 매트릭스 `C`를 `P/F`로 전환 완료
+- [ ] FINALIZATION_TEMPLATE의 전체 결과를 `PASS` 또는 `FAIL`로 확정
+- [ ] 본 리포트 뷰포트별 결과를 `PASS/FAIL`로 동기화

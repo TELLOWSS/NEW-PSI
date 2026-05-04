@@ -79,3 +79,30 @@
 
 ### 4) 다음 작업 1순위
 - [MOBILE_3SCREEN_VIEWPORT_QA_REPORT_2026-05-04.md](MOBILE_3SCREEN_VIEWPORT_QA_REPORT_2026-05-04.md) 기준 320/360/375/390 뷰포트 PASS/FAIL 확정 및 캡처 증빙 수집.
+
+---
+
+## 2026-05-04 추가 진행 요약 (실행 안정화)
+
+### A) 구현/기동 상태
+- 모바일 3화면(Dashboard/OcrAnalysis/PredictiveAnalysis) 구현 반영 상태 유지
+- 로컬 실행 환경에서 화면 정상 가동 확인 완료
+
+### B) 빈 화면 대응
+- 원인: Supabase 환경변수 미설정 시 `lib/supabaseClient.ts` 초기화 예외로 앱 마운트 중단
+- 조치: Supabase 클라이언트를 비중단 폴백 구조로 변경해 앱 마운트 유지
+- 결과: 환경변수 미설정 환경에서도 UI 기동 가능(해당 기능만 비활성)
+
+### C) QA 문서 상태
+- `MOBILE_3SCREEN_VIEWPORT_QA_FIELD_FORM_2026-05-04.md`: 12칸 매트릭스 `C` 선입력 완료
+- `MOBILE_3SCREEN_VIEWPORT_QA_FINALIZATION_TEMPLATE_2026-05-04.md`: 임시 판정 `CONDITIONAL PASS` 반영
+- `MOBILE_3SCREEN_VIEWPORT_QA_REPORT_2026-05-04.md`: 뷰포트 결과를 `CONDITIONAL PASS(증빙 대기)`로 동기화
+
+### D) 남은 최종 작업
+- 320/360/375/390 실뷰포트 캡처 경로를 FIELD_FORM에 입력
+- QA REPORT 및 FINALIZATION_TEMPLATE에서 `CONDITIONAL PASS`를 `PASS/FAIL`로 최종 확정
+
+### E) 구조 재편 방향 문서화
+- 모바일 우선 IA + PC 후속 재구성 전략 문서를 신규 작성
+- 참조: [MOBILE_FIRST_IA_AND_PC_RESTRUCTURE_ROADMAP_2026-05-04.md](MOBILE_FIRST_IA_AND_PC_RESTRUCTURE_ROADMAP_2026-05-04.md)
+- 적용 원칙: 모바일은 행동 중심, PC는 운영 중심
