@@ -2225,8 +2225,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     
     // [SIMULATION DATE] 2026-02-17
     const today = "2026년 2월 17일 화요일";
-    const isFullMode = dashboardViewMode === 'full';
-    const isEssentialMode = dashboardViewMode === 'essential';
+    const effectiveDashboardViewMode: DashboardViewMode = viewportWidth < 640 ? 'essential' : dashboardViewMode;
+    const isFullMode = effectiveDashboardViewMode === 'full';
+    const isEssentialMode = effectiveDashboardViewMode === 'essential';
     const isEssentialMobile = isEssentialMode && viewportWidth < 640;
     const surveyDashboardSummary = useMemo(() => {
         const recordsWithAnswers = workerOnlyRecords.filter((record) => Array.isArray(record.handwrittenAnswers) && record.handwrittenAnswers.length > 0);
@@ -2420,32 +2421,38 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         <div>
                             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-200">화면 구성 모드</p>
                             <p className="mt-1 text-xs font-medium text-slate-200">
-                                {dashboardViewMode === 'full'
+                                {effectiveDashboardViewMode === 'full'
                                     ? '전체 분석: 평가자 중심 전체 맥락(Full Context)'
-                                    : dashboardViewMode === 'balanced'
+                                    : effectiveDashboardViewMode === 'balanced'
                                         ? '중간 구성: 핵심 + 필요 시 확장(Balanced)'
                                         : '필수 구성: 즉시 행동 중심(Essential)'}
                             </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                            {([
-                                { key: 'full', label: '전체 분석' },
-                                { key: 'balanced', label: '중간 구성' },
-                                { key: 'essential', label: '필수 구성' },
-                            ] as Array<{ key: DashboardViewMode; label: string }>).map((mode) => (
-                                <button
-                                    key={mode.key}
-                                    type="button"
-                                    onClick={() => handleDashboardViewModeChange(mode.key)}
-                                    className={`rounded-xl px-3 py-2 text-xs font-black transition-colors ${
-                                        dashboardViewMode === mode.key
-                                            ? 'bg-white text-slate-900'
-                                            : 'bg-white/10 text-slate-100 hover:bg-white/20'
-                                    }`}
-                                >
-                                    {mode.label}
-                                </button>
-                            ))}
+                            {viewportWidth >= 640 ? (
+                                ([
+                                    { key: 'full', label: '전체 분석' },
+                                    { key: 'balanced', label: '중간 구성' },
+                                    { key: 'essential', label: '필수 구성' },
+                                ] as Array<{ key: DashboardViewMode; label: string }>).map((mode) => (
+                                    <button
+                                        key={mode.key}
+                                        type="button"
+                                        onClick={() => handleDashboardViewModeChange(mode.key)}
+                                        className={`rounded-xl px-3 py-2 text-xs font-black transition-colors ${
+                                            dashboardViewMode === mode.key
+                                                ? 'bg-white text-slate-900'
+                                                : 'bg-white/10 text-slate-100 hover:bg-white/20'
+                                        }`}
+                                    >
+                                        {mode.label}
+                                    </button>
+                                ))
+                            ) : (
+                                <span className="rounded-xl border border-indigo-300/30 bg-indigo-500/15 px-3 py-2 text-[11px] font-black text-indigo-100">
+                                    모바일은 필수 구성으로 자동 최적화됩니다.
+                                </span>
+                            )}
                             <button
                                 type="button"
                                 onClick={handleNavigateToTeamComparison}

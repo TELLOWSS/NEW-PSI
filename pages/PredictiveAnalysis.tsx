@@ -587,7 +587,9 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
     const [nextMonth, setNextMonth] = useState('');
     const boardScope = useMemo(() => getCurrentBoardScope(), []);
     const currentAdminActor = useMemo(() => getCurrentAdminActorName(), []);
+    const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
     const [showOntologyMobile, setShowOntologyMobile] = useState(false);
+    const [showMobileExtendedPanels, setShowMobileExtendedPanels] = useState(false);
     const [ontologyZoom, setOntologyZoom] = useState(1);
     const [ontologySpacingStrength, setOntologySpacingStrength] = useState(0.5);
     const [planStatusMap, setPlanStatusMap] = useState<Record<string, PlanStatus>>(() => readSavedPlanStatusMap());
@@ -628,6 +630,12 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
         setTodayDate(`${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`);
         d.setMonth(d.getMonth() + 1);
         setNextMonth(`${d.getMonth() + 1}월`);
+    }, []);
+
+    useEffect(() => {
+        const handleResize = () => setViewportWidth(window.innerWidth);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
     }, []);
 
     const riskInsights = useMemo<WorkerRiskInsight[]>(() => {
@@ -1462,6 +1470,8 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
         setIsPanningOntology(false);
     };
 
+    const isCompactMobile = viewportWidth < 640;
+
     return (
         <div className="space-y-6 sm:space-y-8 animate-fade-in-up">
             {/* Header: Meeting Context */}
@@ -1945,6 +1955,17 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                         )}
                     </div>
 
+                    {isCompactMobile && (
+                        <button
+                            type="button"
+                            onClick={() => setShowMobileExtendedPanels((prev) => !prev)}
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-100"
+                        >
+                            {showMobileExtendedPanels ? '심화 분석 패널 접기' : '심화 분석 패널 펼치기'}
+                        </button>
+                    )}
+
+                    {(!isCompactMobile || showMobileExtendedPanels) && (
                     <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[30px] shadow-lg border border-slate-100">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-4">
                             <div>
@@ -2037,6 +2058,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                             </p>
                         </div>
                     </div>
+                    )}
                 </div>
             </div>
         </div>

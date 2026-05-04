@@ -1133,7 +1133,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [showWorkerSignalDetails, setShowWorkerSignalDetails] = useState(false);
     const [showWorkerExtraActions, setShowWorkerExtraActions] = useState(false);
     const [showAllFailureCodeCards, setShowAllFailureCodeCards] = useState(false);
+    const [showMobileUtilityPanel, setShowMobileUtilityPanel] = useState(false);
+    const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
     const [isPaidApiMode, setIsPaidApiMode] = useState<boolean>(() => getIsPaidApiMode());
+
+    useEffect(() => {
+        const handleResize = () => setViewportWidth(window.innerWidth);
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+    }, []);
 
     useEffect(() => {
         const syncApiMode = () => setIsPaidApiMode(getIsPaidApiMode());
@@ -4504,6 +4512,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         reader.readAsText(file);
     };
 
+    const isCompactMobile = viewportWidth < 640;
+
     return (
         <div className="space-y-8 animate-fade-in-up">
             {/* Control Panel */}
@@ -4525,19 +4535,23 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         </>
                                     )}
                                 </p>
-                                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-bold text-slate-200">
-                                    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 다국어 OCR 인식(한/영/중 포함) 지원</div>
-                                    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 손글씨·저해상도 이미지 보정 분석</div>
-                                    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 오류 코드 기반 즉시 재시도 동선 제공</div>
-                                    <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 분석 후 위험 매핑/관리자 검토 연계</div>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowDashboardIntroDetail((prev) => !prev)}
-                                    className="mt-2 rounded-full bg-white/10 border border-white/10 px-3 py-1 text-[11px] font-black text-slate-200 hover:bg-white/20"
-                                >
-                                    {showDashboardIntroDetail ? '설명 접기' : '설명 자세히'}
-                                </button>
+                                {!isCompactMobile && (
+                                    <>
+                                        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-bold text-slate-200">
+                                            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 다국어 OCR 인식(한/영/중 포함) 지원</div>
+                                            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 손글씨·저해상도 이미지 보정 분석</div>
+                                            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 오류 코드 기반 즉시 재시도 동선 제공</div>
+                                            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 분석 후 위험 매핑/관리자 검토 연계</div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowDashboardIntroDetail((prev) => !prev)}
+                                            className="mt-2 rounded-full bg-white/10 border border-white/10 px-3 py-1 text-[11px] font-black text-slate-200 hover:bg-white/20"
+                                        >
+                                            {showDashboardIntroDetail ? '설명 접기' : '설명 자세히'}
+                                        </button>
+                                    </>
+                                )}
                             </div>
                             <div className="flex flex-wrap gap-2 text-[11px] font-black">
                                 <span className="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-slate-100">재분석 가능 {secondPassTargets.length}건</span>
@@ -4762,6 +4776,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         )}
                             </SectionPanelCard>
 
+                            {isCompactMobile && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowMobileUtilityPanel((prev) => !prev)}
+                                    className="w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-2 text-[11px] font-black text-slate-100 hover:bg-white/20"
+                                >
+                                    {showMobileUtilityPanel ? '운영 · 백업 도구 접기' : '운영 · 백업 도구 펼치기'}
+                                </button>
+                            )}
+
+                            {(!isCompactMobile || showMobileUtilityPanel) && (
                             <SectionPanelCard
                                 variant="emeraldDarkSoft"
                                 title="운영 · 백업"
@@ -4812,6 +4837,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             </>
                         )}
                             </SectionPanelCard>
+                            )}
                     </SectionPanelCard>
                 </div>
 
