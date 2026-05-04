@@ -1540,7 +1540,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                                     <button type="button" onClick={() => { trackQuickAction('focus_urgent_bucket'); setExecutionPlanFilter('urgent'); }} className="min-h-[44px] rounded-xl border border-amber-200 bg-white px-3 py-2 text-left text-xs font-black text-amber-700 hover:bg-amber-50">버킷 중심 조치 보기</button>
                                     <button type="button" onClick={() => { trackQuickAction('expand_risk_insights'); setShowAllRiskInsights(true); }} className="min-h-[44px] rounded-xl border border-rose-200 bg-white px-3 py-2 text-left text-xs font-black text-rose-700 hover:bg-rose-50">리스크 인사이트 펼치기</button>
                                     <button type="button" onClick={() => { trackQuickAction('expand_execution_plans'); setShowAllExecutionPlans(true); }} className="min-h-[44px] rounded-xl border border-violet-200 bg-white px-3 py-2 text-left text-xs font-black text-violet-700 hover:bg-violet-50">실행 계획 전체 보기</button>
-                                    <button type="button" onClick={() => { trackQuickAction('print_meeting_report'); window.print(); }} className="min-h-[44px] rounded-xl border border-sky-200 bg-white px-3 py-2 text-left text-xs font-black text-sky-700 hover:bg-sky-50">회의 리포트 인쇄</button>
+                                    <button type="button" onClick={() => { trackQuickAction('print_meeting_report', { uiVariant: 'v2-lowfreq-tuning-1' }); window.print(); }} className="min-h-[44px] rounded-xl border border-sky-200 bg-white px-3 py-2 text-left text-xs font-black text-sky-700 hover:bg-sky-50">회의용 리포트 인쇄</button>
                                 </div>
                             </div>
                         )}

@@ -393,6 +393,35 @@ PC는 모바일 확대판이 아니라 운영 콘솔이어야 한다.
 - 패널 구분값(`panel: 'pc_quick_actions'`)을 payload에 포함해 기존 UI 모드 지표와 동일 저장소(`psi_view_mode_metrics`)에서 교차 확인 가능
 - 빌드 재검증 통과 (`built in 5.80s`)
 
+### 17-3.8 계측 가시화 완료 — Settings KPI Top 5
+- Settings `UI 모드 실험 KPI 요약`에 `PC 운영 바로가기 클릭 Top 5` 패널 추가
+- `event=cta_click` + `payload.panel=pc_quick_actions` 기준으로 페이지·액션키별 집계(총 클릭/액션 종류/최근 시각 포함) 노출
+- 운영자가 즉시 상위 액션 도달 패턴을 확인하고 다음 UX 보정 우선순위를 결정할 수 있도록 구성
+- 빌드 재검증 통과 (`built in 6.20s`)
+
+### 17-3.9 하위 액션 미세조정 완료 — 라벨/배치 1차
+- 저빈도 가정 3액션 1차 보정: Predictive `print_meeting_report` 라벨을 `회의용 리포트 인쇄`로 명확화, Reports `open_worker_preview` 라벨을 `근로자 1건 미리보기`로 구체화, Settings `open_beginner_guide`를 패널 후순위로 이동하고 `신규 사용자 가이드`로 변경
+- 위 3액션 클릭에 `uiVariant: 'v2-lowfreq-tuning-1'` payload를 추가해 기존 로그 대비 추이 비교 가능 상태로 전환
+- Settings KPI Top 5 패널에 `미세조정(v2) 비교 대상 클릭` 카운트 행을 추가해 운영 화면에서 즉시 비교 확인 가능
+- 빌드 재검증 통과 (`built in 6.04s`)
+
+### 17-3.10 추이 자동화 완료 — v2 일간 비교
+- Settings KPI에 `uiVariant=v2-lowfreq-tuning-1` 기준 `오늘/어제/증감(건·%)` 자동 계산 행 추가
+- 일간 비교는 로컬 날짜 기준으로 계산해 운영자가 별도 추출 없이 즉시 개선 추이를 확인할 수 있도록 구성
+- 빌드 재검증 통과 (`built in 6.70s`)
+
+### 17-3.11 2차 보정 완료 — 가이드 액션 v3 타겟 실험
+- 보정 대상 액션을 `open_beginner_guide`로 고정하고, PC 운영 바로가기 내 위치를 선행 배치(첫 버튼)로 조정
+- 버튼 라벨을 `빠른 시작 가이드`로 변경하고 계측 태그를 `uiVariant='v3-targeted-tuning-1'`로 분리
+- Settings KPI에 가이드 액션 전용 비교 행(v2 누적/오늘 vs v3 누적/오늘)을 추가해 2차 보정 효과를 즉시 확인 가능하도록 구성
+- 빌드 재검증 통과 (`built in 6.19s`)
+
+### 17-3.12 카피 A/B 실험 활성화 — v3 가이드 CTA
+- `open_beginner_guide` v3 버튼에 세션 해시 기반 A/B 카피 분기 적용 (`A: 빠른 시작 가이드`, `B: 처음 사용 안내`)
+- 클릭 이벤트 payload에 `copyVariant`/`copyLabel`을 함께 기록해 v3 내부 카피별 성과 비교 가능 상태로 전환
+- Settings KPI에 `v3 카피 A/B` 요약 행(누적 클릭 + 현재 세션 노출안) 추가
+- 빌드 재검증 통과 (`built in 5.42s`)
+
 ### 17-4. 다음 후속 액션 (Phase 2.5 — Home 구조 정밀화)
 1. ✅ 모바일 홈 KPI 카드 3개 + 위험도 요약 1차 노출 구조 유지(추가 중복 카드 모바일 숨김 반영)
 2. ✅ "시작하기" CTA 모바일 단일 고정 반영
@@ -409,7 +438,7 @@ PC는 모바일 확대판이 아니라 운영 콘솔이어야 한다.
 - [x] `npm run qa:mobile:finalize` → `FINALIZED_PASS`
 
 ### 18-2. 다음사항(바로 실행 1건)
-1. `Settings`의 UI 모드 실험 KPI 구간에 `pc_quick_actions` 액션 키별 최근 클릭 Top 목록(요약 5건) 노출
+1. `open_beginner_guide` v3 카피 A/B(안 A vs 안 B) 클릭 비중을 1일 관찰하고 승자 카피를 고정
 2. 반영 직후 `npm run build` 재확인
 3. `17) 실행 상태 업데이트`에 델타 4줄 기록
 

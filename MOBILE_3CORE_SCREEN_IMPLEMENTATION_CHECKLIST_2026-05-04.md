@@ -145,6 +145,11 @@
 - [x] OCR(`ocr-analysis`) 분석 후 보조 CTA `닫기` 버튼 `min-h-[44px]` 적용
 - [x] Home(`dashboard`) 모바일 최근 리포트 카드 신설(최신 3건 노출) + `reports` 이동 동선 연결
 - [x] Phase 3 PC 운영 바로가기( Predictive/Reports/Settings ) 클릭 계측 반영 (`trackUIViewMetric` + `panel: pc_quick_actions`)
+- [x] Settings(`settings`) `UI 모드 실험 KPI 요약`에 `pc_quick_actions` 클릭 Top5 요약 패널 추가(총 클릭/액션 종류/최근 시각)
+- [x] Top5 하위 3액션 1차 미세조정 + 추이비교 태그(`uiVariant=v2-lowfreq-tuning-1`) 반영
+- [x] Settings KPI에 `v2` 일간 추이 자동 계산(오늘/어제/증감 건·%) 반영
+- [x] `open_beginner_guide` 2차 보정(v3): 선행 배치 + 라벨 `빠른 시작 가이드` + v2/v3 비교행 반영
+- [x] `open_beginner_guide` v3 카피 A/B 실험(세션 해시 분기) + A/B 집계행 반영
 - [x] 빌드 재검증 통과 (`built in 7.02s`)
 
 ### 완료(증적/QA) — 2026-05-04 확정

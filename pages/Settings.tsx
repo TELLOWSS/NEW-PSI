@@ -340,6 +340,15 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(() => (typeof window !== 'undefined' ? window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false : false));
     const [uiViewMetrics, setUIViewMetrics] = useState<UIViewMetricRecord[]>([]);
     const quickActionMetricSessionRef = useRef<string>(createMetricSessionId('settings'));
+    const guideCopyVariant = useMemo<'A' | 'B'>(() => {
+        const seed = quickActionMetricSessionRef.current;
+        let hash = 0;
+        for (let i = 0; i < seed.length; i += 1) {
+            hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+        }
+        return hash % 2 === 0 ? 'A' : 'B';
+    }, []);
+    const guideCopyLabel = guideCopyVariant === 'A' ? '빠른 시작 가이드' : '처음 사용 안내';
 
     const trackQuickAction = (actionKey: string, payload?: Record<string, unknown>) => {
         trackUIViewMetric('cta_click', 'settings', quickActionMetricSessionRef.current, {
@@ -967,6 +976,101 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         };
     }, [uiViewMetricSummary.presetApplies, uiViewMetricSummary.presetPinnedSourceRate]);
 
+    const quickActionSummary = useMemo(() => {
+        const quickActionEvents = uiViewMetrics.filter((item) => (
+            item.event === 'cta_click'
+            && String(item.payload?.panel || '') === 'pc_quick_actions'
+        ));
+        const tunedEvents = quickActionEvents.filter((item) => String(item.payload?.uiVariant || '') === 'v2-lowfreq-tuning-1');
+        const guideV2Events = quickActionEvents.filter((item) => (
+            String(item.payload?.actionKey || '') === 'open_beginner_guide'
+            && String(item.payload?.uiVariant || '') === 'v2-lowfreq-tuning-1'
+        ));
+        const guideV3Events = quickActionEvents.filter((item) => (
+            String(item.payload?.actionKey || '') === 'open_beginner_guide'
+            && String(item.payload?.uiVariant || '') === 'v3-targeted-tuning-1'
+        ));
+        const guideV3CopyAEvents = guideV3Events.filter((item) => String(item.payload?.copyVariant || '') === 'A');
+        const guideV3CopyBEvents = guideV3Events.filter((item) => String(item.payload?.copyVariant || '') === 'B');
+
+        const toLocalDayKey = (value: string) => {
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return '';
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        const now = new Date();
+        const todayKey = toLocalDayKey(now.toISOString());
+        const yesterdayDate = new Date(now);
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const yesterdayKey = toLocalDayKey(yesterdayDate.toISOString());
+        const tunedTodayClicks = tunedEvents.filter((item) => toLocalDayKey(item.timestamp) === todayKey).length;
+        const tunedYesterdayClicks = tunedEvents.filter((item) => toLocalDayKey(item.timestamp) === yesterdayKey).length;
+        const tunedDelta = tunedTodayClicks - tunedYesterdayClicks;
+        const tunedDeltaRate = tunedYesterdayClicks > 0
+            ? Math.round((tunedDelta / tunedYesterdayClicks) * 100)
+            : tunedTodayClicks > 0
+                ? 100
+                : 0;
+        const guideV2TodayClicks = guideV2Events.filter((item) => toLocalDayKey(item.timestamp) === todayKey).length;
+        const guideV3TodayClicks = guideV3Events.filter((item) => toLocalDayKey(item.timestamp) === todayKey).length;
+
+        const grouped = quickActionEvents.reduce((acc, item) => {
+            const page = String(item.page || 'unknown').trim() || 'unknown';
+            const actionKey = String(item.payload?.actionKey || 'unknown').trim() || 'unknown';
+            const key = `${page}::${actionKey}`;
+            const current = acc.get(key);
+            if (!current) {
+                acc.set(key, {
+                    key,
+                    page,
+                    actionKey,
+                    count: 1,
+                    latestTimestamp: item.timestamp,
+                });
+                return acc;
+            }
+
+            const latestCurrent = new Date(current.latestTimestamp).getTime();
+            const latestIncoming = new Date(item.timestamp).getTime();
+            current.count += 1;
+            if (!Number.isNaN(latestIncoming) && (Number.isNaN(latestCurrent) || latestIncoming > latestCurrent)) {
+                current.latestTimestamp = item.timestamp;
+            }
+            return acc;
+        }, new Map<string, {
+            key: string;
+            page: string;
+            actionKey: string;
+            count: number;
+            latestTimestamp: string;
+        }>());
+
+        const topActions = Array.from(grouped.values())
+            .sort((a, b) => b.count - a.count || b.latestTimestamp.localeCompare(a.latestTimestamp))
+            .slice(0, 5);
+
+        return {
+            totalClicks: quickActionEvents.length,
+            uniqueActions: grouped.size,
+            tunedClicks: tunedEvents.length,
+            tunedTodayClicks,
+            tunedYesterdayClicks,
+            tunedDelta,
+            tunedDeltaRate,
+            guideV2Clicks: guideV2Events.length,
+            guideV3Clicks: guideV3Events.length,
+            guideV2TodayClicks,
+            guideV3TodayClicks,
+            guideV3CopyAClicks: guideV3CopyAEvents.length,
+            guideV3CopyBClicks: guideV3CopyBEvents.length,
+            topActions,
+        };
+    }, [uiViewMetrics]);
+
     const recentUIViewMetrics = useMemo(() => uiViewMetrics.slice(0, 3), [uiViewMetrics]);
 
     const handleClearUIViewMetrics = () => {
@@ -1211,7 +1315,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">PC 운영 바로가기</p>
                 <p className="mt-1 text-[11px] font-semibold text-indigo-700">설정/진단/저장을 상단에서 즉시 실행해 운영 점검 반복 시간을 줄입니다.</p>
                 <div className="mt-2 grid grid-cols-1 gap-2 xl:grid-cols-6">
-                    <button type="button" onClick={() => { trackQuickAction('open_beginner_guide'); setShowGuide(true); }} className="min-h-[44px] rounded-xl border border-indigo-200 bg-white px-3 py-2 text-left text-xs font-black text-indigo-700 hover:bg-indigo-50">초보자 가이드 열기</button>
+                    <button type="button" onClick={() => { trackQuickAction('open_beginner_guide', { uiVariant: 'v3-targeted-tuning-1', copyVariant: guideCopyVariant, copyLabel: guideCopyLabel }); setShowGuide(true); }} className="min-h-[44px] rounded-xl border border-indigo-200 bg-white px-3 py-2 text-left text-xs font-black text-indigo-700 hover:bg-indigo-50">{guideCopyLabel}</button>
                     <button type="button" onClick={() => { trackQuickAction('set_theme_system_mode', { currentThemeMode: themeMode }); handleThemeModeChange('system'); }} className="min-h-[44px] rounded-xl border border-indigo-200 bg-white px-3 py-2 text-left text-xs font-black text-indigo-700 hover:bg-indigo-50">테마 자동 모드</button>
                     <button type="button" onClick={() => { trackQuickAction('refresh_ui_metrics'); loadUIViewMetrics(); }} className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-xs font-black text-slate-700 hover:bg-slate-50">UI 지표 새로고침</button>
                     <button type="button" onClick={() => { trackQuickAction('run_harness_health_check'); handleRunHarnessHealthCheck(); }} className="min-h-[44px] rounded-xl border border-emerald-200 bg-white px-3 py-2 text-left text-xs font-black text-emerald-700 hover:bg-emerald-50">헬스체크 실행</button>
@@ -1324,6 +1428,40 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     <p className={`mt-1 text-xs font-black ${presetSourceTargetStatus.toneClassName}`}>
                         빠른실행 사용률 목표(60%): {presetSourceTargetStatus.label} · {presetSourceTargetStatus.description}
                     </p>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">PC 운영 바로가기 클릭 Top 5</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-600">
+                        총 클릭 {quickActionSummary.totalClicks}건 · 액션 종류 {quickActionSummary.uniqueActions}개
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-indigo-700">
+                        미세조정(v2) 비교 대상 클릭 {quickActionSummary.tunedClicks}건 (가이드/미리보기/인쇄)
+                    </p>
+                    <p className={`mt-1 text-xs font-black ${quickActionSummary.tunedDelta >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                        일간 추이: 오늘 {quickActionSummary.tunedTodayClicks}건 · 어제 {quickActionSummary.tunedYesterdayClicks}건 · 변화 {quickActionSummary.tunedDelta >= 0 ? '+' : ''}{quickActionSummary.tunedDelta}건 ({quickActionSummary.tunedDelta >= 0 ? '+' : ''}{quickActionSummary.tunedDeltaRate}%)
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-violet-700">
+                        2차 보정 대상(가이드): v2 누적 {quickActionSummary.guideV2Clicks}건 / v3 누적 {quickActionSummary.guideV3Clicks}건 · 오늘 v2 {quickActionSummary.guideV2TodayClicks}건 / v3 {quickActionSummary.guideV3TodayClicks}건
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-indigo-700">
+                        v3 카피 A/B: A {quickActionSummary.guideV3CopyAClicks}건 · B {quickActionSummary.guideV3CopyBClicks}건 · 현재 세션 노출 {guideCopyVariant}안
+                    </p>
+                    {quickActionSummary.topActions.length === 0 ? (
+                        <p className="mt-3 text-sm font-semibold text-slate-500">pc_quick_actions 클릭 로그가 아직 없습니다.</p>
+                    ) : (
+                        <div className="mt-3 space-y-2">
+                            {quickActionSummary.topActions.map((item, index) => (
+                                <div key={item.key} className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <p className="text-xs font-black text-slate-900">{index + 1}. {item.actionKey}</p>
+                                        <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[11px] font-black text-indigo-700">{item.count}회</span>
+                                    </div>
+                                    <p className="mt-1 text-[11px] font-semibold text-slate-600">페이지: {item.page} · 최근 {new Date(item.latestTimestamp).toLocaleString('ko-KR')}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
 
                 <div className="mt-4 rounded-2xl border border-slate-200 overflow-hidden">
