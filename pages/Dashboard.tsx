@@ -2426,7 +2426,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         </div>
                     )}
 
-                    <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
+                    <div className="mb-3 sm:mb-4 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-200">역할별 보기</p>
                             <p className="mt-1 text-xs font-medium text-slate-200">{DASHBOARD_AUDIENCE_META[audienceView].description}</p>
@@ -2461,7 +2461,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     </div>
                     )}
 
-                    <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
+                    <div className="mb-3 sm:mb-4 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-200">화면 구성 모드</p>
                             <p className="mt-1 text-xs font-medium text-slate-200">
@@ -4333,7 +4333,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 <button
                     type="button"
                     onClick={() => setCurrentPage('ocr-analysis')}
-                    className="w-full min-h-[48px] rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-black text-white shadow-2xl hover:bg-indigo-500"
+                    className="w-full min-h-[48px] rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-black text-white shadow-2xl transition-colors hover:bg-indigo-500 active:scale-[0.99]"
                 >
                     시작하기
                 </button>

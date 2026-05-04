@@ -5,6 +5,18 @@ import { DevModeProvider } from './contexts/DevModeContext';
 
 const RUNTIME_RECOVERY_RELOAD_KEY = 'psi_runtime_recovery_reload_once';
 const VERSION_MISMATCH_RELOAD_KEY = 'psi_version_mismatch_reload_once';
+const BOOTSTRAP_FATAL_RENDER_DELAY_MS = 900;
+
+let pendingFatalTimer: number | null = null;
+
+const isAppMounted = (): boolean => document.documentElement.dataset.psiMounted === '1';
+
+const clearPendingFatalTimer = () => {
+  if (pendingFatalTimer !== null) {
+    window.clearTimeout(pendingFatalTimer);
+    pendingFatalTimer = null;
+  }
+};
 
 const isRecoverableBootstrapMessage = (message: string): boolean => {
   const normalized = String(message || '').toLowerCase();
@@ -72,6 +84,7 @@ if (!rootElement) {
 }
 
 const renderFatalBootstrapError = (message: string) => {
+  if (isAppMounted()) return;
   rootElement.innerHTML = `
     <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;">
       <div style="max-width:680px;width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:20px;box-shadow:0 8px 30px rgba(0,0,0,.06);">
@@ -83,17 +96,28 @@ const renderFatalBootstrapError = (message: string) => {
   `;
 };
 
+const scheduleFatalBootstrapError = (message: string) => {
+  if (isAppMounted()) return;
+  clearPendingFatalTimer();
+  pendingFatalTimer = window.setTimeout(() => {
+    pendingFatalTimer = null;
+    if (!isAppMounted()) {
+      renderFatalBootstrapError(message);
+    }
+  }, BOOTSTRAP_FATAL_RENDER_DELAY_MS);
+};
+
 window.addEventListener('error', (event) => {
   const msg = event.error?.message || event.message || 'Unknown startup error';
   if (tryRuntimeRecoveryReload(msg)) return;
-  renderFatalBootstrapError(msg);
+  scheduleFatalBootstrapError(msg);
 });
 
 window.addEventListener('unhandledrejection', (event) => {
   const reason = event.reason;
   const msg = typeof reason === 'string' ? reason : (reason?.message || 'Unhandled promise rejection');
   if (tryRuntimeRecoveryReload(msg)) return;
-  renderFatalBootstrapError(msg);
+  scheduleFatalBootstrapError(msg);
 });
 
 const root = ReactDOM.createRoot(rootElement);
@@ -106,12 +130,13 @@ try {
     </React.StrictMode>
   );
   document.documentElement.dataset.psiMounted = '1';
+  clearPendingFatalTimer();
 } catch (error) {
   const msg = error instanceof Error ? error.message : String(error);
   if (tryRuntimeRecoveryReload(msg)) {
     // reload triggered
   } else {
-  renderFatalBootstrapError(msg);
+  scheduleFatalBootstrapError(msg);
   }
 }
 

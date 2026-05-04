@@ -4521,15 +4521,15 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const isCompactMobile = viewportWidth < 640;
 
     return (
-        <div className="space-y-8 animate-fade-in-up">
+        <div className="space-y-6 sm:space-y-8 animate-fade-in-up">
             {/* Control Panel */}
-            <div className="bg-slate-900 rounded-3xl p-5 sm:p-8 shadow-2xl text-white relative overflow-hidden">
+            <div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl text-white relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-48 -mt-48"></div>
                 <div className="relative z-10 grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1.15fr)_360px] gap-6 xl:gap-8 items-start">
                     <div className="min-w-0">
-                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 sm:gap-4">
                             <div>
-                                <h3 className="text-xl sm:text-2xl font-black mb-2 flex items-center gap-3">
+                                <h3 className="text-xl sm:text-2xl font-black mb-1.5 sm:mb-2 flex items-center gap-2 sm:gap-3">
                                     OCR 분석 운영 대시보드
                                     <span className="text-xs bg-indigo-600 px-2 py-1 rounded-md font-bold uppercase tracking-widest">PRO</span>
                                 </h3>
@@ -6855,7 +6855,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     <button
                         type="button"
                         onClick={handleAnalyze}
-                        className="w-full min-h-[48px] rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-black text-white shadow-2xl hover:bg-indigo-500"
+                        className="w-full min-h-[48px] rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-black text-white shadow-2xl transition-colors hover:bg-indigo-500 active:scale-[0.99]"
                     >
                         분석 시작
                     </button>
@@ -6867,7 +6867,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     <button
                         type="button"
                         onClick={onNavigateToPredictive}
-                        className="w-full min-h-[48px] rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-2xl hover:bg-emerald-500"
+                        className="w-full min-h-[48px] rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-2xl transition-colors hover:bg-emerald-500 active:scale-[0.99]"
                     >
                         AI 리스크 분석 결과 보기 →
                     </button>

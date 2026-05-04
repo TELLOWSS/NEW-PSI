@@ -433,11 +433,30 @@ PC는 모바일 확대판이 아니라 운영 콘솔이어야 한다.
 - 따라서 실패 원인은 코드 빌드 이슈가 아니라 `증적 파일 누락(미캡처/경로 불일치/작업 디렉터리 불일치)` 분기이며, 재현 시 `TOTAL_MISSING` 값으로 즉시 확인 가능
 - 현재 워크스페이스 재실행 결과는 `TOTAL_MISSING=0`, `RESULT=READY_FOR_FINALIZATION` 확인
 
+### 17-4.2 초기 로딩 오류화면 깜빡임 개선
+- 원인: `index.tsx`의 전역 `error`/`unhandledrejection` 핸들러가 복구 가능한 초기 예외에도 즉시 치명오류 화면을 덮어써 일시 노출 후 정상 복구되는 현상 발생
+- 개선: 앱 마운트 여부 확인(`data-psi-mounted`) + 지연 렌더(900ms) 방식으로 치명오류 화면 노출을 보수화하고, 마운트 완료 시 대기 타이머 즉시 해제
+- 효과: 복구 가능한 부트스트랩 예외에서 오류 화면 플래시를 억제하고 실제 치명 오류만 노출
+- 빌드 재검증 통과 (`built in 5.40s`)
+
+### 17-4.3 미구현 1순위 반영 — 모바일 헤더 높이/간격 공통화
+- Dashboard/OcrAnalysis/PredictiveAnalysis 상단 히어로 영역의 모바일 기준 간격을 `rounded-2xl + p-4` 스케일로 공통화
+- OcrAnalysis/PredictiveAnalysis 헤더 row gap을 `gap-3 sm:gap-4`로 정렬해 첫 화면 높이 체감을 통일
+- 체크리스트 `1) 공통 구현 체크`의 `모바일 헤더 높이/간격 공통화` 항목 [x] 반영
+- 검증: `npm run build` PASS (`built in 5.16s`), `check:mobile-qa:evidence` → `READY_FOR_FINALIZATION`
+
+### 17-4.4 미구현 2순위 반영 — CTA 버튼 스타일 공통화
+- Dashboard/OCR/Predictive 핵심 모바일 CTA를 동일 스케일(`min-h-[48px]`, `rounded-2xl`, `px-4 py-3`, `text-sm font-black`)로 정렬
+- 주요 CTA에 `transition-colors` + `active:scale-[0.99]`를 공통 적용해 탭 피드백 체감을 일관화
+- 적용 범위: Dashboard `시작하기`, OCR `분석 시작`/`AI 리스크 분석 결과 보기`, Predictive 모바일 토글 CTA 2종
+- 검증: `npm run build` PASS (`built in 5.24s`), `check:mobile-qa:evidence` → `READY_FOR_FINALIZATION`
+
 ### 17-4. 다음 후속 액션 (Phase 2.5 — Home 구조 정밀화)
 1. ✅ 모바일 홈 KPI 카드 3개 + 위험도 요약 1차 노출 구조 유지(추가 중복 카드 모바일 숨김 반영)
 2. ✅ "시작하기" CTA 모바일 단일 고정 반영
 3. ✅ 최근 리포트 3건 이내 모바일 제한: Dashboard 모바일 Essential 구간에 최근 리포트 카드(최신 3건) 추가
 4. ✅ 공통 터치 타겟 44x44(핵심 모바일 액션 버튼 범위) 반영
+5. 🔜 다음 1순위: 카드 반경/패딩/그림자 토큰 통일(Dashboard/OCR/Predictive 공통 카드 스케일 정렬)
 
 ---
 
@@ -449,7 +468,7 @@ PC는 모바일 확대판이 아니라 운영 콘솔이어야 한다.
 - [x] `npm run qa:mobile:finalize` → `FINALIZED_PASS`
 
 ### 18-2. 다음사항(바로 실행 1건)
-1. 승자 자동 고정 발동 여부를 1일 단위로 확인하고, 미발동 시 표본 확보를 위한 노출 동선(가이드 CTA 근접 설명) 1차 보정
+1. 공통 리뉴얼 미구현 항목 2순위(`CTA 버튼 스타일 공통화`)를 Dashboard/OCR/Predictive 핵심 CTA부터 순차 적용
 2. 반영 직후 `npm run build` 재확인
 3. `17) 실행 상태 업데이트`에 델타 4줄 기록
 

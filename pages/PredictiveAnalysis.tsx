@@ -1486,9 +1486,9 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
     return (
         <div className="space-y-6 sm:space-y-8 animate-fade-in-up">
             {/* Header: Meeting Context */}
-            <div className="bg-gradient-to-r from-slate-900 to-indigo-900 rounded-2xl sm:rounded-[30px] p-4 sm:p-8 text-white shadow-2xl border border-slate-700 relative overflow-hidden">
+            <div className="bg-gradient-to-r from-slate-900 to-indigo-900 rounded-2xl sm:rounded-[30px] p-4 sm:p-6 text-white shadow-2xl border border-slate-700 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32"></div>
-                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 sm:gap-6">
+                <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 sm:gap-4">
                     <div>
                         <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-2">
                             <span className="bg-indigo-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg">Monthly Meeting</span>
@@ -1718,7 +1718,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                     <button
                         type="button"
                         onClick={() => setShowOntologyMobile((prev) => !prev)}
-                        className="sm:hidden mb-3 w-full min-h-[44px] rounded-xl border border-slate-700 bg-slate-800/60 px-3 py-2 text-xs font-black text-slate-100"
+                        className="sm:hidden mb-3 w-full min-h-[48px] rounded-2xl border border-slate-700 bg-slate-800/60 px-4 py-3 text-sm font-black text-slate-100 transition-colors hover:bg-slate-700/70 active:scale-[0.99]"
                     >
                         {showOntologyMobile ? '온톨로지 맵 숨기기' : '온톨로지 맵 보기'}
                     </button>
@@ -1981,7 +1981,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                         <button
                             type="button"
                             onClick={() => setShowMobileExtendedPanels((prev) => !prev)}
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-100"
+                            className="w-full min-h-[48px] rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-700 transition-colors hover:bg-slate-100 active:scale-[0.99]"
                         >
                             {showMobileExtendedPanels ? '심화 분석 패널 접기' : '심화 분석 패널 펼치기'}
                         </button>

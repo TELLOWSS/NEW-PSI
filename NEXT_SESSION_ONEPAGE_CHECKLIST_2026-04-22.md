@@ -11,12 +11,12 @@
 ---
 
 ## 2) 오늘 기준 종료 지점(복원 기준)
-- 마지막 명령: npm run qa:mobile:finalize
+- 마지막 명령: npm run check:mobile-qa:evidence
 - 종료 코드: 0
 - 최근 결과 요약:
-  - 빌드: PASS (`built in 5.33s`)
-  - 모바일 QA: FINALIZED_PASS (16/16)
-  - 상태: 모바일 3코어(Home/OCR/AI Risk) 감량·연결·터치타겟·최근리포트 3건 제한 완료 + PC 패널 클릭 계측/Top5 KPI/v2 일간추이/가이드 액션 v3 2차 보정 + v3 카피 A/B + 1일 관찰 기준 승자 자동 고정 구현 완료
+  - 빌드: PASS (`built in 5.24s`)
+  - 모바일 QA 증빙: READY_FOR_FINALIZATION (16/16)
+  - 상태: 모바일 3코어(Home/OCR/AI Risk) 감량·연결·터치타겟·최근리포트 3건 제한 + 초기 로딩 오류화면 플래시 개선 + 모바일 헤더/CTA 공통화 완료
 
 ---
 
@@ -104,9 +104,9 @@
   - 어떤 명령 결과가 PASS인지
 
 ### C. 배포 체크용 변경 요약 3줄 (2026-05-04)
-- 완료: v3 카피 A/B 1일 관찰 기준 승자 자동 고정 로직 반영(24h 표본·격차 기준)
-- 다음: 자동 고정 미발동 시 표본 확보 동선 보정 1차 반영
-- 검증: `npm run build` PASS (`built in 5.33s`)
+- 완료: 리뉴얼 미구현 2순위(CTA 버튼 스타일 공통화) Dashboard/OCR/Predictive 핵심 CTA 반영 완료
+- 다음: 리뉴얼 미구현 3순위(카드 반경/패딩/그림자 토큰 통일) 순차 반영
+- 검증: `npm run build` PASS (`built in 5.24s`) + `check:mobile-qa:evidence` `READY_FOR_FINALIZATION`
 
 ### E. 사용성 보정 델타 (2026-05-04)
 - Reports/Settings PC 바로가기 패널에 실행 가이드 문구 및 비활성 조건 연동 반영
@@ -116,7 +116,7 @@
 ### D. 다음 진행 1순위(검증 후 실행)
 - ✅ 배포 리허설 실행 완료: `npm run build` → `npm run check:mobile-qa:evidence` → `npm run qa:mobile:finalize`
 - ✅ 검증 결과: `READY_FOR_FINALIZATION` (16/16) + `FINALIZED_PASS`
-- 다음 착수: 승자 자동 고정 발동 여부 1일 모니터링 + 미발동 시 표본 확보 동선 보정
+- 다음 착수: 공통 미구현 3순위(`카드 반경/패딩/그림자 토큰 통일`)를 3코어 핵심 카드에 순차 반영
 
 ### G. `check:mobile-qa:evidence` 실패 원인 정리 (배포 체크용)
 - 실패 조건: `artifacts/mobile-qa/2026-05-04` 기준 16개 증적 중 누락이 1개라도 있으면 `RESULT=NOT_READY` + Exit 1
