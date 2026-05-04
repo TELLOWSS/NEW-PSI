@@ -94,12 +94,12 @@
 - 결과: 환경변수 미설정 환경에서도 UI 기동 가능(해당 기능만 비활성)
 
 ### C) QA 문서 상태
-- `MOBILE_3SCREEN_VIEWPORT_QA_FIELD_FORM_2026-05-04.md`: 12칸 매트릭스 `C` 선입력 완료
+- `MOBILE_3SCREEN_VIEWPORT_QA_FIELD_FORM_2026-05-04.md`: 12칸 매트릭스 `C` 선입력 완료 + 공통 네비 검증(nav) 4항목 추가
 - `MOBILE_3SCREEN_VIEWPORT_QA_FINALIZATION_TEMPLATE_2026-05-04.md`: 임시 판정 `CONDITIONAL PASS` 반영
-- `MOBILE_3SCREEN_VIEWPORT_QA_REPORT_2026-05-04.md`: 뷰포트 결과를 `CONDITIONAL PASS(증빙 대기)`로 동기화
+- `MOBILE_3SCREEN_VIEWPORT_QA_REPORT_2026-05-04.md`: 뷰포트 결과를 `CONDITIONAL PASS(증빙 대기)`로 동기화, 마감 캡처 기준을 16개(기존 12 + nav 4)로 갱신
 
 ### D) 남은 최종 작업
-- 320/360/375/390 실뷰포트 캡처 경로를 FIELD_FORM에 입력
+- 320/360/375/390 실뷰포트 캡처 16개(화면 12 + nav 4) 경로를 FIELD_FORM에 입력
 - QA REPORT 및 FINALIZATION_TEMPLATE에서 `CONDITIONAL PASS`를 `PASS/FAIL`로 최종 확정
 
 ### E) 구조 재편 방향 문서화

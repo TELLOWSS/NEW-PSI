@@ -25,9 +25,25 @@
 
 - 선입력 기준: 앱 정상 구동/핵심 렌더 확인 완료, 실뷰포트 수동 증빙 전 단계로 `C` 적용
 
+### 0-1) nav 4칸 빠른 매트릭스
+
+| Viewport \ 항목 | 공통(네비/진입) |
+| --- | --- |
+| 320x568 | C |
+| 360x800 | C |
+| 375x812 | C |
+| 390x844 | C |
+
+- 선입력 기준: 하단 5탭/상단 퀵링크/기본 진입 동선은 코드 기준 확인 완료, 실측 증빙 전 단계로 `C` 적용
+
 ---
 
 ## A) 320x568
+
+### 공통(네비/진입)
+- 결과: CONDITIONAL PASS
+- 이슈 요약(없으면 `없음`): 하단 5탭 active 동기화 실측 대기
+- 캡처 경로: artifacts/mobile-qa/2026-05-04/320-nav.png
 
 ### Dashboard
 - 결과: CONDITIONAL PASS
@@ -48,6 +64,11 @@
 
 ## B) 360x800
 
+### 공통(네비/진입)
+- 결과: CONDITIONAL PASS
+- 이슈 요약(없으면 `없음`): 상단 퀵링크 횡스크롤/탭 오작동 실측 대기
+- 캡처 경로: artifacts/mobile-qa/2026-05-04/360-nav.png
+
 ### Dashboard
 - 결과: CONDITIONAL PASS
 - 이슈 요약(없으면 `없음`): 정상 구동 확인, 실제 터치 동작 증빙 대기
@@ -67,6 +88,11 @@
 
 ## C) 375x812
 
+### 공통(네비/진입)
+- 결과: CONDITIONAL PASS
+- 이슈 요약(없으면 `없음`): iOS safe-area + 하단 5탭 가림 여부 실측 대기
+- 캡처 경로: artifacts/mobile-qa/2026-05-04/375-nav.png
+
 ### Dashboard
 - 결과: CONDITIONAL PASS
 - 이슈 요약(없으면 `없음`): 정상 구동 확인, inset 터치 실측 대기
@@ -85,6 +111,11 @@
 ---
 
 ## D) 390x844
+
+### 공통(네비/진입)
+- 결과: CONDITIONAL PASS
+- 이슈 요약(없으면 `없음`): 기본 진입 `dashboard` 후 1탭 도달 동선 실측 대기
+- 캡처 경로: artifacts/mobile-qa/2026-05-04/390-nav.png
 
 ### Dashboard
 - 결과: CONDITIONAL PASS
@@ -123,7 +154,7 @@
 ---
 
 ## G) 마감 전 체크
-- [ ] 12개 캡처 경로 파일 존재 확인
+- [ ] 16개 캡처 경로 파일 존재 확인(기존 12 + nav 4)
 - [ ] 12칸 매트릭스 `C` 제거(`P/F`만 남김)
 - [ ] E) 최종 집계를 `PASS` 또는 `FAIL`로 확정
 - [ ] FINALIZATION_TEMPLATE와 결과 일치 확인

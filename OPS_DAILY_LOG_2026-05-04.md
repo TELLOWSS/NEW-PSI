@@ -45,6 +45,14 @@
    - 결과: 성공
    - 요약: 34/34 통과
 
+8. `npm run check:mobile-qa:evidence`
+   - 결과: 실패(의도된 게이트 동작)
+   - 요약: 캡처 증빙 `0/16`, 누락 `16/16`, `RESULT=NOT_READY`
+
+9. `npm run check:mobile-qa:evidence:report`
+   - 결과: 실패(의도된 게이트 동작)
+   - 요약: 증빙 상태 리포트 생성 완료(`reports/mobile-qa-evidence-status.md`), `EVIDENCE_EXIT=1`
+
 ---
 
 ## 3) KPI 스냅샷 (당일)
@@ -130,6 +138,10 @@
 - 재적용 완료: 로컬 저장소 기준 `Dashboard/OcrAnalysis/PredictiveAnalysis` 3화면 모바일 패치 동기화
 - 빈 화면 원인 분석: Supabase 환경변수 미설정 시 `lib/supabaseClient.ts` 초기화 예외로 앱 마운트 중단
 - 빈 화면 조치: 부트스트랩 진단 문구 추가 + Supabase 클라이언트 비중단 폴백 적용
+- 모바일 내비게이션 조치: 하단 5탭(홈/분석/리포트/근로자/더보기) 및 상단 컨텍스트 퀵링크 반영
+- PC 내비게이션 조치: 사이드바를 운영 중심 그룹으로 재분류
+- 진입 동선 조치: 기본 시작 페이지를 `introduction` → `dashboard`로 전환
+- QA 자동화 조치: `scripts/check-mobile-qa-evidence.cjs` 추가 및 `check:mobile-qa:evidence` 스크립트 도입
 - 결과: 화면 정상 가동 확인
 
 ### 오늘 의사결정 (유지/변경)
@@ -138,6 +150,8 @@
 - 전수 OCR 금지 원칙: 유지
 - 10개국 QA 기준(우즈벡 포함): 유지
 - 기타: 모바일 UI/UX는 Dashboard/OCR/AI 리스크 3화면 우선 고도화
+- 기타2: 모바일 우선 UX를 위해 하단 탭 기반 정보구조를 우선 채택하고, PC는 운영 콘솔형 분류로 병행 유지
+- 기타3: QA 최종 확정 게이트는 `check:mobile-qa:evidence`에서 `RESULT=READY_FOR_FINALIZATION`일 때만 통과로 간주
 
 ---
 
@@ -155,8 +169,9 @@
 - [MOBILE_3SCREEN_DETAILED_SPEC_2026-05-04.md](MOBILE_3SCREEN_DETAILED_SPEC_2026-05-04.md)
 - [MOBILE_3SCREEN_VIEWPORT_QA_REPORT_2026-05-04.md](MOBILE_3SCREEN_VIEWPORT_QA_REPORT_2026-05-04.md)
 - [MOBILE_3SCREEN_VIEWPORT_QA_FIELD_FORM_2026-05-04.md](MOBILE_3SCREEN_VIEWPORT_QA_FIELD_FORM_2026-05-04.md)
+- [reports/mobile-qa-evidence-status.md](reports/mobile-qa-evidence-status.md)
 
 ---
 
 ## 10) 다음 세션 첫 작업 1개
-- MOBILE_3SCREEN_VIEWPORT_QA_FIELD_FORM_2026-05-04.md 입력 완료 후 QA_REPORT의 PENDING을 PASS/FAIL로 확정
+- 16개 캡처 파일 저장 후 `npm run check:mobile-qa:evidence` 재실행(`0/16` → `16/16`) 확인 뒤 FINALIZATION_TEMPLATE를 PASS/FAIL로 확정

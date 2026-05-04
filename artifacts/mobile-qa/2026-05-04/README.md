@@ -2,15 +2,19 @@
 
 - 저장 위치: `artifacts/mobile-qa/2026-05-04/`
 - 파일명 규칙:
+  - `320-nav.png`
   - `320-dashboard.png`
   - `320-ocr.png`
   - `320-predictive.png`
+  - `360-nav.png`
   - `360-dashboard.png`
   - `360-ocr.png`
   - `360-predictive.png`
+  - `375-nav.png`
   - `375-dashboard.png`
   - `375-ocr.png`
   - `375-predictive.png`
+  - `390-nav.png`
   - `390-dashboard.png`
   - `390-ocr.png`
   - `390-predictive.png`
