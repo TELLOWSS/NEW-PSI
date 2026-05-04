@@ -2081,6 +2081,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                             </p>
                         </div>
                     </div>
+                    </div>
                     )}
                 </div>
             </div>
