@@ -1195,7 +1195,8 @@ const App: React.FC = () => {
                                 onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} 
                                 onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); setCurrentPage('individual-report'); }}
                                 onDeleteRecord={handleDeleteRecord} 
-                                onUpdateRecord={handleUpdateRecord} 
+                                onUpdateRecord={handleUpdateRecord}
+                                onNavigateToPredictive={() => setCurrentPage('predictive-analysis')}
                             />
                         )}
                         {currentPage === 'worker-management' && <WorkerManagement workerRecords={workerRecords} onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} onOpenPhotoRegistration={(r, queueRecordIds) => setModalState({type:'recordDetail', record:r, source:'worker-management-photo-queue', queueRecordIds})} onUpdateRecord={handleUpdateRecord} />}

@@ -1518,9 +1518,9 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                             </div>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                            <button type="button" onClick={() => setShowAllRiskInsights((prev) => !prev)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">경향 분석</button>
-                            <button type="button" onClick={() => setExecutionPlanFilter('urgent')} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">개별 점검 영역</button>
-                            <button type="button" onClick={() => setShowAllExecutionPlans((prev) => !prev)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">AI 인사이트</button>
+                            <button type="button" onClick={() => setShowAllRiskInsights((prev) => !prev)} className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">경향 분석</button>
+                            <button type="button" onClick={() => setExecutionPlanFilter('urgent')} className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">개별 점검 영역</button>
+                            <button type="button" onClick={() => setShowAllExecutionPlans((prev) => !prev)} className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">AI 인사이트</button>
                         </div>
                     </div>
                 </div>
@@ -1696,7 +1696,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                     <button
                         type="button"
                         onClick={() => setShowOntologyMobile((prev) => !prev)}
-                        className="sm:hidden mb-3 w-full rounded-xl border border-slate-700 bg-slate-800/60 px-3 py-2 text-xs font-black text-slate-100"
+                        className="sm:hidden mb-3 w-full min-h-[44px] rounded-xl border border-slate-700 bg-slate-800/60 px-3 py-2 text-xs font-black text-slate-100"
                     >
                         {showOntologyMobile ? '온톨로지 맵 숨기기' : '온톨로지 맵 보기'}
                     </button>

@@ -1080,6 +1080,13 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         });
     }, [filteredWorkerRecords]);
 
+    const mobileRecentReports = useMemo(() => {
+        return latestFilteredWorkerRecords
+            .filter((record): record is WorkerRecord => Boolean(record))
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            .slice(0, 3);
+    }, [latestFilteredWorkerRecords]);
+
     const selectedGroup = useMemo(() => {
         if (!selectedTarget) return null;
         const key = getTargetGroupKey(selectedTarget.trade, selectedTarget.nationality);
@@ -1978,6 +1985,41 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         ];
     }, [audienceView]);
 
+    const pcConsoleActions = useMemo<Array<{ key: string; label: string; description: string; page: Page }>>(() => {
+        return [
+            {
+                key: 'pc-console-ocr',
+                label: 'OCR 운영',
+                description: '신규 분석과 운영 재검토를 바로 시작합니다.',
+                page: 'ocr-analysis',
+            },
+            {
+                key: 'pc-console-risk',
+                label: 'AI 리스크 운영',
+                description: '우선 개입 대상과 조치 계획을 확인합니다.',
+                page: 'predictive-analysis',
+            },
+            {
+                key: 'pc-console-reports',
+                label: '리포트',
+                description: '보고서 생성/검토 흐름으로 이동합니다.',
+                page: 'reports',
+            },
+            {
+                key: 'pc-console-workers',
+                label: '근로자 관리',
+                description: '대상자 필터링과 이력 확인을 진행합니다.',
+                page: 'worker-management',
+            },
+            {
+                key: 'pc-console-settings',
+                label: '설정/관리자',
+                description: '환경 상태와 운영 정책을 점검합니다.',
+                page: 'settings',
+            },
+        ];
+    }, []);
+
     const comparisonCards: InterpretationCardItem[] = useMemo(() => {
         const sharedStatusDescription = selectedTradeForComparison
             ? `${selectedTradeTeamComparison.length}개 팀을 같은 공종 기준으로 비교하며${selectedTeamsForComparison.length > 0 ? `, 현재 ${selectedTeamsForComparison.length}개 팀을 직접 선택해 좁혀 보고 있습니다.` : ' 전체 팀 흐름을 먼저 보고 있습니다.'}`
@@ -2407,6 +2449,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         </div>
                     </div>
 
+                    {!isEssentialMobile && (
                     <div className="mb-4 grid grid-cols-1 gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm sm:grid-cols-3">
                         {audienceQuickGuide.map((item) => (
                             <div key={item.key} className="rounded-xl border border-white/10 bg-white/5 p-3">
@@ -2416,6 +2459,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             </div>
                         ))}
                     </div>
+                    )}
 
                     <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
                         <div>
@@ -2462,6 +2506,30 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             </button>
                         </div>
                     </div>
+
+                    {viewportWidth >= 1024 && !isEssentialMode && (
+                        <div className="mb-4 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-200">PC 운영 콘솔</p>
+                                    <p className="mt-1 text-xs font-medium text-slate-200">운영 목적 화면으로 빠르게 전환해 대량 처리 흐름을 유지합니다.</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 gap-2 xl:grid-cols-5">
+                                {pcConsoleActions.map((action) => (
+                                    <button
+                                        key={action.key}
+                                        type="button"
+                                        onClick={() => setCurrentPage(action.page)}
+                                        className="min-h-[44px] rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-left transition-colors hover:bg-white/20"
+                                    >
+                                        <p className="text-xs font-black text-white">{action.label}</p>
+                                        <p className="mt-1 text-[10px] font-medium text-indigo-100">{action.description}</p>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Main Content Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
@@ -2510,6 +2578,58 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             <p className="text-[10px] sm:text-xs text-amber-200 mt-1.5 sm:mt-2 font-medium">고위험 근로자 감지</p>
                         </div>
                     </div>
+
+                    {isEssentialMobile && (
+                        <div className="mb-4 rounded-2xl border border-white/15 bg-white/5 p-3 backdrop-blur-sm">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                                <h3 className="text-xs font-black text-white">최근 리포트</h3>
+                                <button
+                                    type="button"
+                                    onClick={() => setCurrentPage('reports')}
+                                    className="min-h-[44px] rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-[11px] font-black text-indigo-100"
+                                >
+                                    전체 보기
+                                </button>
+                            </div>
+                            {mobileRecentReports.length === 0 ? (
+                                <p className="rounded-xl border border-dashed border-white/20 bg-white/5 px-3 py-3 text-[11px] font-medium text-indigo-100">
+                                    최근 리포트가 없습니다.
+                                </p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {mobileRecentReports.map((record) => {
+                                        const reportDate = record.date
+                                            ? new Date(record.date).toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })
+                                            : '-';
+                                        const riskTone = record.safetyScore < 60
+                                            ? 'bg-rose-500/20 text-rose-100 border-rose-300/40'
+                                            : record.safetyScore < 75
+                                                ? 'bg-amber-500/20 text-amber-100 border-amber-300/40'
+                                                : 'bg-emerald-500/20 text-emerald-100 border-emerald-300/40';
+
+                                        return (
+                                            <button
+                                                key={record.id}
+                                                type="button"
+                                                onClick={() => setCurrentPage('reports')}
+                                                className="w-full min-h-[44px] rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-left"
+                                            >
+                                                <div className="flex items-start justify-between gap-2">
+                                                    <div className="min-w-0">
+                                                        <p className="truncate text-xs font-black text-white">{record.name}</p>
+                                                        <p className="mt-0.5 text-[10px] font-medium text-indigo-100">{reportDate}</p>
+                                                    </div>
+                                                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-black ${riskTone}`}>
+                                                        {record.safetyScore.toFixed(1)}점
+                                                    </span>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* AI Insights & Quick Actions */}
                     <div className="flex flex-col lg:flex-row gap-3 sm:gap-4 items-stretch">
@@ -2876,6 +2996,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 />
             )}
 
+            {!isEssentialMobile && (
             <div className="bg-indigo-50 dark:bg-indigo-900/30 border-l-4 border-indigo-400 p-3 sm:p-4 rounded-r-lg flex items-start sm:items-center justify-between gap-2 sm:gap-4">
                 <div className="flex items-start sm:items-center gap-2">
                     <svg className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-500 shrink-0 mt-0.5 sm:mt-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -2884,7 +3005,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     </p>
                 </div>
             </div>
+            )}
 
+            {!isEssentialMobile && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
                 {overviewStatCards.map((card) => (
                     <StatCard
@@ -2896,8 +3019,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     />
                 ))}
             </div>
+            )}
 
-            {audienceView !== 'worker' && (
+            {!isEssentialMobile && audienceView !== 'worker' && (
                 <button
                     type="button"
                     onClick={handleNavigateToUnassignedRecords}
@@ -4211,7 +4335,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     onClick={() => setCurrentPage('ocr-analysis')}
                     className="w-full min-h-[48px] rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-black text-white shadow-2xl hover:bg-indigo-500"
                 >
-                    분석 시작
+                    시작하기
                 </button>
             </div>
         </div>

@@ -20,6 +20,8 @@
     "check:score-consistency:report:strict8": "node scripts/check-score-consistency-gate.cjs --strict --max-gap 8 --report-json reports/score-consistency-strict8.json --report-md reports/score-consistency-strict8.md",
     "check:mobile-qa:evidence": "node scripts/check-mobile-qa-evidence.cjs",
     "check:mobile-qa:evidence:report": "node scripts/check-mobile-qa-evidence.cjs --write-report",
+    "qa:mobile:capture": "node scripts/capture-mobile-qa-evidence.cjs",
+    "qa:mobile:ready": "npm run build && npm run qa:mobile:capture && npm run check:mobile-qa:evidence",
     "sync:mobile-qa:status": "node scripts/sync-mobile-qa-status.cjs",
     "qa:mobile:refresh": "node scripts/refresh-mobile-qa-status.cjs",
     "qa:mobile:finalize": "node scripts/finalize-mobile-qa-status.cjs",

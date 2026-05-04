@@ -326,3 +326,42 @@ PC는 모바일 확대판이 아니라 운영 콘솔이어야 한다.
 - 현장 리더: 테스트 참여자 모집, 실제 업무 시나리오 검증
 
 운영 원칙: 기능 추가보다 정보 감량을 우선한다.
+
+---
+
+## 17) 실행 상태 업데이트 (2026-05-04)
+
+### 17-1. 코드 반영 완료 — Phase 1 (밀도 축소)
+- Dashboard: 모바일(`viewport < 640`)에서 `essential` 모드 자동 강제 적용, 모바일 수동 모드 버튼 비노출
+- OCR: 모바일에서 소개/보조 정보 기본 축소, `운영·백업` 도구 패널 접힘 기본값 적용
+- AI Risk(Predictive): 모바일에서 심화 패널(공종별 조치율, 교육 제안) 기본 접힘 적용
+
+### 17-2. 코드 반영 완료 — Phase 2 (연결 흐름)
+- OCR 분석 완료(results > 0) 후 모바일 고정 CTA "AI 리스크 분석 결과 보기 →" 자동 표시
+- `onNavigateToPredictive` prop을 App.tsx → OcrAnalysis로 전달, 탭 전환 연결
+- Dashboard → OCR: 모바일 하단 "시작하기" 고정 버튼(`setCurrentPage('ocr-analysis')`)으로 문구 단일화
+- Dashboard → AI 리스크: quickActions `predictive-analysis` 탭 기존 확인
+
+### 17-2.1 코드 반영 완료 — Phase 2.5 (터치 타겟)
+- AI Risk(Predictive): 모바일 핵심 액션 버튼 3종(`경향 분석`/`개별 점검 영역`/`AI 인사이트`) `min-h-[44px]` 적용
+- AI Risk(Predictive): 모바일 `온톨로지 맵 보기/숨기기` 토글 `min-h-[44px]` 적용
+- OCR: 분석 후 보조 CTA `닫기` 버튼 `min-h-[44px]` 적용
+
+### 17-3. 검증 결과
+- 빌드 통과 (`built in 7.56s`)
+- QA 증적 16건 캡처 완료 (`artifacts/mobile-qa/2026-05-04/`)
+- `check:mobile-qa:evidence` → `READY_FOR_FINALIZATION` (16/16)
+- `qa:mobile:finalize` → `RESULT=FINALIZED_PASS` ✅
+
+### 17-3.1 코드 반영 완료 — Phase 3 Kickoff (PC Dashboard)
+- Dashboard 데스크톱(`viewport >= 1024`, `!isEssentialMode`)에 `PC 운영 콘솔` 바로가기 패널 추가
+- 바로가기 5종 연결: `OCR 운영` / `AI 리스크 운영` / `리포트` / `근로자 관리` / `설정/관리자`
+- 목적: 모바일과 다른 운영 콘솔 역할 분리, 대량 처리 화면으로 1탭 전환 지원
+- 빌드 재검증 통과 (`built in 5.84s`)
+
+### 17-4. 다음 후속 액션 (Phase 2.5 — Home 구조 정밀화)
+1. ✅ 모바일 홈 KPI 카드 3개 + 위험도 요약 1차 노출 구조 유지(추가 중복 카드 모바일 숨김 반영)
+2. ✅ "시작하기" CTA 모바일 단일 고정 반영
+3. ✅ 최근 리포트 3건 이내 모바일 제한: Dashboard 모바일 Essential 구간에 최근 리포트 카드(최신 3건) 추가
+4. ✅ 공통 터치 타겟 44x44(핵심 모바일 액션 버튼 범위) 반영
+

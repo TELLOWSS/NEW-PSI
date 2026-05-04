@@ -123,3 +123,32 @@
 2. Home → OCR → AI Risk 이동 흐름 실제 연결 검증
 3. 320/360/375/390 실측 캡처 확보
 4. 구현 후 QA FORM 재측정
+
+---
+
+## 8) 실행 스냅샷 (2026-05-04)
+
+### 완료(코드 반영)
+- [x] Home(`dashboard`) 모바일 `essential` 자동 강제 적용
+- [x] OCR(`ocr-analysis`) 모바일 보조정보/운영도구 기본 접힘 적용
+- [x] AI Risk(`predictive-analysis`) 모바일 심화 패널 기본 접힘 적용
+- [x] 빌드 재검증 통과 (`npm --prefix "C:\Users\user\OneDrive\Desktop\개발실\new-psi\NEW-PSI" run build`)
+
+### 완료(코드 반영) — Phase 2.5 추가 (2026-05-04)
+- [x] Home(`dashboard`) 모바일 `audienceQuickGuide` 3개 가이드 카드 `isEssentialMobile` 조건으로 숨김
+- [x] Home(`dashboard`) 모바일 데이터 안내 바 `isEssentialMobile` 조건으로 숨김
+- [x] Home(`dashboard`) 모바일 `overviewStatCards` 4개 중복 stat카드 `isEssentialMobile` 조건으로 숨김
+- [x] Home(`dashboard`) 모바일 미식별 데이터 경고 버튼 `isEssentialMobile` 조건으로 숨김
+- [x] OCR → AI 리스크 분석 완료 후 고정 CTA "AI 리스크 분석 결과 보기 →" 연결 (Phase 2)
+- [x] AI Risk(`predictive-analysis`) 모바일 핵심 액션 버튼 3종(`경향 분석`/`개별 점검 영역`/`AI 인사이트`) `min-h-[44px]` 적용
+- [x] AI Risk(`predictive-analysis`) 모바일 `온톨로지 맵 보기/숨기기` 토글 `min-h-[44px]` 적용
+- [x] OCR(`ocr-analysis`) 분석 후 보조 CTA `닫기` 버튼 `min-h-[44px]` 적용
+- [x] Home(`dashboard`) 모바일 최근 리포트 카드 신설(최신 3건 노출) + `reports` 이동 동선 연결
+- [x] 빌드 재검증 통과 (`built in 7.02s`)
+
+### 완료(증적/QA) — 2026-05-04 확정
+- [x] 320/360/375/390 × nav/dashboard/ocr/predictive 캡처 16건 수집 (`artifacts/mobile-qa/2026-05-04/`)
+- [x] `check:mobile-qa:evidence` → `READY_FOR_FINALIZATION` (16/16)
+- [x] `qa:mobile:refresh` → 문서 동기화 완료
+- [x] `check:mobile-qa:evidence:report` → `reports/mobile-qa-evidence-status.md` 생성
+- [x] `qa:mobile:finalize` → `RESULT=FINALIZED_PASS` ✅

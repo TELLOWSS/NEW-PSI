@@ -1065,6 +1065,7 @@ interface OcrAnalysisProps {
     onOpenReport: (record: WorkerRecord) => void;
     onDeleteRecord: (recordId: string) => void;
     onUpdateRecord: (record: WorkerRecord) => void;
+    onNavigateToPredictive?: () => void;
 }
 
 type RetryDiagnostics = {
@@ -1087,7 +1088,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     onViewDetails, 
     onOpenReport,
     onDeleteRecord, 
-    onUpdateRecord 
+    onUpdateRecord,
+    onNavigateToPredictive,
 }) => {
     const { isDevMode } = useDevMode();
     const storedViewState = getStoredOcrViewState();
@@ -1134,6 +1136,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [showWorkerExtraActions, setShowWorkerExtraActions] = useState(false);
     const [showAllFailureCodeCards, setShowAllFailureCodeCards] = useState(false);
     const [showMobileUtilityPanel, setShowMobileUtilityPanel] = useState(false);
+    const [showPostAnalysisCta, setShowPostAnalysisCta] = useState(false);
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
     const [isPaidApiMode, setIsPaidApiMode] = useState<boolean>(() => getIsPaidApiMode());
 
@@ -4293,7 +4296,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 }
             }
             
-            if (results.length > 0) onAnalysisComplete(results);
+            if (results.length > 0) {
+                onAnalysisComplete(results);
+                if (onNavigateToPredictive) setShowPostAnalysisCta(true);
+            }
         } finally {
             setIsAnalyzing(false);
             setFiles([]);
@@ -6824,6 +6830,25 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         className="w-full min-h-[48px] rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-black text-white shadow-2xl hover:bg-indigo-500"
                     >
                         분석 시작
+                    </button>
+                </div>
+            )}
+
+            {showPostAnalysisCta && onNavigateToPredictive && !isAnalyzing && files.length === 0 && (
+                <div className="fixed bottom-4 left-4 right-4 z-[130] sm:hidden flex flex-col gap-2">
+                    <button
+                        type="button"
+                        onClick={onNavigateToPredictive}
+                        className="w-full min-h-[48px] rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-2xl hover:bg-emerald-500"
+                    >
+                        AI 리스크 분석 결과 보기 →
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setShowPostAnalysisCta(false)}
+                        className="w-full min-h-[44px] rounded-2xl bg-slate-700/80 px-4 py-2 text-xs font-semibold text-slate-200 shadow hover:bg-slate-600"
+                    >
+                        닫기
                     </button>
                 </div>
             )}
