@@ -14,9 +14,9 @@
 - 마지막 명령: npm run qa:mobile:finalize
 - 종료 코드: 0
 - 최근 결과 요약:
-  - 빌드: PASS (`built in 5.63s`)
+  - 빌드: PASS (`built in 5.80s`)
   - 모바일 QA: FINALIZED_PASS (16/16)
-  - 상태: 모바일 3코어(Home/OCR/AI Risk) 감량·연결·터치타겟·최근리포트 3건 제한 완료, Phase 3 PC Kickoff(Dashboard/OCR 운영 바로가기) 반영 완료
+  - 상태: 모바일 3코어(Home/OCR/AI Risk) 감량·연결·터치타겟·최근리포트 3건 제한 완료 + Phase 3 PC 패널 사용성 보정 및 PC 운영 바로가기 클릭 계측 반영 완료
 
 ---
 
@@ -97,11 +97,31 @@
 
 ### B. 다음사항 바로 시작(5분)
 1. [MOBILE_FIRST_IA_AND_PC_RESTRUCTURE_ROADMAP_2026-05-04.md](MOBILE_FIRST_IA_AND_PC_RESTRUCTURE_ROADMAP_2026-05-04.md) 17-3.2 이후 미완료 항목 확인
-2. PredictiveAnalysis PC 운영 바로가기 1차 반영
+2. ✅ PredictiveAnalysis PC 운영 바로가기 1차 반영 + 빌드 검증 완료
 3. 종료 전 3줄 기록:
   - 무엇을 끝냈는지
   - 무엇이 다음 1순위인지
   - 어떤 명령 결과가 PASS인지
+
+### C. 배포 체크용 변경 요약 3줄 (2026-05-04)
+- 완료: PredictiveAnalysis/Reports/Settings PC 운영 바로가기 버튼에 `cta_click` 계측(`panel: pc_quick_actions`) 추가 완료
+- 다음: Settings UI 모드 실험 KPI 구간에 `pc_quick_actions` 액션 Top 5 요약 노출 추가
+- 검증: `npm run build` PASS (`built in 5.80s`)
+
+### E. 사용성 보정 델타 (2026-05-04)
+- Reports/Settings PC 바로가기 패널에 실행 가이드 문구 및 비활성 조건 연동 반영
+- Reports 상세 미리보기 바로가기 진입점 `setPreviewIndex(0)` 고정
+- 검증: `npm run build` PASS (`built in 5.23s`)
+
+### D. 다음 진행 1순위(검증 후 실행)
+- ✅ 배포 리허설 실행 완료: `npm run build` → `npm run check:mobile-qa:evidence` → `npm run qa:mobile:finalize`
+- ✅ 검증 결과: `READY_FOR_FINALIZATION` (16/16) + `FINALIZED_PASS`
+- 다음 착수: Settings `UI 모드 실험 KPI 요약` 카드에 `pc_quick_actions` 액션 키별 최근 클릭 Top 5 시각화(로컬 지표 기반) 1차
+
+### F. 계측 반영 델타 (2026-05-04)
+- PredictiveAnalysis/Reports/Settings에 `createMetricSessionId` + `trackUIViewMetric` 연동으로 PC 운영 바로가기 액션 클릭 로그 추가
+- 액션 키 표준화: `focus_urgent_bucket`, `bulk_generate_start`, `run_workflow_probe` 등 페이지별 `actionKey` 기록
+- 검증: `npm run build` PASS (`built in 5.80s`)
 
 ---
 

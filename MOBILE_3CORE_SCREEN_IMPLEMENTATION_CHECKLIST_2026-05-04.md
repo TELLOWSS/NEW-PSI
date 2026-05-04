@@ -144,6 +144,7 @@
 - [x] AI Risk(`predictive-analysis`) 모바일 `온톨로지 맵 보기/숨기기` 토글 `min-h-[44px]` 적용
 - [x] OCR(`ocr-analysis`) 분석 후 보조 CTA `닫기` 버튼 `min-h-[44px]` 적용
 - [x] Home(`dashboard`) 모바일 최근 리포트 카드 신설(최신 3건 노출) + `reports` 이동 동선 연결
+- [x] Phase 3 PC 운영 바로가기( Predictive/Reports/Settings ) 클릭 계측 반영 (`trackUIViewMetric` + `panel: pc_quick_actions`)
 - [x] 빌드 재검증 통과 (`built in 7.02s`)
 
 ### 완료(증적/QA) — 2026-05-04 확정

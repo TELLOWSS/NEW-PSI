@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { AppSettings, WorkerRecord } from '../types';
 import { getIsPaidApiMode, setIsPaidApiMode } from '../utils/apiModeUtils';
 import { PSI_APP_VERSION, PSI_SYSTEM_NAME } from '../lib/appInfo';
@@ -16,6 +16,7 @@ import {
 } from '../services/harnessService';
 import { getStoredTheme, getResolvedTheme, setTheme, watchSystemThemeChange, THEME_CHANGED_EVENT, type ThemeMode } from '../utils/themeUtils';
 import type { UIViewMetricRecord } from '../utils/uiViewModeMetrics';
+import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 import { resolveOcrExecutionKeyStatus } from '../utils/ocrExecutionKeyStatus';
 
 const TRAINING_LANGUAGE_OPTIONS = [
@@ -338,6 +339,15 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     const [isTouchPointer, setIsTouchPointer] = useState<boolean>(() => (typeof window !== 'undefined' ? window.matchMedia?.('(hover: none) and (pointer: coarse)').matches ?? false : false));
     const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(() => (typeof window !== 'undefined' ? window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false : false));
     const [uiViewMetrics, setUIViewMetrics] = useState<UIViewMetricRecord[]>([]);
+    const quickActionMetricSessionRef = useRef<string>(createMetricSessionId('settings'));
+
+    const trackQuickAction = (actionKey: string, payload?: Record<string, unknown>) => {
+        trackUIViewMetric('cta_click', 'settings', quickActionMetricSessionRef.current, {
+            actionKey,
+            panel: 'pc_quick_actions',
+            ...payload,
+        });
+    };
 
     const activeApiKeyStatus = useMemo(() => resolveOcrExecutionKeyStatus({
         isPaidApiMode,
@@ -1196,6 +1206,19 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
             />
+
+            <div className="hidden lg:block rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-4">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">PC 운영 바로가기</p>
+                <p className="mt-1 text-[11px] font-semibold text-indigo-700">설정/진단/저장을 상단에서 즉시 실행해 운영 점검 반복 시간을 줄입니다.</p>
+                <div className="mt-2 grid grid-cols-1 gap-2 xl:grid-cols-6">
+                    <button type="button" onClick={() => { trackQuickAction('open_beginner_guide'); setShowGuide(true); }} className="min-h-[44px] rounded-xl border border-indigo-200 bg-white px-3 py-2 text-left text-xs font-black text-indigo-700 hover:bg-indigo-50">초보자 가이드 열기</button>
+                    <button type="button" onClick={() => { trackQuickAction('set_theme_system_mode', { currentThemeMode: themeMode }); handleThemeModeChange('system'); }} className="min-h-[44px] rounded-xl border border-indigo-200 bg-white px-3 py-2 text-left text-xs font-black text-indigo-700 hover:bg-indigo-50">테마 자동 모드</button>
+                    <button type="button" onClick={() => { trackQuickAction('refresh_ui_metrics'); loadUIViewMetrics(); }} className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-xs font-black text-slate-700 hover:bg-slate-50">UI 지표 새로고침</button>
+                    <button type="button" onClick={() => { trackQuickAction('run_harness_health_check'); handleRunHarnessHealthCheck(); }} className="min-h-[44px] rounded-xl border border-emerald-200 bg-white px-3 py-2 text-left text-xs font-black text-emerald-700 hover:bg-emerald-50">헬스체크 실행</button>
+                    <button type="button" onClick={() => { trackQuickAction('run_workflow_probe', { candidateCount: harnessCandidates.length }); handleRunHarnessProbe(); }} disabled={isHarnessProbeLoading || harnessCandidates.length === 0} className={`min-h-[44px] rounded-xl border border-violet-200 bg-white px-3 py-2 text-left text-xs font-black text-violet-700 ${isHarnessProbeLoading || harnessCandidates.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-violet-50'}`}>워크플로 진단 실행</button>
+                    <button type="button" onClick={() => { trackQuickAction('save_settings'); handleSave(); }} className="min-h-[44px] rounded-xl border border-sky-200 bg-white px-3 py-2 text-left text-xs font-black text-sky-700 hover:bg-sky-50">설정 저장/적용</button>
+                </div>
+            </div>
 
             <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

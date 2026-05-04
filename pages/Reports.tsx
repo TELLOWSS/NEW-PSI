@@ -45,6 +45,7 @@ import { fetchHarnessWorkflowStatus } from '../services/harnessService';
 import { buildReportsSummaryCards, buildReportsViewCards } from '../utils/roleViewModel';
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { useDevMode } from '../contexts/DevModeContext';
+import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
 
@@ -262,6 +263,15 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const [previewWorkflowStatus, setPreviewWorkflowStatus] = useState<Awaited<ReturnType<typeof fetchHarnessWorkflowStatus>> | null>(null);
     const [previewWorkflowStatusLoading, setPreviewWorkflowStatusLoading] = useState(false);
     const [previewWorkflowStatusError, setPreviewWorkflowStatusError] = useState<string | null>(null);
+    const quickActionMetricSessionRef = useRef<string>(createMetricSessionId('reports'));
+
+    const trackQuickAction = (actionKey: string, payload?: Record<string, unknown>) => {
+        trackUIViewMetric('cta_click', 'reports', quickActionMetricSessionRef.current, {
+            actionKey,
+            panel: 'pc_quick_actions',
+            ...payload,
+        });
+    };
 
     const bulkProgressPercent = useMemo(() => {
         if (!bulkProgress.total || bulkProgress.total <= 0) return 0;
@@ -2398,6 +2408,18 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     )}
                 </div>
             )}
+
+            <div className="hidden lg:block rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-4 no-print">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">PC 운영 바로가기</p>
+                <p className="mt-1 text-[11px] font-semibold text-indigo-700">생성/내보내기/검토를 한 구간에서 실행해 보고 사이클을 단축합니다.</p>
+                <div className="mt-2 grid grid-cols-1 gap-2 xl:grid-cols-5">
+                    <button type="button" onClick={() => { trackQuickAction('bulk_generate_start', { filteredCount: filteredRecords.length }); handleGenerate(); }} disabled={filteredRecords.length === 0 || hasCustomDateRangeError || isGenerating || isPackagingEvidence} className={`min-h-[44px] rounded-xl border border-indigo-200 bg-white px-3 py-2 text-left text-xs font-black text-indigo-700 ${filteredRecords.length === 0 || hasCustomDateRangeError || isGenerating || isPackagingEvidence ? 'opacity-50 cursor-not-allowed' : 'hover:bg-indigo-50'}`}>일괄 생성 시작</button>
+                    <button type="button" onClick={() => { trackQuickAction('export_evidence_zip', { filteredCount: filteredRecords.length }); handleExportEvidenceZip(); }} disabled={filteredRecords.length === 0 || hasCustomDateRangeError || isPackagingEvidence} className={`min-h-[44px] rounded-xl border border-violet-200 bg-white px-3 py-2 text-left text-xs font-black text-violet-700 ${filteredRecords.length === 0 || hasCustomDateRangeError || isPackagingEvidence ? 'opacity-50 cursor-not-allowed' : 'hover:bg-violet-50'}`}>증빙 ZIP 내보내기</button>
+                    <button type="button" onClick={() => { trackQuickAction('export_csv', { filteredCount: filteredRecords.length }); handleExportCsv(); }} disabled={filteredRecords.length === 0 || hasCustomDateRangeError || isPackagingEvidence} className={`min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-xs font-black text-slate-700 ${filteredRecords.length === 0 || hasCustomDateRangeError || isPackagingEvidence ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50'}`}>CSV 내보내기</button>
+                    <button type="button" onClick={() => { trackQuickAction('open_worker_preview', { filteredCount: filteredRecords.length }); setActiveTab('worker-report'); setViewMode('preview'); setPreviewIndex(0); }} disabled={filteredRecords.length === 0} className={`min-h-[44px] rounded-xl border border-amber-200 bg-white px-3 py-2 text-left text-xs font-black text-amber-700 ${filteredRecords.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-50'}`}>근로자 상세 미리보기</button>
+                    <button type="button" onClick={() => { trackQuickAction('print_meeting_report'); window.print(); }} className="min-h-[44px] rounded-xl border border-sky-200 bg-white px-3 py-2 text-left text-xs font-black text-sky-700 hover:bg-sky-50">회의 리포트 인쇄</button>
+                </div>
+            </div>
 
             <div className="overflow-x-auto pb-2 -mb-2 shrink-0 no-print">
                 <div className="flex space-x-6 border-b border-slate-200 min-w-max">

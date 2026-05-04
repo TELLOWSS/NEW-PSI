@@ -8,6 +8,7 @@ import { InterpretationCardGrid, type InterpretationCardItem } from '../componen
 import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { BRAND_TONE } from '../utils/brandToneTokens';
+import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 
 // 관리 직군 필터링 함수
 const isManagementRole = (field: string) => 
@@ -607,6 +608,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
     const [isPanningOntology, setIsPanningOntology] = useState(false);
     const panStartRef = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
     const hasAutoCenteredRef = useRef(false);
+    const quickActionMetricSessionRef = useRef<string>(createMetricSessionId('predictive-analysis'));
     const touchStateRef = useRef<{
         mode: 'none' | 'pan' | 'pinch';
         startX: number;
@@ -624,6 +626,15 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
         startDistance: 0,
         startZoom: 1,
     });
+
+    const trackQuickAction = (actionKey: string, payload?: Record<string, unknown>) => {
+        trackUIViewMetric('cta_click', 'predictive-analysis', quickActionMetricSessionRef.current, {
+            actionKey,
+            panel: 'pc_quick_actions',
+            viewportWidth,
+            ...payload,
+        });
+    };
 
     useEffect(() => {
         const d = new Date();
@@ -1522,6 +1533,17 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                             <button type="button" onClick={() => setExecutionPlanFilter('urgent')} className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">개별 점검 영역</button>
                             <button type="button" onClick={() => setShowAllExecutionPlans((prev) => !prev)} className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">AI 인사이트</button>
                         </div>
+                        {viewportWidth >= 1024 && (
+                            <div className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">PC 운영 바로가기</p>
+                                <div className="mt-2 grid grid-cols-1 gap-2 xl:grid-cols-4">
+                                    <button type="button" onClick={() => { trackQuickAction('focus_urgent_bucket'); setExecutionPlanFilter('urgent'); }} className="min-h-[44px] rounded-xl border border-amber-200 bg-white px-3 py-2 text-left text-xs font-black text-amber-700 hover:bg-amber-50">버킷 중심 조치 보기</button>
+                                    <button type="button" onClick={() => { trackQuickAction('expand_risk_insights'); setShowAllRiskInsights(true); }} className="min-h-[44px] rounded-xl border border-rose-200 bg-white px-3 py-2 text-left text-xs font-black text-rose-700 hover:bg-rose-50">리스크 인사이트 펼치기</button>
+                                    <button type="button" onClick={() => { trackQuickAction('expand_execution_plans'); setShowAllExecutionPlans(true); }} className="min-h-[44px] rounded-xl border border-violet-200 bg-white px-3 py-2 text-left text-xs font-black text-violet-700 hover:bg-violet-50">실행 계획 전체 보기</button>
+                                    <button type="button" onClick={() => { trackQuickAction('print_meeting_report'); window.print(); }} className="min-h-[44px] rounded-xl border border-sky-200 bg-white px-3 py-2 text-left text-xs font-black text-sky-700 hover:bg-sky-50">회의 리포트 인쇄</button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
