@@ -138,7 +138,7 @@
 ---
 
 ## 8) 운영일지 템플릿
-- [OPS_DAILY_LOG_2026-05-04.md](OPS_DAILY_LOG_2026-05-04.md)
+- [OPS_DAILY_LOG_2026-05-05.md](OPS_DAILY_LOG_2026-05-05.md)
 
 ---
 
