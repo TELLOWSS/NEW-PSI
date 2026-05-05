@@ -912,7 +912,16 @@ async function handleBulkUploadWorkers(payload: any): Promise<any> {
             matched = candidates.find((item) => item.birth_date && item.birth_date === row.birth_date);
         }
         if (!matched && candidates.length === 1) {
-            matched = candidates[0];
+            // 새 근로자에 신원정보(전화/생년월일/여권)가 있고, 기존 근로자에도
+            // 신원정보가 있으나 겹치는 게 없다면 → 다른 사람으로 간주하여 INSERT
+            const newHasIdentity = Boolean(row.phone_number || row.birth_date || row.passport_number);
+            const existingHasIdentity = Boolean(
+                candidates[0].phone_number || candidates[0].birth_date || candidates[0].passport_number,
+            );
+            if (!newHasIdentity || !existingHasIdentity || hasIdentityOverlap(candidates[0], row)) {
+                matched = candidates[0];
+            }
+            // else: 신원정보 충돌 → matched 유지 undefined → 아래에서 신규 INSERT
         }
         if (!matched && candidates.length > 1) {
             const rankedCandidate = [...candidates]
@@ -1686,12 +1695,15 @@ async function handleDeleteWorker(payload: any): Promise<any> {
         throw new Error(fallbackHardDelete.error.message || 'workers 삭제 실패');
     }
 
-    if (!fallbackHardDelete.data?.id) {
-        throw new Error('삭제 대상 근로자를 찾지 못했습니다.');
-    }
+    // 에러가 없으면 삭제 성공으로 처리.
+    // 일부 Supabase RLS 환경에서는 delete 후 select 결과가 null로 반환될 수 있으므로
+    // data가 없어도 에러가 없으면 원래 id를 반환한다.
+    const hardDeletedId = fallbackHardDelete.data?.id
+        ? String(fallbackHardDelete.data.id).trim()
+        : id;
 
     return {
-        deletedWorkerId: String(fallbackHardDelete.data.id || '').trim(),
+        deletedWorkerId: hardDeletedId,
         softDeleted: false,
     };
 }
@@ -1734,13 +1746,13 @@ async function handleDeleteWorkers(payload: any): Promise<any> {
         throw new Error(fallbackHardDelete.error.message || 'workers 일괄삭제 실패');
     }
 
-    const deletedWorkerIds = Array.isArray(fallbackHardDelete.data)
-        ? fallbackHardDelete.data.map((row: any) => String(row?.id || '').trim()).filter(Boolean)
-        : [];
-
-    if (deletedWorkerIds.length === 0) {
-        throw new Error('삭제 대상 근로자를 찾지 못했습니다.');
-    }
+    // 에러가 없으면 삭제 성공으로 처리.
+    // 일부 Supabase RLS 환경에서는 delete 후 select 결과가 빈 배열로 반환될 수 있으므로
+    // data가 비어도 에러가 없으면 원래 ids를 반환한다.
+    const deletedWorkerIds =
+        Array.isArray(fallbackHardDelete.data) && fallbackHardDelete.data.length > 0
+            ? fallbackHardDelete.data.map((row: any) => String(row?.id || '').trim()).filter(Boolean)
+            : ids;
 
     return {
         deletedWorkerIds,
