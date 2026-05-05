@@ -4344,11 +4344,11 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
                         <input
                             type="text"
-                            value={formatPhoneForDisplay(manualWorkerForm.phone_number)}
+                            value={manualWorkerForm.phone_number}
                             onChange={(e) => setManualWorkerForm((prev) => ({ ...prev, phone_number: normalizePhone(e.target.value).slice(0, 11) }))}
                             inputMode="numeric"
                             maxLength={11}
-                            placeholder="핸드폰번호 (선택)"
+                            placeholder="핸드폰번호 숫자만 입력 (선택)"
                             className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold"
                         />
                         <input
@@ -6206,10 +6206,10 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         {editingWorkerId === worker.id ? (
                                             <input
                                                 type="text"
-                                                value={formatPhoneForDisplay(editingWorkerDraft?.phone_number || '')}
+                                                value={editingWorkerDraft?.phone_number || ''}
                                                 onChange={(event) => setEditingWorkerDraft((prev) => prev ? ({ ...prev, phone_number: normalizePhone(event.target.value).slice(0, 11) }) : prev)}
                                                 inputMode="numeric"
-                                                maxLength={13}
+                                                maxLength={11}
                                                 className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-bold"
                                             />
                                         ) : (formatPhoneForDisplay(worker.phone_number) || '-')}
