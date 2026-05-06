@@ -6,6 +6,7 @@ import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { Tooltip } from '../components/shared/Tooltip';
 import { BrandPhilosophyLogo } from '../components/shared/BrandPhilosophyLogo';
+import { MOBILE_CARD_GRID_ITEM_CLASS, MOBILE_CARD_PANEL_CLASS, MOBILE_CARD_PANEL_COMPACT_CLASS } from '../components/shared/cardTokens';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { PSI_APP_VERSION } from '../lib/appInfo';
 import type { SelectedTarget } from '../components/charts/TradeNationalityCrossChart';
@@ -2767,7 +2768,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     description={harnessDashboardSummary.fallback > 0
                         ? '대시보드 단계에서 백로그를 읽고 OCR 분석, 리포트, 관리자 검토로 이어가면 보호 흐름이 끊기지 않습니다.'
                         : '현장 보호 우선순위를 대시보드에서 먼저 읽고 세부 화면으로 내려가면 승인 누락과 설명 지연을 줄일 수 있습니다.'}
-                    className="rounded-2xl border px-4 py-3 shadow-sm"
+                    className={MOBILE_CARD_PANEL_COMPACT_CLASS}
                     bodyClassName="block"
                     titleClassName="text-sm font-black"
                     descriptionClassName="mt-1 text-xs font-semibold leading-relaxed"
@@ -2778,12 +2779,12 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 <SummaryMetricGrid
                     items={harnessSummaryMetrics}
                     columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
-                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                    cardClassName={MOBILE_CARD_GRID_ITEM_CLASS}
                 />
             )}
 
             {isFullMode && isDevMode && harnessRecentTradeHotspots.length > 0 ? (
-                <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 shadow-sm shadow-slate-100">
+                <div className={`${MOBILE_CARD_PANEL_CLASS} border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800`}>
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div>
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">최근 7일 공종 집중도</p>
@@ -2847,7 +2848,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             ) : null}
 
             {isFullMode && isDevMode && (
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800 p-4 shadow-sm shadow-slate-100">
+            <div className={`${MOBILE_CARD_PANEL_CLASS} border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800`}>
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div>
                         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Harness Drill-down</p>
@@ -2962,7 +2963,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             {isFullMode && isDevMode && (
                 <InterpretationCardGrid
                     items={harnessOperationalInsights}
-                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                    cardClassName={MOBILE_CARD_GRID_ITEM_CLASS}
                 />
             )}
 
@@ -2970,14 +2971,14 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 <SummaryMetricGrid
                     items={harnessAuditMetrics}
                     columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
-                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                    cardClassName={MOBILE_CARD_GRID_ITEM_CLASS}
                 />
             )}
 
             {isFullMode && isDevMode && (
                 <InterpretationCardGrid
                     items={harnessAuditInsights}
-                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                    cardClassName={MOBILE_CARD_GRID_ITEM_CLASS}
                 />
             )}
 
@@ -2985,14 +2986,14 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 <SummaryMetricGrid
                     items={harnessRecentOpsMetrics}
                     columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
-                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                    cardClassName={MOBILE_CARD_GRID_ITEM_CLASS}
                 />
             )}
 
             {isFullMode && isDevMode && (
                 <InterpretationCardGrid
                     items={harnessRecentOpsInsights}
-                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                    cardClassName={MOBILE_CARD_GRID_ITEM_CLASS}
                 />
             )}
 
@@ -3060,7 +3061,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             {!isEssentialMode && (
                 <InterpretationCardGrid
                     items={dashboardSummaryCards}
-                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                    cardClassName={MOBILE_CARD_GRID_ITEM_CLASS}
                 />
             )}
 
@@ -3068,7 +3069,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 <InterpretationCardGrid
                     items={operationalFocusCards}
                     className="grid grid-cols-1 xl:grid-cols-2 gap-3"
-                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                    cardClassName={MOBILE_CARD_GRID_ITEM_CLASS}
                 />
             )}
             

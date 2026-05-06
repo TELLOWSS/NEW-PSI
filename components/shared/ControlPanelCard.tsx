@@ -1,4 +1,5 @@
 import React from 'react';
+import { MOBILE_CARD_LIST_ITEM_CLASS } from './cardTokens';
 
 interface ControlPanelCardProps {
     label?: React.ReactNode;
@@ -11,7 +12,7 @@ interface ControlPanelCardProps {
 export const ControlPanelCard: React.FC<ControlPanelCardProps> = ({
     label,
     children,
-    className = 'rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3',
+    className = `${MOBILE_CARD_LIST_ITEM_CLASS} border-slate-200 bg-slate-50`,
     labelClassName = 'text-[11px] font-black text-slate-500 uppercase tracking-wider',
     contentClassName,
 }) => {

@@ -84,3 +84,11 @@
 - 코칭/채점근거에서 모국어가 비어 있는 과거 데이터는 재분석으로 보완
 - 외국인 리포트는 핵심 텍스트 가독성 확보를 위해 수기원본 영역을 기본 비노출
 
+---
+
+## 10) 2026-05-06 운영 검증 스냅샷
+
+- 완료: 모바일 3코어(Home/OCR/AI Risk) 공통 카드 토큰 정렬, OCR/AI 상태 문구 분리, AI Risk 재계산/재시도 조건 분기 반영 및 운영 문서 동기화 완료
+- 다음: 기능 추가 없이 안정화 점검(실행 로그/QA 보고서 델타 유지) 기준으로 운영 상태 고정
+- 검증: `npm run build` PASS(`built in 6.57s`) + `check:mobile-qa:evidence` `READY_FOR_FINALIZATION` + `qa:mobile:finalize` `FINALIZED_PASS`
+

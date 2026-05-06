@@ -269,3 +269,11 @@ All requirements from the problem statement have been successfully implemented, 
 ### D. Translation Reliability & Layout Policy
 - Strengthened generation rules and schema requirement around native coaching/reason fields.
 - For foreign-worker report view, removed bottom handwritten-original panel to prioritize multilingual guidance readability.
+
+---
+
+## 2026-05-06 운영 검증 스냅샷
+
+- 완료: 모바일 3코어(Home/OCR/AI Risk) 카드 토큰 공통화 + 상태 문구 분리 + AI Risk 재계산/재시도 분기 정식화 반영 및 문서 동기화 완료
+- 다음: 기능 추가 없이 안정화 점검(실행 로그/QA 보고서 델타 유지) 기준으로 운영 상태 고정
+- 검증: `npm run build` PASS(`built in 6.57s`) + `check:mobile-qa:evidence` `READY_FOR_FINALIZATION` + `qa:mobile:finalize` `FINALIZED_PASS`

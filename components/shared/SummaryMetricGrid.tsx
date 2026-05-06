@@ -1,4 +1,5 @@
 import React from 'react';
+import { MOBILE_CARD_PANEL_COMPACT_CLASS } from './cardTokens';
 
 export interface SummaryMetricItem {
     key: string;
@@ -20,7 +21,7 @@ interface SummaryMetricGridProps {
 export const SummaryMetricGrid: React.FC<SummaryMetricGridProps> = ({
     items,
     className = 'grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4',
-    cardClassName = 'rounded-2xl border px-4 py-3',
+    cardClassName = MOBILE_CARD_PANEL_COMPACT_CLASS,
 }) => {
     return (
         <div className={className}>

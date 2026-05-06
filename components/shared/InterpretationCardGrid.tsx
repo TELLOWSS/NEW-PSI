@@ -1,4 +1,5 @@
 import React from 'react';
+import { MOBILE_CARD_GRID_ITEM_CLASS } from './cardTokens';
 
 export interface InterpretationCardItem {
     key: string;
@@ -20,7 +21,7 @@ interface InterpretationCardGridProps {
 export const InterpretationCardGrid: React.FC<InterpretationCardGridProps> = ({
     items,
     className = 'grid grid-cols-1 xl:grid-cols-3 gap-3',
-    cardClassName = 'rounded-2xl border p-4',
+    cardClassName = MOBILE_CARD_GRID_ITEM_CLASS,
     eyebrowClassName = 'text-[10px] font-black uppercase tracking-[0.22em] text-slate-500',
     titleClassName = 'mt-2 text-sm font-black text-slate-900',
     descriptionClassName = 'mt-2 text-[12px] font-semibold text-slate-600 leading-relaxed',

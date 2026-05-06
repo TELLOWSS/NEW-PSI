@@ -1,4 +1,5 @@
 import { BRAND_TONE } from '../../utils/brandToneTokens';
+import { MOBILE_CARD_BASE_CLASS } from './cardTokens';
 
 export type NoticeToneVariant = 'white' | 'slate' | 'amber' | 'indigo' | 'sky' | 'emerald' | 'rose' | 'glassDark';
 
@@ -99,43 +100,43 @@ export const SECTION_PANEL_TONE_STYLES: Record<SectionPanelToneVariant, {
     container: string;
 }> = {
     slate: {
-        container: `rounded-2xl ${BRAND_TONE.slate} px-4 py-4`,
+        container: `${MOBILE_CARD_BASE_CLASS} ${BRAND_TONE.slate} px-4 py-4`,
     },
     whiteSoft: {
-        container: `rounded-2xl border border-white bg-white/80 px-4 py-3`,
+        container: `${MOBILE_CARD_BASE_CLASS} border-white bg-white/80 px-4 py-4`,
     },
     amber: {
-        container: `rounded-2xl border border-amber-200 bg-amber-50/60 px-4 py-4`,
+        container: `${MOBILE_CARD_BASE_CLASS} border-amber-200 bg-amber-50/60 px-4 py-4`,
     },
     emerald: {
-        container: `rounded-2xl ${BRAND_TONE.emerald} bg-emerald-50/70 p-3`,
+        container: `${MOBILE_CARD_BASE_CLASS} ${BRAND_TONE.emerald} bg-emerald-50/70 p-4`,
     },
     roseGradient: {
-        container: `rounded-2xl border border-rose-200 bg-gradient-to-r from-rose-50 via-amber-50 to-white px-4 py-4 shadow-sm`,
+        container: `${MOBILE_CARD_BASE_CLASS} border-rose-200 bg-gradient-to-r from-rose-50 via-amber-50 to-white px-4 py-4`,
     },
     indigo: {
-        container: `rounded-2xl ${BRAND_TONE.indigo} px-4 py-4`,
+        container: `${MOBILE_CARD_BASE_CLASS} ${BRAND_TONE.indigo} px-4 py-4`,
     },
     sky: {
-        container: `rounded-2xl ${BRAND_TONE.sky} px-4 py-4`,
+        container: `${MOBILE_CARD_BASE_CLASS} ${BRAND_TONE.sky} px-4 py-4`,
     },
     indigoSoft: {
-        container: `rounded-2xl border border-indigo-100 bg-white/80 p-3`,
+        container: `${MOBILE_CARD_BASE_CLASS} border-indigo-100 bg-white/80 p-4`,
     },
     cyanSoft: {
-        container: `rounded-2xl border border-cyan-100 bg-white/80 p-3`,
+        container: `${MOBILE_CARD_BASE_CLASS} border-cyan-100 bg-white/80 p-4`,
     },
     fuchsiaSoft: {
-        container: `rounded-2xl border border-fuchsia-100 bg-white/80 p-3`,
+        container: `${MOBILE_CARD_BASE_CLASS} border-fuchsia-100 bg-white/80 p-4`,
     },
     skySoft: {
-        container: `rounded-2xl border border-sky-100 bg-white/80 p-3`,
+        container: `${MOBILE_CARD_BASE_CLASS} border-sky-100 bg-white/80 p-4`,
     },
     roseDarkSoft: {
-        container: `rounded-2xl ${BRAND_TONE.darkRose} p-3`,
+        container: `${MOBILE_CARD_BASE_CLASS} ${BRAND_TONE.darkRose} p-4`,
     },
     emeraldDarkSoft: {
-        container: `rounded-2xl border border-emerald-400/15 bg-black/10 p-3`,
+        container: `${MOBILE_CARD_BASE_CLASS} border-emerald-400/15 bg-black/10 p-4`,
     },
     glassDark: {
         container: `rounded-3xl ${BRAND_TONE.glassSoft} p-4 backdrop-blur-sm sm:p-5`,
@@ -149,27 +150,27 @@ export const OPERATIONAL_PREVIEW_TONE_STYLES: Record<OperationalPreviewToneVaria
     container: string;
 }> = {
     whiteElevated: {
-        container: `rounded-xl ${BRAND_TONE.white} px-3 py-3 shadow-sm`,
+        container: `${MOBILE_CARD_BASE_CLASS} ${BRAND_TONE.white} px-4 py-4`,
     },
     whiteCompact: {
-        container: `rounded-xl border border-slate-200 bg-white px-3 py-2`,
+        container: `${MOBILE_CARD_BASE_CLASS} border-slate-200 bg-white px-3 py-3`,
     },
     amberElevated: {
-        container: `rounded-2xl border border-amber-200 bg-white px-4 py-4 shadow-sm`,
+        container: `${MOBILE_CARD_BASE_CLASS} border-amber-200 bg-white px-4 py-4`,
     },
     interactiveSlate: {
-        container: `rounded-2xl ${BRAND_TONE.slate} px-4 py-3 transition-colors hover:border-indigo-300 hover:bg-indigo-50`,
+        container: `${MOBILE_CARD_BASE_CLASS} ${BRAND_TONE.slate} px-4 py-4 transition-colors hover:border-indigo-300 hover:bg-indigo-50`,
     },
     roseSoft: {
-        container: `rounded-2xl border border-rose-100 bg-rose-50/50 p-4`,
+        container: `${MOBILE_CARD_BASE_CLASS} border-rose-100 bg-rose-50/50 p-4`,
     },
     slateSoft: {
-        container: `rounded-xl ${BRAND_TONE.slate} px-3 py-3`,
+        container: `${MOBILE_CARD_BASE_CLASS} ${BRAND_TONE.slate} px-3 py-3`,
     },
     emeraldSoftCompact: {
-        container: `rounded-xl ${BRAND_TONE.emerald} px-3 py-3`,
+        container: `${MOBILE_CARD_BASE_CLASS} ${BRAND_TONE.emerald} px-3 py-3`,
     },
     roseSoftCompact: {
-        container: `rounded-xl ${BRAND_TONE.rose} px-3 py-3`,
+        container: `${MOBILE_CARD_BASE_CLASS} ${BRAND_TONE.rose} px-3 py-3`,
     },
 };

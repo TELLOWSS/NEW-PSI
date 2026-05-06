@@ -451,12 +451,28 @@ PC는 모바일 확대판이 아니라 운영 콘솔이어야 한다.
 - 적용 범위: Dashboard `시작하기`, OCR `분석 시작`/`AI 리스크 분석 결과 보기`, Predictive 모바일 토글 CTA 2종
 - 검증: `npm run build` PASS (`built in 5.24s`), `check:mobile-qa:evidence` → `READY_FOR_FINALIZATION`
 
+### 17-4.5 미구현 1순위 반영 — 카드 토큰 공통화
+- `components/shared/cardTokens.ts`를 추가해 공통 카드 기준(`rounded-2xl`, border, shadow, padding scale)을 토큰으로 정리
+- `InterpretationCardGrid` / `SummaryMetricGrid` / `ControlPanelCard` / `toneVariants`에 공통 토큰을 연결해 Dashboard/OCR/Predictive 카드 스케일을 일치시킴
+- 목적: 핵심 3화면의 카드 반경/패딩/그림자 기준을 분산 문자열이 아닌 shared token으로 통합해 후속 보정 비용 축소
+- 검증: VS Code Problems 기준 변경 파일 오류 없음 + `npm run build` PASS(`built in 6.57s`)
+
+### 17-4.6 미구현 2·3순위 반영 — 상태 문구 분리 + AI Risk 상태 제어
+- OCR/Predictive의 빈 상태 문구를 `대상 없음` / `데이터 부족` / `이력 없음` / `동기화 실패`로 분리해 사용자가 다음 행동을 즉시 이해하도록 정리
+- Predictive 상단 요약 카드에 `AI 리스크 재계산` / `상태 동기화 재시도` 패널을 추가하고 `idle/loading/success/error` 상태 배지 및 오류 문구를 연결
+- 재계산 버튼은 데이터 존재 + 비동기 동기화 중이 아닐 때만 활성화되며, 재시도 버튼은 관리자 인증 + 동기화 실패 상태에서만 활성화되도록 분기
+- 검증: VS Code Problems 기준 변경 파일 오류 없음 + `check:mobile-qa:evidence` `READY_FOR_FINALIZATION` + `qa:mobile:finalize` `FINALIZED_PASS`
+
 ### 17-4. 다음 후속 액션 (Phase 2.5 — Home 구조 정밀화)
 1. ✅ 모바일 홈 KPI 카드 3개 + 위험도 요약 1차 노출 구조 유지(추가 중복 카드 모바일 숨김 반영)
 2. ✅ "시작하기" CTA 모바일 단일 고정 반영
 3. ✅ 최근 리포트 3건 이내 모바일 제한: Dashboard 모바일 Essential 구간에 최근 리포트 카드(최신 3건) 추가
 4. ✅ 공통 터치 타겟 44x44(핵심 모바일 액션 버튼 범위) 반영
-5. 🔜 다음 1순위: 카드 반경/패딩/그림자 토큰 통일(Dashboard/OCR/Predictive 공통 카드 스케일 정렬)
+5. ✅ 카드 반경/패딩/그림자 토큰 통일(Dashboard/OCR/Predictive 공통 카드 스케일 정렬)
+6. ✅ OCR/AI Risk 결과 없음·지연·오류 문구 분리 정비
+7. ✅ AI Risk 재계산/재시도 버튼 조건 분기 정식화
+8. ✅ `npm run build` + `check:mobile-qa:evidence` 재검증 및 320/360/375/390 실측 QA 델타 없음 확인
+9. 🔜 다음 1순위: `17) 실행 상태 업데이트`와 QA 최종화 템플릿에 오늘 검증 스냅샷 3줄(완료/다음/검증) 기록
 
 ---
 
@@ -468,9 +484,9 @@ PC는 모바일 확대판이 아니라 운영 콘솔이어야 한다.
 - [x] `npm run qa:mobile:finalize` → `FINALIZED_PASS`
 
 ### 18-2. 다음사항(바로 실행 1건)
-1. 공통 리뉴얼 미구현 항목 2순위(`CTA 버튼 스타일 공통화`)를 Dashboard/OCR/Predictive 핵심 CTA부터 순차 적용
-2. 반영 직후 `npm run build` 재확인
-3. `17) 실행 상태 업데이트`에 델타 4줄 기록
+1. `17) 실행 상태 업데이트`에 오늘 검증 결과(`build 6.57s`, `READY_FOR_FINALIZATION`, `FINALIZED_PASS`) 3줄 델타 기록
+2. `MOBILE_3SCREEN_VIEWPORT_QA_FINALIZATION_TEMPLATE_2026-05-04.md`에 오늘 실행 시각 기준 점검 메모 1줄 추가
+3. 다음 세션 시작 작업을 `QA 보고서/증적 리포트 갱신 여부 점검`으로 고정
 
 ### 18-3. 세션 종료 시 3줄 기록 규칙
 - 완료: 오늘 끝낸 항목 1줄

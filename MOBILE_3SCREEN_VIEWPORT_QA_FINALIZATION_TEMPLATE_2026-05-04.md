@@ -17,6 +17,7 @@
 - 해석: 증빙 파일과 자동 점검 게이트가 모두 충족되어 최종 `PASS` 확정 가능
 - 최신 리포트 갱신 명령: `npm run qa:mobile:refresh`
 - 최종 판정 반영 명령: `npm run qa:mobile:finalize`
+- 2026-05-06 재검증: `npm run build`(`built in 6.57s`) + `check:mobile-qa:evidence`(`READY_FOR_FINALIZATION`) + `qa:mobile:finalize`(`FINALIZED_PASS`) 확인
 
 ## 2) 뷰포트별 확정값
 - 320x568: PASS

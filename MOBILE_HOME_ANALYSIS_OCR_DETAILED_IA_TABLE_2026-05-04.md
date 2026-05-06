@@ -242,3 +242,11 @@
 - AI 리스크에서 텍스트 요약만으로도 상위 위험 대상과 다음 행동을 이해할 수 있는가
 - 같은 작업을 30초 이내에 완료 가능한가
 - 오터치/재탐색이 반복되는 요소가 제거되었는가
+
+---
+
+## 11) 실행 스냅샷 (2026-05-06)
+
+- 완료: 모바일 3코어 공통 카드 토큰 정렬 + OCR/AI 상태 문구 분리 + AI Risk 재계산/재시도 분기 정식화 반영 완료
+- 다음: `17) 실행 상태 업데이트` 기준으로 QA/보고서 델타 기록만 유지하고 기능 변경 없이 안정화 점검 진행
+- 검증: `npm run build` PASS(`built in 6.57s`) + `check:mobile-qa:evidence` `READY_FOR_FINALIZATION` + `qa:mobile:finalize` `FINALIZED_PASS`

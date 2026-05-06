@@ -1,14 +1,38 @@
 
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import type { WorkerRecord } from '../types';
 import { isAdminAuthenticated } from '../utils/adminGuard';
 import { postAdminJson } from '../utils/adminApiClient';
 import { extractMessage } from '../utils/errorUtils';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
+import { EmptyStatePanel } from '../components/shared/EmptyStatePanel';
 import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
+import { MOBILE_CARD_GRID_COMPACT_CLASS, MOBILE_CARD_GRID_ITEM_CLASS, MOBILE_CARD_PANEL_CLASS, MOBILE_CARD_PANEL_COMPACT_CLASS } from '../components/shared/cardTokens';
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
+
+const PREDICTIVE_STATUS_COPY = {
+    syncReady: '현재 데이터 기준으로 AI 리스크 결과를 다시 정리할 수 있습니다.',
+    syncNoData: '재계산할 OCR/평가 데이터가 아직 없어 버튼이 비활성화됩니다.',
+    syncLoading: '실행 계획 상태와 최근 변경 사항을 다시 불러오는 중입니다.',
+    syncError: '상태 동기화에 실패했습니다. 관리자 로그인 후 재시도를 실행하세요.',
+    syncSuccess: '최신 실행 계획 상태를 반영했습니다.',
+    riskInsightEmpty: {
+        title: '예측 결과를 만들 데이터가 아직 충분하지 않습니다.',
+        description: 'OCR 결과와 평가 이력이 더 쌓이면 우선 개입 대상과 위험 근거를 자동으로 계산합니다.',
+    },
+    executionPlanEmpty: {
+        title: '실행 계획 생성 대기 상태입니다.',
+        description: '현재 입력 조건에서는 우선 조치 대상을 계산할 데이터가 부족합니다.',
+    },
+    executionPlanFilteredEmpty: {
+        title: '선택한 조건에 맞는 실행 계획이 없습니다.',
+        description: '필터를 해제하거나 다른 우선순위를 선택하면 전체 계획을 다시 확인할 수 있습니다.',
+    },
+    planHistoryLoading: '실행 계획 변경 이력을 불러오는 중입니다.',
+    planHistoryEmpty: '아직 저장된 실행 계획 변경 이력이 없습니다.',
+} as const;
 
 // 관리 직군 필터링 함수
 const isManagementRole = (field: string) => 
@@ -138,6 +162,8 @@ interface ActionExecutionPlan {
 type PlanStatus = 'not-started' | 'in-progress' | 'completed';
 
 type ExecutionPlanFilter = 'all' | 'urgent' | PlanStatus;
+
+type PredictiveSyncState = 'idle' | 'loading' | 'success' | 'error';
 
 type PlanStatusApiItem = {
     planKey: string;
@@ -599,6 +625,10 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
     const [expandedPlanDetailKey, setExpandedPlanDetailKey] = useState<string | null>(null);
     const [planHistoryMap, setPlanHistoryMap] = useState<Record<string, PlanStatusHistoryItem[]>>({});
     const [planHistoryLoadingMap, setPlanHistoryLoadingMap] = useState<Record<string, boolean>>({});
+    const [predictiveSyncState, setPredictiveSyncState] = useState<PredictiveSyncState>('idle');
+    const [predictiveSyncError, setPredictiveSyncError] = useState<string | null>(null);
+    const [predictiveSyncMessage, setPredictiveSyncMessage] = useState<string>(PREDICTIVE_STATUS_COPY.syncReady);
+    const [predictiveRefreshTick, setPredictiveRefreshTick] = useState(0);
     const [executionPlanFilter, setExecutionPlanFilter] = useState<ExecutionPlanFilter>('urgent');
     const [showAllExecutionPlans, setShowAllExecutionPlans] = useState(false);
     const [showAllJobActionRates, setShowAllJobActionRates] = useState(false);
@@ -635,6 +665,9 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
             ...payload,
         });
     };
+
+    const hasPredictiveSourceData = sourceRecords.length > 0;
+    const isPlanSyncAvailable = isAdminAuthenticated();
 
     useEffect(() => {
         const d = new Date();
@@ -952,65 +985,80 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
         }
     }, [planStatusMap]);
 
-    useEffect(() => {
-        let cancelled = false;
+    const loadPlanStatusesFromServer = useCallback(async () => {
+        if (!isPlanSyncAvailable) {
+            setPredictiveSyncState(hasPredictiveSourceData ? 'idle' : 'error');
+            setPredictiveSyncError(hasPredictiveSourceData ? null : PREDICTIVE_STATUS_COPY.syncNoData);
+            setPredictiveSyncMessage(hasPredictiveSourceData ? PREDICTIVE_STATUS_COPY.syncReady : PREDICTIVE_STATUS_COPY.syncNoData);
+            return;
+        }
 
-        const loadPlanStatusesFromServer = async () => {
-            if (!isAdminAuthenticated()) return;
-            if (executionPlans.length === 0) return;
+        if (executionPlans.length === 0) {
+            setPredictiveSyncState(hasPredictiveSourceData ? 'idle' : 'error');
+            setPredictiveSyncError(hasPredictiveSourceData ? null : PREDICTIVE_STATUS_COPY.syncNoData);
+            setPredictiveSyncMessage(hasPredictiveSourceData ? PREDICTIVE_STATUS_COPY.syncReady : PREDICTIVE_STATUS_COPY.syncNoData);
+            return;
+        }
 
-            try {
-                const response = await postAdminJson<{ ok: boolean; items?: PlanStatusApiItem[] }>(
-                    '/api/admin/predictive-plan-status',
-                    {
-                        action: 'list',
-                        payload: {
-                            boardScope,
-                            planKeys: executionPlans.map((plan) => plan.key),
-                        },
+        setPredictiveSyncState('loading');
+        setPredictiveSyncError(null);
+        setPredictiveSyncMessage(PREDICTIVE_STATUS_COPY.syncLoading);
+
+        try {
+            const response = await postAdminJson<{ ok: boolean; items?: PlanStatusApiItem[] }>(
+                '/api/admin/predictive-plan-status',
+                {
+                    action: 'list',
+                    payload: {
+                        boardScope,
+                        planKeys: executionPlans.map((plan) => plan.key),
                     },
-                    { fallbackMessage: '실행 계획 상태 조회 실패' }
-                );
+                },
+                { fallbackMessage: '실행 계획 상태 조회 실패' }
+            );
 
-                if (cancelled) return;
-
-                const serverMap: Record<string, PlanStatus> = {};
-                const serverAuditMap: Record<string, PlanAuditMeta> = {};
-                for (const item of response.items || []) {
-                    if (!item?.planKey || !item?.status) continue;
-                    serverMap[item.planKey] = item.status;
-                    serverAuditMap[item.planKey] = {
-                        updatedAt: item.updatedAt || null,
-                        updatedBy: item.updatedBy || null,
-                    };
-                }
-
-                setPlanStatusMap((previous) => {
-                    const next: Record<string, PlanStatus> = { ...previous };
-                    for (const plan of executionPlans) {
-                        next[plan.key] = serverMap[plan.key] || previous[plan.key] || 'not-started';
-                    }
-                    return next;
-                });
-
-                setPlanAuditMap((previous) => {
-                    const next: Record<string, PlanAuditMeta> = { ...previous };
-                    for (const plan of executionPlans) {
-                        next[plan.key] = serverAuditMap[plan.key] || previous[plan.key] || { updatedAt: null, updatedBy: null };
-                    }
-                    return next;
-                });
-            } catch (error) {
-                console.warn('[PredictiveAnalysis] 실행 계획 상태 서버 조회 실패:', extractMessage(error));
+            const serverMap: Record<string, PlanStatus> = {};
+            const serverAuditMap: Record<string, PlanAuditMeta> = {};
+            for (const item of response.items || []) {
+                if (!item?.planKey || !item?.status) continue;
+                serverMap[item.planKey] = item.status;
+                serverAuditMap[item.planKey] = {
+                    updatedAt: item.updatedAt || null,
+                    updatedBy: item.updatedBy || null,
+                };
             }
-        };
 
+            setPlanStatusMap((previous) => {
+                const next: Record<string, PlanStatus> = { ...previous };
+                for (const plan of executionPlans) {
+                    next[plan.key] = serverMap[plan.key] || previous[plan.key] || 'not-started';
+                }
+                return next;
+            });
+
+            setPlanAuditMap((previous) => {
+                const next: Record<string, PlanAuditMeta> = { ...previous };
+                for (const plan of executionPlans) {
+                    next[plan.key] = serverAuditMap[plan.key] || previous[plan.key] || { updatedAt: null, updatedBy: null };
+                }
+                return next;
+            });
+
+            setPredictiveSyncState('success');
+            setPredictiveSyncError(null);
+            setPredictiveSyncMessage(PREDICTIVE_STATUS_COPY.syncSuccess);
+        } catch (error) {
+            const message = extractMessage(error);
+            console.warn('[PredictiveAnalysis] 실행 계획 상태 서버 조회 실패:', message);
+            setPredictiveSyncState('error');
+            setPredictiveSyncError(message);
+            setPredictiveSyncMessage(PREDICTIVE_STATUS_COPY.syncError);
+        }
+    }, [boardScope, executionPlans, hasPredictiveSourceData, isPlanSyncAvailable]);
+
+    useEffect(() => {
         void loadPlanStatusesFromServer();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [boardScope, executionPlans]);
+    }, [loadPlanStatusesFromServer]);
 
     useEffect(() => {
         setPlanStatusMap((previous) => {
@@ -1045,6 +1093,56 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
             return next;
         });
     }, [executionPlans]);
+
+    const handleRecalculatePredictive = useCallback(() => {
+        if (!hasPredictiveSourceData || predictiveSyncState === 'loading') return;
+
+        setShowAllRiskInsights(false);
+        setShowAllExecutionPlans(false);
+        setShowAllMeetingAgenda(false);
+        setShowMobileExtendedPanels(false);
+        setExpandedPlanDetailKey(null);
+        setExpandedHistoryPlanKey(null);
+        setExecutionPlanFilter('urgent');
+        setPredictiveRefreshTick((previous) => previous + 1);
+        hasAutoCenteredRef.current = false;
+
+        requestAnimationFrame(() => {
+            centerOntologyViewport();
+        });
+
+        if (isPlanSyncAvailable) {
+            void loadPlanStatusesFromServer();
+        } else {
+            setPredictiveSyncState('idle');
+            setPredictiveSyncError(null);
+            setPredictiveSyncMessage(PREDICTIVE_STATUS_COPY.syncReady);
+        }
+    }, [hasPredictiveSourceData, isPlanSyncAvailable, loadPlanStatusesFromServer, predictiveSyncState]);
+
+    const handleRetryPredictiveSync = useCallback(() => {
+        if (!isPlanSyncAvailable || predictiveSyncState === 'loading') return;
+        void loadPlanStatusesFromServer();
+    }, [isPlanSyncAvailable, loadPlanStatusesFromServer, predictiveSyncState]);
+
+    const predictiveActionState = useMemo(() => {
+        const canRecalculate = hasPredictiveSourceData && predictiveSyncState !== 'loading';
+        const canRetry = isPlanSyncAvailable && predictiveSyncState === 'error';
+
+        return {
+            canRecalculate,
+            canRetry,
+            showRetry: predictiveSyncState === 'error',
+            statusTone:
+                predictiveSyncState === 'error'
+                    ? 'border-rose-200 bg-rose-50 text-rose-700'
+                    : predictiveSyncState === 'success'
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                        : predictiveSyncState === 'loading'
+                            ? 'border-amber-200 bg-amber-50 text-amber-700'
+                            : 'border-slate-200 bg-slate-50 text-slate-600',
+        };
+    }, [hasPredictiveSourceData, isPlanSyncAvailable, predictiveSyncState]);
 
     const statusSummary = useMemo(() => {
         const summary: Record<PlanStatus, number> = {
@@ -1521,7 +1619,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                 </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
+            <div className={`${MOBILE_CARD_PANEL_CLASS} bg-white border-slate-200`}>
                 <div className="grid grid-cols-1 md:grid-cols-[160px_minmax(0,1fr)] gap-4 items-center">
                     <div className="mx-auto h-36 w-36 rounded-full border-8 border-indigo-100 bg-slate-50 flex flex-col items-center justify-center">
                         <p className="text-4xl font-black text-slate-900 leading-none">{aiRiskScore}</p>
@@ -1547,6 +1645,42 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                             <button type="button" onClick={() => setExecutionPlanFilter('urgent')} className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">개별 점검 영역</button>
                             <button type="button" onClick={() => setShowAllExecutionPlans((prev) => !prev)} className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">AI 인사이트</button>
                         </div>
+                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">AI Risk 상태 제어</p>
+                                    <p className="mt-1 text-[12px] font-semibold leading-relaxed text-slate-600">{predictiveSyncMessage}</p>
+                                    {predictiveSyncError ? <p className="mt-1 text-[11px] font-bold text-rose-600">오류: {predictiveSyncError}</p> : null}
+                                </div>
+                                <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black ${predictiveActionState.statusTone}`}>
+                                    {predictiveSyncState === 'loading' ? '동기화 중' : predictiveSyncState === 'success' ? '최신 상태 반영' : predictiveSyncState === 'error' ? '재시도 필요' : '재계산 가능'}
+                                </span>
+                            </div>
+                            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={handleRecalculatePredictive}
+                                    disabled={!predictiveActionState.canRecalculate}
+                                    className={`min-h-[48px] rounded-2xl border px-4 py-3 text-sm font-black transition-colors ${predictiveActionState.canRecalculate ? 'border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50 active:scale-[0.99]' : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                                >
+                                    {predictiveSyncState === 'loading' ? 'AI 리스크 재계산 준비 중...' : 'AI 리스크 재계산'}
+                                </button>
+                                {predictiveActionState.showRetry ? (
+                                    <button
+                                        type="button"
+                                        onClick={handleRetryPredictiveSync}
+                                        disabled={!predictiveActionState.canRetry}
+                                        className={`min-h-[48px] rounded-2xl border px-4 py-3 text-sm font-black transition-colors ${predictiveActionState.canRetry ? 'border-rose-200 bg-white text-rose-700 hover:bg-rose-50 active:scale-[0.99]' : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'}`}
+                                    >
+                                        상태 동기화 재시도
+                                    </button>
+                                ) : (
+                                    <div className="flex items-center rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-3 text-[11px] font-bold text-slate-500">
+                                        {isPlanSyncAvailable ? '오류 발생 시 재시도 버튼이 여기에 표시됩니다.' : '관리자 로그인 시 상태 동기화 재시도가 활성화됩니다.'}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                         {viewportWidth >= 1024 && (
                             <div className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-3">
                                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">PC 운영 바로가기</p>
@@ -1564,13 +1698,13 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
 
             <InterpretationCardGrid
                 items={predictiveSummaryCards}
-                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                cardClassName={MOBILE_CARD_GRID_ITEM_CLASS}
             />
 
             <SummaryMetricGrid
                 items={harnessSummaryMetrics}
                 className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
-                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                cardClassName={MOBILE_CARD_GRID_ITEM_CLASS}
             />
 
             {(harnessSummary.immediateAttention > 0 || harnessSummary.approvalBacklog > 0 || harnessSummary.fallback > 0) && (
@@ -1585,7 +1719,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                     description={harnessSummary.immediateAttention > 0
                         ? '예측 대시보드는 미래 개입 우선순위를 정하는 곳이지만, 이미 위험이 확정된 인원은 관리자 승인·보완 흐름으로 먼저 연결해야 보호 공백을 줄일 수 있습니다.'
                         : '계획 보드에서 하네스 저장·승인 상태를 함께 읽으면 실행 항목은 많아도 실제 보호 흐름이 끊긴 지점을 먼저 보완할 수 있습니다.'}
-                    className="rounded-2xl border px-4 py-3 shadow-sm"
+                    className={MOBILE_CARD_PANEL_COMPACT_CLASS}
                     bodyClassName="block"
                     titleClassName="text-sm font-black"
                     descriptionClassName="mt-1 text-xs font-semibold leading-relaxed"
@@ -1593,35 +1727,42 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-                <div className="bg-white p-4 rounded-2xl border border-rose-100 shadow-sm">
+                <div className={`${MOBILE_CARD_GRID_ITEM_CLASS} bg-white border-rose-100`}>
                     <p className="text-[11px] font-black text-rose-600">고위험군 (RiskScore ≥ 70)</p>
                     <p className="mt-1 text-2xl font-black text-slate-900">{summary.highRiskCount}명</p>
                 </div>
-                <div className="bg-white p-4 rounded-2xl border border-amber-100 shadow-sm">
+                <div className={`${MOBILE_CARD_GRID_ITEM_CLASS} bg-white border-amber-100`}>
                     <p className="text-[11px] font-black text-amber-700">급락군 (최근 -10점 이하)</p>
                     <p className="mt-1 text-2xl font-black text-slate-900">{summary.rapidDropCount}명</p>
                 </div>
-                <div className="bg-white p-4 rounded-2xl border border-indigo-100 shadow-sm">
+                <div className={`${MOBILE_CARD_GRID_ITEM_CLASS} bg-white border-indigo-100`}>
                     <p className="text-[11px] font-black text-indigo-700">핵심 위험테마</p>
                     <p className="mt-1 text-xl font-black text-slate-900">{summary.topRiskLabel}</p>
                 </div>
             </div>
 
-            <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-lg border border-slate-100">
+            <div key={`predictive-risk-panel-${predictiveRefreshTick}`} className={`${MOBILE_CARD_PANEL_CLASS} bg-white border-slate-100`}>
                 <div className="flex items-center justify-between mb-3">
                     <h3 className="text-base sm:text-lg font-black text-slate-900">우선 개입 대상 TOP 5</h3>
                     <span className="text-[11px] font-black text-slate-500">기본 3건만 우선 표시</span>
                 </div>
                 <InterpretationCardGrid
                     items={executionInterpretationCards}
-                    cardClassName="rounded-2xl border p-4"
+                    cardClassName={MOBILE_CARD_GRID_ITEM_CLASS}
                 />
                 {riskInsights.length === 0 ? (
-                    <p className="text-sm font-bold text-slate-400">예측 분석을 위한 데이터가 부족합니다.</p>
+                    <EmptyStatePanel
+                        variant="slate"
+                        className="px-4 py-8"
+                        title={PREDICTIVE_STATUS_COPY.riskInsightEmpty.title}
+                        description={PREDICTIVE_STATUS_COPY.riskInsightEmpty.description}
+                        titleClassName="text-sm font-bold text-slate-500"
+                        descriptionClassName="mt-2 text-xs font-semibold leading-relaxed text-slate-400"
+                    />
                 ) : (
                     <div className="space-y-3">
                         {visibleRiskInsights.map((item, index) => (
-                            <div key={item.key} className="rounded-xl border border-slate-200 p-3 bg-slate-50">
+                            <div key={item.key} className={`${MOBILE_CARD_GRID_COMPACT_CLASS} border-slate-200 bg-slate-50`}>
                                 <div className="flex items-start justify-between gap-2">
                                     <div>
                                         <p className="text-sm font-black text-slate-900">{index + 1}. {item.name} · {item.jobField}</p>
@@ -1657,7 +1798,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                     <div className="mb-4">
                         <InterpretationCardGrid
                             items={ontologyInterpretationCards}
-                            cardClassName="rounded-2xl border p-4"
+                            cardClassName={MOBILE_CARD_GRID_ITEM_CLASS}
                         />
                     </div>
                     <div className="mb-6 rounded-2xl border border-slate-700 bg-slate-800/40 p-3 sm:p-4">
@@ -1789,7 +1930,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                 {/* Right: Next Month Agenda & Action Items */}
                 <div className="space-y-6">
                     {/* Agenda Card */}
-                    <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[30px] shadow-lg border border-slate-100">
+                    <div key={`predictive-plan-panel-${predictiveRefreshTick}`} className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-[30px] shadow-lg border border-slate-100">
                         <div className="flex items-start justify-between gap-3 mb-4">
                             <div>
                                 <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
@@ -1894,11 +2035,22 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                             })}
                         </div>
                         {executionPlans.length === 0 ? (
-                            <div className="text-center py-8 text-slate-400 text-sm">실행 계획을 생성할 데이터가 부족합니다.</div>
+                            <EmptyStatePanel
+                                variant="slate"
+                                className="px-4 py-8"
+                                title={PREDICTIVE_STATUS_COPY.executionPlanEmpty.title}
+                                description={PREDICTIVE_STATUS_COPY.executionPlanEmpty.description}
+                                titleClassName="text-sm font-bold text-slate-500"
+                                descriptionClassName="mt-2 text-xs font-semibold leading-relaxed text-slate-400"
+                            />
                         ) : filteredExecutionPlans.length === 0 ? (
-                            <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm font-bold text-slate-400">
-                                선택한 조건에 해당하는 실행 계획이 없습니다.
-                            </div>
+                            <EmptyStatePanel
+                                variant="slate"
+                                title={PREDICTIVE_STATUS_COPY.executionPlanFilteredEmpty.title}
+                                description={PREDICTIVE_STATUS_COPY.executionPlanFilteredEmpty.description}
+                                titleClassName="text-sm font-bold text-slate-500"
+                                descriptionClassName="mt-2 text-xs font-semibold leading-relaxed text-slate-400"
+                            />
                         ) : (
                             <div className="space-y-3">
                                 {visibleExecutionPlans.map((plan) => (
@@ -1943,9 +2095,9 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                                                         <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-2">
                                                             <p className="text-[10px] font-black text-slate-500 mb-1">최근 변경 이력 (최대 5건)</p>
                                                             {planHistoryLoadingMap[plan.key] ? (
-                                                                <p className="text-[10px] font-bold text-slate-400">불러오는 중...</p>
+                                                                <p className="text-[10px] font-bold text-slate-400">{PREDICTIVE_STATUS_COPY.planHistoryLoading}</p>
                                                             ) : (planHistoryMap[plan.key] || []).length === 0 ? (
-                                                                <p className="text-[10px] font-bold text-slate-400">조회된 이력이 없습니다.</p>
+                                                                <p className="text-[10px] font-bold text-slate-400">{PREDICTIVE_STATUS_COPY.planHistoryEmpty}</p>
                                                             ) : (
                                                                 <div className="space-y-1.5">
                                                                     {(planHistoryMap[plan.key] || []).map((history, idx) => (

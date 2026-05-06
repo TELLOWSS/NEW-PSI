@@ -170,14 +170,25 @@
 - AI Risk 액션 3종(경향/개별 점검/AI 인사이트) 1차 노출 및 동작
 
 ### 9-2. 현재 미구현(우선순위 순)
-1. 카드 반경/패딩/그림자 토큰 통일
-2. OCR/AI Risk 결과 없음·지연·오류 문구 분리 정비
-3. AI Risk 재계산/재시도 버튼 조건 분기 정식화
+1. [x] 카드 반경/패딩/그림자 토큰 통일
+2. [x] OCR/AI Risk 결과 없음·지연·오류 문구 분리 정비
+3. [x] AI Risk 재계산/재시도 버튼 조건 분기 정식화
+
+### 9-2.1. 반영 후 현재 상태
+- 핵심 3화면(Dashboard/OCR/Predictive)의 공통 카드 스케일을 shared card token 기준으로 정렬
+- OCR/Predictive의 빈 상태 문구를 `대상 없음` / `데이터 부족` / `이력 없음` 중심으로 분리
+- Predictive 상단에 `AI 리스크 재계산` / `상태 동기화 재시도` 제어 패널을 추가하고 `idle/loading/success/error` 분기 적용
 
 ### 9-4. 순차 실행 로그 — 2순위 완료 (2026-05-04)
 - 반영: Dashboard/OCR/Predictive 핵심 모바일 CTA를 `min-h-[48px] + rounded-2xl + px-4 py-3 + transition-colors + active:scale-[0.99]` 스케일로 공통화
 - 범위: Dashboard `시작하기`, OCR `분석 시작`/`AI 리스크 분석 결과 보기`, Predictive 모바일 토글 CTA(`온톨로지 맵 보기/숨기기`, `심화 분석 패널 펼치기/접기`)
 - 검증: `npm run build` PASS (`built in 5.24s`), `check:mobile-qa:evidence` → `READY_FOR_FINALIZATION`
+
+### 9-5. 순차 실행 로그 — 3순위 완료 (2026-05-06)
+- 반영 1: `components/shared/cardTokens.ts` 신설 후 `InterpretationCardGrid` / `SummaryMetricGrid` / `ControlPanelCard` / `toneVariants`에 공통 카드 토큰 연결
+- 반영 2: OCR/Predictive 빈 상태 문구를 `대상 없음` / `데이터 부족` / `이력 없음` / `동기화 실패` 기준으로 분리 정비
+- 반영 3: Predictive 상단에 `AI 리스크 재계산` / `상태 동기화 재시도` 버튼 추가, 관리자 인증/데이터 존재/동기화 상태 기준 분기 정식화
+- 검증: VS Code Problems 기준 변경 파일 오류 없음 + `npm run build` PASS(`built in 6.57s`) + `check:mobile-qa:evidence` `READY_FOR_FINALIZATION` + `qa:mobile:finalize` `FINALIZED_PASS`
 
 ### 9-3. 순차 실행 규칙
 - 한 번에 1개 항목만 반영

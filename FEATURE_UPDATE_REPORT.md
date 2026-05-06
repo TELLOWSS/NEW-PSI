@@ -644,3 +644,11 @@ dist/assets/index-xpvRZ3bM.js  749.07 kB │ gzip: 190.50 kB
 ### 9.4 운영 결론
 - 프로그램 보고서/설명서/UI·UX 기준은 2026-03-24 반영 상태로 업데이트 완료
 - 기존 데이터 중 모국어 필드 누락 건은 재분석 시 자동 보완 가능
+
+---
+
+## 10. 2026-05-06 운영 검증 스냅샷
+
+- 완료: 모바일 3코어(Home/OCR/AI Risk) 공통 카드 토큰 정렬, OCR/AI 상태 문구 분리, AI Risk 재계산/재시도 조건 분기 반영 및 문서 동기화 완료
+- 다음: 기능 추가 없이 안정화 점검(실행 로그/QA 보고서 델타 유지) 기준으로 운영 상태 고정
+- 검증: `npm run build` PASS(`built in 6.57s`) + `check:mobile-qa:evidence` `READY_FOR_FINALIZATION` + `qa:mobile:finalize` `FINALIZED_PASS`

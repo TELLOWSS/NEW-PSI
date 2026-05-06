@@ -31,6 +31,17 @@ import { resolveOcrExecutionKeyStatus } from '../utils/ocrExecutionKeyStatus';
 import { useDevMode } from '../contexts/DevModeContext';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils';
 
+const OCR_STATUS_COPY = {
+    secondPassEmpty: {
+        title: '2차 재분석 대상이 아직 없습니다.',
+        description: '현재 필터에서는 OCR 성공 기록과 원문 텍스트, 선택한 추가 조건을 동시에 만족한 항목만 노출합니다.',
+    },
+    retryGuideClear: {
+        title: `현재 집계 기준으로 별도 ${BRAND_STATUS_LABELS.attention} 대응이 필요한 항목이 없습니다.`,
+        description: '지연·오류·재시도 케이스가 생기면 이 영역에 우선 조치 가이드가 자동으로 표시됩니다.',
+    },
+} as const;
+
 const buildMasterDataLoadErrorMessage = (rawMessage?: string) => {
     const message = String(rawMessage || '알 수 없는 오류');
     return `기록 양식/배정 데이터 조회 실패: ${message}\n\n현재 group 전용 모드입니다. Supabase에 group 뷰/컬럼이 적용되었는지 확인해 주세요.`;
@@ -6042,8 +6053,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <EmptyStatePanel
                                     variant="slate"
                                     className="rounded-xl px-3 py-6"
-                                    title="조건에 맞는 2차 재분석 대상이 없습니다."
+                                    title={OCR_STATUS_COPY.secondPassEmpty.title}
+                                    description={OCR_STATUS_COPY.secondPassEmpty.description}
                                     titleClassName="text-[11px] font-bold text-slate-500"
+                                    descriptionClassName="mt-2 text-[11px] font-semibold leading-relaxed text-slate-400"
                                 />
                             )}
                         </SectionPanelCard>
@@ -6182,7 +6195,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             <EmptyStatePanel
                                                 variant="emerald"
                                                 className="rounded-xl px-3 py-6"
-                                                title={`현재 집계 기준으로 별도 ${BRAND_STATUS_LABELS.attention} 대응이 필요한 항목이 없습니다.`}
+                                                title={OCR_STATUS_COPY.retryGuideClear.title}
+                                                description={OCR_STATUS_COPY.retryGuideClear.description}
+                                                descriptionClassName="mt-2 text-[11px] font-semibold leading-relaxed text-emerald-600"
                                             />
                                         )}
                                     </SectionPanelCard>

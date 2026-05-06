@@ -441,3 +441,11 @@ Analysis Result for 'javascript'. Found 0 alerts:
 **검토 완료일**: 2026-03-02  
 **시스템 적용 버전**: PSI v2.1.0  
 **상태**: ✅ 현장 검증 및 프로덕션 배포 완료
+
+---
+
+## 2026-05-06 운영 검증 스냅샷
+
+- 완료: 모바일 3코어(Home/OCR/AI Risk) 공통 카드 토큰 정렬, OCR/AI 상태 문구 분리, AI Risk 재계산/재시도 조건 분기 반영 완료
+- 다음: QA 보고서/증적 리포트 최신화 유지 및 로드맵 실행 상태 델타 3줄 기록 유지
+- 검증: `npm run build` PASS(`built in 6.57s`) + `check:mobile-qa:evidence` `READY_FOR_FINALIZATION` + `qa:mobile:finalize` `FINALIZED_PASS`
