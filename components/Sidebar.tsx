@@ -1,8 +1,10 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import type { Page, AppSettings } from '../types';
 import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
 import { StatusBadge } from './shared/StatusBadge';
+import { useOperationalMode } from '../contexts/OperationalModeContext';
+import { getOperationalModeLabel, isPageVisibleByOperationalMode } from '../utils/operationalModeUtils';
 
 interface SidebarProps {
     currentPage: Page;
@@ -57,6 +59,16 @@ const navSections: NavSection[] = [
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage }) => {
     const [siteName, setSiteName] = useState('용인 푸르지오 원클러스터 2,3단지');
+    const { mode } = useOperationalMode();
+
+    const visibleNavSections = useMemo(() => {
+        return navSections
+            .map((section) => ({
+                ...section,
+                items: section.items.filter((item) => isPageVisibleByOperationalMode(item.id, mode)),
+            }))
+            .filter((section) => section.items.length > 0);
+    }, [mode]);
 
     useEffect(() => {
         const savedSettings = localStorage.getItem('psi_app_settings');
@@ -104,6 +116,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
                 <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-bold">Proactive Safety Intelligence</p>
                 <div className="bg-slate-100 dark:bg-slate-700 rounded-md p-1.5 sm:p-2 mt-3 sm:mt-4">
                      <p className="text-[10px] sm:text-xs font-semibold text-slate-700 dark:text-slate-200 truncate px-1">{siteName} 현장</p>
+                     <p className="mt-1 text-[10px] font-black text-indigo-600 dark:text-indigo-300 px-1">운영 모드: {getOperationalModeLabel(mode)}</p>
                 </div>
             </div>
             <nav className="flex-1 px-2 py-3 sm:py-4 space-y-4 overflow-y-auto custom-scrollbar">
@@ -111,7 +124,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage })
                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-indigo-500">Mobile First</p>
                     <p className="mt-1 text-sm font-bold text-slate-900 dark:text-slate-100">모바일은 5탭 중심, PC는 운영그룹 중심으로 재구성되었습니다.</p>
                 </div>
-                {navSections.map((section) => (
+                {visibleNavSections.map((section) => (
                     <div key={section.title}>
                         <p className="px-3 mb-1.5 text-[10px] sm:text-[11px] font-extrabold tracking-wide text-slate-400 dark:text-slate-500 uppercase">
                             {section.title}

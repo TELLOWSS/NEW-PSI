@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { DevModeProvider } from './contexts/DevModeContext';
+import { OperationalModeProvider } from './contexts/OperationalModeContext';
 
 const RUNTIME_RECOVERY_RELOAD_KEY = 'psi_runtime_recovery_reload_once';
 const VERSION_MISMATCH_RELOAD_KEY = 'psi_version_mismatch_reload_once';
@@ -124,9 +125,11 @@ const root = ReactDOM.createRoot(rootElement);
 try {
   root.render(
     <React.StrictMode>
-      <DevModeProvider>
-        <App />
-      </DevModeProvider>
+      <OperationalModeProvider>
+        <DevModeProvider>
+          <App />
+        </DevModeProvider>
+      </OperationalModeProvider>
     </React.StrictMode>
   );
   document.documentElement.dataset.psiMounted = '1';

@@ -15,6 +15,9 @@ import {
 } from '../utils/bestPracticeSyncStatus';
 import { getStoredTheme, getResolvedTheme, toggleTheme, applyTheme, watchSystemThemeChange, THEME_CHANGED_EVENT, type ThemeMode } from '../utils/themeUtils';
 import { useDevMode } from '../contexts/DevModeContext';
+import { useOperationalMode } from '../contexts/OperationalModeContext';
+import { getOperationalModeLabel, isPageVisibleByOperationalMode } from '../utils/operationalModeUtils';
+import { cycleUserRolePreset, getUserRolePreset, getUserRolePresetLabel, USER_ROLE_PRESET_CHANGED_EVENT, type UserRolePreset } from '../utils/userRolePresetUtils';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -34,6 +37,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const [showScrollTop, setShowScrollTop] = useState(false);
     const mainRef = useRef<HTMLElement>(null);
     const { isDevMode, toggle: toggleDevMode } = useDevMode();
+    const { mode: operationalMode, cycleMode: cycleOperationalMode } = useOperationalMode();
+    const [userRolePreset, setUserRolePreset] = useState<UserRolePreset>(() => getUserRolePreset());
 
     const handleScrollToTop = useCallback(() => {
         mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -59,36 +64,43 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         'settings': '시스템 설정 (System Configuration)'
     };
 
-    const mobilePageGroups: Record<Exclude<MobileTabId, 'more'>, Page[]> = {
+    const mobilePageGroupsBase: Record<Exclude<MobileTabId, 'more'>, Page[]> = {
         home: ['dashboard', 'introduction'],
         analysis: ['ocr-analysis', 'predictive-analysis', 'performance-analysis', 'safety-checks', 'individual-report', 'survey-intelligence'],
         reports: ['reports', 'feedback'],
         workers: ['worker-management', 'admin-training', 'worker-training', 'safety-behavior-management', 'safety-compliance-hub', 'site-issue-management'],
     };
 
+    const filteredMobilePageGroups: Record<Exclude<MobileTabId, 'more'>, Page[]> = {
+        home: mobilePageGroupsBase.home.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
+        analysis: mobilePageGroupsBase.analysis.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
+        reports: mobilePageGroupsBase.reports.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
+        workers: mobilePageGroupsBase.workers.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
+    };
+
     const mobileBottomTabs: Array<{ id: MobileTabId; label: string; page?: Page; icon: React.ReactNode }> = [
         {
             id: 'home',
             label: '홈',
-            page: 'dashboard',
+            page: filteredMobilePageGroups.home[0] || 'dashboard',
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>,
         },
         {
             id: 'analysis',
             label: '분석',
-            page: 'predictive-analysis',
+            page: filteredMobilePageGroups.analysis[0],
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6m4 6V7m4 10v-3M5 19h14" /></svg>,
         },
         {
             id: 'reports',
             label: '리포트',
-            page: 'reports',
+            page: filteredMobilePageGroups.reports[0],
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
         },
         {
             id: 'workers',
             label: '근로자',
-            page: 'worker-management',
+            page: filteredMobilePageGroups.workers[0],
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
         },
         {
@@ -98,9 +110,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         },
     ];
 
-    const activeMobileTab = (Object.entries(mobilePageGroups).find(([, pages]) => pages.includes(currentPage))?.[0] as Exclude<MobileTabId, 'more'> | undefined) ?? 'more';
+    const activeMobileTab = (Object.entries(filteredMobilePageGroups).find(([, pages]) => pages.includes(currentPage))?.[0] as Exclude<MobileTabId, 'more'> | undefined) ?? 'more';
 
-    const mobileQuickLinks: Array<{ page: Page; label: string }> =
+    const mobileQuickLinksRaw: Array<{ page: Page; label: string }> =
         activeMobileTab === 'home'
             ? [
                 { page: 'dashboard', label: '현장 홈' },
@@ -131,6 +143,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                             { page: 'site-issue-management', label: '현장 지적사항' },
                             { page: 'settings', label: '설정' },
                         ];
+
+    const mobileQuickLinks = mobileQuickLinksRaw.filter((item) => isPageVisibleByOperationalMode(item.page, operationalMode));
 
     const handlePageChange = (page: Page) => {
         setCurrentPage(page);
@@ -196,6 +210,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
             window.removeEventListener('storage', syncApiMode);
             window.removeEventListener(API_MODE_CHANGED_EVENT, syncApiMode);
         };
+    }, []);
+
+    useEffect(() => {
+        const syncRolePreset = () => setUserRolePreset(getUserRolePreset());
+        window.addEventListener(USER_ROLE_PRESET_CHANGED_EVENT, syncRolePreset);
+        return () => window.removeEventListener(USER_ROLE_PRESET_CHANGED_EVENT, syncRolePreset);
     }, []);
 
     useEffect(() => {
@@ -297,6 +317,24 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                <span className="sm:hidden">{isPaidApiMode ? '유료' : '무료'}</span>
                                <span className="hidden sm:inline">{isPaidApiMode ? '유료 API' : '무료 API'}</span>
                            </StatusBadge>
+                           <button
+                               type="button"
+                               onClick={() => setUserRolePreset(cycleUserRolePreset())}
+                               className="ml-1 rounded-lg border border-emerald-200 dark:border-emerald-500/50 bg-emerald-50 dark:bg-emerald-500/20 px-2 h-8 text-[10px] font-black text-emerald-700 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-500/30 transition-colors"
+                               title="사용자군 프리셋 순환: 실무자 → 관리자 → 소장"
+                               aria-label="사용자군 프리셋 변경"
+                           >
+                               {getUserRolePresetLabel(userRolePreset)}
+                           </button>
+                           <button
+                               type="button"
+                               onClick={cycleOperationalMode}
+                               className="ml-1 rounded-lg border border-indigo-200 dark:border-indigo-500/50 bg-indigo-50 dark:bg-indigo-500/20 px-2 h-8 text-[10px] font-black text-indigo-700 dark:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-500/30 transition-colors"
+                               title="운영 모드 순환: 실무 즉시 → 표준 운영 → 개발 확장"
+                               aria-label="운영 모드 변경"
+                           >
+                               {getOperationalModeLabel(operationalMode)}
+                           </button>
                            {isDevMode && <BestPracticeSyncBadge state={bestPracticeSyncState} failureLogs={bestPracticeFailureLogs} />}
                            {/* 개발자 모드 토글 */}
                            <button

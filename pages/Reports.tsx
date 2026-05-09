@@ -45,6 +45,7 @@ import { fetchHarnessWorkflowStatus } from '../services/harnessService';
 import { buildReportsSummaryCards, buildReportsViewCards } from '../utils/roleViewModel';
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { useDevMode } from '../contexts/DevModeContext';
+import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
@@ -201,6 +202,8 @@ interface ReportsProps {
 
 const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecords = [], briefingData, setBriefingData, forecastData, setForecastData }) => {
     const { isDevMode } = useDevMode();
+    const { mode: operationalMode } = useOperationalMode();
+    const isImmediateOperationalMode = operationalMode === 'immediate';
     const [activeTab, setActiveTab] = useState<ReportType>('team-report');
     const [isGenerating, setIsGenerating] = useState(false);
     const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
@@ -2391,7 +2394,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
             />
 
-            {isDevMode && (
+            {isDevMode && !isImmediateOperationalMode && (
                 <div className="space-y-3">
                     <SummaryMetricGrid
                         items={harnessSummaryMetrics}
@@ -2409,6 +2412,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 </div>
             )}
 
+            {!isImmediateOperationalMode && (
             <div className="hidden lg:block rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-4 no-print">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">PC 운영 바로가기</p>
                 <p className="mt-1 text-[11px] font-semibold text-indigo-700">생성/내보내기/검토를 한 구간에서 실행해 보고 사이클을 단축합니다.</p>
@@ -2420,6 +2424,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     <button type="button" onClick={() => { trackQuickAction('print_meeting_report'); window.print(); }} className="min-h-[44px] rounded-xl border border-sky-200 bg-white px-3 py-2 text-left text-xs font-black text-sky-700 hover:bg-sky-50">회의 리포트 인쇄</button>
                 </div>
             </div>
+            )}
 
             <div className="overflow-x-auto pb-2 -mb-2 shrink-0 no-print">
                 <div className="flex space-x-6 border-b border-slate-200 min-w-max">
@@ -2620,7 +2625,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 </div>
             )}
 
-            {isDevMode && (
+            {isDevMode && !isImmediateOperationalMode && (
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 no-print space-y-4">
                 <InterpretationCardGrid
                     items={verificationInterpretationCards}

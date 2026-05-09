@@ -14,6 +14,9 @@ import { getSafetyLevelThresholds } from './utils/safetyLevelUtils';
 import { appendBestPracticeSyncFailureLog, setBestPracticeSyncState } from './utils/bestPracticeSyncStatus';
 import { analyzeWorkerRiskAssessment } from './services/geminiService';
 import { qaBilingualWorkerSeedRecords } from './mockData';
+import { useOperationalMode } from './contexts/OperationalModeContext';
+import { isPageVisibleByOperationalMode } from './utils/operationalModeUtils';
+import { getTodayChecklist, OPS_CHECKLIST_CHANGED_EVENT } from './utils/opsChecklistUtils';
 
 const DYNAMIC_IMPORT_RELOAD_KEY = 'psi_dynamic_import_reload_once';
 const APP_RUNTIME_RECOVERY_RELOAD_KEY = 'psi_app_runtime_recovery_reload_once';
@@ -97,6 +100,7 @@ const IDB_VERSION = 1;
 const WORKER_STORE = 'worker_records';
 const SAFETY_LEVEL_MIGRATION_KEY = 'psi_migrated_safety_level_v20260325';
 const SAFETY_LEVEL_MIGRATION_REPORT_KEY = 'psi_migrated_safety_level_report_v20260325';
+const START_CHECK_GATE_BLOCKED_PAGES = new Set<Page>(['ocr-analysis', 'reports', 'individual-report']);
 
 interface ErrorBoundaryProps {
     children?: ReactNode;
@@ -670,7 +674,12 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
 };
 
 const App: React.FC = () => {
+    const { mode: operationalMode } = useOperationalMode();
     const [currentPage, setCurrentPage] = useState<Page>('dashboard');
+    const [isStartChecklistGateActive, setIsStartChecklistGateActive] = useState<boolean>(() => {
+        const checklist = getTodayChecklist();
+        return checklist.startChecks.some((checked) => !checked);
+    });
     const [isWorkerKioskMode, setIsWorkerKioskMode] = useState(false);
     const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
     const [adminUnlockError, setAdminUnlockError] = useState('');
@@ -808,6 +817,41 @@ const App: React.FC = () => {
             }
         }
     }, []);
+
+    useEffect(() => {
+        const isKioskTrainingFlow = currentPage === 'worker-training' && isWorkerKioskMode;
+        if (isKioskTrainingFlow) return;
+        if (!isPageVisibleByOperationalMode(currentPage, operationalMode)) {
+            setCurrentPage('dashboard');
+            return;
+        }
+        if (operationalMode === 'immediate' && isStartChecklistGateActive && START_CHECK_GATE_BLOCKED_PAGES.has(currentPage)) {
+            setCurrentPage('dashboard');
+        }
+    }, [currentPage, operationalMode, isWorkerKioskMode, isStartChecklistGateActive]);
+
+    useEffect(() => {
+        const syncStartChecklistGate = () => {
+            const checklist = getTodayChecklist();
+            setIsStartChecklistGateActive(checklist.startChecks.some((checked) => !checked));
+        };
+
+        syncStartChecklistGate();
+        window.addEventListener(OPS_CHECKLIST_CHANGED_EVENT, syncStartChecklistGate);
+        window.addEventListener('storage', syncStartChecklistGate);
+        return () => {
+            window.removeEventListener(OPS_CHECKLIST_CHANGED_EVENT, syncStartChecklistGate);
+            window.removeEventListener('storage', syncStartChecklistGate);
+        };
+    }, []);
+
+    const navigateToPage = useCallback((page: Page) => {
+        if (operationalMode === 'immediate' && isStartChecklistGateActive && START_CHECK_GATE_BLOCKED_PAGES.has(page)) {
+            setCurrentPage('dashboard');
+            return;
+        }
+        setCurrentPage(page);
+    }, [operationalMode, isStartChecklistGateActive]);
 
     const handleAdminUnlock = useCallback((password: string) => {
         setIsUnlockSubmitting(true);
@@ -1183,9 +1227,9 @@ const App: React.FC = () => {
                     </div>
                 </div>
             ) : (
-                <Layout currentPage={currentPage} setCurrentPage={setCurrentPage}>
+                <Layout currentPage={currentPage} setCurrentPage={navigateToPage}>
                     <Suspense fallback={<div className="min-h-[240px] flex items-center justify-center"><Spinner /></div>}>
-                        {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={setCurrentPage} />}
+                        {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={navigateToPage} />}
                         {currentPage === 'ocr-analysis' && (
                             <OcrAnalysis 
                                 onAnalysisComplete={addWorkerRecords} 
@@ -1193,10 +1237,10 @@ const App: React.FC = () => {
                                 onDeleteAll={handleDeleteAll} 
                                 onImport={handleImport} 
                                 onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} 
-                                onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); setCurrentPage('individual-report'); }}
+                                onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); navigateToPage('individual-report'); }}
                                 onDeleteRecord={handleDeleteRecord} 
                                 onUpdateRecord={handleUpdateRecord}
-                                onNavigateToPredictive={() => setCurrentPage('predictive-analysis')}
+                                onNavigateToPredictive={() => navigateToPage('predictive-analysis')}
                             />
                         )}
                         {currentPage === 'worker-management' && <WorkerManagement workerRecords={workerRecords} onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} onOpenPhotoRegistration={(r, queueRecordIds) => setModalState({type:'recordDetail', record:r, source:'worker-management-photo-queue', queueRecordIds})} onUpdateRecord={handleUpdateRecord} />}
@@ -1205,7 +1249,7 @@ const App: React.FC = () => {
                                 record={recordForReport} 
                                 isQrScanMode={isQrScanMode}
                                 history={workerRecords.filter(r => r.name === recordForReport.name && r.teamLeader === recordForReport.teamLeader)} 
-                                onBack={() => { setRecordForReport(null); setIsQrScanMode(false); setCurrentPage('ocr-analysis'); }} 
+                                onBack={() => { setRecordForReport(null); setIsQrScanMode(false); navigateToPage('ocr-analysis'); }} 
                                 onUpdateRecord={(updated) => {
                                     const normalized = applyIdentityPolicy(updated, workerRecordsRef.current);
                                     handleUpdateRecord(normalized);
@@ -1247,7 +1291,7 @@ const App: React.FC = () => {
                     onClose={() => setModalState({type:null})} 
                     onBack={() => modalState.source === 'worker-management-photo-queue' ? setModalState({type:null}) : setModalState({type:'workerHistory', record:latestRecord, workerName:latestRecord.name})} 
                     onUpdateRecord={handleUpdateRecord} 
-                    onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); setCurrentPage('individual-report'); }} 
+                    onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); navigateToPage('individual-report'); }} 
                     onReanalyze={handleReanalyzeRecord} 
                     isReanalyzing={isReanalyzing} 
                     queueContext={modalState.source === 'worker-management-photo-queue' ? {

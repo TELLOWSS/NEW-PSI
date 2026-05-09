@@ -29,6 +29,7 @@ import { useMobileBackGuard } from '../hooks/useMobileBackGuard';
 import { API_MODE_CHANGED_EVENT, getIsPaidApiMode } from '../utils/apiModeUtils';
 import { resolveOcrExecutionKeyStatus } from '../utils/ocrExecutionKeyStatus';
 import { useDevMode } from '../contexts/DevModeContext';
+import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils';
 
 const OCR_STATUS_COPY = {
@@ -1103,6 +1104,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     onNavigateToPredictive,
 }) => {
     const { isDevMode } = useDevMode();
+    const { mode: operationalMode } = useOperationalMode();
+    const isImmediateOperationalMode = operationalMode === 'immediate';
     const storedViewState = getStoredOcrViewState();
     const [files, setFiles] = useState<File[]>([]);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -4633,7 +4636,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             </div>
                         )}
 
-                        {(!isCompactMobile || isDevMode || mobileMode === 'detailed') && (
+                        {(!isImmediateOperationalMode && (!isCompactMobile || isDevMode || mobileMode === 'detailed')) && (
                         <div className="mt-2">
                             <button
                                 type="button"
@@ -4645,7 +4648,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </div>
                         )}
 
-                        {(!isCompactMobile || isDevMode || mobileMode === 'detailed') && showExtendedOverviewMetrics && (
+                        {(!isImmediateOperationalMode && (!isCompactMobile || isDevMode || mobileMode === 'detailed')) && showExtendedOverviewMetrics && (
                             <SummaryMetricGrid
                                 className="mt-2 sm:mt-3 grid grid-cols-2 gap-2 sm:gap-3"
                                 cardClassName="rounded-2xl border px-3 py-2.5 sm:px-4 sm:py-4"
@@ -4679,7 +4682,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             />
                         )}
 
-                        {(!isCompactMobile || isDevMode || mobileMode === 'detailed') && failedFailureCodeSummary.length > 0 && (
+                        {(!isImmediateOperationalMode && (!isCompactMobile || isDevMode || mobileMode === 'detailed')) && failedFailureCodeSummary.length > 0 && (
                             <>
                                 <SummaryMetricGrid
                                     className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-5"
@@ -5006,6 +5009,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 )}
             </div>
 
+            {!isImmediateOperationalMode && (
             <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl p-5 sm:p-6">
                 <CollapsibleSection
                     title="기록 양식·공종/팀 배정 관리"
@@ -5051,6 +5055,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
                 </CollapsibleSection>
             </div>
+            )}
 
             {primaryFailedRecord && primaryFailedErrorType && (
                 <div className="bg-rose-50 border-2 border-rose-200 rounded-3xl p-5 sm:p-6 shadow-lg">
