@@ -115,6 +115,7 @@
 
 ## 7) 산출물 링크
 - [OPS_DAILY_LOG_2026-05-07.md](OPS_DAILY_LOG_2026-05-07.md)
+- [NEXT_SESSION_HANDOFF_LATEST.md](NEXT_SESSION_HANDOFF_LATEST.md)
 - [MOBILE_3SCREEN_VIEWPORT_QA_FINALIZATION_TEMPLATE_2026-05-04.md](MOBILE_3SCREEN_VIEWPORT_QA_FINALIZATION_TEMPLATE_2026-05-04.md)
 - [reports/mobile-qa-evidence-status.md](reports/mobile-qa-evidence-status.md)
 - [NEXT_SESSION_ONEPAGE_CHECKLIST_2026-04-22.md](NEXT_SESSION_ONEPAGE_CHECKLIST_2026-04-22.md)
@@ -277,3 +278,45 @@
 5. 효과
    - 대시보드 버튼 비활성화뿐 아니라 페이지 진입 자체를 전역 차단
    - 시작 체크 완료 전 분석/보고로 이탈하는 흐름을 구조적으로 방지
+
+---
+
+## 10) 종료 직전 원페이지 요약 (재시작 즉시 확인용)
+
+### 10-1. 오늘 최종 완료(What was done)
+- [x] P0: 전역 운영 모드(`실무 즉시/표준 운영/개발 확장`) + 메뉴/탭/페이지 노출 제어
+- [x] P1: Dashboard/OCR/Reports 내부 과밀 정보 숨김(실무 즉시 모드 기준)
+- [x] P2: 시작/종료 체크 위젯 추가 + 자동저장 + 전일 3건 자동 이어받기
+- [x] P3: 사용자군 프리셋(`실무자/관리자/소장`) 추가 및 Dashboard audience 자동 동기화
+- [x] 가드 고도화: 시작 체크 미완료 시 버튼 비활성화 + OCR/보고서/개인리포트 페이지 진입 전역 차단
+
+### 10-2. 현재 운영 상태(Current state)
+- 기본 사용 시나리오: `실무 즉시` 모드 진입 → 시작 1분 체크 완료 → 핵심 화면 이동
+- 차단 정책: 시작 체크 미완료면 분석/보고 동선이 구조적으로 제한됨
+- 데이터 저장: 체크리스트/운영모드/사용자군 프리셋은 브라우저 localStorage에 유지
+- 품질 상태: 최신 반영 파일 타입 진단 에러 없음(적용 단계별 확인 완료)
+
+### 10-3. 다음 진행사항(Next plan)
+1. 차단 사유 UX 강화
+   - 페이지 차단 시 상단 토스트/배너로 "왜 차단됐는지" 즉시 안내
+
+2. 강제 가드 범위 점검
+   - 시작 체크 미완료 시 추가로 제한할 페이지(예: 예측분석/성과분석) 운영정책 확정
+
+3. 종료 기록 자동화
+   - 종료 체크 3개 완료 시 오늘 요약 3줄 자동 생성(완료/원인/내일 1순위)
+
+4. 운영 로그 표준화
+   - OPS 일지에 "완료/다음/리스크" 3블록 자동 템플릿 추가
+
+### 10-4. 다음 세션 시작 즉시 실행(First 3 actions)
+- [ ] Dashboard 접속 후 시작 체크 3개 완료
+- [ ] 차단 사유 안내 토스트/배너 구현
+- [ ] App 전역 가드 적용 페이지 범위 최종 확정 및 기록
+
+### 10-5. 다음 세션 첫 명령(터미널/검증)
+1. `npm run build`
+2. `npm run check:mobile-qa:evidence`
+3. `npm run qa:mobile:finalize`
+
+> 위 3개 PASS 후, 차단 사유 UX 보강 작업에 착수한다.
