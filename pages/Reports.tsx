@@ -2547,6 +2547,29 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             return true;
         });
     }, [opsAlertActionFilter, opsAlertClickLogs, opsAlertEndDate, opsAlertStartDate]);
+    const opsAlertClickKpi = useMemo(() => {
+        const total = filteredOpsAlertClickLogs.length;
+        if (total === 0) {
+            return {
+                total,
+                interventionRate: 0,
+                taggingValidationRate: 0,
+                delayActiveRate: 0,
+            };
+        }
+
+        const interventionClicks = filteredOpsAlertClickLogs.filter((log) => log.action === 'go-intervention').length;
+        const taggingValidationClicks = filteredOpsAlertClickLogs.filter((log) => log.action === 'go-tagging-validation').length;
+        const delayActiveClicks = filteredOpsAlertClickLogs.filter((log) => log.delayAlertActive).length;
+
+        return {
+            total,
+            interventionRate: (interventionClicks / total) * 100,
+            taggingValidationRate: (taggingValidationClicks / total) * 100,
+            delayActiveRate: (delayActiveClicks / total) * 100,
+        };
+    }, [filteredOpsAlertClickLogs]);
+    const formatOpsAlertRate = (value: number) => `${Math.round(value)}%`;
     const handleClearOpsAlertClickLogs = () => {
         if (typeof window === 'undefined') return;
         if (!confirm('경보 CTA 클릭 로그를 모두 초기화하시겠습니까?')) return;
@@ -2755,6 +2778,31 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         onChange={(event) => setOpsAlertEndDate(event.target.value)}
                         className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700"
                     />
+                </div>
+
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                        <p className="text-[10px] font-black text-slate-500">총 클릭수</p>
+                        <p className="mt-1 text-base font-black text-slate-900">{opsAlertClickKpi.total}건</p>
+                    </div>
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
+                        <p className="text-[10px] font-black text-amber-700">8번 이동률</p>
+                        <p className="mt-1 text-base font-black text-amber-800">
+                            {opsAlertClickKpi.total === 0 ? '-' : formatOpsAlertRate(opsAlertClickKpi.interventionRate)}
+                        </p>
+                    </div>
+                    <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2">
+                        <p className="text-[10px] font-black text-violet-700">10번 이동률</p>
+                        <p className="mt-1 text-base font-black text-violet-800">
+                            {opsAlertClickKpi.total === 0 ? '-' : formatOpsAlertRate(opsAlertClickKpi.taggingValidationRate)}
+                        </p>
+                    </div>
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
+                        <p className="text-[10px] font-black text-rose-700">경보활성 클릭 비율</p>
+                        <p className="mt-1 text-base font-black text-rose-800">
+                            {opsAlertClickKpi.total === 0 ? '-' : formatOpsAlertRate(opsAlertClickKpi.delayActiveRate)}
+                        </p>
+                    </div>
                 </div>
 
                 {filteredOpsAlertClickLogs.length === 0 ? (

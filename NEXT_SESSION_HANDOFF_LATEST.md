@@ -1,97 +1,91 @@
 # NEXT SESSION HANDOFF · LATEST
 
-- 기준일: 2026-05-16
+- 기준일시: 2026-05-16
 - 프로젝트: NEW-PSI
-- 목적: 프로그램 재시작 직후 "무엇을 했는지/다음에 무엇을 할지" 1분 내 파악
+- 목적: 프로그램 종료 후 재시작 시, 2분 내에 현재 상태 파악하고 즉시 다음 작업 진행
 
 ---
 
-## 1) 지금 상태 (한줄 요약)
-- 운영가드(P0~P3)는 유지된 상태에서, 2026-05-16 기준으로 PSI를 Human Risk Engine 중심(온톨로지·태깅·벡터·전조)으로 전환하는 데이터 구조화 산출물을 추가 완료.
-- 계획 진행도 검증 결과: 문서/템플릿/QA 자동화는 완료, `100건 표본 추출`과 `로컬 동기화 후 full 리포트 생성`은 대기.
-
-## 2) 오늘까지 완료된 핵심 업데이트
-1. P0 전역 운영 모드
-   - `실무 즉시 / 표준 운영 / 개발 확장`
-   - 메뉴/탭/페이지 노출 제어 + 숨김 페이지 자동 `dashboard` 복귀
-
-2. P1 내부 과밀 축소
-   - Dashboard/OCR/Reports 고급 패널을 `실무 즉시` 기준으로 축소
-
-3. P2 시작/종료 루틴
-   - Dashboard 상단 운영 체크 위젯 추가
-   - 시작 3체크 + 종료 3체크 + 메모/원인/다음 3건 자동저장
-   - 전일 "다음 3건" 자동 이어받기
-
-4. P3 사용자군 프리셋
-   - `실무자 / 관리자 / 소장` 프리셋
-   - Dashboard audience 자동 동기화
-
-5. 실행 가드 강화
-   - 시작 체크 미완료 시 Dashboard 핵심 버튼 비활성화
-   - App 전역에서 `ocr-analysis / reports / individual-report` 진입 차단
+## 1) 현재 진행상태 (재시작용 한줄 요약)
+- 모바일 12화면 중 운영 핵심 체인 연결 완료: `7→8`, `9→10→11`, `8→11`.
+- 최근 배포 블로커 2건(JSX 파싱 오류, 훅 import 경로 오류) 해결 완료.
+- 최신 빌드 상태: `npm run build` PASS (마지막 실행 Exit Code 0).
 
 ---
 
-## 3) 재시작 즉시 실행 순서 (필수)
-1. Dashboard 진입
-2. 시작 체크 3개 완료
-3. 아래 3개 검증 명령 실행
+## 2) 이번 세션 최종 완료 항목
+1. 10번(태깅 검증) 안정화
+   - `pages/OcrAnalysis.tsx` JSX 불일치 수정
+   - QA 데이터는 localStorage 우선 + API fallback 구조로 연결
+
+2. 7→8 개입 인계 자동화
+   - `pages/PredictiveAnalysis.tsx`에서 실행계획 저장/이벤트 발행
+   - `pages/InterventionCoaching.tsx`에서 인계 데이터 수신/상태 업데이트/저장
+
+3. 11번(리포트) 운영 브리핑 고도화
+   - `pages/Reports.tsx`에 통합 OPS 카드(태깅+개입) 반영
+   - 지연경보 배지 + 즉시 이동 CTA(8번/10번) 반영
+   - CTA 클릭 로그 저장/조회/CSV/초기화 반영
+   - **최신 반영:** 액션/기간(시작일~종료일) 필터 추가
+
+4. 화면 이동 연동
+   - `App.tsx`에서 Reports 페이지 이동 콜백 연결
+
+---
+
+## 3) 데이터 보존 상태 (중요)
+- 근로자 개인 리포트 데이터는 IndexedDB(`worker_records`)에 유지됨.
+- 단, Reports의 로그 초기화 버튼은 OPS 클릭 로그(localStorage)만 지움.
+- 전체 브라우저 데이터 삭제/프로필 변경 시 localStorage·IndexedDB 모두 유실 가능.
+
+---
+
+## 4) 재시작 즉시 진행 순서 (체크리스트)
+1. 프로젝트 루트 확인
+   - `C:\Users\user\OneDrive\Desktop\개발실\new-psi\NEW-PSI`
+
+2. 기본 검증
    - `npm run build`
-   - `npm run check:mobile-qa:evidence`
-   - `npm run qa:mobile:finalize`
 
-PASS 기준
-- build: PASS
-- evidence: `READY_FOR_FINALIZATION`
-- finalize: `FINALIZED_PASS`
+3. 기능 스모크 테스트
+   - 7번에서 계획 생성 → 8번에서 인계 카드 확인
+   - 9번 입력 저장 → 10번 상태/Top5 반영 확인
+   - 11번 지연경보 노출 시 CTA 클릭 → 로그 패널 적재 확인
 
----
-
-## 4) 다음 진행사항 (우선순위)
-1. 표본 태깅 100건 착수
-   - [templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv](templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv) 기준 입력 시작
-
-2. 평가자 2인 태깅 합치도 확보
-   - [templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv](templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv) 기준으로 불일치 태그 합의
-
-3. 전조 신호 우선 분석
-   - 상위 태그 20개 빈도 + 전조 시그널 후보 10개 도출
-
-4. 6대 지표-벡터 정렬 검토
-   - [PSI_DATA_MODEL_ALIGNMENT_2026-05-16.md](PSI_DATA_MODEL_ALIGNMENT_2026-05-16.md) 기준으로 월간 리포트 점수와 벡터 분포 비교
-
-5. 태깅 품질검증 자동화 적용
-   - `npm run check:judgment-tagging`
-   - `npm run check:judgment-tagging:blank100`
-   - `npm run check:judgment-tagging:full`로 리포트+OPS 3줄 자동 생성
-   - R1 종료 시 `npm run check:judgment-tagging:r1:full`로 종료 템플릿 자동 생성
+4. 로그 필터 확인
+   - 액션 필터(전체/8번/10번), 시작일, 종료일 적용 후
+   - CSV 내보내기 결과가 필터 기준과 일치하는지 확인
 
 ---
 
-## 5) 리스크 / 확인 포인트
-- 브라우저 localStorage 기반이므로 브라우저/프로필 변경 시 체크 기록이 초기화될 수 있음
-- 운영모드/프리셋/체크 가드가 동시에 적용되므로, 차단 UX 안내가 없으면 사용자 혼란 가능
-- 터미널이 프로젝트 루트가 아닌 경로에서 실행되면(`C:\Users\user` 등) `npm run` 스크립트를 찾지 못하므로, NEW-PSI 루트에서 실행해야 함
+## 5) 다음 진행사항 (우선순위)
+1. Reports KPI 요약 카드 추가
+   - 기간 내 총 클릭수 / 8번 이동률 / 10번 이동률 / 경보활성 클릭 비율
+
+2. 로그 필터 프리셋 추가
+   - 오늘 / 최근 7일 / 최근 30일
+
+3. 로그 영속화 검토
+   - localStorage 중심 로그를 서버 저장소로 승격(운영 이력 보존 강화)
+
+4. 운영 문서 동기화
+   - `MOBILE_12SCREEN_EXECUTION_PLAN_2026-05-16.md`의 다음사항과 실제 구현 상태 일치화
 
 ---
 
-## 6) 참조 문서
-- [OPS_DAILY_LOG_2026-05-07.md](OPS_DAILY_LOG_2026-05-07.md)
-- [PSI_HUMAN_RISK_ENGINE_PLAN_2026-05-16.md](PSI_HUMAN_RISK_ENGINE_PLAN_2026-05-16.md)
-- [PSI_DATA_MODEL_ALIGNMENT_2026-05-16.md](PSI_DATA_MODEL_ALIGNMENT_2026-05-16.md)
-- [PSI_JUDGMENT_TAGGING_TEMPLATE_V1_2026-05-16.md](PSI_JUDGMENT_TAGGING_TEMPLATE_V1_2026-05-16.md)
-- [PSI_TAGGING_QA_AUTOMATION_GUIDE_2026-05-16.md](PSI_TAGGING_QA_AUTOMATION_GUIDE_2026-05-16.md)
-- [WORKSPACE_LOCAL_SYNC_CHECKLIST_2026-05-16.md](WORKSPACE_LOCAL_SYNC_CHECKLIST_2026-05-16.md)
-- [PSI_TAGGING_100_EXECUTION_BOARD_2026-05-16.md](PSI_TAGGING_100_EXECUTION_BOARD_2026-05-16.md)
-- [PSI_TAGGING_R1_STARTER_PACK_2026-05-16.md](PSI_TAGGING_R1_STARTER_PACK_2026-05-16.md)
-- [MOBILE_12SCREEN_EXECUTION_PLAN_2026-05-16.md](MOBILE_12SCREEN_EXECUTION_PLAN_2026-05-16.md)
-- [MOBILE_12SCREEN_CTA_KPI_MATRIX_2026-05-16.csv](MOBILE_12SCREEN_CTA_KPI_MATRIX_2026-05-16.csv)
-- [reports/judgment-tagging-ops-summary.md](reports/judgment-tagging-ops-summary.md)
-- [reports/judgment-tagging-r1-closeout.md](reports/judgment-tagging-r1-closeout.md)
-- [templates/psi_judgment_tagging_template_v1.csv](templates/psi_judgment_tagging_template_v1.csv)
-- [templates/psi_ontology_v1_seed_2026-05-16.csv](templates/psi_ontology_v1_seed_2026-05-16.csv)
-- [templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv](templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv)
-- [templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv](templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv)
-- [templates/psi_judgment_tagging_progress_tracker_100_v1_2026-05-16.csv](templates/psi_judgment_tagging_progress_tracker_100_v1_2026-05-16.csv)
-- [templates/psi_judgment_tagging_r1_worksheet_001_020_2026-05-16.csv](templates/psi_judgment_tagging_r1_worksheet_001_020_2026-05-16.csv)
+## 6) 핵심 참조 파일
+- `pages/PredictiveAnalysis.tsx`
+- `pages/InterventionCoaching.tsx`
+- `pages/JudgmentTaggingInput.tsx`
+- `pages/OcrAnalysis.tsx`
+- `pages/Reports.tsx`
+- `hooks/useJudgmentTaggingQuality.ts`
+- `public/api/judgment-tagging-quality.json`
+- `App.tsx`
+
+---
+
+## 7) 재시작용 한줄 프롬프트
+아래 문장 그대로 붙여넣으면 현재 컨텍스트를 이어서 진행 가능:
+
+"NEXT_SESSION_HANDOFF_LATEST.md 기준으로 진행. 먼저 npm run build 후 Reports KPI 요약 카드(총클릭/8번이동률/10번이동률/경보활성클릭비율) 구현하고 검증까지 진행해줘."
