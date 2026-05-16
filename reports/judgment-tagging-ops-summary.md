@@ -1,6 +1,6 @@
 # PSI 태깅 QA OPS 3줄 요약
 
-- generatedAt: 2026-05-16T07:40:19.970Z
+- generatedAt: 2026-05-16T07:57:33.014Z
 - date: 2026-05-16
 - source: reports/judgment-tagging-quality.json
 
