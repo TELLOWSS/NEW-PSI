@@ -4584,7 +4584,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
                     <p className="mt-2 text-[10px] font-bold text-rose-700">→ npm run check:judgment-tagging:full 실행 시 자동 갱신됩니다.</p>
                 </div>
-                </div>
 
                 <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-4">
                     <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">조치 TOP5 (실행순서)</p>
