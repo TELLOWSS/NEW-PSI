@@ -8,6 +8,7 @@
 
 ## 1) 지금 상태 (한줄 요약)
 - 운영가드(P0~P3)는 유지된 상태에서, 2026-05-16 기준으로 PSI를 Human Risk Engine 중심(온톨로지·태깅·벡터·전조)으로 전환하는 데이터 구조화 산출물을 추가 완료.
+- 계획 진행도 검증 결과: 문서/템플릿/QA 자동화는 완료, `100건 표본 추출`과 `로컬 동기화 후 full 리포트 생성`은 대기.
 
 ## 2) 오늘까지 완료된 핵심 업데이트
 1. P0 전역 운영 모드
@@ -63,7 +64,7 @@ PASS 기준
 5. 태깅 품질검증 자동화 적용
    - `npm run check:judgment-tagging`
    - `npm run check:judgment-tagging:blank100`
-   - 필요 시 `npm run check:judgment-tagging:report`로 리포트 생성
+   - `npm run check:judgment-tagging:full`로 리포트+OPS 3줄 자동 생성
 
 ---
 
@@ -80,6 +81,8 @@ PASS 기준
 - [PSI_DATA_MODEL_ALIGNMENT_2026-05-16.md](PSI_DATA_MODEL_ALIGNMENT_2026-05-16.md)
 - [PSI_JUDGMENT_TAGGING_TEMPLATE_V1_2026-05-16.md](PSI_JUDGMENT_TAGGING_TEMPLATE_V1_2026-05-16.md)
 - [PSI_TAGGING_QA_AUTOMATION_GUIDE_2026-05-16.md](PSI_TAGGING_QA_AUTOMATION_GUIDE_2026-05-16.md)
+- [WORKSPACE_LOCAL_SYNC_CHECKLIST_2026-05-16.md](WORKSPACE_LOCAL_SYNC_CHECKLIST_2026-05-16.md)
+- [reports/judgment-tagging-ops-summary.md](reports/judgment-tagging-ops-summary.md)
 - [templates/psi_judgment_tagging_template_v1.csv](templates/psi_judgment_tagging_template_v1.csv)
 - [templates/psi_ontology_v1_seed_2026-05-16.csv](templates/psi_ontology_v1_seed_2026-05-16.csv)
 - [templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv](templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv)

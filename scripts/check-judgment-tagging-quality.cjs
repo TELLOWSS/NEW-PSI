@@ -121,6 +121,99 @@ function ensureParentDir(filePath) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
+function summarizeByFieldAndMessage(items, topN = 5) {
+  const counter = new Map();
+  for (const item of items) {
+    const key = `${item.field}||${item.message}`;
+    counter.set(key, (counter.get(key) || 0) + 1);
+  }
+
+  return [...counter.entries()]
+    .map(([key, count]) => {
+      const [field, message] = key.split('||');
+      return { field, message, count };
+    })
+    .sort((a, b) => b.count - a.count || a.field.localeCompare(b.field))
+    .slice(0, topN);
+}
+
+function buildActionItems(errorTop, warningTop) {
+  const rules = [
+    {
+      key: '필수값 누락',
+      title: '필수값 누락 우선 보정',
+      action: 'required 컬럼 누락 행부터 보정한 뒤 재검증',
+    },
+    {
+      key: '코드북 미정의 코드',
+      title: '태그 코드북 정합성 보정',
+      action: 'judgmentTagCodes를 코드북 기준 코드로 치환',
+    },
+    {
+      key: '온톨로지 시드 미정의 조합',
+      title: '온톨로지 매핑 보정',
+      action: 'riskCategoryCode/riskSubcategoryCode/ontologyNodeId 조합 재매핑',
+    },
+    {
+      key: '허용되지 않은 값',
+      title: '허용값 표준화',
+      action: 'vector/linkedMetric/signal 값을 허용 목록으로 정규화',
+    },
+    {
+      key: '중복 recordId',
+      title: '식별자 중복 해소',
+      action: 'recordId 중복 행을 재번호화 후 재검증',
+    },
+    {
+      key: '태그 수(',
+      title: '태그-코드 개수 정렬',
+      action: 'judgmentTags와 judgmentTagCodes 개수를 1:1로 맞춤',
+    },
+  ];
+
+  const actions = [];
+  for (const item of errorTop) {
+    const matched = rules.find((rule) => item.message.includes(rule.key));
+    if (matched) {
+      actions.push({
+        source: 'error',
+        count: item.count,
+        title: matched.title,
+        action: matched.action,
+      });
+    }
+  }
+
+  if (actions.length === 0 && warningTop.length > 0) {
+    actions.push({
+      source: 'warning',
+      count: warningTop[0].count,
+      title: '검토자 정보 보강',
+      action: 'reviewNeeded=Y 행의 reviewer/reviewNote를 우선 보강',
+    });
+  }
+
+  const unique = [];
+  const seen = new Set();
+  for (const item of actions) {
+    const key = `${item.title}||${item.action}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(item);
+  }
+
+  return unique
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+    .map((item, index) => ({
+      priority: index + 1,
+      title: item.title,
+      action: item.action,
+      count: item.count,
+      source: item.source,
+    }));
+}
+
 function writeReports(summary) {
   if (CLI.reportJsonPath) {
     ensureParentDir(CLI.reportJsonPath);
@@ -145,6 +238,39 @@ function writeReports(summary) {
       `- 상태: ${summary.status}`,
       '',
     ];
+
+    if (summary.errorTop.length > 0) {
+      lines.push('## 오류 유형 TOP5');
+      lines.push('');
+      lines.push('| rank | count | field | message |');
+      lines.push('| ---: | ---: | --- | --- |');
+      summary.errorTop.forEach((item, idx) => {
+        lines.push(`| ${idx + 1} | ${item.count} | ${item.field} | ${item.message} |`);
+      });
+      lines.push('');
+    }
+
+    if (summary.warningTop.length > 0) {
+      lines.push('## 경고 유형 TOP5');
+      lines.push('');
+      lines.push('| rank | count | field | message |');
+      lines.push('| ---: | ---: | --- | --- |');
+      summary.warningTop.forEach((item, idx) => {
+        lines.push(`| ${idx + 1} | ${item.count} | ${item.field} | ${item.message} |`);
+      });
+      lines.push('');
+    }
+
+    if (summary.actionItems.length > 0) {
+      lines.push('## 자동 수정 우선순위 액션');
+      lines.push('');
+      lines.push('| priority | source | count | title | action |');
+      lines.push('| ---: | --- | ---: | --- | --- |');
+      summary.actionItems.forEach((item) => {
+        lines.push(`| ${item.priority} | ${item.source} | ${item.count} | ${item.title} | ${item.action} |`);
+      });
+      lines.push('');
+    }
 
     if (summary.errorCount > 0) {
       lines.push('## 오류 상세');
@@ -303,6 +429,9 @@ function main() {
   }
 
   const status = errors.length === 0 ? 'PASS' : 'FAIL';
+  const errorTop = summarizeByFieldAndMessage(errors, 5);
+  const warningTop = summarizeByFieldAndMessage(warnings, 5);
+  const actionItems = buildActionItems(errorTop, warningTop);
   const summary = {
     status,
     totalRows: rows.length,
@@ -310,6 +439,9 @@ function main() {
     unfilledRows,
     errorCount: errors.length,
     warningCount: warnings.length,
+    errorTop,
+    warningTop,
+    actionItems,
     errors,
     warnings,
     meta: {
@@ -326,6 +458,27 @@ function main() {
   console.log(`[PSI-TAG-QA] UNFILLED_ROWS=${unfilledRows}`);
   console.log(`[PSI-TAG-QA] ERRORS=${errors.length}`);
   console.log(`[PSI-TAG-QA] WARNINGS=${warnings.length}`);
+
+  if (errorTop.length > 0) {
+    console.log('[PSI-TAG-QA] ERROR_TOP5');
+    errorTop.forEach((item, idx) => {
+      console.log(`  ${idx + 1}. count=${item.count} field=${item.field} :: ${item.message}`);
+    });
+  }
+
+  if (warningTop.length > 0) {
+    console.log('[PSI-TAG-QA] WARNING_TOP5');
+    warningTop.forEach((item, idx) => {
+      console.log(`  ${idx + 1}. count=${item.count} field=${item.field} :: ${item.message}`);
+    });
+  }
+
+  if (actionItems.length > 0) {
+    console.log('[PSI-TAG-QA] ACTION_TOP5');
+    actionItems.forEach((item) => {
+      console.log(`  P${item.priority}. source=${item.source} count=${item.count} :: ${item.title} -> ${item.action}`);
+    });
+  }
 
   if (errors.length > 0) {
     console.log('----------------------------------------');

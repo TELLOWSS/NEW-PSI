@@ -358,10 +358,10 @@
    - 샘플 입력 예시 3건
 
 ### 11-4. 다음 우선순위
-- [ ] 5대 위험 Ontology v1 표 확정
-- [ ] 인간 판단 태그 24개 초안 확정
+- [x] 5대 위험 Ontology v1 표 확정(시드 10행 기준)
+- [x] 인간 판단 태그 24개 초안 확정(코드북 v1)
 - [ ] 수기자료 100건 표본 추출
-- [ ] 6대 지표 ↔ 벡터 매핑 정의서 작성
+- [x] 6대 지표 ↔ 벡터 매핑 정의서 작성
 
 ### 11-5. 2026-05-16 추가 산출물
 - [PSI_DATA_MODEL_ALIGNMENT_2026-05-16.md](PSI_DATA_MODEL_ALIGNMENT_2026-05-16.md)
@@ -387,12 +387,50 @@
 
 - [scripts/check-judgment-tagging-quality.cjs](scripts/check-judgment-tagging-quality.cjs)
    - 태깅 CSV 자동 품질검증 스크립트(필수값/코드북/온톨로지/값범위/중복ID 검사)
+   - 오류/경고 유형 TOP5 자동요약(콘솔 + Markdown 리포트) 추가
+   - 오류 TOP5를 기반으로 `자동 수정 우선순위 액션(ACTION_TOP5)` 자동 생성
+
+- [scripts/generate-judgment-tagging-ops-summary.cjs](scripts/generate-judgment-tagging-ops-summary.cjs)
+   - `judgment-tagging-quality.json` 기반 OPS 3줄(완료/다음/검증) 자동 생성
+   - 산출물: `reports/judgment-tagging-ops-summary.md`
+
+- npm 실행 체인
+   - `check:judgment-tagging:full` = `check:judgment-tagging:report` + `report:judgment-tagging:ops-summary`
 
 - [PSI_TAGGING_QA_AUTOMATION_GUIDE_2026-05-16.md](PSI_TAGGING_QA_AUTOMATION_GUIDE_2026-05-16.md)
    - 태깅 품질검증 실행 명령/리포트/운영루틴 가이드
+
+- [WORKSPACE_LOCAL_SYNC_CHECKLIST_2026-05-16.md](WORKSPACE_LOCAL_SYNC_CHECKLIST_2026-05-16.md)
+   - 워크스페이스 변경분을 로컬 저장소에 반영하기 위한 파일 목록/검증 명령 체크리스트
 
 ### 11-6. 다음 세션 시작 즉시 실행(데이터 구조화 모드)
 1. `templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv` 기준으로 표본 100건 입력 시작
 2. 평가자 2인 독립 태깅 후 불일치 항목 합의
 3. `templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv` 기준으로 태그 코드 통일 후 상위 태그 20개 빈도 집계
 4. 전조 시그널 후보 10개 도출
+
+### 11-7. 계획사항 진행도 확인검증 (2026-05-16)
+
+#### 완료(문서/스크립트 기준)
+- Human Risk 전환 문서군 작성 완료
+   - `PSI_HUMAN_RISK_ENGINE_PLAN_2026-05-16.md`
+   - `PSI_DATA_MODEL_ALIGNMENT_2026-05-16.md`
+   - `PSI_JUDGMENT_TAGGING_TEMPLATE_V1_2026-05-16.md`
+- 태깅 입력자산 생성 완료
+   - `templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv`
+   - `templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv`
+   - `templates/psi_ontology_v1_seed_2026-05-16.csv`
+- 품질검증 자동화 완료
+   - `scripts/check-judgment-tagging-quality.cjs`
+   - `scripts/generate-judgment-tagging-ops-summary.cjs`
+   - `package.json` 명령(`check:judgment-tagging`, `check:judgment-tagging:full`) 반영
+
+#### 진행중/대기
+- [ ] 수기자료 100건 표본 추출
+- [ ] `check:judgment-tagging:full` 실행 기반 리포트 생성
+   - 대기 사유: 로컬 저장소와 워크스페이스 변경분 동기화 필요
+
+#### 다음 즉시 실행 3건
+1. `WORKSPACE_LOCAL_SYNC_CHECKLIST_2026-05-16.md` 기준으로 로컬 동기화
+2. 로컬 루트에서 `npm run check:judgment-tagging:full` 실행
+3. `reports/judgment-tagging-ops-summary.md` 결과를 기준으로 100건 태깅 착수

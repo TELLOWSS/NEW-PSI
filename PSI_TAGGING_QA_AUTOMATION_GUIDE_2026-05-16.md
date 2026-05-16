@@ -25,9 +25,16 @@
 ### 리포트 파일 생성
 - `npm run check:judgment-tagging:report`
 
+### OPS 3줄 요약 자동 생성
+- `npm run report:judgment-tagging:ops-summary`
+
+### 리포트 + OPS 요약 일괄 실행
+- `npm run check:judgment-tagging:full`
+
 생성 리포트:
 - `reports/judgment-tagging-quality.json`
 - `reports/judgment-tagging-quality.md`
+- `reports/judgment-tagging-ops-summary.md`
 
 ---
 
@@ -41,6 +48,31 @@
 5. 태그명 개수와 코드 개수 일치 여부
 6. 중복 `recordId` 여부
 7. 벡터/지표/신호 값 허용범위 검증
+8. 오류/경고 유형 TOP5 자동요약
+
+---
+
+## 3-1) 자동요약 확인 포인트
+
+- 콘솔 출력:
+   - `[PSI-TAG-QA] ERROR_TOP5`
+   - `[PSI-TAG-QA] WARNING_TOP5`
+- Markdown 리포트 섹션:
+   - `오류 유형 TOP5`
+   - `경고 유형 TOP5`
+
+운영자는 상세 오류 전체를 보기 전에 TOP5를 먼저 확인해 우선 수정 항목을 빠르게 정한다.
+
+---
+
+## 3-2) 자동 수정 우선순위 액션
+
+- 콘솔 출력:
+   - `[PSI-TAG-QA] ACTION_TOP5`
+- Markdown 리포트 섹션:
+   - `자동 수정 우선순위 액션`
+
+우선순위는 오류 빈도와 유형(필수값 누락, 코드북 미정의, 온톨로지 불일치 등)을 기준으로 자동 생성된다.
 
 ---
 
