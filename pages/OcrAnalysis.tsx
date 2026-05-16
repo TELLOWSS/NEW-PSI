@@ -4537,6 +4537,25 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
     return (
         <div className="space-y-6 sm:space-y-8 animate-fade-in-up">
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-indigo-700">10) 태깅 검증 진행</p>
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="rounded-xl border border-white bg-white px-3 py-2">
+                        <p className="text-[10px] font-black text-slate-500">검증 대상</p>
+                        <p className="mt-1 text-lg font-black text-slate-900">{existingRecords.length}건</p>
+                    </div>
+                    <div className="rounded-xl border border-white bg-white px-3 py-2">
+                        <p className="text-[10px] font-black text-slate-500">{BRAND_STATUS_LABELS.attentionPending}</p>
+                        <p className={`mt-1 text-lg font-black ${failedRecords.length > 0 ? 'text-rose-600' : 'text-slate-900'}`}>{failedRecords.length}건</p>
+                    </div>
+                    <div className="rounded-xl border border-white bg-white px-3 py-2">
+                        <p className="text-[10px] font-black text-slate-500">2차 재분석 가능</p>
+                        <p className="mt-1 text-lg font-black text-slate-900">{secondPassTargets.length}건</p>
+                    </div>
+                </div>
+                <p className="mt-2 text-[11px] font-bold text-indigo-700">저신뢰 {lowConfidenceCount}건 · 즉시 조치 카드에서 우선순위 상위 항목을 먼저 처리하세요.</p>
+            </div>
+
             {/* Control Panel */}
             <div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl text-white relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-48 -mt-48"></div>

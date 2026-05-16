@@ -1222,6 +1222,9 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                 ? ux.signNow
                 : t.submit;
 
+    const inputProgressSteps = [Boolean(workerName.trim()), hasReviewedGuidance, isChecklistComplete, hasSignature];
+    const inputProgressCount = inputProgressSteps.filter(Boolean).length;
+
     const scrollToSection = (section: 'language' | 'audio' | 'signature') => {
         if (section === 'language') {
             languageSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1324,6 +1327,29 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                         {t.stayOnPageHint}
                     </p>
                 )}
+
+                <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-indigo-700">9) 수기 데이터 입력 진행</p>
+                    <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <div className="rounded-xl border border-white bg-white px-3 py-2">
+                            <p className="text-[10px] font-black text-slate-500">작성자 입력</p>
+                            <p className="mt-1 text-sm font-black text-slate-900">{workerName.trim() ? statusText.done : statusText.required}</p>
+                        </div>
+                        <div className="rounded-xl border border-white bg-white px-3 py-2">
+                            <p className="text-[10px] font-black text-slate-500">안내 청취</p>
+                            <p className="mt-1 text-sm font-black text-slate-900">{hasReviewedGuidance ? statusText.done : statusText.required}</p>
+                        </div>
+                        <div className="rounded-xl border border-white bg-white px-3 py-2">
+                            <p className="text-[10px] font-black text-slate-500">이해 체크</p>
+                            <p className="mt-1 text-sm font-black text-slate-900">{isChecklistComplete ? statusText.done : statusText.required}</p>
+                        </div>
+                        <div className="rounded-xl border border-white bg-white px-3 py-2">
+                            <p className="text-[10px] font-black text-slate-500">서명</p>
+                            <p className="mt-1 text-sm font-black text-slate-900">{hasSignature ? statusText.done : statusText.required}</p>
+                        </div>
+                    </div>
+                    <p className="mt-2 text-[11px] font-bold text-indigo-700">완료 단계 {inputProgressCount}/4 · 다음 동작: {nextActionButtonLabel}</p>
+                </div>
 
                 <InterpretationCardGrid
                     items={trainingInterpretationCards}

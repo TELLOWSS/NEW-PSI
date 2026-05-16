@@ -2377,6 +2377,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         }
     };
 
+    const latestVerification = verificationHistory[0] || null;
+
     return (
         <div className="space-y-6 pb-10 h-full flex flex-col font-sans">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 no-print">
@@ -2387,6 +2389,30 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         System Ready
                     </span>
                 </div>
+            </div>
+
+            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4 no-print">
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-indigo-700">11) 리포트 자동 생성 상태</p>
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="rounded-xl border border-white bg-white px-3 py-2">
+                        <p className="text-[10px] font-black text-slate-500">보고서 대상</p>
+                        <p className="mt-1 text-lg font-black text-slate-900">{filteredRecords.length}건</p>
+                    </div>
+                    <div className="rounded-xl border border-white bg-white px-3 py-2">
+                        <p className="text-[10px] font-black text-slate-500">생성 진행률</p>
+                        <p className="mt-1 text-lg font-black text-slate-900">{bulkProgressPercent}%</p>
+                    </div>
+                    <div className="rounded-xl border border-white bg-white px-3 py-2">
+                        <p className="text-[10px] font-black text-slate-500">최근 검증</p>
+                        <p className={`mt-1 text-sm font-black ${latestVerification?.isValid ? 'text-emerald-700' : latestVerification ? 'text-rose-700' : 'text-slate-900'}`}>
+                            {latestVerification ? (latestVerification.isValid ? '성공' : '확인 필요') : '이력 없음'}
+                        </p>
+                    </div>
+                </div>
+                <p className="mt-2 text-[11px] font-bold text-indigo-700">
+                    기간: {resolvedDateRange.startLabel} ~ {resolvedDateRange.endLabel}
+                    {hasCustomDateRangeError ? ' · 날짜 범위를 먼저 수정하세요.' : ' · 필터 결과 기준으로 생성/검증을 실행합니다.'}
+                </p>
             </div>
 
             <InterpretationCardGrid
