@@ -1,19 +1,78 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import type { WorkerRecord } from '../types';
 
 interface Intervention {
+  key?: string;
   priority: 'immediate' | 'medium' | 'long-term';
   title: string;
   reason: string;
   timescale: string;
   assignee?: string;
+  status?: 'not-started' | 'in-progress' | 'completed';
+  workerName?: string;
+  jobField?: string;
 }
+
+type PredictiveHandoffPlan = {
+  key: string;
+  priority: '즉시' | '고' | '중';
+  owner: string;
+  workerName: string;
+  jobField: string;
+  teamLeader?: string;
+  riskLabel: string;
+  actionTitle: string;
+  dueLabel: string;
+  status: 'not-started' | 'in-progress' | 'completed';
+  checkItems: string[];
+};
+
+type PredictiveHandoffPayload = {
+  generatedAt: string;
+  topRiskLabel: string;
+  plans: PredictiveHandoffPlan[];
+};
+
+const PREDICTIVE_INTERVENTION_HANDOFF_KEY = 'psi_predictive_intervention_handoff_v1';
+const PREDICTIVE_INTERVENTION_HANDOFF_EVENT = 'psi-predictive-intervention-updated';
 
 interface InterventionCoachingProps {
   workerRecords?: WorkerRecord[];
 }
 
 export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ workerRecords = [] }) => {
+  const [handoffPlans, setHandoffPlans] = useState<PredictiveHandoffPlan[]>([]);
+
+  useEffect(() => {
+    const readHandoff = () => {
+      try {
+        const raw = localStorage.getItem(PREDICTIVE_INTERVENTION_HANDOFF_KEY);
+        if (!raw) {
+          setHandoffPlans([]);
+          return;
+        }
+        const parsed = JSON.parse(raw) as PredictiveHandoffPayload;
+        setHandoffPlans(Array.isArray(parsed?.plans) ? parsed.plans : []);
+      } catch {
+        setHandoffPlans([]);
+      }
+    };
+
+    readHandoff();
+    const onStorage = (event: StorageEvent) => {
+      if (!event.key || event.key === PREDICTIVE_INTERVENTION_HANDOFF_KEY) {
+        readHandoff();
+      }
+    };
+    const onHandoffUpdated = () => readHandoff();
+    window.addEventListener('storage', onStorage);
+    window.addEventListener(PREDICTIVE_INTERVENTION_HANDOFF_EVENT, onHandoffUpdated);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(PREDICTIVE_INTERVENTION_HANDOFF_EVENT, onHandoffUpdated);
+    };
+  }, []);
+
   const mockInterventions: Intervention[] = useMemo(() => [
     {
       priority: 'immediate',
@@ -35,6 +94,59 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
     },
   ], []);
 
+  const liveInterventions = useMemo<Intervention[]>(() => {
+    if (handoffPlans.length === 0) return [];
+    return handoffPlans.slice(0, 5).map((plan) => ({
+      key: plan.key,
+      priority: plan.priority === '즉시' ? 'immediate' : plan.priority === '고' ? 'medium' : 'long-term',
+      title: plan.actionTitle,
+      reason: `${plan.workerName} · ${plan.jobField} · ${plan.riskLabel}`,
+      timescale: plan.dueLabel,
+      assignee: plan.owner,
+      status: plan.status,
+      workerName: plan.workerName,
+      jobField: plan.jobField,
+    }));
+  }, [handoffPlans]);
+
+  const interventions = liveInterventions.length > 0 ? liveInterventions : mockInterventions;
+
+  const getNextStatus = (status?: Intervention['status']): NonNullable<Intervention['status']> => {
+    if (status === 'in-progress') return 'completed';
+    if (status === 'completed') return 'completed';
+    return 'in-progress';
+  };
+
+  const handleAssignAction = (intervention: Intervention) => {
+    if (!intervention.key || liveInterventions.length === 0) return;
+
+    const nextStatus = getNextStatus(intervention.status);
+
+    setHandoffPlans((previous) => {
+      const nextPlans = previous.map((plan) =>
+        plan.key === intervention.key
+          ? { ...plan, status: nextStatus }
+          : plan,
+      );
+
+      try {
+        const raw = localStorage.getItem(PREDICTIVE_INTERVENTION_HANDOFF_KEY);
+        const parsed = raw ? JSON.parse(raw) as PredictiveHandoffPayload : null;
+        const payload: PredictiveHandoffPayload = {
+          generatedAt: new Date().toISOString(),
+          topRiskLabel: parsed?.topRiskLabel || '위험 인계',
+          plans: nextPlans,
+        };
+        localStorage.setItem(PREDICTIVE_INTERVENTION_HANDOFF_KEY, JSON.stringify(payload));
+        window.dispatchEvent(new Event(PREDICTIVE_INTERVENTION_HANDOFF_EVENT));
+      } catch {
+        // ignore storage failures
+      }
+
+      return nextPlans;
+    });
+  };
+
   const priorityColors: Record<string, string> = {
     immediate: 'bg-red-100 border-red-300 text-red-800',
     medium: 'bg-amber-100 border-amber-300 text-amber-800',
@@ -47,26 +159,57 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
     'long-term': '🔵 학습조치 (2주+)',
   };
 
+  const statusLabels: Record<NonNullable<Intervention['status']>, string> = {
+    'not-started': '미착수',
+    'in-progress': '진행중',
+    completed: '완료',
+  };
+
+  const statusTone: Record<NonNullable<Intervention['status']>, string> = {
+    'not-started': 'bg-slate-100 text-slate-700',
+    'in-progress': 'bg-amber-100 text-amber-700',
+    completed: 'bg-emerald-100 text-emerald-700',
+  };
+
   return (
     <div className="space-y-6 sm:space-y-8 animate-fade-in-up">
       <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-4">
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">8) 개입 추천</p>
+        <p className="mt-2 text-[11px] font-bold text-violet-700">
+          {liveInterventions.length > 0
+            ? `7번 예측 화면에서 전달된 ${liveInterventions.length}건을 우선순위대로 표시합니다.`
+            : '예측 전달 데이터가 없어 기본 개입 템플릿을 표시합니다.'}
+        </p>
         <div className="mt-6 space-y-4">
-          {mockInterventions.map((intervention, idx) => (
+          {interventions.map((intervention, idx) => (
             <div
-              key={idx}
+              key={intervention.key || idx}
               className={`rounded-xl border-2 px-4 py-3 ${priorityColors[intervention.priority]}`}
             >
               <div className="flex items-start justify-between gap-3 mb-2">
                 <h3 className="text-sm font-black">{priorityLabels[intervention.priority]}</h3>
+                {intervention.status && (
+                  <span className={`px-2 py-1 rounded-full text-[10px] font-black ${statusTone[intervention.status]}`}>
+                    {statusLabels[intervention.status]}
+                  </span>
+                )}
               </div>
               <p className="text-xs font-bold mb-1">{intervention.title}</p>
               <p className="text-[11px] font-medium opacity-90 mb-2">{intervention.reason}</p>
-              <p className="text-[10px] font-semibold opacity-75 mb-3">기한: {intervention.timescale}</p>
+              <p className="text-[10px] font-semibold opacity-75 mb-1">기한: {intervention.timescale}</p>
+              {intervention.assignee && (
+                <p className="text-[10px] font-semibold opacity-75 mb-3">담당: {intervention.assignee}</p>
+              )}
               <button
+                onClick={() => handleAssignAction(intervention)}
+                disabled={!intervention.key}
                 className="w-full px-3 py-2 bg-white/40 hover:bg-white/60 rounded-lg font-black text-xs transition-colors"
               >
-                지정 및 기한 설정
+                {intervention.status === 'completed'
+                  ? '완료됨'
+                  : intervention.status === 'in-progress'
+                    ? '완료 처리'
+                    : '지정 및 기한 설정'}
               </button>
             </div>
           ))}
@@ -75,3 +218,5 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
     </div>
   );
 };
+
+export default InterventionCoaching;

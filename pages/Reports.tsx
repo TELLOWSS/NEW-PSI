@@ -1,6 +1,6 @@
 
 import React, { Suspense, lazy, useState, useRef, useMemo, useEffect } from 'react';
-import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState } from '../types';
+import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState, Page } from '../types';
 import { extractMessage } from '../utils/errorUtils';
 import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
@@ -47,6 +47,7 @@ import { BRAND_TONE } from '../utils/brandToneTokens';
 import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
+import { useJudgmentTaggingQuality } from '../hooks/useJudgmentTaggingQuality';
 
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
 
@@ -184,6 +185,35 @@ type GenMode = 'combined-pdf' | 'individual-pdf' | 'individual-img';
 type ViewMode = 'list' | 'preview';
 type DatePreset = 'all' | 'last30' | 'thisMonth' | 'custom';
 
+type InterventionPlanStatus = 'not-started' | 'in-progress' | 'completed';
+
+type InterventionPlanSnapshot = {
+    key: string;
+    actionTitle: string;
+    workerName: string;
+    dueLabel: string;
+    status: InterventionPlanStatus;
+};
+
+type PredictiveInterventionHandoff = {
+    generatedAt: string;
+    topRiskLabel: string;
+    plans: InterventionPlanSnapshot[];
+};
+
+type OpsAlertClickLog = {
+    id: string;
+    clickedAt: string;
+    action: 'go-intervention' | 'go-tagging-validation';
+    delayAlertActive: boolean;
+    taggingErrorCount: number;
+    interventionNotStartedCount: number;
+};
+
+const PREDICTIVE_INTERVENTION_HANDOFF_KEY = 'psi_predictive_intervention_handoff_v1';
+const PREDICTIVE_INTERVENTION_HANDOFF_EVENT = 'psi-predictive-intervention-updated';
+const OPS_ALERT_CLICK_LOG_KEY = 'psi_ops_alert_click_log_v1';
+
 interface ReportGenerationUiState {
     status: 'idle' | 'running' | 'success' | 'error';
     progress: number;
@@ -198,9 +228,10 @@ interface ReportsProps {
     setBriefingData: (data: BriefingData | null) => void;
     forecastData: RiskForecastData | null;
     setForecastData: (data: RiskForecastData | null) => void;
+    onNavigateToPage?: (page: Page) => void;
 }
 
-const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecords = [], briefingData, setBriefingData, forecastData, setForecastData }) => {
+const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecords = [], briefingData, setBriefingData, forecastData, setForecastData, onNavigateToPage }) => {
     const { isDevMode } = useDevMode();
     const { mode: operationalMode } = useOperationalMode();
     const isImmediateOperationalMode = operationalMode === 'immediate';
@@ -218,6 +249,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const [selectedTeam, setSelectedTeam] = useState('전체');
     const [filterLevel, setFilterLevel] = useState('전체');
     const [genMode, setGenMode] = useState<GenMode>('individual-pdf'); 
+    const { data: taggingQuality, loading: taggingQualityLoading } = useJudgmentTaggingQuality();
+    const [interventionHandoff, setInterventionHandoff] = useState<PredictiveInterventionHandoff | null>(null);
+    const [opsAlertClickLogs, setOpsAlertClickLogs] = useState<OpsAlertClickLog[]>([]);
     const [datePreset, setDatePreset] = useState<DatePreset>('all');
     const [customStartDate, setCustomStartDate] = useState('');
     const [customEndDate, setCustomEndDate] = useState('');
@@ -267,6 +301,77 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const [previewWorkflowStatusLoading, setPreviewWorkflowStatusLoading] = useState(false);
     const [previewWorkflowStatusError, setPreviewWorkflowStatusError] = useState<string | null>(null);
     const quickActionMetricSessionRef = useRef<string>(createMetricSessionId('reports'));
+
+    useEffect(() => {
+        const readInterventionHandoff = () => {
+            try {
+                const raw = localStorage.getItem(PREDICTIVE_INTERVENTION_HANDOFF_KEY);
+                if (!raw) {
+                    setInterventionHandoff(null);
+                    return;
+                }
+                const parsed = JSON.parse(raw) as PredictiveInterventionHandoff;
+                if (!parsed || !Array.isArray(parsed.plans)) {
+                    setInterventionHandoff(null);
+                    return;
+                }
+                setInterventionHandoff(parsed);
+            } catch {
+                setInterventionHandoff(null);
+            }
+        };
+
+        readInterventionHandoff();
+
+        const handleStorage = (event: StorageEvent) => {
+            if (!event.key || event.key === PREDICTIVE_INTERVENTION_HANDOFF_KEY) {
+                readInterventionHandoff();
+            }
+        };
+
+        const handleInterventionUpdate = () => {
+            readInterventionHandoff();
+        };
+
+        window.addEventListener('storage', handleStorage);
+        window.addEventListener(PREDICTIVE_INTERVENTION_HANDOFF_EVENT, handleInterventionUpdate);
+
+        return () => {
+            window.removeEventListener('storage', handleStorage);
+            window.removeEventListener(PREDICTIVE_INTERVENTION_HANDOFF_EVENT, handleInterventionUpdate);
+        };
+    }, []);
+
+    useEffect(() => {
+        const readOpsAlertLogs = () => {
+            try {
+                const raw = localStorage.getItem(OPS_ALERT_CLICK_LOG_KEY);
+                if (!raw) {
+                    setOpsAlertClickLogs([]);
+                    return;
+                }
+                const parsed = JSON.parse(raw);
+                const safeLogs: OpsAlertClickLog[] = Array.isArray(parsed) ? parsed : [];
+                setOpsAlertClickLogs(safeLogs);
+            } catch {
+                setOpsAlertClickLogs([]);
+            }
+        };
+
+        readOpsAlertLogs();
+
+        const handleStorage = (event: StorageEvent) => {
+            if (!event.key || event.key === OPS_ALERT_CLICK_LOG_KEY) {
+                readOpsAlertLogs();
+            }
+        };
+
+        window.addEventListener('storage', handleStorage);
+
+        return () => {
+            window.removeEventListener('storage', handleStorage);
+        };
+    }, []);
 
     const trackQuickAction = (actionKey: string, payload?: Record<string, unknown>) => {
         trackUIViewMetric('cta_click', 'reports', quickActionMetricSessionRef.current, {
@@ -2378,6 +2483,63 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     };
 
     const latestVerification = verificationHistory[0] || null;
+    const interventionPlans = interventionHandoff?.plans || [];
+    const interventionStatusSummary = interventionPlans.reduce((acc, plan) => {
+        if (plan.status === 'completed') acc.completed += 1;
+        else if (plan.status === 'in-progress') acc.inProgress += 1;
+        else acc.notStarted += 1;
+        return acc;
+    }, { completed: 0, inProgress: 0, notStarted: 0 });
+    const nextIntervention = interventionPlans.find((plan) => plan.status !== 'completed') || null;
+    const taggingHasErrors = Boolean(taggingQuality && taggingQuality.errorCount > 0);
+    const interventionDelayCount = interventionStatusSummary.notStarted;
+    const isOpsDelayAlert = interventionDelayCount >= 2 || taggingHasErrors;
+    const opsAlertLabel = isOpsDelayAlert ? '지연 경보' : '정상 흐름';
+    const opsAlertClassName = isOpsDelayAlert
+        ? 'bg-rose-100 text-rose-700 border border-rose-200'
+        : 'bg-emerald-100 text-emerald-700 border border-emerald-200';
+    const appendOpsAlertClickLog = (action: OpsAlertClickLog['action']) => {
+        try {
+            if (typeof window === 'undefined') return;
+            const existingRaw = window.localStorage.getItem(OPS_ALERT_CLICK_LOG_KEY);
+            const existing = existingRaw ? JSON.parse(existingRaw) : [];
+            const safeExisting: OpsAlertClickLog[] = Array.isArray(existing) ? existing : [];
+            const entry: OpsAlertClickLog = {
+                id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                clickedAt: new Date().toISOString(),
+                action,
+                delayAlertActive: isOpsDelayAlert,
+                taggingErrorCount: taggingQuality?.errorCount || 0,
+                interventionNotStartedCount: interventionDelayCount,
+            };
+            const nextLogs = [entry, ...safeExisting].slice(0, 200);
+            window.localStorage.setItem(
+                OPS_ALERT_CLICK_LOG_KEY,
+                JSON.stringify(nextLogs),
+            );
+            setOpsAlertClickLogs(nextLogs);
+        } catch {
+            // ignore local log write failures
+        }
+    };
+    const handleNavigateToIntervention = () => {
+        trackQuickAction('ops_alert_go_intervention', {
+            delayAlertActive: isOpsDelayAlert,
+            taggingErrorCount: taggingQuality?.errorCount || 0,
+            interventionNotStartedCount: interventionDelayCount,
+        });
+        appendOpsAlertClickLog('go-intervention');
+        onNavigateToPage?.('intervention-coaching');
+    };
+    const handleNavigateToTaggingValidation = () => {
+        trackQuickAction('ops_alert_go_tagging_validation', {
+            delayAlertActive: isOpsDelayAlert,
+            taggingErrorCount: taggingQuality?.errorCount || 0,
+            interventionNotStartedCount: interventionDelayCount,
+        });
+        appendOpsAlertClickLog('go-tagging-validation');
+        onNavigateToPage?.('ocr-analysis');
+    };
 
     return (
         <div className="space-y-6 pb-10 h-full flex flex-col font-sans">
@@ -2413,6 +2575,100 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     기간: {resolvedDateRange.startLabel} ~ {resolvedDateRange.endLabel}
                     {hasCustomDateRangeError ? ' · 날짜 범위를 먼저 수정하세요.' : ' · 필터 결과 기준으로 생성/검증을 실행합니다.'}
                 </p>
+            </div>
+
+            <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-4 no-print">
+                <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">운영 브리핑 OPS 3줄 (태깅+개입)</p>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${opsAlertClassName}`}>
+                        {opsAlertLabel}
+                    </span>
+                </div>
+                <div className="mt-2 space-y-2 text-[12px] font-bold text-slate-700">
+                    <p>
+                        완료: {taggingQualityLoading
+                            ? '태깅 QA 데이터 로딩 중'
+                            : (taggingQuality
+                                ? `태깅 ${taggingQuality.status} (입력 ${taggingQuality.filledRows}건, 오류 ${taggingQuality.errorCount}건)`
+                                : '태깅 QA 데이터 없음')}
+                        {' · '}
+                        {interventionPlans.length > 0
+                            ? `개입 완료 ${interventionStatusSummary.completed}/${interventionPlans.length}건`
+                            : '개입 인계 데이터 없음'}
+                    </p>
+                    <p>
+                        다음: {taggingQuality?.actionItems?.length
+                            ? `${taggingQuality.actionItems[0].title} — ${taggingQuality.actionItems[0].action}`
+                            : '태깅 추가 조치 없음'}
+                        {' · '}
+                        {nextIntervention
+                            ? `개입 우선: ${nextIntervention.actionTitle} (${nextIntervention.workerName})`
+                            : '개입 미완료 없음'}
+                    </p>
+                    <p>
+                        검증: {taggingQuality
+                            ? `10번 QA ${taggingQuality.status}`
+                            : '10번 QA 재실행 필요'}
+                        {' · '}
+                        {interventionPlans.length > 0
+                            ? `8→11 동기화 완료 (${interventionHandoff?.generatedAt || '시간 미기록'})`
+                            : '7번 예측 실행 계획 생성 필요'}
+                        {isOpsDelayAlert && (
+                            <>
+                                {' · '}
+                                경보사유: {taggingHasErrors
+                                    ? `태깅 오류 ${taggingQuality?.errorCount || 0}건`
+                                    : `미착수 ${interventionDelayCount}건`}
+                            </>
+                        )}
+                    </p>
+                </div>
+                {isOpsDelayAlert && (
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                            type="button"
+                            onClick={handleNavigateToIntervention}
+                            className="rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs font-black text-amber-700 hover:bg-amber-50"
+                        >
+                            8번 개입 화면으로 이동
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleNavigateToTaggingValidation}
+                            className="rounded-xl border border-violet-300 bg-white px-3 py-2 text-xs font-black text-violet-700 hover:bg-violet-50"
+                        >
+                            10번 태깅 검증으로 이동
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 no-print">
+                <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-700">경보 CTA 클릭 로그 (최근 10건)</p>
+                    <span className="rounded-full bg-slate-100 border border-slate-200 px-2.5 py-1 text-[10px] font-black text-slate-600">
+                        {Math.min(10, opsAlertClickLogs.length)}건 표시
+                    </span>
+                </div>
+
+                {opsAlertClickLogs.length === 0 ? (
+                    <p className="mt-2 text-[12px] font-semibold text-slate-500">아직 경보 CTA 클릭 로그가 없습니다.</p>
+                ) : (
+                    <div className="mt-2 space-y-1.5">
+                        {opsAlertClickLogs.slice(0, 10).map((log) => (
+                            <div key={log.id} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-700">
+                                <p>
+                                    {new Date(log.clickedAt).toLocaleString('ko-KR', { hour12: false })}
+                                    {' · '}
+                                    {log.action === 'go-intervention' ? '8번 개입 이동' : '10번 태깅 검증 이동'}
+                                </p>
+                                <p className="text-[10px] text-slate-600 mt-0.5">
+                                    경보활성: {log.delayAlertActive ? 'Y' : 'N'} · 태깅오류 {log.taggingErrorCount}건 · 미착수 {log.interventionNotStartedCount}건
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
 
             <InterpretationCardGrid

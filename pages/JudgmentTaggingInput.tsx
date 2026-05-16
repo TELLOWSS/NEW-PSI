@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 
 interface JudgmentTaggingRecord {
   id: string;
@@ -23,8 +23,72 @@ const JUDGMENT_TAGS = [
   '주의력 산만',
 ];
 
+const LIVE_RECORDS_KEY = 'psi_judgment_tagging_live_records';
+const LIVE_QUALITY_KEY = 'psi_judgment_tagging_live_quality';
+const LIVE_QUALITY_EVENT = 'psi-judgment-tagging-quality-updated';
+
+const buildLiveQualitySummary = (records: JudgmentTaggingRecord[]) => {
+  const requiredErrors: Array<{ row: number; field: string; message: string }> = [];
+
+  records.forEach((record, index) => {
+    if (!record.rawText.trim()) requiredErrors.push({ row: index + 1, field: 'rawText', message: '필수값 누락' });
+    if (!record.riskCategory.trim()) requiredErrors.push({ row: index + 1, field: 'riskCategory', message: '필수값 누락' });
+    if (record.judgmentTags.length === 0) requiredErrors.push({ row: index + 1, field: 'judgmentTags', message: '최소 1개 태그 필요' });
+    if (!record.recommendedAction.trim()) requiredErrors.push({ row: index + 1, field: 'recommendedAction', message: '필수값 누락' });
+  });
+
+  const errorMap = new Map<string, { field: string; message: string; count: number }>();
+  requiredErrors.forEach((error) => {
+    const key = `${error.field}:${error.message}`;
+    const found = errorMap.get(key);
+    if (found) {
+      found.count += 1;
+      return;
+    }
+    errorMap.set(key, { field: error.field, message: error.message, count: 1 });
+  });
+
+  const errorTop = Array.from(errorMap.values()).sort((a, b) => b.count - a.count).slice(0, 5);
+  const actionItems = errorTop.map((item, index) => ({
+    priority: index + 1,
+    title: `${item.field} 보정`,
+    action: `${item.message} 항목 ${item.count}건 보정 후 재검증`,
+    count: item.count,
+    source: 'error' as const,
+  }));
+
+  return {
+    status: requiredErrors.length === 0 ? 'PASS' : 'FAIL',
+    totalRows: records.length,
+    filledRows: records.length,
+    unfilledRows: 0,
+    errorCount: requiredErrors.length,
+    warningCount: 0,
+    errorTop,
+    warningTop: [],
+    actionItems,
+    errors: requiredErrors,
+    warnings: [],
+    meta: {
+      generatedAt: new Date().toISOString(),
+      input: 'live:judgment-tagging-input',
+      codebook: 'templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv',
+      ontology: 'templates/psi_ontology_v1_seed_2026-05-16.csv',
+    },
+  };
+};
+
 export const JudgmentTaggingInput: React.FC = () => {
-  const [records, setRecords] = useState<JudgmentTaggingRecord[]>([]);
+  const [records, setRecords] = useState<JudgmentTaggingRecord[]>(() => {
+    try {
+      const saved = localStorage.getItem(LIVE_RECORDS_KEY);
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed as JudgmentTaggingRecord[] : [];
+    } catch {
+      return [];
+    }
+  });
   const [currentRecord, setCurrentRecord] = useState<JudgmentTaggingRecord>({
     id: `REC-${Date.now()}`,
     rawText: '',
@@ -84,6 +148,13 @@ export const JudgmentTaggingInput: React.FC = () => {
     link.click();
     document.body.removeChild(link);
   };
+
+  useEffect(() => {
+    localStorage.setItem(LIVE_RECORDS_KEY, JSON.stringify(records));
+    const quality = buildLiveQualitySummary(records);
+    localStorage.setItem(LIVE_QUALITY_KEY, JSON.stringify(quality));
+    window.dispatchEvent(new Event(LIVE_QUALITY_EVENT));
+  }, [records]);
 
   return (
     <div className="space-y-6 sm:space-y-8 animate-fade-in-up">
@@ -198,7 +269,9 @@ export const JudgmentTaggingInput: React.FC = () => {
               입력: {records.length}건
             </div>
             <div className="px-2 py-1.5 bg-blue-100 rounded text-xs font-bold text-blue-800">
-              완료율: {records.length > 0 ? '100%' : '0%'}
+              완료율: {records.length > 0
+                ? `${Math.round((records.filter((record) => record.rawText.trim() && record.riskCategory.trim() && record.judgmentTags.length > 0 && record.recommendedAction.trim()).length / records.length) * 100)}%`
+                : '0%'}
             </div>
           </div>
         </div>
@@ -235,3 +308,5 @@ export const JudgmentTaggingInput: React.FC = () => {
     </div>
   );
 };
+
+export default JudgmentTaggingInput;

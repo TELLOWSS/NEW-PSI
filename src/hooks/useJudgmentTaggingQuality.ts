@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 
+const LIVE_QUALITY_KEY = 'psi_judgment_tagging_live_quality';
+const LIVE_QUALITY_EVENT = 'psi-judgment-tagging-quality-updated';
+
 export type JudgmentTaggingQuality = {
   status: 'PASS' | 'FAIL';
   totalRows: number;
@@ -40,9 +43,26 @@ export const useJudgmentTaggingQuality = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const getLiveQuality = (): JudgmentTaggingQuality | null => {
+      try {
+        const raw = localStorage.getItem(LIVE_QUALITY_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw) as JudgmentTaggingQuality;
+      } catch {
+        return null;
+      }
+    };
+
     const fetchData = async () => {
       try {
         setLoading(true);
+        const liveQuality = getLiveQuality();
+        if (liveQuality) {
+          setData(liveQuality);
+          setError(null);
+          return;
+        }
+
         const response = await fetch('/api/judgment-tagging-quality.json');
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -60,9 +80,26 @@ export const useJudgmentTaggingQuality = () => {
     };
 
     fetchData();
-    // 5초마다 갱신
     const interval = setInterval(fetchData, 5000);
-    return () => clearInterval(interval);
+
+    const handleStorage = (event: StorageEvent) => {
+      if (!event.key || event.key === LIVE_QUALITY_KEY) {
+        fetchData();
+      }
+    };
+
+    const handleLiveUpdate = () => {
+      fetchData();
+    };
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener(LIVE_QUALITY_EVENT, handleLiveUpdate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener(LIVE_QUALITY_EVENT, handleLiveUpdate);
+    };
   }, []);
 
   return { data, loading, error };
