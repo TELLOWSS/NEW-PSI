@@ -36,6 +36,10 @@
 - `reports/judgment-tagging-quality.md`
 - `reports/judgment-tagging-ops-summary.md`
 
+라운드 운영 자산:
+- `PSI_TAGGING_100_EXECUTION_BOARD_2026-05-16.md`
+- `templates/psi_judgment_tagging_progress_tracker_100_v1_2026-05-16.csv`
+
 ---
 
 ## 3) 검증 항목

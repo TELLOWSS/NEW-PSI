@@ -403,6 +403,12 @@
 - [WORKSPACE_LOCAL_SYNC_CHECKLIST_2026-05-16.md](WORKSPACE_LOCAL_SYNC_CHECKLIST_2026-05-16.md)
    - 워크스페이스 변경분을 로컬 저장소에 반영하기 위한 파일 목록/검증 명령 체크리스트
 
+- [PSI_TAGGING_100_EXECUTION_BOARD_2026-05-16.md](PSI_TAGGING_100_EXECUTION_BOARD_2026-05-16.md)
+   - 20건 × 5라운드 기준 100건 태깅 실행보드
+
+- [templates/psi_judgment_tagging_progress_tracker_100_v1_2026-05-16.csv](templates/psi_judgment_tagging_progress_tracker_100_v1_2026-05-16.csv)
+   - recordId 001~100 라운드별 진행 추적 CSV(status/합의/QA)
+
 ### 11-6. 다음 세션 시작 즉시 실행(데이터 구조화 모드)
 1. `templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv` 기준으로 표본 100건 입력 시작
 2. 평가자 2인 독립 태깅 후 불일치 항목 합의
@@ -433,4 +439,4 @@
 #### 다음 즉시 실행 3건
 1. `WORKSPACE_LOCAL_SYNC_CHECKLIST_2026-05-16.md` 기준으로 로컬 동기화
 2. 로컬 루트에서 `npm run check:judgment-tagging:full` 실행
-3. `reports/judgment-tagging-ops-summary.md` 결과를 기준으로 100건 태깅 착수
+3. `PSI_TAGGING_100_EXECUTION_BOARD_2026-05-16.md` + `templates/psi_judgment_tagging_progress_tracker_100_v1_2026-05-16.csv` 기준으로 R1(001~020) 착수
