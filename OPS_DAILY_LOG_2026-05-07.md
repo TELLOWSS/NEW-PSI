@@ -320,3 +320,79 @@
 3. `npm run qa:mobile:finalize`
 
 > 위 3개 PASS 후, 차단 사유 UX 보강 작업에 착수한다.
+
+---
+
+## 11) 2026-05-16 전략 전환 메모 · Human Risk Engine 기준 고정
+
+### 11-1. 핵심 판단
+- PSI는 기능 중심 앱이 아니라 `건설현장 인간 위험인지 운영체제`로 재정의하는 편이 맞음
+- 기존 6대 지표는 폐기하지 않고, `점수 레이어`에서 `인지·행동 해석 레이어`로 재해석 필요
+- 앞으로 우선순위는 UI 추가보다 `위험 Ontology + 판단 태그 + 전조 패턴` 구조화에 둠
+
+### 11-2. 즉시 고정할 실행 축
+1. 위험 Ontology v1
+   - 추락 / 낙하 / 협착 / 붕괴 / 감전 5대 위험부터 시작
+
+2. 인간 판단 태그 체계 v1
+   - 위험 과소평가 / 시간압박 / 순서 혼동 / 절차 생략 / 언어장벽 / 개선 미이행 등
+
+3. 6대 지표 재정의
+   - 총점 유지
+   - 내부 저장은 `작업이해`, `위험인지`, `위험 정상화`, `대응역량` 등 벡터 중심으로 전환
+
+4. 사고 전조 중심 운영
+   - 사고 결과보다 `사고 이전 반복 행동`을 우선 수집/분석
+
+### 11-3. 새 기준 문서
+- [PSI_HUMAN_RISK_ENGINE_PLAN_2026-05-16.md](PSI_HUMAN_RISK_ENGINE_PLAN_2026-05-16.md)
+  - 6대 지표 재정의
+  - 위험 Ontology v1 초안
+  - 판단 태그 체계 v1
+  - 데이터 구조화 스키마
+  - 90일 실행 로드맵
+
+- [PSI_JUDGMENT_TAGGING_TEMPLATE_V1_2026-05-16.md](PSI_JUDGMENT_TAGGING_TEMPLATE_V1_2026-05-16.md)
+   - 표본 100건 수동 태깅용 컬럼 정의
+   - 판단 태그 사전 v1
+   - 샘플 입력 예시 3건
+
+### 11-4. 다음 우선순위
+- [ ] 5대 위험 Ontology v1 표 확정
+- [ ] 인간 판단 태그 24개 초안 확정
+- [ ] 수기자료 100건 표본 추출
+- [ ] 6대 지표 ↔ 벡터 매핑 정의서 작성
+
+### 11-5. 2026-05-16 추가 산출물
+- [PSI_DATA_MODEL_ALIGNMENT_2026-05-16.md](PSI_DATA_MODEL_ALIGNMENT_2026-05-16.md)
+   - 기존 `WorkerRecord/scoreBreakdown` 유지 전제에서 Human Risk Engine 증설 정렬안
+   - 6대 지표 ↔ 벡터 매핑표
+   - 저장 엔티티 5종(`judgment_tag_record`, `worker_profile_vector`, `site_context_snapshot`, `behavior_event_log`, `risk_signal`) 정의
+
+- [templates/psi_judgment_tagging_template_v1.csv](templates/psi_judgment_tagging_template_v1.csv)
+   - 표본 태깅 즉시 착수용 CSV 원본
+   - 컬럼: 온톨로지 코드, 판단 태그, 벡터, 전조, 권장 개입까지 포함
+
+- [templates/psi_ontology_v1_seed_2026-05-16.csv](templates/psi_ontology_v1_seed_2026-05-16.csv)
+   - 5대 위험 Ontology 시드 10행
+   - `riskCategoryCode/riskSubcategoryCode/ontologyNodeId` 코드 체계 포함
+
+- [templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv](templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv)
+   - 표본 100건 입력 즉시 착수용 빈 행 템플릿
+   - `recordId` 001~100 선할당 + `recordDate(2026-05-16)` 기본값 포함
+
+- [templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv](templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv)
+   - 판단 태그 24개 확정 코드북
+   - `tagCode/tagGroup/defaultLinkedMetric/precursorWeight` 기준 포함
+
+- [scripts/check-judgment-tagging-quality.cjs](scripts/check-judgment-tagging-quality.cjs)
+   - 태깅 CSV 자동 품질검증 스크립트(필수값/코드북/온톨로지/값범위/중복ID 검사)
+
+- [PSI_TAGGING_QA_AUTOMATION_GUIDE_2026-05-16.md](PSI_TAGGING_QA_AUTOMATION_GUIDE_2026-05-16.md)
+   - 태깅 품질검증 실행 명령/리포트/운영루틴 가이드
+
+### 11-6. 다음 세션 시작 즉시 실행(데이터 구조화 모드)
+1. `templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv` 기준으로 표본 100건 입력 시작
+2. 평가자 2인 독립 태깅 후 불일치 항목 합의
+3. `templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv` 기준으로 태그 코드 통일 후 상위 태그 20개 빈도 집계
+4. 전조 시그널 후보 10개 도출

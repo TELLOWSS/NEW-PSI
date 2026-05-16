@@ -1,13 +1,13 @@
 # NEXT SESSION HANDOFF · LATEST
 
-- 기준일: 2026-05-09
+- 기준일: 2026-05-16
 - 프로젝트: NEW-PSI
 - 목적: 프로그램 재시작 직후 "무엇을 했는지/다음에 무엇을 할지" 1분 내 파악
 
 ---
 
 ## 1) 지금 상태 (한줄 요약)
-- 실무 즉시 모드 기반으로 과밀 정보 숨김, 시작/종료 루틴, 사용자군 프리셋, 시작 체크 미완료 가드까지 반영 완료.
+- 운영가드(P0~P3)는 유지된 상태에서, 2026-05-16 기준으로 PSI를 Human Risk Engine 중심(온톨로지·태깅·벡터·전조)으로 전환하는 데이터 구조화 산출물을 추가 완료.
 
 ## 2) 오늘까지 완료된 핵심 업데이트
 1. P0 전역 운영 모드
@@ -48,24 +48,39 @@ PASS 기준
 ---
 
 ## 4) 다음 진행사항 (우선순위)
-1. 차단 사유 UX 보강
-   - 페이지 차단 시 상단 토스트/배너로 원인 즉시 안내
+1. 표본 태깅 100건 착수
+   - [templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv](templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv) 기준 입력 시작
 
-2. 가드 범위 정책 확정
-   - 시작 체크 미완료 시 추가 차단 대상(예: 예측/성과 분석) 확정
+2. 평가자 2인 태깅 합치도 확보
+   - [templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv](templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv) 기준으로 불일치 태그 합의
 
-3. 종료 요약 자동화
-   - 종료 체크 완료 시 "완료/원인/내일 1순위" 자동 3줄 생성
+3. 전조 신호 우선 분석
+   - 상위 태그 20개 빈도 + 전조 시그널 후보 10개 도출
+
+4. 6대 지표-벡터 정렬 검토
+   - [PSI_DATA_MODEL_ALIGNMENT_2026-05-16.md](PSI_DATA_MODEL_ALIGNMENT_2026-05-16.md) 기준으로 월간 리포트 점수와 벡터 분포 비교
+
+5. 태깅 품질검증 자동화 적용
+   - `npm run check:judgment-tagging`
+   - `npm run check:judgment-tagging:blank100`
+   - 필요 시 `npm run check:judgment-tagging:report`로 리포트 생성
 
 ---
 
 ## 5) 리스크 / 확인 포인트
 - 브라우저 localStorage 기반이므로 브라우저/프로필 변경 시 체크 기록이 초기화될 수 있음
 - 운영모드/프리셋/체크 가드가 동시에 적용되므로, 차단 UX 안내가 없으면 사용자 혼란 가능
+- 터미널이 프로젝트 루트가 아닌 경로에서 실행되면(`C:\Users\user` 등) `npm run` 스크립트를 찾지 못하므로, NEW-PSI 루트에서 실행해야 함
 
 ---
 
 ## 6) 참조 문서
 - [OPS_DAILY_LOG_2026-05-07.md](OPS_DAILY_LOG_2026-05-07.md)
-- [NEXT_SESSION_ONEPAGE_CHECKLIST_2026-04-22.md](NEXT_SESSION_ONEPAGE_CHECKLIST_2026-04-22.md)
-- [MOBILE_FIRST_IA_AND_PC_RESTRUCTURE_ROADMAP_2026-05-04.md](MOBILE_FIRST_IA_AND_PC_RESTRUCTURE_ROADMAP_2026-05-04.md)
+- [PSI_HUMAN_RISK_ENGINE_PLAN_2026-05-16.md](PSI_HUMAN_RISK_ENGINE_PLAN_2026-05-16.md)
+- [PSI_DATA_MODEL_ALIGNMENT_2026-05-16.md](PSI_DATA_MODEL_ALIGNMENT_2026-05-16.md)
+- [PSI_JUDGMENT_TAGGING_TEMPLATE_V1_2026-05-16.md](PSI_JUDGMENT_TAGGING_TEMPLATE_V1_2026-05-16.md)
+- [PSI_TAGGING_QA_AUTOMATION_GUIDE_2026-05-16.md](PSI_TAGGING_QA_AUTOMATION_GUIDE_2026-05-16.md)
+- [templates/psi_judgment_tagging_template_v1.csv](templates/psi_judgment_tagging_template_v1.csv)
+- [templates/psi_ontology_v1_seed_2026-05-16.csv](templates/psi_ontology_v1_seed_2026-05-16.csv)
+- [templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv](templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv)
+- [templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv](templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv)

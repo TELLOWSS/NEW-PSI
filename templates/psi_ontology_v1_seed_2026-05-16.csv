@@ -1,0 +1,11 @@
+riskCategory,riskSubcategory,riskDetail,riskCategoryCode,riskSubcategoryCode,ontologyNodeId,primaryCause,precursorBehavior,controlAction
+추락,안전고리,미체결,FALL,FALL.HARNESS,FALL-HARNESS-UNCONNECTED,체결 목적 미이해,이동 중 체결 생략,작업 전 체결점 확인 및 전 구간 체결 유지
+추락,안전고리,걸이점 부적합,FALL,FALL.HARNESS,FALL-HARNESS-ANCHOR_INVALID,걸이점 기준 미이해,임의 구조물에 체결,허용 걸이점 지정 및 작업 전 검증
+추락,개구부/슬라브,미판개,FALL,FALL.OPENING,FALL-OPENING-UNPROTECTED,공간 위험 미인지,개구부 주변 우회 미실시,개구부 덮개/난간 선시공 후 접근 통제
+낙하,양중,하부통제 미흡,DROP,DROP.HOIST,DROP-HOIST-NO_EXCLUSION,양중 반경 개념 부족,양중 하부 통행 허용,하부 통제선/신호수 배치
+낙하,적재,자재 고정 불량,DROP,DROP.STORAGE,DROP-STORAGE-UNSTABLE,고정 기준 미이해,임시 적치 후 이탈,결속 기준 준수 및 적재 높이 제한
+협착,장비,회전반경 진입,PINCH,PINCH.EQUIPMENT,PINCH-EQUIPMENT-SWING_RADIUS,사각지대 인지 부족,장비 후방/측면 접근,회전반경 출입통제 및 유도자 배치
+협착,자재/거푸집,손 끼임,PINCH,PINCH.MATERIAL,PINCH-MATERIAL-HAND_TRAP,손 위치 인지 부족,직접 지지/밀착 작업,보조도구 사용 및 역할 분리
+붕괴,가시설,지지 불량,COLLAPSE,COLLAPSE.TEMP_SUPPORT,COLLAPSE-SUPPORT-INSUFFICIENT,구조 안정 조건 미이해,임의 해체/생략,작업 순서 준수 및 중간점검
+붕괴,굴착,토사 붕락,COLLAPSE,COLLAPSE.EXCAVATION,COLLAPSE-EXCAVATION-CAVE_IN,지반 위험 판단 미흡,안전거리 미확보,버팀/경사 기준 적용 및 접근 제한
+감전,활선/임시전기,차단 미확인,ELECTRIC,ELECTRIC.LIVE,ELECTRIC-LIVE-NO_VERIFICATION,차단 절차 미준수,구두 확인만 수행,LOTO 및 무전압 확인 절차 수행

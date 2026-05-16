@@ -1,0 +1,25 @@
+tagCode,tagNameKo,tagGroup,definition,defaultLinkedMetric,precursorWeight
+J_RISK_UNDERESTIMATE,위험 과소평가,위험인지,위험 가능성을 실제보다 낮게 판단,riskAssessmentUnderstanding,3
+J_RISK_UNAWARE,위험 미인지,위험인지,위험요소 자체를 인지하지 못함,riskAssessmentUnderstanding,4
+J_CAUSE_UNCLEAR,원인 이해 부족,위험인지,위험 발생 원인과 결과 연결이 약함,riskAssessmentUnderstanding,3
+J_OUTCOME_ONLY,결과만 인식,위험인지,원인보다 결과 중심으로만 서술,riskAssessmentUnderstanding,2
+J_TASK_PURPOSE_UNCLEAR,작업 목적 미이해,작업이해,작업의 목적과 완료조건 설명 부족,jobUnderstanding,3
+J_SEQUENCE_CONFUSION,순서 혼동,작업이해,작업 전중후 순서를 혼동,jobUnderstanding,3
+J_TOOL_USAGE_UNCLEAR,도구 용도 불명확,작업이해,도구/자재 사용 목적과 기준 이해 부족,jobUnderstanding,2
+J_CONTEXT_GAP,공정 맥락 부족,작업이해,해당 공종 맥락과 무관하거나 연결 약함,jobUnderstanding,2
+J_TIME_PRESSURE,시간압박,심리상태,시간 단축 압박으로 안전 판단 저하,psychological,3
+J_FATIGUE,피로,심리상태,피로 누적으로 집중력과 판단력 저하,psychological,3
+J_ATTENTION_DISTRACTION,주의분산,심리상태,외부요인으로 주의가 분산되어 위험 인지 저하,psychological,2
+J_OVERCONFIDENCE,과신,심리상태,숙련 또는 경험을 근거로 위험을 경시,psychological,3
+J_PROCEDURE_SKIP,절차 생략,규정행동,필수 절차를 일부 또는 전부 생략,proficiency,4
+J_RULE_BYPASS,우회행동,규정행동,정식 절차 대신 임시/우회 방식 선택,repeatViolationPenalty,4
+J_SKIP_VERIFICATION,확인 생략,규정행동,체결/차단/점검 등 검증 단계 생략,proficiency,4
+J_PPE_FORMAL_ONLY,PPE 형식착용,규정행동,보호구를 형식적으로만 착용하거나 기준 미달,repeatViolationPenalty,3
+J_LANGUAGE_BARRIER,언어장벽,사회소통,지시/위험정보가 언어 문제로 전달 불충분,improvementExecution,2
+J_INSTRUCTION_MISUNDERSTOOD,지시 오해,사회소통,작업지시를 잘못 이해해 행동 오류 발생,improvementExecution,3
+J_PEER_DEPENDENCE,동료 의존,사회소통,직접 확인 없이 타인 판단에 의존,proficiency,3
+J_SIGNAL_NOT_SHARED,신호 미공유,사회소통,위험 신호·변경사항을 팀과 공유하지 않음,improvementExecution,3
+J_OWNER_UNCLEAR,책임자 불명확,개선실행,개선조치 담당자가 특정되지 않음,improvementExecution,2
+J_TIMING_UNCLEAR,조치시점 불명확,개선실행,개선조치 실행 시점/기한이 없음,improvementExecution,2
+J_NO_VERIFICATION_METHOD,확인방법 부재,개선실행,개선 완료 여부 확인 기준이 없음,improvementExecution,3
+J_RECURRENCE_PREVENTION_WEAK,재발방지 미흡,개선실행,동일 위험 재발 방지 체계가 약함,repeatViolationPenalty,3
