@@ -16,7 +16,11 @@ export type Page =
     'safety-behavior-management' |
     'safety-compliance-hub' |
     'survey-intelligence' |
-    'settings'; // Added
+    'settings' |
+    // Mobile 12-screen additions (Phase B-2)
+    'field-context-input' |
+    'intervention-coaching' |
+    'judgment-tagging-input';
 
 export type ModalState = {
     type: 'workerHistory' | 'recordDetail' | null;

@@ -94,6 +94,10 @@ const WorkerTraining = lazyWithRecovery('WorkerTraining', () => import('./pages/
 const SafetyBehaviorManagement = lazyWithRecovery('SafetyBehaviorManagement', () => import('./pages/SafetyBehaviorManagement'));
 const FieldSafetyComplianceHub = lazyWithRecovery('FieldSafetyComplianceHub', () => import('./pages/FieldSafetyComplianceHub'));
 const SurveyIntelligence = lazyWithRecovery('SurveyIntelligence', () => import('./pages/SurveyIntelligence'));
+// Mobile 12-screen components (Phase B-2)
+const FieldContextInput = lazyWithRecovery('FieldContextInput', () => import('./pages/FieldContextInput'));
+const InterventionCoaching = lazyWithRecovery('InterventionCoaching', () => import('./pages/InterventionCoaching'));
+const JudgmentTaggingInput = lazyWithRecovery('JudgmentTaggingInput', () => import('./pages/JudgmentTaggingInput'));
 
 const IDB_NAME = 'PSI_Enterprise_V4';
 const IDB_VERSION = 1;
@@ -1270,6 +1274,9 @@ const App: React.FC = () => {
                         {currentPage === 'feedback' && <Feedback />}
                         {currentPage === 'introduction' && <Introduction />}
                         {currentPage === 'settings' && <Settings workerRecords={workerRecords} />}
+                        {currentPage === 'field-context-input' && <FieldContextInput />}
+                        {currentPage === 'intervention-coaching' && <InterventionCoaching workerRecords={workerRecords} />}
+                        {currentPage === 'judgment-tagging-input' && <JudgmentTaggingInput />}
                     </Suspense>
                 </Layout>
             )}
