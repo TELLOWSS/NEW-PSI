@@ -45,22 +45,22 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     }, []);
 
     const pageTitles: { [key in Page]: string } = {
-        'dashboard': '대시보드',
-        'ocr-analysis': 'OCR 분석 및 기록 관리',
-        'worker-management': '근로자 관리',
-        'predictive-analysis': '예측적 안전 관리',
+        'dashboard': '홈 대시보드',
+        'ocr-analysis': '태깅 검증',
+        'worker-management': '개인지 인지 프로파일',
+        'predictive-analysis': '위험 예측',
         'performance-analysis': '성과 추이 분석',
-        'safety-checks': '안전 이행 점검',
-        'site-issue-management': '현장 지적사항',
-        'safety-behavior-management': '행동관찰·코칭',
-        'safety-compliance-hub': '현장 안전이행 종합관리',
-        'reports': '보고서 생성',
+        'safety-checks': '위험인지 진단',
+        'site-issue-management': '경보 알림',
+        'safety-behavior-management': '개입 추천',
+        'safety-compliance-hub': '현장 컨텍스트',
+        'reports': '분석 리포트',
         'feedback': '피드백 및 업데이트',
         'introduction': '소개',
-        'individual-report': '개인별 안전 분석 리포트',
+        'individual-report': '위험인지 진단 리포트',
         'admin-training': '관리자 다국어 음성 안내 생성',
-        'worker-training': '근로자 전자서명 제출',
-        'survey-intelligence': '설문 인텔리전스',
+        'worker-training': '수기 데이터 입력',
+        'survey-intelligence': '행동 패턴 분석',
         'settings': '시스템 설정 (System Configuration)'
     };
 
@@ -115,32 +115,35 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const mobileQuickLinksRaw: Array<{ page: Page; label: string }> =
         activeMobileTab === 'home'
             ? [
-                { page: 'dashboard', label: '현장 홈' },
+                { page: 'dashboard', label: '홈 대시보드' },
                 { page: 'introduction', label: '서비스 소개' },
             ]
             : activeMobileTab === 'analysis'
                 ? [
-                    { page: 'predictive-analysis', label: 'AI 리스크' },
-                    { page: 'ocr-analysis', label: 'OCR 분석' },
+                    { page: 'predictive-analysis', label: '위험 예측' },
+                    { page: 'ocr-analysis', label: '태깅 검증' },
+                    { page: 'safety-checks', label: '위험인지 진단' },
+                    { page: 'survey-intelligence', label: '행동 패턴 분석' },
                     { page: 'performance-analysis', label: '성과 추이' },
-                    { page: 'survey-intelligence', label: '설문 인텔리전스' },
                 ]
                 : activeMobileTab === 'reports'
                     ? [
-                        { page: 'reports', label: '통합 리포트' },
-                        { page: 'individual-report', label: '개인별 리포트' },
+                        { page: 'reports', label: '분석 리포트' },
+                        { page: 'individual-report', label: '진단 리포트' },
                         { page: 'feedback', label: '피드백' },
                     ]
                     : activeMobileTab === 'workers'
                         ? [
-                            { page: 'worker-management', label: '근로자 현황' },
-                            { page: 'worker-training', label: '전자서명' },
+                            { page: 'worker-management', label: '개인지 인지 프로파일' },
+                            { page: 'worker-training', label: '수기 데이터 입력' },
+                            { page: 'site-issue-management', label: '경보 알림' },
+                            { page: 'safety-compliance-hub', label: '현장 컨텍스트' },
                             { page: 'admin-training', label: '관리자 교육' },
-                            { page: 'safety-behavior-management', label: '행동관찰' },
+                            { page: 'safety-behavior-management', label: '개입 추천' },
                         ]
                         : [
-                            { page: 'safety-compliance-hub', label: '종합관리' },
-                            { page: 'site-issue-management', label: '현장 지적사항' },
+                            { page: 'safety-compliance-hub', label: '현장 컨텍스트' },
+                            { page: 'site-issue-management', label: '경보 알림' },
                             { page: 'settings', label: '설정' },
                         ];
 

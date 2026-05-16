@@ -420,6 +420,12 @@
 - [templates/psi_judgment_tagging_r1_worksheet_001_020_2026-05-16.csv](templates/psi_judgment_tagging_r1_worksheet_001_020_2026-05-16.csv)
    - R1 전용 입력·합의 워크시트(001~020)
 
+- [MOBILE_12SCREEN_EXECUTION_PLAN_2026-05-16.md](MOBILE_12SCREEN_EXECUTION_PLAN_2026-05-16.md)
+   - 첨부 모바일 목업 기반 12화면 실행 전략/단계별 구현계획
+
+- [MOBILE_12SCREEN_CTA_KPI_MATRIX_2026-05-16.csv](MOBILE_12SCREEN_CTA_KPI_MATRIX_2026-05-16.csv)
+   - 12화면별 핵심 CTA/KPI/우선순위 매트릭스
+
 ### 11-6. 다음 세션 시작 즉시 실행(데이터 구조화 모드)
 1. `templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv` 기준으로 표본 100건 입력 시작
 2. 평가자 2인 독립 태깅 후 불일치 항목 합의

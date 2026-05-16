@@ -85,6 +85,8 @@ PASS 기준
 - [WORKSPACE_LOCAL_SYNC_CHECKLIST_2026-05-16.md](WORKSPACE_LOCAL_SYNC_CHECKLIST_2026-05-16.md)
 - [PSI_TAGGING_100_EXECUTION_BOARD_2026-05-16.md](PSI_TAGGING_100_EXECUTION_BOARD_2026-05-16.md)
 - [PSI_TAGGING_R1_STARTER_PACK_2026-05-16.md](PSI_TAGGING_R1_STARTER_PACK_2026-05-16.md)
+- [MOBILE_12SCREEN_EXECUTION_PLAN_2026-05-16.md](MOBILE_12SCREEN_EXECUTION_PLAN_2026-05-16.md)
+- [MOBILE_12SCREEN_CTA_KPI_MATRIX_2026-05-16.csv](MOBILE_12SCREEN_CTA_KPI_MATRIX_2026-05-16.csv)
 - [reports/judgment-tagging-ops-summary.md](reports/judgment-tagging-ops-summary.md)
 - [reports/judgment-tagging-r1-closeout.md](reports/judgment-tagging-r1-closeout.md)
 - [templates/psi_judgment_tagging_template_v1.csv](templates/psi_judgment_tagging_template_v1.csv)

@@ -1,0 +1,13 @@
+screenNo,screenName,primaryCTA,primaryKPI,secondaryKPI,owner,priority,status
+1,홈 대시보드,오늘 우선조치 보기,오늘 위험지수,고위험 작업자 수,ops-manager,P0,planned
+2,경보 알림,고위험 알림 처리,미처리 경보 수,긴급 경보 비율,site-supervisor,P0,planned
+3,개인지 인지 프로파일,개인 프로파일 확인,개인 위험지수,벡터 편차,team-lead,P1,planned
+4,위험인지 진단,진단 시작,진단 완료율,고위험 응답률,safety-manager,P0,planned
+5,현장 컨텍스트,컨텍스트 입력,오늘 컨텍스트 완성률,야간/고밀도 비율,site-supervisor,P1,planned
+6,행동 패턴 분석,패턴 보기,반복위반 건수,시간대 집중위험,analytics,P0,planned
+7,위험 예측,예측 근거 확인,고위험 예측 건수,예측 적중 추이,analytics,P0,planned
+8,개입 추천,개입 실행,개입 실행률,개입 후 개선률,safety-manager,P0,planned
+9,수기 데이터 입력,입력 저장,입력 완료 건수,필수필드 누락률,field-worker,P0,planned
+10,태깅 검증,검증 실행,QA PASS율,오류 TOP5 건수,qa-owner,P0,planned
+11,분석 리포트,리포트 생성,주간 위험 감소율,ACTION_TOP5 해소율,ops-manager,P0,planned
+12,메뉴/설정,운영모드 전환,필수 기능 접근률,설정 완료율,admin,P2,planned
