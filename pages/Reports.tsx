@@ -252,6 +252,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const { data: taggingQuality, loading: taggingQualityLoading } = useJudgmentTaggingQuality();
     const [interventionHandoff, setInterventionHandoff] = useState<PredictiveInterventionHandoff | null>(null);
     const [opsAlertClickLogs, setOpsAlertClickLogs] = useState<OpsAlertClickLog[]>([]);
+    const [opsAlertActionFilter, setOpsAlertActionFilter] = useState<'all' | OpsAlertClickLog['action']>('all');
+    const [opsAlertStartDate, setOpsAlertStartDate] = useState('');
+    const [opsAlertEndDate, setOpsAlertEndDate] = useState('');
     const [datePreset, setDatePreset] = useState<DatePreset>('all');
     const [customStartDate, setCustomStartDate] = useState('');
     const [customEndDate, setCustomEndDate] = useState('');
@@ -2522,6 +2525,67 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             // ignore local log write failures
         }
     };
+    const filteredOpsAlertClickLogs = useMemo(() => {
+        return opsAlertClickLogs.filter((log) => {
+            if (opsAlertActionFilter !== 'all' && log.action !== opsAlertActionFilter) {
+                return false;
+            }
+
+            const clickedDate = new Date(log.clickedAt);
+            if (Number.isNaN(clickedDate.getTime())) return false;
+
+            if (opsAlertStartDate) {
+                const start = new Date(`${opsAlertStartDate}T00:00:00`);
+                if (clickedDate < start) return false;
+            }
+
+            if (opsAlertEndDate) {
+                const end = new Date(`${opsAlertEndDate}T23:59:59`);
+                if (clickedDate > end) return false;
+            }
+
+            return true;
+        });
+    }, [opsAlertActionFilter, opsAlertClickLogs, opsAlertEndDate, opsAlertStartDate]);
+    const handleClearOpsAlertClickLogs = () => {
+        if (typeof window === 'undefined') return;
+        if (!confirm('경보 CTA 클릭 로그를 모두 초기화하시겠습니까?')) return;
+        try {
+            window.localStorage.removeItem(OPS_ALERT_CLICK_LOG_KEY);
+            setOpsAlertClickLogs([]);
+        } catch {
+            // ignore local log clear failures
+        }
+    };
+    const handleExportOpsAlertClickLogsCsv = () => {
+        if (filteredOpsAlertClickLogs.length === 0) {
+            alert('내보낼 경보 CTA 클릭 로그가 없습니다.');
+            return;
+        }
+
+        const header = ['clickedAt', 'action', 'delayAlertActive', 'taggingErrorCount', 'interventionNotStartedCount'];
+        const rows = filteredOpsAlertClickLogs.map((log) => [
+            log.clickedAt,
+            log.action,
+            String(log.delayAlertActive),
+            String(log.taggingErrorCount),
+            String(log.interventionNotStartedCount),
+        ]);
+
+        const csv = [header, ...rows]
+            .map((row) => row.map((value) => escapeCsvCell(value)).join(','))
+            .join('\n');
+
+        const blob = new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `ops-alert-click-log-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
     const handleNavigateToIntervention = () => {
         trackQuickAction('ops_alert_go_intervention', {
             delayAlertActive: isOpsDelayAlert,
@@ -2646,16 +2710,58 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 no-print">
                 <div className="flex items-center justify-between gap-2">
                     <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-700">경보 CTA 클릭 로그 (최근 10건)</p>
-                    <span className="rounded-full bg-slate-100 border border-slate-200 px-2.5 py-1 text-[10px] font-black text-slate-600">
-                        {Math.min(10, opsAlertClickLogs.length)}건 표시
-                    </span>
+                    <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-slate-100 border border-slate-200 px-2.5 py-1 text-[10px] font-black text-slate-600">
+                            {Math.min(10, filteredOpsAlertClickLogs.length)}건 표시
+                        </span>
+                        <button
+                            type="button"
+                            onClick={handleExportOpsAlertClickLogsCsv}
+                            disabled={filteredOpsAlertClickLogs.length === 0}
+                            className={`rounded-lg border px-2.5 py-1 text-[10px] font-black ${filteredOpsAlertClickLogs.length === 0 ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' : 'border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100'}`}
+                        >
+                            CSV 내보내기
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleClearOpsAlertClickLogs}
+                            disabled={opsAlertClickLogs.length === 0}
+                            className={`rounded-lg border px-2.5 py-1 text-[10px] font-black ${opsAlertClickLogs.length === 0 ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' : 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'}`}
+                        >
+                            전체 초기화
+                        </button>
+                    </div>
                 </div>
 
-                {opsAlertClickLogs.length === 0 ? (
+                <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <select
+                        value={opsAlertActionFilter}
+                        onChange={(event) => setOpsAlertActionFilter(event.target.value as 'all' | OpsAlertClickLog['action'])}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700"
+                    >
+                        <option value="all">전체 액션</option>
+                        <option value="go-intervention">8번 개입 이동</option>
+                        <option value="go-tagging-validation">10번 태깅 검증 이동</option>
+                    </select>
+                    <input
+                        type="date"
+                        value={opsAlertStartDate}
+                        onChange={(event) => setOpsAlertStartDate(event.target.value)}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700"
+                    />
+                    <input
+                        type="date"
+                        value={opsAlertEndDate}
+                        onChange={(event) => setOpsAlertEndDate(event.target.value)}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700"
+                    />
+                </div>
+
+                {filteredOpsAlertClickLogs.length === 0 ? (
                     <p className="mt-2 text-[12px] font-semibold text-slate-500">아직 경보 CTA 클릭 로그가 없습니다.</p>
                 ) : (
                     <div className="mt-2 space-y-1.5">
-                        {opsAlertClickLogs.slice(0, 10).map((log) => (
+                        {filteredOpsAlertClickLogs.slice(0, 10).map((log) => (
                             <div key={log.id} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-700">
                                 <p>
                                     {new Date(log.clickedAt).toLocaleString('ko-KR', { hour12: false })}
