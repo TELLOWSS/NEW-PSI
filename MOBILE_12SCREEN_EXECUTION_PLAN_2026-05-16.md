@@ -114,17 +114,48 @@
 
 ---
 
-## 9) 반영 완료 (2026-05-16, 1차)
+## 9) 반영 완료 (2026-05-16, 최종)
 
-- `components/Layout.tsx`
-   - 페이지 타이틀/모바일 퀵링크를 12화면 용어로 1차 정렬
-   - 예: 태깅 검증, 위험 예측, 행동 패턴 분석, 수기 데이터 입력, 분석 리포트
+### PC UI 라벨 정렬 (1차)
+- [components/Layout.tsx](components/Layout.tsx): 페이지 타이틀/모바일 퀵링크를 12화면 용어로 정렬
+- [components/Sidebar.tsx](components/Sidebar.tsx): 네비게이션 라벨 / 섹션 타이틀 재구성
 
-- `components/Sidebar.tsx`
-   - 사이드바 네비게이션 라벨을 12화면 관점으로 재명명
-   - 섹션 타이틀을 `모바일 핵심 / 위험 분석 / 현장 실행` 구조로 정렬
+### PC 화면별 KPI 카드 추가 (2차)
+- [pages/WorkerTraining.tsx](pages/WorkerTraining.tsx) ✅ 9번: 입력 진행도 (작성/청취/체크/서명 4단계)
+- [pages/OcrAnalysis.tsx](pages/OcrAnalysis.tsx) ✅ 10번: 검증 상태 + ERROR_TOP5/ACTION_TOP5
+- [pages/Reports.tsx](pages/Reports.tsx) ✅ 11번: 생성 상태 (대상수/진행률/최근검증 결과)
 
-다음 구현 단계는 P0 화면(9~11) 데이터 바인딩 강화다.
+### 운영 자동화 체인 로컬 동기화
+- git pull origin main: 108개 커밋 병합 완료 (병합 충돌 3건 해결)
+- npm install: 의존성 재설치
+- npm run check:judgment-tagging:full: 첫 실행 성공 (PASS)
+  - reports/judgment-tagging-quality.json
+  - reports/judgment-tagging-quality.md
+  - reports/judgment-tagging-ops-summary.md
+
+### R1 착수 준비  
+- templates/psi_judgment_tagging_r1_worksheet_001_020_2026-05-16_sample.csv (10건 샘플 데이터)
+- 데이터 검증 완료: 추락/낙하/협착/감전 시나리오 포함, 태그-코드 1:1
+
+### 최종 검증
+- 모든 변경 파일 컴파일 오류 0
+- 모바일 9~11 화면 네이티브 매핑 확인
+
+---
+
+## 10) 다음 사항 (우선순위)
+
+**1. R1 필드 데이터 입력** (주간 병렬)
+- 20건 중 첫 10건 완성
+- npm run check:judgment-tagging:r1:full → closeout 템플릿 자동 생성
+
+**2. 10번 화면 실시간 JSON 바인딩** (2026-05-17~18)
+- API 엔드포인트 추가 가능
+- 임시: mockData 업데이트
+
+**3. 모바일 12화면 상세 구현** (향후)
+- 라벨/카드: 완료
+- 다음: 입출력 바인딩, 네트워크 호출
 
 ---
 

@@ -31,6 +31,7 @@ import { resolveOcrExecutionKeyStatus } from '../utils/ocrExecutionKeyStatus';
 import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils';
+import { useJudgmentTaggingQuality } from '../hooks/useJudgmentTaggingQuality';
 
 const OCR_STATUS_COPY = {
     secondPassEmpty: {
@@ -1154,6 +1155,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [mobileMode, setMobileMode] = useState<'quick' | 'detailed'>('quick');
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
     const [isPaidApiMode, setIsPaidApiMode] = useState<boolean>(() => getIsPaidApiMode());
+    
+    // JSON 품질 데이터 로드
+    const { data: qualityData, loading: qualityLoading } = useJudgmentTaggingQuality();
 
     useEffect(() => {
         const handleResize = () => setViewportWidth(window.innerWidth);
@@ -4554,6 +4558,59 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
                 </div>
                 <p className="mt-2 text-[11px] font-bold text-indigo-700">저신뢰 {lowConfidenceCount}건 · 즉시 조치 카드에서 우선순위 상위 항목을 먼저 처리하세요.</p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4">
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-rose-700">오류 TOP5 (검증 최우선)</p>
+                    <div className="mt-2 space-y-2">
+                        {qualityLoading ? (
+                            <div className="rounded-xl border border-white bg-white px-3 py-2">
+                                <p className="text-[10px] font-bold text-slate-500">데이터 로드 중...</p>
+                            </div>
+                        ) : qualityData?.errorTop && qualityData.errorTop.length > 0 ? (
+                            qualityData.errorTop.slice(0, 5).map((error, idx) => (
+                                <div key={idx} className="rounded-xl border border-white bg-white px-3 py-2">
+                                    <p className="text-[10px] font-black text-rose-600">{idx + 1}순위</p>
+                                    <p className="mt-0.5 text-xs font-bold text-slate-700">{error.message}</p>
+                                    {error.count > 0 && <p className="mt-1 text-[9px] text-slate-600">{error.field} (발생 {error.count}건)</p>}
+                                </div>
+                            ))
+                        ) : (
+                            <div className="rounded-xl border border-white bg-white px-3 py-2">
+                                <p className="text-[10px] font-bold text-emerald-700">✓ 오류 없음 - 품질 검증 PASS</p>
+                            </div>
+                        )}
+                    </div>
+                    <p className="mt-2 text-[10px] font-bold text-rose-700">→ npm run check:judgment-tagging:full 실행 시 자동 갱신됩니다.</p>
+                </div>
+                </div>
+
+                <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-4">
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">조치 TOP5 (실행순서)</p>
+                    <div className="mt-2 space-y-2">
+                        {qualityLoading ? (
+                            <div className="rounded-xl border border-white bg-white px-3 py-2">
+                                <p className="text-[10px] font-bold text-slate-500">데이터 로드 중...</p>
+                            </div>
+                        ) : qualityData?.actionItems && qualityData.actionItems.length > 0 ? (
+                            qualityData.actionItems.slice(0, 5).map((action, idx) => (
+                                <div key={idx} className="rounded-xl border border-white bg-white px-3 py-2">
+                                    <p className="text-[10px] font-black text-violet-600">P{action.priority}</p>
+                                    <p className="mt-0.5 text-xs font-bold text-slate-700">{action.title}</p>
+                                    <p className="mt-1 text-[9px] text-slate-600">{action.action}</p>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="rounded-xl border border-white bg-white px-3 py-2">
+                                <p className="text-[10px] font-bold text-slate-700">필수값 누락 우선 보정 후 재검증</p>
+                            </div>
+                        )}
+                    </div>
+                    <p className="mt-2 text-[10px] font-bold text-violet-700">
+                        → npm run check:judgment-tagging:full 실행 시 자동 갱신됩니다.
+                    </p>
+                </div>
             </div>
 
             {/* Control Panel */}
