@@ -1,0 +1,273 @@
+{
+  "status": "FAIL",
+  "totalRows": 6,
+  "filledRows": 6,
+  "unfilledRows": 0,
+  "errorCount": 41,
+  "warningCount": 0,
+  "errorTop": [
+    {
+      "field": "recommendedAction",
+      "message": "필수값 누락",
+      "count": 2
+    },
+    {
+      "field": "judgmentTagCodes",
+      "message": "태그 수(4)와 코드 수(5) 불일치",
+      "count": 1
+    },
+    {
+      "field": "judgmentTagCodes",
+      "message": "태그 수(1)와 코드 수(3) 불일치",
+      "count": 1
+    },
+    {
+      "field": "judgmentTagCodes",
+      "message": "태그 수(2)와 코드 수(3) 불일치",
+      "count": 1
+    },
+    {
+      "field": "judgmentTagCodes",
+      "message": "코드북 미정의 코드: riskAssessmentUnderstanding",
+      "count": 1
+    }
+  ],
+  "warningTop": [],
+  "actionItems": [
+    {
+      "priority": 1,
+      "title": "필수값 누락 우선 보정",
+      "action": "required 컬럼 누락 행부터 보정한 뒤 재검증",
+      "count": 2,
+      "source": "error"
+    },
+    {
+      "priority": 2,
+      "title": "태그-코드 개수 정렬",
+      "action": "judgmentTags와 judgmentTagCodes 개수를 1:1로 맞춤",
+      "count": 1,
+      "source": "error"
+    },
+    {
+      "priority": 3,
+      "title": "태그 코드북 정합성 보정",
+      "action": "judgmentTagCodes를 코드북 기준 코드로 치환",
+      "count": 1,
+      "source": "error"
+    }
+  ],
+  "errors": [
+    {
+      "row": 2,
+      "field": "judgmentTagCodes",
+      "message": "태그 수(4)와 코드 수(5) 불일치"
+    },
+    {
+      "row": 3,
+      "field": "reviewNeeded",
+      "message": "허용되지 않은 값: low"
+    },
+    {
+      "row": 3,
+      "field": "judgmentTagCodes",
+      "message": "태그 수(1)와 코드 수(3) 불일치"
+    },
+    {
+      "row": 4,
+      "field": "judgmentTagCodes",
+      "message": "태그 수(2)와 코드 수(3) 불일치"
+    },
+    {
+      "row": 5,
+      "field": "recommendedAction",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 5,
+      "field": "vectorTaskUnderstanding",
+      "message": "허용되지 않은 값: suspected"
+    },
+    {
+      "row": 5,
+      "field": "vectorHazardRecognition",
+      "message": "허용되지 않은 값: ?ì ë°ê²½ ì¶ì?µì  ë°?? ë??ë°°ì¹"
+    },
+    {
+      "row": 5,
+      "field": "vectorSequenceUnderstanding",
+      "message": "허용되지 않은 값: A007"
+    },
+    {
+      "row": 5,
+      "field": "vectorRiskNormalization",
+      "message": "허용되지 않은 값: Y"
+    },
+    {
+      "row": 5,
+      "field": "vectorResponseCapability",
+      "message": "허용되지 않은 값: ?´ì¬"
+    },
+    {
+      "row": 5,
+      "field": "linkedMetric",
+      "message": "허용되지 않은 지표 키: ?¬ê°ì§? ?ì¥ ?ì¸ ?ì"
+    },
+    {
+      "row": 5,
+      "field": "precursorSignal",
+      "message": "허용되지 않은 값: pending"
+    },
+    {
+      "row": 5,
+      "field": "reviewNeeded",
+      "message": "허용되지 않은 값: in-progress"
+    },
+    {
+      "row": 5,
+      "field": "judgmentTagCodes",
+      "message": "코드북 미정의 코드: riskAssessmentUnderstanding"
+    },
+    {
+      "row": 5,
+      "field": "ontologyNodeId",
+      "message": "온톨로지 시드 미정의 조합: high|high|mid"
+    },
+    {
+      "row": 6,
+      "field": "shiftType",
+      "message": "허용되지 않은 값: 46158.375601851854"
+    },
+    {
+      "row": 6,
+      "field": "vectorResponseCapability",
+      "message": "허용되지 않은 값: proficiency"
+    },
+    {
+      "row": 6,
+      "field": "linkedMetric",
+      "message": "허용되지 않은 지표 키: Y"
+    },
+    {
+      "row": 6,
+      "field": "precursorSignal",
+      "message": "허용되지 않은 값: ë³´ì¡°?êµ¬ ?¬ì© ë°???  ë¶ë¦¬"
+    },
+    {
+      "row": 6,
+      "field": "reviewNeeded",
+      "message": "허용되지 않은 값: ê°ë¦¬"
+    },
+    {
+      "row": 6,
+      "field": "judgmentTagCodes",
+      "message": "태그 수(3)와 코드 수(1) 불일치"
+    },
+    {
+      "row": 6,
+      "field": "judgmentTagCodes",
+      "message": "코드북 미정의 코드: mid"
+    },
+    {
+      "row": 6,
+      "field": "ontologyNodeId",
+      "message": "온톨로지 시드 미정의 조합: PINCH.MATERIAL|PINCH-MATERIAL-HAND_TRAP|?í ë¯¸ì¸ì§;ê³¼ì ;?ì°¨ ?ëµ"
+    },
+    {
+      "row": 7,
+      "field": "riskCategory",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 7,
+      "field": "riskSubcategory",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 7,
+      "field": "riskCategoryCode",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 7,
+      "field": "riskSubcategoryCode",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 7,
+      "field": "ontologyNodeId",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 7,
+      "field": "judgmentTags",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 7,
+      "field": "judgmentTagCodes",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 7,
+      "field": "vectorTaskUnderstanding",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 7,
+      "field": "vectorHazardRecognition",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 7,
+      "field": "vectorSequenceUnderstanding",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 7,
+      "field": "vectorRiskNormalization",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 7,
+      "field": "vectorResponseCapability",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 7,
+      "field": "linkedMetric",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 7,
+      "field": "precursorSignal",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 7,
+      "field": "recommendedAction",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 7,
+      "field": "recommendedActionCode",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 7,
+      "field": "reviewNeeded",
+      "message": "필수값 누락"
+    },
+    {
+      "row": 7,
+      "field": "ontologyNodeId",
+      "message": "온톨로지 시드 미정의 조합: ||"
+    }
+  ],
+  "warnings": [],
+  "meta": {
+    "generatedAt": "2026-05-16T07:40:49.161Z",
+    "input": "templates/psi_judgment_tagging_r1_worksheet_001_020_2026-05-16_sample.csv",
+    "codebook": "templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv",
+    "ontology": "templates/psi_ontology_v1_seed_2026-05-16.csv"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "status": "PASS",
+  "totalRows": 3,
+  "filledRows": 3,
+  "unfilledRows": 0,
+  "errorCount": 0,
+  "warningCount": 0,
+  "errorTop": [],
+  "warningTop": [],
+  "actionItems": [],
+  "errors": [],
+  "warnings": [],
+  "meta": {
+    "generatedAt": "2026-05-16T07:40:19.598Z",
+    "input": "templates/psi_judgment_tagging_template_v1.csv",
+    "codebook": "templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv",
+    "ontology": "templates/psi_ontology_v1_seed_2026-05-16.csv"
+  }
+}
