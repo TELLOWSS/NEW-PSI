@@ -396,6 +396,11 @@
 
 - npm 실행 체인
    - `check:judgment-tagging:full` = `check:judgment-tagging:report` + `report:judgment-tagging:ops-summary`
+   - `check:judgment-tagging:r1:full` = `check:judgment-tagging:full` + `report:judgment-tagging:r1-closeout`
+
+- [scripts/generate-judgment-tagging-r1-closeout.cjs](scripts/generate-judgment-tagging-r1-closeout.cjs)
+   - R1 진행 추적 CSV + OPS 요약 리포트를 기반으로 `R1 종료 OPS 3줄` 자동 템플릿 생성
+   - 산출물: `reports/judgment-tagging-r1-closeout.md`
 
 - [PSI_TAGGING_QA_AUTOMATION_GUIDE_2026-05-16.md](PSI_TAGGING_QA_AUTOMATION_GUIDE_2026-05-16.md)
    - 태깅 품질검증 실행 명령/리포트/운영루틴 가이드
@@ -408,6 +413,12 @@
 
 - [templates/psi_judgment_tagging_progress_tracker_100_v1_2026-05-16.csv](templates/psi_judgment_tagging_progress_tracker_100_v1_2026-05-16.csv)
    - recordId 001~100 라운드별 진행 추적 CSV(status/합의/QA)
+
+- [PSI_TAGGING_R1_STARTER_PACK_2026-05-16.md](PSI_TAGGING_R1_STARTER_PACK_2026-05-16.md)
+   - R1(001~020) 담당자 배정/합의 규칙/종료 기준 패키지
+
+- [templates/psi_judgment_tagging_r1_worksheet_001_020_2026-05-16.csv](templates/psi_judgment_tagging_r1_worksheet_001_020_2026-05-16.csv)
+   - R1 전용 입력·합의 워크시트(001~020)
 
 ### 11-6. 다음 세션 시작 즉시 실행(데이터 구조화 모드)
 1. `templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv` 기준으로 표본 100건 입력 시작

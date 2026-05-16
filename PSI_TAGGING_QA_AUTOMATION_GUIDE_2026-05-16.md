@@ -31,14 +31,23 @@
 ### 리포트 + OPS 요약 일괄 실행
 - `npm run check:judgment-tagging:full`
 
+### R1 종료 템플릿 생성
+- `npm run report:judgment-tagging:r1-closeout`
+
+### R1 풀체인 실행(권장)
+- `npm run check:judgment-tagging:r1:full`
+
 생성 리포트:
 - `reports/judgment-tagging-quality.json`
 - `reports/judgment-tagging-quality.md`
 - `reports/judgment-tagging-ops-summary.md`
+- `reports/judgment-tagging-r1-closeout.md`
 
 라운드 운영 자산:
 - `PSI_TAGGING_100_EXECUTION_BOARD_2026-05-16.md`
 - `templates/psi_judgment_tagging_progress_tracker_100_v1_2026-05-16.csv`
+- `PSI_TAGGING_R1_STARTER_PACK_2026-05-16.md`
+- `templates/psi_judgment_tagging_r1_worksheet_001_020_2026-05-16.csv`
 
 ---
 

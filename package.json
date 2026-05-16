@@ -18,6 +18,8 @@
     "check:judgment-tagging:report": "node scripts/check-judgment-tagging-quality.cjs --report-json reports/judgment-tagging-quality.json --report-md reports/judgment-tagging-quality.md",
     "report:judgment-tagging:ops-summary": "node scripts/generate-judgment-tagging-ops-summary.cjs --input reports/judgment-tagging-quality.json --output reports/judgment-tagging-ops-summary.md",
     "check:judgment-tagging:full": "npm run check:judgment-tagging:report && npm run report:judgment-tagging:ops-summary",
+    "report:judgment-tagging:r1-closeout": "node scripts/generate-judgment-tagging-r1-closeout.cjs --round R1 --tracker templates/psi_judgment_tagging_progress_tracker_100_v1_2026-05-16.csv --ops-summary reports/judgment-tagging-ops-summary.md --output reports/judgment-tagging-r1-closeout.md",
+    "check:judgment-tagging:r1:full": "npm run check:judgment-tagging:full && npm run report:judgment-tagging:r1-closeout",
     "check:score-consistency": "node scripts/check-score-consistency-gate.cjs",
     "check:score-consistency:strict": "node scripts/check-score-consistency-gate.cjs --strict",
     "check:score-consistency:strict8": "node scripts/check-score-consistency-gate.cjs --strict --max-gap 8",

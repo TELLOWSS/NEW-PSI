@@ -65,6 +65,7 @@ PASS 기준
    - `npm run check:judgment-tagging`
    - `npm run check:judgment-tagging:blank100`
    - `npm run check:judgment-tagging:full`로 리포트+OPS 3줄 자동 생성
+   - R1 종료 시 `npm run check:judgment-tagging:r1:full`로 종료 템플릿 자동 생성
 
 ---
 
@@ -83,9 +84,12 @@ PASS 기준
 - [PSI_TAGGING_QA_AUTOMATION_GUIDE_2026-05-16.md](PSI_TAGGING_QA_AUTOMATION_GUIDE_2026-05-16.md)
 - [WORKSPACE_LOCAL_SYNC_CHECKLIST_2026-05-16.md](WORKSPACE_LOCAL_SYNC_CHECKLIST_2026-05-16.md)
 - [PSI_TAGGING_100_EXECUTION_BOARD_2026-05-16.md](PSI_TAGGING_100_EXECUTION_BOARD_2026-05-16.md)
+- [PSI_TAGGING_R1_STARTER_PACK_2026-05-16.md](PSI_TAGGING_R1_STARTER_PACK_2026-05-16.md)
 - [reports/judgment-tagging-ops-summary.md](reports/judgment-tagging-ops-summary.md)
+- [reports/judgment-tagging-r1-closeout.md](reports/judgment-tagging-r1-closeout.md)
 - [templates/psi_judgment_tagging_template_v1.csv](templates/psi_judgment_tagging_template_v1.csv)
 - [templates/psi_ontology_v1_seed_2026-05-16.csv](templates/psi_ontology_v1_seed_2026-05-16.csv)
 - [templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv](templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv)
 - [templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv](templates/psi_judgment_tag_codebook_v1_24_2026-05-16.csv)
 - [templates/psi_judgment_tagging_progress_tracker_100_v1_2026-05-16.csv](templates/psi_judgment_tagging_progress_tracker_100_v1_2026-05-16.csv)
+- [templates/psi_judgment_tagging_r1_worksheet_001_020_2026-05-16.csv](templates/psi_judgment_tagging_r1_worksheet_001_020_2026-05-16.csv)
