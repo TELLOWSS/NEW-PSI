@@ -1,15 +1,16 @@
 # NEXT SESSION HANDOFF · LATEST
 
 - 기준일시: 2026-05-16
+- 기준일시: 2026-05-18
 - 프로젝트: NEW-PSI
 - 목적: 프로그램 종료 후 재시작 시, 2분 내에 현재 상태 파악하고 즉시 다음 작업 진행
 
 ---
 
 ## 1) 현재 진행상태 (재시작용 한줄 요약)
-- 모바일 12화면 중 운영 핵심 체인 연결 완료: `7→8`, `9→10→11`, `8→11`.
-- 최근 배포 블로커 2건(JSX 파싱 오류, 훅 import 경로 오류) 해결 완료.
-- 최신 빌드 상태: `npm run build` PASS (마지막 실행 Exit Code 0).
+- 모바일 12화면 운영 핵심 체인 연결 완료: `7→8`, `9→10→11`, `8→11`.
+- Reports 경보 CTA 로그는 `dual-write(로컬+서버)` + `서버우선/로컬폴백` + `서버/로컬 동시 초기화`까지 반영 완료.
+- 실검증 문서/실기록본/샘플본 준비 완료, 최신 빌드 상태 `npm run build` PASS.
 
 ---
 
@@ -73,6 +74,55 @@
 
 ---
 
+## 8) 2026-05-18 세션 진행 기록
+
+### 이번 세션 완료
+- `pages/Reports.tsx`
+   - 경보 CTA 클릭 로그 필터에 기간 프리셋을 추가함
+   - `전체 / 오늘 / 최근 7일 / 최근 30일 / 사용자 지정`으로 분기함
+   - 사용자 지정 기간일 때만 시작일/종료일 입력이 표시되도록 조정함
+   - 선택된 기간 라벨을 화면에 노출해 필터 상태를 즉시 확인할 수 있게 함
+
+### 현재 작업 원칙
+- 다음 작업은 문서에 적힌 우선순위 순서만 따른다
+- 한 번에 한 축만 진행하고, 경로 이탈이 보이면 즉시 중단해 기록부터 정리한다
+- 반영 후에는 해당 파일의 오류 여부를 먼저 확인한다
+
+### 로그 영속성 검토 메모
+- `pages/Reports.tsx`의 경보 CTA 클릭 로그는 현재 `localStorage` 전용이다.
+- 장기 보존이 필요하므로 전용 서버 저장소를 분리하는 방향이 맞다.
+- `report_message_logs`는 문자/MMS 발송 로그라서 이 목적에 재사용하지 않는 쪽이 안전하다.
+- 다음 세션에서는 전용 테이블/관리자 API/dual-write 구조 여부를 먼저 확정한다.
+
+### 2026-05-18 구현 완료 업데이트
+- 전용 저장 테이블 마이그레이션 파일 추가: `supabase_ops_alert_click_logs_migration.sql`
+- 관리자 API 액션 추가(`api/admin/safety-management.ts`)
+   - `append-ops-alert-click-log`
+   - `list-ops-alert-click-logs`
+- Reports 동기화 반영(`pages/Reports.tsx`)
+   - 서버 우선 조회 + 로컬 병합
+   - 클릭 시 로컬 저장 후 서버 비동기 저장(실패 시 로컬 유지)
+- 빌드 검증: `npm run build` PASS
+
+### 2026-05-18 추가 보완
+- `전체 초기화`를 서버/로컬 동시 정리로 보완
+   - API: `clear-ops-alert-click-logs`
+   - UI: 초기화 후 상태 문구 갱신
+- 로그 카드에 동기화 상태 문구 추가
+   - `서버 연결` / `확인 중` / `로컬 폴백`
+
+### 다음 즉시 실행
+1. Supabase SQL Editor에서 `supabase_ops_alert_click_logs_migration.sql` 실행
+2. Reports 화면에서 경보 CTA 클릭 후 새로고침하여 서버 조회 복원 동작 확인
+3. Reports의 `전체 초기화` 실행 후 재조회 시 로그 재노출이 없는지 확인
+
+### 검증 참조
+- `REPORTS_OPS_ALERT_SYNC_QA_CHECKLIST_2026-05-18.md`
+- `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-18.md`
+- `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_SAMPLE_2026-05-18.md`
+
+---
+
 ## 6) 핵심 참조 파일
 - `pages/PredictiveAnalysis.tsx`
 - `pages/InterventionCoaching.tsx`
@@ -88,4 +138,30 @@
 ## 7) 재시작용 한줄 프롬프트
 아래 문장 그대로 붙여넣으면 현재 컨텍스트를 이어서 진행 가능:
 
-"NEXT_SESSION_HANDOFF_LATEST.md 기준으로 진행. 먼저 npm run build 후 Reports KPI 요약 카드(총클릭/8번이동률/10번이동률/경보활성클릭비율) 구현하고 검증까지 진행해줘."
+"NEXT_SESSION_HANDOFF_LATEST.md 기준으로 진행. 먼저 npm run build 확인 후 supabase_ops_alert_click_logs_migration.sql 적용 상태 점검하고, REPORTS_OPS_ALERT_SYNC_QA_CHECKLIST_2026-05-18.md 기준 A~D 시나리오 검증 결과를 REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-18.md에 기록해줘."
+
+---
+
+## 9) 종료 직전 정리 (2026-05-18)
+
+### 오늘 최종 반영
+- `api/admin/safety-management.ts`
+   - `append-ops-alert-click-log`
+   - `list-ops-alert-click-logs`
+   - `clear-ops-alert-click-logs`
+- `pages/Reports.tsx`
+   - 기간 프리셋 + KPI 증감률
+   - 서버 동기화(서버우선/로컬폴백)
+   - 동기화 상태 문구
+   - 전체 초기화 서버/로컬 동시 처리
+- `supabase_ops_alert_click_logs_migration.sql` 추가
+- QA 문서 3종 준비
+   - `REPORTS_OPS_ALERT_SYNC_QA_CHECKLIST_2026-05-18.md`
+   - `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-18.md`
+   - `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_SAMPLE_2026-05-18.md`
+
+### 재시작 즉시 할 일 (순서 고정)
+1. `npm run build`
+2. Supabase에서 `supabase_ops_alert_click_logs_migration.sql` 적용 여부 확인
+3. 체크리스트 A→B→C→D 수행
+4. 실기록본에 합격/불합격 및 메모 기록

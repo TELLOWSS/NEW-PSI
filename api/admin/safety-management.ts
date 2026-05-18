@@ -5,7 +5,7 @@
  *
  * Body 형식:
  *   {
- *     action: 'record-unsafe-behavior' | 'register-coaching-action' | 'evaluate-worker-integrity' | 'bulk-upload-workers' | 'list-workers' | 'get-worker-contact' | 'list-report-message-logs' | 'get-report-message-dashboard-summary' | 'update-worker' | 'delete-worker' | 'delete-workers' | 'restore-worker' | 'restore-workers' | 'flush-audio-storage',
+ *     action: 'record-unsafe-behavior' | 'register-coaching-action' | 'evaluate-worker-integrity' | 'bulk-upload-workers' | 'list-workers' | 'get-worker-contact' | 'list-report-message-logs' | 'get-report-message-dashboard-summary' | 'append-ops-alert-click-log' | 'list-ops-alert-click-logs' | 'clear-ops-alert-click-logs' | 'update-worker' | 'delete-worker' | 'delete-workers' | 'restore-worker' | 'restore-workers' | 'flush-audio-storage',
  *     payload: { ... 액션별 필드 }
  *   }
  *
@@ -86,6 +86,7 @@ const SAFETY_INTEGRITY_REQUIRED_TABLES = new Set([
     'worker_integrity_reviews',
 ]);
 const REPORT_MESSAGE_LOG_TABLE = 'report_message_logs';
+const OPS_ALERT_CLICK_LOG_TABLE = 'ops_alert_click_logs';
 const REPORT_MESSAGE_SUMMARY_RELATIONS = new Set([
     'report_message_monthly_summary',
     'report_message_team_summary',
@@ -119,6 +120,10 @@ function buildSafetySchemaMissingMessage(errorMessage: string): string | null {
 
 function isReportMessageLogTableMissing(errorMessage: string): boolean {
     return extractMissingPublicTableName(String(errorMessage || '')) === REPORT_MESSAGE_LOG_TABLE;
+}
+
+function isOpsAlertClickLogTableMissing(errorMessage: string): boolean {
+    return extractMissingPublicTableName(String(errorMessage || '')) === OPS_ALERT_CLICK_LOG_TABLE;
 }
 
 function resolveReportMessageRangeStart(range: unknown): string | null {
@@ -158,6 +163,25 @@ function normalizePhone(raw: string): string {
 
 function normalizeBirthDate(raw: string): string {
     return String(raw || '').replace(/\D/g, '');
+}
+
+function normalizeIsoOrNow(raw: unknown): string {
+    const value = String(raw || '').trim();
+    if (!value) return new Date().toISOString();
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return new Date().toISOString();
+    return parsed.toISOString();
+}
+
+function normalizeNonNegativeInteger(raw: unknown): number {
+    const numeric = Number(raw);
+    if (!Number.isFinite(numeric)) return 0;
+    return Math.max(0, Math.floor(numeric));
+}
+
+function normalizeOpsAlertAction(raw: unknown): 'go-intervention' | 'go-tagging-validation' {
+    const value = String(raw || '').trim();
+    return value === 'go-tagging-validation' ? 'go-tagging-validation' : 'go-intervention';
 }
 
 function normalizePassport(raw: string): string {
@@ -1607,6 +1631,146 @@ async function handleGetReportMessageDashboardSummary(payload: any): Promise<any
 }
 
 // -----------------------------------------------------------------------
+// 액션 5-4: 경보 CTA 클릭 로그 저장
+// -----------------------------------------------------------------------
+async function handleAppendOpsAlertClickLog(payload: any): Promise<any> {
+    const id = String(payload?.id || '').trim();
+    if (!id) {
+        throw new Error('id 필드가 필요합니다.');
+    }
+
+    const clickedAt = normalizeIsoOrNow(payload?.clickedAt);
+    const action = normalizeOpsAlertAction(payload?.action);
+    const delayAlertActive = Boolean(payload?.delayAlertActive);
+    const taggingErrorCount = normalizeNonNegativeInteger(payload?.taggingErrorCount);
+    const interventionNotStartedCount = normalizeNonNegativeInteger(payload?.interventionNotStartedCount);
+
+    const { error } = await supabase
+        .from(OPS_ALERT_CLICK_LOG_TABLE)
+        .upsert({
+            id,
+            clicked_at: clickedAt,
+            action,
+            delay_alert_active: delayAlertActive,
+            tagging_error_count: taggingErrorCount,
+            intervention_not_started_count: interventionNotStartedCount,
+            created_by: 'reports-ui',
+        }, { onConflict: 'id', ignoreDuplicates: false });
+
+    if (error) {
+        if (isOpsAlertClickLogTableMissing(error.message || error.details || '')) {
+            return {
+                saved: false,
+                schemaReady: false,
+            };
+        }
+
+        throw new Error(error.message || '경보 CTA 클릭 로그 저장 실패');
+    }
+
+    return {
+        saved: true,
+        schemaReady: true,
+        id,
+    };
+}
+
+// -----------------------------------------------------------------------
+// 액션 5-5: 경보 CTA 클릭 로그 조회
+// -----------------------------------------------------------------------
+async function handleListOpsAlertClickLogs(payload: any): Promise<any> {
+    const requestedLimit = Number(payload?.limit || 200);
+    const requestedOffset = Number(payload?.offset || 0);
+    const limit = Number.isFinite(requestedLimit)
+        ? Math.min(Math.max(Math.floor(requestedLimit), 1), 500)
+        : 200;
+    const offset = Number.isFinite(requestedOffset)
+        ? Math.max(Math.floor(requestedOffset), 0)
+        : 0;
+    const action = String(payload?.action || 'all').trim();
+    const startDate = String(payload?.startDate || '').trim();
+    const endDate = String(payload?.endDate || '').trim();
+
+    let query = supabase
+        .from(OPS_ALERT_CLICK_LOG_TABLE)
+        .select('id, clicked_at, action, delay_alert_active, tagging_error_count, intervention_not_started_count', { count: 'exact' })
+        .order('clicked_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+    if (action === 'go-intervention' || action === 'go-tagging-validation') {
+        query = query.eq('action', action);
+    }
+
+    if (startDate) {
+        query = query.gte('clicked_at', `${startDate}T00:00:00.000Z`);
+    }
+
+    if (endDate) {
+        query = query.lte('clicked_at', `${endDate}T23:59:59.999Z`);
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) {
+        if (isOpsAlertClickLogTableMissing(error.message || error.details || '')) {
+            return {
+                rows: [],
+                total: 0,
+                offset,
+                limit,
+                hasMore: false,
+                schemaReady: false,
+            };
+        }
+
+        throw new Error(error.message || '경보 CTA 클릭 로그 조회 실패');
+    }
+
+    const rows = (data || []).map((row: any) => ({
+        id: String(row?.id || '').trim(),
+        clickedAt: normalizeIsoOrNow(row?.clicked_at),
+        action: normalizeOpsAlertAction(row?.action),
+        delayAlertActive: Boolean(row?.delay_alert_active),
+        taggingErrorCount: normalizeNonNegativeInteger(row?.tagging_error_count),
+        interventionNotStartedCount: normalizeNonNegativeInteger(row?.intervention_not_started_count),
+    }));
+
+    return {
+        rows,
+        total: Number(count || 0),
+        offset,
+        limit,
+        hasMore: offset + rows.length < Number(count || 0),
+        schemaReady: true,
+    };
+}
+
+// -----------------------------------------------------------------------
+// 액션 5-6: 경보 CTA 클릭 로그 전체 초기화
+// -----------------------------------------------------------------------
+async function handleClearOpsAlertClickLogs(): Promise<any> {
+    const { error } = await supabase
+        .from(OPS_ALERT_CLICK_LOG_TABLE)
+        .delete()
+        .not('id', 'is', null);
+
+    if (error) {
+        if (isOpsAlertClickLogTableMissing(error.message || error.details || '')) {
+            return {
+                cleared: false,
+                schemaReady: false,
+            };
+        }
+        throw new Error(error.message || '경보 CTA 클릭 로그 초기화 실패');
+    }
+
+    return {
+        cleared: true,
+        schemaReady: true,
+    };
+}
+
+// -----------------------------------------------------------------------
 // 액션 6: 등록 근로자 정보 수정
 // -----------------------------------------------------------------------
 async function handleUpdateWorker(payload: any): Promise<any> {
@@ -2076,6 +2240,18 @@ export default async function handler(req: any, res: any) {
 
             case 'get-report-message-dashboard-summary':
                 data = await handleGetReportMessageDashboardSummary(payload);
+                break;
+
+            case 'append-ops-alert-click-log':
+                data = await handleAppendOpsAlertClickLog(payload);
+                break;
+
+            case 'list-ops-alert-click-logs':
+                data = await handleListOpsAlertClickLogs(payload);
+                break;
+
+            case 'clear-ops-alert-click-logs':
+                data = await handleClearOpsAlertClickLogs();
                 break;
 
             case 'update-worker':

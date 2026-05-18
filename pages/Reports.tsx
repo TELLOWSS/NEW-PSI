@@ -2,6 +2,7 @@
 import React, { Suspense, lazy, useState, useRef, useMemo, useEffect } from 'react';
 import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState, Page } from '../types';
 import { extractMessage } from '../utils/errorUtils';
+import { postAdminJson } from '../utils/adminApiClient';
 import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { NextActionChecklist } from '../components/shared/NextActionChecklist';
@@ -184,6 +185,7 @@ type ReportType = 'worker-report' | 'team-report';
 type GenMode = 'combined-pdf' | 'individual-pdf' | 'individual-img';
 type ViewMode = 'list' | 'preview';
 type DatePreset = 'all' | 'last30' | 'thisMonth' | 'custom';
+type OpsAlertDatePreset = 'all' | 'today' | 'last7' | 'last30' | 'custom';
 
 type InterventionPlanStatus = 'not-started' | 'in-progress' | 'completed';
 
@@ -213,6 +215,16 @@ type OpsAlertClickLog = {
 const PREDICTIVE_INTERVENTION_HANDOFF_KEY = 'psi_predictive_intervention_handoff_v1';
 const PREDICTIVE_INTERVENTION_HANDOFF_EVENT = 'psi-predictive-intervention-updated';
 const OPS_ALERT_CLICK_LOG_KEY = 'psi_ops_alert_click_log_v1';
+
+type OpsAlertLogApiResponse = {
+    ok: boolean;
+    data?: {
+        rows?: OpsAlertClickLog[];
+        schemaReady?: boolean;
+    };
+};
+
+type OpsAlertSyncState = 'idle' | 'syncing' | 'server' | 'fallback';
 
 interface ReportGenerationUiState {
     status: 'idle' | 'running' | 'success' | 'error';
@@ -252,7 +264,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const { data: taggingQuality, loading: taggingQualityLoading } = useJudgmentTaggingQuality();
     const [interventionHandoff, setInterventionHandoff] = useState<PredictiveInterventionHandoff | null>(null);
     const [opsAlertClickLogs, setOpsAlertClickLogs] = useState<OpsAlertClickLog[]>([]);
+    const [opsAlertSyncState, setOpsAlertSyncState] = useState<OpsAlertSyncState>('idle');
+    const [opsAlertSyncNote, setOpsAlertSyncNote] = useState('');
     const [opsAlertActionFilter, setOpsAlertActionFilter] = useState<'all' | OpsAlertClickLog['action']>('all');
+    const [opsAlertDatePreset, setOpsAlertDatePreset] = useState<OpsAlertDatePreset>('all');
     const [opsAlertStartDate, setOpsAlertStartDate] = useState('');
     const [opsAlertEndDate, setOpsAlertEndDate] = useState('');
     const [datePreset, setDatePreset] = useState<DatePreset>('all');
@@ -361,7 +376,59 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             }
         };
 
+        const mergeLogs = (primary: OpsAlertClickLog[], secondary: OpsAlertClickLog[]) => {
+            const mergedMap = new Map<string, OpsAlertClickLog>();
+            [...primary, ...secondary].forEach((log) => {
+                if (!log?.id) return;
+                mergedMap.set(log.id, log);
+            });
+
+            return Array.from(mergedMap.values())
+                .sort((a, b) => new Date(b.clickedAt).getTime() - new Date(a.clickedAt).getTime())
+                .slice(0, 200);
+        };
+
+        const loadOpsAlertLogsFromServer = async () => {
+            setOpsAlertSyncState('syncing');
+            setOpsAlertSyncNote('서버 동기화 확인 중');
+            try {
+                const response = await postAdminJson<OpsAlertLogApiResponse>(
+                    '/api/admin/safety-management',
+                    {
+                        action: 'list-ops-alert-click-logs',
+                        payload: {
+                            limit: 200,
+                            offset: 0,
+                        },
+                    },
+                    { fallbackMessage: '경보 CTA 로그 조회 실패' },
+                );
+
+                const schemaReady = Boolean(response?.data?.schemaReady);
+                if (!schemaReady) {
+                    setOpsAlertSyncState('fallback');
+                    setOpsAlertSyncNote('서버 스키마 미준비 · 로컬 로그 사용');
+                    return;
+                }
+
+                const serverRows = Array.isArray(response?.data?.rows) ? response.data.rows : [];
+                const raw = localStorage.getItem(OPS_ALERT_CLICK_LOG_KEY);
+                const localRows: OpsAlertClickLog[] = raw ? (JSON.parse(raw) as OpsAlertClickLog[]) : [];
+                const nextLogs = mergeLogs(serverRows, Array.isArray(localRows) ? localRows : []);
+
+                localStorage.setItem(OPS_ALERT_CLICK_LOG_KEY, JSON.stringify(nextLogs));
+                setOpsAlertClickLogs(nextLogs);
+                setOpsAlertSyncState('server');
+                setOpsAlertSyncNote('서버 동기화 완료');
+            } catch (error) {
+                console.warn('[Reports] 경보 CTA 로그 서버 조회 실패 (로컬 폴백 유지):', extractMessage(error));
+                setOpsAlertSyncState('fallback');
+                setOpsAlertSyncNote('서버 조회 실패 · 로컬 폴백 사용');
+            }
+        };
+
         readOpsAlertLogs();
+        void loadOpsAlertLogsFromServer();
 
         const handleStorage = (event: StorageEvent) => {
             if (!event.key || event.key === OPS_ALERT_CLICK_LOG_KEY) {
@@ -2521,10 +2588,115 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 JSON.stringify(nextLogs),
             );
             setOpsAlertClickLogs(nextLogs);
+
+            void postAdminJson<{ ok: boolean; data?: { saved?: boolean; schemaReady?: boolean } }>(
+                '/api/admin/safety-management',
+                {
+                    action: 'append-ops-alert-click-log',
+                    payload: entry,
+                },
+                { fallbackMessage: '경보 CTA 로그 저장 실패' },
+            ).catch((error) => {
+                console.warn('[Reports] 경보 CTA 로그 서버 저장 실패 (로컬 유지):', extractMessage(error));
+            });
         } catch {
             // ignore local log write failures
         }
     };
+    const opsAlertDateWindow = useMemo(() => {
+        const now = new Date();
+        now.setHours(23, 59, 59, 999);
+
+        const formatDateInput = (date: Date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        let startDate: Date | null = null;
+        let endDate: Date | null = null;
+        let previousStartDate: Date | null = null;
+        let previousEndDate: Date | null = null;
+        let comparisonLabel: string | null = null;
+
+        if (opsAlertDatePreset === 'today') {
+            startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+            endDate = new Date(now);
+            previousStartDate = new Date(startDate);
+            previousStartDate.setDate(previousStartDate.getDate() - 1);
+            previousEndDate = new Date(startDate);
+            previousEndDate.setMilliseconds(previousEndDate.getMilliseconds() - 1);
+            comparisonLabel = '전일 대비';
+        } else if (opsAlertDatePreset === 'last7') {
+            endDate = new Date(now);
+            startDate = new Date(now);
+            startDate.setDate(now.getDate() - 6);
+            startDate.setHours(0, 0, 0, 0);
+            previousEndDate = new Date(startDate);
+            previousEndDate.setMilliseconds(previousEndDate.getMilliseconds() - 1);
+            previousStartDate = new Date(previousEndDate);
+            previousStartDate.setDate(previousStartDate.getDate() - 6);
+            previousStartDate.setHours(0, 0, 0, 0);
+            comparisonLabel = '이전 7일 대비';
+        } else if (opsAlertDatePreset === 'last30') {
+            endDate = new Date(now);
+            startDate = new Date(now);
+            startDate.setDate(now.getDate() - 29);
+            startDate.setHours(0, 0, 0, 0);
+            previousEndDate = new Date(startDate);
+            previousEndDate.setMilliseconds(previousEndDate.getMilliseconds() - 1);
+            previousStartDate = new Date(previousEndDate);
+            previousStartDate.setDate(previousStartDate.getDate() - 29);
+            previousStartDate.setHours(0, 0, 0, 0);
+            comparisonLabel = '이전 30일 대비';
+        } else if (opsAlertDatePreset === 'custom') {
+            if (opsAlertStartDate) {
+                const parsedStart = new Date(opsAlertStartDate);
+                if (!Number.isNaN(parsedStart.getTime())) {
+                    parsedStart.setHours(0, 0, 0, 0);
+                    startDate = parsedStart;
+                }
+            }
+            if (opsAlertEndDate) {
+                const parsedEnd = new Date(opsAlertEndDate);
+                if (!Number.isNaN(parsedEnd.getTime())) {
+                    parsedEnd.setHours(23, 59, 59, 999);
+                    endDate = parsedEnd;
+                }
+            }
+            if (startDate && endDate && endDate >= startDate) {
+                const rangeLengthMs = endDate.getTime() - startDate.getTime() + 1;
+                previousEndDate = new Date(startDate);
+                previousEndDate.setMilliseconds(previousEndDate.getMilliseconds() - 1);
+                previousStartDate = new Date(previousEndDate.getTime() - rangeLengthMs + 1);
+                previousStartDate.setHours(0, 0, 0, 0);
+                comparisonLabel = '직전 동일 기간 대비';
+            }
+        }
+
+        return {
+            startDate,
+            endDate,
+            previousStartDate,
+            previousEndDate,
+            comparisonLabel,
+            dateRangeLabel:
+                opsAlertDatePreset === 'today'
+                    ? '오늘'
+                    : opsAlertDatePreset === 'last7'
+                        ? '최근 7일'
+                        : opsAlertDatePreset === 'last30'
+                            ? '최근 30일'
+                            : opsAlertDatePreset === 'custom' && opsAlertStartDate && opsAlertEndDate
+                                ? `${opsAlertStartDate} ~ ${opsAlertEndDate}`
+                                : opsAlertDatePreset === 'custom'
+                                    ? '사용자 지정'
+                                    : '전체',
+            normalizedCustomStartLabel: formatDateInput(startDate || now),
+        };
+    }, [opsAlertDatePreset, opsAlertEndDate, opsAlertStartDate]);
+
     const filteredOpsAlertClickLogs = useMemo(() => {
         return opsAlertClickLogs.filter((log) => {
             if (opsAlertActionFilter !== 'all' && log.action !== opsAlertActionFilter) {
@@ -2534,19 +2706,34 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             const clickedDate = new Date(log.clickedAt);
             if (Number.isNaN(clickedDate.getTime())) return false;
 
-            if (opsAlertStartDate) {
-                const start = new Date(`${opsAlertStartDate}T00:00:00`);
-                if (clickedDate < start) return false;
-            }
-
-            if (opsAlertEndDate) {
-                const end = new Date(`${opsAlertEndDate}T23:59:59`);
-                if (clickedDate > end) return false;
-            }
+            if (opsAlertDateWindow.startDate && clickedDate < opsAlertDateWindow.startDate) return false;
+            if (opsAlertDateWindow.endDate && clickedDate > opsAlertDateWindow.endDate) return false;
 
             return true;
         });
-    }, [opsAlertActionFilter, opsAlertClickLogs, opsAlertEndDate, opsAlertStartDate]);
+    }, [opsAlertActionFilter, opsAlertClickLogs, opsAlertDateWindow.endDate, opsAlertDateWindow.startDate]);
+
+    const opsAlertDateRangeLabel = opsAlertDateWindow.dateRangeLabel;
+
+    const previousFilteredOpsAlertClickLogs = useMemo(() => {
+        if (!opsAlertDateWindow.previousStartDate || !opsAlertDateWindow.previousEndDate) {
+            return [] as OpsAlertClickLog[];
+        }
+
+        return opsAlertClickLogs.filter((log) => {
+            if (opsAlertActionFilter !== 'all' && log.action !== opsAlertActionFilter) {
+                return false;
+            }
+
+            const clickedDate = new Date(log.clickedAt);
+            if (Number.isNaN(clickedDate.getTime())) return false;
+
+            if (clickedDate < opsAlertDateWindow.previousStartDate!) return false;
+            if (clickedDate > opsAlertDateWindow.previousEndDate!) return false;
+
+            return true;
+        });
+    }, [opsAlertActionFilter, opsAlertClickLogs, opsAlertDateWindow.previousEndDate, opsAlertDateWindow.previousStartDate]);
     const opsAlertClickKpi = useMemo(() => {
         const total = filteredOpsAlertClickLogs.length;
         if (total === 0) {
@@ -2569,17 +2756,95 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             delayActiveRate: (delayActiveClicks / total) * 100,
         };
     }, [filteredOpsAlertClickLogs]);
+    const opsAlertPreviousClickKpi = useMemo(() => {
+        const total = previousFilteredOpsAlertClickLogs.length;
+        if (total === 0) return null;
+
+        const interventionClicks = previousFilteredOpsAlertClickLogs.filter((log) => log.action === 'go-intervention').length;
+        const taggingValidationClicks = previousFilteredOpsAlertClickLogs.filter((log) => log.action === 'go-tagging-validation').length;
+        const delayActiveClicks = previousFilteredOpsAlertClickLogs.filter((log) => log.delayAlertActive).length;
+
+        return {
+            total,
+            interventionRate: (interventionClicks / total) * 100,
+            taggingValidationRate: (taggingValidationClicks / total) * 100,
+            delayActiveRate: (delayActiveClicks / total) * 100,
+        };
+    }, [previousFilteredOpsAlertClickLogs]);
+    const opsAlertComparisonLabel = opsAlertDateWindow.comparisonLabel;
+    const formatOpsAlertCountDelta = (currentValue: number, previousValue: number) => {
+        if (previousValue === 0) {
+            return currentValue === 0 ? '변화 없음' : `${currentValue}건 증가`;
+        }
+
+        const diff = currentValue - previousValue;
+        const percent = (diff / previousValue) * 100;
+        const sign = diff > 0 ? '+' : '';
+        return `${sign}${Math.round(diff)}건 (${sign}${Math.round(percent)}%)`;
+    };
+    const formatOpsAlertRateDelta = (currentValue: number, previousValue: number) => {
+        const diff = currentValue - previousValue;
+        const sign = diff > 0 ? '+' : '';
+        return `${sign}${Math.round(diff)}%p`;
+    };
     const formatOpsAlertRate = (value: number) => `${Math.round(value)}%`;
     const handleClearOpsAlertClickLogs = () => {
         if (typeof window === 'undefined') return;
         if (!confirm('경보 CTA 클릭 로그를 모두 초기화하시겠습니까?')) return;
-        try {
-            window.localStorage.removeItem(OPS_ALERT_CLICK_LOG_KEY);
-            setOpsAlertClickLogs([]);
-        } catch {
-            // ignore local log clear failures
-        }
+
+        const clearLocal = () => {
+            try {
+                window.localStorage.removeItem(OPS_ALERT_CLICK_LOG_KEY);
+                setOpsAlertClickLogs([]);
+            } catch {
+                // ignore local log clear failures
+            }
+        };
+
+        void postAdminJson<{ ok: boolean; data?: { cleared?: boolean; schemaReady?: boolean } }>(
+            '/api/admin/safety-management',
+            {
+                action: 'clear-ops-alert-click-logs',
+                payload: {},
+            },
+            { fallbackMessage: '경보 CTA 로그 초기화 실패' },
+        ).then((response) => {
+            if (response?.data?.schemaReady) {
+                setOpsAlertSyncState('server');
+                setOpsAlertSyncNote('서버/로컬 초기화 완료');
+            } else {
+                setOpsAlertSyncState('fallback');
+                setOpsAlertSyncNote('서버 스키마 미준비 · 로컬만 초기화');
+            }
+            clearLocal();
+        }).catch((error) => {
+            console.warn('[Reports] 경보 CTA 로그 서버 초기화 실패 (로컬 초기화 실행):', extractMessage(error));
+            setOpsAlertSyncState('fallback');
+            setOpsAlertSyncNote('서버 초기화 실패 · 로컬만 초기화');
+            clearLocal();
+        });
     };
+
+    useEffect(() => {
+        if (opsAlertDatePreset !== 'custom') return;
+        if (opsAlertStartDate || opsAlertEndDate) return;
+
+        const formatDateInput = (date: Date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        const today = new Date();
+        const end = formatDateInput(today);
+        const startDate = new Date(today);
+        startDate.setDate(startDate.getDate() - 6);
+        const start = formatDateInput(startDate);
+
+        setOpsAlertStartDate(start);
+        setOpsAlertEndDate(end);
+    }, [opsAlertDatePreset, opsAlertEndDate, opsAlertStartDate]);
     const handleExportOpsAlertClickLogsCsv = () => {
         if (filteredOpsAlertClickLogs.length === 0) {
             alert('내보낼 경보 CTA 클릭 로그가 없습니다.');
@@ -2755,6 +3020,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         </button>
                     </div>
                 </div>
+                <p className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    동기화 상태: {opsAlertSyncState === 'server' ? '서버 연결' : opsAlertSyncState === 'syncing' ? '확인 중' : opsAlertSyncState === 'fallback' ? '로컬 폴백' : '초기 상태'}
+                    {opsAlertSyncNote ? ` · ${opsAlertSyncNote}` : ''}
+                </p>
 
                 <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <select
@@ -2766,29 +3035,59 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         <option value="go-intervention">8번 개입 이동</option>
                         <option value="go-tagging-validation">10번 태깅 검증 이동</option>
                     </select>
-                    <input
-                        type="date"
-                        value={opsAlertStartDate}
-                        onChange={(event) => setOpsAlertStartDate(event.target.value)}
+                    <select
+                        value={opsAlertDatePreset}
+                        onChange={(event) => setOpsAlertDatePreset(event.target.value as OpsAlertDatePreset)}
                         className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700"
-                    />
-                    <input
-                        type="date"
-                        value={opsAlertEndDate}
-                        onChange={(event) => setOpsAlertEndDate(event.target.value)}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700"
-                    />
+                    >
+                        <option value="all">전체 기간</option>
+                        <option value="today">오늘</option>
+                        <option value="last7">최근 7일</option>
+                        <option value="last30">최근 30일</option>
+                        <option value="custom">사용자 지정</option>
+                    </select>
                 </div>
+
+                {opsAlertDatePreset === 'custom' && (
+                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input
+                            type="date"
+                            value={opsAlertStartDate}
+                            onChange={(event) => setOpsAlertStartDate(event.target.value)}
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700"
+                        />
+                        <input
+                            type="date"
+                            value={opsAlertEndDate}
+                            onChange={(event) => setOpsAlertEndDate(event.target.value)}
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold text-slate-700"
+                        />
+                    </div>
+                )}
+
+                <p className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    선택 기간: {opsAlertDateRangeLabel}
+                </p>
 
                 <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                         <p className="text-[10px] font-black text-slate-500">총 클릭수</p>
                         <p className="mt-1 text-base font-black text-slate-900">{opsAlertClickKpi.total}건</p>
+                        <p className="mt-1 text-[10px] font-bold text-slate-500">
+                            {opsAlertPreviousClickKpi && opsAlertComparisonLabel
+                                ? `${opsAlertComparisonLabel} ${formatOpsAlertCountDelta(opsAlertClickKpi.total, opsAlertPreviousClickKpi.total)}`
+                                : '비교 기준 없음'}
+                        </p>
                     </div>
                     <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
                         <p className="text-[10px] font-black text-amber-700">8번 이동률</p>
                         <p className="mt-1 text-base font-black text-amber-800">
                             {opsAlertClickKpi.total === 0 ? '-' : formatOpsAlertRate(opsAlertClickKpi.interventionRate)}
+                        </p>
+                        <p className="mt-1 text-[10px] font-bold text-amber-700/80">
+                            {opsAlertPreviousClickKpi && opsAlertComparisonLabel
+                                ? `${opsAlertComparisonLabel} ${formatOpsAlertRateDelta(opsAlertClickKpi.interventionRate, opsAlertPreviousClickKpi.interventionRate)}`
+                                : '비교 기준 없음'}
                         </p>
                     </div>
                     <div className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2">
@@ -2796,11 +3095,21 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         <p className="mt-1 text-base font-black text-violet-800">
                             {opsAlertClickKpi.total === 0 ? '-' : formatOpsAlertRate(opsAlertClickKpi.taggingValidationRate)}
                         </p>
+                        <p className="mt-1 text-[10px] font-bold text-violet-700/80">
+                            {opsAlertPreviousClickKpi && opsAlertComparisonLabel
+                                ? `${opsAlertComparisonLabel} ${formatOpsAlertRateDelta(opsAlertClickKpi.taggingValidationRate, opsAlertPreviousClickKpi.taggingValidationRate)}`
+                                : '비교 기준 없음'}
+                        </p>
                     </div>
                     <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2">
                         <p className="text-[10px] font-black text-rose-700">경보활성 클릭 비율</p>
                         <p className="mt-1 text-base font-black text-rose-800">
                             {opsAlertClickKpi.total === 0 ? '-' : formatOpsAlertRate(opsAlertClickKpi.delayActiveRate)}
+                        </p>
+                        <p className="mt-1 text-[10px] font-bold text-rose-700/80">
+                            {opsAlertPreviousClickKpi && opsAlertComparisonLabel
+                                ? `${opsAlertComparisonLabel} ${formatOpsAlertRateDelta(opsAlertClickKpi.delayActiveRate, opsAlertPreviousClickKpi.delayActiveRate)}`
+                                : '비교 기준 없음'}
                         </p>
                     </div>
                 </div>
