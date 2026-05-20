@@ -12,8 +12,6 @@ import { applyIdentityPolicy } from './utils/identityUtils';
 import { getAdminAuthToken, isAdminAuthenticated, setAdminAuthenticated, setAdminAuthToken, verifyAdminPassword } from './utils/adminGuard';
 import { getSafetyLevelThresholds } from './utils/safetyLevelUtils';
 import { appendBestPracticeSyncFailureLog, setBestPracticeSyncState } from './utils/bestPracticeSyncStatus';
-import { analyzeWorkerRiskAssessment } from './services/geminiService';
-import { qaBilingualWorkerSeedRecords } from './mockData';
 import { useOperationalMode } from './contexts/OperationalModeContext';
 import { isPageVisibleByOperationalMode } from './utils/operationalModeUtils';
 import { getTodayChecklist, OPS_CHECKLIST_CHANGED_EVENT } from './utils/opsChecklistUtils';
@@ -874,15 +872,18 @@ const App: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        loadWorkerRecordsFromDB().then(data => {
+        loadWorkerRecordsFromDB().then(async (data) => {
             const qaSeedMode = typeof window !== 'undefined'
                 ? new URL(window.location.href).searchParams.get('qaSeed')
                 : null;
             const useQaSeed = qaSeedMode === 'multilang' || qaSeedMode === 'multilang-force';
             const forceQaSeed = qaSeedMode === 'multilang-force';
-            const sourceData = (useQaSeed && (forceQaSeed || data.length === 0))
-                ? (qaBilingualWorkerSeedRecords as unknown[])
-                : data;
+            let sourceData: unknown[] = data;
+
+            if (useQaSeed && (forceQaSeed || data.length === 0)) {
+                const mockDataModule = await import('./mockData');
+                sourceData = mockDataModule.qaBilingualWorkerSeedRecords as unknown[];
+            }
 
             const sanitizedData = sanitizeRecords(sourceData).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             const reconciled = reconcileWorkerProfiles(sanitizedData);
@@ -1180,7 +1181,8 @@ const App: React.FC = () => {
                 ? record.originalImage.split('base64,')[1] 
                 : record.originalImage;
 
-            const results = await analyzeWorkerRiskAssessment(cleanBase64, 'image/jpeg', record.filename || record.name);
+            const geminiServiceModule = await import('./services/geminiService');
+            const results = await geminiServiceModule.analyzeWorkerRiskAssessment(cleanBase64, 'image/jpeg', record.filename || record.name);
             
             if (results && results.length > 0) {
                 const newResult = results[0];

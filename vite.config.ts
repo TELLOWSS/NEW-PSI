@@ -24,7 +24,9 @@ export default defineConfig(({ mode }) => {
               if (id.includes('react') || id.includes('scheduler')) return 'react-vendor';
               if (id.includes('recharts') || id.includes('chart.js')) return 'chart-vendor';
               if (id.includes('@google/genai') || id.includes('@supabase')) return 'data-vendor';
-              if (id.includes('xlsx') || id.includes('html-to-image') || id.includes('qrcode.react')) return 'export-vendor';
+              if (id.includes('xlsx')) return 'xlsx-vendor';
+              if (id.includes('html-to-image')) return 'html-image-vendor';
+              if (id.includes('qrcode.react')) return 'qrcode-vendor';
               if (!id.includes('node_modules')) {
                 if (id.includes('/components/charts/')) return 'charts';
                 if (id.includes('/services/')) return 'services';
