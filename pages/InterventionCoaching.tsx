@@ -42,6 +42,32 @@ interface InterventionCoachingProps {
 
 export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ workerRecords = [] }) => {
   const [handoffPlans, setHandoffPlans] = useState<PredictiveHandoffPlan[]>([]);
+  const [mockInterventions, setMockInterventions] = useState<Intervention[]>([
+    {
+      key: 'mock-immediate',
+      priority: 'immediate',
+      title: '장비 안전 점검',
+      reason: '최근 1주일 내 3건의 장비 관련 경고 누적',
+      timescale: '당일 완료',
+      status: 'not-started',
+    },
+    {
+      key: 'mock-medium',
+      priority: 'medium',
+      title: '팀 회의 개최',
+      reason: '팀 내 안전 문화 강화 필요',
+      timescale: '3~7일 내',
+      status: 'not-started',
+    },
+    {
+      key: 'mock-long-term',
+      priority: 'long-term',
+      title: '안전 교육 프로그램',
+      reason: '새로운 공정 도입으로 지식 향상 필요',
+      timescale: '2주 이상',
+      status: 'not-started',
+    },
+  ]);
 
   useEffect(() => {
     const readHandoff = () => {
@@ -73,27 +99,6 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
     };
   }, []);
 
-  const mockInterventions: Intervention[] = useMemo(() => [
-    {
-      priority: 'immediate',
-      title: '장비 안전 점검',
-      reason: '최근 1주일 내 3건의 장비 관련 경고 누적',
-      timescale: '당일 완료',
-    },
-    {
-      priority: 'medium',
-      title: '팀 회의 개최',
-      reason: '팀 내 안전 문화 강화 필요',
-      timescale: '3~7일 내',
-    },
-    {
-      priority: 'long-term',
-      title: '안전 교육 프로그램',
-      reason: '새로운 공정 도입으로 지식 향상 필요',
-      timescale: '2주 이상',
-    },
-  ], []);
-
   const liveInterventions = useMemo<Intervention[]>(() => {
     if (handoffPlans.length === 0) return [];
     return handoffPlans.slice(0, 5).map((plan) => ({
@@ -118,9 +123,18 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
   };
 
   const handleAssignAction = (intervention: Intervention) => {
-    if (!intervention.key || liveInterventions.length === 0) return;
-
     const nextStatus = getNextStatus(intervention.status);
+
+    if (!intervention.key) return;
+
+    if (liveInterventions.length === 0) {
+      setMockInterventions((previous) => previous.map((item) => (
+        item.key === intervention.key
+          ? { ...item, status: nextStatus }
+          : item
+      )));
+      return;
+    }
 
     setHandoffPlans((previous) => {
       const nextPlans = previous.map((plan) =>
@@ -243,7 +257,7 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
               )}
               <button
                 onClick={() => handleAssignAction(intervention)}
-                disabled={!intervention.key}
+                disabled={intervention.status === 'completed'}
                 className="w-full px-3 py-2 bg-white/40 hover:bg-white/60 rounded-lg font-black text-xs transition-colors"
               >
                 {intervention.status === 'completed'

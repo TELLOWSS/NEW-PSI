@@ -156,10 +156,48 @@ export const JudgmentTaggingInput: React.FC = () => {
     window.dispatchEvent(new Event(LIVE_QUALITY_EVENT));
   }, [records]);
 
+  const completedRecordCount = records.filter((record) =>
+    record.rawText.trim()
+    && record.riskCategory.trim()
+    && record.judgmentTags.length > 0
+    && record.recommendedAction.trim(),
+  ).length;
+
+  const completionRate = records.length > 0
+    ? Math.round((completedRecordCount / records.length) * 100)
+    : 0;
+
+  const currentInputChecklist = [
+    { key: 'rawText', label: '원문', done: Boolean(currentRecord.rawText.trim()) },
+    { key: 'riskCategory', label: '위험 분류', done: Boolean(currentRecord.riskCategory.trim()) },
+    { key: 'judgmentTags', label: '판단 태그', done: currentRecord.judgmentTags.length > 0 },
+    { key: 'recommendedAction', label: '권장 조치', done: Boolean(currentRecord.recommendedAction.trim()) },
+  ];
+
+  const currentReadyCount = currentInputChecklist.filter((item) => item.done).length;
+  const currentMissingLabels = currentInputChecklist.filter((item) => !item.done).map((item) => item.label);
+
+  const qualitySummary = buildLiveQualitySummary(records);
+
   return (
     <div className="space-y-6 sm:space-y-8 animate-fade-in-up">
       <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-4">
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-green-700">9) 수기 데이터 입력</p>
+
+        <div className="mt-3 rounded-xl border border-emerald-200 bg-white px-3 py-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">입력 검증 상태</p>
+          <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-bold">
+            {currentInputChecklist.map((item) => (
+              <div key={item.key} className={`rounded-lg px-2.5 py-2 border ${item.done ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                {item.label} · {item.done ? '완료' : '미완료'}
+              </div>
+            ))}
+          </div>
+          <p className="mt-2 text-[11px] font-bold text-slate-700">
+            현재 입력 완료 {currentReadyCount}/4
+            {currentMissingLabels.length > 0 ? ` · 누락: ${currentMissingLabels.join(', ')}` : ' · 등록 준비 완료'}
+          </p>
+        </div>
 
         {/* 입력 폼 */}
         <div className="mt-6 space-y-4">
@@ -269,10 +307,14 @@ export const JudgmentTaggingInput: React.FC = () => {
               입력: {records.length}건
             </div>
             <div className="px-2 py-1.5 bg-blue-100 rounded text-xs font-bold text-blue-800">
-              완료율: {records.length > 0
-                ? `${Math.round((records.filter((record) => record.rawText.trim() && record.riskCategory.trim() && record.judgmentTags.length > 0 && record.recommendedAction.trim()).length / records.length) * 100)}%`
-                : '0%'}
+                완료율: {completionRate}%
             </div>
+              <div className={`px-2 py-1.5 rounded text-xs font-bold ${qualitySummary.status === 'PASS' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+                검증 상태: {qualitySummary.status}
+              </div>
+              <div className="px-2 py-1.5 bg-rose-100 rounded text-xs font-bold text-rose-800">
+                누락 경고: {qualitySummary.errorCount}건
+              </div>
           </div>
         </div>
 

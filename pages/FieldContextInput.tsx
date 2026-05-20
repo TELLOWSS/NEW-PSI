@@ -17,16 +17,43 @@ export const FieldContextInput: React.FC = () => {
     timeOfDay: 'morning',
     specialNotes: '',
   });
-  const [isSaved, setIsSaved] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [saveMessage, setSaveMessage] = useState('');
 
   const handleSave = () => {
+    if (!context.fieldName.trim()) {
+      setSaveState('error');
+      setSaveMessage('공정명을 입력한 뒤 저장해 주세요.');
+      return;
+    }
+
+    if (!Number.isFinite(context.personnel) || context.personnel < 1) {
+      setSaveState('error');
+      setSaveMessage('현장 인원은 1명 이상으로 입력해 주세요.');
+      return;
+    }
+
+    setSaveState('saving');
+    setSaveMessage('저장 중입니다...');
+
     const saved: FieldContext = {
       ...context,
       savedAt: new Date().toISOString(),
     };
-    localStorage.setItem('fieldContext', JSON.stringify(saved));
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 3000);
+
+    try {
+      localStorage.setItem('fieldContext', JSON.stringify(saved));
+      setContext(saved);
+      setSaveState('success');
+      setSaveMessage('저장이 완료되었습니다.');
+      setTimeout(() => {
+        setSaveState('idle');
+        setSaveMessage('');
+      }, 3000);
+    } catch {
+      setSaveState('error');
+      setSaveMessage('저장에 실패했습니다. 다시 시도해 주세요.');
+    }
   };
 
   const weatherOptions: Record<string, string> = {
@@ -117,13 +144,29 @@ export const FieldContextInput: React.FC = () => {
           <button
             onClick={handleSave}
             className={`w-full px-4 py-3 rounded-lg font-black text-white transition-all ${
-              isSaved
+              saveState === 'success'
                 ? 'bg-emerald-600 text-emerald-100'
-                : 'bg-indigo-600 hover:bg-indigo-700'
+                : saveState === 'error'
+                  ? 'bg-rose-600 text-rose-100'
+                  : saveState === 'saving'
+                    ? 'bg-indigo-400'
+                    : 'bg-indigo-600 hover:bg-indigo-700'
             }`}
           >
-            {isSaved ? '✓ 저장됨' : '저장'}
+            {saveState === 'success'
+              ? '✓ 저장됨'
+              : saveState === 'error'
+                ? '저장 재시도'
+                : saveState === 'saving'
+                  ? '저장 중...'
+                  : '저장'}
           </button>
+
+          {saveMessage && (
+            <p className={`text-[11px] font-bold ${saveState === 'error' ? 'text-rose-700' : 'text-indigo-700'}`}>
+              {saveMessage}
+            </p>
+          )}
         </div>
 
         {context.savedAt && (

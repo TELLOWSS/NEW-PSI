@@ -433,7 +433,7 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                 </div>
                 <p className="text-slate-500">현장 순회 중 발견된 불안전 요소나 시정 조치가 필요한 사항을 기록하고 추적 관리합니다.</p>
 
-                <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 md:hidden">
+                <div className="mt-4 md:hidden sticky top-2 z-20 rounded-2xl border border-amber-200 bg-amber-50/95 backdrop-blur p-4 shadow-sm">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">모바일 핵심 경보</p>
                     {priorityIssue ? (
                         <>
@@ -445,7 +445,7 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                                 onClick={() => updateStatus(priorityIssue.id, '조치 중')}
                                 className="mt-3 w-full rounded-xl bg-amber-500 px-3 py-2 text-sm font-black text-white transition duration-200 hover:bg-amber-400"
                             >
-                                조치 시작
+                                즉시 조치 시작
                             </button>
                         </>
                     ) : (

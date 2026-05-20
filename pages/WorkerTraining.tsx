@@ -1380,6 +1380,19 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                     <p className="mt-2 text-[11px] font-bold text-indigo-700">완료 단계 {inputProgressCount}/4 · 다음 동작: {nextActionButtonLabel}</p>
                 </div>
 
+                <div className="mt-4 md:hidden sticky top-2 z-20 rounded-2xl border border-indigo-200 bg-white/95 backdrop-blur px-4 py-3 shadow-sm">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-700">4) 위험인지 진단 · 빠른 진행</p>
+                    <p className="mt-1 text-sm font-black text-slate-900">완료 단계 {inputProgressCount}/4 · 체크 {completedChecklistCount}/3</p>
+                    <p className="mt-1 text-[11px] font-bold text-slate-600">다음 동작: {nextActionLabel}</p>
+                    <button
+                        type="button"
+                        onClick={handleNextAction}
+                        className={`mt-2 w-full rounded-xl px-4 py-2.5 text-[12px] font-black text-white transition-colors ${submitReady ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+                    >
+                        {nextActionButtonLabel}
+                    </button>
+                </div>
+
                 <InterpretationCardGrid
                     items={trainingInterpretationCards}
                     className="mt-4 grid-cols-1"

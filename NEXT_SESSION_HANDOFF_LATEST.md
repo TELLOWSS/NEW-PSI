@@ -282,3 +282,48 @@
 1. `MOBILE_MOCKUP_REALITY_AUDIT_2026-05-20.md` 확인
 2. `NEXT_SESSION_HANDOFF_LATEST.md`의 P0 우선순위 확인
 3. P0 2/4/8번의 실제 동작·문구·버튼 동선 보강부터 이어서 진행
+
+---
+
+## 15) 2026-05-21 자동 진행 업데이트 (최신)
+
+### 이번 세션 추가 완료
+1. P0(2/4/8) 체감 보강 코드 완료
+    - `pages/SiteIssueManagement.tsx`
+       - 모바일 핵심 경보 카드 `sticky` 고정 + CTA 문구 `즉시 조치 시작`
+    - `pages/WorkerTraining.tsx`
+       - 모바일 상단 고정 `4) 위험인지 진단 · 빠른 진행` 카드 추가
+       - 완료 단계/체크/다음 동작 + 즉시 이동 CTA 연결
+    - `pages/InterventionCoaching.tsx`
+       - 인계 데이터 없음(mock) 상태에서도 CTA 상태 전환 가능
+       - `미착수 → 진행중 → 완료` 전환, 완료 시 비활성 처리
+
+2. P1(5/9/11) 보강 코드 완료
+    - `pages/FieldContextInput.tsx`
+       - 저장 전 필수값 검증 + 저장 상태 피드백(`저장중/성공/실패`) 반영
+       - 저장 성공 시 마지막 저장시각 갱신
+    - `pages/JudgmentTaggingInput.tsx`
+       - 입력 검증 상태 4항목 가시화
+       - 누락 항목 라벨 + 완료율 + 검증 상태(PASS/FAIL) + 누락 경고 건수 표시
+    - `pages/Reports.tsx`
+       - 기존 OPS Alert Sync 구조(액션 3종 + schemaReady 분기) 유지 재확인
+
+3. QA 실행기록 문서 추가
+    - `MOBILE_P0_248_RUNTIME_QA_RUNLOG_2026-05-21.md`
+    - `MOBILE_P1_5911_RUNTIME_QA_RUNLOG_2026-05-21.md`
+    - `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-20.md`에 2026-05-21 추가 검증 섹션 반영
+
+4. 검증
+    - `npm run build` PASS (반복 검증 완료)
+    - 수정 파일 오류 없음
+
+### 남은 수동 블로커
+1. Supabase SQL 적용
+    - `supabase_ops_alert_click_logs_migration.sql`를 Supabase SQL Editor에서 실행
+2. 런타임 QA 판정 입력
+    - P0: `MOBILE_P0_248_RUNTIME_QA_RUNLOG_2026-05-21.md`
+    - P1: `MOBILE_P1_5911_RUNTIME_QA_RUNLOG_2026-05-21.md`
+    - Reports A/B/C/D: `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-20.md`
+
+### 재시작용 한줄 프롬프트 (2026-05-21)
+"NEXT_SESSION_HANDOFF_LATEST.md §15 기준으로 재개. Supabase SQL Editor에서 supabase_ops_alert_click_logs_migration.sql 실행 후, P0/P1 runlog와 Reports runlog의 미체크 런타임 항목(A~D 포함)을 브라우저 실측으로 채워 최종 PASS/FAIL 판정까지 기록해줘."
