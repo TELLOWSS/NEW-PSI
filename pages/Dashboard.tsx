@@ -6,7 +6,6 @@ import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { Tooltip } from '../components/shared/Tooltip';
 import { BrandPhilosophyLogo } from '../components/shared/BrandPhilosophyLogo';
-import { OperationalSessionChecklist } from '../components/shared/OperationalSessionChecklist';
 import { MOBILE_CARD_GRID_ITEM_CLASS, MOBILE_CARD_PANEL_CLASS, MOBILE_CARD_PANEL_COMPACT_CLASS } from '../components/shared/cardTokens';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { PSI_APP_VERSION } from '../lib/appInfo';
@@ -36,7 +35,6 @@ import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMet
 import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { getUserRolePreset, mapUserRolePresetToDashboardAudience, USER_ROLE_PRESET_CHANGED_EVENT } from '../utils/userRolePresetUtils';
-import { getTodayChecklist, OPS_CHECKLIST_CHANGED_EVENT } from '../utils/opsChecklistUtils';
 
 const NationalityChart = lazy(() => import('../components/charts/NationalityChart').then(module => ({ default: module.NationalityChart })));
 const TopWeaknessesChart = lazy(() => import('../components/charts/TopWeaknessesChart').then(module => ({ default: module.TopWeaknessesChart })));
@@ -358,10 +356,6 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const { isDevMode } = useDevMode();
     const { mode: operationalMode } = useOperationalMode();
     const isImmediateOperationalMode = operationalMode === 'immediate';
-    const [startChecklistPendingCount, setStartChecklistPendingCount] = useState<number>(() => {
-        const checklist = getTodayChecklist();
-        return checklist.startChecks.filter((checked) => !checked).length;
-    });
     // 순수 근로자 데이터만 필터링 (관리 직군 제외)
 
     const workerOnlyRecords = useMemo(() => 
@@ -522,21 +516,6 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     }, []);
 
     useEffect(() => {
-        const syncStartChecklist = () => {
-            const checklist = getTodayChecklist();
-            setStartChecklistPendingCount(checklist.startChecks.filter((checked) => !checked).length);
-        };
-
-        syncStartChecklist();
-        window.addEventListener(OPS_CHECKLIST_CHANGED_EVENT, syncStartChecklist);
-        window.addEventListener('storage', syncStartChecklist);
-        return () => {
-            window.removeEventListener(OPS_CHECKLIST_CHANGED_EVENT, syncStartChecklist);
-            window.removeEventListener('storage', syncStartChecklist);
-        };
-    }, []);
-
-    useEffect(() => {
         try {
             window.localStorage.setItem(DASHBOARD_VIEW_MODE_STORAGE_KEY, dashboardViewMode);
             window.localStorage.setItem(DASHBOARD_VIEW_MODE_MANUAL_KEY, isDashboardViewModeManual ? 'true' : 'false');
@@ -623,7 +602,6 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     };
 
     const handleNavigateToTeamComparison = () => {
-        if (isImmediateOperationalMode && startChecklistPendingCount > 0) return;
         setIsDashboardViewModeManual(true);
         setDashboardViewMode('full');
         setMobileInsightTab('team');
@@ -648,7 +626,6 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     };
 
     const handleQuickActionClick = (action: DashboardQuickActionConfig) => {
-        if (isImmediateOperationalMode && startChecklistPendingCount > 0) return;
         trackUIViewMetric('cta_click', 'dashboard', viewMetricSessionRef.current, {
             actionKey: action.key,
             targetPage: action.page,
@@ -2330,7 +2307,6 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const isFullMode = effectiveDashboardViewMode === 'full';
     const isEssentialMode = effectiveDashboardViewMode === 'essential';
     const isEssentialMobile = isEssentialMode && viewportWidth < 640;
-    const isStartChecklistGateActive = isImmediateOperationalMode && startChecklistPendingCount > 0;
     const surveyDashboardSummary = useMemo(() => {
         const recordsWithAnswers = workerOnlyRecords.filter((record) => Array.isArray(record.handwrittenAnswers) && record.handwrittenAnswers.length > 0);
         if (recordsWithAnswers.length === 0) {
@@ -2427,14 +2403,6 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
     return (
         <div className={`${isEssentialMobile ? 'space-y-3' : 'space-y-3 sm:space-y-4 lg:space-y-6'} animate-fade-in-up`}>
-            <OperationalSessionChecklist />
-            {isImmediateOperationalMode && startChecklistPendingCount > 0 && (
-                <NoticeCallout
-                    variant="amber"
-                    title={`시작 체크 ${startChecklistPendingCount}개가 미완료입니다. 먼저 1분 루틴을 완료하세요.`}
-                    description="운영 모드, 오늘 즉시 처리 3건, 전일 미완료 1순위를 먼저 체크하면 화면 과밀 없이 실무 우선순위를 바로 고정할 수 있습니다."
-                />
-            )}
             {/* AI-Powered Safety Command Center */}
             <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 rounded-2xl sm:rounded-3xl p-4 sm:p-5 lg:p-6 text-white shadow-2xl relative overflow-hidden border border-white/10">
                 {/* Animated background elements */}
@@ -2571,8 +2539,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             <button
                                 type="button"
                                 onClick={handleNavigateToTeamComparison}
-                                disabled={isStartChecklistGateActive}
-                                className={`rounded-xl px-3 py-2 text-xs font-black transition-colors ${isStartChecklistGateActive ? 'bg-slate-400 text-slate-200 cursor-not-allowed' : 'bg-indigo-500 text-white hover:bg-indigo-400'}`}
+                                className="rounded-xl bg-indigo-500 px-3 py-2 text-xs font-black text-white transition-colors hover:bg-indigo-400"
                             >
                                 팀 비교 바로가기
                             </button>
@@ -2594,8 +2561,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         key={action.key}
                                         type="button"
                                         onClick={() => setCurrentPage(action.page)}
-                                        disabled={isStartChecklistGateActive}
-                                        className={`min-h-[44px] rounded-xl border px-3 py-2 text-left transition-colors ${isStartChecklistGateActive ? 'border-white/10 bg-white/5 text-slate-400 cursor-not-allowed' : 'border-white/15 bg-white/10 hover:bg-white/20'}`}
+                                        className="min-h-[44px] rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-left transition-colors hover:bg-white/20"
                                     >
                                         <p className="text-xs font-black text-white">{action.label}</p>
                                         <p className="mt-1 text-[10px] font-medium text-indigo-100">{action.description}</p>
@@ -2729,11 +2695,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 <button
                                     key={action.key}
                                     onClick={() => handleQuickActionClick(action)}
-                                    disabled={isStartChecklistGateActive}
                                     className={`w-full sm:w-auto min-h-[44px] px-4 sm:px-5 py-2.5 sm:py-3 rounded-lg sm:rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
-                                        isStartChecklistGateActive
-                                            ? 'bg-slate-400 text-slate-200 cursor-not-allowed'
-                                            :
                                         action.variant === 'solid'
                                             ? 'bg-white text-slate-900 shadow-lg hover:bg-slate-50'
                                             : 'bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white'

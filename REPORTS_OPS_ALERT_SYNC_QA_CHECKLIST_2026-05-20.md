@@ -1,6 +1,4 @@
-# ⚠ LEGACY (구버전) · Reports 경보 CTA 로그 동기화 실검증 체크리스트 (2026-05-18)
-
-> ⚠ 이 문서는 구버전(LEGACY)입니다. 실무/최신 기준은 `REPORTS_OPS_ALERT_SYNC_QA_CHECKLIST_2026-05-20.md`를 사용하세요.
+# Reports 경보 CTA 로그 동기화 실검증 체크리스트 (2026-05-20)
 
 ## 목적
 - Reports의 경보 CTA 로그가 `서버 우선 + 로컬 폴백`으로 정상 동작하는지 검증

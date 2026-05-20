@@ -1272,7 +1272,7 @@ const App: React.FC = () => {
                         {currentPage === 'safety-behavior-management' && <SafetyBehaviorManagement workerRecords={workerRecords} />}
                         {currentPage === 'safety-compliance-hub' && <FieldSafetyComplianceHub workerRecords={workerRecords} />}
                         {currentPage === 'feedback' && <Feedback />}
-                        {currentPage === 'introduction' && <Introduction />}
+                        {currentPage === 'introduction' && <Introduction workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'settings' && <Settings workerRecords={workerRecords} />}
                         {currentPage === 'field-context-input' && <FieldContextInput />}
                         {currentPage === 'intervention-coaching' && <InterventionCoaching workerRecords={workerRecords} />}

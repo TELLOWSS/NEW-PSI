@@ -1,14 +1,12 @@
-# ⚠ LEGACY (구버전) · Reports 경보 CTA 로그 동기화 실행 기록 샘플 (2026-05-18)
+# Reports 경보 CTA 로그 동기화 실행 기록 샘플 (2026-05-20)
 
-> ⚠ 이 문서는 구버전(LEGACY)입니다. 최신 샘플은 `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_SAMPLE_2026-05-20.md`를 사용하세요.
-
-- 기준 문서: `REPORTS_OPS_ALERT_SYNC_QA_CHECKLIST_2026-05-18.md`
+- 기준 문서: `REPORTS_OPS_ALERT_SYNC_QA_CHECKLIST_2026-05-20.md`
 - 참고 목적: 실제 점검자가 기입 형식을 빠르게 따라할 수 있도록 예시 제공
 
 ---
 
 ## 0) 실행 메타 (샘플)
-- 실행일시: 2026-05-18 14:20
+- 실행일시: 2026-05-20 14:20
 - 실행자: 안전관리팀 홍길동
 - 환경: 로컬(개발)
 - 브랜치/배포버전: main / local-build

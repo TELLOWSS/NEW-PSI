@@ -1,11 +1,17 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+import type { Page, WorkerRecord } from '../types';
 import { BrandPhilosophyLogo } from '../components/shared/BrandPhilosophyLogo';
 import { PSI_APP_VERSION, PSI_CURRENT_RELEASE, PSI_SYSTEM_NAME } from '../lib/appInfo';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { BRAND_TONE } from '../utils/brandToneTokens';
 
-const Introduction: React.FC = () => {
+interface IntroductionProps {
+    workerRecords: WorkerRecord[];
+    onNavigateToPage: (page: Page) => void;
+}
+
+const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateToPage }) => {
     const [isGravityOff, setIsGravityOff] = useState(false);
 
     useEffect(() => {
@@ -81,58 +87,233 @@ const Introduction: React.FC = () => {
         },
     ], []);
 
+    const previewMetrics = useMemo(() => {
+        const totalWorkers = workerRecords.length;
+        const averageScore = totalWorkers > 0
+            ? Math.round((workerRecords.reduce((sum, record) => sum + Number(record.safetyScore || 0), 0) / totalWorkers) * 10) / 10
+            : 0;
+        const highRiskWorkers = workerRecords.filter((record) => Number(record.safetyScore || 0) < 60).length;
+        const alertSignals = workerRecords.filter((record) => Boolean(record.ocrErrorType) || record.secondPassStatus === 'NEEDED').length;
+        const interventionTargets = workerRecords.filter((record) => {
+            const score = Number(record.safetyScore || 0);
+            return score < 70 || record.selfAssessedRiskLevel === '상';
+        }).length;
+        const taggingQueue = workerRecords.filter((record) => record.secondPassStatus === 'NEEDED' || record.secondPassStatus === 'IN_PROGRESS').length;
+        const approvedRecords = workerRecords.filter((record) => record.approvalStatus === 'APPROVED' || record.reviewStatus === 'APPROVED').length;
+        const qaValidationTargets = workerRecords.filter((record) => Boolean(record.ocrErrorType) || record.secondPassStatus !== 'DONE').length;
+
+        const todayKey = new Date().toDateString();
+        const todayRecords = workerRecords.filter((record) => {
+            if (!record.date) return false;
+            const parsed = new Date(record.date);
+            return !Number.isNaN(parsed.getTime()) && parsed.toDateString() === todayKey;
+        }).length;
+
+        return {
+            totalWorkers,
+            averageScore,
+            highRiskWorkers,
+            alertSignals,
+            interventionTargets,
+            taggingQueue,
+            approvedRecords,
+            qaValidationTargets,
+            todayRecords,
+        };
+    }, [workerRecords]);
+
     return (
         <div className="space-y-12 pb-12">
-            {/* Hero Section */}
-            <div className="relative bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 rounded-3xl shadow-2xl overflow-hidden text-white p-12 sm:p-20 text-center card-gravity-target">
-                <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 opacity-20">
-                    <div className="absolute -top-24 -left-24 w-96 h-96 bg-blue-500 rounded-full blur-3xl mix-blend-multiply animate-blob"></div>
-                    <div className="absolute top-0 -right-4 w-72 h-72 bg-indigo-500 rounded-full blur-3xl mix-blend-multiply animate-blob animation-delay-2000"></div>
-                    <div className="absolute -bottom-8 left-20 w-72 h-72 bg-purple-500 rounded-full blur-3xl mix-blend-multiply animate-blob animation-delay-4000"></div>
-                </div>
-                
-                <div className="relative z-10 flex flex-col items-center">
-                    <div className="w-28 h-28 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mb-8 shadow-inner border border-white/20 transform hover:scale-105 transition-transform duration-500">
-                        <BrandPhilosophyLogo className="h-20 w-20 filter drop-shadow-lg" />
-                    </div>
-                    <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight mb-6">
-                        PSI: Proactive Safety Intelligence
-                    </h1>
-                    <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-300/30 bg-white/10 px-4 py-2 text-xs font-black tracking-[0.18em] text-emerald-100 backdrop-blur-md">
-                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                        CURRENT RELEASE {PSI_APP_VERSION}
-                    </div>
-                    <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold text-white/90 backdrop-blur-md">
-                        <span className="text-emerald-300">●</span>
-                        깐깐하지만 내 편인 현장 안전 코치
-                    </div>
-                    <p className="max-w-3xl text-lg sm:text-xl text-indigo-100 leading-relaxed mb-8 break-keep">
-                        PSI는 사람을 평가하기 위해 만들어진 시스템이 아닙니다. 거칠고 짧은 현장 기록 속에서도 위험의 신호를 놓치지 않고, 그 신호를 <span className="font-bold text-white border-b-2 border-indigo-400 pb-0.5">보호와 실행의 언어로 번역하는 현장 안전 파트너</span>입니다. 300명 이상의 대규모 현장에서도 안정적으로 작동하며, 근로자·관리자·경영진 각각에게 맞는 안전 판단 흐름을 제공합니다.
-                    </p>
+            {/* PC·MOBILE Split Mockup Hero */}
+            <div className="relative overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-slate-100 p-5 shadow-xl sm:p-8 card-gravity-target">
+                <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-indigo-200/40 blur-3xl" aria-hidden="true"></div>
+                <div className="absolute -left-20 -bottom-24 h-72 w-72 rounded-full bg-sky-200/40 blur-3xl" aria-hidden="true"></div>
 
-                    <button 
-                        onClick={toggleGravity}
-                        className={`px-8 py-3 rounded-full font-bold text-lg transition-all duration-300 transform hover:scale-105 shadow-xl flex items-center gap-2
-                        ${isGravityOff 
-                            ? 'bg-red-500 hover:bg-red-600 text-white ring-4 ring-red-500/30' 
-                            : 'bg-white hover:bg-indigo-50 text-indigo-900 ring-4 ring-white/30'
-                        }`}
-                    >
-                        {isGravityOff ? (
-                            <>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
-                                현실 복귀 (중력 활성화)
-                            </>
-                        ) : (
-                            <>
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
-                                무재해 Zero Gravity 모드 실행
-                            </>
-                        )}
-                    </button>
-                    <p className="mt-2 text-xs text-indigo-200 opacity-70">
-                        * "Google Anti-Gravity" 컨셉을 재해석한 안전 기원 시각화 모드입니다.
-                    </p>
+                <div className="relative z-10">
+                    <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex items-start gap-3">
+                            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-indigo-200 bg-white shadow-sm">
+                                <BrandPhilosophyLogo className="h-10 w-10" />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">Human Risk Intelligence</h1>
+                                <p className="mt-1 text-sm font-semibold text-slate-600 break-keep">기록이 아닌 이해, 점검이 아닌 전달, 보고가 아닌 예측.</p>
+                                <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-black tracking-[0.12em] text-indigo-700">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-indigo-500"></span>
+                                    CURRENT RELEASE {PSI_APP_VERSION}
+                                </div>
+                            </div>
+                        </div>
+
+                        <button
+                            onClick={toggleGravity}
+                            className={`rounded-full px-5 py-2 text-sm font-black transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${
+                                isGravityOff
+                                    ? 'bg-rose-500 text-white hover:bg-rose-600'
+                                    : 'bg-indigo-600 text-white hover:bg-indigo-500'
+                            }`}
+                        >
+                            {isGravityOff ? '중력 복귀' : 'Zero Gravity'}
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.3fr_1fr]">
+                        <section className="rounded-3xl border border-indigo-100 bg-white/90 p-4 shadow-sm">
+                            <div className="mb-3 inline-flex items-center rounded-full bg-indigo-600 px-3 py-1 text-[10px] font-black tracking-[0.14em] text-white">
+                                PC DASHBOARD
+                            </div>
+                            <div className="mb-3 flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => onNavigateToPage('dashboard')}
+                                    className="rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-black text-white transition duration-200 hover:-translate-y-0.5 hover:bg-indigo-500 hover:shadow-sm"
+                                >
+                                    PC 대시보드 열기
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => onNavigateToPage('reports')}
+                                    className="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-[11px] font-black text-indigo-700 transition duration-200 hover:-translate-y-0.5 hover:bg-indigo-50 hover:shadow-sm"
+                                >
+                                    운영 리포트 열기
+                                </button>
+                            </div>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                <div className="grid grid-cols-[120px_1fr] gap-3">
+                                    <div className="rounded-xl border border-indigo-100 bg-indigo-950 p-3 text-indigo-100">
+                                        <div className="mb-3 text-sm font-black">psi</div>
+                                        <ul className="space-y-1 text-[11px] font-semibold">
+                                            <li className="rounded-md bg-white/15 px-2 py-1">대시보드</li>
+                                            <li className="rounded-md px-2 py-1">작업자 프로파일</li>
+                                            <li className="rounded-md px-2 py-1">현장 지도</li>
+                                            <li className="rounded-md px-2 py-1">개입 예측</li>
+                                        </ul>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                                            {[
+                                                ['위험성 평균', `${previewMetrics.averageScore}`],
+                                                ['전조 신호', `${previewMetrics.alertSignals}`],
+                                                ['개입 권고', `${previewMetrics.interventionTargets}`],
+                                                ['오늘 입력', `${previewMetrics.todayRecords}`],
+                                            ].map(([label, value]) => (
+                                                <div key={label} className="rounded-xl border border-slate-200 bg-white p-2 transition duration-200 hover:-translate-y-0.5 hover:shadow-sm">
+                                                    <p className="text-[10px] font-black text-slate-500">{label}</p>
+                                                    <p className="mt-1 text-lg font-black text-slate-900">{value}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                                            <div className="rounded-xl border border-slate-200 bg-white p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-sm">
+                                                <p className="text-[10px] font-black text-slate-500">유형 분포</p>
+                                                <div className="mt-2 h-16 rounded-lg bg-gradient-to-r from-indigo-100 via-violet-100 to-sky-100"></div>
+                                            </div>
+                                            <div className="rounded-xl border border-slate-200 bg-white p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-sm">
+                                                <p className="text-[10px] font-black text-slate-500">전조 TOP5</p>
+                                                <ul className="mt-2 space-y-1 text-[11px] font-semibold text-slate-700">
+                                                    <li>1. 안전모 미착용</li>
+                                                    <li>2. 장비 접근 위험</li>
+                                                    <li>3. 작업 전 점검 누락</li>
+                                                </ul>
+                                            </div>
+                                            <div className="rounded-xl border border-slate-200 bg-white p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-sm">
+                                                <p className="text-[10px] font-black text-slate-500">위험 지도</p>
+                                                <div className="mt-2 h-16 rounded-lg bg-slate-100"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section className="rounded-3xl border border-indigo-100 bg-indigo-50/60 p-4 shadow-sm">
+                            <div className="mb-3 inline-flex items-center rounded-full bg-indigo-500 px-3 py-1 text-[10px] font-black tracking-[0.14em] text-white">
+                                MOBILE APP
+                            </div>
+                            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-3">
+                                {[
+                                    ['1. 홈 대시보드', `${previewMetrics.totalWorkers}명 분석`, 'dashboard' as Page],
+                                    ['2. 경보 알림', `전조 신호 ${previewMetrics.alertSignals}건`, 'site-issue-management' as Page],
+                                    ['3. 개인인지 프로파일', `고위험 ${previewMetrics.highRiskWorkers}명`, 'worker-management' as Page],
+                                    ['4. 위험인지 진단', `오늘 입력 ${previewMetrics.todayRecords}건`, 'worker-training' as Page],
+                                    ['5. 현장 컨텍스트', `오늘 입력 ${previewMetrics.todayRecords}건`, 'field-context-input' as Page],
+                                    ['6. 행동 패턴 분석', `승인 완료 ${previewMetrics.approvedRecords}건`, 'safety-behavior-management' as Page],
+                                    ['7. 위험 예측', `예측 대상 ${previewMetrics.interventionTargets}명`, 'predictive-analysis' as Page],
+                                    ['8. 개입 추천', `개입 대상 ${previewMetrics.interventionTargets}명`, 'intervention-coaching' as Page],
+                                    ['9. 수기 데이터 입력', `태깅 대기 ${previewMetrics.taggingQueue}건`, 'judgment-tagging-input' as Page],
+                                    ['10. 태깅 검증', `QA 대상 ${previewMetrics.qaValidationTargets}건`, 'ocr-analysis' as Page],
+                                    ['11. 분석 리포트', `리포트 대상 ${previewMetrics.totalWorkers}명`, 'reports' as Page],
+                                    ['12. 메뉴/설정', `현재 릴리스 ${PSI_APP_VERSION}`, 'settings' as Page],
+                                ].map(([title, desc, page]) => (
+                                    (() => {
+                                        const [stepNoRaw, ...restTitleParts] = String(title).split('. ');
+                                        const stepNo = stepNoRaw || '-';
+                                        const stepNoNum = Number(stepNoRaw);
+                                        const stepTitle = restTitleParts.join('. ') || String(title);
+                                        const tone = stepNoNum === 2 || stepNoNum === 7 || stepNoNum === 8
+                                            ? {
+                                                cardBorder: 'border-amber-200 hover:bg-amber-50',
+                                                badgeBg: 'bg-amber-500',
+                                                panelBg: 'bg-amber-50',
+                                                bars: ['bg-amber-100', 'bg-amber-200', 'bg-amber-300'],
+                                                descText: 'text-amber-700',
+                                            }
+                                            : stepNoNum === 10
+                                                ? {
+                                                    cardBorder: 'border-violet-200 hover:bg-violet-50',
+                                                    badgeBg: 'bg-violet-600',
+                                                    panelBg: 'bg-violet-50',
+                                                    bars: ['bg-violet-100', 'bg-violet-200', 'bg-violet-300'],
+                                                    descText: 'text-violet-700',
+                                                }
+                                                : stepNoNum === 5 || stepNoNum === 9 || stepNoNum === 11
+                                                    ? {
+                                                        cardBorder: 'border-emerald-200 hover:bg-emerald-50',
+                                                        badgeBg: 'bg-emerald-600',
+                                                        panelBg: 'bg-emerald-50',
+                                                        bars: ['bg-emerald-100', 'bg-emerald-200', 'bg-emerald-300'],
+                                                        descText: 'text-emerald-700',
+                                                    }
+                                                    : {
+                                                        cardBorder: 'border-indigo-100 hover:bg-indigo-50',
+                                                        badgeBg: 'bg-indigo-600',
+                                                        panelBg: 'bg-slate-50',
+                                                        bars: ['bg-indigo-100', 'bg-violet-100', 'bg-sky-100'],
+                                                        descText: 'text-indigo-700',
+                                                    };
+                                        return (
+                                    <button
+                                        key={title}
+                                        type="button"
+                                        onClick={() => onNavigateToPage(page)}
+                                        className={`group min-h-[148px] rounded-2xl border bg-white p-2 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${tone.cardBorder}`}
+                                    >
+                                        <div className="mb-1 flex items-center gap-1.5">
+                                            <span className={`inline-flex min-w-[22px] items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-black text-white transition duration-200 group-hover:brightness-110 group-hover:scale-105 ${tone.badgeBg}`}>
+                                                {stepNo}
+                                            </span>
+                                            <p className="text-[10px] font-black text-slate-700">{stepTitle}</p>
+                                        </div>
+                                        <div className={`rounded-xl border border-slate-200 p-2 ${tone.panelBg}`}>
+                                            <div className="mx-auto mb-1 h-1 w-10 rounded-full bg-slate-300"></div>
+                                            <div className="mb-2 flex items-center gap-1">
+                                                <BrandPhilosophyLogo className="h-4 w-4" />
+                                                <span className="text-[10px] font-black text-slate-700">psi</span>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <div className={`h-2 rounded ${tone.bars[0]}`}></div>
+                                                <div className={`h-2 rounded ${tone.bars[1]}`}></div>
+                                                <div className={`h-2 rounded ${tone.bars[2]}`}></div>
+                                            </div>
+                                            <p className={`mt-2 text-[9px] font-black ${tone.descText}`}>{desc}</p>
+                                        </div>
+                                    </button>
+                                        );
+                                    })()
+                                ))}
+                            </div>
+                        </section>
+                    </div>
                 </div>
             </div>
 

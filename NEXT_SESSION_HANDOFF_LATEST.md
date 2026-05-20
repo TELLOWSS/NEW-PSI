@@ -2,6 +2,7 @@
 
 - 기준일시: 2026-05-16
 - 기준일시: 2026-05-18
+- 기준일시: 2026-05-20 (최신)
 - 프로젝트: NEW-PSI
 - 목적: 프로그램 종료 후 재시작 시, 2분 내에 현재 상태 파악하고 즉시 다음 작업 진행
 
@@ -68,7 +69,7 @@
 
 4. Supabase SQL 적용 (수동 필요)
    - Supabase SQL Editor에서 `supabase_ops_alert_click_logs_migration.sql` 실행
-   - 적용 후 `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-18.md` 시나리오 A/B/C 런타임 검증
+   - 적용 후 `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-20.md` 시나리오 A/B/C 런타임 검증
 
 5. R1 태깅 데이터 보강 (진행 중)
    - `npm run check:judgment-tagging:r1:full` PASS (입력 3건, 총 20건 중 R1 진행 중)
@@ -119,9 +120,10 @@
 3. Reports의 `전체 초기화` 실행 후 재조회 시 로그 재노출이 없는지 확인
 
 ### 검증 참조
-- `REPORTS_OPS_ALERT_SYNC_QA_CHECKLIST_2026-05-18.md`
-- `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-18.md`
-- `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_SAMPLE_2026-05-18.md`
+- `REPORTS_OPS_ALERT_SYNC_QA_CHECKLIST_2026-05-20.md`
+- `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-20.md`
+- `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_SAMPLE_2026-05-20.md`
+- **단일 진입(권장):** `REPORTS_OPS_ALERT_SYNC_QA_DOCSET_LATEST_2026-05-20.md`
 
 ---
 
@@ -140,7 +142,7 @@
 ## 7) 재시작용 한줄 프롬프트
 아래 문장 그대로 붙여넣으면 현재 컨텍스트를 이어서 진행 가능:
 
-"NEXT_SESSION_HANDOFF_LATEST.md 기준으로 진행. 먼저 npm run build 확인 후 supabase_ops_alert_click_logs_migration.sql 적용 상태 점검하고, REPORTS_OPS_ALERT_SYNC_QA_CHECKLIST_2026-05-18.md 기준 A~D 시나리오 검증 결과를 REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-18.md에 기록해줘."
+"NEXT_SESSION_HANDOFF_LATEST.md 기준으로 진행. 먼저 npm run build 확인 후 supabase_ops_alert_click_logs_migration.sql 적용 상태 점검하고, REPORTS_OPS_ALERT_SYNC_QA_CHECKLIST_2026-05-20.md 기준 A~D 시나리오 검증 결과를 REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-20.md에 기록해줘."
 
 ---
 
@@ -158,9 +160,9 @@
    - 전체 초기화 서버/로컬 동시 처리
 - `supabase_ops_alert_click_logs_migration.sql` 추가
 - QA 문서 3종 준비
-   - `REPORTS_OPS_ALERT_SYNC_QA_CHECKLIST_2026-05-18.md`
-   - `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-18.md`
-   - `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_SAMPLE_2026-05-18.md`
+   - `REPORTS_OPS_ALERT_SYNC_QA_CHECKLIST_2026-05-20.md`
+   - `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-20.md`
+   - `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_SAMPLE_2026-05-20.md`
 
 ### 재시작 즉시 할 일 (순서 고정)
 1. `npm run build`
@@ -181,7 +183,7 @@
   - KPI 4종 카드 (총 클릭수/8번 이동률/10번 이동률/경보활성 클릭 비율)
   - 기간 프리셋 (오늘/최근 7일/최근 30일/사용자 지정)
   - 동기화 상태 문구 (서버 연결/확인 중/로컬 폴백)
-- `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-18.md` 정적 검증 결과 기록 완료 ✅
+- `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-20.md` 정적 검증 결과 기록 완료 ✅
   - API 3종 코드 라인 확인 기록
   - 시나리오 D (폴백): 정적 검증 기반 PASS 예상
 - `supabase_ops_alert_click_logs_migration.sql` 파일 내용 확인 ✅
@@ -193,10 +195,57 @@
    - Supabase 대시보드 → SQL Editor → `supabase_ops_alert_click_logs_migration.sql` 내용 실행
 2. **런타임 QA** (SQL 적용 후)
    - 시나리오 A (서버 저장/복원), B (필터 정합성), C (전체 초기화 일관성) 브라우저 검증
-   - `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-18.md` 판정란 업데이트
+   - `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-20.md` 판정란 업데이트
 3. **R1 태깅 데이터 보강**
    - `templates/psi_judgment_tagging_progress_tracker_100_v1_2026-05-16.csv` 나머지 건 입력
    - 입력 후 `npm run check:judgment-tagging:r1:full` 재실행
 
 ### 재시작용 한줄 프롬프트
-"NEXT_SESSION_HANDOFF_LATEST.md §11 기준 재개. Supabase SQL Editor에서 supabase_ops_alert_click_logs_migration.sql 실행 후, REPORTS_OPS_ALERT_SYNC_QA_CHECKLIST_2026-05-18.md 기준 시나리오 A/B/C 브라우저 런타임 검증하고 RUNLOG에 판정 기록해줘."
+"NEXT_SESSION_HANDOFF_LATEST.md §11 기준 재개. Supabase SQL Editor에서 supabase_ops_alert_click_logs_migration.sql 실행 후, REPORTS_OPS_ALERT_SYNC_QA_CHECKLIST_2026-05-20.md 기준 시나리오 A/B/C 브라우저 런타임 검증하고 RUNLOG에 판정 기록해줘."
+
+---
+
+## 12) 2026-05-20 소개 화면 디자인 즉시 구현 기록
+
+### 반영 범위
+- 파일: `pages/Introduction.tsx`, `App.tsx`
+- 목적: 첨부 목업 기준으로 **PC DASHBOARD + MOBILE APP 이원화**를 소개 화면 상단에 즉시 반영
+- 조건: 기존 브랜딩 마크(`BrandPhilosophyLogo`) 유지
+
+### 구현 완료 항목
+1. Hero 구간을 PC/모바일 분리 목업 레이아웃으로 교체
+   - 좌측: PC 대시보드 프리뷰(요약 KPI + 운영 카드)
+   - 우측: 모바일 12화면 프리뷰 카드
+
+2. 모바일 12화면 IA 정렬 완료 (문서 기준)
+   - 1 홈 대시보드 → `dashboard`
+   - 2 경보 알림 → `site-issue-management`
+   - 3 개인인지 프로파일 → `worker-management`
+   - 4 위험인지 진단 → `worker-training`
+   - 5 현장 컨텍스트 → `field-context-input`
+   - 6 행동 패턴 분석 → `safety-behavior-management`
+   - 7 위험 예측 → `predictive-analysis`
+   - 8 개입 추천 → `intervention-coaching`
+   - 9 수기 데이터 입력 → `judgment-tagging-input`
+   - 10 태깅 검증 → `ocr-analysis`
+   - 11 분석 리포트 → `reports`
+   - 12 메뉴/설정 → `settings`
+
+3. 실데이터 연결
+   - `App.tsx`에서 `Introduction`에 `workerRecords`, `onNavigateToPage` 전달
+   - 소개 화면 KPI/카드 문구가 정적 값이 아닌 실데이터 기반으로 표시
+
+4. 디자인 일관성 마감
+   - 모바일 카드 단계 번호 배지(1~12) 고정
+   - 카드 상태색 적용(경보/예측/개입=주황, 태깅검증=보라, 입력·리포트=초록, 기본=인디고)
+   - 카드 내부 미니 막대/문구 색상도 상태색과 통일
+   - 버튼/카드/배지 인터랙션을 `duration-200` 기준으로 통일
+
+### 검증
+- `cmd /d /s /c "npm run build"` 반복 검증 PASS
+- 마지막 검증: Exit Code 0
+
+### 다음 세션 즉시 확인 포인트
+1. 실제 브라우저에서 소개 화면 상단 섹션 시인성 점검(데스크톱/모바일 폭)
+2. 모바일 12카드 클릭 동선 점검(각 페이지 라우팅 정확도)
+3. 필요 시 카드 카피 문구를 운영 용어 사전 기준으로 미세 조정

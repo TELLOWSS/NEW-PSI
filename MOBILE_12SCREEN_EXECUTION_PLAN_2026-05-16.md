@@ -262,6 +262,52 @@
 - 스키마 미적용/서버 장애 시에도 현재 상태를 즉시 확인 가능
 
 ### 실검증 문서
-- `REPORTS_OPS_ALERT_SYNC_QA_CHECKLIST_2026-05-18.md` 기준으로 A~D 시나리오를 순차 실행
-- 실행 결과는 `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-18.md`에 즉시 기록
-- 기입 예시는 `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_SAMPLE_2026-05-18.md` 참조
+- `REPORTS_OPS_ALERT_SYNC_QA_CHECKLIST_2026-05-20.md` 기준으로 A~D 시나리오를 순차 실행
+- 실행 결과는 `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-20.md`에 즉시 기록
+- 기입 예시는 `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_SAMPLE_2026-05-20.md` 참조
+- 단일 진입(권장): `REPORTS_OPS_ALERT_SYNC_QA_DOCSET_LATEST_2026-05-20.md`
+
+## 16) 2026-05-20 소개 화면 즉시 구현 동기화 (PC·모바일 이원화)
+
+### 반영 목표
+- 첨부 목업 기준으로 소개 화면 상단을 `PC DASHBOARD` + `MOBILE APP` 구조로 이원화
+- 기존 브랜딩 마크(`BrandPhilosophyLogo`) 유지
+- 모바일 12화면 IA를 소개 화면에서 즉시 탐색 가능하도록 연결
+
+### 반영 파일
+- `pages/Introduction.tsx`
+   - Hero 영역을 PC/모바일 분리 목업으로 교체
+   - 모바일 12카드(1~12) 추가 및 각 카드 클릭 시 실제 페이지 이동 연결
+   - 실데이터 기반 요약값 연결(근로자 수/전조 신호/태깅 대기/QA 대상/리포트 대상 등)
+   - 단계 번호 배지(1~12) 고정
+   - 카드 상태색 체계 적용
+      - 경보·예측·개입: 주황
+      - 태깅 검증: 보라
+      - 입력·리포트: 초록
+      - 기본 흐름: 인디고
+   - 카드 내부 막대/설명 문구도 상태색과 통일
+   - 버튼/카드/배지 인터랙션을 `duration-200` 기준으로 통일
+- `App.tsx`
+   - `Introduction`에 `workerRecords`, `onNavigateToPage` 전달
+
+### 모바일 12화면 매핑(소개 화면)
+1. 홈 대시보드 → `dashboard`
+2. 경보 알림 → `site-issue-management`
+3. 개인인지 프로파일 → `worker-management`
+4. 위험인지 진단 → `worker-training`
+5. 현장 컨텍스트 → `field-context-input`
+6. 행동 패턴 분석 → `safety-behavior-management`
+7. 위험 예측 → `predictive-analysis`
+8. 개입 추천 → `intervention-coaching`
+9. 수기 데이터 입력 → `judgment-tagging-input`
+10. 태깅 검증 → `ocr-analysis`
+11. 분석 리포트 → `reports`
+12. 메뉴/설정 → `settings`
+
+### 검증
+- `cmd /d /s /c "npm run build"` PASS (Exit Code 0)
+
+### 다음 확인 포인트
+1. 실제 브라우저에서 소개 화면 상단 섹션의 뷰포트 가독성 점검
+2. 모바일 12카드 라우팅 정확도 점검
+3. 운영 용어 사전 기준으로 카드 카피 미세 조정
