@@ -1224,6 +1224,18 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
 
     const inputProgressSteps = [Boolean(workerName.trim()), hasReviewedGuidance, isChecklistComplete, hasSignature];
     const inputProgressCount = inputProgressSteps.filter(Boolean).length;
+    const mobileCurrentStepLabel = !workerName.trim()
+        ? t.nameLabel
+        : !hasReviewedGuidance
+            ? ux.stepListen
+            : !isChecklistComplete
+                ? t.comprehensionTitle
+                : !hasSignature
+                    ? ux.stepSign
+                    : t.submit;
+    const mobileCompletionLabel = submitReady
+        ? ux.submitReadyCta
+        : `${inputProgressCount}/4 ${statusText.done}`;
 
     const scrollToSection = (section: 'language' | 'audio' | 'signature') => {
         if (section === 'language') {
@@ -1327,6 +1339,23 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                         {t.stayOnPageHint}
                     </p>
                 )}
+
+                <div className="mt-4 md:hidden sticky top-2 z-20 rounded-2xl border border-indigo-200 bg-white/95 backdrop-blur px-3 py-3 shadow-sm">
+                    <div className="flex items-center justify-between gap-3">
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-indigo-700">4) 위험인지 진단 진행</p>
+                            <p className="mt-1 text-sm font-black text-slate-900">현재 단계: {mobileCurrentStepLabel}</p>
+                            <p className="mt-1 text-[11px] font-black text-slate-600">완료 상태: {mobileCompletionLabel}</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleNextAction}
+                            className={`shrink-0 rounded-xl px-3 py-2 text-[12px] font-black text-white transition-colors ${submitReady ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-500 hover:bg-amber-600'}`}
+                        >
+                            {nextActionButtonLabel}
+                        </button>
+                    </div>
+                </div>
 
                 <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
                     <p className="text-[11px] font-black uppercase tracking-[0.14em] text-indigo-700">9) 수기 데이터 입력 진행</p>

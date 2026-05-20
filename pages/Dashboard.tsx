@@ -2435,6 +2435,84 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         </div>
                     </div>
 
+                    <div className="mb-4 grid grid-cols-1 gap-3 xl:grid-cols-[1.25fr_0.95fr]">
+                        <section className="rounded-3xl border border-white/10 bg-white/6 p-4 sm:p-5 backdrop-blur-sm shadow-lg shadow-slate-950/10">
+                            <div className="flex items-center justify-between gap-2">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-200">PC DASHBOARD</p>
+                                    <h3 className="mt-1 text-lg sm:text-xl font-black text-white">운영 콘솔 중심 대시보드</h3>
+                                    <p className="mt-1 text-xs sm:text-sm font-medium text-slate-200">대량 검토, 팀 비교, 하네스 승인 흐름을 한 번에 읽는 PC 전용 프리뷰입니다.</p>
+                                </div>
+                                <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/15 px-3 py-2 text-right">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">SYSTEM</p>
+                                    <p className="mt-0.5 text-sm font-black text-white">Ready</p>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                {[
+                                    { label: '총 근로자', value: stats.totalWorkers },
+                                    { label: '평균 점수', value: stats.averageScore.toFixed(1) },
+                                    { label: '고위험', value: stats.highRiskWorkers },
+                                    { label: '승인 대기', value: harnessDashboardSummary.approvalBacklog },
+                                ].map((item) => (
+                                    <div key={item.label} className="rounded-2xl border border-white/10 bg-white/8 px-3 py-3">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-200">{item.label}</p>
+                                        <p className="mt-1 text-xl font-black text-white">{item.value}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <button type="button" onClick={() => setCurrentPage('reports')} className="rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-900 transition duration-200 hover:-translate-y-0.5 hover:bg-slate-50">
+                                    리포트 바로 열기
+                                </button>
+                                <button type="button" onClick={handleNavigateToTeamComparison} className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-black text-white transition duration-200 hover:-translate-y-0.5 hover:bg-white/10">
+                                    팀 비교 보기
+                                </button>
+                                <button type="button" onClick={() => setCurrentPage('predictive-analysis')} className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-black text-white transition duration-200 hover:-translate-y-0.5 hover:bg-white/10">
+                                    예측 분석 열기
+                                </button>
+                            </div>
+                        </section>
+
+                        <section className="rounded-3xl border border-white/10 bg-white/10 p-4 sm:p-5 backdrop-blur-sm shadow-lg shadow-slate-950/10">
+                            <div className="flex items-center justify-between gap-2">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-200">MOBILE APP</p>
+                                    <h3 className="mt-1 text-lg sm:text-xl font-black text-white">12화면 이동 허브</h3>
+                                    <p className="mt-1 text-xs sm:text-sm font-medium text-slate-200">모바일은 실행 순서를 먼저 보여주고, 손가락 한 번으로 핵심 화면으로 들어가도록 구성합니다.</p>
+                                </div>
+                                <div className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-right">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-200">FLOW</p>
+                                    <p className="mt-0.5 text-sm font-black text-white">12 Screens</p>
+                                </div>
+                            </div>
+
+                            <div className="mt-4 grid grid-cols-2 gap-2">
+                                {[
+                                    ['1', '홈', 'dashboard' as Page],
+                                    ['2', '경보', 'site-issue-management' as Page],
+                                    ['4', '진단', 'worker-training' as Page],
+                                    ['7', '예측', 'predictive-analysis' as Page],
+                                    ['8', '개입', 'intervention-coaching' as Page],
+                                    ['11', '리포트', 'reports' as Page],
+                                ].map(([step, label, page]) => (
+                                    <button
+                                        key={`${step}-${label}`}
+                                        type="button"
+                                        onClick={() => setCurrentPage(page)}
+                                        className="rounded-2xl border border-white/10 bg-slate-950/25 px-3 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:bg-slate-950/35"
+                                    >
+                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-200">STEP {step}</p>
+                                        <p className="mt-1 text-sm font-black text-white">{label}</p>
+                                        <p className="mt-1 text-[11px] font-medium text-indigo-100">즉시 열기</p>
+                                    </button>
+                                ))}
+                            </div>
+                        </section>
+                    </div>
+
                     {(selectedTarget || selectedTradeForComparison || selectedTeam !== 'ALL') && (
                         <div className="mb-4 flex flex-wrap items-center gap-2">
                             {selectedTradeForComparison && (

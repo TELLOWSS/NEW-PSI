@@ -122,6 +122,61 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         };
     }, [workerRecords]);
 
+    const mobileFlowCards = useMemo<Array<{ title: string; desc: string; page: Page }>>(() => ([
+        { title: '1. 홈 대시보드', desc: `${previewMetrics.totalWorkers}명 분석`, page: 'dashboard' },
+        { title: '2. 경보 알림', desc: `전조 신호 ${previewMetrics.alertSignals}건`, page: 'site-issue-management' },
+        { title: '3. 개인인지 프로파일', desc: `고위험 ${previewMetrics.highRiskWorkers}명`, page: 'worker-management' },
+        { title: '4. 위험인지 진단', desc: `오늘 입력 ${previewMetrics.todayRecords}건`, page: 'worker-training' },
+        { title: '5. 현장 컨텍스트', desc: `오늘 입력 ${previewMetrics.todayRecords}건`, page: 'field-context-input' },
+        { title: '6. 행동 패턴 분석', desc: `승인 완료 ${previewMetrics.approvedRecords}건`, page: 'safety-behavior-management' },
+        { title: '7. 위험 예측', desc: `예측 대상 ${previewMetrics.interventionTargets}명`, page: 'predictive-analysis' },
+        { title: '8. 개입 추천', desc: `개입 대상 ${previewMetrics.interventionTargets}명`, page: 'intervention-coaching' },
+        { title: '9. 수기 데이터 입력', desc: `태깅 대기 ${previewMetrics.taggingQueue}건`, page: 'judgment-tagging-input' },
+        { title: '10. 태깅 검증', desc: `QA 대상 ${previewMetrics.qaValidationTargets}건`, page: 'ocr-analysis' },
+        { title: '11. 분석 리포트', desc: `리포트 대상 ${previewMetrics.totalWorkers}명`, page: 'reports' },
+        { title: '12. 메뉴/설정', desc: `현재 릴리스 ${PSI_APP_VERSION}`, page: 'settings' },
+    ]), [previewMetrics, PSI_APP_VERSION]);
+
+    const getStepTone = (stepNoNum: number) => {
+        if (stepNoNum === 2 || stepNoNum === 7 || stepNoNum === 8) {
+            return {
+                cardBorder: 'border-amber-200 hover:bg-amber-50',
+                badgeBg: 'bg-amber-500',
+                panelBg: 'bg-amber-50',
+                bars: ['bg-amber-100', 'bg-amber-200', 'bg-amber-300'],
+                descText: 'text-amber-700',
+            };
+        }
+
+        if (stepNoNum === 10) {
+            return {
+                cardBorder: 'border-violet-200 hover:bg-violet-50',
+                badgeBg: 'bg-violet-600',
+                panelBg: 'bg-violet-50',
+                bars: ['bg-violet-100', 'bg-violet-200', 'bg-violet-300'],
+                descText: 'text-violet-700',
+            };
+        }
+
+        if (stepNoNum === 5 || stepNoNum === 9 || stepNoNum === 11) {
+            return {
+                cardBorder: 'border-emerald-200 hover:bg-emerald-50',
+                badgeBg: 'bg-emerald-600',
+                panelBg: 'bg-emerald-50',
+                bars: ['bg-emerald-100', 'bg-emerald-200', 'bg-emerald-300'],
+                descText: 'text-emerald-700',
+            };
+        }
+
+        return {
+            cardBorder: 'border-indigo-100 hover:bg-indigo-50',
+            badgeBg: 'bg-indigo-600',
+            panelBg: 'bg-slate-50',
+            bars: ['bg-indigo-100', 'bg-violet-100', 'bg-sky-100'],
+            descText: 'text-indigo-700',
+        };
+    };
+
     return (
         <div className="space-y-12 pb-12">
             {/* PC·MOBILE Split Mockup Hero */}
@@ -157,7 +212,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.3fr_1fr]">
+                    <div className="hidden lg:grid grid-cols-1 gap-4 xl:grid-cols-[1.3fr_1fr]">
                         <section className="rounded-3xl border border-indigo-100 bg-white/90 p-4 shadow-sm">
                             <div className="mb-3 inline-flex items-center rounded-full bg-indigo-600 px-3 py-1 text-[10px] font-black tracking-[0.14em] text-white">
                                 PC DASHBOARD
@@ -230,87 +285,120 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             <div className="mb-3 inline-flex items-center rounded-full bg-indigo-500 px-3 py-1 text-[10px] font-black tracking-[0.14em] text-white">
                                 MOBILE APP
                             </div>
-                            <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-3">
-                                {[
-                                    ['1. 홈 대시보드', `${previewMetrics.totalWorkers}명 분석`, 'dashboard' as Page],
-                                    ['2. 경보 알림', `전조 신호 ${previewMetrics.alertSignals}건`, 'site-issue-management' as Page],
-                                    ['3. 개인인지 프로파일', `고위험 ${previewMetrics.highRiskWorkers}명`, 'worker-management' as Page],
-                                    ['4. 위험인지 진단', `오늘 입력 ${previewMetrics.todayRecords}건`, 'worker-training' as Page],
-                                    ['5. 현장 컨텍스트', `오늘 입력 ${previewMetrics.todayRecords}건`, 'field-context-input' as Page],
-                                    ['6. 행동 패턴 분석', `승인 완료 ${previewMetrics.approvedRecords}건`, 'safety-behavior-management' as Page],
-                                    ['7. 위험 예측', `예측 대상 ${previewMetrics.interventionTargets}명`, 'predictive-analysis' as Page],
-                                    ['8. 개입 추천', `개입 대상 ${previewMetrics.interventionTargets}명`, 'intervention-coaching' as Page],
-                                    ['9. 수기 데이터 입력', `태깅 대기 ${previewMetrics.taggingQueue}건`, 'judgment-tagging-input' as Page],
-                                    ['10. 태깅 검증', `QA 대상 ${previewMetrics.qaValidationTargets}건`, 'ocr-analysis' as Page],
-                                    ['11. 분석 리포트', `리포트 대상 ${previewMetrics.totalWorkers}명`, 'reports' as Page],
-                                    ['12. 메뉴/설정', `현재 릴리스 ${PSI_APP_VERSION}`, 'settings' as Page],
-                                ].map(([title, desc, page]) => (
-                                    (() => {
+                            <div className="grid grid-cols-2 gap-3">
+                                {mobileFlowCards.map(({ title, desc, page }) => {
+                                    const [stepNoRaw, ...restTitleParts] = String(title).split('. ');
+                                    const stepNo = stepNoRaw || '-';
+                                    const stepNoNum = Number(stepNoRaw);
+                                    const stepTitle = restTitleParts.join('. ') || String(title);
+                                    const tone = getStepTone(stepNoNum);
+
+                                    return (
+                                        <button
+                                            key={title}
+                                            type="button"
+                                            onClick={() => onNavigateToPage(page)}
+                                            className={`group min-h-[148px] rounded-2xl border bg-white p-2 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${tone.cardBorder}`}
+                                        >
+                                            <div className="mb-1 flex items-center gap-1.5">
+                                                <span className={`inline-flex min-w-[22px] items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-black text-white transition duration-200 group-hover:brightness-110 group-hover:scale-105 ${tone.badgeBg}`}>
+                                                    {stepNo}
+                                                </span>
+                                                <p className="text-[10px] font-black text-slate-700">{stepTitle}</p>
+                                            </div>
+                                            <div className={`rounded-xl border border-slate-200 p-2 ${tone.panelBg}`}>
+                                                <div className="mx-auto mb-1 h-1 w-10 rounded-full bg-slate-300"></div>
+                                                <div className="mb-2 flex items-center gap-1">
+                                                    <BrandPhilosophyLogo className="h-4 w-4" />
+                                                    <span className="text-[10px] font-black text-slate-700">psi</span>
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <div className={`h-2 rounded ${tone.bars[0]}`}></div>
+                                                    <div className={`h-2 rounded ${tone.bars[1]}`}></div>
+                                                    <div className={`h-2 rounded ${tone.bars[2]}`}></div>
+                                                </div>
+                                                <p className={`mt-2 text-[9px] font-black ${tone.descText}`}>{desc}</p>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </section>
+                    </div>
+
+                    <div className="space-y-4 lg:hidden">
+                        <section className="rounded-3xl border border-indigo-100 bg-indigo-50/70 p-4 shadow-sm">
+                            <div className="mb-3 inline-flex items-center rounded-full bg-indigo-500 px-3 py-1 text-[10px] font-black tracking-[0.14em] text-white">
+                                MOBILE APP FIRST VIEW
+                            </div>
+                            <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                                <div className="mb-3 flex items-center justify-between">
+                                    <p className="text-[11px] font-black text-slate-700">모바일 실행 플로우 12화면</p>
+                                    <span className="rounded-full bg-indigo-100 px-2 py-1 text-[10px] font-black text-indigo-700">현재 운영 기준</span>
+                                </div>
+                                <div className="grid grid-cols-1 gap-2">
+                                    {mobileFlowCards.map(({ title, desc, page }) => {
                                         const [stepNoRaw, ...restTitleParts] = String(title).split('. ');
                                         const stepNo = stepNoRaw || '-';
                                         const stepNoNum = Number(stepNoRaw);
                                         const stepTitle = restTitleParts.join('. ') || String(title);
-                                        const tone = stepNoNum === 2 || stepNoNum === 7 || stepNoNum === 8
-                                            ? {
-                                                cardBorder: 'border-amber-200 hover:bg-amber-50',
-                                                badgeBg: 'bg-amber-500',
-                                                panelBg: 'bg-amber-50',
-                                                bars: ['bg-amber-100', 'bg-amber-200', 'bg-amber-300'],
-                                                descText: 'text-amber-700',
-                                            }
-                                            : stepNoNum === 10
-                                                ? {
-                                                    cardBorder: 'border-violet-200 hover:bg-violet-50',
-                                                    badgeBg: 'bg-violet-600',
-                                                    panelBg: 'bg-violet-50',
-                                                    bars: ['bg-violet-100', 'bg-violet-200', 'bg-violet-300'],
-                                                    descText: 'text-violet-700',
-                                                }
-                                                : stepNoNum === 5 || stepNoNum === 9 || stepNoNum === 11
-                                                    ? {
-                                                        cardBorder: 'border-emerald-200 hover:bg-emerald-50',
-                                                        badgeBg: 'bg-emerald-600',
-                                                        panelBg: 'bg-emerald-50',
-                                                        bars: ['bg-emerald-100', 'bg-emerald-200', 'bg-emerald-300'],
-                                                        descText: 'text-emerald-700',
-                                                    }
-                                                    : {
-                                                        cardBorder: 'border-indigo-100 hover:bg-indigo-50',
-                                                        badgeBg: 'bg-indigo-600',
-                                                        panelBg: 'bg-slate-50',
-                                                        bars: ['bg-indigo-100', 'bg-violet-100', 'bg-sky-100'],
-                                                        descText: 'text-indigo-700',
-                                                    };
+                                        const tone = getStepTone(stepNoNum);
+
                                         return (
-                                    <button
-                                        key={title}
-                                        type="button"
-                                        onClick={() => onNavigateToPage(page)}
-                                        className={`group min-h-[148px] rounded-2xl border bg-white p-2 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${tone.cardBorder}`}
-                                    >
-                                        <div className="mb-1 flex items-center gap-1.5">
-                                            <span className={`inline-flex min-w-[22px] items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-black text-white transition duration-200 group-hover:brightness-110 group-hover:scale-105 ${tone.badgeBg}`}>
-                                                {stepNo}
-                                            </span>
-                                            <p className="text-[10px] font-black text-slate-700">{stepTitle}</p>
-                                        </div>
-                                        <div className={`rounded-xl border border-slate-200 p-2 ${tone.panelBg}`}>
-                                            <div className="mx-auto mb-1 h-1 w-10 rounded-full bg-slate-300"></div>
-                                            <div className="mb-2 flex items-center gap-1">
-                                                <BrandPhilosophyLogo className="h-4 w-4" />
-                                                <span className="text-[10px] font-black text-slate-700">psi</span>
-                                            </div>
-                                            <div className="space-y-1">
-                                                <div className={`h-2 rounded ${tone.bars[0]}`}></div>
-                                                <div className={`h-2 rounded ${tone.bars[1]}`}></div>
-                                                <div className={`h-2 rounded ${tone.bars[2]}`}></div>
-                                            </div>
-                                            <p className={`mt-2 text-[9px] font-black ${tone.descText}`}>{desc}</p>
-                                        </div>
-                                    </button>
+                                            <button
+                                                key={`mobile-${title}`}
+                                                type="button"
+                                                onClick={() => onNavigateToPage(page)}
+                                                className={`group rounded-2xl border bg-white px-3 py-3 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${tone.cardBorder}`}
+                                            >
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className={`inline-flex min-w-[22px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black text-white ${tone.badgeBg}`}>
+                                                            {stepNo}
+                                                        </span>
+                                                        <p className="text-[12px] font-black text-slate-800">{stepTitle}</p>
+                                                    </div>
+                                                    <span className={`text-[10px] font-black ${tone.descText}`}>{desc}</span>
+                                                </div>
+                                            </button>
                                         );
-                                    })()
+                                    })}
+                                </div>
+                            </div>
+                        </section>
+
+                        <section className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+                            <div className="mb-3 inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-[10px] font-black tracking-[0.14em] text-white">
+                                PC MONITOR PREVIEW
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                                {[
+                                    ['위험성 평균', `${previewMetrics.averageScore}`],
+                                    ['전조 신호', `${previewMetrics.alertSignals}`],
+                                    ['개입 권고', `${previewMetrics.interventionTargets}`],
+                                    ['오늘 입력', `${previewMetrics.todayRecords}`],
+                                ].map(([label, value]) => (
+                                    <div key={`m-${label}`} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                                        <p className="text-[10px] font-black text-slate-500">{label}</p>
+                                        <p className="mt-1 text-base font-black text-slate-900">{value}</p>
+                                    </div>
                                 ))}
+                            </div>
+                            <div className="mt-3 flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => onNavigateToPage('dashboard')}
+                                    className="flex-1 rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-black text-white transition duration-200 hover:bg-indigo-500"
+                                >
+                                    PC 대시보드
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => onNavigateToPage('reports')}
+                                    className="flex-1 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-[11px] font-black text-indigo-700 transition duration-200 hover:bg-indigo-50"
+                                >
+                                    리포트
+                                </button>
                             </div>
                         </section>
                     </div>

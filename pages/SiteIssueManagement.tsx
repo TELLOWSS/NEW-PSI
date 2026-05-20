@@ -337,6 +337,14 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
 
     const harnessSummary = useMemo(() => summarizeHarnessRecords(workerRecords), [workerRecords]);
 
+    const priorityIssue = useMemo(() => {
+        const pendingIssues = issues.filter((issue) => issue.status === '검토 필요');
+        const inProgressIssues = issues.filter((issue) => issue.status === '조치 중');
+        const highRiskPending = pendingIssues.filter((issue) => issue.riskLevel === 'High');
+
+        return highRiskPending[0] || pendingIssues[0] || inProgressIssues[0] || null;
+    }, [issues]);
+
     const managementInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
         return [
             {
@@ -424,6 +432,27 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                     </div>
                 </div>
                 <p className="text-slate-500">현장 순회 중 발견된 불안전 요소나 시정 조치가 필요한 사항을 기록하고 추적 관리합니다.</p>
+
+                <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 md:hidden">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">모바일 핵심 경보</p>
+                    {priorityIssue ? (
+                        <>
+                            <p className="mt-1 text-sm font-black text-slate-900">{priorityIssue.location} · {priorityIssue.type}</p>
+                            <p className="mt-1 text-xs font-semibold text-slate-700">위험도 {priorityIssue.riskLevel || 'Medium'} · 상태 {getStatusLabel(priorityIssue.status)}</p>
+                            <p className="mt-2 line-clamp-2 text-xs font-medium text-slate-600">{priorityIssue.description}</p>
+                            <button
+                                type="button"
+                                onClick={() => updateStatus(priorityIssue.id, '조치 중')}
+                                className="mt-3 w-full rounded-xl bg-amber-500 px-3 py-2 text-sm font-black text-white transition duration-200 hover:bg-amber-400"
+                            >
+                                조치 시작
+                            </button>
+                        </>
+                    ) : (
+                        <p className="mt-2 text-xs font-semibold text-slate-600">현재 즉시 처리할 경보가 없습니다.</p>
+                    )}
+                </div>
+
                 <InterpretationCardGrid
                     items={managementInterpretationCards}
                     className="mt-4 grid-cols-1 xl:grid-cols-3"
