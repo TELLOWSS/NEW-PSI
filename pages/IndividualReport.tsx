@@ -11,6 +11,7 @@ import { canvasToBlob, captureReportCanvases, saveCanvasesAsA4Pdf } from '../uti
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { useMobileBackGuard } from '../hooks/useMobileBackGuard';
 import { sanitizeOperationalNote } from '../utils/ocrVerificationLanguageUtils';
+import { toVercelFriendlyMessage } from '../utils/errorUtils';
 
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
 
@@ -646,7 +647,10 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             }, ...prev].slice(0, 5));
         } catch (error) {
             console.error('Report message send failed:', error);
-            const errorMessage = error instanceof Error ? error.message : `문자 발송에 ${BRAND_STATUS_LABELS.attention}가 필요합니다.`;
+            const errorMessage = toVercelFriendlyMessage(
+                error,
+                `문자 발송에 ${BRAND_STATUS_LABELS.attention}가 필요합니다.`,
+            );
             failGenerationProgress(errorMessage);
             setMessageSendStatus(errorMessage);
             setServerMessageLogs((prev) => [{
@@ -850,7 +854,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                                     </p>
                                 )}
                                 {messageSendStatus && (
-                                    <p className={`text-sm font-black ${messageSendStatus.includes('완료') ? 'text-emerald-700' : messageSendStatus.includes(BRAND_STATUS_LABELS.attention) || messageSendStatus.includes('오류') ? 'text-rose-600' : 'text-indigo-700'}`}>
+                                    <p className={`text-sm font-black ${messageSendStatus.includes('완료') ? 'text-emerald-700' : generationProgress.status === 'error' || messageSendStatus.includes(BRAND_STATUS_LABELS.attention) || messageSendStatus.includes('오류') || messageSendStatus.includes('실패') || messageSendStatus.includes('초과') || messageSendStatus.includes('제한') ? 'text-rose-600' : 'text-indigo-700'}`}>
                                         {messageSendStatus}
                                     </p>
                                 )}

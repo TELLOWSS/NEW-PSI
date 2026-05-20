@@ -13,6 +13,7 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import type { WorkerRecord } from '../types';
 import { postAdminJson } from '../utils/adminApiClient';
+import { toVercelFriendlyMessage } from '../utils/errorUtils';
 import { isAdminAuthenticated } from '../utils/adminGuard';
 import { BRAND_STATUS_LABELS, TRAFFIC_LIGHT_BRAND_LABELS, VIOLATION_BRAND_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
@@ -769,7 +770,7 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
             if (photoRef.current) photoRef.current.value = '';
             setActionType(null); setActionDetail('');
         } catch (e: any) {
-            setResult({ ok: false, message: e.message || `등록 ${BRAND_STATUS_LABELS.attention}` });
+            setResult({ ok: false, message: toVercelFriendlyMessage(e, `등록 ${BRAND_STATUS_LABELS.attention}`) });
         } finally {
             setSubmitting(false);
         }
@@ -1479,7 +1480,7 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[]; wo
             setReviews(rows);
             setLastEvaluated(new Date().toLocaleTimeString('ko-KR'));
         } catch (e: any) {
-            setError(e.message);
+            setError(toVercelFriendlyMessage(e, `무결성 판정 API 호출 ${BRAND_STATUS_LABELS.attention}`));
         } finally {
             setLoading(false);
         }
