@@ -139,11 +139,44 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
 
     const heroMobileCards = useMemo(() => mobileFlowCards.slice(0, 8), [mobileFlowCards]);
 
-    const heroPrinciples = [
-        { label: '인간 중심', icon: '👤' },
-        { label: '예측 · 개입', icon: '🧠' },
-        { label: '안전 문화', icon: '🛡️' },
-        { label: '데이터 기반', icon: '📊' },
+    const heroPrinciples: Array<{ label: string; icon: React.ReactNode }> = [
+        {
+            label: '인간 중심',
+            icon: (
+                <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+                    <circle cx="10" cy="7" r="3" />
+                    <path d="M3 17c0-3.3 3.1-6 7-6s7 2.7 7 6" strokeLinecap="round" />
+                </svg>
+            ),
+        },
+        {
+            label: '예측 · 개입',
+            icon: (
+                <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+                    <path d="M3 14l4-5 3 3 4-6" strokeLinecap="round" strokeLinejoin="round" />
+                    <circle cx="15" cy="5" r="2" />
+                </svg>
+            ),
+        },
+        {
+            label: '안전 문화',
+            icon: (
+                <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+                    <path d="M10 2l6 3v5c0 4-2.7 6.5-6 8-3.3-1.5-6-4-6-8V5l6-3z" strokeLinejoin="round" />
+                    <path d="M7 10l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+            ),
+        },
+        {
+            label: '데이터 기반',
+            icon: (
+                <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+                    <rect x="2" y="12" width="3" height="6" rx="1" />
+                    <rect x="8.5" y="8" width="3" height="10" rx="1" />
+                    <rect x="15" y="4" width="3" height="14" rx="1" />
+                </svg>
+            ),
+        },
     ];
 
     const getStepTone = (stepNoNum: number) => {
@@ -204,9 +237,9 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             </div>
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                                 {heroPrinciples.map((item) => (
-                                    <div key={item.label} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center">
-                                        <p className="text-sm">{item.icon}</p>
-                                        <p className="mt-1 text-[10px] font-black text-slate-700">{item.label}</p>
+                                    <div key={item.label} className="rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-center">
+                                        <span className="flex justify-center text-indigo-500">{item.icon}</span>
+                                        <p className="mt-1 text-[10px] font-black text-indigo-700">{item.label}</p>
                                     </div>
                                 ))}
                             </div>
@@ -242,21 +275,65 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                             ))}
                                         </div>
                                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                            {/* 유형 분포 - 도넛 차트 */}
                                             <div className="rounded-xl border border-slate-200 bg-white p-2">
                                                 <p className="text-[10px] font-black text-slate-500">유형 분포</p>
-                                                <div className="mt-2 h-14 rounded-lg bg-gradient-to-r from-indigo-100 via-violet-100 to-pink-100"></div>
-                                            </div>
-                                            <div className="rounded-xl border border-slate-200 bg-white p-2">
-                                                <p className="text-[10px] font-black text-slate-500">전조 패턴 Top5</p>
-                                                <div className="mt-2 space-y-1">
-                                                    <div className="h-2 rounded bg-rose-100"></div>
-                                                    <div className="h-2 rounded bg-amber-100"></div>
-                                                    <div className="h-2 rounded bg-sky-100"></div>
+                                                <div className="mt-1.5 flex items-center gap-2">
+                                                    <svg viewBox="0 0 44 44" className="h-11 w-11 shrink-0 -rotate-90" aria-hidden="true">
+                                                        <circle cx="22" cy="22" r="16" fill="none" stroke="#e0e7ff" strokeWidth="9" />
+                                                        <circle cx="22" cy="22" r="16" fill="none" stroke="#6366f1" strokeWidth="9"
+                                                            strokeDasharray={`${previewMetrics.totalWorkers > 0 ? Math.round((previewMetrics.highRiskWorkers / previewMetrics.totalWorkers) * 100) : 25} 100`}
+                                                            strokeDashoffset="0" />
+                                                        <circle cx="22" cy="22" r="16" fill="none" stroke="#f59e0b" strokeWidth="9"
+                                                            strokeDasharray={`${previewMetrics.totalWorkers > 0 ? Math.round((previewMetrics.alertSignals / previewMetrics.totalWorkers) * 100) : 15} 100`}
+                                                            strokeDashoffset={`-${previewMetrics.totalWorkers > 0 ? Math.round((previewMetrics.highRiskWorkers / previewMetrics.totalWorkers) * 100) : 25}`} />
+                                                    </svg>
+                                                    <div className="space-y-0.5 text-[9px] font-bold">
+                                                        <div className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-indigo-400 shrink-0"></span><span className="text-slate-600">고위험</span></div>
+                                                        <div className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0"></span><span className="text-slate-600">전조경보</span></div>
+                                                        <div className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-indigo-100 shrink-0"></span><span className="text-slate-600">정상</span></div>
+                                                    </div>
                                                 </div>
                                             </div>
+                                            {/* 전조 패턴 Top5 */}
+                                            <div className="rounded-xl border border-slate-200 bg-white p-2">
+                                                <p className="text-[10px] font-black text-slate-500">전조 패턴 Top5</p>
+                                                <div className="mt-1.5 space-y-1">
+                                                    {[
+                                                        { label: '반복 지각', pct: 88, color: 'bg-rose-400' },
+                                                        { label: '고강도 연속', pct: 71, color: 'bg-amber-400' },
+                                                        { label: '수면 부족', pct: 59, color: 'bg-orange-300' },
+                                                        { label: '언어 장벽', pct: 43, color: 'bg-sky-300' },
+                                                        { label: '혼잡 작업', pct: 29, color: 'bg-violet-300' },
+                                                    ].map(({ label, pct, color }) => (
+                                                        <div key={label} className="flex items-center gap-1">
+                                                            <p className="w-11 shrink-0 text-[8px] font-bold text-slate-500 truncate leading-tight">{label}</p>
+                                                            <div className="flex-1 rounded bg-slate-100 h-1.5 overflow-hidden">
+                                                                <div className={`h-1.5 rounded ${color}`} style={{ width: `${pct}%` }}></div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            {/* 위험 예측 지도 */}
                                             <div className="rounded-xl border border-slate-200 bg-white p-2">
                                                 <p className="text-[10px] font-black text-slate-500">위험 예측 지도</p>
-                                                <div className="mt-2 h-14 rounded-lg bg-slate-100"></div>
+                                                <div className="relative mt-1.5 h-14 rounded-lg bg-slate-50 border border-slate-100 overflow-hidden">
+                                                    <div className="absolute inset-0 grid grid-cols-5 grid-rows-3 gap-px p-1.5">
+                                                        {Array.from({ length: 15 }).map((_, i) => (
+                                                            <div key={i} className="rounded-sm bg-slate-200/50"></div>
+                                                        ))}
+                                                    </div>
+                                                    <div className="absolute" style={{ top: '22%', left: '18%' }}>
+                                                        <div className="h-4 w-4 rounded-full bg-rose-400/75 ring-2 ring-rose-200 animate-pulse"></div>
+                                                    </div>
+                                                    <div className="absolute" style={{ top: '50%', left: '55%' }}>
+                                                        <div className="h-3 w-3 rounded-full bg-amber-400/75 ring-2 ring-amber-100"></div>
+                                                    </div>
+                                                    <div className="absolute" style={{ top: '60%', left: '72%' }}>
+                                                        <div className="h-2 w-2 rounded-full bg-sky-400/60"></div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -298,11 +375,67 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                                 onClick={() => onNavigateToPage(page)}
                                                 className={`rounded-2xl border bg-white p-2 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${tone.cardBorder}`}
                                             >
-                                                <p className="text-[10px] font-black text-slate-700">{stepNo}. {stepTitle}</p>
-                                                <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
-                                                    <div className="h-1.5 rounded bg-slate-200"></div>
-                                                    <div className="mt-1.5 h-1.5 rounded bg-slate-200"></div>
-                                                    <p className={`mt-2 text-[9px] font-black ${tone.descText}`}>{desc}</p>
+                                                <p className="text-[10px] font-black text-slate-700 leading-tight">{stepNo}. {stepTitle}</p>
+                                                <div className={`mt-1.5 rounded-xl border border-slate-100 ${tone.panelBg} p-2`}>
+                                                    {stepNoNum === 1 && (
+                                                        <div className="flex gap-1">
+                                                            <div className="flex-1 rounded bg-indigo-100 px-1 py-1 text-center"><p className="text-[8px] font-black text-indigo-700">{previewMetrics.totalWorkers}</p><p className="text-[7px] text-slate-400">전체</p></div>
+                                                            <div className="flex-1 rounded bg-rose-50 px-1 py-1 text-center"><p className="text-[8px] font-black text-rose-600">{previewMetrics.highRiskWorkers}</p><p className="text-[7px] text-slate-400">고위험</p></div>
+                                                        </div>
+                                                    )}
+                                                    {stepNoNum === 2 && (
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-rose-400"></span><p className="text-[8px] font-bold text-slate-600 truncate">긴급 경보 {previewMetrics.alertSignals}건</p></div>
+                                                            <div className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-amber-300"></span><p className="text-[8px] font-bold text-slate-500 truncate">전조 신호 감지</p></div>
+                                                        </div>
+                                                    )}
+                                                    {stepNoNum === 3 && (
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex items-center justify-between"><p className="text-[8px] font-bold text-slate-500">위험도</p><div className="flex gap-0.5">{[1,2,3,4,5].map(i => <div key={i} className={`h-1.5 w-2 rounded-sm ${i <= 3 ? 'bg-amber-400' : 'bg-slate-200'}`}></div>)}</div></div>
+                                                            <div className="h-1 rounded bg-slate-200 overflow-hidden"><div className="h-1 rounded bg-indigo-400" style={{ width: '65%' }}></div></div>
+                                                        </div>
+                                                    )}
+                                                    {stepNoNum === 4 && (
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex items-center gap-1"><div className="h-1.5 w-1.5 rounded-sm bg-emerald-400"></div><p className="text-[8px] font-bold text-slate-600">인지 진단 완료</p></div>
+                                                            <div className="flex items-center gap-1"><div className="h-1.5 w-1.5 rounded-sm bg-slate-200"></div><p className="text-[8px] font-bold text-slate-400">재진단 대기</p></div>
+                                                        </div>
+                                                    )}
+                                                    {stepNoNum === 5 && (
+                                                        <div className="space-y-0.5">
+                                                            <div className="h-1.5 rounded bg-slate-200 w-full"></div>
+                                                            <div className="h-1.5 rounded bg-emerald-100 w-3/4"></div>
+                                                            <p className="text-[8px] font-black text-emerald-600">저장 대기</p>
+                                                        </div>
+                                                    )}
+                                                    {stepNoNum === 6 && (
+                                                        <div className="flex items-end gap-0.5 h-7">
+                                                            {[60,80,50,90,70].map((h, i) => (
+                                                                <div key={i} className="flex-1 rounded-sm bg-indigo-200" style={{ height: `${h}%` }}></div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    {stepNoNum === 7 && (
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-base font-black text-amber-600">{previewMetrics.interventionTargets}</p>
+                                                            <div className="flex-1">
+                                                                <div className="h-1.5 rounded bg-amber-100 overflow-hidden"><div className="h-1.5 rounded bg-amber-400" style={{ width: `${previewMetrics.totalWorkers > 0 ? Math.round((previewMetrics.interventionTargets / previewMetrics.totalWorkers) * 100) : 30}%` }}></div></div>
+                                                                <p className="text-[8px] text-slate-400 mt-0.5">예측 대상</p>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {stepNoNum === 8 && (
+                                                        <div className="space-y-0.5">
+                                                            <div className="rounded bg-amber-400 px-1 py-0.5 text-center"><p className="text-[8px] font-black text-white">개입 시작</p></div>
+                                                            <p className={`text-[8px] font-black ${tone.descText}`}>{desc}</p>
+                                                        </div>
+                                                    )}
+                                                    {(stepNoNum < 1 || stepNoNum > 8) && (
+                                                        <div className="space-y-1">
+                                                            <div className="h-1.5 rounded bg-slate-200"></div>
+                                                            <p className={`text-[9px] font-black ${tone.descText}`}>{desc}</p>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </button>
                                         );
@@ -332,28 +465,45 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
                             <p className="text-[10px] font-black tracking-[0.14em] text-indigo-600">COLOR SYSTEM</p>
-                            <div className="mt-2 grid grid-cols-5 gap-1.5">
-                                <div className="h-8 rounded bg-indigo-500"></div>
-                                <div className="h-8 rounded bg-emerald-500"></div>
-                                <div className="h-8 rounded bg-rose-500"></div>
-                                <div className="h-8 rounded bg-slate-900"></div>
-                                <div className="h-8 rounded bg-slate-200"></div>
+                            <div className="mt-2 space-y-1.5">
+                                {[
+                                    { bg: 'bg-indigo-500', hex: '#6366F1', name: 'Primary' },
+                                    { bg: 'bg-emerald-500', hex: '#10B981', name: 'Safe' },
+                                    { bg: 'bg-rose-500', hex: '#F43F5E', name: 'Risk' },
+                                    { bg: 'bg-slate-900', hex: '#0F172A', name: 'Dark' },
+                                    { bg: 'bg-slate-200', hex: '#E2E8F0', name: 'Base' },
+                                ].map(({ bg, hex, name }) => (
+                                    <div key={hex} className="flex items-center gap-2">
+                                        <div className={`h-4 w-4 rounded-md shrink-0 ${bg}`}></div>
+                                        <p className="text-[8px] font-black text-slate-500 w-10 shrink-0">{name}</p>
+                                        <p className="text-[8px] font-mono text-slate-400">{hex}</p>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
                             <p className="text-[10px] font-black tracking-[0.14em] text-indigo-600">TYPOGRAPHY</p>
-                            <p className="mt-2 text-2xl font-black text-slate-800">Pretendard</p>
-                            <p className="text-[11px] font-semibold text-slate-500">가독성과 명료성을 우선하는 운영용 타입 시스템</p>
+                            <p className="mt-1.5 text-xl font-black text-slate-800 leading-tight">Pretendard</p>
+                            <p className="text-[10px] font-bold text-slate-500 mt-0.5">가나다 ABC 123</p>
+                            <p className="text-[9px] font-semibold text-slate-400 leading-tight">안전·현장·보호 / Safety · Risk</p>
+                            <p className="text-[9px] font-semibold text-slate-400 mt-0.5">运営 · 안전관리 · Sécurité</p>
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
                             <p className="text-[10px] font-black tracking-[0.14em] text-indigo-600">ICONOGRAPHY</p>
-                            <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[10px] font-black text-slate-600">
-                                <span className="rounded-lg border border-slate-200 bg-slate-50 px-1 py-2">👤</span>
-                                <span className="rounded-lg border border-slate-200 bg-slate-50 px-1 py-2">🧠</span>
-                                <span className="rounded-lg border border-slate-200 bg-slate-50 px-1 py-2">🛡️</span>
-                                <span className="rounded-lg border border-slate-200 bg-slate-50 px-1 py-2">📈</span>
-                                <span className="rounded-lg border border-slate-200 bg-slate-50 px-1 py-2">🔗</span>
-                                <span className="rounded-lg border border-slate-200 bg-slate-50 px-1 py-2">📊</span>
+                            <div className="mt-2 grid grid-cols-3 gap-1">
+                                {[
+                                    { title: '사람', path: <><circle cx="10" cy="7" r="3" /><path d="M3 17c0-3.3 3.1-6 7-6s7 2.7 7 6" strokeLinecap="round" /></> },
+                                    { title: '예측', path: <><path d="M3 14l4-5 3 3 4-6" strokeLinecap="round" strokeLinejoin="round" /><circle cx="15" cy="5" r="2" /></> },
+                                    { title: '보호', path: <><path d="M10 2l6 3v5c0 4-2.7 6.5-6 8-3.3-1.5-6-4-6-8V5l6-3z" strokeLinejoin="round" /><path d="M7 10l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" /></> },
+                                    { title: '추이', path: <><path d="M2 15l5-5 3 3 5-7" strokeLinecap="round" strokeLinejoin="round" /></> },
+                                    { title: '연결', path: <><circle cx="5" cy="10" r="2" /><circle cx="15" cy="5" r="2" /><circle cx="15" cy="15" r="2" /><path d="M7 10l6-4M7 10l6 4" strokeLinecap="round" /></> },
+                                    { title: '데이터', path: <><rect x="2" y="12" width="3" height="6" rx="1" /><rect x="8.5" y="8" width="3" height="10" rx="1" /><rect x="15" y="4" width="3" height="14" rx="1" /></> },
+                                ].map(({ title, path }) => (
+                                    <span key={title} className="flex flex-col items-center rounded-lg border border-slate-200 bg-slate-50 px-1 py-1.5 gap-0.5">
+                                        <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-indigo-500" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">{path}</svg>
+                                        <span className="text-[7px] font-bold text-slate-400">{title}</span>
+                                    </span>
+                                ))}
                             </div>
                         </div>
                     </div>

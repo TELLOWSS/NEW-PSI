@@ -1,7 +1,7 @@
 
 import React, { Suspense, lazy, useState, useRef, useMemo, useEffect } from 'react';
 import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, HarnessApprovalState, HarnessRiskDecision, HarnessWorkflowState, Page } from '../types';
-import { extractMessage } from '../utils/errorUtils';
+import { extractMessage, toVercelFriendlyMessage } from '../utils/errorUtils';
 import { postAdminJson } from '../utils/adminApiClient';
 import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
@@ -423,7 +423,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             } catch (error) {
                 console.warn('[Reports] 경보 CTA 로그 서버 조회 실패 (로컬 폴백 유지):', extractMessage(error));
                 setOpsAlertSyncState('fallback');
-                setOpsAlertSyncNote('서버 조회 실패 · 로컬 폴백 사용');
+                setOpsAlertSyncNote(toVercelFriendlyMessage(error, '서버 조회 실패 · 로컬 폴백 사용'));
             }
         };
 

@@ -4,6 +4,7 @@ import type { AppSettings } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
+import { fetchWithTimeout } from '../utils/adminApiClient';
 
 type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
 const LINK_HISTORY_STORAGE_KEY = 'psi_training_link_history';
@@ -659,7 +660,7 @@ const AdminTraining: React.FC = () => {
     }, [isQrExpanded]);
 
     const requestSignedMobileUrl = async (sessionId: string) => {
-        const response = await fetch('/api/admin/training', {
+        const response = await fetchWithTimeout('/api/admin/training', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'reissue-link', sessionId }),
@@ -699,7 +700,7 @@ const AdminTraining: React.FC = () => {
         setAwarenessLoading(true);
         setAwarenessError('');
         try {
-            const response = await fetch('/api/admin/training', {
+            const response = await fetchWithTimeout('/api/admin/training', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'awareness-stats', sessionId }),
@@ -936,7 +937,7 @@ const AdminTraining: React.FC = () => {
                 )
             );
 
-            const response = await fetch('/api/admin/training', {
+            const response = await fetchWithTimeout('/api/admin/training', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -945,7 +946,7 @@ const AdminTraining: React.FC = () => {
                     originalScript: sourceTextKo,
                     files: filesPayload,
                 }),
-            });
+            }, 30_000);
 
             const contentType = response.headers.get('content-type') || '';
             const raw = await response.text();
@@ -998,7 +999,7 @@ const AdminTraining: React.FC = () => {
         setFailedLanguageAttempts({});
 
         try {
-            const response = await fetch('/api/admin/training', {
+            const response = await fetchWithTimeout('/api/admin/training', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'create', sourceTextKo, selectedLanguages }),
@@ -1152,7 +1153,7 @@ const AdminTraining: React.FC = () => {
 
         setDeletingSessionId(sessionIdToDelete);
         try {
-            const response = await fetch('/api/admin/training', {
+            const response = await fetchWithTimeout('/api/admin/training', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'delete-session', sessionId: sessionIdToDelete }),

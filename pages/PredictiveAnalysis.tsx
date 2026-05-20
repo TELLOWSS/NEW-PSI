@@ -3,7 +3,7 @@ import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react'
 import type { WorkerRecord } from '../types';
 import { isAdminAuthenticated } from '../utils/adminGuard';
 import { postAdminJson } from '../utils/adminApiClient';
-import { extractMessage } from '../utils/errorUtils';
+import { extractMessage, toVercelFriendlyMessage } from '../utils/errorUtils';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { EmptyStatePanel } from '../components/shared/EmptyStatePanel';
 import { NoticeCallout } from '../components/shared/NoticeCallout';
@@ -1051,7 +1051,7 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
             const message = extractMessage(error);
             console.warn('[PredictiveAnalysis] 실행 계획 상태 서버 조회 실패:', message);
             setPredictiveSyncState('error');
-            setPredictiveSyncError(message);
+            setPredictiveSyncError(toVercelFriendlyMessage(error, message));
             setPredictiveSyncMessage(PREDICTIVE_STATUS_COPY.syncError);
         }
     }, [boardScope, executionPlans, hasPredictiveSourceData, isPlanSyncAvailable]);
