@@ -60,17 +60,19 @@
 ---
 
 ## 5) 다음 진행사항 (우선순위)
-1. Reports KPI 요약 카드 추가
-   - 기간 내 총 클릭수 / 8번 이동률 / 10번 이동률 / 경보활성 클릭 비율
+1. ~~Reports KPI 요약 카드 추가~~ → **완료** (총 클릭수/8번 이동률/10번 이동률/경보활성 클릭 비율 구현 확인)
 
-2. 로그 필터 프리셋 추가
-   - 오늘 / 최근 7일 / 최근 30일
+2. ~~로그 필터 프리셋 추가~~ → **완료** (오늘/최근 7일/최근 30일/사용자 지정 적용)
 
-3. 로그 영속화 검토
-   - localStorage 중심 로그를 서버 저장소로 승격(운영 이력 보존 강화)
+3. ~~로그 영속화 검토~~ → **완료** (서버 dual-write + 로컬 폴백 구조 구현)
 
-4. 운영 문서 동기화
-   - `MOBILE_12SCREEN_EXECUTION_PLAN_2026-05-16.md`의 다음사항과 실제 구현 상태 일치화
+4. Supabase SQL 적용 (수동 필요)
+   - Supabase SQL Editor에서 `supabase_ops_alert_click_logs_migration.sql` 실행
+   - 적용 후 `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-18.md` 시나리오 A/B/C 런타임 검증
+
+5. R1 태깅 데이터 보강 (진행 중)
+   - `npm run check:judgment-tagging:r1:full` PASS (입력 3건, 총 20건 중 R1 진행 중)
+   - 20건 중 미완료 건 우선 정리 후 재검증 필요
 
 ---
 
@@ -165,3 +167,36 @@
 2. Supabase에서 `supabase_ops_alert_click_logs_migration.sql` 적용 여부 확인
 3. 체크리스트 A→B→C→D 수행
 4. 실기록본에 합격/불합격 및 메모 기록
+
+---
+
+## 11) 2026-05-20 세션 자동 순차 진행 기록
+
+### 이번 세션 완료 (자동 실행)
+- `npm run build` PASS (built in 7.80s) ✅
+- `npm run check:judgment-tagging:r1:full` PASS ✅
+  - 입력 3건, 미입력 0건, 경고 0건
+  - R1 progress tracker: 총 20건, 진행 중 (미완료 건 추가 입력 필요)
+- Reports.tsx 코드 정적 검증 ✅
+  - KPI 4종 카드 (총 클릭수/8번 이동률/10번 이동률/경보활성 클릭 비율)
+  - 기간 프리셋 (오늘/최근 7일/최근 30일/사용자 지정)
+  - 동기화 상태 문구 (서버 연결/확인 중/로컬 폴백)
+- `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-18.md` 정적 검증 결과 기록 완료 ✅
+  - API 3종 코드 라인 확인 기록
+  - 시나리오 D (폴백): 정적 검증 기반 PASS 예상
+- `supabase_ops_alert_click_logs_migration.sql` 파일 내용 확인 ✅
+  - GitHub 저장소에 존재 (51줄, 테이블+인덱스 3개+RLS 2종)
+  - 로컬 파일시스템에는 없음 → Supabase SQL Editor 직접 실행 필요
+
+### 남은 수동 조치 (블로커)
+1. **Supabase SQL 적용** (必)
+   - Supabase 대시보드 → SQL Editor → `supabase_ops_alert_click_logs_migration.sql` 내용 실행
+2. **런타임 QA** (SQL 적용 후)
+   - 시나리오 A (서버 저장/복원), B (필터 정합성), C (전체 초기화 일관성) 브라우저 검증
+   - `REPORTS_OPS_ALERT_SYNC_QA_RUNLOG_2026-05-18.md` 판정란 업데이트
+3. **R1 태깅 데이터 보강**
+   - `templates/psi_judgment_tagging_progress_tracker_100_v1_2026-05-16.csv` 나머지 건 입력
+   - 입력 후 `npm run check:judgment-tagging:r1:full` 재실행
+
+### 재시작용 한줄 프롬프트
+"NEXT_SESSION_HANDOFF_LATEST.md §11 기준 재개. Supabase SQL Editor에서 supabase_ops_alert_click_logs_migration.sql 실행 후, REPORTS_OPS_ALERT_SYNC_QA_CHECKLIST_2026-05-18.md 기준 시나리오 A/B/C 브라우저 런타임 검증하고 RUNLOG에 판정 기록해줘."
