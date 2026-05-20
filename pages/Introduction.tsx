@@ -137,6 +137,15 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         { title: '12. 메뉴/설정', desc: `현재 릴리스 ${PSI_APP_VERSION}`, page: 'settings' },
     ]), [previewMetrics, PSI_APP_VERSION]);
 
+    const heroMobileCards = useMemo(() => mobileFlowCards.slice(0, 8), [mobileFlowCards]);
+
+    const heroPrinciples = [
+        { label: '인간 중심', icon: '👤' },
+        { label: '예측 · 개입', icon: '🧠' },
+        { label: '안전 문화', icon: '🛡️' },
+        { label: '데이터 기반', icon: '📊' },
+    ];
+
     const getStepTone = (stepNoNum: number) => {
         if (stepNoNum === 2 || stepNoNum === 7 || stepNoNum === 8) {
             return {
@@ -179,165 +188,103 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
 
     return (
         <div className="space-y-12 pb-12">
-            {/* PC·MOBILE Split Mockup Hero */}
-            <div className="relative overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-slate-100 p-5 shadow-xl sm:p-8 card-gravity-target">
-                <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-indigo-200/40 blur-3xl" aria-hidden="true"></div>
-                <div className="absolute -left-20 -bottom-24 h-72 w-72 rounded-full bg-sky-200/40 blur-3xl" aria-hidden="true"></div>
-
-                <div className="relative z-10">
-                    <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="flex items-start gap-3">
-                            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-indigo-200 bg-white shadow-sm">
-                                <BrandPhilosophyLogo className="h-10 w-10" />
-                            </div>
-                            <div>
-                                <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">Human Risk Intelligence</h1>
-                                <p className="mt-1 text-sm font-semibold text-slate-600 break-keep">기록이 아닌 이해, 점검이 아닌 전달, 보고가 아닌 예측.</p>
-                                <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-[11px] font-black tracking-[0.12em] text-indigo-700">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-indigo-500"></span>
-                                    CURRENT RELEASE {PSI_APP_VERSION}
+            <div className="relative overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-slate-100 p-4 shadow-xl sm:p-6 card-gravity-target">
+                <div className="relative z-10 space-y-4">
+                    <div className="rounded-2xl border border-slate-200 bg-white/95 px-4 py-3">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="flex items-start gap-3">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-indigo-200 bg-indigo-50">
+                                    <BrandPhilosophyLogo className="h-8 w-8" />
+                                </div>
+                                <div>
+                                    <h1 className="text-2xl font-black tracking-tight text-indigo-700">Human Risk Intelligence</h1>
+                                    <p className="mt-1 text-[12px] font-semibold text-slate-600 break-keep">기록이 아닌 이해, 점검이 아닌 전달, 보고가 아닌 예측</p>
+                                    <p className="text-[12px] font-semibold text-slate-600 break-keep">현장 상황을 연결하여 사고 전 전조를 탐지하고 개입을 추천하는 시스템입니다.</p>
                                 </div>
                             </div>
+                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                {heroPrinciples.map((item) => (
+                                    <div key={item.label} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-center">
+                                        <p className="text-sm">{item.icon}</p>
+                                        <p className="mt-1 text-[10px] font-black text-slate-700">{item.label}</p>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
-
-                        <button
-                            onClick={toggleGravity}
-                            className={`rounded-full px-5 py-2 text-sm font-black transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${
-                                isGravityOff
-                                    ? 'bg-rose-500 text-white hover:bg-rose-600'
-                                    : 'bg-indigo-600 text-white hover:bg-indigo-500'
-                            }`}
-                        >
-                            {isGravityOff ? '중력 복귀' : 'Zero Gravity'}
-                        </button>
                     </div>
 
-                    <div className="hidden lg:grid grid-cols-1 gap-4 xl:grid-cols-[1.3fr_1fr]">
-                        <section className="rounded-3xl border border-indigo-100 bg-white/90 p-4 shadow-sm">
-                            <div className="mb-3 inline-flex items-center rounded-full bg-indigo-600 px-3 py-1 text-[10px] font-black tracking-[0.14em] text-white">
-                                PC DASHBOARD
+                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.1fr_1fr]">
+                        <section className="rounded-3xl border border-indigo-200 bg-white p-3 shadow-sm">
+                            <div className="mb-2 inline-flex items-center rounded-full bg-indigo-600 px-3 py-1 text-[10px] font-black tracking-[0.14em] text-white">PC DASHBOARD</div>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                <div className="grid grid-cols-[96px_1fr] gap-2">
+                                    <div className="rounded-xl bg-indigo-950 px-2 py-3 text-indigo-100">
+                                        <p className="text-sm font-black">psi</p>
+                                        <ul className="mt-2 space-y-1 text-[10px] font-bold">
+                                            <li className="rounded-md bg-white/10 px-2 py-1">대시보드</li>
+                                            <li className="rounded-md px-2 py-1">위험예측</li>
+                                            <li className="rounded-md px-2 py-1">리포트</li>
+                                            <li className="rounded-md px-2 py-1">데이터관리</li>
+                                        </ul>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                                            {[
+                                                ['위험성 평균', `${previewMetrics.averageScore}`],
+                                                ['전조 신호', `${previewMetrics.alertSignals}`],
+                                                ['위험 예측', `${previewMetrics.highRiskWorkers}`],
+                                                ['개입 완료율', `${previewMetrics.totalWorkers > 0 ? Math.round((previewMetrics.approvedRecords / previewMetrics.totalWorkers) * 100) : 0}%`],
+                                            ].map(([label, value]) => (
+                                                <div key={label} className="rounded-xl border border-slate-200 bg-white px-2 py-2">
+                                                    <p className="text-[10px] font-black text-slate-500">{label}</p>
+                                                    <p className="mt-1 text-base font-black text-slate-900">{value}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                            <div className="rounded-xl border border-slate-200 bg-white p-2">
+                                                <p className="text-[10px] font-black text-slate-500">유형 분포</p>
+                                                <div className="mt-2 h-14 rounded-lg bg-gradient-to-r from-indigo-100 via-violet-100 to-pink-100"></div>
+                                            </div>
+                                            <div className="rounded-xl border border-slate-200 bg-white p-2">
+                                                <p className="text-[10px] font-black text-slate-500">전조 패턴 Top5</p>
+                                                <div className="mt-2 space-y-1">
+                                                    <div className="h-2 rounded bg-rose-100"></div>
+                                                    <div className="h-2 rounded bg-amber-100"></div>
+                                                    <div className="h-2 rounded bg-sky-100"></div>
+                                                </div>
+                                            </div>
+                                            <div className="rounded-xl border border-slate-200 bg-white p-2">
+                                                <p className="text-[10px] font-black text-slate-500">위험 예측 지도</p>
+                                                <div className="mt-2 h-14 rounded-lg bg-slate-100"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="mb-3 flex flex-wrap gap-2">
+                            <div className="mt-2 flex gap-2">
                                 <button
                                     type="button"
                                     onClick={() => onNavigateToPage('dashboard')}
-                                    className="rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-black text-white transition duration-200 hover:-translate-y-0.5 hover:bg-indigo-500 hover:shadow-sm"
+                                    className="rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-black text-white transition duration-200 hover:bg-indigo-500"
                                 >
                                     PC 대시보드 열기
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => onNavigateToPage('reports')}
-                                    className="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-[11px] font-black text-indigo-700 transition duration-200 hover:-translate-y-0.5 hover:bg-indigo-50 hover:shadow-sm"
+                                    className="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-[11px] font-black text-indigo-700 transition duration-200 hover:bg-indigo-50"
                                 >
-                                    운영 리포트 열기
+                                    분석 리포트 열기
                                 </button>
                             </div>
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                                <div className="grid grid-cols-[120px_1fr] gap-3">
-                                    <div className="rounded-xl border border-indigo-100 bg-indigo-950 p-3 text-indigo-100">
-                                        <div className="mb-3 text-sm font-black">psi</div>
-                                        <ul className="space-y-1 text-[11px] font-semibold">
-                                            <li className="rounded-md bg-white/15 px-2 py-1">대시보드</li>
-                                            <li className="rounded-md px-2 py-1">작업자 프로파일</li>
-                                            <li className="rounded-md px-2 py-1">현장 지도</li>
-                                            <li className="rounded-md px-2 py-1">개입 예측</li>
-                                        </ul>
-                                    </div>
-                                    <div className="space-y-3">
-                                        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-                                            {[
-                                                ['위험성 평균', `${previewMetrics.averageScore}`],
-                                                ['전조 신호', `${previewMetrics.alertSignals}`],
-                                                ['개입 권고', `${previewMetrics.interventionTargets}`],
-                                                ['오늘 입력', `${previewMetrics.todayRecords}`],
-                                            ].map(([label, value]) => (
-                                                <div key={label} className="rounded-xl border border-slate-200 bg-white p-2 transition duration-200 hover:-translate-y-0.5 hover:shadow-sm">
-                                                    <p className="text-[10px] font-black text-slate-500">{label}</p>
-                                                    <p className="mt-1 text-lg font-black text-slate-900">{value}</p>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                                            <div className="rounded-xl border border-slate-200 bg-white p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-sm">
-                                                <p className="text-[10px] font-black text-slate-500">유형 분포</p>
-                                                <div className="mt-2 h-16 rounded-lg bg-gradient-to-r from-indigo-100 via-violet-100 to-sky-100"></div>
-                                            </div>
-                                            <div className="rounded-xl border border-slate-200 bg-white p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-sm">
-                                                <p className="text-[10px] font-black text-slate-500">전조 TOP5</p>
-                                                <ul className="mt-2 space-y-1 text-[11px] font-semibold text-slate-700">
-                                                    <li>1. 안전모 미착용</li>
-                                                    <li>2. 장비 접근 위험</li>
-                                                    <li>3. 작업 전 점검 누락</li>
-                                                </ul>
-                                            </div>
-                                            <div className="rounded-xl border border-slate-200 bg-white p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-sm">
-                                                <p className="text-[10px] font-black text-slate-500">위험 지도</p>
-                                                <div className="mt-2 h-16 rounded-lg bg-slate-100"></div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
                         </section>
 
-                        <section className="rounded-3xl border border-indigo-100 bg-indigo-50/60 p-4 shadow-sm">
-                            <div className="mb-3 inline-flex items-center rounded-full bg-indigo-500 px-3 py-1 text-[10px] font-black tracking-[0.14em] text-white">
-                                MOBILE APP
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                {mobileFlowCards.map(({ title, desc, page }) => {
-                                    const [stepNoRaw, ...restTitleParts] = String(title).split('. ');
-                                    const stepNo = stepNoRaw || '-';
-                                    const stepNoNum = Number(stepNoRaw);
-                                    const stepTitle = restTitleParts.join('. ') || String(title);
-                                    const tone = getStepTone(stepNoNum);
-
-                                    return (
-                                        <button
-                                            key={title}
-                                            type="button"
-                                            onClick={() => onNavigateToPage(page)}
-                                            className={`group min-h-[148px] rounded-2xl border bg-white p-2 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${tone.cardBorder}`}
-                                        >
-                                            <div className="mb-1 flex items-center gap-1.5">
-                                                <span className={`inline-flex min-w-[22px] items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-black text-white transition duration-200 group-hover:brightness-110 group-hover:scale-105 ${tone.badgeBg}`}>
-                                                    {stepNo}
-                                                </span>
-                                                <p className="text-[10px] font-black text-slate-700">{stepTitle}</p>
-                                            </div>
-                                            <div className={`rounded-xl border border-slate-200 p-2 ${tone.panelBg}`}>
-                                                <div className="mx-auto mb-1 h-1 w-10 rounded-full bg-slate-300"></div>
-                                                <div className="mb-2 flex items-center gap-1">
-                                                    <BrandPhilosophyLogo className="h-4 w-4" />
-                                                    <span className="text-[10px] font-black text-slate-700">psi</span>
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <div className={`h-2 rounded ${tone.bars[0]}`}></div>
-                                                    <div className={`h-2 rounded ${tone.bars[1]}`}></div>
-                                                    <div className={`h-2 rounded ${tone.bars[2]}`}></div>
-                                                </div>
-                                                <p className={`mt-2 text-[9px] font-black ${tone.descText}`}>{desc}</p>
-                                            </div>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </section>
-                    </div>
-
-                    <div className="space-y-4 lg:hidden">
-                        <section className="rounded-3xl border border-indigo-100 bg-indigo-50/70 p-4 shadow-sm">
-                            <div className="mb-3 inline-flex items-center rounded-full bg-indigo-500 px-3 py-1 text-[10px] font-black tracking-[0.14em] text-white">
-                                MOBILE APP FIRST VIEW
-                            </div>
-                            <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                                <div className="mb-3 flex items-center justify-between">
-                                    <p className="text-[11px] font-black text-slate-700">모바일 실행 플로우 12화면</p>
-                                    <span className="rounded-full bg-indigo-100 px-2 py-1 text-[10px] font-black text-indigo-700">현재 운영 기준</span>
-                                </div>
-                                <div className="grid grid-cols-1 gap-2">
-                                    {mobileFlowCards.map(({ title, desc, page }) => {
+                        <section className="rounded-3xl border border-indigo-200 bg-indigo-50/70 p-3 shadow-sm">
+                            <div className="mb-2 inline-flex items-center rounded-full bg-indigo-500 px-3 py-1 text-[10px] font-black tracking-[0.14em] text-white">MOBILE APP</div>
+                            <div className="relative rounded-2xl border border-indigo-100 bg-white/90 p-3">
+                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                    {heroMobileCards.map(({ title, desc, page }) => {
                                         const [stepNoRaw, ...restTitleParts] = String(title).split('. ');
                                         const stepNo = stepNoRaw || '-';
                                         const stepNoNum = Number(stepNoRaw);
@@ -346,61 +293,69 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
 
                                         return (
                                             <button
-                                                key={`mobile-${title}`}
+                                                key={`hero-mobile-${title}`}
                                                 type="button"
                                                 onClick={() => onNavigateToPage(page)}
-                                                className={`group rounded-2xl border bg-white px-3 py-3 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${tone.cardBorder}`}
+                                                className={`rounded-2xl border bg-white p-2 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${tone.cardBorder}`}
                                             >
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className={`inline-flex min-w-[22px] items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black text-white ${tone.badgeBg}`}>
-                                                            {stepNo}
-                                                        </span>
-                                                        <p className="text-[12px] font-black text-slate-800">{stepTitle}</p>
-                                                    </div>
-                                                    <span className={`text-[10px] font-black ${tone.descText}`}>{desc}</span>
+                                                <p className="text-[10px] font-black text-slate-700">{stepNo}. {stepTitle}</p>
+                                                <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-2">
+                                                    <div className="h-1.5 rounded bg-slate-200"></div>
+                                                    <div className="mt-1.5 h-1.5 rounded bg-slate-200"></div>
+                                                    <p className={`mt-2 text-[9px] font-black ${tone.descText}`}>{desc}</p>
                                                 </div>
                                             </button>
                                         );
                                     })}
                                 </div>
+                                <div className="pointer-events-none absolute -bottom-4 -right-1 hidden h-36 w-20 rounded-2xl border border-slate-200 bg-slate-900 text-white shadow-xl sm:flex sm:flex-col sm:items-center sm:justify-center">
+                                    <BrandPhilosophyLogo className="h-7 w-7" />
+                                    <p className="mt-1 text-lg font-black">psi</p>
+                                    <p className="mt-1 text-[8px] font-bold text-slate-300">Human Risk Intelligence</p>
+                                </div>
                             </div>
                         </section>
+                    </div>
 
-                        <section className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm">
-                            <div className="mb-3 inline-flex items-center rounded-full bg-slate-900 px-3 py-1 text-[10px] font-black tracking-[0.14em] text-white">
-                                PC MONITOR PREVIEW
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                            <p className="text-[10px] font-black tracking-[0.14em] text-indigo-600">BRAND STORY</p>
+                            <p className="mt-2 text-[11px] font-semibold text-slate-600 break-keep">PSI는 사고를 줄이기 위해 사람의 위험인지 신호를 해석하고 보호로 연결하는 Human Risk Intelligence 플랫폼입니다.</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                            <p className="text-[10px] font-black tracking-[0.14em] text-indigo-600">BRANDING MARK</p>
+                            <div className="mt-2 flex items-center gap-2">
+                                <BrandPhilosophyLogo className="h-8 w-8" />
+                                <p className="text-xl font-black text-indigo-600">psi</p>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                {[
-                                    ['위험성 평균', `${previewMetrics.averageScore}`],
-                                    ['전조 신호', `${previewMetrics.alertSignals}`],
-                                    ['개입 권고', `${previewMetrics.interventionTargets}`],
-                                    ['오늘 입력', `${previewMetrics.todayRecords}`],
-                                ].map(([label, value]) => (
-                                    <div key={`m-${label}`} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                                        <p className="text-[10px] font-black text-slate-500">{label}</p>
-                                        <p className="mt-1 text-base font-black text-slate-900">{value}</p>
-                                    </div>
-                                ))}
+                            <p className="mt-2 text-[10px] font-semibold text-slate-500">높아지는 위험 전조를 먼저 읽고 개입하는 보호 흐름</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                            <p className="text-[10px] font-black tracking-[0.14em] text-indigo-600">COLOR SYSTEM</p>
+                            <div className="mt-2 grid grid-cols-5 gap-1.5">
+                                <div className="h-8 rounded bg-indigo-500"></div>
+                                <div className="h-8 rounded bg-emerald-500"></div>
+                                <div className="h-8 rounded bg-rose-500"></div>
+                                <div className="h-8 rounded bg-slate-900"></div>
+                                <div className="h-8 rounded bg-slate-200"></div>
                             </div>
-                            <div className="mt-3 flex gap-2">
-                                <button
-                                    type="button"
-                                    onClick={() => onNavigateToPage('dashboard')}
-                                    className="flex-1 rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-black text-white transition duration-200 hover:bg-indigo-500"
-                                >
-                                    PC 대시보드
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => onNavigateToPage('reports')}
-                                    className="flex-1 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-[11px] font-black text-indigo-700 transition duration-200 hover:bg-indigo-50"
-                                >
-                                    리포트
-                                </button>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                            <p className="text-[10px] font-black tracking-[0.14em] text-indigo-600">TYPOGRAPHY</p>
+                            <p className="mt-2 text-2xl font-black text-slate-800">Pretendard</p>
+                            <p className="text-[11px] font-semibold text-slate-500">가독성과 명료성을 우선하는 운영용 타입 시스템</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                            <p className="text-[10px] font-black tracking-[0.14em] text-indigo-600">ICONOGRAPHY</p>
+                            <div className="mt-2 grid grid-cols-3 gap-1 text-center text-[10px] font-black text-slate-600">
+                                <span className="rounded-lg border border-slate-200 bg-slate-50 px-1 py-2">👤</span>
+                                <span className="rounded-lg border border-slate-200 bg-slate-50 px-1 py-2">🧠</span>
+                                <span className="rounded-lg border border-slate-200 bg-slate-50 px-1 py-2">🛡️</span>
+                                <span className="rounded-lg border border-slate-200 bg-slate-50 px-1 py-2">📈</span>
+                                <span className="rounded-lg border border-slate-200 bg-slate-50 px-1 py-2">🔗</span>
+                                <span className="rounded-lg border border-slate-200 bg-slate-50 px-1 py-2">📊</span>
                             </div>
-                        </section>
+                        </div>
                     </div>
                 </div>
             </div>
