@@ -122,6 +122,45 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         };
     }, [workerRecords]);
 
+    const topSignalPatterns = useMemo<Array<{ label: string; pct: number; color: string }>>(() => {
+        const patternMap = new Map<string, number>();
+
+        for (const record of workerRecords) {
+            const weakAreas = Array.isArray(record.weakAreas) ? record.weakAreas : [];
+            for (const weak of weakAreas) {
+                const raw = String(weak || '').trim();
+                if (!raw) continue;
+                const normalized = raw.length > 8 ? raw.slice(0, 8) : raw;
+                patternMap.set(normalized, (patternMap.get(normalized) || 0) + 1);
+            }
+        }
+
+        const fallback = [
+            { label: '반복 지각', pct: 88, color: 'bg-rose-400' },
+            { label: '고강도 연속', pct: 71, color: 'bg-amber-400' },
+            { label: '수면 부족', pct: 59, color: 'bg-orange-300' },
+            { label: '언어 장벽', pct: 43, color: 'bg-sky-300' },
+            { label: '혼잡 작업', pct: 29, color: 'bg-violet-300' },
+        ];
+
+        if (patternMap.size === 0) {
+            return fallback;
+        }
+
+        const top = Array.from(patternMap.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+
+        const maxCount = Math.max(...top.map(([, count]) => count), 1);
+        const palette = ['bg-rose-400', 'bg-amber-400', 'bg-orange-300', 'bg-sky-300', 'bg-violet-300'];
+
+        return top.map(([label, count], index) => ({
+            label,
+            pct: Math.max(18, Math.round((count / maxCount) * 100)),
+            color: palette[index] || 'bg-indigo-300',
+        }));
+    }, [workerRecords]);
+
     const mobileFlowCards = useMemo<Array<{ title: string; desc: string; page: Page }>>(() => ([
         { title: '1. 홈 대시보드', desc: `${previewMetrics.totalWorkers}명 분석`, page: 'dashboard' },
         { title: '2. 경보 알림', desc: `전조 신호 ${previewMetrics.alertSignals}건`, page: 'site-issue-management' },
@@ -221,23 +260,23 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
 
     return (
         <div className="space-y-12 pb-12">
-            <div className="relative overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-slate-100 p-4 shadow-xl sm:p-6 card-gravity-target">
-                <div className="relative z-10 space-y-4">
-                    <div className="rounded-2xl border border-slate-200 bg-white/95 px-4 py-3">
+            <div className="relative overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-slate-100 p-4 shadow-xl sm:p-5 lg:p-6 card-gravity-target">
+                <div className="relative z-10 space-y-3.5 sm:space-y-4">
+                    <div className="rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 sm:px-4.5 sm:py-3.5">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                             <div className="flex items-start gap-3">
                                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-indigo-200 bg-indigo-50">
                                     <BrandPhilosophyLogo className="h-8 w-8" />
                                 </div>
                                 <div>
-                                    <h1 className="text-2xl font-black tracking-tight text-indigo-700">Human Risk Intelligence</h1>
-                                    <p className="mt-1 text-[12px] font-semibold text-slate-600 break-keep">기록이 아닌 이해, 점검이 아닌 전달, 보고가 아닌 예측</p>
-                                    <p className="text-[12px] font-semibold text-slate-600 break-keep">현장 상황을 연결하여 사고 전 전조를 탐지하고 개입을 추천하는 시스템입니다.</p>
+                                    <h1 className="text-[24px] sm:text-[26px] leading-tight font-black tracking-tight text-indigo-700">Human Risk Intelligence</h1>
+                                    <p className="mt-1 text-[11px] sm:text-[12px] font-semibold text-slate-600 break-keep">기록이 아닌 이해, 점검이 아닌 전달, 보고가 아닌 예측</p>
+                                    <p className="text-[11px] sm:text-[12px] font-semibold text-slate-600 break-keep">현장 상황을 연결하여 사고 전 전조를 탐지하고 개입을 추천하는 시스템입니다.</p>
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                                 {heroPrinciples.map((item) => (
-                                    <div key={item.label} className="rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-center">
+                                    <div key={item.label} className="rounded-xl border border-indigo-100 bg-indigo-50 px-2.5 py-2 text-center">
                                         <span className="flex justify-center text-indigo-500">{item.icon}</span>
                                         <p className="mt-1 text-[10px] font-black text-indigo-700">{item.label}</p>
                                     </div>
@@ -246,11 +285,11 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.1fr_1fr]">
-                        <section className="rounded-3xl border border-indigo-200 bg-white p-3 shadow-sm">
-                            <div className="mb-2 inline-flex items-center rounded-full bg-indigo-600 px-3 py-1 text-[10px] font-black tracking-[0.14em] text-white">PC DASHBOARD</div>
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                                <div className="grid grid-cols-[96px_1fr] gap-2">
+                    <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.14fr_1fr]">
+                        <section className="rounded-3xl border border-indigo-200 bg-white p-3.5 shadow-sm">
+                            <div className="mb-2 inline-flex items-center rounded-full bg-indigo-600 px-3 py-1 text-[10px] font-black tracking-[0.12em] text-white">PC DASHBOARD</div>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
+                                <div className="grid grid-cols-[104px_1fr] gap-2.5">
                                     <div className="rounded-xl bg-indigo-950 px-2 py-3 text-indigo-100">
                                         <p className="text-sm font-black">psi</p>
                                         <ul className="mt-2 space-y-1 text-[10px] font-bold">
@@ -260,7 +299,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                             <li className="rounded-md px-2 py-1">데이터관리</li>
                                         </ul>
                                     </div>
-                                    <div className="space-y-2">
+                                    <div className="space-y-2.5">
                                         <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
                                             {[
                                                 ['위험성 평균', `${previewMetrics.averageScore}`],
@@ -268,9 +307,9 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                                 ['위험 예측', `${previewMetrics.highRiskWorkers}`],
                                                 ['개입 완료율', `${previewMetrics.totalWorkers > 0 ? Math.round((previewMetrics.approvedRecords / previewMetrics.totalWorkers) * 100) : 0}%`],
                                             ].map(([label, value]) => (
-                                                <div key={label} className="rounded-xl border border-slate-200 bg-white px-2 py-2">
+                                                <div key={label} className="rounded-xl border border-slate-200 bg-white px-2 py-2.5">
                                                     <p className="text-[10px] font-black text-slate-500">{label}</p>
-                                                    <p className="mt-1 text-base font-black text-slate-900">{value}</p>
+                                                    <p className="mt-1 text-[17px] font-black leading-none text-slate-900">{value}</p>
                                                 </div>
                                             ))}
                                         </div>
@@ -299,13 +338,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                             <div className="rounded-xl border border-slate-200 bg-white p-2">
                                                 <p className="text-[10px] font-black text-slate-500">전조 패턴 Top5</p>
                                                 <div className="mt-1.5 space-y-1">
-                                                    {[
-                                                        { label: '반복 지각', pct: 88, color: 'bg-rose-400' },
-                                                        { label: '고강도 연속', pct: 71, color: 'bg-amber-400' },
-                                                        { label: '수면 부족', pct: 59, color: 'bg-orange-300' },
-                                                        { label: '언어 장벽', pct: 43, color: 'bg-sky-300' },
-                                                        { label: '혼잡 작업', pct: 29, color: 'bg-violet-300' },
-                                                    ].map(({ label, pct, color }) => (
+                                                    {topSignalPatterns.map(({ label, pct, color }) => (
                                                         <div key={label} className="flex items-center gap-1">
                                                             <p className="w-11 shrink-0 text-[8px] font-bold text-slate-500 truncate leading-tight">{label}</p>
                                                             <div className="flex-1 rounded bg-slate-100 h-1.5 overflow-hidden">
@@ -339,7 +372,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                     </div>
                                 </div>
                             </div>
-                            <div className="mt-2 flex gap-2">
+                            <div className="mt-2.5 flex gap-2">
                                 <button
                                     type="button"
                                     onClick={() => onNavigateToPage('dashboard')}
@@ -357,10 +390,10 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             </div>
                         </section>
 
-                        <section className="rounded-3xl border border-indigo-200 bg-indigo-50/70 p-3 shadow-sm">
-                            <div className="mb-2 inline-flex items-center rounded-full bg-indigo-500 px-3 py-1 text-[10px] font-black tracking-[0.14em] text-white">MOBILE APP</div>
-                            <div className="relative rounded-2xl border border-indigo-100 bg-white/90 p-3">
-                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        <section className="rounded-3xl border border-indigo-200 bg-indigo-50/70 p-3.5 shadow-sm">
+                            <div className="mb-2 inline-flex items-center rounded-full bg-indigo-500 px-3 py-1 text-[10px] font-black tracking-[0.12em] text-white">MOBILE APP</div>
+                            <div className="relative rounded-2xl border border-indigo-100 bg-white/90 p-3.5">
+                                <div className="grid grid-cols-2 gap-1.5 sm:gap-2 sm:grid-cols-4">
                                     {heroMobileCards.map(({ title, desc, page }) => {
                                         const [stepNoRaw, ...restTitleParts] = String(title).split('. ');
                                         const stepNo = stepNoRaw || '-';
@@ -373,7 +406,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                                 key={`hero-mobile-${title}`}
                                                 type="button"
                                                 onClick={() => onNavigateToPage(page)}
-                                                className={`rounded-2xl border bg-white p-2 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-sm ${tone.cardBorder}`}
+                                                className={`rounded-2xl border bg-white p-2 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-sm min-h-[86px] sm:min-h-[84px] ${tone.cardBorder}`}
                                             >
                                                 <p className="text-[10px] font-black text-slate-700 leading-tight">{stepNo}. {stepTitle}</p>
                                                 <div className={`mt-1.5 rounded-xl border border-slate-100 ${tone.panelBg} p-2`}>
@@ -453,7 +486,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
                         <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
                             <p className="text-[10px] font-black tracking-[0.14em] text-indigo-600">BRAND STORY</p>
-                            <p className="mt-2 text-[11px] font-semibold text-slate-600 break-keep">PSI는 사고를 줄이기 위해 사람의 위험인지 신호를 해석하고 보호로 연결하는 Human Risk Intelligence 플랫폼입니다.</p>
+                            <p className="mt-2 text-[10px] sm:text-[11px] font-semibold leading-relaxed text-slate-600 break-keep">PSI는 사고를 줄이기 위해 사람의 위험인지 신호를 해석하고 보호로 연결하는 Human Risk Intelligence 플랫폼입니다.</p>
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
                             <p className="text-[10px] font-black tracking-[0.14em] text-indigo-600">BRANDING MARK</p>
@@ -461,7 +494,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                 <BrandPhilosophyLogo className="h-8 w-8" />
                                 <p className="text-xl font-black text-indigo-600">psi</p>
                             </div>
-                            <p className="mt-2 text-[10px] font-semibold text-slate-500">높아지는 위험 전조를 먼저 읽고 개입하는 보호 흐름</p>
+                            <p className="mt-2 text-[9px] sm:text-[10px] font-semibold leading-relaxed text-slate-500">높아지는 위험 전조를 먼저 읽고 개입하는 보호 흐름</p>
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3">
                             <p className="text-[10px] font-black tracking-[0.14em] text-indigo-600">COLOR SYSTEM</p>

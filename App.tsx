@@ -686,7 +686,6 @@ const App: React.FC = () => {
     const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
     const [adminUnlockError, setAdminUnlockError] = useState('');
     const [isUnlockSubmitting, setIsUnlockSubmitting] = useState(false);
-    const [isDataLoaded, setIsDataLoaded] = useState(false);
     const [workerRecords, setWorkerRecords] = useState<WorkerRecord[]>([]);
     const [safetyCheckRecords, setSafetyCheckRecords] = useState<SafetyCheckRecord[]>([]);
     const [briefingData, setBriefingData] = useState<BriefingData | null>(null);
@@ -888,7 +887,6 @@ const App: React.FC = () => {
             const sanitizedData = sanitizeRecords(sourceData).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             const reconciled = reconcileWorkerProfiles(sanitizedData);
             setWorkerRecords(reconciled.records);
-            setIsDataLoaded(true);
 
             if (useQaSeed && (forceQaSeed || data.length === 0) && reconciled.records.length > 0) {
                 void (async () => {

@@ -161,7 +161,7 @@
 </head>
 <body>
     <div id="root">
-        <div id="boot-fallback" style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#f8fafc;color:#0f172a;">
+        <div id="boot-fallback" style="min-height:100vh;display:none;align-items:center;justify-content:center;padding:24px;background:#f8fafc;color:#0f172a;">
             <div style="width:100%;max-width:560px;background:#ffffff;border:1px solid #e2e8f0;border-radius:20px;padding:24px;box-shadow:0 20px 48px rgba(15,23,42,.08);font-family:'Pretendard','Noto Sans KR',sans-serif;">
                 <div style="display:inline-flex;align-items:center;border-radius:9999px;background:#e0e7ff;color:#3730a3;padding:6px 10px;font-size:11px;font-weight:800;">PSI 부트스트랩 확인</div>
                 <h1 style="margin:14px 0 8px;font-size:24px;line-height:1.3;font-weight:900;">앱 초기화 중입니다.</h1>
@@ -178,6 +178,15 @@
         </div>
     </div>
     <script type="module" src="/index.tsx"></script>
+    <script>
+        window.setTimeout(function () {
+            if (document.documentElement.dataset.psiMounted === '1') return;
+            var fallback = document.getElementById('boot-fallback');
+            if (fallback) {
+                fallback.style.display = 'flex';
+            }
+        }, 1200);
+    </script>
     <script>
         window.setTimeout(function () {
             if (document.documentElement.dataset.psiMounted === '1') return;
