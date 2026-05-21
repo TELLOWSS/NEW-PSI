@@ -419,12 +419,12 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                                     fill="none"
                                     stroke="#ea580c"
                                     strokeWidth="12"
-                                    strokeDasharray={`${Math.round(((completedCount) / (issues.length || 1)) * 376)} 376`}
+                                    strokeDasharray={`${Math.round(((issueSummary.completedCount) / (issues.length || 1)) * 376)} 376`}
                                     strokeLinecap="round"
                                 />
                             </svg>
                             <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <p className="text-3xl sm:text-4xl font-black text-orange-700">{issues.length > 0 ? Math.round((completedCount / issues.length) * 100) : 0}%</p>
+                                <p className="text-3xl sm:text-4xl font-black text-orange-700">{issues.length > 0 ? Math.round((issueSummary.completedCount / issues.length) * 100) : 0}%</p>
                                 <p className="text-[10px] sm:text-[11px] font-bold text-orange-600 mt-0.5">진행도</p>
                             </div>
                         </div>
@@ -437,17 +437,17 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                         <div className="mt-3 sm:mt-4 grid grid-cols-3 gap-2 sm:gap-3">
                             <div className="rounded-xl bg-white/70 px-3 py-2.5 sm:py-3 text-center border border-orange-100 shadow-sm">
                                 <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] text-orange-700">미검토</p>
-                                <p className="mt-1.5 text-lg sm:text-2xl font-black text-orange-800">{pendingCount}</p>
+                                <p className="mt-1.5 text-lg sm:text-2xl font-black text-orange-800">{issueSummary.pendingCount}</p>
                                 <p className="text-[8px] sm:text-[9px] text-orange-600 font-semibold">검토 필요</p>
                             </div>
                             <div className="rounded-xl bg-white/70 px-3 py-2.5 sm:py-3 text-center border border-amber-100 shadow-sm">
                                 <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] text-amber-700">처리중</p>
-                                <p className="mt-1.5 text-lg sm:text-2xl font-black text-amber-800">{inProgressCount}</p>
+                                <p className="mt-1.5 text-lg sm:text-2xl font-black text-amber-800">{issueSummary.inProgressCount}</p>
                                 <p className="text-[8px] sm:text-[9px] text-amber-600 font-semibold">조치 진행</p>
                             </div>
                             <div className="rounded-xl bg-emerald-50/70 px-3 py-2.5 sm:py-3 text-center border border-emerald-100 shadow-sm">
                                 <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] text-emerald-700">완료</p>
-                                <p className="mt-1.5 text-lg sm:text-2xl font-black text-emerald-700">{completedCount}</p>
+                                <p className="mt-1.5 text-lg sm:text-2xl font-black text-emerald-700">{issueSummary.completedCount}</p>
                                 <p className="text-[8px] sm:text-[9px] text-emerald-600 font-semibold">처리 완료</p>
                             </div>
                         </div>
