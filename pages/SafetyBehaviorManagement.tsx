@@ -1107,8 +1107,64 @@ const SafetyBehaviorManagement: React.FC<SafetyBehaviorManagementProps> = ({ wor
         },
     ]), [activeTab, harnessSummary]);
 
+    const mobileStatusBadge = harnessSummary.immediateAttention > 0
+        ? { label: '즉시 개입 우선', tone: 'bg-rose-500/20 text-rose-300 border border-rose-400/40' }
+        : harnessSummary.approvalBacklog > 0
+            ? { label: '승인 백로그 확인', tone: 'bg-amber-500/20 text-amber-300 border border-amber-400/40' }
+            : { label: '관찰 루프 안정', tone: 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40' };
+
+    const mobilePriorityTab: Tab = harnessSummary.immediateAttention > 0 ? 'review' : 'observe';
+
     return (
         <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+            <div className="sm:hidden mb-4 rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">
+                <div className="flex items-center justify-between gap-3">
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-300">6) 행동 패턴 분석</p>
+                        <h2 className="mt-1 text-lg font-black">불안전행동 관리</h2>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${mobileStatusBadge.tone}`}>
+                        {mobileStatusBadge.label}
+                    </span>
+                </div>
+
+                <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+                    <div className="rounded-lg bg-slate-900 px-2 py-2">
+                        <p className="text-[10px] text-slate-400">관찰대상</p>
+                        <p className="text-sm font-black text-indigo-300">{workerOptions.length}</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-900 px-2 py-2">
+                        <p className="text-[10px] text-slate-400">즉시보호</p>
+                        <p className="text-sm font-black text-rose-300">{harnessSummary.immediateAttention}</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-900 px-2 py-2">
+                        <p className="text-[10px] text-slate-400">백로그</p>
+                        <p className="text-sm font-black text-amber-300">{harnessSummary.approvalBacklog}</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-900 px-2 py-2">
+                        <p className="text-[10px] text-slate-400">연결</p>
+                        <p className="text-sm font-black text-emerald-300">{harnessSummary.connected}</p>
+                    </div>
+                </div>
+
+                <div className="mt-3 flex gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab(mobilePriorityTab)}
+                        className="flex-1 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-black text-white"
+                    >
+                        우선순위 이동
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setActiveTab(activeTab === 'observe' ? 'review' : 'observe')}
+                        className="flex-1 rounded-xl bg-slate-700 px-3 py-2 text-xs font-black text-slate-100"
+                    >
+                        {activeTab === 'observe' ? '판정 보기' : '관찰 보기'}
+                    </button>
+                </div>
+            </div>
+
             {/* 헤더 */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
                 <div>
