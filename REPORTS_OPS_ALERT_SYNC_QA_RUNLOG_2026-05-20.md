@@ -122,10 +122,30 @@
 - 코드/문서/빌드 기준으로는 동기화 구조가 일관됨
 - 단, 최종 운영 판정은 여전히 **Supabase SQL 적용 + 브라우저 런타임(A/B/C)** 완료가 필요
 
+### 2026-05-21 UI 연동 추가 반영
+- `pages/Introduction.tsx`
+  - QA 경보 상태 runlog(localStorage) 저장 추가
+  - 경고 항목 카드 클릭 시 대상 페이지 이동 추가
+- `pages/Reports.tsx`
+  - `Introduction QA RUNLOG` 요약 카드 연동(최신 점검시각/연결/데이터/경고 건수)
+  - 경고 페이지 이동 버튼 연동
+- `npm run build` PASS (2026-05-21)
+
 ### 남은 수동 단계 (변경 없음)
 1. Supabase SQL Editor에서 `supabase_ops_alert_click_logs_migration.sql` 실행
-2. 체크리스트 기준 시나리오 A/B/C/D 런타임 수행
+2. 체크리스트 기준 시나리오 A/B/C/D/E 런타임 수행
 3. 본 실행기록의 시나리오 판정란 및 종합 판정 업데이트
+
+### 시나리오 E(Introduction QA RUNLOG 연동) 판정
+1. [ ] Introduction에서 QA 상태 생성(정상/경고)
+2. [ ] Reports에서 Introduction QA RUNLOG 요약 표시 확인
+3. [ ] 경고 페이지 버튼 클릭 이동 확인
+
+판정: [ ] 합격  [ ] 불합격 ← **런타임 필요**
+메모:
+- [정적] Introduction↔Reports localStorage 키 연동 코드 확인 ✅
+- [정적] 경고 페이지 이동 버튼 코드 확인 ✅
+- [런타임] 실제 브라우저 이동/반영 타이밍 검증 필요
 
 ---
 

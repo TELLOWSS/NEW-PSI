@@ -3,6 +3,7 @@
 ## 목적
 - Reports의 경보 CTA 로그가 `서버 우선 + 로컬 폴백`으로 정상 동작하는지 검증
 - `전체 초기화`가 서버/로컬 모두에서 일관되게 동작하는지 검증
+- Introduction QA RUNLOG 최신 상태가 Reports에서 요약/점프 버튼으로 연동되는지 검증
 
 ---
 
@@ -64,6 +65,19 @@
 
 ---
 
+## 시나리오 E: Introduction QA RUNLOG 연동 검증 (2026-05-21 추가)
+1. Introduction 화면에서 `12 SCREEN FEATURE CHECK` 섹션 확인
+2. QA 상태를 1회 이상 생성(정상/경고)
+3. Reports의 `경보 CTA 클릭 로그` 카드에서 `Introduction QA RUNLOG` 요약 표시 확인
+4. 경고 페이지 버튼이 보이면 클릭해 대상 화면으로 이동 확인
+
+합격 기준:
+- Reports에 최신 점검시각/연결/데이터/경고 건수가 표시됨
+- 경고 페이지 버튼 클릭 시 해당 페이지로 즉시 이동됨
+- Introduction에서 상태가 바뀌면 Reports 재진입(또는 storage 갱신) 시 최신 상태로 반영됨
+
+---
+
 ## 장애 시 즉시 확인 항목
 1. `api/admin/safety-management.ts`에 아래 액션 존재 여부
    - `append-ops-alert-click-log`
@@ -83,4 +97,5 @@
 - 시나리오 B: 합격/불합격 (메모)
 - 시나리오 C: 합격/불합격 (메모)
 - 시나리오 D: 합격/불합격 (메모)
+- 시나리오 E: 합격/불합격 (메모)
 - 후속 조치:
