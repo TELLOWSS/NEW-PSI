@@ -179,8 +179,67 @@ export const JudgmentTaggingInput: React.FC = () => {
 
   const qualitySummary = buildLiveQualitySummary(records);
 
+  const mobileTaggingBadge =
+    qualitySummary.status === 'PASS'
+      ? { label: '✅ 검증 통과', tone: 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40' }
+      : completionRate >= 50
+        ? { label: '🟡 입력중', tone: 'bg-amber-400/20 text-amber-100 border border-amber-300/40' }
+        : { label: '🔴 미완성', tone: 'bg-rose-500/20 text-rose-200 border border-rose-400/40' };
+
   return (
     <div className="space-y-6 sm:space-y-8 animate-fade-in-up">
+      {/* ── 9번 화면: 수기 데이터 입력 (모바일 전용) ── */}
+      <div className="sm:hidden mb-2 rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-300">9) 수기 데이터 입력</p>
+            <h2 className="mt-1 text-lg font-black">현장 기록 입력</h2>
+          </div>
+          <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${mobileTaggingBadge.tone}`}>{mobileTaggingBadge.label}</span>
+        </div>
+        {/* 완료율 바 */}
+        <div className="mt-3">
+          <div className="flex justify-between mb-1">
+            <p className="text-[10px] font-black text-slate-400">입력 완료율</p>
+            <p className="text-[10px] font-black text-white">{completionRate}%</p>
+          </div>
+          <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-300 ${completionRate === 100 ? 'bg-emerald-500' : completionRate >= 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
+              style={{ width: `${completionRate}%` }}
+            />
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-4 gap-1.5">
+          {[
+            { label: '전체', value: records.length, tone: 'text-slate-300' },
+            { label: '완료', value: completedRecordCount, tone: completedRecordCount > 0 ? 'text-emerald-300' : 'text-slate-400' },
+            { label: '미완료', value: records.length - completedRecordCount, tone: records.length - completedRecordCount > 0 ? 'text-amber-300' : 'text-slate-400' },
+            { label: '오류', value: qualitySummary.errorCount, tone: qualitySummary.errorCount > 0 ? 'text-rose-300' : 'text-slate-400' },
+          ].map((chip) => (
+            <div key={chip.label} className="rounded-xl border border-slate-700 bg-slate-900/60 px-1.5 py-2 text-center">
+              <p className="text-[9px] font-black text-slate-500">{chip.label}</p>
+              <p className={`text-sm font-black ${chip.tone}`}>{chip.value}</p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={() => document.getElementById('tagging-form-top')?.scrollIntoView({ behavior: 'smooth' })}
+            className="flex-1 min-h-[44px] rounded-xl bg-emerald-600 px-3 py-2 text-xs font-black text-white hover:bg-emerald-500 transition-colors"
+          >
+            입력 시작
+          </button>
+          <button
+            type="button"
+            onClick={() => document.getElementById('tagging-quality-summary')?.scrollIntoView({ behavior: 'smooth' })}
+            className="flex-1 min-h-[44px] rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-black text-slate-200 hover:bg-slate-700 transition-colors"
+          >
+            품질 검증
+          </button>
+        </div>
+      </div>
       <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-4">
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-green-700">9) 수기 데이터 입력</p>
 

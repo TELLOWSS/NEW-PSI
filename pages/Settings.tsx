@@ -1356,8 +1356,53 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         );
     };
 
+    const mobileSettingsBadge =
+        harnessHealthState.status === 'error'
+            ? { label: '🔴 연결 오류', tone: 'bg-rose-500/20 text-rose-200 border border-rose-400/40' }
+            : harnessHealthState.status === 'loading'
+              ? { label: '🟡 점검중', tone: 'bg-amber-400/20 text-amber-100 border border-amber-300/40' }
+              : { label: '🟢 운영 가능', tone: 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40' };
+
     return (
         <div className="space-y-6 sm:space-y-8 animate-fade-in-up pb-10 sm:pb-12">
+            <div className="sm:hidden mb-2 rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">
+                <div className="flex items-center justify-between gap-3">
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-300">12) 시스템 설정</p>
+                        <h2 className="mt-1 text-lg font-black">운영 환경 관리</h2>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${mobileSettingsBadge.tone}`}>{mobileSettingsBadge.label}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-4 gap-1.5">
+                    {[
+                        { label: '버전', value: PSI_APP_VERSION, tone: 'text-indigo-300' },
+                        { label: 'API', value: isPaidApiMode ? '유료' : '무료', tone: isPaidApiMode ? 'text-rose-300' : 'text-emerald-300' },
+                        { label: '인원', value: `${workerRecords.length}`, tone: 'text-slate-300' },
+                        { label: '헬스', value: harnessHealthState.status === 'success' ? '정상' : harnessHealthState.status === 'error' ? '오류' : '점검', tone: harnessHealthState.status === 'error' ? 'text-rose-300' : harnessHealthState.status === 'success' ? 'text-emerald-300' : 'text-amber-300' },
+                    ].map((chip) => (
+                        <div key={chip.label} className="rounded-xl border border-slate-700 bg-slate-900/60 px-1.5 py-2 text-center">
+                            <p className="text-[9px] font-black text-slate-500">{chip.label}</p>
+                            <p className={`text-[11px] font-black ${chip.tone}`}>{chip.value}</p>
+                        </div>
+                    ))}
+                </div>
+                <div className="mt-3 flex gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setShowGuide((prev) => !prev)}
+                        className="flex-1 min-h-[44px] rounded-xl bg-indigo-600 px-3 py-2 text-xs font-black text-white hover:bg-indigo-500 transition-colors"
+                    >
+                        {showGuide ? '가이드 닫기' : '가이드 열기'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleRunHarnessHealthCheck}
+                        className="flex-1 min-h-[44px] rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-black text-slate-200 hover:bg-slate-700 transition-colors"
+                    >
+                        헬스 점검
+                    </button>
+                </div>
+            </div>
             <div className="bg-slate-900 rounded-3xl sm:rounded-[30px] p-5 sm:p-8 md:p-10 text-white shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl -mr-32 -mt-32"></div>
                 <div className="relative z-10">

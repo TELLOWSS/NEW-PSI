@@ -2977,8 +2977,53 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         onNavigateToPage?.(page);
     };
 
+    const mobileReportBadge =
+        harnessSummary.highRisk > 0
+            ? { label: '🔴 고위험', tone: 'bg-rose-500/20 text-rose-200 border border-rose-400/40' }
+            : harnessSummary.approvalPending > 0
+              ? { label: '🟡 승인 대기', tone: 'bg-amber-400/20 text-amber-100 border border-amber-300/40' }
+              : { label: '🟢 정상', tone: 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40' };
+
     return (
         <div className="space-y-6 pb-10 h-full flex flex-col font-sans">
+            <div className="sm:hidden mb-2 rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">
+                <div className="flex items-center justify-between gap-3">
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-300">11) 분석 리포트</p>
+                        <h2 className="mt-1 text-lg font-black">KPI 요약 센터</h2>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${mobileReportBadge.tone}`}>{mobileReportBadge.label}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-4 gap-1.5">
+                    {[
+                        { label: '대상', value: filteredRecords.length, tone: 'text-slate-300' },
+                        { label: '연결', value: harnessSummary.connected, tone: harnessSummary.connected > 0 ? 'text-indigo-300' : 'text-slate-400' },
+                        { label: '승인대기', value: harnessSummary.approvalPending, tone: harnessSummary.approvalPending > 0 ? 'text-amber-300' : 'text-slate-400' },
+                        { label: '고위험', value: harnessSummary.highRisk, tone: harnessSummary.highRisk > 0 ? 'text-rose-300' : 'text-slate-400' },
+                    ].map((chip) => (
+                        <div key={chip.label} className="rounded-xl border border-slate-700 bg-slate-900/60 px-1.5 py-2 text-center">
+                            <p className="text-[9px] font-black text-slate-500">{chip.label}</p>
+                            <p className={`text-sm font-black ${chip.tone}`}>{chip.value}</p>
+                        </div>
+                    ))}
+                </div>
+                <div className="mt-3 flex gap-2">
+                    <button
+                        type="button"
+                        onClick={() => handleNavigateToTaggingValidation()}
+                        className="flex-1 min-h-[44px] rounded-xl bg-indigo-600 px-3 py-2 text-xs font-black text-white hover:bg-indigo-500 transition-colors"
+                    >
+                        태깅 검증 이동
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleNavigateToIntervention()}
+                        className="flex-1 min-h-[44px] rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-black text-slate-200 hover:bg-slate-700 transition-colors"
+                    >
+                        개입 추천 이동
+                    </button>
+                </div>
+            </div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 no-print">
                 <h2 className="text-2xl font-black text-slate-900">PSI 정밀 보고서 센터</h2>
                 <div className="flex items-center space-x-3 bg-white rounded-lg p-1 shadow-sm border border-slate-200">
