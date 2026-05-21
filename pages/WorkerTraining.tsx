@@ -1331,6 +1331,66 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
 
     return (
         <div className="space-y-6 max-w-2xl pb-32">
+            <div className="sm:hidden rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-300">위험인지 진단</p>
+                        <h3 className="mt-1 text-lg font-black">진행 현황 {inputProgressCount}/4</h3>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-[10px] font-black ${submitReady ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40' : 'bg-amber-500/20 text-amber-300 border border-amber-400/40'}`}>
+                        {submitReady ? ux.submitReadyCta : ux.submitBlockedCta}
+                    </span>
+                </div>
+
+                <div className="mt-3 space-y-2">
+                    {[
+                        ['작성자 입력', Boolean(workerName.trim())],
+                        ['안내 청취', hasReviewedGuidance],
+                        ['이해 체크', isChecklistComplete],
+                        ['서명', hasSignature],
+                    ].map(([label, done]) => (
+                        <div key={String(label)} className="rounded-xl bg-slate-900 px-3 py-2">
+                            <div className="mb-1 flex items-center justify-between text-[11px]">
+                                <span className="font-bold text-slate-300">{label}</span>
+                                <span className={`font-black ${done ? 'text-emerald-300' : 'text-amber-300'}`}>{done ? statusText.done : statusText.required}</span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-slate-700 overflow-hidden">
+                                <div className={`h-full rounded-full ${done ? 'w-full bg-emerald-500' : 'w-[30%] bg-amber-500'}`}></div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] font-black">
+                    <div className={`rounded-lg border px-2 py-2 text-center ${hasReviewedGuidance ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-300' : 'border-amber-400/40 bg-amber-500/10 text-amber-300'}`}>
+                        읽기 {guidanceProgress}%
+                    </div>
+                    <div className={`rounded-lg border px-2 py-2 text-center ${isChecklistComplete ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-300' : 'border-amber-400/40 bg-amber-500/10 text-amber-300'}`}>
+                        체크 {completedChecklistCount}/3
+                    </div>
+                    <div className={`rounded-lg border px-2 py-2 text-center ${hasSignature ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-300' : 'border-amber-400/40 bg-amber-500/10 text-amber-300'}`}>
+                        서명 {hasSignature ? '완료' : '대기'}
+                    </div>
+                </div>
+
+                <div className="mt-3 flex gap-2">
+                    <button
+                        type="button"
+                        onClick={handleNextAction}
+                        className={`flex-1 rounded-xl px-3 py-2 text-xs font-black ${submitReady ? 'bg-emerald-600 text-white' : 'bg-indigo-600 text-white'}`}
+                    >
+                        {nextActionButtonLabel}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => void handleSubmit()}
+                        disabled={submitting || submitted || !submitReady}
+                        className="flex-1 rounded-xl bg-slate-700 px-3 py-2 text-xs font-black text-slate-100 disabled:opacity-50"
+                    >
+                        {t.submit}
+                    </button>
+                </div>
+            </div>
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h2 className="text-2xl font-black text-slate-900">{t.title}</h2>
                 <p className="text-sm font-bold text-slate-500 mt-2">{t.subtitle}</p>
