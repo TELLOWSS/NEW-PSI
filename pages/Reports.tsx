@@ -43,6 +43,7 @@ import { buildHarnessRuleImpactSummary } from '../utils/harnessRuleImpactSummary
 import { getSafetyLevelFromScore } from '../utils/safetyLevelUtils';
 import { buildPdfBlobFromCanvases, canvasToBlob, captureReportCanvases, getCanvasImageData, getCanvasPlacementOnA4, saveCanvasesAsA4Pdf } from '../utils/pdfCapture';
 import { fetchHarnessWorkflowStatus } from '../services/harnessService';
+import { logOpsAlertClick, verifyOpsAlertClickLogsAccess } from '../services/opsAlertClickLogsService';
 import { buildReportsSummaryCards, buildReportsViewCards } from '../utils/roleViewModel';
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { useDevMode } from '../contexts/DevModeContext';
@@ -2653,6 +2654,16 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 JSON.stringify(nextLogs),
             );
             setOpsAlertClickLogs(nextLogs);
+
+            // 🔷 Supabase ops_alert_click_logs 테이블에 저장 (비동기)
+            void logOpsAlertClick({
+                action: action === 'go-intervention' ? 'go-intervention' : 'go-tagging-validation',
+                delayAlertActive: isOpsDelayAlert,
+                taggingErrorCount: taggingQuality?.errorCount || 0,
+                interventionNotStartedCount: interventionDelayCount,
+            }).catch((error) => {
+                console.warn('[Reports] Supabase ops_alert_click_logs 저장 실패:', error);
+            });
 
             void postAdminJson<{ ok: boolean; data?: { saved?: boolean; schemaReady?: boolean } }>(
                 '/api/admin/safety-management',

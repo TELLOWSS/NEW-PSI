@@ -74,6 +74,53 @@ export const FieldContextInput: React.FC = () => {
     <div className="space-y-6 sm:space-y-8 animate-fade-in-up">
       <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-indigo-700">5) 현장 컨텍스트 입력</p>
+        
+        {/* 저장 상태 카드 (고정) */}
+        <div className="mt-4 rounded-xl border border-indigo-300 bg-white p-3 text-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-indigo-600">저장 상태</p>
+              <p className="mt-1 text-sm font-black text-slate-900">
+                {saveState === 'success' 
+                  ? '✅ 저장됨' 
+                  : saveState === 'error' 
+                    ? '❌ 저장 실패' 
+                    : saveState === 'saving' 
+                      ? '⏳ 저장 중...' 
+                      : '⭕ 대기'}
+              </p>
+              {context.savedAt && (
+                <p className="mt-1 text-[10px] text-slate-600">
+                  마지막 저장: {new Date(context.savedAt).toLocaleTimeString('ko-KR')}
+                </p>
+              )}
+            </div>
+            <div className="flex-shrink-0">
+              {saveState === 'success' && (
+                <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-black text-lg">✓</div>
+              )}
+              {saveState === 'error' && (
+                <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 font-black text-lg">!</div>
+              )}
+              {saveState === 'saving' && (
+                <div className="w-10 h-10 rounded-full bg-indigo-100 animate-pulse flex items-center justify-center text-indigo-600 font-black">◎</div>
+              )}
+            </div>
+          </div>
+          
+          {/* 필드 완료 상태 */}
+          <div className="mt-3 grid grid-cols-2 gap-2 text-[10px] font-bold">
+            <div className={`px-2 py-1.5 rounded border ${context.fieldName.trim() ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+              공정명 {context.fieldName.trim() ? '✓' : '필수'}
+            </div>
+            <div className={`px-2 py-1.5 rounded border ${context.personnel >= 1 ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>
+              인원 {context.personnel >= 1 ? '✓' : '입력'}
+            </div>
+            <div className="px-2 py-1.5 rounded border border-slate-200 bg-slate-50 text-slate-700">날씨 {context.weather ? '✓' : '-'}</div>
+            <div className="px-2 py-1.5 rounded border border-slate-200 bg-slate-50 text-slate-700">시간대 {context.timeOfDay ? '✓' : '-'}</div>
+          </div>
+        </div>
+        
         <div className="mt-6 space-y-4">
           {/* 공정명 */}
           <div>

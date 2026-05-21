@@ -184,6 +184,38 @@ export const JudgmentTaggingInput: React.FC = () => {
       <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-4">
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-green-700">9) 수기 데이터 입력</p>
 
+        {/* 입력 현황 상단 고정 카드 */}
+        <div className="mt-3 rounded-xl border border-emerald-300 bg-white p-3">
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">📊 입력 완료율</p>
+              <p className="mt-1 text-sm font-black text-slate-900">{completionRate}% ({completedRecordCount}/{records.length})</p>
+            </div>
+            <div className="flex-shrink-0 text-right">
+              <div className={`text-xs font-black px-2.5 py-1.5 rounded-full ${qualitySummary.status === 'PASS' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                {qualitySummary.status === 'PASS' ? '✓ 통과' : `⚠️ ${qualitySummary.errorCount}건`}
+              </div>
+            </div>
+          </div>
+          
+          {/* 진행률 바 */}
+          <div className="mt-2 h-2 bg-slate-200 rounded-full overflow-hidden">
+            <div 
+              className={`h-full rounded-full transition-all duration-300 ${completionRate === 100 ? 'bg-emerald-500' : completionRate >= 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
+              style={{ width: `${completionRate}%` }}
+            />
+          </div>
+          
+          {/* 입력 상태 요약 */}
+          <div className="mt-3 grid grid-cols-3 gap-2 text-[10px] font-bold">
+            <div className="px-2 py-1.5 bg-green-100 rounded border border-green-200 text-green-800">총 입력: {records.length}건</div>
+            <div className="px-2 py-1.5 bg-blue-100 rounded border border-blue-200 text-blue-800">완료: {completedRecordCount}건</div>
+            <div className={`px-2 py-1.5 rounded border ${qualitySummary.errorCount > 0 ? 'bg-rose-100 border-rose-200 text-rose-800' : 'bg-emerald-100 border-emerald-200 text-emerald-800'}`}>
+              {qualitySummary.errorCount > 0 ? `오류: ${qualitySummary.errorCount}건` : '검증 통과'}
+            </div>
+          </div>
+        </div>
+
         <div className="mt-3 rounded-xl border border-emerald-200 bg-white px-3 py-3">
           <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">입력 검증 상태</p>
           <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-bold">

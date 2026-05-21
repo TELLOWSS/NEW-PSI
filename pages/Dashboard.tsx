@@ -461,6 +461,16 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         return getDefaultDashboardViewMode(typeof window !== 'undefined' ? window.innerWidth : 1440);
     });
 
+    // 기본/고급 모드 토글 (PC Dashboard 진입점 단순화)
+    const [dashboardUIMode, setDashboardUIMode] = useState<'basic' | 'advanced'>(() => {
+        try {
+            const saved = window.localStorage.getItem('psi_dashboard_ui_mode_v1');
+            return saved === 'advanced' ? 'advanced' : 'basic';
+        } catch {
+            return 'basic';
+        }
+    });
+
     useEffect(() => {
         try {
             const manualAudience = window.localStorage.getItem('psi_dashboard_audience_manual') === 'true';
@@ -587,6 +597,21 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             mode,
             source: 'manual',
             viewportWidth,
+            audienceView,
+        });
+    };
+
+    const handleDashboardUIModeChange = (mode: 'basic' | 'advanced') => {
+        setDashboardUIMode(mode);
+        try {
+            window.localStorage.setItem('psi_dashboard_ui_mode_v1', mode);
+        } catch {
+            // ignore localStorage write failures
+        }
+        trackUIViewMetric('control_change', 'dashboard', viewMetricSessionRef.current, {
+            control: 'ui_mode_toggle',
+            nextMode: mode,
+            viewMode: dashboardViewMode,
             audienceView,
         });
     };
@@ -2577,6 +2602,35 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     </div>
                     )}
 
+                    {!isImmediateOperationalMode && viewportWidth >= 640 && (
+                    <div className="mb-3 sm:mb-4 flex flex-col gap-2 rounded-2xl border border-indigo-300/20 bg-indigo-500/10 p-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-300">대시보드 모드</p>
+                            <p className="mt-1 text-xs font-medium text-indigo-100">
+                                {dashboardUIMode === 'basic'
+                                    ? '🟢 기본 모드: 새 사용자 중심 간단한 구성'
+                                    : '⚙️ 고급 모드: 숙련자/관리자 중심 전체 기능'}
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {(['basic', 'advanced'] as const).map((mode) => (
+                                <button
+                                    key={mode}
+                                    type="button"
+                                    onClick={() => handleDashboardUIModeChange(mode)}
+                                    className={`rounded-xl px-3 py-2 text-xs font-black transition-colors ${
+                                        dashboardUIMode === mode
+                                            ? 'bg-indigo-400 text-slate-900 shadow-lg'
+                                            : 'bg-indigo-400/20 text-indigo-200 hover:bg-indigo-400/30'
+                                    }`}
+                                >
+                                    {mode === 'basic' ? '🟢 기본 모드' : '⚙️ 고급 모드'}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    )}
+
                     {!isImmediateOperationalMode && (
                     <div className="mb-3 sm:mb-4 flex flex-col gap-2 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
                         <div>
@@ -2625,7 +2679,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     </div>
                     )}
 
-                    {viewportWidth >= 1024 && !isEssentialMode && (
+                    {viewportWidth >= 1024 && !isEssentialMode && dashboardUIMode === 'advanced' && (
                         <div className="mb-4 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur-sm">
                             <div className="mb-2 flex items-center justify-between gap-2">
                                 <div>
@@ -3193,7 +3247,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             {/* ═══════════════════════════════════════════════════════
                     공종 × 국적 교차 안전 숙련도 분석 섹션 (아래)
             ═══════════════════════════════════════════════════════ */}
-            {isFullMode && (
+            {isFullMode && dashboardUIMode === 'advanced' && (
             <div ref={teamComparisonSectionRef} className="space-y-4 sm:space-y-6">
                 <InterpretationCardGrid
                     items={comparisonCards}

@@ -404,6 +404,35 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
 
     return (
         <div className="space-y-6">
+            {/* 🔴 즉시 조치 대상 고정 카드 (모바일 P0) */}
+            {issueSummary.pendingCount > 0 && (
+                <div className="sticky top-0 z-30 rounded-2xl border border-orange-300 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/30 dark:to-amber-900/30 p-4 shadow-lg">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-[0.18em] text-orange-600 dark:text-orange-300">🔴 즉시 조치 대상</p>
+                            <p className="mt-1 text-sm font-black text-orange-800 dark:text-orange-100">
+                                심각도 높음 {issueSummary.pendingCount}건
+                            </p>
+                            <p className="mt-0.5 text-xs font-medium text-orange-700 dark:text-orange-200">
+                                {issueSummary.inProgressCount}건 처리 중, {issueSummary.completedCount}건 완료
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                const pendingIssues = issues.filter((issue) => issue.status === '검토 필요');
+                                if (pendingIssues.length > 0) {
+                                    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+                                }
+                            }}
+                            className="min-h-[44px] px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-black text-sm transition-colors flex-shrink-0"
+                        >
+                            조치 보기 →
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* 모바일/PC 경보 진행도 카드 */}
             <div className="rounded-2xl border border-orange-200 bg-gradient-to-br from-amber-50 to-orange-50 p-5 shadow-md sm:p-6">
                 <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
