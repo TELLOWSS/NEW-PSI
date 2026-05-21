@@ -1,7 +1,7 @@
 # PSI R1 종료 템플릿
 
-- generatedAt: 2026-05-16T07:57:33.544Z
-- date: 2026-05-16
+- generatedAt: 2026-05-20T21:22:56.913Z
+- date: 2026-05-20
 - round: R1
 - tracker: templates/psi_judgment_tagging_progress_tracker_100_v1_2026-05-16.csv
 - opsSummary: reports/judgment-tagging-ops-summary.md

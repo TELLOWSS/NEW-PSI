@@ -203,6 +203,8 @@ const PLAN_STATUS_META: Record<PlanStatus, { label: string; chipClass: string; b
 };
 
 const PLAN_STATUS_STORAGE_KEY = 'psi_predictive_execution_plan_status_v1';
+const PREDICTIVE_INTERVENTION_HANDOFF_KEY = 'psi_predictive_intervention_handoff_v1';
+const PREDICTIVE_INTERVENTION_HANDOFF_EVENT = 'psi-predictive-intervention-updated';
 
 const readSavedPlanStatusMap = (): Record<string, PlanStatus> => {
     try {
@@ -1187,6 +1189,33 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
         return showAllExecutionPlans ? filteredExecutionPlans : filteredExecutionPlans.slice(0, 3);
     }, [filteredExecutionPlans, showAllExecutionPlans]);
 
+    useEffect(() => {
+        try {
+            if (typeof window === 'undefined') return;
+            const handoffPayload = {
+                generatedAt: new Date().toISOString(),
+                topRiskLabel: summary.topRiskLabel,
+                plans: executionPlans.map((plan) => ({
+                    key: plan.key,
+                    priority: plan.priority,
+                    owner: plan.owner,
+                    workerName: plan.workerName,
+                    jobField: plan.jobField,
+                    teamLeader: plan.teamLeader,
+                    riskLabel: plan.riskLabel,
+                    actionTitle: plan.actionTitle,
+                    dueLabel: plan.dueLabel,
+                    status: planStatusMap[plan.key] || 'not-started',
+                    checkItems: plan.checkItems,
+                })),
+            };
+            window.localStorage.setItem(PREDICTIVE_INTERVENTION_HANDOFF_KEY, JSON.stringify(handoffPayload));
+            window.dispatchEvent(new Event(PREDICTIVE_INTERVENTION_HANDOFF_EVENT));
+        } catch {
+            // ignore storage failures
+        }
+    }, [executionPlans, planStatusMap, summary.topRiskLabel]);
+
     const registeredJobFieldLabels = useMemo(() => {
         const configured = getRegisteredJobFields();
         const observed = Array.from(new Set(sourceRecords.map((record) => String(record.jobField || '').trim()).filter((value) => value.length > 0)));
@@ -1595,8 +1624,78 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
 
     const isCompactMobile = viewportWidth < 640;
 
+    /* ── 모바일 7번 화면용 상태 배지 ── */
+    const mobileRiskBadge =
+        aiRiskScore >= 70
+            ? { label: '🔴 위험', tone: 'bg-rose-500/20 text-rose-200 border border-rose-400/40' }
+            : aiRiskScore >= 40
+              ? { label: '🟡 주의', tone: 'bg-amber-400/20 text-amber-100 border border-amber-300/40' }
+              : { label: '🟢 안정', tone: 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40' };
+
     return (
         <div className="space-y-6 sm:space-y-8 animate-fade-in-up">
+            {/* ── 7번 화면: 위험 예측 (모바일 전용) ── */}
+            <div className="sm:hidden mb-2 rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">
+                <div className="flex items-center justify-between gap-3">
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-300">7) 위험 예측</p>
+                        <h2 className="mt-1 text-lg font-black">AI 리스크 분석</h2>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${mobileRiskBadge.tone}`}>{mobileRiskBadge.label}</span>
+                </div>
+                {/* 위험 점수 + 버킷 */}
+                <div className="mt-3 flex items-center gap-3">
+                    <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-full border-4 border-indigo-700 bg-indigo-900/60">
+                        <p className="text-2xl font-black leading-none">{aiRiskScore}</p>
+                        <p className="text-[9px] font-bold text-indigo-300">/100</p>
+                    </div>
+                    <div className="grid flex-1 grid-cols-3 gap-1.5">
+                        <div className="rounded-xl border border-rose-700/40 bg-rose-900/30 px-2 py-1.5 text-center">
+                            <p className="text-[9px] font-black text-rose-300">위험</p>
+                            <p className="text-base font-black text-rose-100">{riskBucketSummary.red}</p>
+                        </div>
+                        <div className="rounded-xl border border-amber-700/40 bg-amber-900/30 px-2 py-1.5 text-center">
+                            <p className="text-[9px] font-black text-amber-300">주의</p>
+                            <p className="text-base font-black text-amber-100">{riskBucketSummary.yellow}</p>
+                        </div>
+                        <div className="rounded-xl border border-emerald-700/40 bg-emerald-900/30 px-2 py-1.5 text-center">
+                            <p className="text-[9px] font-black text-emerald-300">안정</p>
+                            <p className="text-base font-black text-emerald-100">{riskBucketSummary.green}</p>
+                        </div>
+                    </div>
+                </div>
+                {/* 하네스 요약 */}
+                <div className="mt-3 grid grid-cols-4 gap-1.5">
+                    {[
+                        { label: '연결', value: harnessSummary.connected, tone: 'text-indigo-300' },
+                        { label: '즉시', value: harnessSummary.immediateAttention, tone: harnessSummary.immediateAttention > 0 ? 'text-rose-300' : 'text-slate-400' },
+                        { label: '백로그', value: harnessSummary.approvalBacklog, tone: harnessSummary.approvalBacklog > 0 ? 'text-amber-300' : 'text-slate-400' },
+                        { label: '폴백', value: harnessSummary.fallback + harnessSummary.pending, tone: 'text-slate-400' },
+                    ].map((chip) => (
+                        <div key={chip.label} className="rounded-xl border border-slate-700 bg-slate-900/60 px-1.5 py-2 text-center">
+                            <p className="text-[9px] font-black text-slate-500">{chip.label}</p>
+                            <p className={`text-sm font-black ${chip.tone}`}>{chip.value}</p>
+                        </div>
+                    ))}
+                </div>
+                {/* CTA 버튼 */}
+                <div className="mt-3 flex gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setShowAllRiskInsights(true)}
+                        className="flex-1 min-h-[44px] rounded-xl bg-indigo-600 px-3 py-2 text-xs font-black text-white hover:bg-indigo-500 transition-colors"
+                    >
+                        위험 인사이트 보기
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setExecutionPlanFilter('urgent')}
+                        className="flex-1 min-h-[44px] rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-black text-slate-200 hover:bg-slate-700 transition-colors"
+                    >
+                        즉시 개입 계획
+                    </button>
+                </div>
+            </div>
             {/* Header: Meeting Context */}
             <div className="bg-gradient-to-r from-slate-900 to-indigo-900 rounded-2xl sm:rounded-[30px] p-4 sm:p-6 text-white shadow-2xl border border-slate-700 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full blur-3xl -mr-32 -mt-32"></div>

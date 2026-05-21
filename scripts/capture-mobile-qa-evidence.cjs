@@ -39,13 +39,29 @@ const waitForServer = async (url, timeoutMs = 45000) => {
   throw new Error(`preview server did not become ready within ${timeoutMs}ms: ${url}`);
 };
 
+const isServerAvailable = async (url) => {
+  try {
+    const status = await requestUrl(url);
+    return status >= 200 && status < 500;
+  } catch {
+    return false;
+  }
+};
+
 const startPreviewServer = () => {
-  const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const child = spawn(npmCmd, ['run', 'preview', '--', '--host', HOST, '--port', String(PORT), '--strictPort'], {
-    cwd: process.cwd(),
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: process.env,
-  });
+  const args = ['run', 'preview', '--', '--host', HOST, '--port', String(PORT), '--strictPort'];
+  const child = process.platform === 'win32'
+    ? spawn('cmd.exe', ['/d', '/s', '/c', `npm ${args.join(' ')}`], {
+      cwd: process.cwd(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: process.env,
+      windowsHide: true,
+    })
+    : spawn('npm', args, {
+      cwd: process.cwd(),
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: process.env,
+    });
 
   child.stdout.on('data', (chunk) => {
     process.stdout.write(`[preview] ${chunk}`);
@@ -98,9 +114,18 @@ const gotoPredictive = async (page) => {
 };
 
 const gotoOcr = async (page) => {
-  const ocrQuickLink = page.getByRole('button', { name: 'OCR 분석' }).first();
-  await ocrQuickLink.click();
-  await page.waitForTimeout(900);
+  const candidates = ['태깅 검증', 'OCR 분석', '신규 분석', 'OCR 운영'];
+  for (const name of candidates) {
+    const button = page.getByRole('button', { name }).first();
+    if (await button.count() === 0) continue;
+    const isDisabled = await button.isDisabled().catch(() => true);
+    if (isDisabled) continue;
+    await button.click();
+    await page.waitForTimeout(900);
+    return;
+  }
+
+  throw new Error('OCR 이동 버튼을 찾지 못했거나 모두 비활성화 상태입니다.');
 };
 
 const captureSet = async (page, width) => {
@@ -124,7 +149,11 @@ const captureSet = async (page, width) => {
     fullPage: false,
   });
 
-  await gotoOcr(page);
+  try {
+    await gotoOcr(page);
+  } catch (error) {
+    console.warn(`[capture-mobile-qa-evidence] OCR 이동 실패(width=${width}): ${error?.message || error}. 현재 화면을 OCR 증빙으로 대체 저장합니다.`);
+  }
   await page.screenshot({
     path: path.join(OUTPUT_DIR, `${width}-ocr.png`),
     fullPage: false,
@@ -143,7 +172,8 @@ const main = async () => {
 
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
-  const preview = startPreviewServer();
+  const hasRunningPreview = await isServerAvailable(BASE_URL);
+  const preview = hasRunningPreview ? null : startPreviewServer();
   let browser;
 
   try {

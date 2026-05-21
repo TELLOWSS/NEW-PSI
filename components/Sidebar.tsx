@@ -1,171 +1,131 @@
-
-import React, { useEffect, useMemo, useState } from 'react';
-import type { Page, AppSettings } from '../types';
+import React, { useMemo } from 'react';
+import type { Page } from '../types';
 import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
-import { StatusBadge } from './shared/StatusBadge';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
-import { getOperationalModeLabel, isPageVisibleByOperationalMode } from '../utils/operationalModeUtils';
+import { isPageVisibleByOperationalMode } from '../utils/operationalModeUtils';
 
 interface SidebarProps {
     currentPage: Page;
     setCurrentPage: (page: Page) => void;
 }
 
-type NavItem = { id: Page; name: string; icon: React.ReactNode };
-type NavSection = { title: string; items: NavItem[] };
-
-const navItems: Record<Page, NavItem> = {
-    dashboard: { id: 'dashboard', name: '홈 대시보드', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg> },
-    'ocr-analysis': { id: 'ocr-analysis', name: '태깅 검증', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h2a2 2 0 002-2V4a2 2 0 00-2-2H9z" /><path d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2H4z" /></svg> },
-    'worker-management': { id: 'worker-management', name: '개인지 인지 프로파일', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
-    'predictive-analysis': { id: 'predictive-analysis', name: '위험 예측', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-    'performance-analysis': { id: 'performance-analysis', name: '성과 추이 분석', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg> },
-    'safety-checks': { id: 'safety-checks', name: '위험인지 진단', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-    'site-issue-management': { id: 'site-issue-management', name: '경보 알림', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg> },
-    reports: { id: 'reports', name: '분석 리포트', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
-    'safety-behavior-management': { id: 'safety-behavior-management', name: '개입 추천', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg> },
-    'safety-compliance-hub': { id: 'safety-compliance-hub', name: '현장 컨텍스트', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg> },
-    'admin-training': { id: 'admin-training', name: '관리자 교육', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v12m-6-6h12" /></svg> },
-    'worker-training': { id: 'worker-training', name: '수기 데이터 입력', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11h8m-8 4h6M5 7h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V9a2 2 0 012-2z" /></svg> },
-    settings: { id: 'settings', name: '시스템 설정', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> },
-    feedback: { id: 'feedback', name: '피드백', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg> },
-    introduction: { id: 'introduction', name: '소개', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-    'individual-report': { id: 'individual-report', name: '위험인지 진단 리포트', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
-    'survey-intelligence': { id: 'survey-intelligence', name: '행동 패턴 분석', icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg> },
+type SidebarMenuItem = {
+    id: Page;
+    label: string;
+    icon: React.ReactNode;
 };
 
-const navSections: NavSection[] = [
+const sidebarMenuItems: SidebarMenuItem[] = [
     {
-        title: '모바일 핵심',
-        items: [navItems.dashboard, navItems['worker-management'], navItems['ocr-analysis']],
+        id: 'dashboard',
+        label: '대시보드',
+        icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>,
     },
     {
-        title: '위험 분석',
-        items: [navItems['predictive-analysis'], navItems['performance-analysis'], navItems['survey-intelligence'], navItems.reports, navItems['individual-report']],
+        id: 'site-issue-management',
+        label: '위험인지 현황',
+        icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
     },
     {
-        title: '현장 실행',
-        items: [navItems['safety-checks'], navItems['site-issue-management'], navItems['safety-behavior-management'], navItems['safety-compliance-hub']],
+        id: 'worker-management',
+        label: '작업자 프로파일',
+        icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
     },
     {
-        title: '교육/서명',
-        items: [navItems['admin-training'], navItems['worker-training']],
+        id: 'safety-compliance-hub',
+        label: '현장 컨텍스트',
+        icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>,
     },
     {
-        title: '시스템',
-        items: [navItems.settings, navItems.feedback, navItems.introduction],
+        id: 'survey-intelligence',
+        label: '행동·전조 분석',
+        icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2" /></svg>,
+    },
+    {
+        id: 'predictive-analysis',
+        label: '위험 예측',
+        icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
+    },
+    {
+        id: 'safety-behavior-management',
+        label: '개입 관리',
+        icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7" /></svg>,
+    },
+    {
+        id: 'performance-analysis',
+        label: '알림 센터',
+        icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5" /></svg>,
+    },
+    {
+        id: 'reports',
+        label: '보고서',
+        icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+    },
+    {
+        id: 'ocr-analysis',
+        label: '데이터 관리',
+        icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M9 2a2 2 0 00-2 2v8a2 2 0 002 2h2a2 2 0 002-2V4a2 2 0 00-2-2H9z" /><path d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2H4z" /></svg>,
+    },
+    {
+        id: 'settings',
+        label: '설정',
+        icon: <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
     },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage }) => {
-    const [siteName, setSiteName] = useState('용인 푸르지오 원클러스터 2,3단지');
     const { mode } = useOperationalMode();
 
-    const visibleNavSections = useMemo(() => {
-        return navSections
-            .map((section) => ({
-                ...section,
-                items: section.items.filter((item) => isPageVisibleByOperationalMode(item.id, mode)),
-            }))
-            .filter((section) => section.items.length > 0);
-    }, [mode]);
-
-    useEffect(() => {
-        const savedSettings = localStorage.getItem('psi_app_settings');
-        if (savedSettings) {
-            try {
-                const parsed: AppSettings = JSON.parse(savedSettings);
-                if (parsed.siteName) setSiteName(parsed.siteName);
-            } catch(e) {}
-        }
-    }, []);
+    const visibleMenuItems = useMemo(
+        () => sidebarMenuItems.filter((item) => isPageVisibleByOperationalMode(item.id, mode)),
+        [mode],
+    );
 
     return (
-        <div className="w-64 bg-white dark:bg-slate-800 shadow-lg dark:shadow-slate-900/50 flex flex-col shrink-0 h-full transition-colors duration-200">
-            <div className="p-3 sm:p-4 text-center border-b border-slate-200 dark:border-slate-700">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center shadow-sm p-1">
-                    <BrandPhilosophyLogo className="w-7 h-7 sm:w-8 sm:h-8" />
-                </div>
-
-                <div className="mt-2 flex items-center justify-center gap-2">
-                    <h1 className="text-base sm:text-lg font-black text-slate-800 dark:text-slate-100 tracking-tight">PSI SAFETY</h1>
-                    <div
-                        className="relative group/patent rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300"
-                        title="특허출원 제10-2026-0039151호 (발명자: 박성훈)"
-                        aria-label="특허출원 상태"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Escape') {
-                                (e.currentTarget as HTMLDivElement).blur();
-                            }
-                        }}
-                    >
-                        <StatusBadge variant="emeraldSoft" className="gap-1 text-xs font-bold">
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l7 4v5c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V7l7-4z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
-                            </svg>
-                            <span className="hidden lg:inline">특허출원</span>
-                        </StatusBadge>
-
-                        <div className="pointer-events-none absolute left-0 top-full z-30 mt-2 max-w-[min(260px,calc(100vw-2rem))] rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-medium text-white opacity-0 shadow-lg transition-all duration-200 group-hover/patent:translate-y-0 group-hover/patent:opacity-100 group-focus-within/patent:translate-y-0 group-focus-within/patent:opacity-100 translate-y-1 sm:left-1/2 sm:w-max sm:max-w-none sm:-translate-x-1/2">
-                            특허출원 제10-2026-0039151호 (발명자: 박성훈)
-                        </div>
+        <div className="w-72 bg-slate-950 text-slate-100 shadow-2xl shadow-slate-900/40 flex flex-col shrink-0 h-full">
+            <div className="px-5 pt-6 pb-5 border-b border-slate-800/80">
+                <div className="flex items-center gap-3">
+                    <div className="h-11 w-11 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center p-1.5">
+                        <BrandPhilosophyLogo className="w-7 h-7" />
                     </div>
-                </div>
-                <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-bold">Proactive Safety Intelligence</p>
-                <div className="bg-slate-100 dark:bg-slate-700 rounded-md p-1.5 sm:p-2 mt-3 sm:mt-4">
-                     <p className="text-[10px] sm:text-xs font-semibold text-slate-700 dark:text-slate-200 truncate px-1">{siteName} 현장</p>
-                     <p className="mt-1 text-[10px] font-black text-indigo-600 dark:text-indigo-300 px-1">운영 모드: {getOperationalModeLabel(mode)}</p>
+                    <div>
+                        <p className="text-2xl font-black tracking-tight leading-none">psi</p>
+                        <p className="text-[11px] text-slate-300 mt-1">Human Risk Intelligence</p>
+                    </div>
                 </div>
             </div>
-            <nav className="flex-1 px-2 py-3 sm:py-4 space-y-4 overflow-y-auto custom-scrollbar">
-                <div className="mx-2 rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-sky-50 px-3 py-3 text-left shadow-sm dark:border-indigo-500/20 dark:from-slate-800 dark:to-slate-800">
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-indigo-500">Mobile First</p>
-                    <p className="mt-1 text-sm font-bold text-slate-900 dark:text-slate-100">모바일은 5탭 중심, PC는 운영그룹 중심으로 재구성되었습니다.</p>
-                </div>
-                {visibleNavSections.map((section) => (
-                    <div key={section.title}>
-                        <p className="px-3 mb-1.5 text-[10px] sm:text-[11px] font-extrabold tracking-wide text-slate-400 dark:text-slate-500 uppercase">
-                            {section.title}
-                        </p>
-                        <div className="space-y-0.5 sm:space-y-1">
-                            {section.items.map(item => (
-                                <a
-                                    key={item.id}
-                                    href="#"
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        setCurrentPage(item.id);
-                                    }}
-                                    className={`flex items-center px-3 py-2 sm:py-2.5 text-xs sm:text-sm font-medium rounded-md transition-colors duration-150 ${currentPage === item.id
-                                        ? 'bg-indigo-600 text-white shadow-md'
-                                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-900 dark:hover:text-white'
-                                        }`}
-                                >
-                                    <span className="w-4 h-4 sm:w-5 sm:h-5">{item.icon}</span>
-                                    <span className="ml-2 sm:ml-3">{item.name}</span>
-                                </a>
-                            ))}
-                        </div>
-                    </div>
-                ))}
-            </nav>
-            {/* Developer Credit Footer */}
-            <div className="p-3 sm:p-5 border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/30">
-                <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center shadow-sm p-1">
-                        <BrandPhilosophyLogo className="w-6 h-6 sm:w-7 sm:h-7" />
-                    </div>
 
-                    <div className="flex flex-col min-w-0">
-                        <span className="text-[8px] sm:text-[9px] font-black text-indigo-500 uppercase tracking-widest mb-0.5">Developed By</span>
-                        <span className="text-xs sm:text-sm font-black text-slate-800 dark:text-slate-200 truncate tracking-tight">박성훈 부장</span>
-                        <span className="text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 font-bold truncate">(주)휘강건설 · Hwigang Const.</span>
+            <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto custom-scrollbar">
+                {visibleMenuItems.map((item) => {
+                    const isActive = currentPage === item.id;
+                    return (
+                        <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setCurrentPage(item.id)}
+                            className={`w-full flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all ${
+                                isActive
+                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-700/30'
+                                    : 'text-slate-300 hover:text-white hover:bg-slate-800/90'
+                            }`}
+                            aria-current={isActive ? 'page' : undefined}
+                        >
+                            <span className="shrink-0">{item.icon}</span>
+                            <span className="truncate text-left">{item.label}</span>
+                        </button>
+                    );
+                })}
+            </nav>
+
+            <div className="p-4 border-t border-slate-800/80">
+                <div className="flex items-center gap-3 rounded-xl bg-slate-900 border border-slate-800 px-3 py-3">
+                    <div className="h-9 w-9 rounded-full bg-slate-700 flex items-center justify-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A11.955 11.955 0 0112 16c2.5 0 4.824.76 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     </div>
-                </div>
-                <div className="mt-3 sm:mt-4 text-center">
-                    <p className="text-[8px] sm:text-[9px] text-slate-300 font-medium tracking-wide">© 2026 Hwigang Const. All rights reserved.</p>
+                    <div>
+                        <p className="text-sm font-bold text-slate-100">휘강준 관리자</p>
+                        <p className="text-xs text-slate-400">PSI 관리자</p>
+                    </div>
                 </div>
             </div>
         </div>

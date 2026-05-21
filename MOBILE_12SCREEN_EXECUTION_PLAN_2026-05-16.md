@@ -20,15 +20,11 @@
 1. 카드 정보 밀도
    - 일부 화면은 1스크린 내 정보량이 많아 우선순위 계층(핵심/상세) 분리가 필요
 2. 행동 유도 CTA
-   - 각 화면의 1순위 행동 버튼을 더 선명하게 고정해야 함
 3. 용어 일관성
    - 위험지수/경보/패턴/예측 용어를 단일 사전으로 통일해야 학습비용이 줄어듦
-
 결론:
 이 목업은 단순 UI가 아니라, PSI의 본질(인간 위험인지 운영체계)을 모바일에서 구현하기 위한 매우 좋은 골격이다.
-
 ---
-
 ## 2) 12화면 IA 정렬안
 
 | 번호 | 화면명 | 목적 | 기존 자산 연결 |
@@ -36,18 +32,46 @@
 | 1 | 홈 대시보드 | 오늘 위험현황, 즉시 우선순위 제시 | dashboard, 운영모드 |
 | 2 | 경보 알림 | 우선 경보 리스트/심각도 | site-issue-management |
 | 3 | 개인인지 프로파일 | 개인 벡터 상태 확인 | worker-management + 벡터 |
-| 4 | 위험인지 진단 | 5/10 문항 진단 수행 | worker-training + 태깅 |
 | 5 | 현장 컨텍스트 | 공정/기상/밀도/시간 맥락 입력 | context snapshot |
 | 6 | 행동 패턴 분석 | 반복/시간대/팀 패턴 확인 | behavior pattern |
 | 7 | 위험 예측 | 위험도/근거/우선대상 제시 | predictive risk |
-| 8 | 개입 추천 | 즉시조치/중기조치/학습조치 | actionable coaching |
 | 9 | 수기 데이터 입력 | 원문 중심 입력 | judgment tagging |
 | 10 | 태깅 검증 | 자동 QA + 합의 | check:judgment-tagging |
 | 11 | 분석 리포트 | 요약 KPI + 액션 | reports |
-| 12 | 메뉴/설정 | 프로필/환경/권한/도움말 | existing menu |
 
 ---
 
+## 16) 2026-05-20 종료직전 자동 순차 진행 결과
+
+### 실행 결과
+
+### 자동화 보완 반영
+   - Windows 환경 `spawn EINVAL` 회피를 위한 preview 실행 방식 보완
+   - 기존 preview 서버(4173) 실행 중이면 재사용하도록 보완
+   - OCR 이동 버튼 비활성/차단 시 캡처 중단 없이 fallback 캡처 지속
+
+### 다음 순차 실행(고정)
+1. `npm run build`
+2. `npm run qa:mobile:capture`
+3. `npm run check:mobile-qa:evidence:report`
+4. `npm run qa:mobile:finalize`
+5. 결과를 `NEXT_SESSION_HANDOFF_LATEST.md`에 즉시 동기화
+
+
+## 17) 원클릭 자동화 (2026-05-20)
+
+### 단일 실행 명령
+- `npm run qa:mobile:autoflow`
+
+### 포함 단계 (4단계 고정)
+1. `npm run build`
+2. `npm run qa:mobile:capture`
+3. `npm run check:mobile-qa:evidence:report`
+4. `npm run qa:mobile:finalize`
+
+### 운영 규칙
+- 위 명령 1회 성공 시, 모바일 QA 게이트 최종 상태를 `FINALIZED_PASS`까지 자동 갱신한다.
+- 실패 시 해당 단계에서 즉시 중단하고, 실패 지점부터 재실행한다.
 ## 3) 구현 원칙 (반드시 유지)
 
 1. 화면당 1핵심 행동

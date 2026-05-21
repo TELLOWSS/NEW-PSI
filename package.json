@@ -28,6 +28,7 @@
     "check:mobile-qa:evidence": "node scripts/check-mobile-qa-evidence.cjs",
     "check:mobile-qa:evidence:report": "node scripts/check-mobile-qa-evidence.cjs --write-report",
     "qa:mobile:capture": "node scripts/capture-mobile-qa-evidence.cjs",
+    "qa:mobile:autoflow": "npm run build && npm run qa:mobile:capture && npm run check:mobile-qa:evidence:report && npm run qa:mobile:finalize",
     "qa:mobile:ready": "npm run build && npm run qa:mobile:capture && npm run check:mobile-qa:evidence",
     "sync:mobile-qa:status": "node scripts/sync-mobile-qa-status.cjs",
     "qa:mobile:refresh": "node scripts/refresh-mobile-qa-status.cjs",
@@ -69,6 +70,7 @@
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
     "concurrently": "^9.2.1",
+    "playwright": "^1.60.0",
     "typescript": "~5.8.2",
     "vercel": "^39.4.0",
     "vite": "^6.2.0"

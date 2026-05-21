@@ -25,7 +25,7 @@ interface LayoutProps {
     setCurrentPage: (page: Page) => void;
 }
 
-type MobileTabId = 'home' | 'analysis' | 'reports' | 'workers' | 'more';
+type MobileTabId = 'home' | 'alerts' | 'analysis' | 'reports' | 'settings';
 
 export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -64,18 +64,20 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         'settings': '시스템 설정 (System Configuration)'
     };
 
-    const mobilePageGroupsBase: Record<Exclude<MobileTabId, 'more'>, Page[]> = {
+    const mobilePageGroupsBase: Record<MobileTabId, Page[]> = {
         home: ['dashboard', 'introduction'],
-        analysis: ['ocr-analysis', 'predictive-analysis', 'performance-analysis', 'safety-checks', 'individual-report', 'survey-intelligence'],
-        reports: ['reports', 'feedback'],
-        workers: ['worker-management', 'admin-training', 'worker-training', 'safety-behavior-management', 'safety-compliance-hub', 'site-issue-management'],
+        alerts: ['site-issue-management', 'safety-checks'],
+        analysis: ['predictive-analysis', 'survey-intelligence', 'performance-analysis', 'worker-management'],
+        reports: ['reports', 'individual-report', 'feedback'],
+        settings: ['settings', 'safety-compliance-hub', 'worker-training', 'admin-training'],
     };
 
-    const filteredMobilePageGroups: Record<Exclude<MobileTabId, 'more'>, Page[]> = {
+    const filteredMobilePageGroups: Record<MobileTabId, Page[]> = {
         home: mobilePageGroupsBase.home.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
+        alerts: mobilePageGroupsBase.alerts.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
         analysis: mobilePageGroupsBase.analysis.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
         reports: mobilePageGroupsBase.reports.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
-        workers: mobilePageGroupsBase.workers.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
+        settings: mobilePageGroupsBase.settings.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
     };
 
     const mobileBottomTabs: Array<{ id: MobileTabId; label: string; page?: Page; icon: React.ReactNode }> = [
@@ -84,6 +86,12 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
             label: '홈',
             page: filteredMobilePageGroups.home[0] || 'dashboard',
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>,
+        },
+        {
+            id: 'alerts',
+            label: '알림',
+            page: filteredMobilePageGroups.alerts[0],
+            icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5" /></svg>,
         },
         {
             id: 'analysis',
@@ -98,19 +106,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
         },
         {
-            id: 'workers',
-            label: '근로자',
-            page: filteredMobilePageGroups.workers[0],
-            icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
-        },
-        {
-            id: 'more',
+            id: 'settings',
             label: '더보기',
+            page: filteredMobilePageGroups.settings[0] || 'settings',
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6h.01M12 12h.01M12 18h.01" /></svg>,
         },
     ];
 
-    const activeMobileTab = (Object.entries(filteredMobilePageGroups).find(([, pages]) => pages.includes(currentPage))?.[0] as Exclude<MobileTabId, 'more'> | undefined) ?? 'more';
+    const activeMobileTab = (Object.entries(filteredMobilePageGroups).find(([, pages]) => pages.includes(currentPage))?.[0] as MobileTabId | undefined) ?? 'home';
 
     const mobileQuickLinksRaw: Array<{ page: Page; label: string }> =
         activeMobileTab === 'home'
@@ -118,13 +121,17 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                 { page: 'dashboard', label: '홈 대시보드' },
                 { page: 'introduction', label: '서비스 소개' },
             ]
-            : activeMobileTab === 'analysis'
+            : activeMobileTab === 'alerts'
+                ? [
+                    { page: 'site-issue-management', label: '알림 현황' },
+                    { page: 'safety-checks', label: '위험인지 진단' },
+                ]
+                : activeMobileTab === 'analysis'
                 ? [
                     { page: 'predictive-analysis', label: '위험 예측' },
-                    { page: 'ocr-analysis', label: '태깅 검증' },
-                    { page: 'safety-checks', label: '위험인지 진단' },
                     { page: 'survey-intelligence', label: '행동 패턴 분석' },
                     { page: 'performance-analysis', label: '성과 추이' },
+                    { page: 'worker-management', label: '인간인지 프로파일' },
                 ]
                 : activeMobileTab === 'reports'
                     ? [
@@ -132,18 +139,15 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                         { page: 'individual-report', label: '진단 리포트' },
                         { page: 'feedback', label: '피드백' },
                     ]
-                    : activeMobileTab === 'workers'
+                    : activeMobileTab === 'settings'
                         ? [
-                            { page: 'worker-management', label: '개인지 인지 프로파일' },
-                            { page: 'worker-training', label: '수기 데이터 입력' },
-                            { page: 'site-issue-management', label: '경보 알림' },
+                            { page: 'settings', label: '설정' },
                             { page: 'safety-compliance-hub', label: '현장 컨텍스트' },
+                            { page: 'worker-training', label: '수기 데이터 입력' },
                             { page: 'admin-training', label: '관리자 교육' },
-                            { page: 'safety-behavior-management', label: '개입 추천' },
+                            { page: 'ocr-analysis', label: '태깅 검증' },
                         ]
                         : [
-                            { page: 'safety-compliance-hub', label: '현장 컨텍스트' },
-                            { page: 'site-issue-management', label: '경보 알림' },
                             { page: 'settings', label: '설정' },
                         ];
 
@@ -398,12 +402,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                 <nav className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] pt-2 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 no-print" aria-label="모바일 하단 탐색">
                     <div className="grid grid-cols-5 gap-1">
                         {mobileBottomTabs.map((tab) => {
-                            const isActive = tab.id === 'more' ? activeMobileTab === 'more' && isMobileMenuOpen : tab.id === activeMobileTab;
+                            const isActive = tab.id === activeMobileTab;
                             const handleClick = () => {
-                                if (tab.id === 'more') {
-                                    setIsMobileMenuOpen(true);
-                                    return;
-                                }
                                 if (tab.page) {
                                     handlePageChange(tab.page);
                                 }
