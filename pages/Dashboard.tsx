@@ -2426,8 +2426,53 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         };
     }, [workerOnlyRecords]);
 
+    const mobileDashboardBadge =
+        stats.highRiskWorkers > 0
+            ? { label: '🔴 고위험', tone: 'bg-rose-500/20 text-rose-200 border border-rose-400/40' }
+            : harnessDashboardSummary.approvalBacklog > 0
+              ? { label: '🟡 승인 대기', tone: 'bg-amber-400/20 text-amber-100 border border-amber-300/40' }
+              : { label: '🟢 정상', tone: 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40' };
+
     return (
         <div className={`${isEssentialMobile ? 'space-y-3' : 'space-y-3 sm:space-y-4 lg:space-y-6'} animate-fade-in-up`}>
+            <div className="sm:hidden mb-2 rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">
+                <div className="flex items-center justify-between gap-3">
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-300">1) 홈 대시보드</p>
+                        <h2 className="mt-1 text-lg font-black">오늘 위험 현황</h2>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${mobileDashboardBadge.tone}`}>{mobileDashboardBadge.label}</span>
+                </div>
+                <div className="mt-3 grid grid-cols-4 gap-1.5">
+                    {[
+                        { label: '근로자', value: stats.totalWorkers, tone: 'text-slate-200' },
+                        { label: '평균', value: stats.averageScore.toFixed(1), tone: 'text-indigo-300' },
+                        { label: '고위험', value: stats.highRiskWorkers, tone: stats.highRiskWorkers > 0 ? 'text-rose-300' : 'text-slate-400' },
+                        { label: '백로그', value: harnessDashboardSummary.approvalBacklog, tone: harnessDashboardSummary.approvalBacklog > 0 ? 'text-amber-300' : 'text-slate-400' },
+                    ].map((chip) => (
+                        <div key={chip.label} className="rounded-xl border border-slate-700 bg-slate-900/60 px-1.5 py-2 text-center">
+                            <p className="text-[9px] font-black text-slate-500">{chip.label}</p>
+                            <p className={`text-sm font-black ${chip.tone}`}>{chip.value}</p>
+                        </div>
+                    ))}
+                </div>
+                <div className="mt-3 flex gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setCurrentPage('reports')}
+                        className="flex-1 min-h-[44px] rounded-xl bg-indigo-600 px-3 py-2 text-xs font-black text-white hover:bg-indigo-500 transition-colors"
+                    >
+                        리포트 보기
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setCurrentPage('predictive-analysis')}
+                        className="flex-1 min-h-[44px] rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-black text-slate-200 hover:bg-slate-700 transition-colors"
+                    >
+                        위험 예측 이동
+                    </button>
+                </div>
+            </div>
             {/* AI-Powered Safety Command Center */}
             <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 rounded-2xl sm:rounded-3xl p-4 sm:p-5 lg:p-6 text-white shadow-2xl relative overflow-hidden border border-white/10">
                 {/* Animated background elements */}
