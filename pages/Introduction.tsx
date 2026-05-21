@@ -11,8 +11,22 @@ interface IntroductionProps {
     onNavigateToPage: (page: Page) => void;
 }
 
+type QaAlertRunlogEntry = {
+    checkedAt: string;
+    connected: number;
+    dataReady: number;
+    total: number;
+    warnItems: number;
+    hasWarnings: boolean;
+    warningPages: Page[];
+};
+
+const QA_ALERT_RUNLOG_KEY = 'psi_intro_mobile_feature_qa_alert_runlog_v1';
+const QA_ALERT_RUNLOG_MAX_ITEMS = 20;
+
 const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateToPage }) => {
     const [isGravityOff, setIsGravityOff] = useState(false);
+    const [qaAlertRunlog, setQaAlertRunlog] = useState<QaAlertRunlogEntry[]>([]);
 
     useEffect(() => {
         if (isGravityOff) {
@@ -176,7 +190,120 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         { title: '12. 메뉴/설정', desc: `현재 릴리스 ${PSI_APP_VERSION}`, page: 'settings' },
     ]), [previewMetrics, PSI_APP_VERSION]);
 
-    const heroMobileCards = useMemo(() => mobileFlowCards.slice(0, 8), [mobileFlowCards]);
+    const heroMobileCards = useMemo(() => mobileFlowCards.slice(0, 12), [mobileFlowCards]);
+
+    const mobileFeatureChecklist = useMemo<Array<{ title: string; feature: string; state: '연결됨' | '검증필요'; dataState: '데이터확인' | '샘플표시'; page: Page }>>(() => {
+        const labels: Array<{ title: string; feature: string; page: Page; dataCount: number }> = [
+            { title: '1. 홈 대시보드', feature: '위험 분포/KPI 요약', page: 'dashboard', dataCount: previewMetrics.totalWorkers },
+            { title: '2. 경보 알림', feature: '전조 알림 우선 대응', page: 'site-issue-management', dataCount: previewMetrics.alertSignals },
+            { title: '3. 개인인지 프로파일', feature: '근로자 위험 프로파일', page: 'worker-management', dataCount: previewMetrics.highRiskWorkers },
+            { title: '4. 위험인지 진단', feature: '현장 진단 입력', page: 'worker-training', dataCount: previewMetrics.todayRecords },
+            { title: '5. 현장 컨텍스트', feature: '작업 맥락 저장', page: 'field-context-input', dataCount: previewMetrics.todayRecords },
+            { title: '6. 행동 패턴 분석', feature: '시간대/행동 패턴', page: 'safety-behavior-management', dataCount: previewMetrics.approvedRecords },
+            { title: '7. 위험 예측', feature: '개입 우선순위 예측', page: 'predictive-analysis', dataCount: previewMetrics.interventionTargets },
+            { title: '8. 개입 추천', feature: '코칭/조치 추천', page: 'intervention-coaching', dataCount: previewMetrics.interventionTargets },
+            { title: '9. 수기 데이터 입력', feature: '사례 수기 입력', page: 'judgment-tagging-input', dataCount: previewMetrics.taggingQueue },
+            { title: '10. 태깅 검증', feature: 'AI 결과 검증', page: 'ocr-analysis', dataCount: previewMetrics.qaValidationTargets },
+            { title: '11. 분석 리포트', feature: '주간 리포트 생성', page: 'reports', dataCount: previewMetrics.totalWorkers },
+            { title: '12. 메뉴/설정', feature: '환경/권한 설정', page: 'settings', dataCount: 1 },
+        ];
+
+        const availablePages = new Set<Page>(mobileFlowCards.map((card) => card.page));
+
+        return labels.map((item) => ({
+            title: item.title,
+            feature: item.feature,
+            page: item.page,
+            state: availablePages.has(item.page) ? '연결됨' : '검증필요',
+            dataState: item.dataCount > 0 ? '데이터확인' : '샘플표시',
+        }));
+    }, [mobileFlowCards, previewMetrics]);
+
+    const mobileFeatureValidation = useMemo(() => {
+        const total = mobileFeatureChecklist.length;
+        const connected = mobileFeatureChecklist.filter((item) => item.state === '연결됨').length;
+        const dataReady = mobileFeatureChecklist.filter((item) => item.dataState === '데이터확인').length;
+        const warnItems = mobileFeatureChecklist.filter((item) => item.state !== '연결됨' || item.dataState !== '데이터확인').length;
+        return {
+            total,
+            connected,
+            dataReady,
+            warnItems,
+            allConnected: connected === total,
+            hasWarnings: warnItems > 0,
+        };
+    }, [mobileFeatureChecklist]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            const raw = window.localStorage.getItem(QA_ALERT_RUNLOG_KEY);
+            if (!raw) {
+                setQaAlertRunlog([]);
+                return;
+            }
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) {
+                setQaAlertRunlog([]);
+                return;
+            }
+
+            const safeRunlog = parsed
+                .filter((entry) => entry && typeof entry === 'object')
+                .map((entry) => ({
+                    checkedAt: String(entry.checkedAt || new Date(0).toISOString()),
+                    connected: Number(entry.connected || 0),
+                    dataReady: Number(entry.dataReady || 0),
+                    total: Number(entry.total || 0),
+                    warnItems: Number(entry.warnItems || 0),
+                    hasWarnings: Boolean(entry.hasWarnings),
+                    warningPages: Array.isArray(entry.warningPages)
+                        ? entry.warningPages.filter((page): page is Page => typeof page === 'string')
+                        : [],
+                }))
+                .sort((a, b) => new Date(b.checkedAt).getTime() - new Date(a.checkedAt).getTime())
+                .slice(0, QA_ALERT_RUNLOG_MAX_ITEMS);
+
+            setQaAlertRunlog(safeRunlog);
+        } catch {
+            setQaAlertRunlog([]);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const warningPages = mobileFeatureChecklist
+            .filter((item) => item.state !== '연결됨' || item.dataState !== '데이터확인')
+            .map((item) => item.page);
+
+        const nextEntry: QaAlertRunlogEntry = {
+            checkedAt: new Date().toISOString(),
+            connected: mobileFeatureValidation.connected,
+            dataReady: mobileFeatureValidation.dataReady,
+            total: mobileFeatureValidation.total,
+            warnItems: mobileFeatureValidation.warnItems,
+            hasWarnings: mobileFeatureValidation.hasWarnings,
+            warningPages: Array.from(new Set(warningPages)),
+        };
+
+        try {
+            const previous = qaAlertRunlog[0];
+            const previousSignature = previous
+                ? `${previous.connected}-${previous.dataReady}-${previous.total}-${previous.warnItems}-${previous.warningPages.join('|')}`
+                : '';
+            const nextSignature = `${nextEntry.connected}-${nextEntry.dataReady}-${nextEntry.total}-${nextEntry.warnItems}-${nextEntry.warningPages.join('|')}`;
+
+            if (previousSignature === nextSignature) {
+                return;
+            }
+
+            const nextRunlog = [nextEntry, ...qaAlertRunlog].slice(0, QA_ALERT_RUNLOG_MAX_ITEMS);
+            setQaAlertRunlog(nextRunlog);
+            window.localStorage.setItem(QA_ALERT_RUNLOG_KEY, JSON.stringify(nextRunlog));
+        } catch {
+            // ignore storage failures
+        }
+    }, [mobileFeatureChecklist, mobileFeatureValidation, qaAlertRunlog]);
 
     const heroPrinciples: Array<{ label: string; icon: React.ReactNode }> = [
         {
@@ -463,7 +590,45 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                                             <p className={`text-[8px] font-black ${tone.descText}`}>{desc}</p>
                                                         </div>
                                                     )}
-                                                    {(stepNoNum < 1 || stepNoNum > 8) && (
+                                                    {stepNoNum === 9 && (
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex items-center justify-between">
+                                                                <p className="text-[8px] font-bold text-slate-500">사례 기록</p>
+                                                                <span className="text-[7px] font-black text-emerald-600">태깅</span>
+                                                            </div>
+                                                            <div className="h-1.5 rounded bg-slate-200"></div>
+                                                            <div className="h-1.5 rounded bg-emerald-100 w-4/5"></div>
+                                                        </div>
+                                                    )}
+                                                    {stepNoNum === 10 && (
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-violet-400"></span><p className="text-[8px] font-bold text-violet-700">AI 결과 검증</p></div>
+                                                            <div className="flex gap-0.5">
+                                                                <div className="flex-1 rounded bg-violet-100 px-1 py-0.5 text-center text-[7px] font-black text-violet-700">PASS</div>
+                                                                <div className="flex-1 rounded bg-rose-50 px-1 py-0.5 text-center text-[7px] font-black text-rose-500">이슈</div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {stepNoNum === 11 && (
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex items-end gap-0.5 h-5">
+                                                                {[45, 60, 52, 78].map((height, idx) => (
+                                                                    <div key={idx} className="flex-1 rounded-sm bg-indigo-200" style={{ height: `${height}%` }}></div>
+                                                                ))}
+                                                            </div>
+                                                            <p className="text-[8px] font-black text-indigo-700">주간 리포트</p>
+                                                        </div>
+                                                    )}
+                                                    {stepNoNum === 12 && (
+                                                        <div className="space-y-0.5">
+                                                            <div className="flex items-center justify-between text-[7px] font-bold text-slate-500">
+                                                                <span>테마</span><span>다국어</span><span>권한</span>
+                                                            </div>
+                                                            <div className="h-1.5 rounded bg-slate-200"></div>
+                                                            <div className="h-1.5 rounded bg-indigo-100 w-2/3"></div>
+                                                        </div>
+                                                    )}
+                                                    {(stepNoNum < 1 || stepNoNum > 12) && (
                                                         <div className="space-y-1">
                                                             <div className="h-1.5 rounded bg-slate-200"></div>
                                                             <p className={`text-[9px] font-black ${tone.descText}`}>{desc}</p>
@@ -478,6 +643,60 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                     <BrandPhilosophyLogo className="h-7 w-7" />
                                     <p className="mt-1 text-lg font-black">psi</p>
                                     <p className="mt-1 text-[8px] font-bold text-slate-300">Human Risk Intelligence</p>
+                                </div>
+                            </div>
+                            <div className="mt-2.5 rounded-2xl border border-indigo-100 bg-white/90 p-2.5">
+                                {mobileFeatureValidation.hasWarnings ? (
+                                    <div className="mb-2 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2">
+                                        <p className="text-[9px] font-black text-amber-700">QA 경보 모드 · 검증 필요 {mobileFeatureValidation.warnItems}건</p>
+                                        <p className="mt-0.5 text-[8px] font-semibold text-amber-700/90">샘플 데이터 또는 미연결 항목이 있어 런타임 점검이 필요합니다.</p>
+                                        <p className="mt-1 text-[8px] font-semibold text-amber-800/90">
+                                            경고 항목 카드를 누르면 해당 기능 화면으로 바로 이동합니다.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="mb-2 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-2">
+                                        <p className="text-[9px] font-black text-emerald-700">QA 정상 모드 · 12개 구성 연결 및 데이터 확인 완료</p>
+                                    </div>
+                                )}
+                                <div className="mb-2 flex flex-wrap items-center justify-between gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+                                    <p className="text-[8px] font-black text-slate-600">QA RUNLOG</p>
+                                    <p className="text-[8px] font-semibold text-slate-500">
+                                        최근 점검 {qaAlertRunlog.length}회
+                                        {qaAlertRunlog[0]
+                                            ? ` · 최신 ${qaAlertRunlog[0].hasWarnings ? `경고 ${qaAlertRunlog[0].warnItems}건` : '정상'}`
+                                            : ''}
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <p className="text-[10px] font-black tracking-[0.12em] text-indigo-700">12 SCREEN FEATURE CHECK</p>
+                                    <div className="flex items-center gap-1.5 text-[8px] font-black">
+                                        <span className={`rounded-full px-1.5 py-0.5 ${mobileFeatureValidation.allConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                            연결 {mobileFeatureValidation.connected}/{mobileFeatureValidation.total}
+                                        </span>
+                                        <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-indigo-700">
+                                            데이터 {mobileFeatureValidation.dataReady}/{mobileFeatureValidation.total}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                    {mobileFeatureChecklist.map((item) => (
+                                        <button
+                                            key={item.title}
+                                            type="button"
+                                            onClick={() => onNavigateToPage(item.page)}
+                                            className={`rounded-xl border px-2 py-1.5 ${item.state !== '연결됨' || item.dataState !== '데이터확인' ? 'border-amber-200 bg-amber-50/60' : 'border-slate-200 bg-slate-50'}`}
+                                        >
+                                            <div className="flex items-center justify-between gap-2">
+                                                <p className="text-[9px] font-black text-slate-700 leading-tight">{item.title}</p>
+                                                <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-black ${item.state === '연결됨' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{item.state}</span>
+                                            </div>
+                                            <div className="mt-0.5 flex items-center justify-between gap-2">
+                                                <p className="text-[8px] font-semibold text-slate-500 leading-tight">{item.feature}</p>
+                                                <span className={`rounded-full px-1.5 py-0.5 text-[7px] font-black ${item.dataState === '데이터확인' ? 'bg-sky-100 text-sky-700' : 'bg-slate-200 text-slate-600'}`}>{item.dataState}</span>
+                                            </div>
+                                        </button>
+                                    ))}
                                 </div>
                             </div>
                         </section>

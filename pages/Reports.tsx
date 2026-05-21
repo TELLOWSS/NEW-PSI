@@ -212,9 +212,20 @@ type OpsAlertClickLog = {
     interventionNotStartedCount: number;
 };
 
+type IntroQaAlertRunlogEntry = {
+    checkedAt: string;
+    connected: number;
+    dataReady: number;
+    total: number;
+    warnItems: number;
+    hasWarnings: boolean;
+    warningPages: Page[];
+};
+
 const PREDICTIVE_INTERVENTION_HANDOFF_KEY = 'psi_predictive_intervention_handoff_v1';
 const PREDICTIVE_INTERVENTION_HANDOFF_EVENT = 'psi-predictive-intervention-updated';
 const OPS_ALERT_CLICK_LOG_KEY = 'psi_ops_alert_click_log_v1';
+const INTRO_QA_ALERT_RUNLOG_KEY = 'psi_intro_mobile_feature_qa_alert_runlog_v1';
 
 type OpsAlertLogApiResponse = {
     ok: boolean;
@@ -264,6 +275,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const { data: taggingQuality, loading: taggingQualityLoading } = useJudgmentTaggingQuality();
     const [interventionHandoff, setInterventionHandoff] = useState<PredictiveInterventionHandoff | null>(null);
     const [opsAlertClickLogs, setOpsAlertClickLogs] = useState<OpsAlertClickLog[]>([]);
+    const [introQaAlertRunlog, setIntroQaAlertRunlog] = useState<IntroQaAlertRunlogEntry[]>([]);
     const [opsAlertSyncState, setOpsAlertSyncState] = useState<OpsAlertSyncState>('idle');
     const [opsAlertSyncNote, setOpsAlertSyncNote] = useState('');
     const [opsAlertActionFilter, setOpsAlertActionFilter] = useState<'all' | OpsAlertClickLog['action']>('all');
@@ -376,6 +388,35 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             }
         };
 
+        const readIntroQaRunlog = () => {
+            try {
+                const raw = localStorage.getItem(INTRO_QA_ALERT_RUNLOG_KEY);
+                if (!raw) {
+                    setIntroQaAlertRunlog([]);
+                    return;
+                }
+                const parsed = JSON.parse(raw);
+                const safeRunlog: IntroQaAlertRunlogEntry[] = Array.isArray(parsed)
+                    ? parsed
+                        .filter((entry) => entry && typeof entry === 'object')
+                        .map((entry) => ({
+                            checkedAt: String(entry.checkedAt || new Date(0).toISOString()),
+                            connected: Number(entry.connected || 0),
+                            dataReady: Number(entry.dataReady || 0),
+                            total: Number(entry.total || 0),
+                            warnItems: Number(entry.warnItems || 0),
+                            hasWarnings: Boolean(entry.hasWarnings),
+                            warningPages: Array.isArray(entry.warningPages)
+                                ? entry.warningPages.filter((page): page is Page => typeof page === 'string')
+                                : [],
+                        }))
+                    : [];
+                setIntroQaAlertRunlog(safeRunlog);
+            } catch {
+                setIntroQaAlertRunlog([]);
+            }
+        };
+
         const mergeLogs = (primary: OpsAlertClickLog[], secondary: OpsAlertClickLog[]) => {
             const mergedMap = new Map<string, OpsAlertClickLog>();
             [...primary, ...secondary].forEach((log) => {
@@ -428,11 +469,15 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         };
 
         readOpsAlertLogs();
+        readIntroQaRunlog();
         void loadOpsAlertLogsFromServer();
 
         const handleStorage = (event: StorageEvent) => {
             if (!event.key || event.key === OPS_ALERT_CLICK_LOG_KEY) {
                 readOpsAlertLogs();
+            }
+            if (!event.key || event.key === INTRO_QA_ALERT_RUNLOG_KEY) {
+                readIntroQaRunlog();
             }
         };
 
@@ -442,6 +487,26 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             window.removeEventListener('storage', handleStorage);
         };
     }, []);
+
+    const latestIntroQaRunlog = introQaAlertRunlog[0] || null;
+
+    const getPageLabel = (page: Page) => {
+        switch (page) {
+            case 'dashboard': return '1 홈 대시보드';
+            case 'site-issue-management': return '2 경보 알림';
+            case 'worker-management': return '3 개인인지 프로파일';
+            case 'worker-training': return '4 위험인지 진단';
+            case 'field-context-input': return '5 현장 컨텍스트';
+            case 'safety-behavior-management': return '6 행동 패턴 분석';
+            case 'predictive-analysis': return '7 위험 예측';
+            case 'intervention-coaching': return '8 개입 추천';
+            case 'judgment-tagging-input': return '9 수기 데이터 입력';
+            case 'ocr-analysis': return '10 태깅 검증';
+            case 'reports': return '11 분석 리포트';
+            case 'settings': return '12 메뉴/설정';
+            default: return page;
+        }
+    };
 
     const trackQuickAction = (actionKey: string, payload?: Record<string, unknown>) => {
         trackUIViewMetric('cta_click', 'reports', quickActionMetricSessionRef.current, {
@@ -2893,6 +2958,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         onNavigateToPage?.('ocr-analysis');
     };
 
+    const handleNavigateFromIntroQaWarning = (page: Page) => {
+        trackQuickAction('intro_qa_warning_navigate', {
+            targetPage: page,
+            warnItems: latestIntroQaRunlog?.warnItems || 0,
+        });
+        onNavigateToPage?.(page);
+    };
+
     return (
         <div className="space-y-6 pb-10 h-full flex flex-col font-sans">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 no-print">
@@ -3096,6 +3169,40 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     동기화 상태: {opsAlertSyncState === 'server' ? '서버 연결' : opsAlertSyncState === 'syncing' ? '확인 중' : opsAlertSyncState === 'fallback' ? '로컬 폴백' : '초기 상태'}
                     {opsAlertSyncNote ? ` · ${opsAlertSyncNote}` : ''}
                 </p>
+
+                <div className="mt-2 rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-700">Introduction QA RUNLOG</p>
+                    {latestIntroQaRunlog ? (
+                        <>
+                            <p className="mt-1 text-[11px] font-semibold text-indigo-800">
+                                최신 점검: {new Date(latestIntroQaRunlog.checkedAt).toLocaleString('ko-KR', { hour12: false })}
+                                {' · '}
+                                연결 {latestIntroQaRunlog.connected}/{latestIntroQaRunlog.total}
+                                {' · '}
+                                데이터 {latestIntroQaRunlog.dataReady}/{latestIntroQaRunlog.total}
+                            </p>
+                            <p className="mt-0.5 text-[10px] font-bold text-indigo-700/80">
+                                상태: {latestIntroQaRunlog.hasWarnings ? `경고 ${latestIntroQaRunlog.warnItems}건` : '정상'}
+                            </p>
+                            {latestIntroQaRunlog.warningPages.length > 0 && (
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {latestIntroQaRunlog.warningPages.map((page) => (
+                                        <button
+                                            key={`intro-qa-warning-${page}`}
+                                            type="button"
+                                            onClick={() => handleNavigateFromIntroQaWarning(page)}
+                                            className="rounded-lg border border-amber-200 bg-white px-2 py-1 text-[10px] font-black text-amber-700 hover:bg-amber-50"
+                                        >
+                                            {getPageLabel(page)} 이동
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <p className="mt-1 text-[11px] font-semibold text-slate-500">Introduction QA RUNLOG 데이터가 없습니다.</p>
+                    )}
+                </div>
 
                 <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <select
