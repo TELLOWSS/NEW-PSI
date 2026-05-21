@@ -16,6 +16,34 @@ create table if not exists public.ops_alert_click_logs (
     created_at timestamptz not null default now()
 );
 
+alter table public.ops_alert_click_logs
+    alter column created_by set default 'reports-ui';
+
+do $$
+begin
+    if not exists (
+        select 1
+        from pg_constraint
+        where conname = 'ops_alert_click_logs_tagging_error_count_nonnegative'
+          and conrelid = 'public.ops_alert_click_logs'::regclass
+    ) then
+        alter table public.ops_alert_click_logs
+            add constraint ops_alert_click_logs_tagging_error_count_nonnegative
+                check (tagging_error_count >= 0);
+    end if;
+
+    if not exists (
+        select 1
+        from pg_constraint
+        where conname = 'ops_alert_click_logs_intervention_not_started_count_nonnegative'
+          and conrelid = 'public.ops_alert_click_logs'::regclass
+    ) then
+        alter table public.ops_alert_click_logs
+            add constraint ops_alert_click_logs_intervention_not_started_count_nonnegative
+                check (intervention_not_started_count >= 0);
+    end if;
+end $$;
+
 create index if not exists ops_alert_click_logs_clicked_at_idx
     on public.ops_alert_click_logs (clicked_at desc);
 
@@ -39,6 +67,17 @@ create policy ops_alert_click_logs_authenticated_select
     on public.ops_alert_click_logs
     for select
     using (auth.role() = 'authenticated' or auth.role() = 'service_role');
+
+do $$
+begin
+    if exists (select 1 from pg_roles where rolname = 'authenticated') then
+        grant select on table public.ops_alert_click_logs to authenticated;
+    end if;
+
+    if exists (select 1 from pg_roles where rolname = 'service_role') then
+        grant all on table public.ops_alert_click_logs to service_role;
+    end if;
+end $$;
 
 comment on table public.ops_alert_click_logs is 'PSI Reports 경보 CTA 클릭 로그';
 comment on column public.ops_alert_click_logs.action is '경보 CTA 이동 액션(go-intervention/go-tagging-validation)';
@@ -64,3 +103,45 @@ comment on column public.ops_alert_click_logs.intervention_not_started_count is 
 -- from pg_policies
 -- where schemaname = 'public' and tablename = 'ops_alert_click_logs'
 -- order by policyname;
+
+-- 4) 기본값/제약조건 확인
+-- select
+--   column_name,
+--   column_default,
+--   is_nullable
+-- from information_schema.columns
+-- where table_schema = 'public' and table_name = 'ops_alert_click_logs'
+--   and column_name in ('created_by', 'tagging_error_count', 'intervention_not_started_count')
+-- order by column_name;
+--
+-- select conname, pg_get_constraintdef(oid) as constraint_def
+-- from pg_constraint
+-- where conrelid = 'public.ops_alert_click_logs'::regclass
+-- order by conname;
+
+-- 5) 권한(grant) 확인
+-- select grantee, privilege_type
+-- from information_schema.role_table_grants
+-- where table_schema = 'public' and table_name = 'ops_alert_click_logs'
+-- order by grantee, privilege_type;
+
+-- 6) 스모크 테스트(삽입/조회/삭제) - 필요 시에만 실행
+-- insert into public.ops_alert_click_logs (
+--   id, clicked_at, action, delay_alert_active,
+--   tagging_error_count, intervention_not_started_count
+-- ) values (
+--   'smoke-' || to_char(now(), 'YYYYMMDDHH24MISSMS'),
+--   now(),
+--   'go-intervention',
+--   true,
+--   1,
+--   2
+-- );
+--
+-- select id, action, delay_alert_active, tagging_error_count, intervention_not_started_count, created_by, created_at
+-- from public.ops_alert_click_logs
+-- where id like 'smoke-%'
+-- order by created_at desc
+-- limit 1;
+--
+-- delete from public.ops_alert_click_logs where id like 'smoke-%';
