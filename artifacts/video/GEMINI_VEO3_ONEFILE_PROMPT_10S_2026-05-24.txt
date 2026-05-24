@@ -1,0 +1,106 @@
+[복붙용 시작]
+You are a world-class commercial film director and motion designer.
+Create one 10-second cinematic product intro video in Korean, with a futuristic premium tone.
+
+Project context:
+- Product name: PSI
+- Brand mood: Future-forward, premium, precise, trustworthy
+- Audience: executives and operations leaders
+- Core message: Turn scattered operational data into fast, actionable decisions
+
+Direction update (important):
+- Align visual direction to a bright premium product mockup board style (not dark cyber-only).
+- Use clean white/light-gray canvas, modular section cards, and precise information hierarchy.
+- Show desktop dashboard + mobile app slices in one coherent composition.
+- Maintain premium restraint: minimal effects, strong typography, calm confidence.
+- Keep accent family in PSI identity range (blue-indigo with subtle magenta accent), avoid random color drift.
+
+Reference image policy:
+- If reference images are attached, treat them as primary visual identity anchors.
+- Keep UI style, layout density, chart language, and brand feel aligned to attached PSI references.
+- Do not copy text verbatim from screenshots unless it is one of the required on-screen captions below.
+- Keep output clean, cinematic, and presentation-ready.
+
+Attached assets (expected):
+- REF_01_dashboard_hero (PSI dashboard hero screenshot)
+- REF_02_comparison_chart (PSI comparison/performance chart screenshot)
+- REF_03_execution_card (PSI predictive/action status screenshot)
+- REF_04_logo_or_intro (PSI logo or intro card screenshot)
+
+If no images are attached:
+- Still generate the video using the direction below.
+- Build a premium abstract enterprise UI inspired by Korean construction operations analytics.
+
+Hard requirements:
+1) Duration: exactly 10.0 seconds
+2) Resolution: 1920x1080 (16:9)
+3) Frame rate: 30fps
+4) Style: clean tech, elegant, no chaotic glitch spam
+5) Camera motion: subtle and smooth only (slow zoom, gentle pan)
+6) On-screen text must be Korean and highly legible
+7) No visible watermark, no extra logos except PSI
+8) Keep typography minimal, high contrast, premium spacing
+9) Prefer visual consistency with attached references when available
+
+Color direction:
+- Preferred background base: #F5F7FB to #EEF2F8
+- Surface cards: #FFFFFF with soft border #E6EAF2
+- Primary text: #111827
+- Secondary text: #4B5563
+- Primary accent: #4F46E5
+- Secondary accent: #3B82F6
+- Optional small magenta accent: #EC4899
+
+Music/SFX direction:
+- Minimal synth pulse, premium cinematic bed
+- No aggressive EDM drops
+- Soft UI click/whoosh accents only
+
+Video structure with exact timeline:
+
+Scene 1 (00:00.0 - 00:03.5)
+- Visual: clean product board reveal on bright background, with PSI headline area and structured modules appearing in sequence
+- Motion: slow zoom out from 103% to 100% feel, subtle parallax between title block and card grid
+- Text (2 lines):
+  흩어진 지표를
+  하나의 흐름으로
+- Tone: tension to clarity
+
+Scene 2 (00:03.5 - 00:06.5)
+- Visual: desktop dashboard panel on left and mobile slices on right, elegant chart overlays indicating comparison insight
+- Motion: gentle left-to-right pan
+- Text (2 lines):
+  비교가 판단을
+  빠르게 만든다
+- Tone: intelligence and control
+
+Scene 3 (00:06.5 - 00:08.5)
+- Visual: action/execution cards in modular layout with status transitions (planned -> in progress -> done), clean confirmation pulse
+- Motion: micro zoom in (100% -> 102%)
+- Text (2 lines):
+  보고,
+  바로 실행한다
+- Tone: decisive execution
+
+Scene 4 (00:08.5 - 00:10.0)
+- Visual: premium bright end card, PSI logo centered, restrained light sweep once
+- Text (2 lines):
+  PSI
+  차세대 운영 표준
+- Tone: confident finish
+
+Cinematography constraints:
+- No handheld shake
+- No fast strobe
+- No over-bloom
+- Keep cuts clean; use short motion blur transitions
+- Preserve readability of Korean text at all times
+- Prefer product-mockup realism over abstract sci-fi visuals
+- Avoid clutter: each frame should communicate one clear message
+
+Final output request:
+- Generate the final 10s video in one pass
+- Ensure timing is exact and all text appears in the specified windows
+- Deliver polished, presentation-ready quality
+
+[복붙용 끝]
