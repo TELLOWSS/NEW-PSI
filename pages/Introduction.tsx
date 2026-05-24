@@ -145,6 +145,7 @@ const getStoredUpgradePlanItems = (): UpgradePlanItem[] => {
 
 const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateToPage }) => {
     const [isGravityOff, setIsGravityOff] = useState(false);
+    const [showAllMobileFeatures, setShowAllMobileFeatures] = useState(false);
     const [qaAlertRunlog, setQaAlertRunlog] = useState<QaAlertRunlogEntry[]>([]);
     const [upgradePlanItems, setUpgradePlanItems] = useState<UpgradePlanItem[]>(() => getStoredUpgradePlanItems());
     const [showOpenItemsOnly, setShowOpenItemsOnly] = useState(false);
@@ -313,7 +314,16 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         { title: '12. 메뉴/설정', desc: `현재 릴리스 ${PSI_APP_VERSION}`, page: 'settings' },
     ]), [previewMetrics, PSI_APP_VERSION]);
 
-    const heroMobileCards = useMemo(() => mobileFlowCards.slice(0, 12), [mobileFlowCards]);
+    const heroMobileCards = useMemo<Array<{ title: string; desc: string; page: Page }>>(() => ([
+        { title: '1. 홈 대시보드', desc: `${previewMetrics.totalWorkers}명 분석`, page: 'dashboard' },
+        { title: '2. 경보 알림', desc: `전조 신호 ${previewMetrics.alertSignals}건`, page: 'site-issue-management' },
+        { title: '3. 작업자 프로파일', desc: `고위험 ${previewMetrics.highRiskWorkers}명`, page: 'worker-management' },
+        { title: '4. 현장 지도 (위험)', desc: `위험 핫스팟 ${previewMetrics.alertSignals}건`, page: 'dashboard' },
+        { title: '5. 위험 예측', desc: `예측 대상 ${previewMetrics.interventionTargets}명`, page: 'predictive-analysis' },
+        { title: '6. 개입 관리', desc: `개입 대상 ${previewMetrics.interventionTargets}명`, page: 'intervention-coaching' },
+        { title: '7. 데이터 입력', desc: `태깅 대기 ${previewMetrics.taggingQueue}건`, page: 'judgment-tagging-input' },
+        { title: '8. 더보기', desc: '리포트/설정/검증', page: 'reports' },
+    ]), [previewMetrics]);
 
     const mobileFeatureChecklist = useMemo<Array<{ title: string; feature: string; state: '연결됨' | '검증필요'; dataState: '데이터확인' | '샘플표시'; page: Page }>>(() => {
         const labels: Array<{ title: string; feature: string; page: Page; dataCount: number }> = [
@@ -826,7 +836,16 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                         </section>
 
                         <section className="rounded-3xl border border-indigo-200 bg-indigo-50/70 p-3.5 shadow-sm">
-                            <div className="mb-2 inline-flex items-center rounded-full bg-indigo-500 px-3 py-1 text-[10px] font-black tracking-[0.12em] text-white">MOBILE APP</div>
+                            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                                <div className="inline-flex items-center rounded-full bg-indigo-500 px-3 py-1 text-[10px] font-black tracking-[0.12em] text-white">MOBILE CORE 8</div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAllMobileFeatures((prev) => !prev)}
+                                    className="rounded-xl border border-indigo-200 bg-white px-2.5 py-1.5 text-[10px] font-black text-indigo-700 transition duration-200 hover:bg-indigo-50"
+                                >
+                                    {showAllMobileFeatures ? '12기능 접기' : '12기능 펼치기'}
+                                </button>
+                            </div>
                             <div className="relative rounded-2xl border border-indigo-100 bg-white/90 p-3.5">
                                 <div className="grid grid-cols-2 gap-1.5 sm:gap-2 sm:grid-cols-4">
                                     {heroMobileCards.map(({ title, desc, page }) => {
@@ -864,9 +883,17 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                                         </div>
                                                     )}
                                                     {stepNoNum === 4 && (
-                                                        <div className="space-y-0.5">
-                                                            <div className="flex items-center gap-1"><div className="h-1.5 w-1.5 rounded-sm bg-emerald-400"></div><p className="text-[8px] font-bold text-slate-600">인지 진단 완료</p></div>
-                                                            <div className="flex items-center gap-1"><div className="h-1.5 w-1.5 rounded-sm bg-slate-200"></div><p className="text-[8px] font-bold text-slate-400">재진단 대기</p></div>
+                                                        <div className="space-y-1">
+                                                            <div className="relative h-6 rounded bg-slate-50 border border-slate-100 overflow-hidden">
+                                                                <div className="absolute inset-0 grid grid-cols-4 grid-rows-2 gap-px p-1">
+                                                                    {Array.from({ length: 8 }).map((_, i) => (
+                                                                        <div key={i} className="rounded-sm bg-slate-200/60"></div>
+                                                                    ))}
+                                                                </div>
+                                                                <div className="absolute left-[20%] top-[35%] h-2 w-2 rounded-full bg-rose-400/80"></div>
+                                                                <div className="absolute left-[58%] top-[50%] h-1.5 w-1.5 rounded-full bg-amber-400/80"></div>
+                                                            </div>
+                                                            <p className="text-[8px] font-bold text-rose-600">위험 지도 핫스팟</p>
                                                         </div>
                                                     )}
                                                     {stepNoNum === 5 && (
@@ -954,58 +981,75 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                 </div>
                             </div>
                             <div className="mt-2.5 rounded-2xl border border-indigo-100 bg-white/90 p-2.5">
-                                {mobileFeatureValidation.hasWarnings ? (
-                                    <div className="mb-2 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2">
-                                        <p className="text-[9px] font-black text-amber-700">QA 경보 모드 · 검증 필요 {mobileFeatureValidation.warnItems}건</p>
-                                        <p className="mt-0.5 text-[8px] font-semibold text-amber-700/90">샘플 데이터 또는 미연결 항목이 있어 런타임 점검이 필요합니다.</p>
-                                        <p className="mt-1 text-[8px] font-semibold text-amber-800/90">
-                                            경고 항목 카드를 누르면 해당 기능 화면으로 바로 이동합니다.
-                                        </p>
+                                {!showAllMobileFeatures ? (
+                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2">
+                                        <p className="text-[10px] font-black text-slate-700">8코어 중심 미리보기 모드</p>
+                                        <p className="mt-0.5 text-[8px] font-semibold text-slate-500">상단 버튼으로 12기능 전체 QA/런로그를 펼쳐 확인할 수 있습니다.</p>
+                                        <div className="mt-1.5 flex items-center gap-1.5 text-[8px] font-black">
+                                            <span className={`rounded-full px-1.5 py-0.5 ${mobileFeatureValidation.allConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                연결 {mobileFeatureValidation.connected}/{mobileFeatureValidation.total}
+                                            </span>
+                                            <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-indigo-700">
+                                                데이터 {mobileFeatureValidation.dataReady}/{mobileFeatureValidation.total}
+                                            </span>
+                                        </div>
                                     </div>
                                 ) : (
-                                    <div className="mb-2 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-2">
-                                        <p className="text-[9px] font-black text-emerald-700">QA 정상 모드 · 12개 구성 연결 및 데이터 확인 완료</p>
-                                    </div>
+                                    <>
+                                        {mobileFeatureValidation.hasWarnings ? (
+                                            <div className="mb-2 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2">
+                                                <p className="text-[9px] font-black text-amber-700">QA 경보 모드 · 검증 필요 {mobileFeatureValidation.warnItems}건</p>
+                                                <p className="mt-0.5 text-[8px] font-semibold text-amber-700/90">샘플 데이터 또는 미연결 항목이 있어 런타임 점검이 필요합니다.</p>
+                                                <p className="mt-1 text-[8px] font-semibold text-amber-800/90">
+                                                    경고 항목 카드를 누르면 해당 기능 화면으로 바로 이동합니다.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="mb-2 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-2">
+                                                <p className="text-[9px] font-black text-emerald-700">QA 정상 모드 · 12개 구성 연결 및 데이터 확인 완료</p>
+                                            </div>
+                                        )}
+                                        <div className="mb-2 flex flex-wrap items-center justify-between gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+                                            <p className="text-[8px] font-black text-slate-600">QA RUNLOG</p>
+                                            <p className="text-[8px] font-semibold text-slate-500">
+                                                최근 점검 {qaAlertRunlog.length}회
+                                                {qaAlertRunlog[0]
+                                                    ? ` · 최신 ${qaAlertRunlog[0].hasWarnings ? `경고 ${qaAlertRunlog[0].warnItems}건` : '정상'}`
+                                                    : ''}
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <p className="text-[10px] font-black tracking-[0.12em] text-indigo-700">12 SCREEN FEATURE CHECK</p>
+                                            <div className="flex items-center gap-1.5 text-[8px] font-black">
+                                                <span className={`rounded-full px-1.5 py-0.5 ${mobileFeatureValidation.allConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                    연결 {mobileFeatureValidation.connected}/{mobileFeatureValidation.total}
+                                                </span>
+                                                <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-indigo-700">
+                                                    데이터 {mobileFeatureValidation.dataReady}/{mobileFeatureValidation.total}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                            {mobileFeatureChecklist.map((item) => (
+                                                <button
+                                                    key={item.title}
+                                                    type="button"
+                                                    onClick={() => onNavigateToPage(item.page)}
+                                                    className={`rounded-xl border px-2 py-1.5 ${item.state !== '연결됨' || item.dataState !== '데이터확인' ? 'border-amber-200 bg-amber-50/60' : 'border-slate-200 bg-slate-50'}`}
+                                                >
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <p className="text-[9px] font-black text-slate-700 leading-tight">{item.title}</p>
+                                                        <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-black ${item.state === '연결됨' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{item.state}</span>
+                                                    </div>
+                                                    <div className="mt-0.5 flex items-center justify-between gap-2">
+                                                        <p className="text-[8px] font-semibold text-slate-500 leading-tight">{item.feature}</p>
+                                                        <span className={`rounded-full px-1.5 py-0.5 text-[7px] font-black ${item.dataState === '데이터확인' ? 'bg-sky-100 text-sky-700' : 'bg-slate-200 text-slate-600'}`}>{item.dataState}</span>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </>
                                 )}
-                                <div className="mb-2 flex flex-wrap items-center justify-between gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
-                                    <p className="text-[8px] font-black text-slate-600">QA RUNLOG</p>
-                                    <p className="text-[8px] font-semibold text-slate-500">
-                                        최근 점검 {qaAlertRunlog.length}회
-                                        {qaAlertRunlog[0]
-                                            ? ` · 최신 ${qaAlertRunlog[0].hasWarnings ? `경고 ${qaAlertRunlog[0].warnItems}건` : '정상'}`
-                                            : ''}
-                                    </p>
-                                </div>
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <p className="text-[10px] font-black tracking-[0.12em] text-indigo-700">12 SCREEN FEATURE CHECK</p>
-                                    <div className="flex items-center gap-1.5 text-[8px] font-black">
-                                        <span className={`rounded-full px-1.5 py-0.5 ${mobileFeatureValidation.allConnected ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                                            연결 {mobileFeatureValidation.connected}/{mobileFeatureValidation.total}
-                                        </span>
-                                        <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-indigo-700">
-                                            데이터 {mobileFeatureValidation.dataReady}/{mobileFeatureValidation.total}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                                    {mobileFeatureChecklist.map((item) => (
-                                        <button
-                                            key={item.title}
-                                            type="button"
-                                            onClick={() => onNavigateToPage(item.page)}
-                                            className={`rounded-xl border px-2 py-1.5 ${item.state !== '연결됨' || item.dataState !== '데이터확인' ? 'border-amber-200 bg-amber-50/60' : 'border-slate-200 bg-slate-50'}`}
-                                        >
-                                            <div className="flex items-center justify-between gap-2">
-                                                <p className="text-[9px] font-black text-slate-700 leading-tight">{item.title}</p>
-                                                <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-black ${item.state === '연결됨' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{item.state}</span>
-                                            </div>
-                                            <div className="mt-0.5 flex items-center justify-between gap-2">
-                                                <p className="text-[8px] font-semibold text-slate-500 leading-tight">{item.feature}</p>
-                                                <span className={`rounded-full px-1.5 py-0.5 text-[7px] font-black ${item.dataState === '데이터확인' ? 'bg-sky-100 text-sky-700' : 'bg-slate-200 text-slate-600'}`}>{item.dataState}</span>
-                                            </div>
-                                        </button>
-                                    ))}
-                                </div>
                             </div>
                         </section>
                     </div>
