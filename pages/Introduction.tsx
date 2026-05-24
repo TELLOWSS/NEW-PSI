@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { Page, WorkerRecord } from '../types';
 import { BrandPhilosophyLogo } from '../components/shared/BrandPhilosophyLogo';
 import { PSI_APP_VERSION, PSI_CURRENT_RELEASE, PSI_SYSTEM_NAME } from '../lib/appInfo';
@@ -23,10 +23,119 @@ type QaAlertRunlogEntry = {
 
 const QA_ALERT_RUNLOG_KEY = 'psi_intro_mobile_feature_qa_alert_runlog_v1';
 const QA_ALERT_RUNLOG_MAX_ITEMS = 20;
+const UPGRADE_PLAN_STORAGE_KEY = 'psi_intro_upgrade_plan_v1';
+const DASHBOARD_LIVE_SYNC_SNAPSHOT_KEY = 'psi_dashboard_live_sync_snapshot_v1';
+
+type DashboardLiveSyncSnapshot = {
+    updatedAt: string;
+    totalWorkers: number;
+    averageScore: number;
+    highRiskWorkers: number;
+    totalChecks: number;
+};
+
+type UpgradePlanStatus = 'todo' | 'verifying' | 'done';
+
+type UpgradePlanItem = {
+    id: string;
+    phase: '검증' | '구현' | '안정화';
+    title: string;
+    summary: string;
+    page: Page;
+    status: UpgradePlanStatus;
+};
+
+const UPGRADE_PLAN_DEFAULT_ITEMS: UpgradePlanItem[] = [
+    {
+        id: 'intro-mockup-layout',
+        phase: '검증',
+        title: '목업형 소개 레이아웃 정합성 확인',
+        summary: '밝은 보드형 구성, 모듈 카드, 정보 계층이 실제 소개 화면에 반영되었는지 점검',
+        page: 'introduction',
+        status: 'done',
+    },
+    {
+        id: 'pc-mobile-composition',
+        phase: '검증',
+        title: 'PC + 모바일 동시 구성 품질 점검',
+        summary: '대시보드와 12스크린 블록이 한 흐름으로 읽히는지 확인',
+        page: 'introduction',
+        status: 'done',
+    },
+    {
+        id: 'qa-12screen-runtime',
+        phase: '검증',
+        title: '12스크린 QA 경보/런로그 상태 검증',
+        summary: '연결 상태, 데이터 상태, 경보 항목을 점검해 실행 리스크를 줄임',
+        page: 'introduction',
+        status: 'verifying',
+    },
+    {
+        id: 'dashboard-live-sync',
+        phase: '구현',
+        title: '메인 KPI 카드 라이브 동기화 고도화',
+        summary: '소개 화면 요약 카드와 대시보드 실데이터 동기화 강화를 구현',
+        page: 'dashboard',
+        status: 'todo',
+    },
+    {
+        id: 'predictive-execution-flow',
+        phase: '구현',
+        title: '예측-개입 실행 흐름 연결 강화',
+        summary: 'predictive-analysis와 intervention-coaching 연계 UX를 강화',
+        page: 'predictive-analysis',
+        status: 'todo',
+    },
+    {
+        id: 'reports-proof-polish',
+        phase: '안정화',
+        title: '리포트/증빙 전달 완성도 마감',
+        summary: '보고서 생성과 증빙 전달 흐름을 실사용 관점으로 마감 점검',
+        page: 'reports',
+        status: 'todo',
+    },
+];
+
+const getStoredUpgradePlanItems = (): UpgradePlanItem[] => {
+    if (typeof window === 'undefined') return UPGRADE_PLAN_DEFAULT_ITEMS;
+    try {
+        const raw = window.localStorage.getItem(UPGRADE_PLAN_STORAGE_KEY);
+        if (!raw) return UPGRADE_PLAN_DEFAULT_ITEMS;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return UPGRADE_PLAN_DEFAULT_ITEMS;
+
+        const allowedStatus = new Set<UpgradePlanStatus>(['todo', 'verifying', 'done']);
+        const allowedPhase = new Set<UpgradePlanItem['phase']>(['검증', '구현', '안정화']);
+
+        const sanitized = parsed
+            .filter((item) => item && typeof item === 'object')
+            .map((item) => ({
+                id: String(item.id || '').trim(),
+                phase: String(item.phase || ''),
+                title: String(item.title || '').trim(),
+                summary: String(item.summary || '').trim(),
+                page: String(item.page || '').trim() as Page,
+                status: String(item.status || 'todo') as UpgradePlanStatus,
+            }))
+            .filter((item) => item.id && item.title && item.summary && allowedStatus.has(item.status) && allowedPhase.has(item.phase as UpgradePlanItem['phase']))
+            .map((item) => ({
+                ...item,
+                phase: item.phase as UpgradePlanItem['phase'],
+            }));
+
+        if (sanitized.length === 0) return UPGRADE_PLAN_DEFAULT_ITEMS;
+        return sanitized;
+    } catch {
+        return UPGRADE_PLAN_DEFAULT_ITEMS;
+    }
+};
 
 const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateToPage }) => {
     const [isGravityOff, setIsGravityOff] = useState(false);
     const [qaAlertRunlog, setQaAlertRunlog] = useState<QaAlertRunlogEntry[]>([]);
+    const [upgradePlanItems, setUpgradePlanItems] = useState<UpgradePlanItem[]>(() => getStoredUpgradePlanItems());
+    const [showOpenItemsOnly, setShowOpenItemsOnly] = useState(false);
+    const [dashboardLiveSyncSnapshot, setDashboardLiveSyncSnapshot] = useState<DashboardLiveSyncSnapshot | null>(null);
 
     useEffect(() => {
         if (isGravityOff) {
@@ -304,6 +413,124 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
             // ignore storage failures
         }
     }, [mobileFeatureChecklist, mobileFeatureValidation, qaAlertRunlog]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            window.localStorage.setItem(UPGRADE_PLAN_STORAGE_KEY, JSON.stringify(upgradePlanItems));
+        } catch {
+            // ignore storage failures
+        }
+    }, [upgradePlanItems]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const readDashboardSnapshot = () => {
+            try {
+                const raw = window.localStorage.getItem(DASHBOARD_LIVE_SYNC_SNAPSHOT_KEY);
+                if (!raw) {
+                    setDashboardLiveSyncSnapshot(null);
+                    return;
+                }
+                const parsed = JSON.parse(raw) as Partial<DashboardLiveSyncSnapshot>;
+                if (!parsed || typeof parsed !== 'object') {
+                    setDashboardLiveSyncSnapshot(null);
+                    return;
+                }
+
+                const sanitized: DashboardLiveSyncSnapshot = {
+                    updatedAt: String(parsed.updatedAt || ''),
+                    totalWorkers: Number(parsed.totalWorkers || 0),
+                    averageScore: Number(parsed.averageScore || 0),
+                    highRiskWorkers: Number(parsed.highRiskWorkers || 0),
+                    totalChecks: Number(parsed.totalChecks || 0),
+                };
+
+                if (!sanitized.updatedAt) {
+                    setDashboardLiveSyncSnapshot(null);
+                    return;
+                }
+
+                setDashboardLiveSyncSnapshot(sanitized);
+            } catch {
+                setDashboardLiveSyncSnapshot(null);
+            }
+        };
+
+        readDashboardSnapshot();
+        const onStorage = (event: StorageEvent) => {
+            if (!event.key || event.key === DASHBOARD_LIVE_SYNC_SNAPSHOT_KEY) {
+                readDashboardSnapshot();
+            }
+        };
+        window.addEventListener('storage', onStorage);
+        return () => window.removeEventListener('storage', onStorage);
+    }, []);
+
+    const isDashboardSyncFresh = useMemo(() => {
+        if (!dashboardLiveSyncSnapshot?.updatedAt) return false;
+        const updatedAtMs = new Date(dashboardLiveSyncSnapshot.updatedAt).getTime();
+        if (Number.isNaN(updatedAtMs)) return false;
+        return Date.now() - updatedAtMs <= 30 * 60 * 1000;
+    }, [dashboardLiveSyncSnapshot]);
+
+    useEffect(() => {
+        setUpgradePlanItems((prev) => prev.map((item) => {
+            if (item.id === 'qa-12screen-runtime') {
+                const nextStatus: UpgradePlanStatus = mobileFeatureValidation.hasWarnings ? 'verifying' : 'done';
+                return item.status === nextStatus ? item : { ...item, status: nextStatus };
+            }
+
+            if (item.id === 'dashboard-live-sync') {
+                const nextStatus: UpgradePlanStatus = dashboardLiveSyncSnapshot
+                    ? (isDashboardSyncFresh ? 'done' : 'verifying')
+                    : 'todo';
+                return item.status === nextStatus ? item : { ...item, status: nextStatus };
+            }
+
+            return item;
+        }));
+    }, [mobileFeatureValidation.hasWarnings, dashboardLiveSyncSnapshot, isDashboardSyncFresh]);
+
+    const cycleUpgradeTaskStatus = useCallback((taskId: string) => {
+        setUpgradePlanItems((prev) => prev.map((item) => {
+            if (item.id !== taskId) return item;
+            if (item.status === 'todo') return { ...item, status: 'verifying' };
+            if (item.status === 'verifying') return { ...item, status: 'done' };
+            return { ...item, status: 'todo' };
+        }));
+    }, []);
+
+    const upgradePlanSummary = useMemo(() => {
+        const total = upgradePlanItems.length;
+        const done = upgradePlanItems.filter((item) => item.status === 'done').length;
+        const verifying = upgradePlanItems.filter((item) => item.status === 'verifying').length;
+        const todo = total - done - verifying;
+        const completionRate = total > 0 ? Math.round((done / total) * 100) : 0;
+        return { total, done, verifying, todo, completionRate };
+    }, [upgradePlanItems]);
+
+    const nextUpgradeTarget = useMemo(() => {
+        const verifying = upgradePlanItems.find((item) => item.status === 'verifying');
+        if (verifying) return verifying;
+        return upgradePlanItems.find((item) => item.status === 'todo') || null;
+    }, [upgradePlanItems]);
+
+    const visibleUpgradePlanItems = useMemo(() => {
+        if (!showOpenItemsOnly) return upgradePlanItems;
+        return upgradePlanItems.filter((item) => item.status !== 'done');
+    }, [upgradePlanItems, showOpenItemsOnly]);
+
+    const startNextUpgradeTarget = useCallback(() => {
+        if (!nextUpgradeTarget) return;
+        setUpgradePlanItems((prev) => prev.map((item) => {
+            if (item.id !== nextUpgradeTarget.id) return item;
+            if (item.status === 'todo') return { ...item, status: 'verifying' };
+            return item;
+        }));
+        onNavigateToPage(nextUpgradeTarget.page);
+    }, [nextUpgradeTarget, onNavigateToPage]);
 
     const heroPrinciples: Array<{ label: string; icon: React.ReactNode }> = [
         {
@@ -786,6 +1013,104 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             </li>
                         ))}
                     </ul>
+                </div>
+            </div>
+
+            <div className="max-w-5xl mx-auto px-4 card-gravity-target">
+                <div className="rounded-3xl border border-indigo-100 bg-white p-6 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p className="text-[11px] font-black tracking-[0.16em] text-indigo-600">PROGRAM UPGRADE BOARD</p>
+                            <h3 className="mt-1 text-lg font-black text-slate-900">완성 검증 기반 다음 구현 계획</h3>
+                            <p className="mt-1 text-sm font-semibold text-slate-600">목업 반영 상태를 확인하고, 다음 구현 항목을 체크하면서 클리어할 수 있습니다.</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5 text-[10px] font-black sm:grid-cols-4">
+                            <span className="rounded-full bg-emerald-100 px-2 py-1 text-emerald-700">완료 {upgradePlanSummary.done}</span>
+                            <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">검증중 {upgradePlanSummary.verifying}</span>
+                            <span className="rounded-full bg-slate-200 px-2 py-1 text-slate-700">대기 {upgradePlanSummary.todo}</span>
+                            <span className="rounded-full bg-indigo-100 px-2 py-1 text-indigo-700">진척 {upgradePlanSummary.completionRate}%</span>
+                        </div>
+                    </div>
+
+                    <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                            className="h-2.5 rounded-full bg-gradient-to-r from-indigo-500 to-sky-500 transition-all duration-300"
+                            style={{ width: `${upgradePlanSummary.completionRate}%` }}
+                        ></div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                        <div>
+                            <div className="text-[11px] font-bold text-slate-600">
+                                {nextUpgradeTarget
+                                    ? `다음 실행 대상: ${nextUpgradeTarget.title}`
+                                    : '모든 계획 항목이 완료되었습니다.'}
+                            </div>
+                            <div className="mt-0.5 text-[10px] font-semibold text-slate-500">
+                                {dashboardLiveSyncSnapshot
+                                    ? `대시보드 동기화 ${isDashboardSyncFresh ? '정상' : '점검 필요'} · 근로자 ${dashboardLiveSyncSnapshot.totalWorkers} · 평균 ${dashboardLiveSyncSnapshot.averageScore.toFixed(1)} · 고위험 ${dashboardLiveSyncSnapshot.highRiskWorkers}`
+                                    : '대시보드 동기화 스냅샷 없음 · 대시보드 화면을 열어 최신 상태를 반영하세요.'}
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <button
+                                type="button"
+                                onClick={() => setShowOpenItemsOnly((prev) => !prev)}
+                                className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-black text-slate-700 transition duration-200 hover:bg-slate-100"
+                            >
+                                {showOpenItemsOnly ? '전체 보기' : '미완료만 보기'}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={startNextUpgradeTarget}
+                                disabled={!nextUpgradeTarget}
+                                className="rounded-xl border border-indigo-200 bg-indigo-600 px-2.5 py-1.5 text-[11px] font-black text-white transition duration-200 hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                다음 구현 시작
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="mt-4 space-y-2.5">
+                        {visibleUpgradePlanItems.map((item) => {
+                            const statusMeta = item.status === 'done'
+                                ? { label: '완료', chip: 'bg-emerald-100 text-emerald-700', button: 'border-emerald-200 text-emerald-700 hover:bg-emerald-50' }
+                                : item.status === 'verifying'
+                                    ? { label: '검증중', chip: 'bg-amber-100 text-amber-700', button: 'border-amber-200 text-amber-700 hover:bg-amber-50' }
+                                    : { label: '대기', chip: 'bg-slate-200 text-slate-700', button: 'border-slate-300 text-slate-700 hover:bg-slate-100' };
+
+                            return (
+                                <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4">
+                                    <div className="flex flex-wrap items-start justify-between gap-2">
+                                        <div>
+                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-black text-indigo-700">{item.phase}</span>
+                                                <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${statusMeta.chip}`}>{statusMeta.label}</span>
+                                            </div>
+                                            <p className="mt-1 text-sm font-black text-slate-900">{item.title}</p>
+                                            <p className="mt-1 text-[12px] font-semibold text-slate-600">{item.summary}</p>
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => onNavigateToPage(item.page)}
+                                                className="rounded-xl border border-indigo-200 bg-white px-2.5 py-1.5 text-[11px] font-black text-indigo-700 transition duration-200 hover:bg-indigo-50"
+                                            >
+                                                화면 열기
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => cycleUpgradeTaskStatus(item.id)}
+                                                className={`rounded-xl border bg-white px-2.5 py-1.5 text-[11px] font-black transition duration-200 ${statusMeta.button}`}
+                                            >
+                                                상태 변경
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
 

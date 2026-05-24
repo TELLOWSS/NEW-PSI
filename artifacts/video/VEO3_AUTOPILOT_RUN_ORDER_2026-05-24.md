@@ -4,7 +4,8 @@
 목표: 10초 PSI 영상 1차 생성 -> 2차 보정 -> 3차 마감까지 빠르게 완료
 
 ## 0) 준비물
-- 프롬프트 원본: artifacts/video/GEMINI_VEO3_ONEFILE_PROMPT_10S_2026-05-24.txt
+- 프롬프트 원본(권장): artifacts/video/GEMINI_VEO3_ONEFILE_PROMPT_ADAPTIVE_DURATION_2026-05-24.txt
+- 대안(고정 10초): artifacts/video/GEMINI_VEO3_ONEFILE_PROMPT_10S_2026-05-24.txt
 - 2차 짧은 재프롬프트: artifacts/video/VEO3_SECOND_PASS_SHORT_REPROMPTS_2026-05-24.md
 - 3차 한 줄 보정: artifacts/video/VEO3_THIRD_PASS_FAILURE_FIX_ONELINERS_2026-05-24.md
 - 목업 이미지: 현재 사용자 첨부 이미지(첫 번째 참조로 사용)
@@ -12,7 +13,10 @@
 ## 1) 1차 생성
 1. Veo 3에 프롬프트 원본 전체 붙여넣기
 2. 목업 이미지 첨부
-3. 10초 생성 실행
+3. 생성 실행
+
+참고
+- 계정/모드 제한으로 단일 클립 10초가 불가능한 경우, Adaptive 프롬프트가 자동으로 허용 최대 길이에 맞춰 장면 비율을 압축해 생성합니다.
 
 ## 2) 1차 결과 30초 점검
 아래 4개 중 실패가 보이면 체크
@@ -41,7 +45,7 @@
 4. 엔드카드 마감
 
 ## 5) 종료 기준 (여기 도달하면 완료)
-- 길이 10.0초 정확
+- 길이 10.0초 또는 현재 세션 허용 최대 길이 정확
 - 자막 4구간 모두 읽힘
 - 밝은 프리미엄 목업 톤 유지
 - 마지막 1.5초 로고/메시지 선명

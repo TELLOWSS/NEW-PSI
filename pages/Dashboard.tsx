@@ -139,6 +139,7 @@ const DASHBOARD_VIEW_MODE_STORAGE_KEY = 'psi_dashboard_view_mode';
 const DASHBOARD_VIEW_MODE_MANUAL_KEY = 'psi_dashboard_view_mode_manual';
 const DASHBOARD_TEAM_COMPARISON_PRESETS_KEY = 'psi_dashboard_team_comparison_presets';
 const DASHBOARD_TRADE_COMPARISON_PRESETS_KEY = 'psi_dashboard_trade_comparison_presets';
+const DASHBOARD_LIVE_SYNC_SNAPSHOT_KEY = 'psi_dashboard_live_sync_snapshot_v1';
 const TEAM_COMPARISON_MAX_SELECTION = 3;
 const TRADE_COMPARISON_MAX_SELECTION = 3;
 
@@ -737,6 +738,22 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         const totalChecks = safetyCheckRecords.length;
         return { totalWorkers, averageScore, highRiskWorkers, totalChecks };
     }, [filteredWorkerRecords, safetyCheckRecords]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            const snapshot = {
+                updatedAt: new Date().toISOString(),
+                totalWorkers: stats.totalWorkers,
+                averageScore: Number(stats.averageScore.toFixed(2)),
+                highRiskWorkers: stats.highRiskWorkers,
+                totalChecks: stats.totalChecks,
+            };
+            window.localStorage.setItem(DASHBOARD_LIVE_SYNC_SNAPSHOT_KEY, JSON.stringify(snapshot));
+        } catch {
+            // ignore localStorage write failures
+        }
+    }, [stats.averageScore, stats.highRiskWorkers, stats.totalChecks, stats.totalWorkers]);
 
     const harnessDashboardSummary = useMemo(() => {
         const uniqueWorkers = new Set(filteredWorkerRecords.map((record) => record.name));

@@ -1,6 +1,6 @@
 
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
-import type { WorkerRecord } from '../types';
+import type { WorkerRecord, Page } from '../types';
 import { isAdminAuthenticated } from '../utils/adminGuard';
 import { postAdminJson } from '../utils/adminApiClient';
 import { extractMessage, toVercelFriendlyMessage } from '../utils/errorUtils';
@@ -205,6 +205,8 @@ const PLAN_STATUS_META: Record<PlanStatus, { label: string; chipClass: string; b
 const PLAN_STATUS_STORAGE_KEY = 'psi_predictive_execution_plan_status_v1';
 const PREDICTIVE_INTERVENTION_HANDOFF_KEY = 'psi_predictive_intervention_handoff_v1';
 const PREDICTIVE_INTERVENTION_HANDOFF_EVENT = 'psi-predictive-intervention-updated';
+const INTERVENTION_FOCUS_PLAN_KEY = 'psi_intervention_focus_plan_key_v1';
+const INTERVENTION_FOCUS_EVENT = 'psi-intervention-focus-updated';
 
 const readSavedPlanStatusMap = (): Record<string, PlanStatus> => {
     try {
@@ -605,7 +607,12 @@ const OntologyGraph: React.FC<{ nodes: Node[], links: Link[]; spacingStrength: n
     );
 };
 
-const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecords }) => {
+interface PredictiveAnalysisProps {
+    workerRecords: WorkerRecord[];
+    onNavigateToPage?: (page: Page) => void;
+}
+
+const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, onNavigateToPage }) => {
     // 1. 순수 근로자 필터링
     const sourceRecords = useMemo(() => 
         workerRecords.filter(r => !isManagementRole(r.jobField))
@@ -1189,6 +1196,27 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
         return showAllExecutionPlans ? filteredExecutionPlans : filteredExecutionPlans.slice(0, 3);
     }, [filteredExecutionPlans, showAllExecutionPlans]);
 
+    const topInterventionPlanKey = useMemo(() => {
+        const urgentPlan = executionPlans.find((plan) => plan.priority === '즉시' || plan.priority === '고');
+        return urgentPlan?.key || executionPlans[0]?.key || null;
+    }, [executionPlans]);
+
+    const moveToInterventionCoaching = useCallback((planKey?: string | null) => {
+        const targetKey = planKey || topInterventionPlanKey;
+        try {
+            if (typeof window !== 'undefined' && targetKey) {
+                window.localStorage.setItem(INTERVENTION_FOCUS_PLAN_KEY, targetKey);
+                window.dispatchEvent(new Event(INTERVENTION_FOCUS_EVENT));
+            }
+        } catch {
+            // ignore storage failures
+        }
+
+        if (onNavigateToPage) {
+            onNavigateToPage('intervention-coaching');
+        }
+    }, [onNavigateToPage, topInterventionPlanKey]);
+
     useEffect(() => {
         try {
             if (typeof window === 'undefined') return;
@@ -1689,7 +1717,10 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                     </button>
                     <button
                         type="button"
-                        onClick={() => setExecutionPlanFilter('urgent')}
+                        onClick={() => {
+                            setExecutionPlanFilter('urgent');
+                            moveToInterventionCoaching();
+                        }}
                         className="flex-1 min-h-[44px] rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-black text-slate-200 hover:bg-slate-700 transition-colors"
                     >
                         즉시 개입 계획
@@ -1711,10 +1742,20 @@ const PredictiveAnalysis: React.FC<{ workerRecords: WorkerRecord[] }> = ({ worke
                             1) 현재 위험군 식별 → 2) 다음 달 악화 가능성 예측 → 3) 개입 우선순위 제시 순서로 구성했습니다.
                         </p>
                     </div>
-                    <button className="hidden sm:inline-flex px-6 py-3 bg-white text-indigo-900 rounded-xl font-black text-sm shadow-lg hover:bg-indigo-50 transition-all items-center gap-2">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                        회의 자료 인쇄
-                    </button>
+                    <div className="hidden sm:flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => moveToInterventionCoaching()}
+                            className="inline-flex px-5 py-3 bg-emerald-500 text-white rounded-xl font-black text-sm shadow-lg hover:bg-emerald-400 transition-all items-center gap-2"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                            개입 추천으로 이동
+                        </button>
+                        <button type="button" onClick={() => window.print()} className="inline-flex px-6 py-3 bg-white text-indigo-900 rounded-xl font-black text-sm shadow-lg hover:bg-indigo-50 transition-all items-center gap-2">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                            회의 자료 인쇄
+                        </button>
+                    </div>
                 </div>
             </div>
 

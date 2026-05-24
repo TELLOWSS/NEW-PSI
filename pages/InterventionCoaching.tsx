@@ -35,6 +35,8 @@ type PredictiveHandoffPayload = {
 
 const PREDICTIVE_INTERVENTION_HANDOFF_KEY = 'psi_predictive_intervention_handoff_v1';
 const PREDICTIVE_INTERVENTION_HANDOFF_EVENT = 'psi-predictive-intervention-updated';
+const INTERVENTION_FOCUS_PLAN_KEY = 'psi_intervention_focus_plan_key_v1';
+const INTERVENTION_FOCUS_EVENT = 'psi-intervention-focus-updated';
 
 interface InterventionCoachingProps {
   workerRecords?: WorkerRecord[];
@@ -42,6 +44,7 @@ interface InterventionCoachingProps {
 
 export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ workerRecords = [] }) => {
   const [handoffPlans, setHandoffPlans] = useState<PredictiveHandoffPlan[]>([]);
+  const [focusedPlanKey, setFocusedPlanKey] = useState<string | null>(null);
   const [mockInterventions, setMockInterventions] = useState<Intervention[]>([
     {
       key: 'mock-immediate',
@@ -99,6 +102,31 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
     };
   }, []);
 
+  useEffect(() => {
+    const readFocusedPlanKey = () => {
+      try {
+        const key = localStorage.getItem(INTERVENTION_FOCUS_PLAN_KEY);
+        setFocusedPlanKey(key && key.trim().length > 0 ? key.trim() : null);
+      } catch {
+        setFocusedPlanKey(null);
+      }
+    };
+
+    readFocusedPlanKey();
+    const onStorage = (event: StorageEvent) => {
+      if (!event.key || event.key === INTERVENTION_FOCUS_PLAN_KEY) {
+        readFocusedPlanKey();
+      }
+    };
+    const onFocusUpdated = () => readFocusedPlanKey();
+    window.addEventListener('storage', onStorage);
+    window.addEventListener(INTERVENTION_FOCUS_EVENT, onFocusUpdated);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(INTERVENTION_FOCUS_EVENT, onFocusUpdated);
+    };
+  }, []);
+
   const liveInterventions = useMemo<Intervention[]>(() => {
     if (handoffPlans.length === 0) return [];
     return handoffPlans.slice(0, 5).map((plan) => ({
@@ -115,6 +143,14 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
   }, [handoffPlans]);
 
   const interventions = liveInterventions.length > 0 ? liveInterventions : mockInterventions;
+
+  useEffect(() => {
+    if (!focusedPlanKey) return;
+    const exists = interventions.some((item) => item.key === focusedPlanKey);
+    if (!exists) {
+      setFocusedPlanKey(null);
+    }
+  }, [focusedPlanKey, interventions]);
 
   const getNextStatus = (status?: Intervention['status']): NonNullable<Intervention['status']> => {
     if (status === 'in-progress') return 'completed';
@@ -283,11 +319,16 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
         )}
 
         <p className="mt-3 text-[11px] font-bold text-violet-700">진행 상태: 활성 {activeCount}건 · 완료 {completedCount}건</p>
+        {focusedPlanKey && (
+          <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+            <p className="text-[10px] font-black text-emerald-700">예측 화면에서 전달된 우선 개입 대상이 강조 표시되었습니다.</p>
+          </div>
+        )}
         <div className="mt-6 space-y-4">
           {interventions.map((intervention, idx) => (
             <div
               key={intervention.key || idx}
-              className={`rounded-xl border-2 px-4 py-3 ${priorityColors[intervention.priority]}`}
+              className={`rounded-xl border-2 px-4 py-3 ${priorityColors[intervention.priority]} ${focusedPlanKey && intervention.key === focusedPlanKey ? 'ring-2 ring-emerald-400 ring-offset-2' : ''}`}
             >
               <div className="flex items-start justify-between gap-3 mb-2">
                 <h3 className="text-sm font-black">{priorityLabels[intervention.priority]}</h3>

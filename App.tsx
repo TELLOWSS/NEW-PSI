@@ -1262,7 +1262,7 @@ const App: React.FC = () => {
                             />
                         )}
                         {currentPage === 'survey-intelligence' && <SurveyIntelligence workerRecords={workerRecords} />}
-                        {currentPage === 'predictive-analysis' && <PredictiveAnalysis workerRecords={workerRecords} />}
+                        {currentPage === 'predictive-analysis' && <PredictiveAnalysis workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'performance-analysis' && <PerformanceAnalysis workerRecords={workerRecords} />}
                         {currentPage === 'safety-checks' && <SafetyChecks workerRecords={workerRecords} checkRecords={safetyCheckRecords} onAddCheck={(r: unknown) => setSafetyCheckRecords(p => [{...(r as SafetyCheckRecord), id:Date.now().toString()}, ...p])} />}
                         {currentPage === 'site-issue-management' && <SiteIssueManagement workerRecords={workerRecords} />}
