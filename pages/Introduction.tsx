@@ -25,6 +25,8 @@ const QA_ALERT_RUNLOG_KEY = 'psi_intro_mobile_feature_qa_alert_runlog_v1';
 const QA_ALERT_RUNLOG_MAX_ITEMS = 20;
 const UPGRADE_PLAN_STORAGE_KEY = 'psi_intro_upgrade_plan_v1';
 const DASHBOARD_LIVE_SYNC_SNAPSHOT_KEY = 'psi_dashboard_live_sync_snapshot_v1';
+const DASHBOARD_RISKMAP_FOCUS_KEY = 'psi_dashboard_riskmap_focus_v1';
+const DASHBOARD_RISKMAP_FOCUS_EVENT = 'psi-dashboard-riskmap-focus';
 const REPORTS_DELIVERY_SNAPSHOT_KEY = 'psi_reports_delivery_snapshot_v1';
 const REPORTS_DELIVERY_SNAPSHOT_EVENT = 'psi-reports-delivery-snapshot-updated';
 
@@ -859,7 +861,20 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                             <button
                                                 key={`hero-mobile-${title}`}
                                                 type="button"
-                                                onClick={() => onNavigateToPage(page)}
+                                                onClick={() => {
+                                                    if (stepNoNum === 4 && typeof window !== 'undefined') {
+                                                        try {
+                                                            window.localStorage.setItem(DASHBOARD_RISKMAP_FOCUS_KEY, JSON.stringify({
+                                                                target: 'risk-map',
+                                                                requestedAt: new Date().toISOString(),
+                                                            }));
+                                                            window.dispatchEvent(new Event(DASHBOARD_RISKMAP_FOCUS_EVENT));
+                                                        } catch {
+                                                            // ignore localStorage write failures
+                                                        }
+                                                    }
+                                                    onNavigateToPage(page);
+                                                }}
                                                 className={`rounded-2xl border bg-white p-2 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-sm min-h-[86px] sm:min-h-[84px] ${tone.cardBorder}`}
                                             >
                                                 <p className="text-[10px] font-black text-slate-700 leading-tight">{stepNo}. {stepTitle}</p>

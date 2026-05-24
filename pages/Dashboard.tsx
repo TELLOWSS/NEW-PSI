@@ -137,6 +137,10 @@ const getHarnessPersistenceState = (record: Partial<WorkerRecord>): 'connected' 
 
 const DASHBOARD_VIEW_MODE_STORAGE_KEY = 'psi_dashboard_view_mode';
 const DASHBOARD_VIEW_MODE_MANUAL_KEY = 'psi_dashboard_view_mode_manual';
+const DASHBOARD_RISKMAP_FOCUS_KEY = 'psi_dashboard_riskmap_focus_v1';
+const DASHBOARD_RISKMAP_FOCUS_EVENT = 'psi-dashboard-riskmap-focus';
+const DASHBOARD_UI_MODE_STORAGE_KEY = 'psi_dashboard_ui_mode_v1';
+const DASHBOARD_UI_MODE_LOCK_KEY = 'psi_dashboard_ui_mode_lock_v1';
 const DASHBOARD_TEAM_COMPARISON_PRESETS_KEY = 'psi_dashboard_team_comparison_presets';
 const DASHBOARD_TRADE_COMPARISON_PRESETS_KEY = 'psi_dashboard_trade_comparison_presets';
 const DASHBOARD_LIVE_SYNC_SNAPSHOT_KEY = 'psi_dashboard_live_sync_snapshot_v1';
@@ -428,6 +432,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const [selectedTradeForComparison, setSelectedTradeForComparison] = useState<string | null>(null);
     const [activeHarnessDrilldown, setActiveHarnessDrilldown] = useState<{ type: HarnessDashboardDrilldownType; trade?: string } | null>(null);
     const [mobileInsightTab, setMobileInsightTab] = useState<DashboardInsightTab>('chart');
+    const [isRiskMapFocusActive, setIsRiskMapFocusActive] = useState<boolean>(false);
     const [teamComparisonSort, setTeamComparisonSort] = useState<'score-asc' | 'score-desc' | 'risk-desc' | 'workers-desc'>('score-asc');
     const [detailViewMode, setDetailViewMode] = useState<'integrated' | 'nationality'>('integrated');
     const [teamViewFilter, setTeamViewFilter] = useState<'all' | 'top3' | 'risk-only'>('all');
@@ -455,6 +460,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const viewMetricSessionRef = useRef<string>(createMetricSessionId('dashboard'));
     const viewMetricStartRef = useRef<number>(Date.now());
     const teamComparisonSectionRef = useRef<HTMLDivElement | null>(null);
+    const riskMapFocusTimeoutRef = useRef<number | null>(null);
     const skipTeamSelectionResetRef = useRef<boolean>(false);
     const [dashboardViewMode, setDashboardViewMode] = useState<DashboardViewMode>(() => {
         const storedMode = getStoredDashboardViewMode();
@@ -465,10 +471,19 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     // 기본/고급 모드 토글 (PC Dashboard 진입점 단순화)
     const [dashboardUIMode, setDashboardUIMode] = useState<'basic' | 'advanced'>(() => {
         try {
-            const saved = window.localStorage.getItem('psi_dashboard_ui_mode_v1');
+            const saved = window.localStorage.getItem(DASHBOARD_UI_MODE_STORAGE_KEY);
             return saved === 'advanced' ? 'advanced' : 'basic';
         } catch {
             return 'basic';
+        }
+    });
+    const [isDashboardUIModeLocked, setIsDashboardUIModeLocked] = useState<boolean>(() => {
+        try {
+            const saved = window.localStorage.getItem(DASHBOARD_UI_MODE_LOCK_KEY);
+            if (saved === null) return true;
+            return saved !== 'false';
+        } catch {
+            return true;
         }
     });
 
@@ -534,6 +549,15 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             // ignore localStorage write failures
         }
     }, [dashboardViewMode, isDashboardViewModeManual]);
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(DASHBOARD_UI_MODE_STORAGE_KEY, dashboardUIMode);
+            window.localStorage.setItem(DASHBOARD_UI_MODE_LOCK_KEY, isDashboardUIModeLocked ? 'true' : 'false');
+        } catch {
+            // ignore localStorage write failures
+        }
+    }, [dashboardUIMode, isDashboardUIModeLocked]);
 
     useEffect(() => {
         if (isDashboardViewModeManual) return;
@@ -603,17 +627,31 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     };
 
     const handleDashboardUIModeChange = (mode: 'basic' | 'advanced') => {
-        setDashboardUIMode(mode);
-        try {
-            window.localStorage.setItem('psi_dashboard_ui_mode_v1', mode);
-        } catch {
-            // ignore localStorage write failures
+        if (isDashboardUIModeLocked && mode === 'advanced') {
+            return;
         }
+        setDashboardUIMode(mode);
         trackUIViewMetric('control_change', 'dashboard', viewMetricSessionRef.current, {
             control: 'ui_mode_toggle',
             nextMode: mode,
             viewMode: dashboardViewMode,
             audienceView,
+        });
+    };
+
+    const toggleDashboardUIModeLock = () => {
+        setIsDashboardUIModeLocked((previous) => {
+            const next = !previous;
+            if (next) {
+                setDashboardUIMode('basic');
+            }
+            trackUIViewMetric('control_change', 'dashboard', viewMetricSessionRef.current, {
+                control: 'ui_mode_lock_toggle',
+                lockEnabled: next,
+                viewMode: dashboardViewMode,
+                audienceView,
+            });
+            return next;
         });
     };
 
@@ -707,6 +745,55 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             setDetailViewMode(selectedTarget.nationality === ALL_NATIONALITY_LABEL ? 'integrated' : 'nationality');
         }
     }, [selectedTarget]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const consumeRiskMapFocusRequest = () => {
+            try {
+                const raw = window.localStorage.getItem(DASHBOARD_RISKMAP_FOCUS_KEY);
+                if (!raw) return;
+                const parsed = JSON.parse(raw) as { target?: string };
+                if (parsed?.target !== 'risk-map') return;
+
+                window.localStorage.removeItem(DASHBOARD_RISKMAP_FOCUS_KEY);
+                setIsDashboardViewModeManual(true);
+                setDashboardViewMode('full');
+                setDashboardUIMode('advanced');
+                setMobileInsightTab('chart');
+
+                window.setTimeout(() => {
+                    teamComparisonSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    setIsRiskMapFocusActive(true);
+                    if (riskMapFocusTimeoutRef.current) {
+                        window.clearTimeout(riskMapFocusTimeoutRef.current);
+                    }
+                    riskMapFocusTimeoutRef.current = window.setTimeout(() => {
+                        setIsRiskMapFocusActive(false);
+                    }, 2200);
+                }, 120);
+            } catch {
+                // ignore storage parse failures
+            }
+        };
+
+        consumeRiskMapFocusRequest();
+        const onStorage = (event: StorageEvent) => {
+            if (!event.key || event.key === DASHBOARD_RISKMAP_FOCUS_KEY) {
+                consumeRiskMapFocusRequest();
+            }
+        };
+
+        window.addEventListener('storage', onStorage);
+        window.addEventListener(DASHBOARD_RISKMAP_FOCUS_EVENT, consumeRiskMapFocusRequest);
+        return () => {
+            window.removeEventListener('storage', onStorage);
+            window.removeEventListener(DASHBOARD_RISKMAP_FOCUS_EVENT, consumeRiskMapFocusRequest);
+            if (riskMapFocusTimeoutRef.current) {
+                window.clearTimeout(riskMapFocusTimeoutRef.current);
+            }
+        };
+    }, []);
 
     useEffect(() => {
         if (selectedTeam !== 'ALL' && teamOptions.length > 0 && !teamOptions.some((item) => item.key === selectedTeam)) {
@@ -2673,18 +2760,35 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     ? '🟢 기본 모드: 새 사용자 중심 간단한 구성'
                                     : '⚙️ 고급 모드: 숙련자/관리자 중심 전체 기능'}
                             </p>
+                            <p className="mt-1 text-[11px] font-semibold text-indigo-200/90">
+                                {isDashboardUIModeLocked
+                                    ? '목업 기본 보드 고정이 켜져 있어 고급 모드 진입이 잠겨 있습니다.'
+                                    : '기본 보드 고정이 해제되어 필요 시 고급 모드로 전환할 수 있습니다.'}
+                            </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={toggleDashboardUIModeLock}
+                                className={`rounded-xl px-3 py-2 text-xs font-black transition-colors ${
+                                    isDashboardUIModeLocked
+                                        ? 'bg-emerald-300 text-slate-900'
+                                        : 'bg-amber-300 text-slate-900'
+                                }`}
+                            >
+                                {isDashboardUIModeLocked ? '기본 보드 고정 ON' : '기본 보드 고정 OFF'}
+                            </button>
                             {(['basic', 'advanced'] as const).map((mode) => (
                                 <button
                                     key={mode}
                                     type="button"
                                     onClick={() => handleDashboardUIModeChange(mode)}
+                                    disabled={isDashboardUIModeLocked && mode === 'advanced'}
                                     className={`rounded-xl px-3 py-2 text-xs font-black transition-colors ${
                                         dashboardUIMode === mode
                                             ? 'bg-indigo-400 text-slate-900 shadow-lg'
                                             : 'bg-indigo-400/20 text-indigo-200 hover:bg-indigo-400/30'
-                                    }`}
+                                    } ${isDashboardUIModeLocked && mode === 'advanced' ? 'cursor-not-allowed opacity-45' : ''}`}
                                 >
                                     {mode === 'basic' ? '🟢 기본 모드' : '⚙️ 고급 모드'}
                                 </button>
@@ -3310,7 +3414,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     공종 × 국적 교차 안전 숙련도 분석 섹션 (아래)
             ═══════════════════════════════════════════════════════ */}
             {isFullMode && dashboardUIMode === 'advanced' && (
-            <div ref={teamComparisonSectionRef} className="space-y-4 sm:space-y-6">
+            <div ref={teamComparisonSectionRef} className={`space-y-4 sm:space-y-6 transition-all duration-300 ${isRiskMapFocusActive ? 'rounded-2xl ring-2 ring-rose-300 ring-offset-2 ring-offset-white' : ''}`}>
                 <InterpretationCardGrid
                     items={comparisonCards}
                     cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
