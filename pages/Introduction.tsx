@@ -705,6 +705,71 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         };
     };
 
+    const getCore8CardStatus = (stepNoNum: number) => {
+        if (stepNoNum === 1) {
+            return previewMetrics.totalWorkers > 0
+                ? { label: 'LIVE', tone: 'bg-emerald-100 text-emerald-700' }
+                : { label: 'SAMPLE', tone: 'bg-slate-200 text-slate-600' };
+        }
+
+        if (stepNoNum === 2) {
+            return previewMetrics.alertSignals > 0
+                ? { label: '주의', tone: 'bg-amber-100 text-amber-700' }
+                : { label: '정상', tone: 'bg-emerald-100 text-emerald-700' };
+        }
+
+        if (stepNoNum === 3) {
+            return previewMetrics.highRiskWorkers > 0
+                ? { label: '관찰중', tone: 'bg-amber-100 text-amber-700' }
+                : { label: '정상', tone: 'bg-emerald-100 text-emerald-700' };
+        }
+
+        if (stepNoNum === 4) {
+            return previewMetrics.alertSignals > 0
+                ? { label: '핫스팟', tone: 'bg-rose-100 text-rose-700' }
+                : { label: '지도정상', tone: 'bg-emerald-100 text-emerald-700' };
+        }
+
+        if (stepNoNum === 5) {
+            return previewMetrics.interventionTargets > 0
+                ? { label: '예측중', tone: 'bg-indigo-100 text-indigo-700' }
+                : { label: '대기', tone: 'bg-slate-200 text-slate-600' };
+        }
+
+        if (stepNoNum === 6) {
+            return previewMetrics.interventionTargets > 0
+                ? { label: '개입필요', tone: 'bg-amber-100 text-amber-700' }
+                : { label: '대기', tone: 'bg-slate-200 text-slate-600' };
+        }
+
+        if (stepNoNum === 7) {
+            return previewMetrics.taggingQueue > 0
+                ? { label: '입력대기', tone: 'bg-violet-100 text-violet-700' }
+                : { label: '정상', tone: 'bg-emerald-100 text-emerald-700' };
+        }
+
+        if (stepNoNum === 8) {
+            const isVerified = reportsDeliverySnapshot?.state === 'verified' || reportsDeliverySnapshot?.verificationPassed;
+            return isVerified
+                ? { label: '검증완료', tone: 'bg-emerald-100 text-emerald-700' }
+                : { label: '확인필요', tone: 'bg-indigo-100 text-indigo-700' };
+        }
+
+        return { label: 'READY', tone: 'bg-slate-200 text-slate-600' };
+    };
+
+    const getCore8CardCTA = (stepNoNum: number) => {
+        if (stepNoNum === 1) return '대시보드 열기';
+        if (stepNoNum === 2) return '경보 확인';
+        if (stepNoNum === 3) return '프로파일 보기';
+        if (stepNoNum === 4) return '위험지도 보기';
+        if (stepNoNum === 5) return '예측 열기';
+        if (stepNoNum === 6) return '개입 실행';
+        if (stepNoNum === 7) return '입력 시작';
+        if (stepNoNum === 8) return '리포트 이동';
+        return '열기';
+    };
+
     return (
         <div className="space-y-12 pb-12">
             <div className="relative overflow-hidden rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-white to-slate-100 p-4 shadow-xl sm:p-5 lg:p-6 card-gravity-target">
@@ -856,6 +921,8 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                         const stepNoNum = Number(stepNoRaw);
                                         const stepTitle = restTitleParts.join('. ') || String(title);
                                         const tone = getStepTone(stepNoNum);
+                                        const status = getCore8CardStatus(stepNoNum);
+                                        const cta = getCore8CardCTA(stepNoNum);
 
                                         return (
                                             <button
@@ -984,6 +1051,12 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                                             <p className={`text-[9px] font-black ${tone.descText}`}>{desc}</p>
                                                         </div>
                                                     )}
+                                                </div>
+                                                <div className="mt-1.5 flex items-center justify-between gap-1.5">
+                                                    <span className={`rounded-full px-1.5 py-0.5 text-[8px] font-black ${status.tone}`}>
+                                                        {status.label}
+                                                    </span>
+                                                    <span className="text-[8px] font-black text-slate-600">{cta}</span>
                                                 </div>
                                             </button>
                                         );

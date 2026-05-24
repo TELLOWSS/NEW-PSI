@@ -25,7 +25,7 @@ interface LayoutProps {
     setCurrentPage: (page: Page) => void;
 }
 
-type MobileTabId = 'home' | 'alerts' | 'analysis' | 'reports' | 'settings';
+type MobileTabId = 'home' | 'alerts' | 'profile' | 'predictive' | 'more';
 
 export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -65,19 +65,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     };
 
     const mobilePageGroupsBase: Record<MobileTabId, Page[]> = {
-        home: ['dashboard', 'introduction'],
-        alerts: ['site-issue-management', 'safety-checks'],
-        analysis: ['predictive-analysis', 'survey-intelligence', 'performance-analysis', 'worker-management'],
-        reports: ['reports', 'individual-report', 'feedback'],
-        settings: ['settings', 'safety-compliance-hub', 'worker-training', 'admin-training'],
+        home: ['dashboard'],
+        alerts: ['site-issue-management'],
+        profile: ['worker-management'],
+        predictive: ['predictive-analysis', 'intervention-coaching'],
+        more: ['reports', 'judgment-tagging-input', 'settings'],
     };
 
     const filteredMobilePageGroups: Record<MobileTabId, Page[]> = {
         home: mobilePageGroupsBase.home.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
         alerts: mobilePageGroupsBase.alerts.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
-        analysis: mobilePageGroupsBase.analysis.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
-        reports: mobilePageGroupsBase.reports.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
-        settings: mobilePageGroupsBase.settings.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
+        profile: mobilePageGroupsBase.profile.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
+        predictive: mobilePageGroupsBase.predictive.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
+        more: mobilePageGroupsBase.more.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
     };
 
     const mobileBottomTabs: Array<{ id: MobileTabId; label: string; page?: Page; icon: React.ReactNode }> = [
@@ -94,21 +94,21 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5" /></svg>,
         },
         {
-            id: 'analysis',
-            label: '분석',
-            page: filteredMobilePageGroups.analysis[0],
+            id: 'profile',
+            label: '프로파일',
+            page: filteredMobilePageGroups.profile[0],
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6m4 6V7m4 10v-3M5 19h14" /></svg>,
         },
         {
-            id: 'reports',
-            label: '리포트',
-            page: filteredMobilePageGroups.reports[0],
-            icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
+            id: 'predictive',
+            label: '예측',
+            page: filteredMobilePageGroups.predictive[0],
+            icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3a1 1 0 011 1v1.07a7.002 7.002 0 015.932 5.932H19a1 1 0 110 2h-1.068A7.002 7.002 0 0112 18.93V20a1 1 0 11-2 0v-1.07a7.002 7.002 0 01-5.932-5.93H3a1 1 0 110-2h1.068A7.002 7.002 0 0110 5.07V4a1 1 0 011-1zm0 4a5 5 0 100 10 5 5 0 000-10z" /></svg>,
         },
         {
-            id: 'settings',
+            id: 'more',
             label: '더보기',
-            page: filteredMobilePageGroups.settings[0] || 'settings',
+            page: filteredMobilePageGroups.more[0] || 'reports',
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6h.01M12 12h.01M12 18h.01" /></svg>,
         },
     ];
@@ -119,36 +119,28 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         activeMobileTab === 'home'
             ? [
                 { page: 'dashboard', label: '홈 대시보드' },
-                { page: 'introduction', label: '서비스 소개' },
             ]
             : activeMobileTab === 'alerts'
                 ? [
                     { page: 'site-issue-management', label: '알림 현황' },
-                    { page: 'safety-checks', label: '위험인지 진단' },
                 ]
-                : activeMobileTab === 'analysis'
+                : activeMobileTab === 'profile'
                 ? [
-                    { page: 'predictive-analysis', label: '위험 예측' },
-                    { page: 'survey-intelligence', label: '행동 패턴 분석' },
-                    { page: 'performance-analysis', label: '성과 추이' },
-                    { page: 'worker-management', label: '인간인지 프로파일' },
+                    { page: 'worker-management', label: '작업자 프로파일' },
                 ]
-                : activeMobileTab === 'reports'
+                : activeMobileTab === 'predictive'
                     ? [
-                        { page: 'reports', label: '분석 리포트' },
-                        { page: 'individual-report', label: '진단 리포트' },
-                        { page: 'feedback', label: '피드백' },
+                        { page: 'predictive-analysis', label: '위험 예측' },
+                        { page: 'intervention-coaching', label: '개입 관리' },
                     ]
-                    : activeMobileTab === 'settings'
+                    : activeMobileTab === 'more'
                         ? [
+                            { page: 'reports', label: '분석 리포트' },
+                            { page: 'judgment-tagging-input', label: '데이터 입력' },
                             { page: 'settings', label: '설정' },
-                            { page: 'safety-compliance-hub', label: '현장 컨텍스트' },
-                            { page: 'worker-training', label: '수기 데이터 입력' },
-                            { page: 'admin-training', label: '관리자 교육' },
-                            { page: 'ocr-analysis', label: '태깅 검증' },
                         ]
                         : [
-                            { page: 'settings', label: '설정' },
+                            { page: 'reports', label: '분석 리포트' },
                         ];
 
     const mobileQuickLinks = mobileQuickLinksRaw.filter((item) => isPageVisibleByOperationalMode(item.page, operationalMode));
