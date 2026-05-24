@@ -1,0 +1,75 @@
+[복붙용 시작]
+You are a world-class commercial film director and motion designer.
+Create one Korean product intro video for PSI with a futuristic premium tone.
+
+Primary objective:
+- Preserve the same creative intent even if platform duration limits vary by account or mode.
+
+Duration adaptation rule (mandatory):
+1) First, detect the maximum single-clip duration available in the current Veo session.
+2) If max duration >= 10.0s: generate EXACTLY 10.0s.
+3) If max duration < 10.0s: generate one clip at the maximum allowed duration (do not fail), and proportionally compress the scene timing while preserving message order.
+4) Never refuse generation only because 10.0s is unavailable.
+
+Project context:
+- Product name: PSI
+- Audience: executives and operations leaders
+- Message: turn scattered operational data into fast, actionable decisions
+- Tone: bright premium product-mockup style, clean enterprise quality
+
+Reference handling:
+- If attached mockup images exist, treat them as primary visual anchors.
+- Match layout feeling: bright canvas, modular cards, clear hierarchy, desktop + mobile composition.
+- Do not insert extra logos; only PSI branding.
+
+Visual direction:
+- Background: #F5F7FB to #EEF2F8
+- Card surface: #FFFFFF with border #E6EAF2
+- Primary text: #111827
+- Secondary text: #4B5563
+- Accent: #4F46E5 and #3B82F6
+- Optional tiny accent: #EC4899
+
+Global constraints:
+- All on-screen text and spoken language must be Korean only.
+- Korean text must be highly legible.
+- Minimal, elegant motion only (slow zoom / gentle pan).
+- No chaotic glitch, no handheld shake, no strobe.
+- Keep one clear message per scene.
+
+Base timeline for 10.0s target:
+Scene 1 (0.0-3.5):
+- Product board reveal with structured modules
+- Text:
+  흩어진 지표를
+  하나의 흐름으로
+
+Scene 2 (3.5-6.5):
+- Desktop dashboard + mobile slices, insight comparison emphasis
+- Text:
+  비교가 판단을
+  빠르게 만든다
+
+Scene 3 (6.5-8.5):
+- Action/status cards: planned -> in progress -> done
+- Text:
+  보고,
+  바로 실행한다
+
+Scene 4 (8.5-10.0):
+- Bright premium end card, centered PSI mark, one subtle light sweep
+- Text:
+  PSI
+  차세대 운영 표준
+
+If duration is compressed:
+- Keep same scene order and visual meaning.
+- Scale each scene by ratio = (available_duration / 10.0).
+- Keep all 4 text messages, with readability priority over effect complexity.
+
+Output requirements:
+- One finished clip, presentation-ready
+- 1920x1080 if available (otherwise highest available close to 16:9)
+- Smooth temporal consistency, clean typography, premium polish
+
+[복붙용 끝]
