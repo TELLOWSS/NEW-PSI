@@ -8,7 +8,7 @@ import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
 import { NextActionChecklist } from './shared/NextActionChecklist';
 import { StatusBadge } from './shared/StatusBadge';
 import { PSI_APP_VERSION } from '../lib/appInfo';
-import { buildFallbackNativeCoachingText, buildFallbackNativeGuidanceText, buildFallbackNativeVerdictText, sanitizeOperationalNote } from '../utils/ocrVerificationLanguageUtils';
+import { buildFallbackNativeCoachingText, buildFallbackNativeGuidanceText, buildFallbackNativeVerdictText, isKoreanNationality, sanitizeOperationalNote } from '../utils/ocrVerificationLanguageUtils';
 
 interface ReportTemplateProps {
     record: WorkerRecord;
@@ -481,6 +481,26 @@ const areEquivalentNarratives = (left?: string, right?: string): boolean => {
     return normalizedLeft === normalizedRight || normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft);
 };
 
+const detectHangulRatio = (value?: string): number => {
+    const text = String(value || '').trim();
+    if (!text) return 0;
+    const alphaNumericChars = text.match(/[\p{L}\p{N}]/gu) || [];
+    if (alphaNumericChars.length === 0) return 0;
+    const hangulChars = text.match(/[가-힣]/g) || [];
+    return hangulChars.length / alphaNumericChars.length;
+};
+
+const shouldReplaceForeignNativeWithFallback = (nativeText: string, koreanText: string, isKorean: boolean): boolean => {
+    if (isKorean) return false;
+    const normalizedNative = normalizeNarrativeText(nativeText);
+    if (!normalizedNative) return true;
+
+    if (areEquivalentNarratives(normalizedNative, koreanText)) return true;
+
+    // Foreign-worker native section must not be Korean-dominant.
+    return detectHangulRatio(normalizedNative) >= 0.4;
+};
+
 const dedupeNarrativeEntries = (entries: NarrativeEntry[]): NarrativeEntry[] => {
     return entries.reduce<NarrativeEntry[]>((acc, entry) => {
         const text = normalizeNarrativeText(entry.text);
@@ -585,7 +605,9 @@ const applyFallbackNativeToEntries = (entries: NarrativeEntry[], fallbackNativeT
     if (!normalizedFallback) return entries;
 
     return entries.map((entry) => {
-        if (normalizeNarrativeText(entry.nativeText)) return entry;
+        const normalizedNative = normalizeNarrativeText(entry.nativeText);
+        const shouldReplace = shouldReplaceForeignNativeWithFallback(normalizedNative, entry.text, isKorean);
+        if (normalizedNative && !shouldReplace) return entry;
         if (areEquivalentNarratives(entry.text, normalizedFallback)) return entry;
         return {
             ...entry,
@@ -809,7 +831,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     const workerInfoNative = useMemo(() => getWorkerInfoNative(record.nationality), [record.nationality]);
     const monthlyEduNativeTitle = useMemo(() => getMonthlyEduNativeTitle(record.nationality), [record.nationality]);
     const sixMetricBilingualLabels = useMemo(() => getSixMetricBilingualLabels(record.nationality), [record.nationality]);
-    const isKorean = record.nationality === '대한민국' || record.nationality === '한국' || (record.nationality || '').toLowerCase().includes('korea');
+    const isKorean = isKoreanNationality(record.nationality);
     const isMyanmar = (record.nationality || '').includes('미얀마') || (record.nationality || '').toLowerCase().includes('myanmar') || (record.nationality || '').toLowerCase().includes('burma');
     const isRussian = (record.nationality || '').includes('러시아') || (record.nationality || '').toLowerCase().includes('russia') || (record.nationality || '').toLowerCase().includes('russian') || (record.nationality || '').toLowerCase().includes('росси');
     const timelineLocale = isKorean ? 'ko-KR' : isMyanmar ? 'my-MM' : isRussian ? 'ru-RU' : 'en-US';
@@ -846,14 +868,28 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     );
     const coachingKoParagraphs = useMemo(() => buildNarrativeParagraphs(actionableCoachingText), [actionableCoachingText]);
     const coachingNativeSourceText = useMemo(
-        () => normalizeNarrativeText(record.actionable_coaching_native) || fallbackNativeCoachingText,
-        [record.actionable_coaching_native, fallbackNativeCoachingText],
+        () => {
+            const nativeText = normalizeNarrativeText(record.actionable_coaching_native);
+            const koText = normalizeNarrativeText(actionableCoachingText);
+            if (shouldReplaceForeignNativeWithFallback(nativeText, koText, isKorean)) {
+                return fallbackNativeCoachingText;
+            }
+            return nativeText || fallbackNativeCoachingText;
+        },
+        [record.actionable_coaching_native, actionableCoachingText, isKorean, fallbackNativeCoachingText],
     );
     const coachingNativeParagraphs = useMemo(() => buildNarrativeParagraphs(coachingNativeSourceText), [coachingNativeSourceText]);
     const verdictKoParagraphs = useMemo(() => buildNarrativeParagraphs(record.aiInsights), [record.aiInsights]);
     const verdictNativeSourceText = useMemo(
-        () => normalizeNarrativeText(record.aiInsights_native) || fallbackNativeVerdictText,
-        [record.aiInsights_native, fallbackNativeVerdictText],
+        () => {
+            const nativeText = normalizeNarrativeText(record.aiInsights_native);
+            const koText = normalizeNarrativeText(record.aiInsights);
+            if (shouldReplaceForeignNativeWithFallback(nativeText, koText, isKorean)) {
+                return fallbackNativeVerdictText;
+            }
+            return nativeText || fallbackNativeVerdictText;
+        },
+        [record.aiInsights_native, record.aiInsights, isKorean, fallbackNativeVerdictText],
     );
     const verdictNativeParagraphs = useMemo(() => buildNarrativeParagraphs(verdictNativeSourceText), [verdictNativeSourceText]);
     const competencyProfile = useMemo(() => record.competencyProfile || deriveCompetencyProfile(record), [record]);

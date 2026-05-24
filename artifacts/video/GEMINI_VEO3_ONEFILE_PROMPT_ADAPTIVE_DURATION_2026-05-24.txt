@@ -37,6 +37,24 @@ Global constraints:
 - No chaotic glitch, no handheld shake, no strobe.
 - Keep one clear message per scene.
 
+Text rendering rules (mandatory):
+- Use short Korean lines exactly as provided in each scene.
+- Do not paraphrase, translate, or add extra copy.
+- Keep high contrast and large readable type.
+- Avoid text overlap with UI cards or bright highlights.
+- Do not render gibberish, broken glyphs, or mixed-language artifacts.
+
+Composition rules (mandatory):
+- Keep camera movement subtle and stable.
+- Maintain clean margins and centered hierarchy.
+- Prioritize mockup realism: desktop frame + mobile frame + modular KPI cards.
+- Avoid visual clutter, excessive particles, and decorative noise.
+
+Brand and content restrictions:
+- Only PSI brand mark/text is allowed.
+- No third-party logos, no watermark, no fake brand names.
+- No medical, military, political, violent, or unrelated imagery.
+
 Base timeline for 10.0s target:
 Scene 1 (0.0-3.5):
 - Product board reveal with structured modules
@@ -66,10 +84,18 @@ If duration is compressed:
 - Keep same scene order and visual meaning.
 - Scale each scene by ratio = (available_duration / 10.0).
 - Keep all 4 text messages, with readability priority over effect complexity.
+- If duration is very short, reduce motion complexity first, not text clarity.
+
+Quality gate before final render:
+- Temporal consistency: no flicker between adjacent frames.
+- Typography consistency: one coherent Korean sans-serif style.
+- UI consistency: card borders, spacing, and color system remain stable.
+- End card clarity: PSI + "차세대 운영 표준" must be clean and centered.
 
 Output requirements:
 - One finished clip, presentation-ready
 - 1920x1080 if available (otherwise highest available close to 16:9)
 - Smooth temporal consistency, clean typography, premium polish
+- Prefer 24 or 30 fps output with stable exposure and no abrupt lighting jumps
 
 [복붙용 끝]

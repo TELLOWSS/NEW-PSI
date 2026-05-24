@@ -25,6 +25,8 @@ const QA_ALERT_RUNLOG_KEY = 'psi_intro_mobile_feature_qa_alert_runlog_v1';
 const QA_ALERT_RUNLOG_MAX_ITEMS = 20;
 const UPGRADE_PLAN_STORAGE_KEY = 'psi_intro_upgrade_plan_v1';
 const DASHBOARD_LIVE_SYNC_SNAPSHOT_KEY = 'psi_dashboard_live_sync_snapshot_v1';
+const REPORTS_DELIVERY_SNAPSHOT_KEY = 'psi_reports_delivery_snapshot_v1';
+const REPORTS_DELIVERY_SNAPSHOT_EVENT = 'psi-reports-delivery-snapshot-updated';
 
 type DashboardLiveSyncSnapshot = {
     updatedAt: string;
@@ -32,6 +34,17 @@ type DashboardLiveSyncSnapshot = {
     averageScore: number;
     highRiskWorkers: number;
     totalChecks: number;
+};
+
+type ReportsDeliverySnapshot = {
+    updatedAt: string;
+    state: 'idle' | 'running' | 'generated' | 'verified' | 'attention';
+    generationStatus: 'idle' | 'running' | 'success' | 'error';
+    generationProgress: number;
+    filteredCount: number;
+    isPackagingEvidence: boolean;
+    verificationChecked: boolean;
+    verificationPassed: boolean;
 };
 
 type UpgradePlanStatus = 'todo' | 'verifying' | 'done';
@@ -136,6 +149,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
     const [upgradePlanItems, setUpgradePlanItems] = useState<UpgradePlanItem[]>(() => getStoredUpgradePlanItems());
     const [showOpenItemsOnly, setShowOpenItemsOnly] = useState(false);
     const [dashboardLiveSyncSnapshot, setDashboardLiveSyncSnapshot] = useState<DashboardLiveSyncSnapshot | null>(null);
+    const [reportsDeliverySnapshot, setReportsDeliverySnapshot] = useState<ReportsDeliverySnapshot | null>(null);
 
     useEffect(() => {
         if (isGravityOff) {
@@ -468,12 +482,75 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         return () => window.removeEventListener('storage', onStorage);
     }, []);
 
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const readReportsSnapshot = () => {
+            try {
+                const raw = window.localStorage.getItem(REPORTS_DELIVERY_SNAPSHOT_KEY);
+                if (!raw) {
+                    setReportsDeliverySnapshot(null);
+                    return;
+                }
+                const parsed = JSON.parse(raw) as Partial<ReportsDeliverySnapshot>;
+                if (!parsed || typeof parsed !== 'object' || !parsed.updatedAt) {
+                    setReportsDeliverySnapshot(null);
+                    return;
+                }
+                const sanitized: ReportsDeliverySnapshot = {
+                    updatedAt: String(parsed.updatedAt || ''),
+                    state: (parsed.state as ReportsDeliverySnapshot['state']) || 'idle',
+                    generationStatus: (parsed.generationStatus as ReportsDeliverySnapshot['generationStatus']) || 'idle',
+                    generationProgress: Number(parsed.generationProgress || 0),
+                    filteredCount: Number(parsed.filteredCount || 0),
+                    isPackagingEvidence: Boolean(parsed.isPackagingEvidence),
+                    verificationChecked: Boolean(parsed.verificationChecked),
+                    verificationPassed: Boolean(parsed.verificationPassed),
+                };
+                setReportsDeliverySnapshot(sanitized);
+            } catch {
+                setReportsDeliverySnapshot(null);
+            }
+        };
+
+        readReportsSnapshot();
+        const onStorage = (event: StorageEvent) => {
+            if (!event.key || event.key === REPORTS_DELIVERY_SNAPSHOT_KEY) {
+                readReportsSnapshot();
+            }
+        };
+
+        window.addEventListener('storage', onStorage);
+        window.addEventListener(REPORTS_DELIVERY_SNAPSHOT_EVENT, readReportsSnapshot);
+        return () => {
+            window.removeEventListener('storage', onStorage);
+            window.removeEventListener(REPORTS_DELIVERY_SNAPSHOT_EVENT, readReportsSnapshot);
+        };
+    }, []);
+
     const isDashboardSyncFresh = useMemo(() => {
         if (!dashboardLiveSyncSnapshot?.updatedAt) return false;
         const updatedAtMs = new Date(dashboardLiveSyncSnapshot.updatedAt).getTime();
         if (Number.isNaN(updatedAtMs)) return false;
         return Date.now() - updatedAtMs <= 30 * 60 * 1000;
     }, [dashboardLiveSyncSnapshot]);
+
+    const reportsUpgradeStatus = useMemo<UpgradePlanStatus>(() => {
+        if (!reportsDeliverySnapshot) return 'todo';
+        if (reportsDeliverySnapshot.state === 'verified' || reportsDeliverySnapshot.verificationPassed) return 'done';
+        if (
+            reportsDeliverySnapshot.state === 'running'
+            || reportsDeliverySnapshot.state === 'generated'
+            || reportsDeliverySnapshot.state === 'attention'
+            || reportsDeliverySnapshot.generationStatus === 'running'
+            || reportsDeliverySnapshot.generationStatus === 'error'
+            || reportsDeliverySnapshot.generationStatus === 'success'
+            || reportsDeliverySnapshot.verificationChecked
+        ) {
+            return 'verifying';
+        }
+        return 'todo';
+    }, [reportsDeliverySnapshot]);
 
     useEffect(() => {
         setUpgradePlanItems((prev) => prev.map((item) => {
@@ -489,9 +566,13 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                 return item.status === nextStatus ? item : { ...item, status: nextStatus };
             }
 
+            if (item.id === 'reports-proof-polish') {
+                return item.status === reportsUpgradeStatus ? item : { ...item, status: reportsUpgradeStatus };
+            }
+
             return item;
         }));
-    }, [mobileFeatureValidation.hasWarnings, dashboardLiveSyncSnapshot, isDashboardSyncFresh]);
+    }, [mobileFeatureValidation.hasWarnings, dashboardLiveSyncSnapshot, isDashboardSyncFresh, reportsUpgradeStatus]);
 
     const cycleUpgradeTaskStatus = useCallback((taskId: string) => {
         setUpgradePlanItems((prev) => prev.map((item) => {
@@ -1050,6 +1131,11 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                 {dashboardLiveSyncSnapshot
                                     ? `대시보드 동기화 ${isDashboardSyncFresh ? '정상' : '점검 필요'} · 근로자 ${dashboardLiveSyncSnapshot.totalWorkers} · 평균 ${dashboardLiveSyncSnapshot.averageScore.toFixed(1)} · 고위험 ${dashboardLiveSyncSnapshot.highRiskWorkers}`
                                     : '대시보드 동기화 스냅샷 없음 · 대시보드 화면을 열어 최신 상태를 반영하세요.'}
+                            </div>
+                            <div className="mt-0.5 text-[10px] font-semibold text-slate-500">
+                                {reportsDeliverySnapshot
+                                    ? `리포트 전달 상태 ${reportsDeliverySnapshot.state === 'verified' ? '검증 완료' : reportsDeliverySnapshot.state === 'generated' ? '생성 완료' : reportsDeliverySnapshot.state === 'running' ? '실행 중' : reportsDeliverySnapshot.state === 'attention' ? '점검 필요' : '대기'} · 대상 ${reportsDeliverySnapshot.filteredCount}건 · 진행률 ${reportsDeliverySnapshot.generationProgress}%`
+                                    : '리포트 전달 스냅샷 없음 · Reports 화면에서 생성/증빙 검증 실행 후 자동 반영됩니다.'}
                             </div>
                         </div>
                         <div className="flex items-center gap-1.5">

@@ -225,8 +225,23 @@ type IntroQaAlertRunlogEntry = {
 
 const PREDICTIVE_INTERVENTION_HANDOFF_KEY = 'psi_predictive_intervention_handoff_v1';
 const PREDICTIVE_INTERVENTION_HANDOFF_EVENT = 'psi-predictive-intervention-updated';
+const REPORTS_DELIVERY_SNAPSHOT_KEY = 'psi_reports_delivery_snapshot_v1';
+const REPORTS_DELIVERY_SNAPSHOT_EVENT = 'psi-reports-delivery-snapshot-updated';
 const OPS_ALERT_CLICK_LOG_KEY = 'psi_ops_alert_click_log_v1';
 const INTRO_QA_ALERT_RUNLOG_KEY = 'psi_intro_mobile_feature_qa_alert_runlog_v1';
+
+type ReportsDeliverySnapshotState = 'idle' | 'running' | 'generated' | 'verified' | 'attention';
+
+type ReportsDeliverySnapshot = {
+    updatedAt: string;
+    state: ReportsDeliverySnapshotState;
+    generationStatus: ReportGenerationUiState['status'];
+    generationProgress: number;
+    filteredCount: number;
+    isPackagingEvidence: boolean;
+    verificationChecked: boolean;
+    verificationPassed: boolean;
+};
 
 type OpsAlertLogApiResponse = {
     ok: boolean;
@@ -788,6 +803,38 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         setCustomStartDate(start);
         setCustomEndDate(end);
     }, [datePreset, customStartDate, customEndDate]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const state: ReportsDeliverySnapshotState = reportGenerationUi.status === 'error'
+            ? 'attention'
+            : (isGenerating || isPackagingEvidence || reportGenerationUi.status === 'running')
+                ? 'running'
+                : verificationResult?.isValid
+                    ? 'verified'
+                    : reportGenerationUi.status === 'success'
+                        ? 'generated'
+                        : 'idle';
+
+        const snapshot: ReportsDeliverySnapshot = {
+            updatedAt: new Date().toISOString(),
+            state,
+            generationStatus: reportGenerationUi.status,
+            generationProgress: reportGenerationUi.progress,
+            filteredCount: filteredRecords.length,
+            isPackagingEvidence,
+            verificationChecked: Boolean(verificationResult),
+            verificationPassed: Boolean(verificationResult?.isValid),
+        };
+
+        try {
+            window.localStorage.setItem(REPORTS_DELIVERY_SNAPSHOT_KEY, JSON.stringify(snapshot));
+            window.dispatchEvent(new Event(REPORTS_DELIVERY_SNAPSHOT_EVENT));
+        } catch {
+            // ignore localStorage write failures
+        }
+    }, [filteredRecords.length, isGenerating, isPackagingEvidence, reportGenerationUi.progress, reportGenerationUi.status, verificationResult]);
 
     useEffect(() => {
         try {
