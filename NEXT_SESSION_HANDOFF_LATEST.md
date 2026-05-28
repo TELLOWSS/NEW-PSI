@@ -3,6 +3,7 @@
 - 기준일시: 2026-05-16
 - 기준일시: 2026-05-18
 - 기준일시: 2026-05-20 (최신)
+- 기준일시: 2026-05-28 (최신)
 - 프로젝트: NEW-PSI
 - 목적: 프로그램 종료 후 재시작 시, 2분 내에 현재 상태 파악하고 즉시 다음 작업 진행
 
@@ -258,6 +259,32 @@
 - 원인: 소개 화면 프리뷰 레이어와 실기능 완성도 간 격차
 - 기준 문서(최신): `MOBILE_MOCKUP_REALITY_AUDIT_2026-05-20.md`
 - 다음 실행 순서: P0(2번 경보/4번 진단/8번 개입)부터 실제 동작 중심으로 순차 보강
+
+---
+
+## 14) 2026-05-28 종료 직전 기록 정리 (최신)
+
+### 이번 세션 핵심 완료
+- 문서 중심 정리 완료
+   - `DESIGN_AND_UX_ANALYSIS_REPORT_2026-05-28.md`
+   - `INFORMATION_ARCHITECTURE_BY_ROLE_2026-05-28.md`
+   - `PC_VS_MOBILE_DESIGN_SEPARATION_STRATEGY_2026-05-28.md`
+- 역할 기반 문서 체계 도입
+   - `_DOCS_MASTER`, `_DOCS_DEV`, `_DOCS_USER`, `_DOCS_OPS`, `_DOCS_STATUS`, `_DOCS_ARCHIVE`, `_DOCS_LOGS` 생성
+   - `START_HERE.md` + 각 폴더 `README.md` 작성
+
+### 현재 상태
+- 코드 기능 변경 없음 (문서/정보구조 정리 세션)
+- 다음 세션부터 라우팅 분리 구현 우선 진행
+
+### 다음 세션 즉시 실행 순서
+1. `START_HERE.md` 확인
+2. `_DOCS_STATUS/README.md`에서 이번 주 우선순위 확인
+3. `PC_VS_MOBILE_DESIGN_SEPARATION_STRATEGY_2026-05-28.md` Week 1 항목 착수
+4. `App.tsx` 라우팅 분기 및 `routes/*` 초안 구현
+
+### 종료 기록 문서
+- `END_OF_DAY_HANDOFF_2026-05-28.md`
 
 ## 14) 2026-05-20 종료 직전 정리
 
