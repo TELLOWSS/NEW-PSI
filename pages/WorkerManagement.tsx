@@ -1009,7 +1009,6 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
     // [NEW] Sample Modal State
     const [showSampleModal, setShowSampleModal] = useState(false);
-    const [mobileProfileTab, setMobileProfileTab] = useState<'all' | 'high' | 'missing' | 'linked'>('all');
     const [overrideModalWorker, setOverrideModalWorker] = useState<WorkerRecord | null>(null);
     const [overridePin, setOverridePin] = useState('');
     const [overrideReason, setOverrideReason] = useState('');
@@ -3140,31 +3139,6 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             .slice(0, 8);
     }, [filteredRecords]);
 
-    const toMobileRiskTier = (worker: WorkerRecord): 'high' | 'mid' | 'low' => {
-        const level = String(worker.selfAssessedRiskLevel || '').toLowerCase();
-        if (level.includes('상') || level.includes('high')) return 'high';
-        if (level.includes('하') || level.includes('low')) return 'low';
-        return 'mid';
-    };
-
-    const mobileProfileCards = useMemo(() => {
-        const source = mobileProfileTab === 'all'
-            ? filteredRecords
-            : mobileProfileTab === 'high'
-                ? filteredRecords.filter((worker) => toMobileRiskTier(worker) === 'high')
-                : mobileProfileTab === 'missing'
-                    ? filteredRecords.filter((worker) => !hasProfilePhoto(worker))
-                    : filteredRecords.filter((worker) => getProfileLinkState(worker) === 'linked');
-        return source.slice(0, 30);
-    }, [filteredRecords, mobileProfileTab]);
-
-    const mobileProfileSummary = useMemo(() => {
-        const high = filteredRecords.filter((worker) => toMobileRiskTier(worker) === 'high').length;
-        const missing = filteredRecords.filter((worker) => !hasProfilePhoto(worker)).length;
-        const linked = filteredRecords.filter((worker) => getProfileLinkState(worker) === 'linked').length;
-        return { high, missing, linked };
-    }, [filteredRecords]);
-
     const openPhotoRegistration = useCallback((worker: WorkerRecord) => {
         if (onOpenPhotoRegistration) {
             onOpenPhotoRegistration(worker, filteredRecords.filter((item) => !hasProfilePhoto(item)).map((item) => String(item.id)));
@@ -4036,113 +4010,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     }
 
     return (
-        <>
-        <div className="sm:hidden min-h-screen bg-slate-950 text-white pb-20">
-            <div className="px-4 pt-4 pb-3 border-b border-slate-800 bg-slate-900">
-                <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-lg font-black tracking-tight">인간인지 프로파일</h2>
-                    <span className="text-xs text-slate-400">총 {filteredRecords.length}명</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2 mb-3">
-                    <div className="rounded-xl bg-slate-800 px-2 py-2 text-center">
-                        <p className="text-[10px] text-slate-400">고위험</p>
-                        <p className="text-lg font-black text-rose-400">{mobileProfileSummary.high}</p>
-                    </div>
-                    <div className="rounded-xl bg-slate-800 px-2 py-2 text-center">
-                        <p className="text-[10px] text-slate-400">사진 미등록</p>
-                        <p className="text-lg font-black text-amber-300">{mobileProfileSummary.missing}</p>
-                    </div>
-                    <div className="rounded-xl bg-slate-800 px-2 py-2 text-center">
-                        <p className="text-[10px] text-slate-400">연결 완료</p>
-                        <p className="text-lg font-black text-emerald-400">{mobileProfileSummary.linked}</p>
-                    </div>
-                </div>
-                <div className="flex gap-1.5">
-                    {([
-                        ['all', '전체'],
-                        ['high', '고위험'],
-                        ['missing', '미등록'],
-                        ['linked', '연결'],
-                    ] as const).map(([key, label]) => (
-                        <button
-                            key={key}
-                            onClick={() => setMobileProfileTab(key)}
-                            className={`flex-1 rounded-lg py-1.5 text-xs font-black transition-colors ${mobileProfileTab === key ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400'}`}
-                        >
-                            {label}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            <div className="space-y-3 px-4 py-3">
-                {mobileProfileCards.length === 0 ? (
-                    <div className="rounded-2xl border border-slate-800 bg-slate-900 px-4 py-10 text-center text-slate-400">
-                        <p className="text-sm font-bold">표시할 프로파일이 없습니다.</p>
-                    </div>
-                ) : mobileProfileCards.map((worker) => {
-                    const riskTier = toMobileRiskTier(worker);
-                    const profileState = getProfileLinkState(worker);
-                    const score = Math.max(0, Math.min(100, Math.round(worker.safetyScore || 0)));
-                    return (
-                        <div key={worker.id} className={`rounded-2xl border bg-slate-900 p-4 ${
-                            riskTier === 'high' ? 'border-rose-400/40' : riskTier === 'mid' ? 'border-amber-300/30' : 'border-emerald-400/30'
-                        }`}>
-                            <div className="mb-2 flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                    <p className="truncate text-sm font-black text-white">{worker.name}</p>
-                                    <p className="truncate text-[11px] text-slate-400">{worker.jobField} · {worker.teamLeader || '미지정'}</p>
-                                </div>
-                                <div className="flex flex-col items-end gap-1">
-                                    <span className={`rounded-md px-2 py-0.5 text-[10px] font-black ${
-                                        riskTier === 'high' ? 'bg-rose-100 text-rose-700' : riskTier === 'mid' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-                                    }`}>
-                                        {riskTier === 'high' ? '우선관리' : riskTier === 'mid' ? '관찰대상' : '안정'}
-                                    </span>
-                                    <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
-                                        profileState === 'linked' ? 'bg-indigo-100 text-indigo-700' : profileState === 'manual' ? 'bg-violet-100 text-violet-700' : 'bg-slate-700 text-slate-300'
-                                    }`}>
-                                        {profileState === 'linked' ? '자동 연결' : profileState === 'manual' ? '수기 등록' : '미연결'}
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="mb-3">
-                                <div className="mb-1 flex items-center justify-between text-[10px]">
-                                    <span className="text-slate-400">인지 점수</span>
-                                    <span className="font-black text-slate-200">{score}점</span>
-                                </div>
-                                <div className="h-1.5 rounded-full bg-slate-700">
-                                    <div
-                                        className={`h-1.5 rounded-full ${score >= 80 ? 'bg-emerald-500' : score >= 60 ? 'bg-amber-400' : 'bg-rose-500'}`}
-                                        style={{ width: `${score}%` }}
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="flex items-center justify-end gap-2">
-                                {!hasProfilePhoto(worker) && (
-                                    <button
-                                        onClick={() => openPhotoRegistration(worker)}
-                                        className="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-black text-white"
-                                    >
-                                        사진 등록
-                                    </button>
-                                )}
-                                <button
-                                    onClick={() => onViewDetails(worker)}
-                                    className="rounded-lg bg-slate-700 px-3 py-1.5 text-[11px] font-bold text-slate-100"
-                                >
-                                    상세 보기
-                                </button>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-
-        <div className="hidden sm:block space-y-10 animate-fade-in-up">
+        <div className="space-y-10 animate-fade-in-up">
             {/* Header Section */}
             <div className="bg-slate-900 p-12 rounded-[40px] shadow-2xl text-white relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/20 rounded-full blur-[100px] -mr-32 -mt-32 pointer-events-none"></div>
@@ -6493,7 +6361,6 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 )}
             </div>
         </div>
-        </>
     );
 };
 export default WorkerManagement;
