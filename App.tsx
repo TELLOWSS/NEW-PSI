@@ -158,9 +158,9 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
                         ) : null}
                         
                         <div className="bg-slate-100 p-3 sm:p-4 rounded-lg sm:rounded-xl text-left mb-4 sm:mb-6 overflow-auto max-h-32 sm:max-h-40 text-[10px] sm:text-xs font-mono text-slate-600 border border-slate-200">
-                            <strong>Error:</strong> {this.state.error?.toString()}
+                            <strong>오류 상세 정보:</strong> {this.state.error?.toString()}
                             <br/>
-                            <span className="opacity-50">{this.state.errorInfo?.componentStack}</span>
+                            <span className="opacity-50">시스템 진단 정보: {this.state.errorInfo?.componentStack}</span>
                         </div>
 
                         <button 

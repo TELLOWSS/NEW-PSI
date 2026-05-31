@@ -880,9 +880,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const harnessSummaryMetrics = useMemo(() => [
         {
             key: 'dashboard-harness-connected',
-            label: '하네스 저장 연결',
+            label: '안전 기록 저장 상태',
             value: `${harnessDashboardSummary.connected}명`,
-            helper: `${harnessDashboardSummary.runLinked}명이 workflow run과 연결되어 있습니다.`,
+            helper: `${harnessDashboardSummary.runLinked}명이 처리 번호와 연결되어 있습니다.`,
             tone: BRAND_TONE.emeraldSoft80,
         },
         {
@@ -948,7 +948,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             {
                 key: 'dashboard-harness-coverage',
                 eyebrow: '운영 커버리지',
-                title: `현재 하네스 저장 연결률은 ${coverageRate}%입니다.`,
+                title: `현재 안전 기록 저장 연결률은 ${coverageRate}%입니다.`,
                 description: harnessDashboardSummary.pending > 0
                     ? `저장 대기 ${harnessDashboardSummary.pending}명과 폴백 ${harnessDashboardSummary.fallback}명을 우선 정리하셔야 운영 추적이 안정됩니다.`
                     : '현재 연결된 런 기준으로 승인 흐름과 보호 상태를 비교적 안정적으로 추적하실 수 있습니다.',
@@ -959,7 +959,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 eyebrow: '공종 우선순위',
                 title: topTrade
                     ? `${topTrade.trade} 공종에서 보호 신호가 가장 많이 감지됩니다.`
-                    : '현재 공종별 하네스 경보 집중 구간은 크지 않습니다.',
+                    : '현재 공종별 위험 경보 집중 구간은 크지 않습니다.',
                 description: topTrade
                     ? `승인 ${topTrade.approval}건 · 즉시 보호 ${topTrade.immediate}건 · 저장 점검 ${topTrade.fallback}건 기준으로 우선순위를 정리하시면 됩니다.`
                     : '현재는 승인 대기, 즉시 보호, 저장 폴백 신호가 특정 공종에 과도하게 몰리지 않았습니다.',
@@ -1015,7 +1015,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             key: 'dashboard-harness-audit-linked',
             label: '감사 연결 대상',
             value: `${harnessAuditSummary.auditLinked}명`,
-            helper: '하네스 관련 감사 메모가 남아 있는 최신 레코드 기준입니다.',
+            helper: '안전 기록 관련 감사 메모가 남아 있는 최신 레코드 기준입니다.',
             tone: harnessAuditSummary.auditLinked > 0 ? 'border-indigo-200 bg-indigo-50/80' : 'border-slate-200 bg-slate-50',
         },
         {
@@ -1058,8 +1058,8 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 key: 'dashboard-harness-audit-coverage',
                 eyebrow: '감사 커버리지',
                 title: harnessAuditSummary.auditLinked > 0
-                    ? `최신 레코드 ${harnessAuditSummary.auditLinked}명에 하네스 감사 메모가 연결되어 있습니다.`
-                    : '아직 하네스 감사 메모가 충분히 누적되지 않았습니다.',
+                    ? `최신 레코드 ${harnessAuditSummary.auditLinked}명에 안전 기록 감사 메모가 연결되어 있습니다.`
+                    : '아직 안전 기록 감사 메모가 충분히 누적되지 않았습니다.',
                 description: harnessAuditSummary.auditLinked > 0
                     ? `승인 감사 ${harnessAuditSummary.approvalAudited}명, validation 감사 ${harnessAuditSummary.validationAudited}명을 함께 읽으면 운영 통제 설명이 쉬워집니다.`
                     : '관리자 모달에서 승인/재분석/차단 흐름을 사용하면서 감사 로그 누적을 늘리셔야 대시보드 설명력이 커집니다.',
@@ -1150,8 +1150,8 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 key: 'dashboard-harness-recent-window',
                 eyebrow: '최근 7일 운영 창',
                 title: touchedWorkerCount > 0
-                    ? `${touchedWorkerCount}명에서 최근 하네스 운영 흔적이 확인되었습니다.`
-                    : '최근 7일 기준 하네스 운영 흔적이 아직 많지 않습니다.',
+                    ? `${touchedWorkerCount}명에서 최근 운영 이력이 확인되었습니다.`
+                    : '최근 7일 기준 운영 이력이 아직 많지 않습니다.',
                 description: touchedWorkerCount > 0
                     ? `감사 이벤트 ${harnessRecentOpsSummary.recentAuditEvents}건을 기준으로 최근 승인, 차단, 재분석 흐름을 빠르게 읽으실 수 있습니다.`
                     : '승인/재분석/차단 흐름이 누적되면 대시보드의 단기 운영 설명력이 더 좋아집니다.',
@@ -1162,7 +1162,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 eyebrow: '우세 신호',
                 title: dominantSignal.count > 0
                     ? `최근 운영 로그에서는 ${dominantSignal.label} 신호가 가장 크게 보입니다.`
-                    : '최근 7일 기준으로 특정 하네스 운영 신호 쏠림은 크지 않습니다.',
+                    : '최근 7일 기준으로 특정 운영 신호 쏠림은 크지 않습니다.',
                 description: dominantSignal.key === 'transition'
                     ? '상태 전이 조건과 승인 순서를 먼저 재정렬하시면 운영 마찰을 줄이기 쉽습니다.'
                     : dominantSignal.key === 'reassessment'
@@ -2615,7 +2615,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 <div>
                                     <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-200">PC DASHBOARD</p>
                                     <h3 className="mt-1 text-lg sm:text-xl font-black text-white">운영 콘솔 중심 대시보드</h3>
-                                    <p className="mt-1 text-xs sm:text-sm font-medium text-slate-200">대량 검토, 팀 비교, 하네스 승인 흐름을 한 번에 읽는 PC 전용 프리뷰입니다.</p>
+                                    <p className="mt-1 text-xs sm:text-sm font-medium text-slate-200">대량 검토, 팀 비교, 승인 처리 흐름을 한 번에 읽는 PC 전용 프리뷰입니다.</p>
                                 </div>
                                 <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/15 px-3 py-2 text-right">
                                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">SYSTEM</p>
@@ -3100,7 +3100,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     title={harnessDashboardSummary.immediateAttention > 0
                         ? `즉시 보호 대상 ${harnessDashboardSummary.immediateAttention}명이 있어 승인·보완 우선순위를 먼저 정해야 합니다.`
                         : harnessDashboardSummary.fallback > 0
-                            ? `하네스 persistence 폴백 ${harnessDashboardSummary.fallback}명이 있어 저장 연결 여부를 함께 점검해야 합니다.`
+                            ? `안전 기록 저장 폴백 ${harnessDashboardSummary.fallback}명이 있어 저장 연결 여부를 함께 점검해야 합니다.`
                             : `승인 백로그 ${harnessDashboardSummary.approvalBacklog}명이 남아 있어 관리자 검토 순서를 먼저 정리해야 합니다.`}
                     description={harnessDashboardSummary.fallback > 0
                         ? '대시보드 단계에서 백로그를 읽고 OCR 분석, 리포트, 관리자 검토로 이어가면 보호 흐름이 끊기지 않습니다.'

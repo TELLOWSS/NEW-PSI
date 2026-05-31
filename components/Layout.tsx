@@ -18,8 +18,14 @@ import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { getOperationalModeLabel, isPageVisibleByOperationalMode } from '../utils/operationalModeUtils';
 import { cycleUserRolePreset, getUserRolePreset, getUserRolePresetLabel, USER_ROLE_PRESET_CHANGED_EVENT, type UserRolePreset } from '../utils/userRolePresetUtils';
-import { isAdminAuthenticated } from '../utils/adminGuard';
-import { canUseDevDiagnostics, isDevDiagnosticsHiddenToggleEnabled, toggleDevDiagnosticsHiddenToggle } from '../config/devDiagnosticsGate';
+import {
+    canUseDevDiagnostics,
+    canUseDevDiagnosticsShortcut,
+    hasExplicitDevDiagnosticsPermission,
+    isDevDiagnosticsHiddenToggleEnabled,
+    isLocalDevelopmentEnvironment,
+    toggleDevDiagnosticsHiddenToggle,
+} from '../config/devDiagnosticsGate';
 import { getRouteLabel, getRouteMeta, type UiAudienceMode } from '../config/routeMeta';
 
 interface LayoutProps {
@@ -48,10 +54,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }, []);
 
-    const isAdvancedAdmin = isAdminAuthenticated() && userRolePreset === 'site-chief';
+    const explicitDiagnosticsPermission = hasExplicitDevDiagnosticsPermission();
     const diagnosticsAvailable = canUseDevDiagnostics({
-        isAdvancedAdmin,
+        explicitPermission: explicitDiagnosticsPermission,
         hiddenToggleEnabled: devDiagnosticsHiddenToggleEnabled,
+        isLocalDevelopment: isLocalDevelopmentEnvironment(),
     });
     const uiAudienceMode: UiAudienceMode =
         diagnosticsAvailable && operationalMode === 'developer'
@@ -221,6 +228,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
 
         const handleSettingsShortcut = (event: KeyboardEvent) => {
             if (event.ctrlKey && event.altKey && event.key.toLowerCase() === 'd') {
+                if (!canUseDevDiagnosticsShortcut()) {
+                    return;
+                }
                 const next = toggleDevDiagnosticsHiddenToggle();
                 setDevDiagnosticsHiddenToggleEnabled(next);
             }

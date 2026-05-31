@@ -1555,9 +1555,9 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[]; wo
                             items={[
                                 {
                                     key: 'review-harness-connected',
-                                    label: '하네스 저장 연결',
+                                    label: '안전 기록 저장 상태',
                                     value: `${reviewHarnessSummary.connected}명`,
-                                    helper: `${reviewHarnessSummary.runLinked}명이 workflow run과 연결되어 있습니다.`,
+                                    helper: `${reviewHarnessSummary.runLinked}명이 처리 번호와 연결되어 있습니다.`,
                                     tone: BRAND_TONE.emeraldSoft80,
                                 },
                                 {
@@ -1594,7 +1594,7 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[]; wo
                                     : reviewHarnessSummary.fallback > 0
                                         ? `persistence 폴백 ${reviewHarnessSummary.fallback}명이 있어 저장 연결 상태를 함께 읽어야 합니다.`
                                         : `승인 백로그 ${reviewHarnessSummary.approvalBacklog}명이 남아 있어 종합판정 전에 관리자 검토 순서를 정리해야 합니다.`}
-                                description="행동 무결성 판정 결과를 단독 점수로 보지 않고 하네스 승인·저장 상태와 함께 읽으면 실제 현장 보호 흐름이 더 선명해집니다."
+                                description="행동 무결성 판정 결과를 단독 점수로 보지 않고 안전 기록 승인·저장 상태와 함께 읽으면 실제 현장 보호 흐름이 더 선명해집니다."
                                 className="rounded-2xl border px-4 py-3"
                                 bodyClassName="block"
                                 titleClassName="text-sm font-black"
@@ -1837,9 +1837,9 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
                         items={[
                             {
                                 key: 'hub-harness-connected',
-                                label: '하네스 저장 연결',
+                                label: '안전 기록 저장 상태',
                                 value: `${harnessSummary.connected}명`,
-                                helper: `${harnessSummary.runLinked}명이 workflow run과 연결되어 있습니다.`,
+                                helper: `${harnessSummary.runLinked}명이 처리 번호와 연결되어 있습니다.`,
                                 tone: BRAND_TONE.emeraldSoft80,
                             },
                             {
@@ -1874,9 +1874,9 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
                             title={harnessSummary.immediateAttention > 0
                                 ? `즉시 보호 대상 ${harnessSummary.immediateAttention}명이 있어 이행점검·코칭·지적 등록보다 먼저 보호 설명 순서를 정해야 합니다.`
                                 : harnessSummary.fallback > 0
-                                    ? `하네스 persistence 폴백 ${harnessSummary.fallback}명이 있어 저장 연결 여부를 함께 점검해야 합니다.`
+                                    ? `안전 기록 저장 폴백 ${harnessSummary.fallback}명이 있어 저장 연결 여부를 함께 점검해야 합니다.`
                                     : `승인 백로그 ${harnessSummary.approvalBacklog}명이 남아 있어 종합판정 전 관리자 검토 순서를 먼저 정리해야 합니다.`}
-                            description="허브 화면에서 하네스 우선순위를 먼저 읽으면 탭별 입력이 단편 기록이 아니라 실제 보호 워크플로우로 이어집니다."
+                            description="허브 화면에서 안전 기록 우선순위를 먼저 읽으면 탭별 입력이 단편 기록이 아니라 실제 보호 처리 흐름으로 이어집니다."
                             className="rounded-2xl border px-4 py-3"
                             bodyClassName="block"
                             titleClassName="text-sm font-black"

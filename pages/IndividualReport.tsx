@@ -790,7 +790,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
 
             {shareDiagnostics.warning && !isQrScanMode && (
                 <div className={`w-full max-w-[210mm] rounded-2xl border px-4 py-3 text-[12px] font-bold shadow-sm ${shareDiagnostics.qrRisk === 'overflow' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
-                    QR 공유 길이 안내 · {shareDiagnostics.warning} 현재 URL 길이 {shareDiagnostics.urlLength}자 / payload {shareDiagnostics.payloadLength}자입니다.
+                    QR 공유 길이 안내 · {shareDiagnostics.warning} 현재 URL 길이 {shareDiagnostics.urlLength}자 / 제출 내용 {shareDiagnostics.payloadLength}자입니다.
                 </div>
             )}
 

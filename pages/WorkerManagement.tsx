@@ -3089,7 +3089,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
             case 'fallback-pending':
                 return {
                     title: '대시보드 저장 점검 필터 적용 중',
-                    description: 'workflow run 저장 연결이 불안정하거나 대기 중인 대상만 현재 목록에 반영했습니다.',
+                    description: '처리 번호 저장 연결이 불안정하거나 대기 중인 대상만 현재 목록에 반영했습니다.',
                     variant: 'amber' as const,
                 };
             case 'trade-hotspot':
@@ -4213,7 +4213,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     onClick={() => setShowHarnessDrilldownSubData((prev) => !prev)}
                                     className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-100 ${BRAND_TONE.slateWhite}`}
                                 >
-                                    {showHarnessDrilldownSubData ? '하네스 드릴다운 하위데이터 접기' : '하네스 드릴다운 하위데이터 보기'}
+                                    {showHarnessDrilldownSubData ? '안전기록 상세 하위데이터 접기' : '안전기록 상세 하위데이터 보기'}
                                 </button>
                                 <button
                                     type="button"
@@ -4569,7 +4569,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 <NoticeCallout
                     variant="slate"
                     title="하위 데이터가 접혀 있습니다"
-                    description="식별 불가/하네스 드릴다운 필터가 활성화된 상태입니다. 필요할 때만 하위 데이터를 펼쳐서 확인하세요."
+                    description="식별 불가/안전기록 상세 필터가 활성화된 상태입니다. 필요할 때만 하위 데이터를 펼쳐서 확인하세요."
                     action={(
                         <div className="flex flex-wrap items-center gap-2">
                             {isUnassignedFilterActive && (
@@ -4587,7 +4587,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     onClick={() => setShowHarnessDrilldownSubData(true)}
                                     className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-indigo-700 hover:bg-indigo-100 ${BRAND_TONE.indigo}`}
                                 >
-                                    하네스 드릴다운 하위데이터 펼치기
+                                    안전기록 상세 하위데이터 펼치기
                                 </button>
                             )}
                         </div>
@@ -4776,7 +4776,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         },
                         {
                             key: 'registered-workers-harness-connected',
-                            label: '하네스 저장 연결',
+                            label: '근로자 기록 저장 상태',
                             value: `${registeredWorkerHarnessSummary.connected}명`,
                             helper: `최신 리포트 연결 ${registeredWorkerHarnessSummary.linkedReport}명`,
                             tone: BRAND_TONE.emerald,
@@ -4800,9 +4800,9 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     <NoticeCallout
                         variant="amber"
                         className="mt-3 rounded-xl px-3 py-2"
-                        eyebrow="하네스 저장 상태"
+                        eyebrow="근로자 기록 저장 상태"
                         title={`현재 등록 근로자 범위에서 ${registeredWorkerHarnessSummary.fallback}명은 영속 저장 폴백 상태입니다.`}
-                        description="문자 발송과 리포트 연결은 유지되지만, workflow run 저장 여부를 다시 확인한 뒤 운영 판단을 이어가야 합니다."
+                        description="문자 발송과 리포트 연결은 유지되지만, 처리 번호 저장 여부를 다시 확인한 뒤 운영 판단을 이어가야 합니다."
                     />
                 )}
                 <InterpretationCardGrid
@@ -5471,7 +5471,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             <NoticeCallout
                                 className={`mb-4 rounded-2xl border px-4 py-4 text-amber-800 ${BRAND_TONE.amber}`}
                                 title="운영 집계 뷰가 아직 준비되지 않았습니다."
-                                description="최신 supabase_report_message_logs_migration.sql를 실행하면 월별/팀별/실패사유/발송방식 대시보드가 활성화됩니다."
+                                description="최신 report_message_logs_migration.sql를 실행하면 월별/팀별/실패사유/발송방식 대시보드가 활성화됩니다."
                                 titleClassName="text-sm font-black"
                                 descriptionClassName="mt-1 text-xs font-bold"
                                 bodyClassName="block"
@@ -5811,11 +5811,11 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         <NoticeCallout
                                             variant={selectedMessageHistoryHarnessMeta.persistenceState === 'fallback' ? 'amber' : selectedMessageHistoryHarnessMeta.riskDecision === 'IMMEDIATE_ATTENTION' || selectedMessageHistoryHarnessMeta.riskDecision === 'CRITICAL_STOP' ? 'rose' : 'white'}
                                             className="rounded-2xl px-4 py-3"
-                                            eyebrow="하네스 보호 맥락"
-                                            title={`${selectedMessageHistoryWorker?.name || '선택 근로자'}의 최신 리포트는 하네스 상태와 함께 추적됩니다.`}
+                                            eyebrow="안전 기록 보호 맥락"
+                                            title={`${selectedMessageHistoryWorker?.name || '선택 근로자'}의 최신 리포트는 안전 기록 상태와 함께 추적됩니다.`}
                                             description={selectedMessageHistoryLatestRecord.workflowRunId
-                                                ? `workflow run ${selectedMessageHistoryLatestRecord.workflowRunId} 기준으로 문자 발송 이력과 리포트 판단 근거를 함께 읽을 수 있습니다.`
-                                                : '아직 workflow run 연결 전 단계이므로 저장 연결 상태를 먼저 확인한 뒤 문자 발송 판단을 이어가세요.'}
+                                                ? `리포트 처리 번호 ${selectedMessageHistoryLatestRecord.workflowRunId} 기준으로 문자 발송 이력과 리포트 판단 근거를 함께 읽을 수 있습니다.`
+                                                : '아직 처리 번호 연결 전 단계이므로 저장 연결 상태를 먼저 확인한 뒤 문자 발송 판단을 이어가세요.'}
                                         />
                                         <div className="flex flex-wrap gap-2">
                                             <StatusBadge variant={getHarnessWorkflowBadgeVariant(selectedMessageHistoryHarnessMeta.workflowState)} className="px-3 py-1.5 text-[11px] font-black">{getHarnessWorkflowStateLabel(selectedMessageHistoryHarnessMeta.workflowState)}</StatusBadge>
@@ -5854,7 +5854,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         variant="amber"
                                         className="mt-4 rounded-2xl px-4 py-4"
                                         title="문자 발송 로그 스키마가 아직 준비되지 않았습니다."
-                                        description="Supabase SQL Editor에서 supabase_report_message_logs_migration.sql을 먼저 실행하면 관리자 이력 탭이 즉시 활성화됩니다."
+                                        description="데이터 저장소 SQL 편집기에서 report_message_logs_migration.sql을 먼저 실행하면 관리자 이력 탭이 즉시 활성화됩니다."
                                         bodyClassName="block"
                                     />
                                 )}
@@ -6109,7 +6109,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 const evidenceSummary = [
                                     latestRecord ? '최신 리포트 연결됨' : '최신 리포트 없음',
                                     missingLabels.length > 0 ? `누락 ${missingLabels.length}건` : '핵심 식별정보 확인됨',
-                                    harnessMeta ? getHarnessWorkflowStateLabel(harnessMeta.workflowState) : '하네스 상태 미연결',
+                                    harnessMeta ? getHarnessWorkflowStateLabel(harnessMeta.workflowState) : '안전 기록 상태 미연결',
                                     duplicateMeta
                                         ? Array.from(duplicateMeta.groupLabels).join(', ')
                                         : '중복 신호 없음',

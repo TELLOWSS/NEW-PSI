@@ -546,9 +546,9 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                         items={[
                             {
                                 key: 'site-issue-harness-connected',
-                                label: '하네스 저장 연결',
+                                label: '안전 기록 저장 상태',
                                 value: `${harnessSummary.connected}명`,
-                                helper: `${harnessSummary.runLinked}명이 workflow run과 연결되어 있습니다.`,
+                                helper: `${harnessSummary.runLinked}명이 처리 번호와 연결되어 있습니다.`,
                                 tone: BRAND_TONE.emeraldSoft80,
                             },
                             {
@@ -582,9 +582,9 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                             title={harnessSummary.immediateAttention > 0
                                 ? `즉시 보호 대상 ${harnessSummary.immediateAttention}명이 있어 지적사항 조치 전에 보호 설명 우선순위를 먼저 확인해야 합니다.`
                                 : harnessSummary.fallback > 0
-                                    ? `하네스 persistence 폴백 ${harnessSummary.fallback}명이 있어 지적사항 조치와 함께 저장 연결 여부도 점검해야 합니다.`
+                                    ? `안전 기록 저장 폴백 ${harnessSummary.fallback}명이 있어 지적사항 조치와 함께 저장 연결 여부도 점검해야 합니다.`
                                     : `승인 백로그 ${harnessSummary.approvalBacklog}명이 남아 있어 지적사항 후속 조치 전에 관리자 검토 순서를 먼저 정리해야 합니다.`}
-                            description="현장 지적사항 관리도 하네스 승인·저장 상태와 함께 읽으면 기록이 단순 지적 목록이 아니라 보호 우선순위 지도처럼 작동합니다."
+                            description="현장 지적사항 관리도 안전 기록 승인·저장 상태와 함께 읽으면 기록이 단순 지적 목록이 아니라 보호 우선순위 지도처럼 작동합니다."
                             className="rounded-2xl border px-4 py-3"
                             bodyClassName="block"
                             titleClassName="text-sm font-black"

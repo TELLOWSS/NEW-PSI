@@ -1,4 +1,5 @@
 const DEV_DIAGNOSTICS_HIDDEN_TOGGLE_KEY = 'psi_dev_diagnostics_hidden_toggle_v1';
+const DEV_DIAGNOSTICS_EXPLICIT_PERMISSION_KEY = 'psi_dev_diagnostics_explicit_permission_v1';
 
 const normalizeEnvFlag = (value: unknown): boolean => {
     if (typeof value !== 'string') return false;
@@ -7,6 +8,15 @@ const normalizeEnvFlag = (value: unknown): boolean => {
 
 export const isDevDiagnosticsEnvEnabled = (): boolean =>
     normalizeEnvFlag(import.meta.env.VITE_ENABLE_DEV_DIAGNOSTICS);
+
+export const isLocalDevelopmentEnvironment = (): boolean => Boolean(import.meta.env.DEV);
+
+export const hasExplicitDevDiagnosticsPermission = (): boolean => {
+    if (typeof window === 'undefined') return false;
+    const localValue = localStorage.getItem(DEV_DIAGNOSTICS_EXPLICIT_PERMISSION_KEY);
+    const sessionValue = sessionStorage.getItem(DEV_DIAGNOSTICS_EXPLICIT_PERMISSION_KEY);
+    return localValue === '1' || localValue === 'true' || sessionValue === '1' || sessionValue === 'true';
+};
 
 export const isDevDiagnosticsHiddenToggleEnabled = (): boolean => {
     if (typeof window === 'undefined') return false;
@@ -20,13 +30,20 @@ export const toggleDevDiagnosticsHiddenToggle = (): boolean => {
     return next;
 };
 
+export const canUseDevDiagnosticsShortcut = (): boolean => isDevDiagnosticsEnvEnabled();
+
 export const canUseDevDiagnostics = (options: {
-    isAdvancedAdmin: boolean;
+    explicitPermission: boolean;
     hiddenToggleEnabled?: boolean;
+    isLocalDevelopment?: boolean;
+    envEnabled?: boolean;
 }): boolean => {
+    const envEnabled = options.envEnabled ?? isDevDiagnosticsEnvEnabled();
+    if (!envEnabled) return false;
+
     return (
-        isDevDiagnosticsEnvEnabled() ||
-        options.isAdvancedAdmin ||
-        Boolean(options.hiddenToggleEnabled)
+        options.explicitPermission ||
+        Boolean(options.hiddenToggleEnabled) ||
+        Boolean(options.isLocalDevelopment ?? isLocalDevelopmentEnvironment())
     );
 };

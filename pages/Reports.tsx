@@ -608,9 +608,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             case '해시 불일치':
                 return 'manifest와 JSON 원본을 같은 생성 시점 기준으로 다시 묶어 패키지를 재생성하십시오.';
             case '메타 불일치':
-                return 'manifest 메타와 JSON 내부 하네스 스냅샷을 함께 재동기화한 뒤 다시 검증하십시오.';
+                return 'manifest 메타와 JSON 내부 안전 기록 스냅샷을 함께 재동기화한 뒤 다시 검증하십시오.';
             case '스냅샷 누락':
-                return '하네스 감사 스냅샷 포함 옵션을 확인하고 workflow-status 연동 상태를 먼저 점검하십시오.';
+                return '안전 기록 감사 스냅샷 포함 옵션을 확인하고 처리 상태 연동을 먼저 점검하십시오.';
             case '파싱 불가 JSON':
                 return '손상된 JSON을 다시 내보내고 업로드 파일 인코딩/절단 여부를 재확인하십시오.';
             case '누락 JSON':
@@ -620,7 +620,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             case '실패 기록 없음':
                 return '현재 추가 조치는 필요하지 않습니다.';
             default:
-                return '해당 실패 원인의 입력 파일, manifest, 하네스 스냅샷을 함께 비교 점검하십시오.';
+                return '해당 실패 원인의 입력 파일, manifest, 안전 기록 스냅샷을 함께 비교 점검하십시오.';
         }
     };
 
@@ -1014,7 +1014,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             key: 'harness-connected',
             label: '저장 연결',
             value: `${harnessSummary.connected}건`,
-            helper: `${harnessSummary.runLinked}건이 workflow run과 연결되어 있습니다.`,
+            helper: `${harnessSummary.runLinked}건이 리포트 처리 번호와 연결되어 있습니다.`,
             tone: BRAND_TONE.emeraldSoft80,
         },
         {
@@ -1053,10 +1053,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             {
                 key: 'report-harness-coverage',
                 eyebrow: '추적 커버리지',
-                title: `현재 보고 대상의 하네스 저장 연결률은 ${runCoverageRate}%입니다.`,
+                title: `현재 보고 대상의 리포트 저장 연결률은 ${runCoverageRate}%입니다.`,
                 description: harnessSummary.pending > 0 || harnessSummary.fallback > 0
                     ? `저장 대기 ${harnessSummary.pending}건과 폴백 ${harnessSummary.fallback}건은 감사 근거 패키지 생성 전 먼저 확인하셔야 합니다.`
-                    : '현재 대상은 대부분 workflow run과 연결되어 있어 보고서 근거 추적에 유리한 상태입니다.',
+                    : '현재 대상은 대부분 리포트 처리 번호와 연결되어 있어 보고서 근거 추적에 유리한 상태입니다.',
                 tone: runCoverageRate < 70 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
             },
             {
@@ -1121,7 +1121,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             } catch (error) {
                 if (!disposed) {
                     setPreviewWorkflowStatus(null);
-                    setPreviewWorkflowStatusError(extractMessage(error) || '하네스 버전 정보를 불러오지 못했습니다.');
+                    setPreviewWorkflowStatusError(extractMessage(error) || '안전 기록 버전 정보를 불러오지 못했습니다.');
                 }
             } finally {
                 if (!disposed) {
@@ -1223,7 +1223,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
         return {
             title: `${diff.action} 이후 위험 판단은 ${diff.decisionBefore || 'N/A'} → ${diff.decisionAfter || 'N/A'}로 기록됐습니다.`,
-            description: `승인 상태는 ${getHarnessApprovalStateLabel(diff.approvalStateAfter)}이며 워크플로우는 ${getHarnessWorkflowStateLabel(diff.workflowStateAfter)}로 정리됐습니다.${diff.comment ? ` 코멘트: ${diff.comment}` : ''}`,
+            description: `승인 상태는 ${getHarnessApprovalStateLabel(diff.approvalStateAfter)}이며 진행 상태는 ${getHarnessWorkflowStateLabel(diff.workflowStateAfter)}로 정리됐습니다.${diff.comment ? ` 코멘트: ${diff.comment}` : ''}`,
             tone: diff.approvalStateAfter === 'APPROVED' ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80',
         };
     }, [previewWorkflowStatus]);
@@ -1282,7 +1282,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         }
 
         return {
-            title: '현재 보고서는 기본 하네스 판단 흐름 중심으로 설명하면 됩니다.',
+            title: '현재 보고서는 기본 판단 처리 흐름 중심으로 설명하면 됩니다.',
             description: versionChanges.length > 0
                 ? `저장된 버전 변경 요약 ${versionChanges[0]}를 함께 적으면 문맥 설명력이 높아집니다.`
                 : '추가 승인 diff나 오버라이드가 없다면 현재 상태 배지와 증빙 해시 중심으로 설명하시면 됩니다.',
@@ -3431,7 +3431,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     {harnessSummary.fallback > 0 && (
                         <NoticeCallout
                             variant="amber"
-                            eyebrow="하네스 저장 상태"
+                            eyebrow="리포트 저장 상태"
                             title={`현재 보고서 범위에서 ${harnessSummary.fallback}건이 영속 저장 폴백 상태입니다.`}
                             description="보고서 해석과 증빙 JSON 내보내기는 계속 가능하지만, 저장 연결 여부를 함께 읽어 재확인 순서를 정해야 합니다."
                         />
@@ -4042,7 +4042,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         <div className="rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-3">
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">런 연결 범위</p>
                             <p className="mt-1 text-sm font-black text-indigo-800">{verificationHarnessMetaSummary.linkedRunCount}/{verificationHarnessMetaSummary.totalRecords}건</p>
-                            <p className="mt-1 text-[11px] font-bold text-indigo-700">workflow run이 연결된 JSON 수입니다.</p>
+                            <p className="mt-1 text-[11px] font-bold text-indigo-700">리포트 처리 번호가 연결된 JSON 수입니다.</p>
                         </div>
                         <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3">
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">템플릿 버전</p>
@@ -4064,7 +4064,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500">승인/감사 스냅샷</p>
                             <p className="mt-1 text-sm font-black text-emerald-800">승인 로그 {verificationHarnessMetaSummary.approvalCount}건</p>
-                            <p className="mt-1 text-[11px] font-bold text-emerald-700">하네스 스냅샷 포함: {verificationHarnessMetaSummary.harnessAuditSnapshotIncluded ? '예' : '아니오'}</p>
+                            <p className="mt-1 text-[11px] font-bold text-emerald-700">안전 기록 스냅샷 포함: {verificationHarnessMetaSummary.harnessAuditSnapshotIncluded ? '예' : '아니오'}</p>
                             <p className="mt-1 text-[10px] font-bold text-emerald-600">README: {verificationHarnessMetaSummary.readmeFileName}</p>
                         </div>
                     </div>
@@ -4288,7 +4288,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
                                 {verificationResult.missingHarnessSnapshots.length > 0 && (
                                     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                                        <p className="text-[11px] font-black text-slate-700 mb-2">하네스 스냅샷 누락</p>
+                                        <p className="text-[11px] font-black text-slate-700 mb-2">안전 기록 스냅샷 누락</p>
                                         <div className="max-h-32 overflow-auto">
                                             <table className="w-full text-[11px] text-left">
                                                 <thead className="text-slate-500">
@@ -4395,7 +4395,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                         <th className="px-6 py-3">직종 (Team)</th>
                                         <th className="px-6 py-3">안전점수</th>
                                         <th className="px-6 py-3">등급</th>
-                                        {isDevMode && <th className="px-6 py-3">하네스 상태</th>}
+                                        {isDevMode && <th className="px-6 py-3">안전 기록 상태</th>}
                                         <th className="px-6 py-3">주요 취약점</th>
                                         <th className="px-6 py-3 text-right">작업</th>
                                     </tr>
@@ -4505,11 +4505,11 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 <div className="mt-4 space-y-3">
                                     <NoticeCallout
                                         variant={currentPreviewHarnessMeta.persistenceState === 'fallback' ? 'amber' : currentPreviewHarnessMeta.riskDecision === 'IMMEDIATE_ATTENTION' || currentPreviewHarnessMeta.riskDecision === 'CRITICAL_STOP' ? 'rose' : 'white'}
-                                        eyebrow="하네스 보호 맥락"
-                                        title={`${currentPreviewRecord.name} 보고서는 하네스 판단 상태와 함께 읽을 수 있습니다.`}
+                                        eyebrow="리포트 보호 맥락"
+                                        title={`${currentPreviewRecord.name} 보고서는 안전 기록 판단 상태와 함께 읽을 수 있습니다.`}
                                         description={currentPreviewRecord.workflowRunId
-                                            ? `workflow run ${currentPreviewRecord.workflowRunId} 기준으로 보고서 근거를 추적할 수 있습니다.`
-                                            : '아직 workflow run 연결 전 단계이므로 저장 연결 상태를 먼저 확인한 뒤 보고서 해석을 이어가세요.'}
+                                            ? `리포트 처리 번호 ${currentPreviewRecord.workflowRunId} 기준으로 보고서 근거를 추적할 수 있습니다.`
+                                            : '아직 리포트 처리 번호 연결 전 단계이므로 저장 연결 상태를 먼저 확인한 뒤 보고서 해석을 이어가세요.'}
                                     />
                                     <div className="flex flex-wrap gap-2">
                                         <StatusBadge variant={getHarnessWorkflowBadgeVariant(currentPreviewHarnessMeta.workflowState)} className="px-3 py-1.5 text-[11px] font-black">{getHarnessWorkflowStateLabel(currentPreviewHarnessMeta.workflowState)}</StatusBadge>
@@ -4557,7 +4557,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                         </div>
                                     </div>
                                     {previewWorkflowStatusLoading ? (
-                                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">하네스 버전 스냅샷을 불러오는 중입니다.</p>
+                                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">안전 기록 버전 스냅샷을 불러오는 중입니다.</p>
                                     ) : null}
                                     {previewWorkflowStatusError ? (
                                         <p className="text-[11px] font-bold text-amber-700">{previewWorkflowStatusError}</p>
