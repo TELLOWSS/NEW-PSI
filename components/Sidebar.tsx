@@ -3,7 +3,14 @@ import type { Page } from '../types';
 import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { isPageVisibleByOperationalMode } from '../utils/operationalModeUtils';
-import { getRouteLabel, isRouteVisibleInMode, type UiAudienceMode } from '../config/routeMeta';
+import {
+    getProductGroupLabel,
+    getRouteLabel,
+    getRouteMeta,
+    isRouteVisibleInMode,
+    type ProductGroup,
+    type UiAudienceMode,
+} from '../config/routeMeta';
 
 interface SidebarProps {
     currentPage: Page;
@@ -63,6 +70,16 @@ const sidebarMenuItems: SidebarMenuItem[] = [
     },
 ];
 
+const SIDEBAR_GROUP_ORDER: ProductGroup[] = [
+    'dashboard',
+    'tbm',
+    'risk-assessment',
+    'analytics',
+    'reports',
+    'worker',
+    'archive',
+];
+
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, uiMode = 'practitioner' }) => {
     const { mode } = useOperationalMode();
 
@@ -74,8 +91,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, u
         [mode, uiMode],
     );
 
+    const groupedMenuItems = useMemo(() => {
+        const groups = SIDEBAR_GROUP_ORDER
+            .map((group) => ({
+                id: group,
+                label: getProductGroupLabel(group),
+                items: visibleMenuItems.filter((item) => getRouteMeta(item.id).productGroup === group),
+            }))
+            .filter((group) => group.items.length > 0);
+
+        return groups;
+    }, [visibleMenuItems]);
+
     return (
-        <div className="w-72 bg-slate-950 text-slate-100 shadow-2xl shadow-slate-900/40 flex flex-col shrink-0 h-full">
+        <div className="w-72 bg-[linear-gradient(180deg,#0b1220_0%,#111827_58%,#0f172a_100%)] text-slate-100 shadow-xl shadow-slate-950/30 flex flex-col shrink-0 h-full border-r border-slate-800/80">
             <div className="px-5 pt-6 pb-5 border-b border-slate-800/80">
                 <div className="flex items-center gap-3">
                     <div className="h-11 w-11 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center p-1.5">
@@ -83,41 +112,50 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, u
                     </div>
                     <div>
                         <p className="text-2xl font-black tracking-tight leading-none">psi</p>
-                        <p className="text-[11px] text-slate-300 mt-1">Human Risk Intelligence</p>
+                        <p className="text-[11px] text-slate-300 mt-1">건설현장 안전관리</p>
                     </div>
                 </div>
             </div>
 
-            <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto custom-scrollbar">
-                {visibleMenuItems.map((item) => {
-                    const isActive = currentPage === item.id;
-                    return (
-                        <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => setCurrentPage(item.id)}
-                            className={`w-full flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all ${
-                                isActive
-                                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-700/30'
-                                    : 'text-slate-300 hover:text-white hover:bg-slate-800/90'
-                            }`}
-                            aria-current={isActive ? 'page' : undefined}
-                        >
-                            <span className="shrink-0">{item.icon}</span>
-                            <span className="truncate text-left">{getRouteLabel(item.id, uiMode)}</span>
-                        </button>
-                    );
-                })}
+            <nav className="flex-1 px-3 py-4 overflow-y-auto custom-scrollbar">
+                {groupedMenuItems.map((group) => (
+                    <section key={group.id} className="mb-3 last:mb-0">
+                        <h3 className="px-3 pb-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400">
+                            {group.label}
+                        </h3>
+                        <div className="space-y-1">
+                            {group.items.map((item) => {
+                                const isActive = currentPage === item.id;
+                                return (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        onClick={() => setCurrentPage(item.id)}
+                                        className={`w-full flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors ${
+                                            isActive
+                                                ? 'bg-orange-500/90 text-white shadow-sm shadow-orange-700/30'
+                                                : 'text-slate-300 hover:text-white hover:bg-slate-800/90'
+                                        }`}
+                                        aria-current={isActive ? 'page' : undefined}
+                                    >
+                                        <span className="shrink-0">{item.icon}</span>
+                                        <span className="truncate text-left">{getRouteLabel(item.id, uiMode)}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </section>
+                ))}
             </nav>
 
             <div className="p-4 border-t border-slate-800/80">
-                <div className="flex items-center gap-3 rounded-xl bg-slate-900 border border-slate-800 px-3 py-3">
+                <div className="flex items-center gap-3 rounded-xl bg-slate-900/80 border border-slate-700 px-3 py-3">
                     <div className="h-9 w-9 rounded-full bg-slate-700 flex items-center justify-center">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A11.955 11.955 0 0112 16c2.5 0 4.824.76 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     </div>
                     <div>
-                        <p className="text-sm font-bold text-slate-100">휘강준 관리자</p>
-                        <p className="text-xs text-slate-400">PSI 관리자</p>
+                        <p className="text-sm font-bold text-slate-100">현장 관리자</p>
+                        <p className="text-xs text-slate-400">안전 운영 계정</p>
                     </div>
                 </div>
             </div>
