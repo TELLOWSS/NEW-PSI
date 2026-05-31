@@ -997,6 +997,7 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
         String(parsed.aiInsights || '').trim().length > 0;
     const verificationAudit = evaluateOcrVerificationCompleteness({
         nationality: normalizedNationality,
+        language: String(parsed.language || 'unknown').trim(),
         jobField: String(parsed.jobField || '기타').trim(),
         weakAreas: toStringArray(parsed.weakAreas),
         aiInsights: String(parsed.aiInsights || '').trim(),

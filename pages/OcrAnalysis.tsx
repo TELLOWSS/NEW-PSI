@@ -181,7 +181,7 @@ const getFailureCodeTone = (code: OcrFailureCode): string => {
         case 'PAYLOAD':
             return BRAND_TONE.darkIndigo;
         case 'PARSE':
-            return BRAND_TONE.darkViolet;
+            return BRAND_TONE.darkVioletStrong;
         default:
             return BRAND_TONE.glassSoft;
     }

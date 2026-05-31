@@ -82,13 +82,14 @@ const SIDEBAR_GROUP_ORDER: ProductGroup[] = [
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, uiMode = 'practitioner' }) => {
     const { mode } = useOperationalMode();
+    const resolvedUiMode: UiAudienceMode = uiMode === 'worker' || uiMode === 'developer' ? uiMode : 'practitioner';
 
     const visibleMenuItems = useMemo(
         () =>
             sidebarMenuItems.filter(
-                (item) => isPageVisibleByOperationalMode(item.id, mode) && isRouteVisibleInMode(item.id, uiMode),
+                (item) => isPageVisibleByOperationalMode(item.id, mode) && isRouteVisibleInMode(item.id, resolvedUiMode),
             ),
-        [mode, uiMode],
+        [mode, resolvedUiMode],
     );
 
     const groupedMenuItems = useMemo(() => {
@@ -139,7 +140,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, u
                                         aria-current={isActive ? 'page' : undefined}
                                     >
                                         <span className="shrink-0">{item.icon}</span>
-                                        <span className="truncate text-left">{getRouteLabel(item.id, uiMode)}</span>
+                                        <span className="truncate text-left">{getRouteLabel(item.id, resolvedUiMode)}</span>
                                     </button>
                                 );
                             })}

@@ -1652,7 +1652,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     };
 
     const saveCurrentTradeComparisonPreset = () => {
-        const selectedTrades = Array.from(new Set(selectedTradesForComparison));
+        const selectedTrades = Array.from(new Set<string>(selectedTradesForComparison));
         if (selectedTrades.length < 2) return;
 
         const presetName = String(tradePresetNameDraft || '').trim() || `${selectedTrades.length}개 공종 비교`;
@@ -1824,7 +1824,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
     const saveCurrentTeamComparisonPreset = () => {
         if (!selectedTradeForComparison) return;
-        const selectedTeams = Array.from(new Set(selectedTeamsForComparison));
+        const selectedTeams = Array.from(new Set<string>(selectedTeamsForComparison));
         if (selectedTeams.length < 2) return;
 
         const presetName = String(presetNameDraft || '').trim() || `${selectedTradeForComparison} ${selectedTeams.length}팀 비교`;
@@ -2472,7 +2472,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             if (!date || Number.isNaN(date.getTime())) return '';
             const month = `${date.getMonth() + 1}`.padStart(2, '0');
             return `${date.getFullYear()}-${month}`;
-        }).filter(Boolean))).sort((left, right) => left.localeCompare(right));
+        }).filter((value): value is string => value.length > 0))).sort((left, right) => left.localeCompare(right));
         const latestMonth = monthKeys[monthKeys.length - 1] || '';
         const previousMonth = monthKeys[monthKeys.length - 2] || '';
 

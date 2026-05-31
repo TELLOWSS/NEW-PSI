@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import type { WorkerRecord } from '../types';
+import type { WorkerRecord } from '../../types';
 
 interface Intervention {
   priority: 'immediate' | 'medium' | 'long-term';

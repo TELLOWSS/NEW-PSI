@@ -1103,7 +1103,13 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             latestTimestamp: string;
         }>());
 
-        const topActions = Array.from(grouped.values())
+        const topActions = Array.from(grouped.values() as Iterable<{
+            key: string;
+            page: string;
+            actionKey: string;
+            count: number;
+            latestTimestamp: string;
+        }>)
             .sort((a, b) => b.count - a.count || b.latestTimestamp.localeCompare(a.latestTimestamp))
             .slice(0, 5);
 
