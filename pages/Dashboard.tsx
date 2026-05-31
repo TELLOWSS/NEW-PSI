@@ -35,7 +35,7 @@ import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMet
 import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { getUserRolePreset, mapUserRolePresetToDashboardAudience, USER_ROLE_PRESET_CHANGED_EVENT } from '../utils/userRolePresetUtils';
-import { EmptyState, MetricCard, RiskBadge } from '../components/common';
+import { EmptyState, MetricCard, RiskBadge, SectionCard, WorkTypeBadge } from '../components/common';
 
 const NationalityChart = lazy(() => import('../components/charts/NationalityChart').then(module => ({ default: module.NationalityChart })));
 const TopWeaknessesChart = lazy(() => import('../components/charts/TopWeaknessesChart').then(module => ({ default: module.TopWeaknessesChart })));
@@ -3017,13 +3017,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             {!isEssentialMode && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
                 <div className={`lg:col-span-2 ${audienceView === 'executive' ? 'lg:order-2' : 'lg:order-1'}`}>
-                    <div className="h-full rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-4 sm:p-5 lg:p-6">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                            <div>
-                                <p className="text-[11px] font-black uppercase tracking-[0.18em] text-indigo-500 dark:text-indigo-300">Survey Intelligence</p>
-                                <h3 className="mt-1 text-base sm:text-lg font-black text-slate-800 dark:text-slate-100">설문 기반 핵심지표 포지셔닝</h3>
-                                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">스마트액션센터 대신 현장 설문 분석 지표를 대시보드 핵심 영역에 배치했습니다.</p>
-                            </div>
+                    <SectionCard
+                        title="설문 기반 핵심지표 포지셔닝"
+                        subtitle="현장 설문 분석 지표를 대시보드 핵심 영역에 배치했습니다."
+                        action={(
                             <button
                                 type="button"
                                 onClick={() => setCurrentPage('survey-intelligence')}
@@ -3031,7 +3028,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             >
                                 설문 인텔리전스 상세 보기
                             </button>
-                        </div>
+                        )}
+                        className="h-full bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 shadow-lg hover:shadow-xl transition-shadow duration-300"
+                    >
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div className="rounded-xl border border-rose-200 dark:border-rose-800/50 bg-rose-50 dark:bg-rose-900/20 p-3">
                                 <p className="text-[11px] font-black text-rose-700 dark:text-rose-300">최대 인지 갭 공종</p>
@@ -3052,7 +3051,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         {!surveyDashboardSummary.hasData && (
                             <p className="mt-3 text-xs font-semibold text-slate-500 dark:text-slate-400">설문 수기답변 데이터(Q1~Q5) 누적 후 지표가 자동 계산됩니다.</p>
                         )}
-                    </div>
+                    </SectionCard>
                 </div>
                 <div className={`bg-white dark:bg-slate-800 p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 dark:border-slate-700 flex flex-col ${audienceView === 'executive' ? 'lg:order-1' : 'lg:order-2'}`}>
                     <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 text-slate-800 dark:text-slate-100">국적별 근로자 현황</h3>
@@ -3441,11 +3440,11 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     </div>
                         <div className="flex flex-wrap items-center gap-2">
                             {selectedTradeForComparison && (
-                                <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-black text-indigo-700">
-                                    <span className="sm:hidden">공종 </span>
-                                    <span className="hidden sm:inline">공종(작업 종류) </span>
-                                    {selectedTradeForComparison}
-                                </span>
+                                <WorkTypeBadge
+                                    workType={selectedTradeForComparison}
+                                    emphasis="strong"
+                                    className="bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-700 dark:text-indigo-100"
+                                />
                             )}
                             <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 text-[11px] font-black text-slate-700 dark:text-slate-100">
                                 메인 비교 {selectedTeamsForComparison.length}/{TEAM_COMPARISON_MAX_SELECTION}팀
