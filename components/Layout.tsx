@@ -1,7 +1,10 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Sidebar } from './Sidebar';
 import { Footer } from './Footer';
+import { AppShell } from './shell/AppShell';
+import { TopBar } from './shell/TopBar';
+import { PageHeader } from './shell/PageHeader';
+import { ShellBackground } from './shell/ShellBackground';
 import type { Page } from '../types';
 import { API_MODE_CHANGED_EVENT, getIsPaidApiMode } from '../utils/apiModeUtils';
 import { BestPracticeSyncBadge } from './shared/BestPracticeSyncBadge';
@@ -26,7 +29,13 @@ import {
     isLocalDevelopmentEnvironment,
     toggleDevDiagnosticsHiddenToggle,
 } from '../config/devDiagnosticsGate';
-import { getRouteLabel, getRouteMeta, type UiAudienceMode } from '../config/routeMeta';
+import {
+    getProductGroupLabel,
+    getRouteLabel,
+    getRouteMeta,
+    shouldShowPageHeader,
+    type UiAudienceMode,
+} from '../config/routeMeta';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -35,6 +44,32 @@ interface LayoutProps {
 }
 
 type MobileTabId = 'home' | 'alerts' | 'profile' | 'predictive' | 'more';
+
+const resolveSiteTitle = (): string => {
+    if (typeof window === 'undefined') return '현장 안전관리';
+
+    try {
+        const raw = localStorage.getItem('psi_app_settings');
+        if (!raw) return '현장 안전관리';
+        const parsed = JSON.parse(raw) as { siteName?: unknown };
+        const siteName = typeof parsed?.siteName === 'string' ? parsed.siteName.trim() : '';
+        return siteName || '현장 안전관리';
+    } catch {
+        return 'PSI 안전관리';
+    }
+};
+
+const formatTodayLabel = (): string => {
+    try {
+        return new Intl.DateTimeFormat('ko-KR', {
+            month: 'long',
+            day: 'numeric',
+            weekday: 'short',
+        }).format(new Date());
+    } catch {
+        return '오늘';
+    }
+};
 
 export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -69,6 +104,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const showDiagnosticsControls = diagnosticsAvailable && currentPage === 'settings';
     const currentRouteMeta = getRouteMeta(currentPage);
     const currentPageTitle = getRouteLabel(currentPage, uiAudienceMode);
+    const currentProductGroupLabel = getProductGroupLabel(currentRouteMeta.productGroup);
+    const showCommonPageHeader = shouldShowPageHeader(currentPage);
+    const siteTitle = resolveSiteTitle();
+    const todayLabel = formatTodayLabel();
+    const analysisModeLabel = isPaidApiMode ? '고급 분석 사용' : '기본 분석 사용';
 
     const mobilePageGroupsBase: Record<MobileTabId, Page[]> = {
         home: ['dashboard'],
@@ -269,158 +309,135 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     }, []);
 
     return (
-        <div className="flex h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors duration-200">
-            {/* Desktop Sidebar - Hidden on mobile */}
-            <div className="no-print hidden lg:block h-full">
-                <Sidebar currentPage={currentPage} setCurrentPage={handlePageChange} uiMode={uiAudienceMode} />
-            </div>
-
-            {/* Mobile Sidebar Overlay */}
-            {isMobileMenuOpen && (
-                <div className="lg:hidden fixed inset-0 z-50 no-print" role="dialog" aria-modal="true" aria-label="Navigation menu">
-                    {/* Backdrop */}
-                    <div 
-                        className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
-                        onClick={() => setIsMobileMenuOpen(false)}
-                        aria-hidden="true"
-                    />
-                    {/* Sidebar */}
-                    <div className="fixed inset-y-0 left-0 w-64 animate-fade-in">
-                        <Sidebar currentPage={currentPage} setCurrentPage={handlePageChange} uiMode={uiAudienceMode} />
+        <AppShell
+            desktopSidebar={<Sidebar currentPage={currentPage} setCurrentPage={handlePageChange} uiMode={uiAudienceMode} />}
+            mobileSidebarOverlay={
+                isMobileMenuOpen ? (
+                    <div className="fixed inset-0 z-50 no-print lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation menu">
+                        <div
+                            className="fixed inset-0 bg-black/60"
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            aria-hidden="true"
+                        />
+                        <div className="fixed inset-y-0 left-0 w-72 animate-fade-in">
+                            <Sidebar currentPage={currentPage} setCurrentPage={handlePageChange} uiMode={uiAudienceMode} />
+                        </div>
                     </div>
-                </div>
-            )}
-
-            <div className="flex-1 flex flex-col overflow-hidden w-full">
-                {/* Header with mobile hamburger */}
-                <header className="bg-white dark:bg-slate-800 shadow-sm dark:shadow-slate-900/50 z-10 shrink-0 no-print">
-                    <div className="mx-auto px-4 sm:px-6 lg:px-8">
-                       <div className="flex items-center h-14 sm:h-16 gap-2">
-                           {/* Mobile Menu Button */}
-                           <button
-                               onClick={() => setIsMobileMenuOpen(true)}
-                               className="lg:hidden p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors mr-3"
-                               aria-label="메뉴 열기"
-                               aria-expanded={isMobileMenuOpen}
-                           >
-                               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                               </svg>
-                           </button>
-                           
-                           <div className="flex items-center gap-2 flex-1 min-w-0">
-                               <h1 className="text-sm sm:text-lg lg:text-xl font-bold text-slate-900 dark:text-slate-100 truncate">
-                                   {currentPageTitle}
-                               </h1>
-                               <div
-                                   className="relative group/patent shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-                                   title="특허출원 제10-2026-0039151호 (발명자: 박성훈)"
-                                   aria-label="특허출원 상태"
-                                   tabIndex={0}
-                                   onKeyDown={(e) => {
-                                       if (e.key === 'Escape') {
-                                           (e.currentTarget as HTMLDivElement).blur();
-                                       }
-                                   }}
-                               >
-                                   <StatusBadge variant="sky" className="gap-1 text-xs font-bold">
-                                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l7 4v5c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V7l7-4z" />
-                                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
-                                       </svg>
-                                       <span className="hidden md:inline">Pat. Pending</span>
-                                   </StatusBadge>
-                                   <div className="pointer-events-none absolute left-0 top-full z-30 mt-2 max-w-[min(260px,calc(100vw-2rem))] rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-medium text-white opacity-0 shadow-lg transition-all duration-200 group-hover/patent:translate-y-0 group-hover/patent:opacity-100 group-focus-within/patent:translate-y-0 group-focus-within/patent:opacity-100 translate-y-1 sm:left-1/2 sm:w-max sm:max-w-none sm:-translate-x-1/2">
-                                       특허출원 제10-2026-0039151호 (발명자: 박성훈)
-                                   </div>
-                               </div>
-                           </div>
-                           <StatusBadge variant={isPaidApiMode ? 'roseSoft' : 'emeraldSoft'} className="px-2 py-1 text-[10px] sm:text-xs">
-                               <span className="sm:hidden">{isPaidApiMode ? '유료' : '무료'}</span>
-                               <span className="hidden sm:inline">{isPaidApiMode ? '유료 API' : '무료 API'}</span>
-                           </StatusBadge>
-                           <button
-                               type="button"
-                               onClick={() => setUserRolePreset(cycleUserRolePreset())}
-                               className="ml-1 rounded-lg border border-emerald-200 dark:border-emerald-500/50 bg-emerald-50 dark:bg-emerald-500/20 px-2 h-8 text-[10px] font-black text-emerald-700 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-500/30 transition-colors"
-                               title="사용자군 프리셋 순환: 실무자 → 관리자 → 소장"
-                               aria-label="사용자군 프리셋 변경"
-                           >
-                               {getUserRolePresetLabel(userRolePreset)}
-                           </button>
-                           {showDiagnosticsControls && (
-                               <button
-                                   type="button"
-                                   onClick={cycleOperationalMode}
-                                   className="ml-1 rounded-lg border border-indigo-200 dark:border-indigo-500/50 bg-indigo-50 dark:bg-indigo-500/20 px-2 h-8 text-[10px] font-black text-indigo-700 dark:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-500/30 transition-colors"
-                                   title="운영 모드 순환: 실무 즉시 → 표준 운영 → 개발 확장"
-                                   aria-label="운영 모드 변경"
-                               >
-                                   {getOperationalModeLabel(operationalMode)}
-                               </button>
-                           )}
-                           {isDevMode && uiAudienceMode === 'developer' && <BestPracticeSyncBadge state={bestPracticeSyncState} failureLogs={bestPracticeFailureLogs} />}
-                           {showDiagnosticsControls && (
-                               <button
-                                   type="button"
-                                   onClick={toggleDevMode}
-                                   className={`ml-1 flex items-center justify-center rounded-lg border px-2 h-8 text-[10px] font-black tracking-wider transition-colors ${
-                                       isDevMode
-                                           ? 'border-violet-400 bg-violet-600 text-white hover:bg-violet-500'
-                                           : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-600'
-                                   }`}
-                                   aria-label={isDevMode ? '진단 기능 끄기' : '진단 기능 켜기'}
-                                   title={isDevMode ? '진단 기능 ON' : '진단 기능 OFF'}
-                               >
-                                   {isDevMode ? '진단 ON' : '진단 OFF'}
-                               </button>
-                           )}
-                           {/* 다크모드 토글 */}
-                           <button
-                               type="button"
-                               onClick={handleToggleTheme}
-                               className="ml-1 flex items-center justify-center w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
-                               aria-label={`테마 전환 (현재: ${themeMode === 'system' ? `시스템/${isDark ? '다크' : '라이트'}` : themeMode === 'dark' ? '다크' : '라이트'})`}
-                               title={`테마: ${themeMode === 'system' ? `시스템/${isDark ? '다크' : '라이트'}` : themeMode === 'dark' ? '다크' : '라이트'} (클릭: 라이트→다크→시스템 순환)`}
-                           >
-                               {isDark ? (
-                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                       <circle cx="12" cy="12" r="5" strokeWidth={2} />
-                                       <path strokeLinecap="round" strokeWidth={2} d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-                                   </svg>
-                               ) : (
-                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-                                   </svg>
-                               )}
-                           </button>
-                       </div>
-                       <div className="lg:hidden pb-3 -mt-1 flex gap-2 overflow-x-auto no-scrollbar">
-                           {mobileQuickLinks.map((item) => {
-                               const isActive = currentPage === item.page;
-                               return (
-                                   <button
-                                       key={item.page}
-                                       type="button"
-                                       onClick={() => handlePageChange(item.page)}
-                                       className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${isActive ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200'}`}
-                                   >
-                                       {item.label}
-                                   </button>
-                               );
-                           })}
-                       </div>
-                       <p className="hidden sm:block pb-2 text-xs text-slate-500 dark:text-slate-400">
-                           {currentRouteMeta.description}
-                       </p>
-                    </div>
-                </header>
-                <main ref={mainRef} className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 pb-24 lg:pb-10">
+                ) : undefined
+            }
+            topBar={
+                <TopBar
+                    siteName={siteTitle}
+                    currentPageTitle={currentPageTitle}
+                    todayLabel={todayLabel}
+                    statusLabel="정상 운영"
+                    analysisModeLabel={analysisModeLabel}
+                    isMobileMenuOpen={isMobileMenuOpen}
+                    onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+                    isDark={isDark}
+                    themeMode={themeMode}
+                    onToggleTheme={handleToggleTheme}
+                    patentBadge={
+                        <div
+                            className="relative group/patent shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+                            title="특허출원 제10-2026-0039151호 (발명자: 박성훈)"
+                            aria-label="특허출원 상태"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                    (e.currentTarget as HTMLDivElement).blur();
+                                }
+                            }}
+                        >
+                            <StatusBadge variant="sky" className="gap-1 text-xs font-bold">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l7 4v5c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V7l7-4z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
+                                </svg>
+                                <span className="hidden md:inline">Pat. Pending</span>
+                            </StatusBadge>
+                            <div className="pointer-events-none absolute left-0 top-full z-30 mt-2 max-w-[min(260px,calc(100vw-2rem))] rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-medium text-white opacity-0 shadow-lg transition-all duration-200 group-hover/patent:translate-y-0 group-hover/patent:opacity-100 group-focus-within/patent:translate-y-0 group-focus-within/patent:opacity-100 translate-y-1 sm:left-1/2 sm:w-max sm:max-w-none sm:-translate-x-1/2">
+                                특허출원 제10-2026-0039151호 (발명자: 박성훈)
+                            </div>
+                        </div>
+                    }
+                    controls={
+                        <>
+                            <button
+                                type="button"
+                                onClick={() => setUserRolePreset(cycleUserRolePreset())}
+                                className="ml-1 rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2 h-8 text-[10px] font-black text-emerald-200 transition-colors hover:bg-emerald-500/25"
+                                title="사용자군 프리셋 순환: 실무자 → 관리자 → 소장"
+                                aria-label="사용자군 프리셋 변경"
+                            >
+                                {getUserRolePresetLabel(userRolePreset)}
+                            </button>
+                            {showDiagnosticsControls && (
+                                <button
+                                    type="button"
+                                    onClick={cycleOperationalMode}
+                                    className="ml-1 rounded-lg border border-indigo-400/40 bg-indigo-500/15 px-2 h-8 text-[10px] font-black text-indigo-200 transition-colors hover:bg-indigo-500/25"
+                                    title="운영 모드 순환: 실무 즉시 → 표준 운영 → 개발 확장"
+                                    aria-label="운영 모드 변경"
+                                >
+                                    {getOperationalModeLabel(operationalMode)}
+                                </button>
+                            )}
+                            {isDevMode && uiAudienceMode === 'developer' && <BestPracticeSyncBadge state={bestPracticeSyncState} failureLogs={bestPracticeFailureLogs} />}
+                            {showDiagnosticsControls && (
+                                <button
+                                    type="button"
+                                    onClick={toggleDevMode}
+                                    className={`ml-1 flex items-center justify-center rounded-lg border px-2 h-8 text-[10px] font-black tracking-wider transition-colors ${
+                                        isDevMode
+                                            ? 'border-violet-400 bg-violet-600 text-white hover:bg-violet-500'
+                                            : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                    }`}
+                                    aria-label={isDevMode ? '진단 기능 끄기' : '진단 기능 켜기'}
+                                    title={isDevMode ? '진단 기능 ON' : '진단 기능 OFF'}
+                                >
+                                    {isDevMode ? '진단 ON' : '진단 OFF'}
+                                </button>
+                            )}
+                        </>
+                    }
+                />
+            }
+            content={
+                <main ref={mainRef} className="relative flex-1 overflow-y-auto p-3 pb-24 sm:p-4 md:p-6 lg:p-8 lg:pb-10">
+                    <ShellBackground isDark={isDark} />
                     <div key={currentPage} className="mx-auto max-w-7xl animate-fade-in-up">
+                        <div className="mb-3 flex gap-2 overflow-x-auto no-scrollbar lg:hidden">
+                            {mobileQuickLinks.map((item) => {
+                                const isActive = currentPage === item.page;
+                                return (
+                                    <button
+                                        key={item.page}
+                                        type="button"
+                                        onClick={() => handlePageChange(item.page)}
+                                        className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${
+                                            isActive
+                                                ? 'border-orange-400/70 bg-orange-500/85 text-white'
+                                                : 'border-slate-600 bg-slate-900/70 text-slate-200'
+                                        }`}
+                                    >
+                                        {item.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <PageHeader
+                            show={showCommonPageHeader}
+                            groupLabel={currentProductGroupLabel}
+                            title={currentPageTitle}
+                            description={currentRouteMeta.description}
+                        />
                         {children}
                     </div>
                 </main>
-                <nav className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] pt-2 shadow-[0_-8px_30px_rgba(15,23,42,0.08)] backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 no-print" aria-label="모바일 하단 탐색">
+            }
+            mobileBottomNav={
+                <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-700 bg-slate-900/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] pt-2 backdrop-blur lg:hidden no-print" aria-label="모바일 하단 탐색">
                     <div className="grid grid-cols-5 gap-1">
                         {mobileBottomTabs.map((tab) => {
                             const isActive = tab.id === activeMobileTab;
@@ -435,7 +452,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                     key={tab.id}
                                     type="button"
                                     onClick={handleClick}
-                                    className={`flex min-h-[60px] flex-col items-center justify-center rounded-2xl px-1 py-2 text-[11px] font-bold transition-colors ${isActive ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200' : 'text-slate-500 dark:text-slate-400'}`}
+                                    className={`flex min-h-[60px] flex-col items-center justify-center rounded-2xl px-1 py-2 text-[11px] font-bold transition-colors ${
+                                        isActive
+                                            ? 'bg-orange-500/20 text-orange-200'
+                                            : 'text-slate-400'
+                                    }`}
                                     aria-current={isActive ? 'page' : undefined}
                                 >
                                     <span>{tab.icon}</span>
@@ -445,12 +466,13 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                         })}
                     </div>
                 </nav>
-                {/* 최상단으로 이동 버튼 */}
-                {showScrollTop && (
+            }
+            scrollTopButton={
+                showScrollTop ? (
                     <button
                         type="button"
                         onClick={handleScrollToTop}
-                        className="fixed bottom-24 right-5 z-[300] flex h-11 w-11 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg ring-1 ring-indigo-700 transition-all duration-200 hover:bg-indigo-500 active:scale-95 lg:bottom-6 no-print"
+                        className="fixed bottom-24 right-5 z-[300] flex h-11 w-11 items-center justify-center rounded-full bg-orange-500 text-white shadow-md transition-colors hover:bg-orange-400 active:scale-95 lg:bottom-6 no-print"
                         aria-label="최상단으로 이동"
                         title="최상단으로 이동"
                     >
@@ -458,9 +480,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
                         </svg>
                     </button>
-                )}
-            </div>
-            <Footer />
-        </div>
+                ) : undefined
+            }
+            footer={<Footer />}
+        />
     );
 };
