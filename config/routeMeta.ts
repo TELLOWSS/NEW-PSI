@@ -353,3 +353,26 @@ export const isRouteVisibleInMode = (page: Page, mode: UiAudienceMode): boolean 
     if (mode === 'worker') return meta.menuVisibleInWorkerMode;
     return meta.menuVisibleInPractitionerMode;
 };
+
+const PRODUCT_GROUP_LABEL_MAP: Record<ProductGroup, string> = {
+    'dashboard': '현장 관제',
+    'tbm': 'TBM 관리',
+    'risk-assessment': '위험성평가',
+    'archive': '문서 보관',
+    'analytics': '안전 분석',
+    'reports': '리포트',
+    'worker': '근로자',
+};
+
+const PAGE_HEADER_HIDDEN_MAP: Partial<Record<Page, boolean>> = {
+    'dashboard': true,
+    'worker-training': true,
+    'ocr-analysis': true,
+    'reports': true,
+};
+
+export const getProductGroupLabel = (group: ProductGroup): string =>
+    PRODUCT_GROUP_LABEL_MAP[group] || '현장 관제';
+
+export const shouldShowPageHeader = (page: Page): boolean =>
+    PAGE_HEADER_HIDDEN_MAP[page] !== true;
