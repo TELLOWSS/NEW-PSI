@@ -295,6 +295,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const [opsAlertSyncState, setOpsAlertSyncState] = useState<OpsAlertSyncState>('idle');
     const [opsAlertSyncNote, setOpsAlertSyncNote] = useState('최근 상태를 아직 불러오지 않았습니다. 필요 시 최신 상태 불러오기를 눌러 확인해 주세요.');
     const [hasOpsAlertServerFetched, setHasOpsAlertServerFetched] = useState(false);
+    const [isOpsAlertPending, setIsOpsAlertPending] = useState(false);
     const [opsAlertActionFilter, setOpsAlertActionFilter] = useState<'all' | OpsAlertClickLog['action']>('all');
     const [opsAlertDatePreset, setOpsAlertDatePreset] = useState<OpsAlertDatePreset>('all');
     const [opsAlertStartDate, setOpsAlertStartDate] = useState('');
@@ -348,8 +349,11 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const [previewWorkflowStatusLoading, setPreviewWorkflowStatusLoading] = useState(false);
     const [previewWorkflowStatusError, setPreviewWorkflowStatusError] = useState<string | null>(null);
     const [hasPreviewStatusFetched, setHasPreviewStatusFetched] = useState(false);
+    const [isPreviewStatusPending, setIsPreviewStatusPending] = useState(false);
     const opsAlertServerFetchRef = useRef<(() => void) | null>(null);
     const previewStatusFetchRef = useRef<(() => void) | null>(null);
+    const opsAlertLogsRequestInFlightRef = useRef(false);
+    const previewStatusRequestInFlightRef = useRef(false);
     const quickActionMetricSessionRef = useRef<string>(createMetricSessionId('reports'));
 
     useEffect(() => {
@@ -491,8 +495,18 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         readOpsAlertLogs();
         readIntroQaRunlog();
         opsAlertServerFetchRef.current = () => {
+            if (opsAlertLogsRequestInFlightRef.current) return;
+            opsAlertLogsRequestInFlightRef.current = true;
+            setIsOpsAlertPending(true);
             setHasOpsAlertServerFetched(true);
-            loadOpsAlertLogsFromServer().catch(() => undefined);
+            loadOpsAlertLogsFromServer()
+                .catch(() => undefined)
+                .finally(() => {
+                    window.setTimeout(() => {
+                        opsAlertLogsRequestInFlightRef.current = false;
+                        setIsOpsAlertPending(false);
+                    }, 450);
+                });
         };
 
         const handleStorage = (event: StorageEvent) => {
@@ -509,6 +523,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         return () => {
             window.removeEventListener('storage', handleStorage);
             opsAlertServerFetchRef.current = null;
+            opsAlertLogsRequestInFlightRef.current = false;
+            setIsOpsAlertPending(false);
         };
     }, []);
 
@@ -1123,6 +1139,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 setPreviewWorkflowStatus(null);
                 setPreviewWorkflowStatusError(null);
                 setPreviewWorkflowStatusLoading(false);
+                window.setTimeout(() => {
+                    previewStatusRequestInFlightRef.current = false;
+                    setIsPreviewStatusPending(false);
+                }, 450);
                 return;
             }
 
@@ -1143,10 +1163,17 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 if (!disposed) {
                     setPreviewWorkflowStatusLoading(false);
                 }
+                window.setTimeout(() => {
+                    previewStatusRequestInFlightRef.current = false;
+                    setIsPreviewStatusPending(false);
+                }, 450);
             }
         };
 
         previewStatusFetchRef.current = () => {
+            if (previewStatusRequestInFlightRef.current) return;
+            previewStatusRequestInFlightRef.current = true;
+            setIsPreviewStatusPending(true);
             setHasPreviewStatusFetched(true);
             loadPreviewWorkflowStatus().catch(() => undefined);
         };
@@ -1154,10 +1181,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         return () => {
             disposed = true;
             previewStatusFetchRef.current = null;
+            previewStatusRequestInFlightRef.current = false;
+            setIsPreviewStatusPending(false);
         };
     }, [currentPreviewRecord?.id, currentPreviewRecord?.workflowRunId]);
 
     const handleLoadPreviewStatus = () => {
+        if (!currentPreviewRecord) return;
+        if (isPreviewStatusPending) return;
         previewStatusFetchRef.current?.();
     };
 
@@ -3274,9 +3305,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         <button
                             type="button"
                             onClick={handleLoadLatestOpsAlertStatus}
-                            className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700 hover:bg-emerald-100"
+                            disabled={opsAlertSyncState === 'syncing' || isOpsAlertPending}
+                            className={`rounded-lg border px-2.5 py-1 text-[10px] font-black ${(opsAlertSyncState === 'syncing' || isOpsAlertPending) ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
                         >
-                            최신 상태 불러오기
+                            {(opsAlertSyncState === 'syncing' || isOpsAlertPending) ? '불러오는 중…' : '최신 상태 불러오기'}
                         </button>
                         <span className="rounded-full bg-slate-100 border border-slate-200 px-2.5 py-1 text-[10px] font-black text-slate-600">
                             {Math.min(10, filteredOpsAlertClickLogs.length)}건 표시
@@ -4593,10 +4625,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                         <button
                                             type="button"
                                             onClick={handleLoadPreviewStatus}
-                                            disabled={!currentPreviewRecord}
-                                            className={`rounded-lg border px-3 py-1.5 text-[11px] font-black ${!currentPreviewRecord ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+                                            disabled={!currentPreviewRecord || isPreviewStatusPending}
+                                            className={`rounded-lg border px-3 py-1.5 text-[11px] font-black ${(!currentPreviewRecord || isPreviewStatusPending) ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
                                         >
-                                            상태 조회
+                                            {isPreviewStatusPending ? '조회 중…' : '상태 조회'}
                                         </button>
                                         <p className="text-[11px] font-bold text-slate-500">선택한 항목의 현재 상태를 확인합니다.</p>
                                     </div>
