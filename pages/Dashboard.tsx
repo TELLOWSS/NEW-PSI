@@ -35,7 +35,7 @@ import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMet
 import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { getUserRolePreset, mapUserRolePresetToDashboardAudience, USER_ROLE_PRESET_CHANGED_EVENT } from '../utils/userRolePresetUtils';
-import { EmptyState, MetricCard, RiskBadge, SectionCard, WorkTypeBadge } from '../components/common';
+import { EmptyState, LoadingSkeleton, MetricCard, RiskBadge, SectionCard, WorkTypeBadge } from '../components/common';
 
 const NationalityChart = lazy(() => import('../components/charts/NationalityChart').then(module => ({ default: module.NationalityChart })));
 const TopWeaknessesChart = lazy(() => import('../components/charts/TopWeaknessesChart').then(module => ({ default: module.TopWeaknessesChart })));
@@ -4656,10 +4656,8 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 </div>
                             )}
                             <DeferredSection fallback={<ChartSkeleton minHeight="220px" />} rootMargin="120px">
-                                <Suspense fallback={<ChartSkeleton minHeight="220px" />}>
-                                    <WorkerTrendPanel
-                                        targetGroup={activeDetailGroup}
-                                    />
+                                <Suspense fallback={<div className="min-h-[220px]"><LoadingSkeleton variant="list" rows={2} dense /></div>}>
+                                    <WorkerTrendPanel targetGroup={activeDetailGroup} />
                                 </Suspense>
                             </DeferredSection>
                         </>
