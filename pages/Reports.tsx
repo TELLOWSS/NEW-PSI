@@ -293,7 +293,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const [opsAlertClickLogs, setOpsAlertClickLogs] = useState<OpsAlertClickLog[]>([]);
     const [introQaAlertRunlog, setIntroQaAlertRunlog] = useState<IntroQaAlertRunlogEntry[]>([]);
     const [opsAlertSyncState, setOpsAlertSyncState] = useState<OpsAlertSyncState>('idle');
-    const [opsAlertSyncNote, setOpsAlertSyncNote] = useState('');
+    const [opsAlertSyncNote, setOpsAlertSyncNote] = useState('최근 상태를 아직 불러오지 않았습니다. 필요 시 최신 상태 불러오기를 눌러 확인해 주세요.');
+    const [hasOpsAlertServerFetched, setHasOpsAlertServerFetched] = useState(false);
     const [opsAlertActionFilter, setOpsAlertActionFilter] = useState<'all' | OpsAlertClickLog['action']>('all');
     const [opsAlertDatePreset, setOpsAlertDatePreset] = useState<OpsAlertDatePreset>('all');
     const [opsAlertStartDate, setOpsAlertStartDate] = useState('');
@@ -346,6 +347,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const [previewWorkflowStatus, setPreviewWorkflowStatus] = useState<Awaited<ReturnType<typeof fetchHarnessWorkflowStatus>> | null>(null);
     const [previewWorkflowStatusLoading, setPreviewWorkflowStatusLoading] = useState(false);
     const [previewWorkflowStatusError, setPreviewWorkflowStatusError] = useState<string | null>(null);
+    const [hasPreviewStatusFetched, setHasPreviewStatusFetched] = useState(false);
+    const opsAlertServerFetchRef = useRef<(() => void) | null>(null);
+    const previewStatusFetchRef = useRef<(() => void) | null>(null);
     const quickActionMetricSessionRef = useRef<string>(createMetricSessionId('reports'));
 
     useEffect(() => {
@@ -486,7 +490,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
         readOpsAlertLogs();
         readIntroQaRunlog();
-        void loadOpsAlertLogsFromServer();
+        opsAlertServerFetchRef.current = () => {
+            setHasOpsAlertServerFetched(true);
+            loadOpsAlertLogsFromServer().catch(() => undefined);
+        };
 
         const handleStorage = (event: StorageEvent) => {
             if (!event.key || event.key === OPS_ALERT_CLICK_LOG_KEY) {
@@ -501,8 +508,13 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
         return () => {
             window.removeEventListener('storage', handleStorage);
+            opsAlertServerFetchRef.current = null;
         };
     }, []);
+
+    const handleLoadLatestOpsAlertStatus = () => {
+        opsAlertServerFetchRef.current?.();
+    };
 
     const latestIntroQaRunlog = introQaAlertRunlog[0] || null;
 
@@ -1100,6 +1112,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
     useEffect(() => {
         let disposed = false;
+        setHasPreviewStatusFetched(false);
+        setPreviewWorkflowStatus(null);
+        setPreviewWorkflowStatusError(null);
+        setPreviewWorkflowStatusLoading(false);
 
         const loadPreviewWorkflowStatus = async () => {
             const lookupValue = String(currentPreviewRecord?.workflowRunId || currentPreviewRecord?.id || '').trim();
@@ -1130,12 +1146,20 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             }
         };
 
-        void loadPreviewWorkflowStatus();
+        previewStatusFetchRef.current = () => {
+            setHasPreviewStatusFetched(true);
+            loadPreviewWorkflowStatus().catch(() => undefined);
+        };
 
         return () => {
             disposed = true;
+            previewStatusFetchRef.current = null;
         };
     }, [currentPreviewRecord?.id, currentPreviewRecord?.workflowRunId]);
+
+    const handleLoadPreviewStatus = () => {
+        previewStatusFetchRef.current?.();
+    };
 
     useEffect(() => {
         let disposed = false;
@@ -3247,6 +3271,13 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 <div className="flex items-center justify-between gap-2">
                     <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-700">경보 CTA 클릭 로그 (최근 10건)</p>
                     <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={handleLoadLatestOpsAlertStatus}
+                            className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700 hover:bg-emerald-100"
+                        >
+                            최신 상태 불러오기
+                        </button>
                         <span className="rounded-full bg-slate-100 border border-slate-200 px-2.5 py-1 text-[10px] font-black text-slate-600">
                             {Math.min(10, filteredOpsAlertClickLogs.length)}건 표시
                         </span>
@@ -3270,7 +3301,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 </div>
                 <p className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
                     동기화 상태: {opsAlertSyncState === 'server' ? '서버 연결' : opsAlertSyncState === 'syncing' ? '확인 중' : opsAlertSyncState === 'fallback' ? '로컬 폴백' : '초기 상태'}
-                    {opsAlertSyncNote ? ` · ${opsAlertSyncNote}` : ''}
+                    {hasOpsAlertServerFetched
+                        ? (opsAlertSyncNote ? ` · ${opsAlertSyncNote}` : '')
+                        : ' · 최근 상태를 아직 불러오지 않았습니다. 필요 시 최신 상태 불러오기를 눌러 확인해 주세요.'}
                 </p>
 
                 <div className="mt-2 rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2">
@@ -4556,6 +4589,20 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                             <p className="mt-1 text-xs font-black text-slate-700 break-all">{currentPreviewHarnessVersions.ruleVersion}</p>
                                         </div>
                                     </div>
+                                    <div className="mt-3 flex items-center gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={handleLoadPreviewStatus}
+                                            disabled={!currentPreviewRecord}
+                                            className={`rounded-lg border px-3 py-1.5 text-[11px] font-black ${!currentPreviewRecord ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' : 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+                                        >
+                                            상태 조회
+                                        </button>
+                                        <p className="text-[11px] font-bold text-slate-500">선택한 항목의 현재 상태를 확인합니다.</p>
+                                    </div>
+                                    {!hasPreviewStatusFetched ? (
+                                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">아직 상태를 조회하지 않았습니다. 필요 시 버튼을 눌러 확인해 주세요.</p>
+                                    ) : null}
                                     {previewWorkflowStatusLoading ? (
                                         <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">안전 기록 버전 스냅샷을 불러오는 중입니다.</p>
                                     ) : null}
