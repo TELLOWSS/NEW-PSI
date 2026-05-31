@@ -866,20 +866,25 @@ export const buildWorkerRegisteredCards = (options: {
 
     return [
         {
+            key: 'worker-registration-status',
             eyebrow: '지금 상태',
             title: `현재 화면에서 ${visibleWorkersLength}명을 보고 있고 중복 후보는 ${duplicateWorkerCount}명입니다.`,
             description:
                 duplicateGroupCount > 0
                     ? `${duplicateGroupCount}개 그룹에서 같은 사람으로 보이는 등록이 반복되고 있어, 발급 전 기준 데이터 정리가 필요한 상태입니다.`
                     : '현재 필터 기준에서는 즉시 정리해야 할 중복 신호가 크지 않아, 현장 발급 흐름을 이어갈 수 있습니다.',
+            tone: BRAND_TONE.indigoSoft70,
         },
         {
+            key: 'worker-registration-evidence',
             eyebrow: '판단 근거',
             title: `연락처·생년월일·여권번호 중 ${missingAnyCount}명이 최소 1개 이상 확인이 더 필요합니다.`,
             description:
                 `전화번호 ${missingPhone}명, 생년월일 ${missingBirth}명, 여권번호 ${missingPassport}명이 비어 있어 문자 발송과 본인 확인 신뢰에 직접 영향을 줍니다.`,
+            tone: BRAND_TONE.whiteSoft,
         },
         {
+            key: 'worker-registration-action',
             eyebrow: '다음 행동',
             title:
                 autoDeleteCount > 0
@@ -889,14 +894,17 @@ export const buildWorkerRegisteredCards = (options: {
                 autoDeleteCount > 0
                     ? '중복 그룹 미리보기에서 보존 후보를 확인한 뒤 자동선택으로 정리하면 이후 문자 발송과 발급 이력이 한 사람 기준으로 정리됩니다.'
                     : '필터에서 누락 항목을 좁힌 뒤 등록 정보를 보완하면 문자 발송 이력과 보안 패스 발급 연결이 더 안정적으로 유지됩니다.',
+            tone: autoDeleteCount > 0 ? BRAND_TONE.amberSoft80 : BRAND_TONE.emeraldSoft80,
         },
         {
+            key: 'worker-safety-context',
             eyebrow: '하네스 보호 맥락',
             title: `최신 리포트 연결 ${harnessSummary.linkedReport}명 중 ${harnessSummary.reviewNeeded}명은 추가 보호 판단이 필요합니다.`,
             description:
                 harnessSummary.fallback > 0
                     ? `하네스 저장 폴백 ${harnessSummary.fallback}명, 저장 대기 ${harnessSummary.pending}명입니다. 등록 정보 정리와 함께 저장 연결 상태를 다시 확인해야 합니다.`
                     : `즉시 보호 대상 ${harnessSummary.highRisk}명, 최신 리포트 미연결 ${harnessSummary.missingReport}명입니다.`,
+            tone: BRAND_TONE.violetSoft80,
         },
     ];
 };
@@ -931,13 +939,16 @@ export const buildWorkerMessageDashboardCards = (options: {
 
     return [
         {
+            key: 'worker-message-status',
             eyebrow: '지금 상태',
             title: `${rangeLabel} 기준 ${totalCount}건 중 ${successRate}%가 정상 전달됐습니다.`,
             description: hasAttention
                 ? `${failedCount}건은 추가 확인이 필요하며, 현장 커뮤니케이션이 끊기지 않도록 우선순위 판단이 필요한 상태입니다.`
                 : '현재 범위에서는 발송 흐름이 안정적으로 유지되고 있어 추가 개입 필요도가 낮습니다.',
+            tone: BRAND_TONE.indigoSoft70,
         },
         {
+            key: 'worker-message-evidence',
             eyebrow: '판단 근거',
             title: hasAttention
                 ? `가장 많이 보이는 신호는 ${topFailureCategory || '미분류'}입니다.`
@@ -945,14 +956,17 @@ export const buildWorkerMessageDashboardCards = (options: {
             description: primaryFailureGuide
                 ? `${primaryFailureGuide.reason}이 ${primaryFailureGuide.count}건으로 가장 자주 보여, ${primaryFailureGuide.action} 흐름을 우선 적용하는 것이 좋습니다.`
                 : '월별·팀별 집계를 함께 보면 특정 팀이나 시점에 발송 품질이 흔들렸는지 빠르게 파악할 수 있습니다.',
+            tone: BRAND_TONE.whiteSoft,
         },
         {
+            key: 'worker-message-action',
             eyebrow: '다음 행동',
             title: `${retryLabel} ${retryCandidateCount}건을 먼저 확인해 다시 보낼 수 있는 대상을 가려내세요.`,
             description:
                 retryCandidateCount > 0
                     ? '재시도 큐에서 전화번호·등록 근로자·리포트 원본이 모두 연결된 대상을 먼저 선택하면, 실패 원인을 다시 찾는 시간보다 복구 속도를 더 빠르게 가져갈 수 있습니다.'
                     : '현재는 재시도 후보가 많지 않으므로, 신규 발송 품질 유지와 주요 실패 원인 예방에 집중하면 됩니다.',
+            tone: hasAttention ? BRAND_TONE.amberSoft80 : BRAND_TONE.emeraldSoft80,
         },
     ];
 };

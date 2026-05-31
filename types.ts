@@ -1,5 +1,4 @@
-
-export type Page = 
+﻿export type Page = 
     'dashboard' | 
     'ocr-analysis' | 
     'worker-management' | 
@@ -337,10 +336,6 @@ export interface WorkerRecord {
     riskDecision?: HarnessRiskDecision;
     approvalState?: HarnessApprovalState;
     harnessPersistenceWarning?: string;
-    /** P0: UNKNOWN 실패 2차 분류 */
-    ocrUnknownSubCategory?: OcrUnknownSubCategory;
-    /** P0: OCR 처리 추적 정보 */
-    ocrTrace?: OcrTraceInfo;
 }
 
 export interface HighRiskWorker {

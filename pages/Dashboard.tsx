@@ -2468,12 +2468,12 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         });
         const topGap = [...tradeGapRows].sort((left, right) => right.gap - left.gap)[0] || { trade: '-', gap: 0 };
 
-        const monthKeys = Array.from(new Set(recordsWithAnswers.map((record) => {
+        const monthKeys = (Array.from(new Set(recordsWithAnswers.map((record) => {
             const date = record.date ? new Date(record.date) : null;
             if (!date || Number.isNaN(date.getTime())) return '';
             const month = `${date.getMonth() + 1}`.padStart(2, '0');
             return `${date.getFullYear()}-${month}`;
-        }).filter((value): value is string => value.length > 0))).sort((left, right) => left.localeCompare(right));
+        }))).filter(Boolean) as string[]).sort((left, right) => left.localeCompare(right));
         const latestMonth = monthKeys[monthKeys.length - 1] || '';
         const previousMonth = monthKeys[monthKeys.length - 2] || '';
 
