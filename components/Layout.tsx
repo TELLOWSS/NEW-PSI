@@ -18,6 +18,9 @@ import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { getOperationalModeLabel, isPageVisibleByOperationalMode } from '../utils/operationalModeUtils';
 import { cycleUserRolePreset, getUserRolePreset, getUserRolePresetLabel, USER_ROLE_PRESET_CHANGED_EVENT, type UserRolePreset } from '../utils/userRolePresetUtils';
+import { isAdminAuthenticated } from '../utils/adminGuard';
+import { canUseDevDiagnostics, isDevDiagnosticsHiddenToggleEnabled, toggleDevDiagnosticsHiddenToggle } from '../config/devDiagnosticsGate';
+import { getRouteLabel, getRouteMeta, type UiAudienceMode } from '../config/routeMeta';
 
 interface LayoutProps {
     children: React.ReactNode;
@@ -39,30 +42,26 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const { isDevMode, toggle: toggleDevMode } = useDevMode();
     const { mode: operationalMode, cycleMode: cycleOperationalMode } = useOperationalMode();
     const [userRolePreset, setUserRolePreset] = useState<UserRolePreset>(() => getUserRolePreset());
+    const [devDiagnosticsHiddenToggleEnabled, setDevDiagnosticsHiddenToggleEnabled] = useState<boolean>(() => isDevDiagnosticsHiddenToggleEnabled());
 
     const handleScrollToTop = useCallback(() => {
         mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }, []);
 
-    const pageTitles: { [key in Page]: string } = {
-        'dashboard': '홈 대시보드',
-        'ocr-analysis': '태깅 검증',
-        'worker-management': '개인지 인지 프로파일',
-        'predictive-analysis': '위험 예측',
-        'performance-analysis': '성과 추이 분석',
-        'safety-checks': '위험인지 진단',
-        'site-issue-management': '경보 알림',
-        'safety-behavior-management': '개입 추천',
-        'safety-compliance-hub': '현장 컨텍스트',
-        'reports': '분석 리포트',
-        'feedback': '피드백 및 업데이트',
-        'introduction': '소개',
-        'individual-report': '위험인지 진단 리포트',
-        'admin-training': '관리자 다국어 음성 안내 생성',
-        'worker-training': '수기 데이터 입력',
-        'survey-intelligence': '행동 패턴 분석',
-        'settings': '시스템 설정 (System Configuration)'
-    };
+    const isAdvancedAdmin = isAdminAuthenticated() && userRolePreset === 'site-chief';
+    const diagnosticsAvailable = canUseDevDiagnostics({
+        isAdvancedAdmin,
+        hiddenToggleEnabled: devDiagnosticsHiddenToggleEnabled,
+    });
+    const uiAudienceMode: UiAudienceMode =
+        diagnosticsAvailable && operationalMode === 'developer'
+            ? 'developer'
+            : userRolePreset === 'field-worker'
+                ? 'worker'
+                : 'practitioner';
+    const showDiagnosticsControls = diagnosticsAvailable && currentPage === 'settings';
+    const currentRouteMeta = getRouteMeta(currentPage);
+    const currentPageTitle = getRouteLabel(currentPage, uiAudienceMode);
 
     const mobilePageGroupsBase: Record<MobileTabId, Page[]> = {
         home: ['dashboard'],
@@ -118,29 +117,29 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const mobileQuickLinksRaw: Array<{ page: Page; label: string }> =
         activeMobileTab === 'home'
             ? [
-                { page: 'dashboard', label: '홈 대시보드' },
+                { page: 'dashboard', label: getRouteLabel('dashboard', uiAudienceMode) },
             ]
             : activeMobileTab === 'alerts'
                 ? [
-                    { page: 'site-issue-management', label: '알림 현황' },
+                    { page: 'site-issue-management', label: getRouteLabel('site-issue-management', uiAudienceMode) },
                 ]
                 : activeMobileTab === 'profile'
                 ? [
-                    { page: 'worker-management', label: '작업자 프로파일' },
+                    { page: 'worker-management', label: getRouteLabel('worker-management', uiAudienceMode) },
                 ]
                 : activeMobileTab === 'predictive'
                     ? [
-                        { page: 'predictive-analysis', label: '위험 예측' },
-                        { page: 'intervention-coaching', label: '개입 관리' },
+                        { page: 'predictive-analysis', label: getRouteLabel('predictive-analysis', uiAudienceMode) },
+                        { page: 'intervention-coaching', label: getRouteLabel('intervention-coaching', uiAudienceMode) },
                     ]
                     : activeMobileTab === 'more'
                         ? [
-                            { page: 'reports', label: '분석 리포트' },
-                            { page: 'judgment-tagging-input', label: '데이터 입력' },
-                            { page: 'settings', label: '설정' },
+                            { page: 'reports', label: getRouteLabel('reports', uiAudienceMode) },
+                            { page: 'judgment-tagging-input', label: getRouteLabel('judgment-tagging-input', uiAudienceMode) },
+                            { page: 'settings', label: getRouteLabel('settings', uiAudienceMode) },
                         ]
                         : [
-                            { page: 'reports', label: '분석 리포트' },
+                            { page: 'reports', label: getRouteLabel('reports', uiAudienceMode) },
                         ];
 
     const mobileQuickLinks = mobileQuickLinksRaw.filter((item) => isPageVisibleByOperationalMode(item.page, operationalMode));
@@ -218,6 +217,20 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     }, []);
 
     useEffect(() => {
+        if (currentPage !== 'settings') return;
+
+        const handleSettingsShortcut = (event: KeyboardEvent) => {
+            if (event.ctrlKey && event.altKey && event.key.toLowerCase() === 'd') {
+                const next = toggleDevDiagnosticsHiddenToggle();
+                setDevDiagnosticsHiddenToggleEnabled(next);
+            }
+        };
+
+        window.addEventListener('keydown', handleSettingsShortcut);
+        return () => window.removeEventListener('keydown', handleSettingsShortcut);
+    }, [currentPage]);
+
+    useEffect(() => {
         const syncState = () => {
             setBestPracticeSyncState(getBestPracticeSyncState());
             setBestPracticeFailureLogs(getBestPracticeSyncFailureLogs());
@@ -249,7 +262,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         <div className="flex h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors duration-200">
             {/* Desktop Sidebar - Hidden on mobile */}
             <div className="no-print hidden lg:block h-full">
-                <Sidebar currentPage={currentPage} setCurrentPage={handlePageChange} />
+                <Sidebar currentPage={currentPage} setCurrentPage={handlePageChange} uiMode={uiAudienceMode} />
             </div>
 
             {/* Mobile Sidebar Overlay */}
@@ -263,7 +276,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                     />
                     {/* Sidebar */}
                     <div className="fixed inset-y-0 left-0 w-64 animate-fade-in">
-                        <Sidebar currentPage={currentPage} setCurrentPage={handlePageChange} />
+                        <Sidebar currentPage={currentPage} setCurrentPage={handlePageChange} uiMode={uiAudienceMode} />
                     </div>
                 </div>
             )}
@@ -287,7 +300,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                            
                            <div className="flex items-center gap-2 flex-1 min-w-0">
                                <h1 className="text-sm sm:text-lg lg:text-xl font-bold text-slate-900 dark:text-slate-100 truncate">
-                                   {pageTitles[currentPage]}
+                                   {currentPageTitle}
                                </h1>
                                <div
                                    className="relative group/patent shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
@@ -325,30 +338,33 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                            >
                                {getUserRolePresetLabel(userRolePreset)}
                            </button>
-                           <button
-                               type="button"
-                               onClick={cycleOperationalMode}
-                               className="ml-1 rounded-lg border border-indigo-200 dark:border-indigo-500/50 bg-indigo-50 dark:bg-indigo-500/20 px-2 h-8 text-[10px] font-black text-indigo-700 dark:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-500/30 transition-colors"
-                               title="운영 모드 순환: 실무 즉시 → 표준 운영 → 개발 확장"
-                               aria-label="운영 모드 변경"
-                           >
-                               {getOperationalModeLabel(operationalMode)}
-                           </button>
-                           {isDevMode && <BestPracticeSyncBadge state={bestPracticeSyncState} failureLogs={bestPracticeFailureLogs} />}
-                           {/* 개발자 모드 토글 */}
-                           <button
-                               type="button"
-                               onClick={toggleDevMode}
-                               className={`ml-1 flex items-center justify-center rounded-lg border px-2 h-8 text-[10px] font-black tracking-wider transition-colors ${
-                                   isDevMode
-                                       ? 'border-violet-400 bg-violet-600 text-white hover:bg-violet-500'
-                                       : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-600'
-                               }`}
-                               aria-label={isDevMode ? '개발자 모드 끄기' : '개발자 모드 켜기'}
-                               title={isDevMode ? '개발자 모드 ON – 클릭하면 꺼짐 (탭 닫으면 자동 OFF)' : '개발자 모드 OFF – 클릭하면 켜짐'}
-                           >
-                               {isDevMode ? 'DEV ON' : 'DEV OFF'}
-                           </button>
+                           {showDiagnosticsControls && (
+                               <button
+                                   type="button"
+                                   onClick={cycleOperationalMode}
+                                   className="ml-1 rounded-lg border border-indigo-200 dark:border-indigo-500/50 bg-indigo-50 dark:bg-indigo-500/20 px-2 h-8 text-[10px] font-black text-indigo-700 dark:text-indigo-200 hover:bg-indigo-100 dark:hover:bg-indigo-500/30 transition-colors"
+                                   title="운영 모드 순환: 실무 즉시 → 표준 운영 → 개발 확장"
+                                   aria-label="운영 모드 변경"
+                               >
+                                   {getOperationalModeLabel(operationalMode)}
+                               </button>
+                           )}
+                           {isDevMode && uiAudienceMode === 'developer' && <BestPracticeSyncBadge state={bestPracticeSyncState} failureLogs={bestPracticeFailureLogs} />}
+                           {showDiagnosticsControls && (
+                               <button
+                                   type="button"
+                                   onClick={toggleDevMode}
+                                   className={`ml-1 flex items-center justify-center rounded-lg border px-2 h-8 text-[10px] font-black tracking-wider transition-colors ${
+                                       isDevMode
+                                           ? 'border-violet-400 bg-violet-600 text-white hover:bg-violet-500'
+                                           : 'border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-600'
+                                   }`}
+                                   aria-label={isDevMode ? '진단 기능 끄기' : '진단 기능 켜기'}
+                                   title={isDevMode ? '진단 기능 ON' : '진단 기능 OFF'}
+                               >
+                                   {isDevMode ? '진단 ON' : '진단 OFF'}
+                               </button>
+                           )}
                            {/* 다크모드 토글 */}
                            <button
                                type="button"
@@ -384,6 +400,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                );
                            })}
                        </div>
+                       <p className="hidden sm:block pb-2 text-xs text-slate-500 dark:text-slate-400">
+                           {currentRouteMeta.description}
+                       </p>
                     </div>
                 </header>
                 <main ref={mainRef} className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 pb-24 lg:pb-10">
