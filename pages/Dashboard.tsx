@@ -35,6 +35,7 @@ import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMet
 import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { getUserRolePreset, mapUserRolePresetToDashboardAudience, USER_ROLE_PRESET_CHANGED_EVENT } from '../utils/userRolePresetUtils';
+import { EmptyState, MetricCard, RiskBadge } from '../components/common';
 
 const NationalityChart = lazy(() => import('../components/charts/NationalityChart').then(module => ({ default: module.NationalityChart })));
 const TopWeaknessesChart = lazy(() => import('../components/charts/TopWeaknessesChart').then(module => ({ default: module.TopWeaknessesChart })));
@@ -2545,7 +2546,11 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-300">1) 홈 대시보드</p>
                         <h2 className="mt-1 text-lg font-black">오늘 위험 현황</h2>
                     </div>
-                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${mobileDashboardBadge.tone}`}>{mobileDashboardBadge.label}</span>
+                    <RiskBadge
+                        level={mobileDashboardBadge.label.includes('고위험') ? 'critical' : mobileDashboardBadge.label.includes('승인 대기') ? 'medium' : 'low'}
+                        labelOverride={mobileDashboardBadge.label}
+                        size="sm"
+                    />
                 </div>
                 <div className="mt-3 grid grid-cols-4 gap-1.5">
                     {[
@@ -2871,49 +2876,48 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
                     {/* Main Content Grid */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 mb-4 sm:mb-6">
-                        {/* Real-time Safety Score */}
-                        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl sm:rounded-2xl p-4 sm:p-5">
-                            <div className="flex items-center justify-between mb-2 sm:mb-3">
-                                <span className="text-indigo-300 text-[10px] sm:text-xs font-bold uppercase tracking-wide">현장 안전 지수</span>
+                        <MetricCard
+                            title="현장 안전 지수"
+                            value={stats.averageScore.toFixed(1)}
+                            unit="/ 100"
+                            tone="neutral"
+                            footer="실무 근로자 평균 점수"
+                            icon={(
                                 <svg className="w-3 h-3 sm:w-4 sm:h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                                 </svg>
-                            </div>
-                            <div className="flex items-baseline gap-1.5 sm:gap-2">
-                                <span className="text-3xl sm:text-4xl font-black text-white">{stats.averageScore.toFixed(1)}</span>
-                                <span className="text-base sm:text-lg font-bold text-indigo-300">/ 100</span>
-                            </div>
-                            <p className="text-[10px] sm:text-xs text-indigo-200 mt-1.5 sm:mt-2 font-medium">실무 근로자 평균 점수</p>
-                        </div>
+                            )}
+                            className="bg-white/5 backdrop-blur-sm border-white/10"
+                        />
 
-                        {/* Active Workers */}
-                        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl sm:rounded-2xl p-4 sm:p-5">
-                            <div className="flex items-center justify-between mb-2 sm:mb-3">
-                                <span className="text-indigo-300 text-[10px] sm:text-xs font-bold uppercase tracking-wide">활동 중인 근로자</span>
+                        <MetricCard
+                            title="활동 중인 근로자"
+                            value={stats.totalWorkers}
+                            unit="명"
+                            tone="neutral"
+                            footer="관리 직군 제외"
+                            icon={(
                                 <svg className="w-3 h-3 sm:w-4 sm:h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                                 </svg>
-                            </div>
-                            <div className="flex items-baseline gap-1.5 sm:gap-2">
-                                <span className="text-3xl sm:text-4xl font-black text-white">{stats.totalWorkers}</span>
-                                <span className="text-base sm:text-lg font-bold text-indigo-300">명</span>
-                            </div>
-                            <p className="text-[10px] sm:text-xs text-indigo-200 mt-1.5 sm:mt-2 font-medium">관리 직군 제외</p>
-                        </div>
+                            )}
+                            className="bg-white/5 backdrop-blur-sm border-white/10"
+                        />
 
-                        {/* Risk Alert */}
-                        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-xl sm:rounded-2xl p-4 sm:p-5 sm:col-span-2 lg:col-span-1">
-                            <div className="flex items-center justify-between mb-2 sm:mb-3">
-                                <span className="text-indigo-300 text-[10px] sm:text-xs font-bold uppercase tracking-wide">위험도 모니터링</span>
-                                <svg className="w-3 h-3 sm:w-4 sm:h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                            </div>
-                            <div className="flex items-baseline gap-1.5 sm:gap-2">
-                                <span className="text-3xl sm:text-4xl font-black text-white">{stats.highRiskWorkers}</span>
-                                <span className="text-base sm:text-lg font-bold text-amber-300">명</span>
-                            </div>
-                            <p className="text-[10px] sm:text-xs text-amber-200 mt-1.5 sm:mt-2 font-medium">고위험 근로자 감지</p>
+                        <div className="sm:col-span-2 lg:col-span-1">
+                            <MetricCard
+                                title="위험도 모니터링"
+                                value={stats.highRiskWorkers}
+                                unit="명"
+                                tone="warn"
+                                footer="고위험 근로자 감지"
+                                icon={(
+                                    <svg className="w-3 h-3 sm:w-4 sm:h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                )}
+                                className="bg-white/5 backdrop-blur-sm border-white/10"
+                            />
                         </div>
                     </div>
 
@@ -2930,9 +2934,11 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 </button>
                             </div>
                             {mobileRecentReports.length === 0 ? (
-                                <p className="rounded-xl border border-dashed border-white/20 bg-white/5 px-3 py-3 text-[11px] font-medium text-indigo-100">
-                                    최근 리포트가 없습니다.
-                                </p>
+                                <EmptyState
+                                    title="최근 리포트가 없습니다."
+                                    tone="info"
+                                    className="rounded-xl border-dashed border-white/20 bg-white/5 px-3 py-3 text-[11px]"
+                                />
                             ) : (
                                 <div className="space-y-2">
                                     {mobileRecentReports.map((record) => {
