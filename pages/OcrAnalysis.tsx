@@ -5126,7 +5126,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 disabled={isMasterDataLoading}
                                 className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-black text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200 dark:disabled:bg-slate-600 dark:disabled:text-slate-200"
                             >
-                                {isMasterDataLoading ? '최신 양식 정보를 불러오는 중…' : '마스터 데이터 새로고침'}
+                                {isMasterDataLoading ? '불러오는 중…' : '마스터 데이터 새로고침'}
                             </button>
                         </div>
 
