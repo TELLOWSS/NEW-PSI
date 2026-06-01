@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import type { AppSettings } from '../types';
 import { supabase } from '../lib/supabaseClient';
@@ -519,6 +519,8 @@ const AdminTraining: React.FC = () => {
     const [awarenessStats, setAwarenessStats] = useState<AwarenessStats | null>(null);
     const [awarenessLoading, setAwarenessLoading] = useState(false);
     const [awarenessError, setAwarenessError] = useState('');
+    const [awarenessLastFetchedAt, setAwarenessLastFetchedAt] = useState<number | null>(null);
+    const awarenessInFlightRef = useRef(false);
     const [sessionAudioUrls, setSessionAudioUrls] = useState<Record<string, string | null>>({});
     const [audioUploadFiles, setAudioUploadFiles] = useState<Record<string, File | null>>({});
     const [failedLanguages, setFailedLanguages] = useState<string[]>([]);
@@ -697,6 +699,10 @@ const AdminTraining: React.FC = () => {
     };
 
     const fetchAwarenessStats = async (sessionId: string) => {
+        if (!sessionId) return;
+        if (awarenessLoading || awarenessInFlightRef.current) return;
+
+        awarenessInFlightRef.current = true;
         setAwarenessLoading(true);
         setAwarenessError('');
         try {
@@ -732,11 +738,13 @@ const AdminTraining: React.FC = () => {
                     ? 'training_acknowledgements'
                     : 'submission_gate',
             });
+            setAwarenessLastFetchedAt(Date.now());
         } catch (error: any) {
             setAwarenessStats(null);
             setAwarenessError(error?.message || t.createFail);
         } finally {
             setAwarenessLoading(false);
+            awarenessInFlightRef.current = false;
         }
     };
 
@@ -870,15 +878,12 @@ const AdminTraining: React.FC = () => {
         if (!currentSessionId) {
             setAwarenessStats(null);
             setAwarenessError('');
+            setAwarenessLastFetchedAt(null);
+            awarenessInFlightRef.current = false;
             return;
         }
 
         void fetchAwarenessStats(currentSessionId);
-        const timerId = window.setInterval(() => {
-            void fetchAwarenessStats(currentSessionId);
-        }, 20000);
-
-        return () => window.clearInterval(timerId);
     }, [currentSessionId]);
 
     const toggleLanguage = (code: string) => {
@@ -1113,6 +1118,8 @@ const AdminTraining: React.FC = () => {
         setFailedLanguageAttempts({});
         setAwarenessStats(null);
         setAwarenessError('');
+        setAwarenessLastFetchedAt(null);
+        awarenessInFlightRef.current = false;
         localStorage.removeItem(ACTIVE_QR_STATE_STORAGE_KEY);
         setMessage(t.removeDone);
     };
@@ -1352,6 +1359,24 @@ const AdminTraining: React.FC = () => {
             <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 sm:p-8 shadow-sm">
                 <h3 className="text-lg font-black text-slate-900 dark:text-slate-100">{t.awarenessTitle}</h3>
                 <p className="mt-1 text-xs font-bold text-slate-500 dark:text-slate-300">{t.awarenessSubtitle}</p>
+                {currentSessionId && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => void fetchAwarenessStats(currentSessionId)}
+                            disabled={awarenessLoading || awarenessInFlightRef.current}
+                            className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-3 py-2 text-xs font-black text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            {awarenessLoading ? '불러오는 중…' : '통계 새로고침'}
+                        </button>
+                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-300">필요 시 통계 새로고침을 눌러 최신 상태를 확인해 주세요.</p>
+                        {awarenessLastFetchedAt && (
+                            <p className="text-[11px] font-bold text-slate-500 dark:text-slate-300">
+                                마지막 조회: {new Date(awarenessLastFetchedAt).toLocaleTimeString('ko-KR', { hour12: false })}
+                            </p>
+                        )}
+                    </div>
+                )}
                 {awarenessInterpretationCards.length > 0 && (
                     <InterpretationCardGrid
                         items={awarenessInterpretationCards}
