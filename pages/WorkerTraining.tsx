@@ -715,7 +715,9 @@ const resolveNationalityByLanguageCode = (langCode: string): string => {
 };
 
 const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMode = false }) => {
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
+    const [hasSessionLoaded, setHasSessionLoaded] = useState(false);
+    const [loadRequestId, setLoadRequestId] = useState(0);
     const [sessionData, setSessionData] = useState<SessionRow | null>(null);
 
     const [workerName, setWorkerName] = useState('');
@@ -747,6 +749,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     const comprehensionRef = useRef<HTMLDivElement | null>(null);
     const signatureWrapRef = useRef<HTMLDivElement | null>(null);
     const languageInitDoneRef = useRef(false);
+    const sessionLoadInFlightRef = useRef(false);
     const [signatureWidth, setSignatureWidth] = useState(700);
 
     const langKey = useMemo(() => resolveLanguageCodeByNationality(nationality), [nationality]);
@@ -1021,14 +1024,34 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     }, [sessionData, availableLanguageCodes, searchParams]);
 
     useEffect(() => {
-        const run = async () => {
-            if (!sessionId) {
-                setLoading(false);
-                setSessionData(null);
-                return;
-            }
+        setHasSessionLoaded(false);
+        setLoadRequestId(0);
+        setSessionData(null);
+        setLoading(false);
+        sessionLoadInFlightRef.current = false;
+    }, [sessionId]);
 
+    useEffect(() => {
+        if (!sessionId) {
+            setLoading(false);
+            setSessionData(null);
+            setHasSessionLoaded(false);
+            return;
+        }
+
+        if (loadRequestId === 0) {
+            return;
+        }
+
+        if (loading || sessionLoadInFlightRef.current) {
+            return;
+        }
+
+        const run = async () => {
+            sessionLoadInFlightRef.current = true;
             setLoading(true);
+            setMessage('');
+
             const { data, error } = await supabase
                 .from('training_sessions')
                 .select('id, source_text_ko, audio_urls, translated_texts')
@@ -1045,11 +1068,14 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             } else {
                 setSessionData(data as SessionRow);
             }
+
+            setHasSessionLoaded(true);
             setLoading(false);
+            sessionLoadInFlightRef.current = false;
         };
 
         void run();
-    }, [sessionId]);
+    }, [sessionId, loadRequestId]);
 
     if (!sessionId) {
         return (
@@ -1092,6 +1118,12 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             setMessage(t.audioMissing);
             setIsPlaying(false);
         }
+    };
+
+    const handleLoadSessionData = () => {
+        if (!sessionId) return;
+        if (loading || sessionLoadInFlightRef.current) return;
+        setLoadRequestId((prev) => prev + 1);
     };
 
     const handleSubmit = async () => {
@@ -1189,6 +1221,23 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             setSubmitting(false);
         }
     };
+
+    if (!hasSessionLoaded) {
+        return (
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm max-w-2xl">
+                <p className="text-sm font-bold text-slate-700">교육자료를 아직 불러오지 않았습니다. 버튼을 눌러 내용을 확인해 주세요.</p>
+                <button
+                    type="button"
+                    onClick={handleLoadSessionData}
+                    disabled={loading}
+                    className="mt-4 w-full sm:w-auto px-4 py-3 rounded-xl bg-indigo-600 text-white text-sm font-black hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                    {loading ? '불러오는 중…' : '교육자료 불러오기'}
+                </button>
+                {message && <p className="mt-3 text-sm font-bold text-slate-700">{message}</p>}
+            </div>
+        );
+    }
 
     if (loading) {
         return <div className="bg-white p-6 rounded-2xl border border-slate-200 font-bold">{t.loading}</div>;
