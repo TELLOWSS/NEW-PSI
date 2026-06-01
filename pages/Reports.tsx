@@ -50,7 +50,7 @@ import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 import { useJudgmentTaggingQuality } from '../hooks/useJudgmentTaggingQuality';
-import { SectionCard, MetricCard, StatusPill } from '../components/common';
+import { EmptyState, SectionCard, MetricCard, StatusPill } from '../components/common';
 
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
 
@@ -3570,7 +3570,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 </div>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-wrap gap-4 items-end no-print">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70 flex flex-wrap gap-4 items-end no-print">
                 <div className="w-full">
                     <InterpretationCardGrid
                         items={filterInterpretationCards}
@@ -4464,18 +4464,25 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             {/* Main Content Area */}
             <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col relative">
                 {filteredRecords.length === 0 ? (
-                    <div className="flex-1 flex flex-col items-center justify-center text-slate-400 dark:text-slate-500">
-                        <svg className="w-16 h-16 mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                        <p className="font-bold">선택된 조건의 근로자가 없습니다.</p>
+                    <div className="flex-1 flex items-center justify-center p-6 sm:p-8">
+                        <EmptyState
+                            title="생성할 리포트 대상이 없습니다"
+                            description="선택한 조건에 맞는 근로자 기록이 없습니다. 필터를 조정한 뒤 다시 확인해 주세요."
+                            tone="info"
+                            className="w-full max-w-2xl"
+                        />
                     </div>
                 ) : viewMode === 'list' ? (
                     /* VIEW MODE: LIST */
                     <>
-                        <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/60 flex justify-between items-center">
-                            <h3 className="font-bold text-slate-700 dark:text-slate-200 text-sm flex items-center gap-2">
-                                <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-                                생성 대상 목록 ({filteredRecords.length}명)
-                            </h3>
+                        <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/60 flex flex-wrap justify-between items-start gap-2">
+                            <div>
+                                <h3 className="font-black text-slate-700 dark:text-slate-200 text-sm flex items-center gap-2">
+                                    <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
+                                    생성 대상 목록 ({filteredRecords.length}명)
+                                </h3>
+                                <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">필터 조건에 맞는 대상을 확인하고 목록 또는 미리보기로 이어서 작업합니다.</p>
+                            </div>
                         </div>
                         <div className="border-b border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
                             <InterpretationCardGrid
