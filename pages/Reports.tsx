@@ -3378,7 +3378,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 </p>
 
                 <div className="mt-2 rounded-xl border border-indigo-100 bg-indigo-50/60 px-3 py-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-700">Introduction QA RUNLOG</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-700">초기 점검 기록</p>
                     {latestIntroQaRunlog ? (
                         <>
                             <p className="mt-1 text-[11px] font-semibold text-indigo-800">
@@ -3407,7 +3407,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             )}
                         </>
                     ) : (
-                        <p className="mt-1 text-[11px] font-semibold text-slate-500">Introduction QA RUNLOG 데이터가 없습니다.</p>
+                            <p className="mt-1 text-[11px] font-semibold text-slate-500">초기 점검 기록 데이터가 없습니다.</p>
                     )}
                 </div>
 
