@@ -50,6 +50,7 @@ import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 import { useJudgmentTaggingQuality } from '../hooks/useJudgmentTaggingQuality';
+import { SectionCard, MetricCard, StatusPill } from '../components/common';
 
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
 
@@ -2966,6 +2967,22 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         return `${sign}${Math.round(diff)}%p`;
     };
     const formatOpsAlertRate = (value: number) => `${Math.round(value)}%`;
+    const summaryStatusVariant = latestVerification
+        ? (latestVerification.isValid ? 'normal' : 'warning')
+        : 'offline';
+    const summaryStatusLabel = latestVerification
+        ? (latestVerification.isValid ? '검증 완료' : '확인 필요')
+        : '준비 중';
+    const generationStatusVariant = reportGenerationUi.status === 'error'
+        ? 'critical'
+        : (reportGenerationUi.status === 'running' || isGenerating || isPackagingEvidence)
+            ? 'warning'
+            : 'normal';
+    const generationStatusLabel = reportGenerationUi.status === 'error'
+        ? '점검 필요'
+        : (reportGenerationUi.status === 'running' || isGenerating || isPackagingEvidence)
+            ? '생성 진행 중'
+            : '정상 운영';
     const handleClearOpsAlertClickLogs = () => {
         if (typeof window === 'undefined') return;
         if (!confirm('경보 CTA 클릭 로그를 모두 초기화하시겠습니까?')) return;
@@ -3129,38 +3146,49 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 no-print">
                 <h2 className="text-2xl font-black text-slate-900">PSI 정밀 보고서 센터</h2>
                 <div className="flex items-center space-x-3 bg-white rounded-lg p-1 shadow-sm border border-slate-200">
-                    <span className="text-xs font-bold text-slate-500 pl-3 pr-1">STATUS:</span>
-                    <span className="text-xs font-black px-3 uppercase text-indigo-600">
-                        System Ready
-                    </span>
+                    <span className="text-xs font-bold text-slate-500 pl-3 pr-1">운영 상태</span>
+                    <StatusPill
+                        variant={summaryStatusVariant}
+                        label={summaryStatusLabel}
+                        size="md"
+                    />
                 </div>
             </div>
 
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.15fr_0.85fr] no-print">
-                <section className="rounded-3xl border border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-slate-100 px-4 py-4 shadow-sm">
-                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-indigo-700">PC REPORT DESK</p>
-                    <div className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                        <div>
-                            <h3 className="text-xl font-black text-slate-900">리포트 생성 · 검증 · 패키징</h3>
-                            <p className="mt-1 text-sm font-semibold text-slate-600">대량 생성, 증빙 검증, 버전 차이를 PC에서 한번에 정리하는 운영형 프리뷰입니다.</p>
-                        </div>
-                        <div className="rounded-2xl border border-indigo-200 bg-white px-3 py-2 text-right">
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">STATUS</p>
-                            <p className="mt-0.5 text-sm font-black text-slate-900">{latestVerification ? (latestVerification.isValid ? '검증 성공' : '확인 필요') : '이력 없음'}</p>
-                        </div>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        {[
-                            { label: '보고서 대상', value: `${filteredRecords.length}건` },
-                            { label: '진행률', value: `${bulkProgressPercent}%` },
-                            { label: '최근 검증', value: latestVerification ? (latestVerification.isValid ? '성공' : '확인 필요') : '이력 없음' },
-                        ].map((item) => (
-                            <div key={item.label} className="rounded-2xl border border-white bg-white px-3 py-3">
-                                <p className="text-[10px] font-black text-slate-500">{item.label}</p>
-                                <p className="mt-1 text-lg font-black text-slate-900">{item.value}</p>
-                            </div>
-                        ))}
+                <SectionCard
+                    title="리포트 운영 요약"
+                    subtitle="생성 상태와 최근 검증 결과를 한눈에 확인하고 바로 조치 화면으로 이동합니다."
+                    className="rounded-3xl border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-slate-100"
+                    action={
+                        <StatusPill
+                            variant={summaryStatusVariant}
+                            label={summaryStatusLabel}
+                            size="md"
+                        />
+                    }
+                >
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        <MetricCard
+                            title="보고서 대상"
+                            value={`${filteredRecords.length}`}
+                            unit="건"
+                            tone="neutral"
+                            className="min-h-[108px]"
+                        />
+                        <MetricCard
+                            title="생성 진행률"
+                            value={`${bulkProgressPercent}`}
+                            unit="%"
+                            tone={isGenerating || isPackagingEvidence ? 'warn' : 'safe'}
+                            className="min-h-[108px]"
+                        />
+                        <MetricCard
+                            title="최근 검증"
+                            value={latestVerification ? (latestVerification.isValid ? '성공' : '확인 필요') : '이력 없음'}
+                            tone={latestVerification ? (latestVerification.isValid ? 'safe' : 'warn') : 'neutral'}
+                            className="min-h-[108px]"
+                        />
                     </div>
 
                     <div className="mt-4 flex flex-wrap gap-2">
@@ -3174,7 +3202,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             대시보드로 이동
                         </button>
                     </div>
-                </section>
+                </SectionCard>
 
                 <section className="rounded-3xl border border-violet-200 bg-violet-50 px-4 py-4 shadow-sm">
                     <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">MOBILE ACTION FLOW</p>
@@ -3208,29 +3236,40 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 </section>
             </div>
 
-            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4 no-print">
-                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-indigo-700">11) 리포트 자동 생성 상태</p>
-                <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <div className="rounded-xl border border-white bg-white px-3 py-2">
-                        <p className="text-[10px] font-black text-slate-500">보고서 대상</p>
-                        <p className="mt-1 text-lg font-black text-slate-900">{filteredRecords.length}건</p>
-                    </div>
-                    <div className="rounded-xl border border-white bg-white px-3 py-2">
-                        <p className="text-[10px] font-black text-slate-500">생성 진행률</p>
-                        <p className="mt-1 text-lg font-black text-slate-900">{bulkProgressPercent}%</p>
-                    </div>
-                    <div className="rounded-xl border border-white bg-white px-3 py-2">
-                        <p className="text-[10px] font-black text-slate-500">최근 검증</p>
-                        <p className={`mt-1 text-sm font-black ${latestVerification?.isValid ? 'text-emerald-700' : latestVerification ? 'text-rose-700' : 'text-slate-900'}`}>
-                            {latestVerification ? (latestVerification.isValid ? '성공' : '확인 필요') : '이력 없음'}
-                        </p>
-                    </div>
+            <SectionCard
+                title="11) 리포트 생성 상태"
+                subtitle="현재 필터 기준으로 생성 진행 상태를 확인합니다."
+                className="border-indigo-200 bg-indigo-50 no-print"
+                compact
+                action={<StatusPill variant={generationStatusVariant} label={generationStatusLabel} />}
+            >
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <MetricCard
+                        title="보고서 대상"
+                        value={`${filteredRecords.length}`}
+                        unit="건"
+                        tone="neutral"
+                        className="min-h-[104px]"
+                    />
+                    <MetricCard
+                        title="생성 진행률"
+                        value={`${bulkProgressPercent}`}
+                        unit="%"
+                        tone={isGenerating || isPackagingEvidence ? 'warn' : 'safe'}
+                        className="min-h-[104px]"
+                    />
+                    <MetricCard
+                        title="최근 검증"
+                        value={latestVerification ? (latestVerification.isValid ? '성공' : '확인 필요') : '이력 없음'}
+                        tone={latestVerification ? (latestVerification.isValid ? 'safe' : 'warn') : 'neutral'}
+                        className="min-h-[104px]"
+                    />
                 </div>
                 <p className="mt-2 text-[11px] font-bold text-indigo-700">
                     기간: {resolvedDateRange.startLabel} ~ {resolvedDateRange.endLabel}
                     {hasCustomDateRangeError ? ' · 날짜 범위를 먼저 수정하세요.' : ' · 필터 결과 기준으로 생성/검증을 실행합니다.'}
                 </p>
-            </div>
+            </SectionCard>
 
             <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-4 no-print">
                 <div className="flex items-center justify-between gap-2">
