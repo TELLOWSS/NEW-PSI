@@ -80,7 +80,6 @@ export const useJudgmentTaggingQuality = () => {
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 5000);
 
     const handleStorage = (event: StorageEvent) => {
       if (!event.key || event.key === LIVE_QUALITY_KEY) {
@@ -96,7 +95,6 @@ export const useJudgmentTaggingQuality = () => {
     window.addEventListener(LIVE_QUALITY_EVENT, handleLiveUpdate);
 
     return () => {
-      clearInterval(interval);
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener(LIVE_QUALITY_EVENT, handleLiveUpdate);
     };
