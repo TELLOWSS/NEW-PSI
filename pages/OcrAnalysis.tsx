@@ -1136,6 +1136,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [selectedMasterTemplateId, setSelectedMasterTemplateId] = useState('');
     const [masterGroups, setMasterGroups] = useState<MasterGroup[]>([]);
     const [masterAssignments, setMasterAssignments] = useState<MasterAssignmentItem[]>([]);
+    const [isMasterDataLoading, setIsMasterDataLoading] = useState(false);
+    const [hasMasterDataFetched, setHasMasterDataFetched] = useState(false);
+    const [masterDataLoadedAt, setMasterDataLoadedAt] = useState('');
     const [openMasterSection, setOpenMasterSection] = useState<'templates' | 'assignments' | null>(null);
     const [retryDiagnostics, setRetryDiagnostics] = useState<RetryDiagnostics | null>(null);
     const [showAdvancedOcrControls, setShowAdvancedOcrControls] = useState(false);
@@ -1155,6 +1158,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [mobileMode, setMobileMode] = useState<'quick' | 'detailed'>('quick');
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
     const [isPaidApiMode, setIsPaidApiMode] = useState<boolean>(() => getIsPaidApiMode());
+    const masterDataLoadingRef = useRef(false);
     
     // JSON 품질 데이터 로드
     const { data: qualityData, loading: qualityLoading } = useJudgmentTaggingQuality();
@@ -1322,53 +1326,65 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     }, []);
 
     const loadMasterData = useCallback(async () => {
-        const [templateResult, groupResult, assignmentResult] = await Promise.all([
-            supabase
-                .from('record_master_templates')
-                .select('id, name, version, field_schema, updated_at')
-                .order('updated_at', { ascending: false }),
-            fetchMasterGroups(),
-            fetchMasterAssignments(),
-        ]);
-
-        if (templateResult.error || groupResult.error || assignmentResult.error) {
-            const firstError = templateResult.error || groupResult.error || assignmentResult.error;
-            if (!handleSupabasePermissionError(firstError)) {
-                alert(buildMasterDataLoadErrorMessage(firstError?.message));
-            }
+        if (masterDataLoadingRef.current) {
             return;
         }
 
-        const mappedTemplates: MasterTemplate[] = (templateResult.data || []).map((row: any) => ({
-            id: String(row.id),
-            name: String(row.name || ''),
-            version: String(row.version || ''),
-            fieldSchema: String(row.field_schema || ''),
-            updatedAt: String(row.updated_at || '').replace('T', ' ').slice(0, 16),
-        }));
+        masterDataLoadingRef.current = true;
+        setIsMasterDataLoading(true);
 
-        const mappedGroups: MasterGroup[] = (groupResult.data || []).map((row: any) => ({
-            id: String(row.id),
-            name: String(row.name || ''),
-        }));
+        try {
+            const [templateResult, groupResult, assignmentResult] = await Promise.all([
+                supabase
+                    .from('record_master_templates')
+                    .select('id, name, version, field_schema, updated_at')
+                    .order('updated_at', { ascending: false }),
+                fetchMasterGroups(),
+                fetchMasterAssignments(),
+            ]);
 
-        const mappedAssignments: MasterAssignmentItem[] = (assignmentResult.data || []).map((row: any) => ({
-            id: String(row.id),
-            groupId: String(row.group_id || ''),
-            templateId: String(row.template_id),
-            status: row.status === 'inactive' ? 'inactive' : 'active',
-            effectiveDate: String(row.effective_date || ''),
-        }));
+            if (templateResult.error || groupResult.error || assignmentResult.error) {
+                const firstError = templateResult.error || groupResult.error || assignmentResult.error;
+                if (!handleSupabasePermissionError(firstError)) {
+                    alert(buildMasterDataLoadErrorMessage(firstError?.message));
+                }
+                return;
+            }
 
-        setMasterTemplates(mappedTemplates);
-        setMasterGroups(mappedGroups);
-        setMasterAssignments(mappedAssignments);
-        setSelectedMasterTemplateId((prev) => prev || mappedTemplates[0]?.id || '');
+            const mappedTemplates: MasterTemplate[] = (templateResult.data || []).map((row: any) => ({
+                id: String(row.id),
+                name: String(row.name || ''),
+                version: String(row.version || ''),
+                fieldSchema: String(row.field_schema || ''),
+                updatedAt: String(row.updated_at || '').replace('T', ' ').slice(0, 16),
+            }));
+
+            const mappedGroups: MasterGroup[] = (groupResult.data || []).map((row: any) => ({
+                id: String(row.id),
+                name: String(row.name || ''),
+            }));
+
+            const mappedAssignments: MasterAssignmentItem[] = (assignmentResult.data || []).map((row: any) => ({
+                id: String(row.id),
+                groupId: String(row.group_id || ''),
+                templateId: String(row.template_id),
+                status: row.status === 'inactive' ? 'inactive' : 'active',
+                effectiveDate: String(row.effective_date || ''),
+            }));
+
+            setMasterTemplates(mappedTemplates);
+            setMasterGroups(mappedGroups);
+            setMasterAssignments(mappedAssignments);
+            setSelectedMasterTemplateId((prev) => prev || mappedTemplates[0]?.id || '');
+            setHasMasterDataFetched(true);
+            setMasterDataLoadedAt(new Date().toLocaleString('ko-KR', {
+                hour12: false,
+            }));
+        } finally {
+            masterDataLoadingRef.current = false;
+            setIsMasterDataLoading(false);
+        }
     }, [fetchMasterAssignments, fetchMasterGroups]);
-
-    useEffect(() => {
-        void loadMasterData();
-    }, [loadMasterData]);
 
     useEffect(() => {
         try {
@@ -5093,6 +5109,25 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     <div className="space-y-5">
                         <div className="flex flex-col gap-1">
                             <p className="text-sm font-bold text-slate-500 dark:text-slate-300">기록 양식을 만들고, 공종/팀별로 사용할 양식을 쉽게 지정할 수 있습니다.</p>
+                        </div>
+
+                        <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 dark:border-slate-700 dark:bg-slate-900/60 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="space-y-1">
+                                <p className="text-sm font-black text-slate-900 dark:text-white">양식 정보 확인</p>
+                                <p className="text-xs font-bold text-slate-500 dark:text-slate-300">
+                                    {hasMasterDataFetched
+                                        ? `최근 불러온 시각 ${masterDataLoadedAt}`
+                                        : '현재 양식 정보를 아직 불러오지 않았습니다. 필요 시 새로고침을 눌러 확인해 주세요.'}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => { void loadMasterData(); }}
+                                disabled={isMasterDataLoading}
+                                className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-black text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200 dark:disabled:bg-slate-600 dark:disabled:text-slate-200"
+                            >
+                                {isMasterDataLoading ? '최신 양식 정보를 불러오는 중…' : '마스터 데이터 새로고침'}
+                            </button>
                         </div>
 
                         <CollapsibleSection
