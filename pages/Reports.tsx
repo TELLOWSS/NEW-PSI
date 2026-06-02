@@ -3779,7 +3779,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 <div className="flex items-center justify-between gap-4 flex-wrap">
                     <div>
                         <h3 className="text-sm font-black text-slate-800">증빙 확인 단계 안내</h3>
-                        <p className="mt-1 text-[11px] font-semibold text-slate-500">1단계 기준 파일 선택 · 2단계 증빙 데이터 선택 · 3단계 검증 실행 및 결과 확인</p>
+                        <p className="mt-1 text-[11px] font-semibold text-slate-500">1단계 기준 파일 선택 · 2단계 증빙 데이터 파일 선택 · 3단계 검증 실행 및 결과 확인</p>
                         <p className="mt-1 text-[11px] font-semibold text-slate-500">증빙 자료를 압축 파일로 저장하거나 목록 데이터를 표 형식 파일로 저장한 뒤 확인을 진행해 주세요.</p>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
