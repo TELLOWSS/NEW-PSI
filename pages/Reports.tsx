@@ -3763,7 +3763,11 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     cardClassName="rounded-2xl border p-4"
                 />
                 <div className="flex items-center justify-between gap-4 flex-wrap">
-                    <h3 className="text-sm font-black text-slate-800">증빙 패키지 무결성 검증</h3>
+                    <div>
+                        <h3 className="text-sm font-black text-slate-800">증빙 확인 단계 안내</h3>
+                        <p className="mt-1 text-[11px] font-semibold text-slate-500">1단계 기준 파일 선택 · 2단계 증빙 데이터 선택 · 3단계 검증 실행 및 결과 확인</p>
+                        <p className="mt-1 text-[11px] font-semibold text-slate-500">증빙 자료를 압축 파일로 저장하거나 목록 데이터를 표 형식 파일로 저장한 뒤 확인을 진행해 주세요.</p>
+                    </div>
                     <div className="flex items-center gap-2 flex-wrap">
                         {verificationHistory.length > 0 ? (
                             <>
@@ -3771,7 +3775,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                     onClick={handleExportVerificationHistoryCsv}
                                     className="px-4 py-2.5 rounded-xl text-xs font-black border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-all"
                                 >
-                                    검증 히스토리 CSV
+                                    검증 이력 CSV
                                 </button>
                                 <button
                                     onClick={handleClearVerificationHistory}
@@ -3793,7 +3797,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                     onClick={handleExportVerificationJson}
                                     className="px-4 py-2.5 rounded-xl text-xs font-black border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 transition-all"
                                 >
-                                    검증 JSON 저장
+                                    검증 결과 저장
                                 </button>
                             </>
                         ) : null}
@@ -3811,7 +3815,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-4">
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                             <div>
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Verification History</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">최근 검증 이력</p>
                                 <p className="mt-1 text-sm font-black text-slate-800">최근 세션 검증 결과 {verificationHistorySummary.total}건</p>
                                 <p className="mt-1 text-[11px] font-bold text-slate-500">보존 정책: 최근 {VERIFICATION_HISTORY_RETENTION_DAYS}일 · 최대 {VERIFICATION_HISTORY_MAX_ITEMS}건</p>
                             </div>
@@ -3872,10 +3876,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
                         {verificationPackageFilterOptions.length > 1 ? (
                             <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-[11px] font-black text-slate-500">Package 필터</span>
+                                <span className="text-[11px] font-black text-slate-500">검증 묶음 필터</span>
                                 {verificationPackageFilterOptions.map((option) => {
                                     const active = selectedVerificationPackageFilter === option;
-                                    const label = option === 'ALL' ? '전체 패키지' : option;
+                                    const label = option === 'ALL' ? '전체 묶음' : option;
                                     const count = option === 'ALL'
                                         ? verificationHistory.length
                                         : verificationHistory.filter((entry) => entry.packageName === option).length;
@@ -3980,13 +3984,13 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 <table className="w-full min-w-[860px] text-left text-[11px]">
                                     <thead className="bg-slate-50 text-slate-500">
                                         <tr>
-                                            <th className="px-3 py-2">Package</th>
+                                            <th className="px-3 py-2">검증 묶음</th>
                                             <th className="px-3 py-2">시도</th>
                                             <th className="px-3 py-2">실패</th>
-                                            <th className="px-3 py-2">Hash</th>
-                                            <th className="px-3 py-2">Meta Diff</th>
-                                            <th className="px-3 py-2">Snapshot</th>
-                                            <th className="px-3 py-2">Invalid JSON</th>
+                                            <th className="px-3 py-2">확인값</th>
+                                            <th className="px-3 py-2">기준정보 차이</th>
+                                            <th className="px-3 py-2">기준 기록</th>
+                                            <th className="px-3 py-2">손상 데이터</th>
                                             <th className="px-3 py-2">주요 원인</th>
                                             <th className="px-3 py-2">권장 조치</th>
                                             <th className="px-3 py-2">최근 시각</th>
@@ -4024,14 +4028,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 <p className="mt-1 text-[11px] font-bold text-emerald-700">성공 {verificationHistorySummary.success}건 / 실패 {verificationHistorySummary.failed}건</p>
                             </div>
                             <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3">
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">해시/스냅샷 이슈</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">확인값/기준 기록 이슈</p>
                                 <p className="mt-1 text-sm font-black text-amber-800">{verificationHistorySummary.hashMismatches + verificationHistorySummary.missingHarnessSnapshots}건</p>
                                 <p className="mt-1 text-[11px] font-bold text-amber-700">해시 {verificationHistorySummary.hashMismatches}건 · 스냅샷 {verificationHistorySummary.missingHarnessSnapshots}건</p>
                             </div>
                             <div className="rounded-xl border border-violet-200 bg-violet-50/80 px-4 py-3">
                                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-500">메타 정합성</p>
                                 <p className="mt-1 text-sm font-black text-violet-800">{verificationHistorySummary.metadataMismatches}건</p>
-                                <p className="mt-1 text-[11px] font-bold text-violet-700">manifest/JSON 비교 누적 결과입니다.</p>
+                                <p className="mt-1 text-[11px] font-bold text-violet-700">기준 파일/증빙 데이터 비교 누적 결과입니다.</p>
                             </div>
                             <div className="rounded-xl border border-sky-200 bg-sky-50/80 px-4 py-3">
                                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-500">표준 템플릿 적합성</p>
@@ -4045,16 +4049,16 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 <thead className="bg-slate-50 text-slate-500">
                                     <tr>
                                         <th className="px-3 py-2">시각</th>
-                                        <th className="px-3 py-2">Manifest</th>
-                                        <th className="px-3 py-2">Package</th>
+                                        <th className="px-3 py-2">기준 파일</th>
+                                        <th className="px-3 py-2">검증 묶음</th>
                                         <th className="px-3 py-2">결과</th>
                                         <th className="px-3 py-2">템플릿 적합</th>
                                         <th className="px-3 py-2">Entries</th>
-                                        <th className="px-3 py-2">Hash</th>
-                                        <th className="px-3 py-2">Snapshot</th>
-                                        <th className="px-3 py-2">Meta Diff</th>
+                                        <th className="px-3 py-2">확인값</th>
+                                        <th className="px-3 py-2">기준 기록</th>
+                                        <th className="px-3 py-2">기준정보 차이</th>
                                         <th className="px-3 py-2">주요 원인</th>
-                                        <th className="px-3 py-2">Summary Hash</th>
+                                        <th className="px-3 py-2">요약 확인값</th>
                                     </tr>
                                 </thead>
                                 <tbody className="text-slate-700">
@@ -4090,14 +4094,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             </table>
                         </div>
                         {filteredVerificationHistory.length === 0 ? (
-                            <p className="text-[11px] font-bold text-slate-500">현재 선택한 실패 원인 또는 package 필터에 해당하는 검증 실행이 없습니다.</p>
+                            <p className="text-[11px] font-bold text-slate-500">현재 선택한 실패 원인 또는 검증 묶음 필터에 해당하는 검증 실행이 없습니다.</p>
                         ) : null}
                     </div>
                 ) : null}
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div>
-                        <label className="text-xs font-bold text-slate-500 mb-1 block">Manifest 파일 (manifest.json)</label>
+                        <label className="text-xs font-bold text-slate-500 mb-1 block">1단계 기준 파일 선택</label>
                         <input
                             type="file"
                             accept=".json,application/json"
@@ -4114,7 +4118,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     </div>
 
                     <div>
-                        <label className="text-xs font-bold text-slate-500 mb-1 block">JSON 폴더 파일들 (json/*.json)</label>
+                        <label className="text-xs font-bold text-slate-500 mb-1 block">2단계 증빙 데이터 파일 선택</label>
                         <input
                             type="file"
                             accept=".json,application/json"
@@ -4277,43 +4281,43 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
                         <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-5">
                             <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Hash Check</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">확인값 점검</p>
                                 <p className="mt-1 text-sm font-black text-slate-800">{verificationResult.hashMismatches.length}건</p>
-                                <p className="text-[11px] text-slate-500">JSON SHA-256 불일치 수</p>
+                                <p className="text-[11px] text-slate-500">증빙 데이터 확인값 불일치 수</p>
                             </div>
                             <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Missing JSON</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">누락 데이터</p>
                                 <p className="mt-1 text-sm font-black text-slate-800">{verificationResult.missingJsonFiles.length}건</p>
-                                <p className="text-[11px] text-slate-500">manifest에 있으나 업로드되지 않은 파일</p>
+                                <p className="text-[11px] text-slate-500">기준 파일에 있으나 업로드되지 않은 파일</p>
                             </div>
                             <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Invalid JSON</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">손상 데이터</p>
                                 <p className="mt-1 text-sm font-black text-slate-800">{verificationResult.invalidJsonFiles.length}건</p>
-                                <p className="text-[11px] text-slate-500">파싱 불가능한 JSON 파일 수</p>
+                                <p className="text-[11px] text-slate-500">읽을 수 없는 증빙 데이터 파일 수</p>
                             </div>
                             <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Harness Snapshot</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">기준 기록</p>
                                 <p className="mt-1 text-sm font-black text-slate-800">{verificationResult.missingHarnessSnapshots.length}건</p>
-                                <p className="text-[11px] text-slate-500">manifest 메타 대비 스냅샷 누락 수</p>
+                                <p className="text-[11px] text-slate-500">기준 정보 대비 기록 누락 수</p>
                             </div>
                             <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Meta Diff</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">기준정보 차이</p>
                                 <p className="mt-1 text-sm font-black text-slate-800">{verificationResult.metadataMismatches.length}건</p>
-                                <p className="text-[11px] text-slate-500">manifest와 JSON 메타 불일치 수</p>
+                                <p className="text-[11px] text-slate-500">기준 파일과 증빙 데이터 정보 불일치 수</p>
                             </div>
                         </div>
 
                         {!verificationResult.isValid && (
                             <div className="mt-3 space-y-3">
                                 <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                                    <p className="text-[11px] font-black text-slate-700 mb-1">패키지 요약 해시 비교</p>
+                                    <p className="text-[11px] font-black text-slate-700 mb-1">검증 묶음 요약 확인값 비교</p>
                                     <p className="text-[11px] text-slate-600 break-all">기대값: {verificationResult.packageSummaryHashExpected || 'N/A'}</p>
                                     <p className="text-[11px] text-slate-600 break-all">실제값: {verificationResult.packageSummaryHashActual || 'N/A'}</p>
                                 </div>
 
                                 {verificationResult.missingJsonFiles.length > 0 && (
                                     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                                        <p className="text-[11px] font-black text-slate-700 mb-2">누락 JSON 파일</p>
+                                        <p className="text-[11px] font-black text-slate-700 mb-2">누락 증빙 데이터 파일</p>
                                         <div className="max-h-32 overflow-auto">
                                             <table className="w-full text-[11px] text-left">
                                                 <thead className="text-slate-500">
@@ -4338,7 +4342,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
                                 {verificationResult.invalidJsonFiles.length > 0 && (
                                     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                                        <p className="text-[11px] font-black text-slate-700 mb-2">파싱 불가 JSON 파일</p>
+                                        <p className="text-[11px] font-black text-slate-700 mb-2">읽기 불가 증빙 데이터 파일</p>
                                         <div className="max-h-32 overflow-auto">
                                             <table className="w-full text-[11px] text-left">
                                                 <thead className="text-slate-500">
