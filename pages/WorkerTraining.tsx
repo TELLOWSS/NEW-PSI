@@ -382,10 +382,10 @@ const UI_TEXT: Record<UiLocale, {
         loading: '불러오는 중...',
         noSession: '세션이 없습니다. 관리자에게 문의해 주세요.',
         errorPrefix: '안내',
-        permissionDenied: '권한이 없거나 관리자 승인이 필요합니다',
+        permissionDenied: '관리자에게 교육 링크 확인을 요청해 주세요',
         sessionFetchErrorLabel: '세션 조회 안내',
-        linkInvalid: '유효하지 않은 접속 링크입니다. 관리자에게 올바른 링크를 요청해 주세요.',
-        linkExpired: '링크 유효기간이 만료되었습니다. 관리자에게 재발급을 요청해 주세요.',
+        linkInvalid: '교육 링크를 다시 확인해 주세요.',
+        linkExpired: '교육 링크의 사용 시간이 지났습니다.',
         stayOnPageHint: '제출 완료 전에는 뒤로가기/새로고침을 하지 마세요.',
         alreadySubmitted: '이미 제출이 완료되었습니다. 중복 제출은 차단됩니다.',
     },
@@ -427,10 +427,10 @@ const UI_TEXT: Record<UiLocale, {
         loading: 'Loading...',
         noSession: 'Session not found. Please contact your administrator.',
         errorPrefix: 'Error',
-        permissionDenied: 'Access denied or administrator approval is required.',
+        permissionDenied: 'Please ask the manager to verify the training link.',
         sessionFetchErrorLabel: 'Session fetch error',
-        linkInvalid: 'Invalid access link. Please request the correct link from your administrator.',
-        linkExpired: 'This link has expired. Please ask your administrator for a new link.',
+        linkInvalid: 'Please check the training link again.',
+        linkExpired: 'The training link is no longer available.',
         stayOnPageHint: 'Do not go back or refresh before submission is complete.',
         alreadySubmitted: 'Submission is already completed. Duplicate submission is blocked.',
     },
@@ -472,10 +472,10 @@ const UI_TEXT: Record<UiLocale, {
         loading: 'Đang tải...',
         noSession: 'Không tìm thấy phiên. Vui lòng liên hệ quản trị viên.',
         errorPrefix: 'Lỗi',
-        permissionDenied: 'Bạn không có quyền hoặc cần quản trị viên phê duyệt.',
+        permissionDenied: 'Vui lòng liên hệ quản lý để kiểm tra liên kết đào tạo.',
         sessionFetchErrorLabel: 'Lỗi tải phiên',
-        linkInvalid: 'Liên kết truy cập không hợp lệ. Vui lòng yêu cầu quản trị viên gửi đúng liên kết.',
-        linkExpired: 'Liên kết đã hết hạn. Vui lòng yêu cầu quản trị viên cấp lại liên kết.',
+        linkInvalid: 'Vui lòng kiểm tra lại liên kết đào tạo.',
+        linkExpired: 'Liên kết đào tạo đã hết thời gian sử dụng.',
         stayOnPageHint: 'Trước khi gửi xong, vui lòng không quay lại hoặc làm mới trang.',
         alreadySubmitted: 'Bạn đã gửi thành công trước đó. Hệ thống chặn gửi trùng lặp.',
     },
@@ -517,10 +517,10 @@ const UI_TEXT: Record<UiLocale, {
         loading: '加载中...',
         noSession: '未找到会话，请联系管理员。',
         errorPrefix: '错误',
-        permissionDenied: '没有访问权限或需要管理员批准。',
+        permissionDenied: '请联系管理员确认培训链接。',
         sessionFetchErrorLabel: '会话加载错误',
-        linkInvalid: '访问链接无效，请向管理员索取正确链接。',
-        linkExpired: '链接已过期，请联系管理员重新签发。',
+        linkInvalid: '请重新确认培训链接。',
+        linkExpired: '培训链接已超过使用时间。',
         stayOnPageHint: '提交完成前请勿返回或刷新页面。',
         alreadySubmitted: '已提交完成，系统已阻止重复提交。',
     },
@@ -1225,7 +1225,8 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     if (!hasSessionLoaded) {
         return (
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm max-w-2xl">
-                <p className="text-sm font-bold text-slate-700">교육자료를 아직 불러오지 않았습니다. 버튼을 눌러 내용을 확인해 주세요.</p>
+                <h2 className="text-lg font-black text-slate-900">교육자료를 확인해 주세요</h2>
+                <p className="mt-2 text-sm font-bold text-slate-700">버튼을 눌러 오늘의 안전교육 내용을 불러온 뒤, 내용을 확인하고 서명해 주세요.</p>
                 <button
                     type="button"
                     onClick={handleLoadSessionData}
@@ -1243,8 +1244,16 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
         return <div className="bg-white p-6 rounded-2xl border border-slate-200 font-bold">{t.loading}</div>;
     }
 
+    const noTrainingDataMessage = uiLocale === 'ko'
+        ? '교육자료를 찾을 수 없습니다. 관리자에게 교육 링크 확인을 요청해 주세요.'
+        : uiLocale === 'en'
+            ? 'Unable to find the training material. Please ask the manager to check the training link.'
+            : uiLocale === 'vi'
+                ? 'Không tìm thấy tài liệu đào tạo. Vui lòng liên hệ quản lý để kiểm tra liên kết đào tạo.'
+                : '未找到培训资料，请联系管理员确认培训链接。';
+
     if (!sessionData) {
-        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.noSession}</div>;
+        return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{noTrainingDataMessage}</div>;
     }
 
     if (isLinkMetaMissing) {
