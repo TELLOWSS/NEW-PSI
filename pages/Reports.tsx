@@ -633,24 +633,38 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     };
 
     const getVerificationFailureRecommendedAction = (reason: string) => {
-        switch (reason) {
-            case '해시 불일치':
-                return 'manifest와 JSON 원본을 같은 생성 시점 기준으로 다시 묶어 패키지를 재생성하십시오.';
-            case '메타 불일치':
-                return 'manifest 메타와 JSON 내부 안전 기록 스냅샷을 함께 재동기화한 뒤 다시 검증하십시오.';
-            case '스냅샷 누락':
-                return '안전 기록 감사 스냅샷 포함 옵션을 확인하고 처리 상태 연동을 먼저 점검하십시오.';
-            case '파싱 불가 JSON':
-                return '손상된 JSON을 다시 내보내고 업로드 파일 인코딩/절단 여부를 재확인하십시오.';
-            case '누락 JSON':
-                return 'manifest에 기록된 JSON 파일이 모두 업로드되었는지 먼저 확인하십시오.';
-            case '요약 해시 불일치':
-                return '패키지 전체 JSON 묶음을 다시 생성해 manifest summary hash를 재계산하십시오.';
-            case '실패 기록 없음':
-                return '현재 추가 조치는 필요하지 않습니다.';
-            default:
-                return '해당 실패 원인의 입력 파일, manifest, 안전 기록 스냅샷을 함께 비교 점검하십시오.';
+        if (reason.startsWith('해시')) {
+            return '기준 파일과 증빙 데이터 원본을 같은 생성 시점 기준으로 다시 묶어 검증 묶음을 재생성하십시오.';
         }
+        if (reason.startsWith('메타')) {
+            return '기준 파일 메타와 증빙 데이터 내부 안전 기록을 함께 재동기화한 뒤 다시 검증하십시오.';
+        }
+        if (reason.startsWith('스냅샷')) {
+            return '안전 기록 감사 포함 옵션을 확인하고 처리 상태 연동을 먼저 점검하십시오.';
+        }
+        if (reason.startsWith('파싱')) {
+            return '손상된 증빙 데이터를 다시 내보내고 업로드 파일 인코딩/절단 여부를 재확인하십시오.';
+        }
+        if (reason.startsWith('누락')) {
+            return '기준 파일에 기록된 증빙 데이터 파일이 모두 업로드되었는지 먼저 확인하십시오.';
+        }
+        if (reason.startsWith('요약')) {
+            return '검증 묶음 전체 증빙 데이터 묶음을 다시 생성해 요약 확인값을 재계산하십시오.';
+        }
+        if (reason === '실패 기록 없음') {
+            return '현재 추가 조치는 필요하지 않습니다.';
+        }
+        return '해당 실패 원인의 입력 파일, 기준 파일, 안전 기록을 함께 비교 점검하십시오.';
+    };
+
+    const getVerificationFailureDisplayLabel = (reason: string): string => {
+        if (reason.startsWith('해시')) return '확인값 불일치';
+        if (reason.startsWith('메타')) return '기준정보 차이';
+        if (reason.startsWith('스냅샷')) return '기준 기록 누락';
+        if (reason.startsWith('파싱')) return '손상 데이터';
+        if (reason.startsWith('누락')) return '누락 증빙 데이터';
+        if (reason.startsWith('요약')) return '요약 확인값 불일치';
+        return reason;
     };
 
     const VERIFICATION_HISTORY_STORAGE_KEY = 'psi_reports_verification_history_v1';
@@ -1207,7 +1221,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 const manifestText = await verificationManifestFile.text();
                 const manifest = JSON.parse(manifestText) as EvidenceManifest;
                 if (!manifest || !Array.isArray(manifest.files)) {
-                    throw new Error('manifest.json 형식이 올바르지 않습니다. files 배열이 필요합니다.');
+                    throw new Error('기준 파일 형식이 올바르지 않습니다. files 배열이 필요합니다.');
                 }
 
                 if (!disposed) {
@@ -1465,7 +1479,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             warnings.push(`템플릿 버전이 현재 기준(${EVIDENCE_PACKAGE_TEMPLATE_VERSION})과 다릅니다: ${verificationHarnessMetaSummary.templateVersion}`);
         }
         if (verificationHarnessMetaSummary.jsonSchemaVersion !== EVIDENCE_PACKAGE_JSON_SCHEMA_VERSION) {
-            warnings.push(`JSON 스키마 버전이 현재 기준(${EVIDENCE_PACKAGE_JSON_SCHEMA_VERSION})과 다릅니다: ${verificationHarnessMetaSummary.jsonSchemaVersion}`);
+            warnings.push('증빙 데이터 형식 버전이 현재 기준과 다릅니다.');
         }
         if (verificationHarnessMetaSummary.readmeFileName !== EVIDENCE_PACKAGE_README_FILE_NAME) {
             warnings.push(`README 파일명이 현재 기준(${EVIDENCE_PACKAGE_README_FILE_NAME})과 다릅니다: ${verificationHarnessMetaSummary.readmeFileName}`);
@@ -1561,22 +1575,22 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             eyebrow: '지금 상태',
             title: verificationResult ? (verificationResult.isValid ? '증빙 패키지 검증이 완료되었습니다.' : '증빙 패키지에 추가 확인이 필요합니다.') : '증빙 패키지 검증 전 단계입니다.',
             description: verificationResult
-                ? 'Manifest와 JSON 묶음의 일관성을 읽어 패키지 무결성을 현장에서 바로 확인할 수 있습니다.'
-                : 'manifest.json과 json 폴더 파일을 넣으면 해시와 누락 파일 여부를 한 번에 확인할 수 있습니다.',
+                ? '기준 파일과 증빙 데이터 묶음의 일관성을 읽어 검증 묶음 무결성을 현장에서 바로 확인할 수 있습니다.'
+                : '기준 파일과 증빙 데이터 파일을 넣으면 확인값과 누락 파일 여부를 한 번에 확인할 수 있습니다.',
             tone: verificationResult ? (verificationResult.isValid ? 'border-emerald-200 bg-emerald-50/80' : 'border-rose-200 bg-rose-50/80') : 'border-slate-200 bg-slate-50',
         },
         {
             key: 'verify-evidence',
             eyebrow: '판단 근거',
-            title: 'Manifest, JSON 파일 수, 해시 비교가 기준입니다.',
-            description: `현재 Manifest ${verificationManifestFile ? '1개 선택됨' : '미선택'}, JSON ${verificationJsonFiles.length}개가 준비되어 있습니다.`,
+            title: '기준 파일, 증빙 데이터 파일 수, 확인값 비교가 기준입니다.',
+            description: '기준 파일 1개와 증빙 데이터 파일 묶음을 준비하면 바로 검증을 시작할 수 있습니다.',
             tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'verify-action',
             eyebrow: '다음 행동',
             title: verificationResult && !verificationResult.isValid ? '누락 파일과 해시 불일치를 먼저 보완하세요.' : '파일 준비 후 검증 실행으로 넘어가세요.',
-            description: '검증 실패 시 패키지 요약 해시와 누락 JSON 목록을 기준으로 어떤 산출물을 다시 생성해야 하는지 바로 판단할 수 있습니다.',
+            description: '검증 실패 시 검증 묶음 요약 확인값과 누락 증빙 데이터 목록을 기준으로 어떤 산출물을 다시 생성해야 하는지 바로 판단할 수 있습니다.',
             tone: verificationResult && !verificationResult.isValid ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
         },
     ], [verificationJsonFiles.length, verificationManifestFile, verificationResult]);
@@ -1674,7 +1688,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             repeatedFailurePackages: ranked.filter((item) => item.failed >= 2).length,
             dominantFailureReason: ranked
                 .filter((item) => item.failed > 0)
-                .map((item) => item.primaryFailureReason)[0] || '실패 패키지 없음',
+                .map((item) => getVerificationFailureDisplayLabel(item.primaryFailureReason))[0] || '실패 패키지 없음',
         };
     }, [verificationHistory]);
 
@@ -3537,7 +3551,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             variant="amber"
                             eyebrow="리포트 저장 상태"
                             title={`현재 보고서 범위에서 ${harnessSummary.fallback}건이 영속 저장 폴백 상태입니다.`}
-                            description="보고서 해석과 증빙 JSON 내보내기는 계속 가능하지만, 저장 연결 여부를 함께 읽어 재확인 순서를 정해야 합니다."
+                            description="보고서 해석과 증빙 데이터 내보내기는 계속 가능하지만, 저장 연결 여부를 함께 읽어 재확인 순서를 정해야 합니다."
                         />
                     )}
                 </div>
@@ -3856,7 +3870,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 <span className="text-[11px] font-black text-slate-500">실패 원인 필터</span>
                                 {verificationFailureFilterOptions.map((option) => {
                                     const active = selectedVerificationFailureFilter === option;
-                                    const label = option === 'ALL' ? '전체' : option;
+                                    const label = option === 'ALL' ? '전체' : getVerificationFailureDisplayLabel(option);
                                     const count = option === 'ALL'
                                         ? verificationHistory.length
                                         : verificationHistory.filter((entry) => !entry.isValid && entry.primaryFailureReason === option).length;
@@ -3899,26 +3913,26 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
                         <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
                             <div className="rounded-xl border border-rose-200 bg-rose-50/80 px-4 py-3">
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-500">실패 패키지 수</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-rose-500">실패 검증 묶음 수</p>
                                 <p className="mt-1 text-sm font-black text-rose-800">{verificationPackageFailureSummary.failedPackages}개</p>
-                                <p className="mt-1 text-[11px] font-bold text-rose-700">한 번 이상 실패가 기록된 package 기준입니다.</p>
+                                <p className="mt-1 text-[11px] font-bold text-rose-700">한 번 이상 실패가 기록된 검증 묶음 기준입니다.</p>
                             </div>
                             <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3">
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">반복 실패 패키지</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-amber-600">반복 실패 검증 묶음</p>
                                 <p className="mt-1 text-sm font-black text-amber-800">{verificationPackageFailureSummary.repeatedFailurePackages}개</p>
-                                <p className="mt-1 text-[11px] font-bold text-amber-700">2회 이상 실패한 package 수입니다.</p>
+                                <p className="mt-1 text-[11px] font-bold text-amber-700">2회 이상 실패한 검증 묶음 수입니다.</p>
                             </div>
                             <div className="rounded-xl border border-violet-200 bg-violet-50/80 px-4 py-3">
                                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-500">우선 재확인 대상</p>
                                 <p className="mt-1 text-sm font-black text-violet-800 break-all">{verificationPackageFailureSummary.topPackages[0]?.packageName || '없음'}</p>
-                                <p className="mt-1 text-[11px] font-bold text-violet-700">실패 횟수와 이슈 신호가 가장 높은 package입니다.</p>
+                                <p className="mt-1 text-[11px] font-bold text-violet-700">실패 횟수와 이슈 신호가 가장 높은 검증 묶음입니다.</p>
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
                             <div className="rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-3">
                                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">최다 실패 원인</p>
-                                <p className="mt-1 text-sm font-black text-indigo-800">{verificationFailureReasonDistribution.topReason}</p>
+                                <p className="mt-1 text-sm font-black text-indigo-800">{getVerificationFailureDisplayLabel(verificationFailureReasonDistribution.topReason)}</p>
                                 <p className="mt-1 text-[11px] font-bold text-indigo-700">최근 세션에서 {verificationFailureReasonDistribution.topReasonCount}회 기록되었습니다.</p>
                             </div>
                             <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3">
@@ -3928,7 +3942,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             </div>
                             <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-3">
                                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500">최근 실패 원인</p>
-                                <p className="mt-1 text-sm font-black text-emerald-800">{verificationHistory.find((entry) => !entry.isValid)?.primaryFailureReason || '없음'}</p>
+                                <p className="mt-1 text-sm font-black text-emerald-800">{getVerificationFailureDisplayLabel(verificationHistory.find((entry) => !entry.isValid)?.primaryFailureReason || '없음')}</p>
                                 <p className="mt-1 text-[11px] font-bold text-emerald-700">가장 최근 실패 실행 기준입니다.</p>
                             </div>
                         </div>
@@ -3936,9 +3950,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         <NoticeCallout
                             variant="amber"
                             eyebrow="주요 실패 원인"
-                            title="최근 package 실패 패턴에서 가장 먼저 보이는 원인을 확인합니다."
+                            title="최근 검증 묶음 실패 패턴에서 가장 먼저 보이는 원인을 확인합니다."
                             description={verificationPackageFailureSummary.dominantFailureReason === '실패 패키지 없음'
-                                ? '아직 실패 package가 없어 별도 우선 원인이 없습니다.'
+                                ? '아직 실패 검증 묶음이 없어 별도 우선 원인이 없습니다.'
                                 : `현재 가장 우세한 실패 원인은 "${verificationPackageFailureSummary.dominantFailureReason}"입니다. 권장 조치: ${getVerificationFailureRecommendedAction(verificationPackageFailureSummary.dominantFailureReason)}`}
                             className="rounded-2xl border px-4 py-3"
                             bodyClassName="block"
@@ -3966,7 +3980,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
                                             return (
                                                 <tr key={item.reason} className="border-t border-slate-100">
-                                                    <td className="px-3 py-2 font-semibold">{item.reason}</td>
+                                                    <td className="px-3 py-2 font-semibold">{getVerificationFailureDisplayLabel(item.reason)}</td>
                                                     <td className="px-3 py-2 font-black">{item.count}회</td>
                                                     <td className="px-3 py-2">{failureShare}%</td>
                                                     <td className="px-3 py-2 leading-relaxed">{getVerificationFailureRecommendedAction(item.reason)}</td>
@@ -4006,7 +4020,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                                 <td className="px-3 py-2">{item.metadataMismatches}</td>
                                                 <td className="px-3 py-2">{item.missingHarnessSnapshots}</td>
                                                 <td className="px-3 py-2">{item.invalidJsonFiles}</td>
-                                                <td className="px-3 py-2 font-semibold">{item.primaryFailureReason}</td>
+                                                <td className="px-3 py-2 font-semibold">{getVerificationFailureDisplayLabel(item.primaryFailureReason)}</td>
                                                 <td className="px-3 py-2 leading-relaxed">{getVerificationFailureRecommendedAction(item.primaryFailureReason)}</td>
                                                 <td className="px-3 py-2 whitespace-nowrap">{formatIsoKstTimestamp(item.lastVerifiedAt)}</td>
                                             </tr>
@@ -4086,7 +4100,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                             <td className="px-3 py-2">{entry.hashMismatches}</td>
                                             <td className="px-3 py-2">{entry.missingHarnessSnapshots}</td>
                                             <td className="px-3 py-2">{entry.metadataMismatches}</td>
-                                            <td className="px-3 py-2 font-semibold">{entry.primaryFailureReason}</td>
+                                            <td className="px-3 py-2 font-semibold">{getVerificationFailureDisplayLabel(entry.primaryFailureReason)}</td>
                                             <td className="px-3 py-2">{entry.packageSummaryHashMatched ? 'YES' : 'NO'}</td>
                                         </tr>
                                     ))}
@@ -4155,7 +4169,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3">
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">템플릿 버전</p>
                             <p className="mt-1 text-sm font-black text-slate-800">{verificationHarnessMetaSummary.templateVersion}</p>
-                            <p className="mt-1 text-[11px] font-bold text-slate-600 break-all">Schema {verificationHarnessMetaSummary.jsonSchemaVersion}</p>
+                            <p className="mt-1 text-[11px] font-bold text-slate-600 break-all">기준 버전 정보</p>
                             <p className="mt-1 text-[10px] font-bold text-slate-500 break-all">생성시각 {formatIsoKstTimestamp(verificationHarnessMetaSummary.generatedAt)}</p>
                         </div>
                         <div className="rounded-xl border border-violet-200 bg-violet-50/80 px-4 py-3">
@@ -4367,14 +4381,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
                                 {verificationResult.hashMismatches.length > 0 && (
                                     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                                        <p className="text-[11px] font-black text-slate-700 mb-2">JSON 해시 불일치</p>
+                                        <p className="text-[11px] font-black text-slate-700 mb-2">증빙 데이터 확인값 불일치</p>
                                         <div className="max-h-40 overflow-auto">
                                             <table className="w-full text-[11px] text-left">
                                                 <thead className="text-slate-500">
                                                     <tr>
                                                         <th className="py-1 pr-2">파일</th>
-                                                        <th className="py-1 pr-2">기대 해시</th>
-                                                        <th className="py-1 pr-2">실제 해시</th>
+                                                        <th className="py-1 pr-2">기대 확인값</th>
+                                                        <th className="py-1 pr-2">실제 확인값</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="text-slate-700">
@@ -4396,7 +4410,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
                                 {verificationResult.missingHarnessSnapshots.length > 0 && (
                                     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                                        <p className="text-[11px] font-black text-slate-700 mb-2">안전 기록 스냅샷 누락</p>
+                                        <p className="text-[11px] font-black text-slate-700 mb-2">기준 기록 누락</p>
                                         <div className="max-h-32 overflow-auto">
                                             <table className="w-full text-[11px] text-left">
                                                 <thead className="text-slate-500">
