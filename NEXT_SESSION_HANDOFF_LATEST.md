@@ -493,3 +493,32 @@
 1. §17 체크리스트 1~5 실행
 2. `Introduction` 실무자 비노출 블록 1차 코드 반영
 3. `Dashboard` 운영/관리자 상세 분리 1차 코드 반영
+
+---
+
+## 19) 2026-06-05 종료 전 확인 및 다음 진행사항
+
+### 이번 세션 완료
+1. Introduction 실무자 비노출 블록 정리
+   - `pages/Introduction.tsx`
+   - `uiAudienceMode`를 기준으로 QA/런로그/개발자 메시지 영역을 분리함
+   - 실무자/관리자 화면에는 `오늘 바로 시작할 기능` 빠른 이동 카드로 대체함
+
+2. Dashboard 개발자 진단 블록 audience 정리
+   - `pages/Dashboard.tsx`
+   - `isDeveloperFacingMode`를 도입해 운영 백로그/집중도/드릴다운 블록을 개발자 전용으로 유지함
+   - 실무자 관점에서는 해당 진단 블록이 노출되지 않도록 정리함
+
+3. 검증 결과
+   - `npm.cmd run check:types` PASS
+   - `npm.cmd run build` PASS
+
+### 재시작 즉시 확인 순서
+1. `pages/Introduction.tsx`에서 실무자용 빠른 이동 카드 노출 확인
+2. `pages/Dashboard.tsx`에서 개발자 진단 블록이 실무자 화면에 비노출인지 확인
+3. 필요 시 브라우저에서 `Introduction` / `Dashboard` 렌더 스모크 테스트 수행
+
+### 다음 진행 후보
+1. `Dashboard`의 상단 모드 문구를 더 현장형으로 다듬기
+2. `Introduction` 실무자용 빠른 이동 카드의 문구를 운영 용어 사전에 맞춰 미세 조정하기
+3. 남아 있는 개발자/QA 노출 문구를 전체 검색으로 재점검하기
