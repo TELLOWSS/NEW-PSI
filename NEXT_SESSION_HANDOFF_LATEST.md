@@ -354,3 +354,142 @@
 
 ### 재시작용 한줄 프롬프트 (2026-05-21)
 "NEXT_SESSION_HANDOFF_LATEST.md §15 기준으로 재개. Supabase SQL Editor에서 supabase_ops_alert_click_logs_migration.sql 실행 후, P0/P1 runlog와 Reports runlog의 미체크 런타임 항목(A~D 포함)을 브라우저 실측으로 채워 최종 PASS/FAIL 판정까지 기록해줘."
+
+---
+
+## 16) 2026-06-04 종료 전 검증 및 다음 업그레이드 계획 (최신)
+
+### 이번 세션 사실 검증 결과
+1. 코드/빌드 상태
+   - `git` 기준 브랜치: `main`, `HEAD == origin/main`
+   - 최신 커밋: `9fd5213` (`fix(A5-1): prevent duplicate manual report lookups`)
+   - `npm run check:types` PASS
+   - `npm run build` PASS
+
+2. 작업트리 상태
+   - 미추적 항목 2건 확인
+      - `.github/workflows/ci.yml`
+      - `END_OF_DAY_HANDOFF_2026-05-31.md` (로컬 파일, 인코딩 점검 필요)
+
+3. 기능 기준선
+   - A5-1(Reports 수동 조회 전환 + 중복 방지) 반영 상태 확인
+   - 다음 업그레이드 대상은 A5-2로 확정
+      - 목표: `OcrAnalysis` 페이지 진입 시 자동 조회 제거, 수동 버튼 트리거로 전환
+
+### 다음 업그레이드 실행 순서 (A5-2)
+1. 구현 범위 고정
+   - 대상 파일: `pages/OcrAnalysis.tsx` 단일 파일 우선
+   - 페이지 진입/마운트 시 자동 조회 경로 제거
+   - 사용자 액션(버튼 클릭) 시에만 조회 실행
+
+2. 안정화 장치
+   - 요청 중복 방지(로딩 중 버튼 비활성)
+   - 마지막 갱신 시각/상태 문구 표시
+   - 실패 시 재시도 경로는 수동 트리거만 유지
+
+3. 검증 기준
+   - 페이지 진입 직후 자동 API 호출 0건
+   - 버튼 클릭 시 1회 호출, 중복 클릭 방지 동작 확인
+   - `npm run check:types` / `npm run build` PASS
+
+4. 종료 기록 기준
+   - A5-2 완료 후 본 문서에 결과와 커밋 해시를 추가
+   - 인코딩 깨진 로컬 인수인계 파일(`END_OF_DAY_HANDOFF_2026-05-31.md`)은 UTF-8로 정리 후 반영 여부 결정
+
+### A5-2 실제 반영 결과
+1. 코드 변경
+   - `pages/OcrAnalysis.tsx`
+   - 진입 시 자동 마스터 데이터 조회 제거
+   - `기록 양식·공종/팀 배정 관리` 섹션에 수동 `마스터 데이터 새로고침` 버튼 추가
+   - 로딩 중 중복 요청 방지 가드 및 마지막 조회 시각 상태 추가
+
+2. 검증
+   - `npm run check:types` PASS
+   - `npm run build` PASS
+
+3. 현재 남은 항목
+   - 브라우저에서 실제 페이지 진입 직후 자동 호출 0건인지 최종 런타임 확인
+   - 로컬 미추적 파일 2건(`.github/workflows/ci.yml`, `END_OF_DAY_HANDOFF_2026-05-31.md`) 처리 방향 결정
+
+### 역할별 언어/정보 노출 심화 계획 추가 (2026-06-04)
+1. 실행계획 문서 추가
+   - `ROLE_BASED_LANGUAGE_AND_VISIBILITY_IMPLEMENTATION_PLAN_2026-06-04.md`
+   - 목적: 실무자/관리자/개발자 언어 체계와 화면 블록 노출 정책을 제품 수준에서 재설계
+
+2. 1차 화면 감사 문서 추가
+   - `PRACTITIONER_HIDDEN_BLOCK_AUDIT_INTRO_DASHBOARD_2026-06-04.md`
+   - 대상: `pages/Introduction.tsx`, `pages/Dashboard.tsx`
+   - 결과: 실무자 비노출 블록(QA/런로그/개발자 메시지/운영 집중도/백로그/폴백 등) 식별 완료
+
+3. 다음 우선 작업
+   - `Introduction` 실무자 비노출 블록 1차 제거
+   - `Dashboard` 운영/관리자 상세 블록을 역할 기준으로 분리
+   - `uiAudienceMode` 기반 `AudienceGuard` 초안 설계
+
+### 재시작용 한줄 프롬프트 (2026-06-04)
+"NEXT_SESSION_HANDOFF_LATEST.md §16 기준으로 재개. 먼저 pages/OcrAnalysis.tsx에서 페이지 진입 자동 조회를 제거하고 수동 버튼 트리거만 남기되, 중복 요청 방지와 마지막 갱신 상태를 함께 반영한 뒤 check:types/build까지 통과시켜줘."
+
+---
+
+## 17) 프로그램 재시작 대비 진행 확인/검증 기록 (2026-06-04)
+
+### 재시작 직후 확인 결과
+1. 브랜치/원격 상태
+   - 브랜치: `main`
+   - 기준: `main...origin/main`
+
+2. 최신 커밋 확인
+   - `9fd5213` fix(A5-1): prevent duplicate manual report lookups
+   - 최근 5개 히스토리 조회 완료
+
+3. 작업트리 상태
+   - 변경 파일: `pages/OcrAnalysis.tsx`
+   - 미추적 항목:
+      - `.github/workflows/`
+      - `END_OF_DAY_HANDOFF_2026-05-31.md`
+
+### 빌드/타입 검증 결과
+1. `npm run check:types` PASS
+2. `npm run build` PASS
+   - Vite build 완료 (`870 modules transformed`, `built in 4.43s`)
+
+### 진행사항 확인 요약
+1. A5-2 반영분은 코드/타입/빌드 기준으로 정상
+   - `pages/OcrAnalysis.tsx`의 자동 조회 제거 + 수동 새로고침 흐름 반영 상태 유지
+2. 재시작 후 즉시 이어갈 작업은 런타임 확인 1건
+   - 브라우저에서 페이지 진입 직후 자동 호출 0건 검증
+
+### 재시작 체크리스트 (고정)
+1. `git status -sb`
+2. `git log --oneline -n 5`
+3. `npm run check:types`
+4. `npm run build`
+5. `pages/OcrAnalysis.tsx` 수동 조회 동작 스모크 확인
+
+### 재시작용 한줄 프롬프트 (2026-06-04 업데이트)
+"NEXT_SESSION_HANDOFF_LATEST.md §17 기준으로 재개. 먼저 git/status와 check:types/build를 다시 확인하고, OcrAnalysis 페이지 진입 시 자동 호출 0건인지 런타임으로 검증한 뒤 결과를 기록해줘."
+
+---
+
+## 18) 진행 완료 업데이트 (2026-06-04)
+
+### 이번에 추가 완료된 항목
+1. 역할별 언어/정보 노출 재설계 실행계획 작성 완료
+   - `ROLE_BASED_LANGUAGE_AND_VISIBILITY_IMPLEMENTATION_PLAN_2026-06-04.md`
+
+2. Introduction / Dashboard 실무자 비노출 블록 감사 완료
+   - `PRACTITIONER_HIDDEN_BLOCK_AUDIT_INTRO_DASHBOARD_2026-06-04.md`
+
+3. 재시작 기준 진행 확인/검증 기록 작성 완료
+   - 본 문서 §17에 git/타입/빌드 상태 반영
+
+### 현재 기준 상태
+1. `npm run check:types` PASS
+2. `npm run build` PASS
+3. 다음 실무 작업은 런타임 스모크 1건
+   - `OcrAnalysis` 페이지 진입 직후 자동 호출 0건 확인
+
+### 다음 세션 시작 순서 (권장)
+1. §17 체크리스트 1~5 실행
+2. `Introduction` 실무자 비노출 블록 1차 코드 반영
+3. `Dashboard` 운영/관리자 상세 분리 1차 코드 반영
