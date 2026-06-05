@@ -597,3 +597,100 @@
 
 ### 재시작용 한줄 프롬프트 (2026-06-05)
 "NEXT_SESSION_HANDOFF_LATEST.md §20 기준으로 재개. 먼저 현재 사용자군 프리셋/운영모드/체크리스트 상태를 확인해 OCR 메뉴 비노출 원인을 재현하고, 이후 메뉴+대시보드 카드 조립형 MVP(노출/순서 저장)부터 구현해줘. 구현 후 check:types/build까지 통과시키고 결과를 §20 하단에 기록해줘."
+
+---
+
+## 21) 조립형 커스터마이징 MVP 파일 단위 실행계획 (즉시 착수용)
+
+### 목표(이번 스프린트)
+1. 사이드바 메뉴와 대시보드 빠른 이동 카드의 노출/순서를 사용자 취향대로 조립 가능하게 만들 것
+2. 메뉴/버튼 핵심 문구를 사전(dictionary) 기반으로 교체 가능한 구조로 시작할 것
+3. OCR 핵심 진입점은 어떤 조합에서도 최소 1개를 유지할 것
+
+### 작업 전 고정 원칙
+1. 기존 금지사항 준수
+   - 자동 API 호출 추가 금지
+   - `gateway.ts`, `safety-management.ts`, `supabaseClient.ts`, `pages/WorkerTraining.tsx`, `pages/OcrAnalysis.tsx`, `pages/Reports.tsx`, `api/admin/training.ts`는 승인 없이 로직 변경 금지
+2. 이번 MVP에서는 우선 localStorage 기반으로 구현하고, 서버 동기화는 차기 단계로 분리
+
+### Day 1 구현 순서 (데이터 구조 + 사이드바 조립)
+1. 새 유틸 파일 추가
+   - `utils/uiCompositionConfig.ts`
+   - 내용
+      - 설정 스키마 정의
+      - 기본값/마이그레이션/저장/로드 함수
+      - 보호정책: OCR 진입점 최소 1개 보장
+
+2. 사이드바 연결
+   - `components/Sidebar.tsx`
+   - 변경
+      - 현재 visibleMenuItems 계산 전에 사용자 조립 설정 반영
+      - 설정된 순서(order) 적용
+      - 정책 충돌 시(권한/운영모드) 노출 제한 유지
+
+3. 레이아웃 상태 연결
+   - `components/Layout.tsx`
+   - 변경
+      - 설정 로드 및 전달
+      - 임시 구성 편집 토글(설정 페이지 내부 한정) 추가
+
+### Day 2 구현 순서 (대시보드 카드 조립 + 문구 사전)
+1. 문구 사전 기본 파일 추가
+   - `config/phraseDictionary.ts`
+   - 내용
+      - 키 기반 기본 문구
+      - 역할별 오버라이드(실무자/관리자/개발)
+
+2. 라벨 조회 헬퍼 추가
+   - `utils/phraseUtils.ts`
+   - 내용
+      - `getPhrase(key, uiMode)` 형태 조회 함수
+
+3. 대시보드 빠른 이동 카드 연결
+   - `pages/Dashboard.tsx`
+   - 변경
+      - 상단/핵심 빠른 이동 카드 배열에 조립 설정 반영
+      - 카드 타이틀/버튼 문구를 dictionary 조회로 단계 전환
+
+4. 라우트 메타와 충돌 없는 연결
+   - `config/routeMeta.ts`
+   - 변경
+      - 기존 하드코딩 라벨 유지(호환성)
+      - 문구 사전 키를 선택적으로 참조할 수 있는 필드 확장(점진 도입)
+
+### Day 3 안정화 (운영 적용 전)
+1. 정책 충돌 사유 표기
+   - 숨김 이유를 내부 디버그 텍스트로 기록(사용자 화면 직접 노출은 운영 용어만)
+
+2. 기본값 복원
+   - 설정 초기화 버튼 추가(설정 페이지 내)
+
+3. 회귀 점검
+   - OCR/Reports/대시보드 진입 경로가 기존보다 줄어들지 않았는지 확인
+
+### 파일별 예상 변경 목록
+1. 신규
+   - `utils/uiCompositionConfig.ts`
+   - `config/phraseDictionary.ts`
+   - `utils/phraseUtils.ts`
+2. 수정
+   - `components/Layout.tsx`
+   - `components/Sidebar.tsx`
+   - `pages/Dashboard.tsx`
+   - `config/routeMeta.ts` (필드 확장 범위 최소)
+
+### 검증 체크리스트 (PR 전 필수)
+1. 기능 검증
+   - 메뉴 숨김/정렬 저장 후 새로고침 복원
+   - OCR 진입점 최소 1개 유지
+   - 역할/운영모드 전환 시 충돌 없이 안전하게 필터링
+
+2. 품질 검증
+   - `npm.cmd run check:types` PASS
+   - `npm.cmd run build` PASS
+
+3. 용어 검증
+   - 실무자 화면에 금지 기술용어(API/payload/Supabase/debug 등) 노출 0건
+
+### 구현 시작용 한줄 프롬프트 (개발자용)
+"§21 Day 1부터 시작. utils/uiCompositionConfig.ts를 먼저 만들고 Sidebar/Layout에 메뉴 조립(노출/순서 저장)만 연결한 뒤 check:types/build 통과까지 진행해줘. OCR 진입점 최소 1개 보장 규칙을 반드시 포함해줘."
