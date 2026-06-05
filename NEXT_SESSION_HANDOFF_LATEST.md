@@ -4,6 +4,7 @@
 - 기준일시: 2026-05-18
 - 기준일시: 2026-05-20 (최신)
 - 기준일시: 2026-05-28 (최신)
+- 기준일시: 2026-06-05 (최신)
 - 프로젝트: NEW-PSI
 - 목적: 프로그램 종료 후 재시작 시, 2분 내에 현재 상태 파악하고 즉시 다음 작업 진행
 
@@ -522,3 +523,77 @@
 1. `Dashboard`의 상단 모드 문구를 더 현장형으로 다듬기
 2. `Introduction` 실무자용 빠른 이동 카드의 문구를 운영 용어 사전에 맞춰 미세 조정하기
 3. 남아 있는 개발자/QA 노출 문구를 전체 검색으로 재점검하기
+
+---
+
+## 20) 2026-06-05 PC 기능 미노출/OCR 확인 및 조립형 커스터마이징 계획 (최신)
+
+### 이번 세션 핵심 진단 결론
+1. OCR 기능은 미구현이 아니라 노출 조건에 의해 숨겨질 수 있는 상태
+   - OCR 페이지 import/렌더 분기 존재 확인: `App.tsx`
+   - 사이드바 OCR 메뉴 항목 존재 확인: `components/Sidebar.tsx`
+
+2. PC에서 기능이 안 보이는 주요 원인 3가지
+   - 사용자군 프리셋이 실무자(field-worker)일 때 worker 모드 라벨/메뉴 정책 적용
+   - 실무 즉시(immediate) + 시작 체크리스트 미완료 시 OCR/Reports/개인리포트 진입 차단
+   - PC라도 뷰포트가 lg 미만이면 데스크톱 사이드바가 숨고 모바일 네비 규칙이 적용됨
+
+3. 기술 검증 결과
+   - `npm.cmd run check:types` PASS
+   - `npm.cmd run build` PASS
+   - 빌드 산출물에 OcrAnalysis 번들 생성 확인
+
+### 원인 근거 코드 포인트 (재검증용)
+1. OCR 페이지 연결
+   - `App.tsx`의 OcrAnalysis lazy import + currentPage 분기
+
+2. 메뉴 필터 경로
+   - `components/Sidebar.tsx`: isPageVisibleByOperationalMode + isRouteVisibleInMode 동시 적용
+   - `config/routeMeta.ts`: ocr-analysis는 practitioner/developer에서 보이고 worker에서 숨김
+
+3. 강제 대시보드 리디렉션
+   - `App.tsx`: START_CHECK_GATE_BLOCKED_PAGES에 ocr-analysis 포함
+   - operationalMode immediate + start checklist gate active일 때 dashboard로 이동
+
+4. 모드 전환 UX 제약
+   - `components/Layout.tsx`: 운영모드 토글 버튼은 설정 페이지에서만 노출
+   - `config/devDiagnosticsGate.ts`: 진단 컨트롤은 환경 플래그/권한 조건에 영향 받음
+
+### 다음 세션 즉시 실행 체크리스트 (고정)
+1. 현재 화면 상태 배지 확인
+   - 사용자군 프리셋(실무자/관리자/소장)
+   - 운영모드(실무 즉시/표준 운영/개발 확장)
+   - 시작 체크리스트 완료 상태
+
+2. OCR 진입 가능 여부 재현
+   - 실무자 프리셋에서 OCR 메뉴 비노출 확인
+   - 관리자 프리셋 + 표준 운영에서 OCR 메뉴 노출 확인
+   - 실무 즉시 + 체크리스트 미완료에서 OCR 진입 차단 확인
+
+3. 반응형 영향 확인
+   - lg 미만 폭에서 데스크톱 사이드바 미노출/모바일 네비 동작 확인
+
+4. 빌드 기준선 확인
+   - `npm.cmd run check:types`
+   - `npm.cmd run build`
+
+### 조립형 화면 + 문구 커스터마이징 실행계획 (실행 순서)
+1. 1단계(MVP): 메뉴/대시보드 카드 조립
+   - 기능 블록 카탈로그(블록ID, 라벨, 권한, 표시조건) 정의
+   - 사용자/역할별 visible/order 설정 저장(localStorage)
+
+2. 2단계: 문구 사전 분리
+   - 메뉴명/타이틀/버튼/빈상태/오류문구를 dictionary로 분리
+   - 기본 문구 + 역할 오버라이드 + 현장 오버라이드 3단계 병합
+
+3. 3단계: 관리자 설정 UI 제공
+   - 구성 편집(노출/순서/고정)
+   - 문구 편집(역할별 미리보기)
+   - 저장/복원/기본값 리셋
+
+4. 4단계: 정책 충돌 가시화
+   - 숨김 원인을 사용자에게 명시(권한/운영모드/체크리스트/뷰포트)
+   - OCR은 핵심 진입점 최소 1개 항상 보장하는 보호정책 적용
+
+### 재시작용 한줄 프롬프트 (2026-06-05)
+"NEXT_SESSION_HANDOFF_LATEST.md §20 기준으로 재개. 먼저 현재 사용자군 프리셋/운영모드/체크리스트 상태를 확인해 OCR 메뉴 비노출 원인을 재현하고, 이후 메뉴+대시보드 카드 조립형 MVP(노출/순서 저장)부터 구현해줘. 구현 후 check:types/build까지 통과시키고 결과를 §20 하단에 기록해줘."
