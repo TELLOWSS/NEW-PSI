@@ -35,6 +35,8 @@ import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMet
 import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { getUserRolePreset, mapUserRolePresetToDashboardAudience, USER_ROLE_PRESET_CHANGED_EVENT } from '../utils/userRolePresetUtils';
+import type { UiAudienceMode } from '../config/routeMeta';
+import { getPhrase } from '../utils/phraseUtils';
 import { EmptyState, LoadingSkeleton, MetricCard, RiskBadge, SectionCard, WorkTypeBadge } from '../components/common';
 
 const NationalityChart = lazy(() => import('../components/charts/NationalityChart').then(module => ({ default: module.NationalityChart })));
@@ -2095,18 +2097,24 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     }, [audienceView, stats.averageScore, stats.highRiskWorkers, stats.totalChecks, stats.totalWorkers]);
 
     const quickActions = useMemo<DashboardQuickActionConfig[]>(() => {
+        const quickActionUiMode: UiAudienceMode = isDevMode && operationalMode === 'developer'
+            ? 'developer'
+            : audienceView === 'worker'
+                ? 'worker'
+                : 'practitioner';
+
         if (audienceView === 'worker') {
             return [
                 {
                     key: 'predictive',
-                    label: '보호 우선순위 보기',
+                    label: getPhrase('dashboard.quickAction.worker.priority', quickActionUiMode),
                     page: 'predictive-analysis',
                     variant: 'ghost',
                     icon: <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" /></svg>,
                 },
                 {
                     key: 'worker-management',
-                    label: '작업조 흐름 확인',
+                    label: getPhrase('dashboard.quickAction.worker.flow', quickActionUiMode),
                     page: 'worker-management',
                     variant: 'solid',
                     icon: <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
@@ -2118,14 +2126,14 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             return [
                 {
                     key: 'performance',
-                    label: '추세 분석 보기',
+                    label: getPhrase('dashboard.quickAction.executive.trend', quickActionUiMode),
                     page: 'performance-analysis',
                     variant: 'ghost',
                     icon: <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
                 },
                 {
                     key: 'reports',
-                    label: '리포트 생성',
+                    label: getPhrase('dashboard.quickAction.executive.report', quickActionUiMode),
                     page: 'reports',
                     variant: 'solid',
                     icon: <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
@@ -2136,20 +2144,20 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         return [
             {
                 key: 'ocr-analysis',
-                label: '신규 분석',
+                label: getPhrase('dashboard.quickAction.practitioner.newAnalysis', quickActionUiMode),
                 page: 'ocr-analysis',
                 variant: 'ghost',
                 icon: <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>,
             },
             {
                 key: 'reports',
-                label: '리포트 생성',
+                label: getPhrase('dashboard.quickAction.practitioner.report', quickActionUiMode),
                 page: 'reports',
                 variant: 'solid',
                 icon: <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>,
             },
         ];
-    }, [audienceView]);
+    }, [audienceView, isDevMode, operationalMode]);
 
     const pcConsoleActions = useMemo<Array<{ key: string; label: string; description: string; page: Page }>>(() => {
         return [

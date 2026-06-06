@@ -1,8 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import type { Page } from '../types';
 import { BrandPhilosophyLogo } from './shared/BrandPhilosophyLogo';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { isPageVisibleByOperationalMode } from '../utils/operationalModeUtils';
+import {
+    applySidebarComposition,
+    reorderSidebarPage,
+    setSidebarPageVisible,
+    writeSidebarVisibilityDebug,
+    type UiCompositionConfig,
+} from '../utils/uiCompositionConfig';
 import {
     getProductGroupLabel,
     getRouteLabel,
@@ -16,6 +23,9 @@ interface SidebarProps {
     currentPage: Page;
     setCurrentPage: (page: Page) => void;
     uiMode?: UiAudienceMode;
+    compositionConfig: UiCompositionConfig;
+    compositionEditMode?: boolean;
+    onCompositionConfigChange?: (next: UiCompositionConfig) => void;
 }
 
 type SidebarMenuItem = {
@@ -80,17 +90,61 @@ const SIDEBAR_GROUP_ORDER: ProductGroup[] = [
     'archive',
 ];
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, uiMode = 'practitioner' }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+    currentPage,
+    setCurrentPage,
+    uiMode = 'practitioner',
+    compositionConfig,
+    compositionEditMode = false,
+    onCompositionConfigChange,
+}) => {
     const { mode } = useOperationalMode();
     const resolvedUiMode: UiAudienceMode = uiMode === 'worker' || uiMode === 'developer' ? uiMode : 'practitioner';
 
-    const visibleMenuItems = useMemo(
+    const modeVisibleMenuItems = useMemo(
         () =>
             sidebarMenuItems.filter(
                 (item) => isPageVisibleByOperationalMode(item.id, mode) && isRouteVisibleInMode(item.id, resolvedUiMode),
             ),
         [mode, resolvedUiMode],
     );
+
+    const visibleMenuItems = useMemo(
+        () => applySidebarComposition(modeVisibleMenuItems, compositionConfig),
+        [modeVisibleMenuItems, compositionConfig],
+    );
+
+    const editRows = useMemo(
+        () =>
+            applySidebarComposition(modeVisibleMenuItems, {
+                ...compositionConfig,
+                hiddenSidebarPages: [],
+            }),
+        [modeVisibleMenuItems, compositionConfig],
+    );
+
+    const hiddenSet = useMemo(() => new Set(compositionConfig.hiddenSidebarPages), [compositionConfig.hiddenSidebarPages]);
+
+    useEffect(() => {
+        const entries = sidebarMenuItems.map((item) => {
+            const modeVisible = isPageVisibleByOperationalMode(item.id, mode);
+            const roleVisible = isRouteVisibleInMode(item.id, resolvedUiMode);
+            const userHidden = hiddenSet.has(item.id);
+
+            if (!modeVisible) {
+                return { page: item.id, reason: 'operational-mode' as const };
+            }
+            if (!roleVisible) {
+                return { page: item.id, reason: 'role-visibility' as const };
+            }
+            if (userHidden) {
+                return { page: item.id, reason: 'user-hidden' as const };
+            }
+            return { page: item.id, reason: 'visible' as const };
+        });
+
+        writeSidebarVisibilityDebug(mode, resolvedUiMode, entries);
+    }, [hiddenSet, mode, resolvedUiMode]);
 
     const groupedMenuItems = useMemo(() => {
         const groups = SIDEBAR_GROUP_ORDER
@@ -119,6 +173,56 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, u
             </div>
 
             <nav className="flex-1 px-3 py-4 overflow-y-auto custom-scrollbar">
+                {compositionEditMode && onCompositionConfigChange && (
+                    <section className="mb-4 rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                        <h3 className="text-xs font-black tracking-[0.08em] text-slate-200">메뉴 구성 편집</h3>
+                        <p className="mt-1 text-[11px] text-slate-400">표시 여부와 순서를 저장합니다. 문서 분석 관리는 보호 규칙으로 항상 유지됩니다.</p>
+                        <div className="mt-3 space-y-2">
+                            {editRows.map((item, index) => {
+                                const isHidden = hiddenSet.has(item.id);
+                                const isFirst = index === 0;
+                                const isLast = index === editRows.length - 1;
+                                return (
+                                    <div key={`edit-${item.id}`} className="flex items-center justify-between rounded-lg border border-slate-700/70 bg-slate-950/40 px-2 py-2">
+                                        <label className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+                                            <input
+                                                type="checkbox"
+                                                checked={!isHidden}
+                                                onChange={(event) =>
+                                                    onCompositionConfigChange(
+                                                        setSidebarPageVisible(compositionConfig, item.id, event.target.checked),
+                                                    )
+                                                }
+                                                className="h-3.5 w-3.5 rounded border-slate-500 bg-slate-800 text-orange-500 focus:ring-orange-500"
+                                            />
+                                            <span>{getRouteLabel(item.id, resolvedUiMode)}</span>
+                                        </label>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                type="button"
+                                                disabled={isFirst}
+                                                onClick={() => onCompositionConfigChange(reorderSidebarPage(compositionConfig, item.id, 'up'))}
+                                                className="rounded border border-slate-600 px-1.5 py-0.5 text-[10px] font-bold text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+                                                aria-label={`${getRouteLabel(item.id, resolvedUiMode)} 위로 이동`}
+                                            >
+                                                ▲
+                                            </button>
+                                            <button
+                                                type="button"
+                                                disabled={isLast}
+                                                onClick={() => onCompositionConfigChange(reorderSidebarPage(compositionConfig, item.id, 'down'))}
+                                                className="rounded border border-slate-600 px-1.5 py-0.5 text-[10px] font-bold text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+                                                aria-label={`${getRouteLabel(item.id, resolvedUiMode)} 아래로 이동`}
+                                            >
+                                                ▼
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </section>
+                )}
                 {groupedMenuItems.map((group) => (
                     <section key={group.id} className="mb-3 last:mb-0">
                         <h3 className="px-3 pb-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400">

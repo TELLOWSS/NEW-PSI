@@ -694,3 +694,110 @@
 
 ### 구현 시작용 한줄 프롬프트 (개발자용)
 "§21 Day 1부터 시작. utils/uiCompositionConfig.ts를 먼저 만들고 Sidebar/Layout에 메뉴 조립(노출/순서 저장)만 연결한 뒤 check:types/build 통과까지 진행해줘. OCR 진입점 최소 1개 보장 규칙을 반드시 포함해줘."
+
+---
+
+## 22) 2026-06-06 Day 1 실행 결과 (최신)
+
+### 이번 세션 완료
+1. 메뉴 조립 설정 유틸 추가
+   - `utils/uiCompositionConfig.ts` 신규 추가
+   - localStorage 기반 설정 스키마/로드/저장/정규화 함수 구현
+   - 보호정책 반영: `ocr-analysis` 숨김 방지(최소 진입점 유지)
+
+2. Sidebar 조립 연동
+   - `components/Sidebar.tsx`
+   - 기존 운영모드/권한 필터를 유지한 상태에서 사용자 조립 순서/노출 설정 적용
+   - 설정 페이지에서만 사용할 임시 편집 UI(표시 체크/위아래 이동) 추가
+
+3. Layout 상태 연동
+   - `components/Layout.tsx`
+   - 조립 설정 로드/저장 상태 추가
+   - 설정 페이지 한정 `메뉴 구성` 토글 버튼 추가
+   - 데스크톱/모바일 사이드바 모두 동일 설정 공유
+
+### 검증
+1. `npm.cmd run check:types` PASS
+2. `npm.cmd run build` PASS (`built in 4.11s`)
+
+### 현재 남은 항목 (Day 2)
+1. 문구 사전 파일 추가
+   - `config/phraseDictionary.ts`
+2. 문구 조회 헬퍼 추가
+   - `utils/phraseUtils.ts`
+3. 대시보드 빠른 이동 카드에 조립/문구 사전 연결
+   - `pages/Dashboard.tsx`
+
+### 재시작용 한줄 프롬프트 (2026-06-06)
+"NEXT_SESSION_HANDOFF_LATEST.md §22 기준으로 재개. Day 2로 넘어가 config/phraseDictionary.ts와 utils/phraseUtils.ts를 먼저 만들고 Dashboard 빠른 이동 카드 문구를 사전 조회 방식으로 연결한 뒤 check:types/build까지 통과시켜줘."
+
+---
+
+## 23) 2026-06-06 Day 2 실행 결과 (최신)
+
+### 이번 세션 완료
+1. 문구 사전 파일 추가
+   - `config/phraseDictionary.ts`
+   - Dashboard 빠른 이동 카드 키 6종(base + audience override) 정의
+
+2. 문구 조회 유틸 추가
+   - `utils/phraseUtils.ts`
+   - `getPhrase(key, uiMode)` 형태 조회 함수 구현
+
+3. Dashboard 빠른 이동 카드 문구 전환
+   - `pages/Dashboard.tsx`
+   - 하드코딩 라벨을 `getPhrase(...)` 호출로 교체
+   - audience/dev 운영 상태를 `UiAudienceMode`로 매핑해 문구 분기 적용
+
+### 검증
+1. `npm.cmd run check:types` PASS
+2. `npm.cmd run build` PASS (`built in 4.03s`)
+
+### 현재 남은 항목 (Day 3)
+1. 정책 충돌 사유 내부 디버그 기록 정리
+2. 설정 초기화 버튼 추가 (설정 페이지)
+3. 메뉴/대시보드/OCR 경로 회귀 점검
+
+### 재시작용 한줄 프롬프트 (2026-06-06)
+"NEXT_SESSION_HANDOFF_LATEST.md §23 기준으로 재개. Day 3로 넘어가 설정 초기화 버튼과 정책 충돌 사유 내부 기록을 추가하고, 메뉴·대시보드·OCR 진입 경로 회귀 점검까지 완료한 뒤 check:types/build 결과를 §23 하단에 이어서 기록해줘."
+
+---
+
+## 24) 2026-06-06 Day 3 실행 결과 (최신)
+
+### 이번 세션 완료
+1. 정책 충돌 사유 내부 기록 추가
+   - `utils/uiCompositionConfig.ts`
+     - `UI_COMPOSITION_SYNC_EVENT`, `UI_COMPOSITION_DEBUG_STORAGE_KEY` 추가
+     - `writeSidebarVisibilityDebug(...)`로 내부 디버그 기록 저장(sessionStorage)
+     - `resetUiCompositionConfig()` 추가 (설정 기본값 복원 + sync event 발행)
+   - `components/Sidebar.tsx`
+     - 메뉴별 숨김 사유를 `visible / operational-mode / role-visibility / user-hidden`로 분류해 내부 기록
+   - `components/Layout.tsx`
+     - storage/custom event 수신 시 조립 설정 상태 자동 동기화
+
+2. 설정 초기화 버튼 추가
+   - `pages/Settings.tsx`
+   - PC 운영 바로가기에 `메뉴 구성 기본값 복원` 버튼 추가
+   - 클릭 시 사용자 메뉴 노출/정렬 설정을 기본값으로 복원
+
+### 검증
+1. `npm.cmd run check:types` PASS
+2. `npm.cmd run build` PASS (`built in 4.08s`)
+
+### 회귀 점검(정적)
+1. 메뉴 경로
+   - `utils/uiCompositionConfig.ts` 기본 순서에 `ocr-analysis` 포함 유지
+   - `setSidebarPageVisible` 보호정책으로 OCR 숨김 방지 유지
+2. 대시보드 경로
+   - `pages/Dashboard.tsx` 빠른 이동 액션에 `ocr-analysis`/`reports` 경로 유지
+3. OCR 게이트 경로
+   - `App.tsx`의 `START_CHECK_GATE_BLOCKED_PAGES` 및 `ocr-analysis` 라우팅 분기 유지
+
+### 다음 진행 후보
+1. 메뉴 구성 편집 상태를 설정 화면에 요약 카드로 표시(현재 숨김 개수/변경 여부)
+2. 내부 디버그 기록을 개발자 모드에서만 JSON 보기로 열람하는 도구 추가
+3. Dashboard 카드 조립(노출/순서 저장) 단계로 확장
+
+### 재시작용 한줄 프롬프트 (2026-06-06)
+"NEXT_SESSION_HANDOFF_LATEST.md §24 기준으로 재개. 설정 화면에 메뉴 구성 요약 카드(숨김 개수/기본값 대비 변경 여부)와 개발자 모드 전용 내부 기록 보기(JSON)를 추가하고 check:types/build 후 §24 하단에 기록해줘."

@@ -18,6 +18,7 @@ import { getStoredTheme, getResolvedTheme, setTheme, watchSystemThemeChange, THE
 import type { UIViewMetricRecord } from '../utils/uiViewModeMetrics';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 import { resolveOcrExecutionKeyStatus } from '../utils/ocrExecutionKeyStatus';
+import { resetUiCompositionConfig } from '../utils/uiCompositionConfig';
 
 const TRAINING_LANGUAGE_OPTIONS = [
     { code: 'ko-KR', label: '한국어 (ko-KR)' },
@@ -703,6 +704,12 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         localStorage.removeItem('psi_competency_weight_history');
         setWeightHistory([]);
         alert('가중치 이력이 초기화되었습니다.');
+    };
+
+    const handleResetMenuComposition = () => {
+        if (!confirm('메뉴 구성을 기본값으로 복원하시겠습니까?\n(노출/정렬 사용자 설정이 초기화됩니다)')) return;
+        resetUiCompositionConfig();
+        alert('메뉴 구성이 기본값으로 복원되었습니다.');
     };
 
     const handleApplyWeightHistory = (entry: {
@@ -1441,12 +1448,13 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             <div className="hidden lg:block rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-4">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">PC 운영 바로가기</p>
                 <p className="mt-1 text-[11px] font-semibold text-indigo-700">설정/진단/저장을 상단에서 즉시 실행해 운영 점검 반복 시간을 줄입니다.</p>
-                <div className="mt-2 grid grid-cols-1 gap-2 xl:grid-cols-6">
+                <div className="mt-2 grid grid-cols-1 gap-2 xl:grid-cols-7">
                     <button type="button" onClick={() => { trackQuickAction('open_beginner_guide', { uiVariant: 'v3-targeted-tuning-1', copyVariant: guideCopyVariant, copyLabel: guideCopyLabel }); setShowGuide(true); }} className="min-h-[44px] rounded-xl border border-indigo-200 bg-white px-3 py-2 text-left text-xs font-black text-indigo-700 hover:bg-indigo-50">{guideCopyLabel}</button>
                     <button type="button" onClick={() => { trackQuickAction('set_theme_system_mode', { currentThemeMode: themeMode }); handleThemeModeChange('system'); }} className="min-h-[44px] rounded-xl border border-indigo-200 bg-white px-3 py-2 text-left text-xs font-black text-indigo-700 hover:bg-indigo-50">테마 자동 모드</button>
                     <button type="button" onClick={() => { trackQuickAction('refresh_ui_metrics'); loadUIViewMetrics(); }} className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-xs font-black text-slate-700 hover:bg-slate-50">UI 지표 새로고침</button>
                     <button type="button" onClick={() => { trackQuickAction('run_harness_health_check'); handleRunHarnessHealthCheck(); }} className="min-h-[44px] rounded-xl border border-emerald-200 bg-white px-3 py-2 text-left text-xs font-black text-emerald-700 hover:bg-emerald-50">헬스체크 실행</button>
                     <button type="button" onClick={() => { trackQuickAction('run_workflow_probe', { candidateCount: harnessCandidates.length }); handleRunHarnessProbe(); }} disabled={isHarnessProbeLoading || harnessCandidates.length === 0} className={`min-h-[44px] rounded-xl border border-violet-200 bg-white px-3 py-2 text-left text-xs font-black text-violet-700 ${isHarnessProbeLoading || harnessCandidates.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-violet-50'}`}>워크플로 진단 실행</button>
+                    <button type="button" onClick={handleResetMenuComposition} className="min-h-[44px] rounded-xl border border-amber-200 bg-white px-3 py-2 text-left text-xs font-black text-amber-700 hover:bg-amber-50">메뉴 구성 기본값 복원</button>
                     <button type="button" onClick={() => { trackQuickAction('save_settings'); handleSave(); }} className="min-h-[44px] rounded-xl border border-sky-200 bg-white px-3 py-2 text-left text-xs font-black text-sky-700 hover:bg-sky-50">설정 저장/적용</button>
                 </div>
             </div>

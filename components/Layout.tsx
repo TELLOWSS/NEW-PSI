@@ -22,6 +22,13 @@ import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { getOperationalModeLabel, isPageVisibleByOperationalMode } from '../utils/operationalModeUtils';
 import { cycleUserRolePreset, getUserRolePreset, getUserRolePresetLabel, USER_ROLE_PRESET_CHANGED_EVENT, type UserRolePreset } from '../utils/userRolePresetUtils';
 import {
+    loadUiCompositionConfig,
+    saveUiCompositionConfig,
+    UI_COMPOSITION_STORAGE_KEY,
+    UI_COMPOSITION_SYNC_EVENT,
+    type UiCompositionConfig,
+} from '../utils/uiCompositionConfig';
+import {
     canUseDevDiagnostics,
     canUseDevDiagnosticsShortcut,
     hasExplicitDevDiagnosticsPermission,
@@ -84,6 +91,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const { mode: operationalMode, cycleMode: cycleOperationalMode } = useOperationalMode();
     const [userRolePreset, setUserRolePreset] = useState<UserRolePreset>(() => getUserRolePreset());
     const [devDiagnosticsHiddenToggleEnabled, setDevDiagnosticsHiddenToggleEnabled] = useState<boolean>(() => isDevDiagnosticsHiddenToggleEnabled());
+    const [uiCompositionConfig, setUiCompositionConfig] = useState<UiCompositionConfig>(() => loadUiCompositionConfig());
+    const [isCompositionEditMode, setIsCompositionEditMode] = useState(false);
 
     const handleScrollToTop = useCallback(() => {
         mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -102,6 +111,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                 ? 'worker'
                 : 'practitioner';
     const showDiagnosticsControls = diagnosticsAvailable && currentPage === 'settings';
+    const isSettingsPage = currentPage === 'settings';
     const currentRouteMeta = getRouteMeta(currentPage);
     const currentPageTitle = getRouteLabel(currentPage, uiAudienceMode);
     const currentProductGroupLabel = getProductGroupLabel(currentRouteMeta.productGroup);
@@ -202,6 +212,11 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         setIsDark(getResolvedTheme(next) === 'dark');
     };
 
+    const handleCompositionConfigChange = (next: UiCompositionConfig) => {
+        const saved = saveUiCompositionConfig(next);
+        setUiCompositionConfig(saved);
+    };
+
     // 앱 로드 시 저장된 테마 적용
     useEffect(() => {
         const initialMode = getStoredTheme();
@@ -264,6 +279,32 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     }, []);
 
     useEffect(() => {
+        if (!isSettingsPage) {
+            setIsCompositionEditMode(false);
+        }
+    }, [isSettingsPage]);
+
+    useEffect(() => {
+        const syncComposition = () => {
+            setUiCompositionConfig(loadUiCompositionConfig());
+        };
+
+        const handleStorage = (event: StorageEvent) => {
+            if (!event.key || event.key === UI_COMPOSITION_STORAGE_KEY) {
+                syncComposition();
+            }
+        };
+
+        window.addEventListener('storage', handleStorage);
+        window.addEventListener(UI_COMPOSITION_SYNC_EVENT, syncComposition as EventListener);
+
+        return () => {
+            window.removeEventListener('storage', handleStorage);
+            window.removeEventListener(UI_COMPOSITION_SYNC_EVENT, syncComposition as EventListener);
+        };
+    }, []);
+
+    useEffect(() => {
         if (currentPage !== 'settings') return;
 
         const handleSettingsShortcut = (event: KeyboardEvent) => {
@@ -310,7 +351,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
 
     return (
         <AppShell
-            desktopSidebar={<Sidebar currentPage={currentPage} setCurrentPage={handlePageChange} uiMode={uiAudienceMode} />}
+            desktopSidebar={
+                <Sidebar
+                    currentPage={currentPage}
+                    setCurrentPage={handlePageChange}
+                    uiMode={uiAudienceMode}
+                    compositionConfig={uiCompositionConfig}
+                    compositionEditMode={isCompositionEditMode}
+                    onCompositionConfigChange={handleCompositionConfigChange}
+                />
+            }
             mobileSidebarOverlay={
                 isMobileMenuOpen ? (
                     <div className="fixed inset-0 z-50 no-print lg:hidden" role="dialog" aria-modal="true" aria-label="Navigation menu">
@@ -320,7 +370,14 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                             aria-hidden="true"
                         />
                         <div className="fixed inset-y-0 left-0 w-72 animate-fade-in">
-                            <Sidebar currentPage={currentPage} setCurrentPage={handlePageChange} uiMode={uiAudienceMode} />
+                            <Sidebar
+                                currentPage={currentPage}
+                                setCurrentPage={handlePageChange}
+                                uiMode={uiAudienceMode}
+                                compositionConfig={uiCompositionConfig}
+                                compositionEditMode={isCompositionEditMode}
+                                onCompositionConfigChange={handleCompositionConfigChange}
+                            />
                         </div>
                     </div>
                 ) : undefined
@@ -372,6 +429,21 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                             >
                                 {getUserRolePresetLabel(userRolePreset)}
                             </button>
+                            {isSettingsPage && (
+                                <button
+                                    type="button"
+                                    onClick={() => setIsCompositionEditMode((prev) => !prev)}
+                                    className={`ml-1 rounded-lg border px-2 h-8 text-[10px] font-black transition-colors ${
+                                        isCompositionEditMode
+                                            ? 'border-orange-400/70 bg-orange-500/20 text-orange-100 hover:bg-orange-500/30'
+                                            : 'border-slate-500/70 bg-slate-800/80 text-slate-200 hover:bg-slate-700/90'
+                                    }`}
+                                    title="설정 페이지에서 메뉴 구성 편집 열기"
+                                    aria-label={isCompositionEditMode ? '메뉴 구성 편집 닫기' : '메뉴 구성 편집 열기'}
+                                >
+                                    {isCompositionEditMode ? '편집 닫기' : '메뉴 구성'}
+                                </button>
+                            )}
                             {showDiagnosticsControls && (
                                 <button
                                     type="button"
