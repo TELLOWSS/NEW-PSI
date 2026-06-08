@@ -77,6 +77,7 @@ const lazyWithRecovery = <T extends { default: React.ComponentType<any> }>(
 
 const Dashboard = lazyWithRecovery('Dashboard', () => import('./pages/Dashboard'));
 const OcrAnalysis = lazyWithRecovery('OcrAnalysis', () => import('./pages/OcrAnalysis'));
+const MonthlyGuidanceReport = lazyWithRecovery('MonthlyGuidanceReport', () => import('./pages/MonthlyGuidanceReport'));
 const WorkerManagement = lazyWithRecovery('WorkerManagement', () => import('./pages/WorkerManagement'));
 const PredictiveAnalysis = lazyWithRecovery('PredictiveAnalysis', () => import('./pages/PredictiveAnalysis'));
 const SafetyChecks = lazyWithRecovery('SafetyChecks', () => import('./pages/SafetyChecks'));
@@ -1247,6 +1248,7 @@ const App: React.FC = () => {
                                 onNavigateToPredictive={() => navigateToPage('predictive-analysis')}
                             />
                         )}
+                        {currentPage === 'monthly-guidance-report' && <MonthlyGuidanceReport workerRecords={workerRecords} />}
                         {currentPage === 'worker-management' && <WorkerManagement workerRecords={workerRecords} onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} onOpenPhotoRegistration={(r, queueRecordIds) => setModalState({type:'recordDetail', record:r, source:'worker-management-photo-queue', queueRecordIds})} onUpdateRecord={handleUpdateRecord} />}
                         {currentPage === 'individual-report' && recordForReport && (
                             <IndividualReport 

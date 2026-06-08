@@ -754,33 +754,48 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         void handleDownloadImage();
     };
 
-    return (
-        <div className="bg-slate-100 min-h-screen p-3 sm:p-6 flex flex-col items-center gap-4 sm:gap-6 pb-20 no-print font-sans">
+    if (isQrScanMode) {
+        return (
+            <div className="min-h-screen bg-slate-100 p-6 flex items-center justify-center">
+                <section className="max-w-xl rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-xl">
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-indigo-600">관리자용 분석 자료</p>
+                    <h2 className="mt-3 text-2xl font-black text-slate-900">개인별 분석 결과는 교육 현장에 직접 공개하지 않습니다.</h2>
+                    <p className="mt-3 text-sm font-semibold leading-6 text-slate-600">근로자 교육에는 지난달 작성사항을 익명화·종합한 월별 계도 리포트만 공유합니다. 개인 점수·순위·감점·반복지적 상세는 관리자 개선 추적에만 사용됩니다.</p>
+                    <button type="button" onClick={onBack} className="mt-6 rounded-xl bg-slate-900 px-5 py-3 text-sm font-black text-white">이전 화면으로</button>
+                </section>
+            </div>
+        );
+    }
+
+    return (        <div className="bg-slate-100 min-h-screen p-3 sm:p-6 flex flex-col items-center gap-4 sm:gap-6 pb-20 no-print font-sans">
             <div className="bg-white px-3 sm:px-6 py-3 rounded-2xl sm:rounded-full shadow-lg flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-3 w-full max-w-[210mm] border border-slate-200 sticky top-2 sm:top-4 z-50">
                 <button onClick={onBack} className="text-sm font-bold flex items-center gap-2 text-slate-500 hover:text-slate-900">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M10 19l-7-7 7-7m-7 7h18" strokeWidth={2}/></svg> 대시보드
                 </button>
-                <div className="hidden sm:flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span><p className="text-xs font-bold text-slate-800">PSI A4 Professional Report</p></div>
-                <div className="grid grid-cols-5 sm:flex gap-2 w-full sm:w-auto">
-                    <button onClick={handleShare} disabled={isGenerating} className="bg-yellow-400 text-slate-900 px-2 sm:px-5 py-2 rounded-xl sm:rounded-full text-[11px] sm:text-xs font-black hover:bg-yellow-500 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1 sm:gap-2 shadow-sm">
+                <div className="hidden sm:flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span><p className="text-xs font-bold text-slate-800">PSI 관리자용 개인 작성 경향 분석</p></div>
+                <div className="flex flex-wrap justify-end gap-2 w-full sm:w-auto">
+                    <button hidden onClick={handleShare} disabled={isGenerating} className="bg-yellow-400 text-slate-900 px-2 sm:px-5 py-2 rounded-xl sm:rounded-full text-[11px] sm:text-xs font-black hover:bg-yellow-500 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1 sm:gap-2 shadow-sm">
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12c0 6.63 5.4 12 12 12 6.63 0 12-5.37 12-12 0-5.52-4.48-10-10-10zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" /></svg>
                         공유
                     </button>
-                    <button onClick={handleSendReportMessage} disabled={isGenerating || isQrScanMode} className="bg-indigo-600 px-2 sm:px-5 py-2 rounded-xl sm:rounded-full text-[11px] sm:text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-1 transition-all">
+                    <button hidden onClick={handleSendReportMessage} disabled={isGenerating || isQrScanMode} className="bg-indigo-600 px-2 sm:px-5 py-2 rounded-xl sm:rounded-full text-[11px] sm:text-xs font-bold text-white hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-1 transition-all">
                         {isSendingMessage ? '문자 중...' : '자동문자'}
                     </button>
-                    <button onClick={handleShareImages} disabled={isGenerating} className="bg-fuchsia-600 px-2 sm:px-5 py-2 rounded-xl sm:rounded-full text-[11px] sm:text-xs font-bold text-white hover:bg-fuchsia-700 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-1 transition-all">
+                    <button hidden onClick={handleShareImages} disabled={isGenerating} className="bg-fuchsia-600 px-2 sm:px-5 py-2 rounded-xl sm:rounded-full text-[11px] sm:text-xs font-bold text-white hover:bg-fuchsia-700 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-1 transition-all">
                         문자공유
                     </button>
                     <button onClick={handleDownloadImage} disabled={isGenerating} className="bg-emerald-600 px-2 sm:px-5 py-2 rounded-xl sm:rounded-full text-[11px] sm:text-xs font-bold text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-1 transition-all">
-                        {isGeneratingImage ? '변환 중...' : '이미지 저장'}
+                        {isGeneratingImage ? '생성 중...' : '관리자 보관 이미지'}
                     </button>
                     <button onClick={handleDownloadPDF} disabled={isGenerating} className="bg-slate-900 px-2 sm:px-5 py-2 rounded-xl sm:rounded-full text-[11px] sm:text-xs font-bold text-white hover:bg-black disabled:opacity-60 disabled:cursor-not-allowed transition-all">
-                        {isGeneratingPdf ? '생성 중...' : 'PDF 발급'}
+                        {isGeneratingPdf ? '생성 중...' : '관리자 보관 PDF'}
                     </button>
                 </div>
             </div>
 
+            <div className="w-full max-w-[210mm] rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold leading-6 text-indigo-950">
+                <strong>관리자용 분석 자료:</strong> 개인별 작성 경향과 월별 개선이행 확인에만 사용합니다. 교육 현장에는 실명·개인 점수·순위·감점 내역을 공개하지 않으며, 익명화된 월별 계도 리포트를 별도로 공유합니다.
+            </div>
             <div className="w-full max-w-[210mm]">
                 <InterpretationCardGrid
                     items={generationInterpretationCards}
@@ -805,7 +820,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                 />
             )}
 
-            {!isQrScanMode && (
+            {false && !isQrScanMode && (
                 <div className="w-full max-w-[210mm] rounded-[28px] border border-indigo-100 bg-white px-4 py-4 shadow-sm">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                         <div className="lg:max-w-[38%]">
@@ -904,7 +919,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                 </div>
             )}
 
-            <div className="w-full max-w-[210mm] rounded-2xl border border-fuchsia-100 bg-fuchsia-50 px-4 py-3 text-[12px] font-bold text-fuchsia-900 shadow-sm">
+            <div hidden className="w-full max-w-[210mm] rounded-2xl border border-fuchsia-100 bg-fuchsia-50 px-4 py-3 text-[12px] font-bold text-fuchsia-900 shadow-sm">
                 모바일에서는 문자공유 버튼으로 양면 리포트 이미지를 문자/MMS·메신저 앱에 바로 첨부할 수 있습니다. 자동문자 버튼은 서버에 연결된 SOLAPI 계정으로 직접 MMS를 발송합니다.
             </div>
 

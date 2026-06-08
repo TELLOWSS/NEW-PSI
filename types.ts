@@ -1,6 +1,7 @@
 ﻿export type Page = 
     'dashboard' | 
     'ocr-analysis' | 
+    'monthly-guidance-report' |
     'worker-management' | 
     'predictive-analysis' |
     'performance-analysis' |
@@ -209,6 +210,59 @@ export interface SixMetricBreakdown {
     improvementExecution: number;
     /** ⑥ 반복위반 패널티 (감점): 껍데기 단어 반복 시 최대 -30점 */
     repeatViolationPenalty: number;
+}
+
+export interface AdminWorkerInsightReport {
+    id?: string;
+    workerId: string;
+    workerName?: string;
+    assessmentMonth: string;
+    workType: string;
+    scoreBreakdown: SixMetricBreakdown;
+    repeatedIssues: string[];
+    improvementActions: string[];
+    createdAt: string;
+}
+
+export interface MonthlyGuidanceReport {
+    id?: string;
+    siteName: string;
+    educationMonth: string;
+    basedOnAssessmentMonth: string;
+    totalWorkers: number;
+    analyzedRecords: number;
+    overallSummary: string;
+    topRiskFactors: { riskName: string; count: number; relatedWorkTypes: string[]; guidanceMessage: string }[];
+    goodWritingExamples: { question: string; example: string; whyGood: string }[];
+    poorWritingExamples: { question: string; example: string; improvedExample: string; coachingPoint: string }[];
+    repeatedIssues: {
+        issueName: string;
+        previousCount?: number;
+        currentCount?: number;
+        trend: 'improved' | 'same' | 'worsened' | 'new';
+        guidanceMessage: string;
+    }[];
+    sixMetricTrends: {
+        psychologicalAvg: number;
+        jobUnderstandingAvg: number;
+        riskAssessmentUnderstandingAvg: number;
+        proficiencyAvg: number;
+        improvementExecutionAvg: number;
+        repeatViolationPenaltyAvg: number;
+    };
+    nextMonthEducationFocus: string[];
+    multilingualSummaries?: { languageCode: string; summaryText: string; koVerificationText?: string }[];
+    createdAt: string;
+}
+
+export interface MonthlyTrendDashboard {
+    month: string;
+    averageScore: number;
+    workTypeChanges: Record<string, number>;
+    languageWritingTrends: Record<string, number>;
+    improvementExecutionRate: number;
+    repeatedIssueCount: number;
+    nextEducationFocus: string[];
 }
 
 export interface ActionEntry {

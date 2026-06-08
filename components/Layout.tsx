@@ -125,7 +125,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         alerts: ['site-issue-management'],
         profile: ['worker-management'],
         predictive: ['predictive-analysis', 'intervention-coaching'],
-        more: ['reports', 'judgment-tagging-input', 'settings'],
+        more: ['monthly-guidance-report', 'reports', 'judgment-tagging-input', 'settings'],
     };
 
     const filteredMobilePageGroups: Record<MobileTabId, Page[]> = {
@@ -191,6 +191,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                     ]
                     : activeMobileTab === 'more'
                         ? [
+                            { page: 'monthly-guidance-report', label: getRouteLabel('monthly-guidance-report', uiAudienceMode) },
                             { page: 'reports', label: getRouteLabel('reports', uiAudienceMode) },
                             { page: 'judgment-tagging-input', label: getRouteLabel('judgment-tagging-input', uiAudienceMode) },
                             { page: 'settings', label: getRouteLabel('settings', uiAudienceMode) },
