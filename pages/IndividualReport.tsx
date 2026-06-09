@@ -12,6 +12,7 @@ import { BRAND_TONE } from '../utils/brandToneTokens';
 import { useMobileBackGuard } from '../hooks/useMobileBackGuard';
 import { sanitizeOperationalNote } from '../utils/ocrVerificationLanguageUtils';
 import { toVercelFriendlyMessage } from '../utils/errorUtils';
+import { buildAdminWorkerInsightReport } from '../utils/reportBuilders';
 
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
 
@@ -75,6 +76,7 @@ interface GenerationProgressState {
 
 const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [], onBack, onUpdateRecord, isQrScanMode = false }) => {
     const reportRef = useRef<HTMLDivElement>(null);
+    const adminInsightReport = useMemo(() => buildAdminWorkerInsightReport(record, history), [record, history]);
     const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
     const [isSendingMessage, setIsSendingMessage] = useState(false);
@@ -796,6 +798,10 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             <div className="w-full max-w-[210mm] rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-bold leading-6 text-indigo-950">
                 <strong>관리자용 분석 자료:</strong> 개인별 작성 경향과 월별 개선이행 확인에만 사용합니다. 교육 현장에는 실명·개인 점수·순위·감점 내역을 공개하지 않으며, 익명화된 월별 계도 리포트를 별도로 공유합니다.
             </div>
+            <section className="w-full max-w-[210mm] rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-black text-indigo-600">AdminWorkerInsightReport</p><h3 className="mt-1 text-lg font-black text-slate-900">관리자용 개인 작성 경향</h3></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">{adminInsightReport.assessmentMonth || '-'} · {adminInsightReport.workType}</span></div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2"><div className="rounded-xl bg-amber-50 p-4"><p className="text-xs font-black text-amber-700">반복 확인 항목</p><p className="mt-2 text-sm font-bold text-slate-700">{adminInsightReport.repeatedIssues.join(' · ') || '확인된 반복 항목 없음'}</p></div><div className="rounded-xl bg-emerald-50 p-4"><p className="text-xs font-black text-emerald-700">개선이행 확인</p><p className="mt-2 text-sm font-bold text-slate-700">{adminInsightReport.improvementActions.join(' · ') || '관리자 확인 후 개선행동을 등록하세요.'}</p></div></div>
+            </section>
             <div className="w-full max-w-[210mm]">
                 <InterpretationCardGrid
                     items={generationInterpretationCards}

@@ -125,7 +125,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         alerts: ['ocr-analysis'],
         profile: ['monthly-guidance-report'],
         predictive: ['admin-training'],
-        more: ['performance-analysis', 'reports', 'settings'],
+        more: ['performance-analysis', 'a4-education-material', 'ppt-pdf-one-page-summary', 'reports', 'settings'],
     };
 
     const isMobilePageVisible = (page: Page) =>
@@ -185,6 +185,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                         ? [{ page: 'admin-training', label: getRouteLabel('admin-training', uiAudienceMode) }]
                         : [
                             { page: 'performance-analysis', label: getRouteLabel('performance-analysis', uiAudienceMode) },
+                            { page: 'a4-education-material', label: getRouteLabel('a4-education-material', uiAudienceMode) },
+                            { page: 'ppt-pdf-one-page-summary', label: getRouteLabel('ppt-pdf-one-page-summary', uiAudienceMode) },
                             { page: 'reports', label: getRouteLabel('reports', uiAudienceMode) },
                             { page: 'settings', label: getRouteLabel('settings', uiAudienceMode) },
                         ];

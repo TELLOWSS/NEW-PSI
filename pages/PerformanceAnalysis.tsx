@@ -9,6 +9,7 @@ import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
+import { buildMonthlyTrendDashboards } from '../utils/reportBuilders';
 
 interface PerformanceAnalysisProps {
     workerRecords: WorkerRecord[];
@@ -256,6 +257,8 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
         workerRecords.filter(r => !isManagementRole(r.jobField))
     , [workerRecords]);
     const harnessSummary = useMemo(() => summarizeHarnessRecords(filteredBaseRecords), [filteredBaseRecords]);
+    const monthlyTrendDashboards = useMemo(() => buildMonthlyTrendDashboards(filteredBaseRecords), [filteredBaseRecords]);
+    const latestMonthlyTrend = monthlyTrendDashboards[monthlyTrendDashboards.length - 1];
 
     const kpiData = useMemo(() => {
         if (filteredBaseRecords.length === 0) return null;
@@ -531,6 +534,11 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                 />
             )}
 
+            <section className="rounded-2xl border border-blue-200 bg-blue-50/70 p-5 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-black text-blue-700">MonthlyTrendDashboard</p><h3 className="mt-1 text-lg font-black text-slate-900">월별 개선 추적 요약</h3></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700">{latestMonthlyTrend?.month || '분석 대기'}</span></div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">월 평균 점수</p><p className="mt-1 text-2xl font-black">{latestMonthlyTrend?.averageScore ?? 0}</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">개선이행률</p><p className="mt-1 text-2xl font-black text-emerald-700">{latestMonthlyTrend?.improvementExecutionRate ?? 0}%</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">반복지적 건수</p><p className="mt-1 text-2xl font-black text-orange-700">{latestMonthlyTrend?.repeatedIssueCount ?? 0}건</p></div></div>
+                <p className="mt-3 text-sm font-bold text-slate-600">다음 교육 반영: {latestMonthlyTrend?.nextEducationFocus.join(' · ') || '월별 분석 데이터가 쌓이면 자동 제안됩니다.'}</p>
+            </section>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                 <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-700 flex flex-col justify-between group hover:-translate-y-1 transition-transform duration-300">
                     <div className="flex justify-between items-start mb-4">

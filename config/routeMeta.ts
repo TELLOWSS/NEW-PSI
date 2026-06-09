@@ -224,6 +224,16 @@ export const routeMetaMap: Record<Page, RouteMeta> = {
         emptyStateMessage: '표시할 리포트가 없습니다.',
         errorMessage: '리포트를 불러오지 못했습니다.',
     }),
+    'a4-education-material': createMeta({
+        id: 'a4-education-material', productGroup: 'tbm', practitionerLabel: 'A4 교육자료 자동생성', workerLabel: '다음 달 위험교육', developerLabel: 'A4 Education Material',
+        description: '다음 달 위험성평가 작성 전 공종별 위험과 실천행동을 확인하는 도움자료입니다.', menuVisibleInPractitionerMode: true, menuVisibleInWorkerMode: false, menuVisibleInDeveloperMode: true,
+        fallbackTitle: 'A4 교육자료', emptyStateMessage: '교육자료를 만들 분석 기록이 없습니다.', errorMessage: 'A4 교육자료를 불러오지 못했습니다.',
+    }),
+    'ppt-pdf-one-page-summary': createMeta({
+        id: 'ppt-pdf-one-page-summary', productGroup: 'tbm', practitionerLabel: 'PPT/PDF 한장요약', workerLabel: '교육 한장요약', developerLabel: 'PPT/PDF One Page Summary',
+        description: '기존 교육자료를 현장 공유용 한 장 브리핑으로 정리합니다.', menuVisibleInPractitionerMode: true, menuVisibleInWorkerMode: false, menuVisibleInDeveloperMode: true,
+        fallbackTitle: 'PPT/PDF 한장요약', emptyStateMessage: '요약할 교육자료를 선택해 주세요.', errorMessage: '한장요약 화면을 불러오지 못했습니다.',
+    }),
     'admin-training': createMeta({
         id: 'admin-training',
         productGroup: 'tbm',

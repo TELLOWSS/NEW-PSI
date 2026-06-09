@@ -78,6 +78,8 @@ const lazyWithRecovery = <T extends { default: React.ComponentType<any> }>(
 const Dashboard = lazyWithRecovery('Dashboard', () => import('./pages/Dashboard'));
 const OcrAnalysis = lazyWithRecovery('OcrAnalysis', () => import('./pages/OcrAnalysis'));
 const MonthlyGuidanceReport = lazyWithRecovery('MonthlyGuidanceReport', () => import('./pages/MonthlyGuidanceReport'));
+const A4EducationMaterial = lazyWithRecovery('A4EducationMaterial', () => import('./pages/A4EducationMaterial'));
+const PptPdfOnePageSummary = lazyWithRecovery('PptPdfOnePageSummary', () => import('./pages/PptPdfOnePageSummary'));
 const WorkerManagement = lazyWithRecovery('WorkerManagement', () => import('./pages/WorkerManagement'));
 const PredictiveAnalysis = lazyWithRecovery('PredictiveAnalysis', () => import('./pages/PredictiveAnalysis'));
 const SafetyChecks = lazyWithRecovery('SafetyChecks', () => import('./pages/SafetyChecks'));
@@ -1249,6 +1251,8 @@ const App: React.FC = () => {
                             />
                         )}
                         {currentPage === 'monthly-guidance-report' && <MonthlyGuidanceReport workerRecords={workerRecords} />}
+                        {currentPage === 'a4-education-material' && <A4EducationMaterial workerRecords={workerRecords} />}
+                        {currentPage === 'ppt-pdf-one-page-summary' && <PptPdfOnePageSummary workerRecords={workerRecords} />}
                         {currentPage === 'worker-management' && <WorkerManagement workerRecords={workerRecords} onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} onOpenPhotoRegistration={(r, queueRecordIds) => setModalState({type:'recordDetail', record:r, source:'worker-management-photo-queue', queueRecordIds})} onUpdateRecord={handleUpdateRecord} />}
                         {currentPage === 'individual-report' && recordForReport && (
                             <IndividualReport 

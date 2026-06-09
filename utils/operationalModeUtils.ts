@@ -13,6 +13,8 @@ const IMMEDIATE_VISIBLE_PAGES = new Set<Page>([
     'site-issue-management',
     'reports',
     'monthly-guidance-report',
+    'a4-education-material',
+    'ppt-pdf-one-page-summary',
     'admin-training',
     'performance-analysis',
     'settings',

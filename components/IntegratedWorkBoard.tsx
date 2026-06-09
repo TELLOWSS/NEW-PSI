@@ -30,8 +30,8 @@ const BOARD_STEPS: BoardStep[] = [
     { number: 1, title: 'PSI 전체 대시보드', subtitle: '현장 핵심 현황과 이번 달 준비', page: 'dashboard', accent: 'blue' },
     { number: 2, title: '위험성평가 분석', subtitle: '수기 기록 업로드 · OCR · 6대 지표', page: 'ocr-analysis', accent: 'blue' },
     { number: 3, title: '월별 계도 리포트', subtitle: '지난달 작성사항 익명화 공유', page: 'monthly-guidance-report', accent: 'orange' },
-    { number: 4, title: 'A4 교육자료 자동생성', subtitle: '다음 달 위험작업 교육 준비', page: 'admin-training', accent: 'orange' },
-    { number: 5, title: 'PPT/PDF 한장요약', subtitle: '기존 교육자료 핵심 요약', page: 'reports', accent: 'blue' },
+    { number: 4, title: 'A4 교육자료 자동생성', subtitle: '다음 달 위험작업 교육 준비', page: 'a4-education-material', accent: 'orange' },
+    { number: 5, title: 'PPT/PDF 한장요약', subtitle: '기존 교육자료 핵심 요약', page: 'ppt-pdf-one-page-summary', accent: 'blue' },
     { number: 6, title: '다국어 교육 / QR', subtitle: '언어 선택 · QR 배포 · 교육 확인', page: 'admin-training', accent: 'green' },
     { number: 7, title: '월별 결과 / 6대지표 추이', subtitle: '개선이행과 반복지적 변화 추적', page: 'performance-analysis', accent: 'green' },
     { number: 8, title: '설정 / 권한관리', subtitle: '현장 · 언어 · 기능 노출 설정', page: 'settings', accent: 'blue' },
@@ -50,6 +50,8 @@ const CORE_MENU_PAGES = new Set<Page>([
     'dashboard',
     'ocr-analysis',
     'monthly-guidance-report',
+    'a4-education-material',
+    'ppt-pdf-one-page-summary',
     'admin-training',
     'reports',
     'performance-analysis',
@@ -146,7 +148,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                         ['수기 위험성평가 작성', '현장 근로자 기록'],
                         ['다음 달 분석', '지속적 개선 추적'],
                     ].map(([title, subtitle], index) => (
-                        <button key={title} type="button" onClick={() => setCurrentPage(BOARD_STEPS[Math.min(index + 1, 6)].page)} className="group flex min-h-20 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-white hover:shadow-md">
+                        <button key={title} type="button" onClick={() => setCurrentPage((['ocr-analysis', 'monthly-guidance-report', 'a4-education-material', 'a4-education-material', 'performance-analysis'] as Page[])[index])} className="group flex min-h-20 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-white hover:shadow-md">
                             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-blue-100 bg-white text-sm font-black text-blue-700">{index + 1}</span>
                             <span><span className="block text-xs font-black text-slate-800">{title}</span><span className="mt-1 block text-[10px] font-semibold text-slate-500">{subtitle}</span></span>
                         </button>

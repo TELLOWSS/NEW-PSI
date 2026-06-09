@@ -3396,7 +3396,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     {latestIntroQaRunlog ? (
                         <>
                             <p className="mt-1 text-[11px] font-semibold text-indigo-800">
-                                최신 점검: {new Date(latestIntroQaRunlog.checkedAt).toLocaleString('ko-KR', { hour12: false })}
+                                최신 점검: {formatIsoKstTimestamp(latestIntroQaRunlog.checkedAt)}
                                 {' · '}
                                 연결 {latestIntroQaRunlog.connected}/{latestIntroQaRunlog.total}
                                 {' · '}
@@ -3521,7 +3521,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         {filteredOpsAlertClickLogs.slice(0, 10).map((log) => (
                             <div key={log.id} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-700">
                                 <p>
-                                    {new Date(log.clickedAt).toLocaleString('ko-KR', { hour12: false })}
+                                    {formatIsoKstTimestamp(log.clickedAt)}
                                     {' · '}
                                     {log.action === 'go-intervention' ? '8번 개입 이동' : '10번 태깅 검증 이동'}
                                 </p>

@@ -16,6 +16,8 @@ const DEFAULT_SIDEBAR_ORDER: Page[] = [
     'safety-behavior-management',
     'performance-analysis',
     'monthly-guidance-report',
+    'a4-education-material',
+    'ppt-pdf-one-page-summary',
     'admin-training',
     'reports',
     'ocr-analysis',

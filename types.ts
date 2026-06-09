@@ -1,7 +1,9 @@
-﻿export type Page = 
+export type Page =
     'dashboard' | 
     'ocr-analysis' | 
     'monthly-guidance-report' |
+    'a4-education-material' |
+    'ppt-pdf-one-page-summary' |
     'worker-management' | 
     'predictive-analysis' |
     'performance-analysis' |

@@ -13,6 +13,7 @@
     "check:hotspot": "node scripts/check-hotspot-syntax.cjs",
     "check:tdz": "node scripts/check-tdz-useeffect-order.cjs",
     "check:page-tone": "node scripts/check-page-tone-coverage.cjs",
+    "check:ocr-contract": "node scripts/check-ocr-contract.cjs",
     "check:judgment-tagging": "node scripts/check-judgment-tagging-quality.cjs",
     "check:judgment-tagging:blank100": "node scripts/check-judgment-tagging-quality.cjs --input templates/psi_judgment_tagging_blank_100rows_v1_2026-05-16.csv",
     "check:judgment-tagging:report": "node scripts/check-judgment-tagging-quality.cjs --report-json reports/judgment-tagging-quality.json --report-md reports/judgment-tagging-quality.md",
