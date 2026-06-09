@@ -351,7 +351,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                 />
             )}
 
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-transparent dark:border-slate-700">
+            <div className={`p-6 rounded-lg shadow-sm border ${BRAND_TONE.whiteDarkPanel}`}>
                 <h3 className="text-lg font-semibold mb-4 flex items-center">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -443,7 +443,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                     )}
                 </form>
             </div>
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-sm border border-transparent dark:border-slate-700">
+            <div className={`p-6 rounded-lg shadow-sm border ${BRAND_TONE.whiteDarkPanel}`}>
                 <h3 className="text-lg font-semibold mb-4">전체 점검 기록</h3>
                 <InterpretationCardGrid
                     items={recordInterpretationCards}
@@ -467,7 +467,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                         </thead>
                         <tbody>
                            {checkRecords.map(record => (
-                               <tr key={record.id} className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700">
+                               <tr key={record.id} className={`border-b hover:bg-slate-50 dark:hover:bg-slate-700 ${BRAND_TONE.slateWhiteDarkPanel}`}>
                                    <td className="px-6 py-4">{record.date}</td>
                                    <td className="px-6 py-4 font-medium text-slate-900 dark:text-slate-100">{record.workerName}</td>
                                    <td className="px-6 py-4">

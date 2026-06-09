@@ -668,7 +668,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
     const getStepTone = (stepNoNum: number) => {
         if (stepNoNum === 2 || stepNoNum === 7 || stepNoNum === 8) {
             return {
-                cardBorder: 'border-amber-200 hover:bg-amber-50',
+                cardBorder: BRAND_TONE.amberHover,
                 badgeBg: 'bg-amber-500',
                 panelBg: 'bg-amber-50',
                 bars: ['bg-amber-100', 'bg-amber-200', 'bg-amber-300'],
@@ -678,7 +678,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
 
         if (stepNoNum === 10) {
             return {
-                cardBorder: 'border-violet-200 hover:bg-violet-50',
+                cardBorder: BRAND_TONE.violetHover,
                 badgeBg: 'bg-violet-600',
                 panelBg: 'bg-violet-50',
                 bars: ['bg-violet-100', 'bg-violet-200', 'bg-violet-300'],
@@ -688,7 +688,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
 
         if (stepNoNum === 5 || stepNoNum === 9 || stepNoNum === 11) {
             return {
-                cardBorder: 'border-emerald-200 hover:bg-emerald-50',
+                cardBorder: BRAND_TONE.emeraldHover,
                 badgeBg: 'bg-emerald-600',
                 panelBg: 'bg-emerald-50',
                 bars: ['bg-emerald-100', 'bg-emerald-200', 'bg-emerald-300'],
@@ -697,7 +697,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         }
 
         return {
-            cardBorder: 'border-indigo-100 hover:bg-indigo-50',
+            cardBorder: BRAND_TONE.indigoSoftHover,
             badgeBg: 'bg-indigo-600',
             panelBg: 'bg-slate-50',
             bars: ['bg-indigo-100', 'bg-violet-100', 'bg-sky-100'],
@@ -777,7 +777,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                     <div className="rounded-2xl border border-slate-200 bg-white/95 px-4 py-3 sm:px-4.5 sm:py-3.5">
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                             <div className="flex items-start gap-3">
-                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-indigo-200 bg-indigo-50">
+                                <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${BRAND_TONE.indigo}`}>
                                     <BrandPhilosophyLogo className="h-8 w-8" />
                                 </div>
                                 <div>
@@ -788,7 +788,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             </div>
                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                                 {heroPrinciples.map((item) => (
-                                    <div key={item.label} className="rounded-xl border border-indigo-100 bg-indigo-50 px-2.5 py-2 text-center">
+                                    <div key={item.label} className={`rounded-xl border px-2.5 py-2 text-center ${BRAND_TONE.indigoSoft}`}>
                                         <span className="flex justify-center text-indigo-500">{item.icon}</span>
                                         <p className="mt-1 text-[10px] font-black text-indigo-700">{item.label}</p>
                                     </div>
@@ -800,7 +800,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                     <div className="grid grid-cols-1 gap-3 xl:grid-cols-[1.14fr_1fr]">
                         <section className="rounded-3xl border border-indigo-200 bg-white p-3.5 shadow-sm">
                             <div className="mb-2 inline-flex items-center rounded-full bg-indigo-600 px-3 py-1 text-[10px] font-black tracking-[0.12em] text-white">PC DASHBOARD</div>
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3.5">
+                            <div className={`rounded-2xl border p-3.5 ${BRAND_TONE.slate}`}>
                                 <div className="grid grid-cols-[104px_1fr] gap-2.5">
                                     <div className="rounded-xl bg-indigo-950 px-2 py-3 text-indigo-100">
                                         <p className="text-sm font-black">psi</p>
@@ -863,7 +863,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                             {/* 위험 예측 지도 */}
                                             <div className="rounded-xl border border-slate-200 bg-white p-2">
                                                 <p className="text-[10px] font-black text-slate-500">위험 예측 지도</p>
-                                                <div className="relative mt-1.5 h-14 rounded-lg bg-slate-50 border border-slate-100 overflow-hidden">
+                                                <div className={`relative mt-1.5 h-14 rounded-lg border overflow-hidden ${BRAND_TONE.slateSoft}`}>
                                                     <div className="absolute inset-0 grid grid-cols-5 grid-rows-3 gap-px p-1.5">
                                                         {Array.from({ length: 15 }).map((_, i) => (
                                                             <div key={i} className="rounded-sm bg-slate-200/50"></div>
@@ -895,20 +895,20 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                 <button
                                     type="button"
                                     onClick={() => onNavigateToPage('reports')}
-                                    className="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-[11px] font-black text-indigo-700 transition duration-200 hover:bg-indigo-50"
+                                    className={`rounded-xl border px-3 py-2 text-[11px] font-black text-indigo-700 transition duration-200 hover:bg-indigo-50 ${BRAND_TONE.indigoWhite}`}
                                 >
                                     분석 리포트 열기
                                 </button>
                             </div>
                         </section>
 
-                        <section className="rounded-3xl border border-indigo-200 bg-indigo-50/70 p-3.5 shadow-sm">
+                        <section className={`rounded-3xl border p-3.5 shadow-sm ${BRAND_TONE.indigoSoft70}`}>
                             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                                 <div className="inline-flex items-center rounded-full bg-indigo-500 px-3 py-1 text-[10px] font-black tracking-[0.12em] text-white">MOBILE CORE 8</div>
                                 <button
                                     type="button"
                                     onClick={() => setShowAllMobileFeatures((prev) => !prev)}
-                                    className="rounded-xl border border-indigo-200 bg-white px-2.5 py-1.5 text-[10px] font-black text-indigo-700 transition duration-200 hover:bg-indigo-50"
+                                    className={`rounded-xl border px-2.5 py-1.5 text-[10px] font-black text-indigo-700 transition duration-200 hover:bg-indigo-50 ${BRAND_TONE.indigoWhite}`}
                                 >
                                     {showAllMobileFeatures ? '12기능 접기' : '12기능 펼치기'}
                                 </button>
@@ -966,7 +966,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                                     )}
                                                     {stepNoNum === 4 && (
                                                         <div className="space-y-1">
-                                                            <div className="relative h-6 rounded bg-slate-50 border border-slate-100 overflow-hidden">
+                                                            <div className={`relative h-6 rounded border overflow-hidden ${BRAND_TONE.slateSoft}`}>
                                                                 <div className="absolute inset-0 grid grid-cols-4 grid-rows-2 gap-px p-1">
                                                                     {Array.from({ length: 8 }).map((_, i) => (
                                                                         <div key={i} className="rounded-sm bg-slate-200/60"></div>
@@ -1062,7 +1062,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                         );
                                     })}
                                 </div>
-                                <div className="pointer-events-none absolute -bottom-4 -right-1 hidden h-36 w-20 rounded-2xl border border-slate-200 bg-slate-900 text-white shadow-xl sm:flex sm:flex-col sm:items-center sm:justify-center">
+                                <div className={`pointer-events-none absolute -bottom-4 -right-1 hidden h-36 w-20 rounded-2xl border text-white shadow-xl sm:flex sm:flex-col sm:items-center sm:justify-center ${BRAND_TONE.slateDarkBorderLight}`}>
                                     <BrandPhilosophyLogo className="h-7 w-7" />
                                     <p className="mt-1 text-lg font-black">psi</p>
                                     <p className="mt-1 text-[8px] font-bold text-slate-300">Human Risk Intelligence</p>
@@ -1070,7 +1070,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             </div>
                             <div className="mt-2.5 rounded-2xl border border-indigo-100 bg-white/90 p-2.5">
                                 {!showAllMobileFeatures ? (
-                                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2">
+                                    <div className={`rounded-xl border px-2.5 py-2 ${BRAND_TONE.slate}`}>
                                         <p className="text-[10px] font-black text-slate-700">8코어 중심 미리보기 모드</p>
                                         <p className="mt-0.5 text-[8px] font-semibold text-slate-500">상단 버튼으로 12기능 전체 QA/런로그를 펼쳐 확인할 수 있습니다.</p>
                                         <div className="mt-1.5 flex items-center gap-1.5 text-[8px] font-black">
@@ -1085,7 +1085,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                 ) : (
                                     <>
                                         {mobileFeatureValidation.hasWarnings ? (
-                                            <div className="mb-2 rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-2">
+                                            <div className={`mb-2 rounded-xl border px-2.5 py-2 ${BRAND_TONE.amber}`}>
                                                 <p className="text-[9px] font-black text-amber-700">QA 경보 모드 · 검증 필요 {mobileFeatureValidation.warnItems}건</p>
                                                 <p className="mt-0.5 text-[8px] font-semibold text-amber-700/90">샘플 데이터 또는 미연결 항목이 있어 런타임 점검이 필요합니다.</p>
                                                 <p className="mt-1 text-[8px] font-semibold text-amber-800/90">
@@ -1093,11 +1093,11 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                                 </p>
                                             </div>
                                         ) : (
-                                            <div className="mb-2 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-2">
+                                            <div className={`mb-2 rounded-xl border px-2.5 py-2 ${BRAND_TONE.emerald}`}>
                                                 <p className="text-[9px] font-black text-emerald-700">QA 정상 모드 · 12개 구성 연결 및 데이터 확인 완료</p>
                                             </div>
                                         )}
-                                        <div className="mb-2 flex flex-wrap items-center justify-between gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5">
+                                        <div className={`mb-2 flex flex-wrap items-center justify-between gap-1 rounded-lg border px-2 py-1.5 ${BRAND_TONE.slate}`}>
                                             <p className="text-[8px] font-black text-slate-600">QA RUNLOG</p>
                                             <p className="text-[8px] font-semibold text-slate-500">
                                                 최근 점검 {qaAlertRunlog.length}회
@@ -1123,7 +1123,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                                     key={item.title}
                                                     type="button"
                                                     onClick={() => onNavigateToPage(item.page)}
-                                                    className={`rounded-xl border px-2 py-1.5 ${item.state !== '연결됨' || item.dataState !== '데이터확인' ? 'border-amber-200 bg-amber-50/60' : 'border-slate-200 bg-slate-50'}`}
+                                                    className={`rounded-xl border px-2 py-1.5 ${item.state !== '연결됨' || item.dataState !== '데이터확인' ? BRAND_TONE.amberSoft70 : BRAND_TONE.slate}`}
                                                 >
                                                     <div className="flex items-center justify-between gap-2">
                                                         <p className="text-[9px] font-black text-slate-700 leading-tight">{item.title}</p>
@@ -1191,7 +1191,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                     { title: '연결', path: <><circle cx="5" cy="10" r="2" /><circle cx="15" cy="5" r="2" /><circle cx="15" cy="15" r="2" /><path d="M7 10l6-4M7 10l6 4" strokeLinecap="round" /></> },
                                     { title: '데이터', path: <><rect x="2" y="12" width="3" height="6" rx="1" /><rect x="8.5" y="8" width="3" height="10" rx="1" /><rect x="15" y="4" width="3" height="14" rx="1" /></> },
                                 ].map(({ title, path }) => (
-                                    <span key={title} className="flex flex-col items-center rounded-lg border border-slate-200 bg-slate-50 px-1 py-1.5 gap-0.5">
+                                    <span key={title} className={`flex flex-col items-center rounded-lg border px-1 py-1.5 gap-0.5 ${BRAND_TONE.slate}`}>
                                         <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-indigo-500" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">{path}</svg>
                                         <span className="text-[7px] font-bold text-slate-400">{title}</span>
                                     </span>
@@ -1210,7 +1210,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
             </div>
 
             <div className="max-w-5xl mx-auto px-4 card-gravity-target">
-                <div className="rounded-3xl border border-violet-100 bg-violet-50/80 p-6 shadow-sm">
+                <div className={`rounded-3xl border p-6 shadow-sm ${BRAND_TONE.violetSoft80}`}>
                     <div className="flex items-center gap-3">
                         <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-white text-violet-600 shadow-sm">🧩</span>
                         <div>
@@ -1252,7 +1252,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                         ></div>
                     </div>
 
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <div className={`mt-4 flex flex-wrap items-center justify-between gap-2 rounded-2xl border px-3 py-2 ${BRAND_TONE.slate}`}>
                         <div>
                             <div className="text-[11px] font-bold text-slate-600">
                                 {nextUpgradeTarget
@@ -1274,7 +1274,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             <button
                                 type="button"
                                 onClick={() => setShowOpenItemsOnly((prev) => !prev)}
-                                className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-black text-slate-700 transition duration-200 hover:bg-slate-100"
+                                className={`rounded-xl border px-2.5 py-1.5 text-[11px] font-black text-slate-700 transition duration-200 hover:bg-slate-100 ${BRAND_TONE.slateWhite}`}
                             >
                                 {showOpenItemsOnly ? '전체 보기' : '미완료만 보기'}
                             </button>
@@ -1282,7 +1282,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                 type="button"
                                 onClick={startNextUpgradeTarget}
                                 disabled={!nextUpgradeTarget}
-                                className="rounded-xl border border-indigo-200 bg-indigo-600 px-2.5 py-1.5 text-[11px] font-black text-white transition duration-200 hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                className={`rounded-xl border px-2.5 py-1.5 text-[11px] font-black text-white transition duration-200 hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 ${BRAND_TONE.indigoStrong}`}
                             >
                                 다음 구현 시작
                             </button>
@@ -1292,13 +1292,13 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                     <div className="mt-4 space-y-2.5">
                         {visibleUpgradePlanItems.map((item) => {
                             const statusMeta = item.status === 'done'
-                                ? { label: '완료', chip: 'bg-emerald-100 text-emerald-700', button: 'border-emerald-200 text-emerald-700 hover:bg-emerald-50' }
+                                ? { label: '완료', chip: 'bg-emerald-100 text-emerald-700', button: `${BRAND_TONE.emeraldHover} text-emerald-700` }
                                 : item.status === 'verifying'
-                                    ? { label: '검증중', chip: 'bg-amber-100 text-amber-700', button: 'border-amber-200 text-amber-700 hover:bg-amber-50' }
-                                    : { label: '대기', chip: 'bg-slate-200 text-slate-700', button: 'border-slate-300 text-slate-700 hover:bg-slate-100' };
+                                    ? { label: '검증중', chip: 'bg-amber-100 text-amber-700', button: `${BRAND_TONE.amberHover} text-amber-700` }
+                                    : { label: '대기', chip: 'bg-slate-200 text-slate-700', button: `${BRAND_TONE.slateWhite} text-slate-700 hover:bg-slate-100` };
 
                             return (
-                                <div key={item.id} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 sm:p-4">
+                                <div key={item.id} className={`rounded-2xl border p-3 sm:p-4 ${BRAND_TONE.slateSoft90}`}>
                                     <div className="flex flex-wrap items-start justify-between gap-2">
                                         <div>
                                             <div className="flex flex-wrap items-center gap-1.5">
@@ -1312,7 +1312,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                             <button
                                                 type="button"
                                                 onClick={() => onNavigateToPage(item.page)}
-                                                className="rounded-xl border border-indigo-200 bg-white px-2.5 py-1.5 text-[11px] font-black text-indigo-700 transition duration-200 hover:bg-indigo-50"
+                                                className={`rounded-xl border px-2.5 py-1.5 text-[11px] font-black text-indigo-700 transition duration-200 hover:bg-indigo-50 ${BRAND_TONE.indigoWhite}`}
                                             >
                                                 화면 열기
                                             </button>

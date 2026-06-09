@@ -3814,7 +3814,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                     </div>
                 )}
                 {/* Print Control Header */}
-                <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-8 py-4 flex justify-between items-center z-[3001] no-print shadow-sm">
+                <div className={`sticky top-0 border-b px-8 py-4 flex justify-between items-center z-[3001] no-print shadow-sm ${BRAND_TONE.slateWhiteDarkPanel}`}>
                     <div className="flex items-center gap-6">
                         <div className={`p-3 rounded-2xl ${printType === 'sticker' ? 'bg-orange-50 text-orange-600' : 'bg-indigo-50 text-indigo-600'}`}>
                             {printType === 'sticker' 
@@ -4138,7 +4138,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <textarea
                                     value={overrideReason}
                                     onChange={(e) => setOverrideReason(e.target.value)}
-                                    className={`w-full p-3 rounded-xl border font-bold min-h-[100px] ${overrideReason.trim().length > 0 && overrideReason.trim().length < 20 ? 'border-rose-300 bg-rose-50/40' : BRAND_TONE.slate}`}
+                                    className={`w-full p-3 rounded-xl border font-bold min-h-[100px] ${overrideReason.trim().length > 0 && overrideReason.trim().length < 20 ? BRAND_TONE.roseSoft40Strong : BRAND_TONE.slate}`}
                                     placeholder="법적/운영상 강제 발급 사유를 구체적으로 입력"
                                 />
                                 {overrideReason.trim().length > 0 && (() => {
@@ -6355,7 +6355,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 </div>
 
                 {mobileBackGuideMessage && (
-                    <div className="fixed bottom-4 left-1/2 z-[120] w-[calc(100%-32px)] max-w-sm -translate-x-1/2 rounded-2xl border border-slate-200 bg-slate-900/95 px-4 py-3 text-center text-[12px] font-bold text-white shadow-2xl sm:hidden">
+                    <div className={`fixed bottom-4 left-1/2 z-[120] w-[calc(100%-32px)] max-w-sm -translate-x-1/2 rounded-2xl border px-4 py-3 text-center text-[12px] font-bold text-white shadow-2xl sm:hidden ${BRAND_TONE.slateDarkBorderLight95}`}>
                         {mobileBackGuideMessage}
                     </div>
                 )}
