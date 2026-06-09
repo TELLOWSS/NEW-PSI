@@ -1079,6 +1079,7 @@ interface OcrAnalysisProps {
     onDeleteRecord: (recordId: string) => void;
     onUpdateRecord: (record: WorkerRecord) => void;
     onNavigateToPredictive?: () => void;
+    isStartChecklistIncomplete?: boolean;
 }
 
 type RetryDiagnostics = {
@@ -1103,6 +1104,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     onDeleteRecord, 
     onUpdateRecord,
     onNavigateToPredictive,
+    isStartChecklistIncomplete = false,
 }) => {
     const { isDevMode } = useDevMode();
     const { mode: operationalMode } = useOperationalMode();
@@ -4557,6 +4559,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
     return (
         <div className="space-y-6 sm:space-y-8 animate-fade-in-up">
+            {isStartChecklistIncomplete && (
+                <div role="status" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-950">
+                    <p className="text-sm font-black">업무 시작 점검이 아직 완료되지 않았습니다.</p>
+                    <p className="mt-1 text-xs font-bold leading-5 text-amber-800">분석 화면과 파일 업로드는 사용할 수 있습니다. 실제 AI 분석 전 API 키, 현장 정보, 저장 연결 상태를 확인해 주세요.</p>
+                </div>
+            )}
             <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
                 <p className="text-[11px] font-black uppercase tracking-[0.14em] text-indigo-700">10) 태깅 검증 진행</p>
                 <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">

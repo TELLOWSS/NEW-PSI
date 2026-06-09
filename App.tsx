@@ -15,6 +15,7 @@ import { appendBestPracticeSyncFailureLog, setBestPracticeSyncState } from './ut
 import { useOperationalMode } from './contexts/OperationalModeContext';
 import { isPageVisibleByOperationalMode } from './utils/operationalModeUtils';
 import { getTodayChecklist, OPS_CHECKLIST_CHANGED_EVENT } from './utils/opsChecklistUtils';
+import { isPageBlockedByStartChecklist } from './utils/navigationPolicy';
 
 const DYNAMIC_IMPORT_RELOAD_KEY = 'psi_dynamic_import_reload_once';
 const APP_RUNTIME_RECOVERY_RELOAD_KEY = 'psi_app_runtime_recovery_reload_once';
@@ -105,7 +106,6 @@ const IDB_VERSION = 1;
 const WORKER_STORE = 'worker_records';
 const SAFETY_LEVEL_MIGRATION_KEY = 'psi_migrated_safety_level_v20260325';
 const SAFETY_LEVEL_MIGRATION_REPORT_KEY = 'psi_migrated_safety_level_report_v20260325';
-const START_CHECK_GATE_BLOCKED_PAGES = new Set<Page>(['ocr-analysis', 'reports', 'individual-report']);
 
 interface ErrorBoundaryProps {
     children?: ReactNode;
@@ -829,7 +829,7 @@ const App: React.FC = () => {
             setCurrentPage('dashboard');
             return;
         }
-        if (operationalMode === 'immediate' && isStartChecklistGateActive && START_CHECK_GATE_BLOCKED_PAGES.has(currentPage)) {
+        if (operationalMode === 'immediate' && isStartChecklistGateActive && isPageBlockedByStartChecklist(currentPage)) {
             setCurrentPage('dashboard');
         }
     }, [currentPage, operationalMode, isWorkerKioskMode, isStartChecklistGateActive]);
@@ -850,7 +850,7 @@ const App: React.FC = () => {
     }, []);
 
     const navigateToPage = useCallback((page: Page) => {
-        if (operationalMode === 'immediate' && isStartChecklistGateActive && START_CHECK_GATE_BLOCKED_PAGES.has(page)) {
+        if (operationalMode === 'immediate' && isStartChecklistGateActive && isPageBlockedByStartChecklist(page)) {
             setCurrentPage('dashboard');
             return;
         }
@@ -1248,6 +1248,7 @@ const App: React.FC = () => {
                                 onDeleteRecord={handleDeleteRecord} 
                                 onUpdateRecord={handleUpdateRecord}
                                 onNavigateToPredictive={() => navigateToPage('predictive-analysis')}
+                                isStartChecklistIncomplete={isStartChecklistGateActive}
                             />
                         )}
                         {currentPage === 'monthly-guidance-report' && <MonthlyGuidanceReport workerRecords={workerRecords} />}
