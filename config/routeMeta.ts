@@ -227,11 +227,11 @@ export const routeMetaMap: Record<Page, RouteMeta> = {
     'admin-training': createMeta({
         id: 'admin-training',
         productGroup: 'tbm',
-        practitionerLabel: 'TBM 교육자료 관리',
+        practitionerLabel: '다국어 교육 / QR',
         workerLabel: '교육자료 확인',
         developerLabel: 'Admin Training',
         description: 'TBM 교육자료를 등록하고 관리합니다.',
-        menuVisibleInPractitionerMode: false,
+        menuVisibleInPractitionerMode: true,
         menuVisibleInWorkerMode: false,
         menuVisibleInDeveloperMode: true,
         fallbackTitle: 'TBM 교육자료 관리',

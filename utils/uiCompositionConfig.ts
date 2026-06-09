@@ -3,7 +3,7 @@ import type { Page } from '../types';
 export const UI_COMPOSITION_STORAGE_KEY = 'psi_ui_composition_v1';
 export const UI_COMPOSITION_SYNC_EVENT = 'psi-ui-composition-sync';
 export const UI_COMPOSITION_DEBUG_STORAGE_KEY = 'psi_sidebar_visibility_debug_v1';
-const UI_COMPOSITION_VERSION = 1;
+const UI_COMPOSITION_VERSION = 2;
 const OCR_ENTRY_PAGE: Page = 'ocr-analysis';
 
 const DEFAULT_SIDEBAR_ORDER: Page[] = [
@@ -15,12 +15,22 @@ const DEFAULT_SIDEBAR_ORDER: Page[] = [
     'predictive-analysis',
     'safety-behavior-management',
     'performance-analysis',
+    'monthly-guidance-report',
+    'admin-training',
     'reports',
     'ocr-analysis',
     'settings',
 ];
 
 const ALL_PAGES = new Set<Page>(DEFAULT_SIDEBAR_ORDER);
+const DEFAULT_HIDDEN_SIDEBAR_PAGES: Page[] = [
+    'site-issue-management',
+    'worker-management',
+    'safety-compliance-hub',
+    'survey-intelligence',
+    'predictive-analysis',
+    'safety-behavior-management',
+];
 
 type Direction = 'up' | 'down';
 
@@ -72,7 +82,7 @@ export const getDefaultUiCompositionConfig = (): UiCompositionConfig =>
     normalizeUiCompositionConfig({
         version: UI_COMPOSITION_VERSION,
         sidebarOrder: DEFAULT_SIDEBAR_ORDER,
-        hiddenSidebarPages: [],
+        hiddenSidebarPages: DEFAULT_HIDDEN_SIDEBAR_PAGES,
     });
 
 export const loadUiCompositionConfig = (): UiCompositionConfig => {
@@ -84,6 +94,9 @@ export const loadUiCompositionConfig = (): UiCompositionConfig => {
         const raw = window.localStorage.getItem(UI_COMPOSITION_STORAGE_KEY);
         if (!raw) return getDefaultUiCompositionConfig();
         const parsed = JSON.parse(raw) as Partial<UiCompositionConfig>;
+        if (parsed.version !== UI_COMPOSITION_VERSION) {
+            return getDefaultUiCompositionConfig();
+        }
         return normalizeUiCompositionConfig(parsed);
     } catch {
         return getDefaultUiCompositionConfig();

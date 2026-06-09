@@ -6,6 +6,7 @@ import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { Tooltip } from '../components/shared/Tooltip';
 import { BrandPhilosophyLogo } from '../components/shared/BrandPhilosophyLogo';
+import { IntegratedWorkBoard } from '../components/IntegratedWorkBoard';
 import { MOBILE_CARD_GRID_ITEM_CLASS, MOBILE_CARD_PANEL_CLASS, MOBILE_CARD_PANEL_COMPACT_CLASS } from '../components/shared/cardTokens';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { PSI_APP_VERSION } from '../lib/appInfo';
@@ -142,8 +143,8 @@ const DASHBOARD_VIEW_MODE_STORAGE_KEY = 'psi_dashboard_view_mode';
 const DASHBOARD_VIEW_MODE_MANUAL_KEY = 'psi_dashboard_view_mode_manual';
 const DASHBOARD_RISKMAP_FOCUS_KEY = 'psi_dashboard_riskmap_focus_v1';
 const DASHBOARD_RISKMAP_FOCUS_EVENT = 'psi-dashboard-riskmap-focus';
-const DASHBOARD_UI_MODE_STORAGE_KEY = 'psi_dashboard_ui_mode_v1';
-const DASHBOARD_UI_MODE_LOCK_KEY = 'psi_dashboard_ui_mode_lock_v1';
+const DASHBOARD_UI_MODE_STORAGE_KEY = 'psi_dashboard_ui_mode_v2';
+const DASHBOARD_UI_MODE_LOCK_KEY = 'psi_dashboard_ui_mode_lock_v2';
 const DASHBOARD_TEAM_COMPARISON_PRESETS_KEY = 'psi_dashboard_team_comparison_presets';
 const DASHBOARD_TRADE_COMPARISON_PRESETS_KEY = 'psi_dashboard_trade_comparison_presets';
 const DASHBOARD_LIVE_SYNC_SNAPSHOT_KEY = 'psi_dashboard_live_sync_snapshot_v1';
@@ -2546,6 +2547,19 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
               ? { label: '🟡 승인 대기', tone: 'bg-amber-400/20 text-amber-100 border border-amber-300/40' }
               : { label: '🟢 정상', tone: 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40' };
 
+    if (dashboardUIMode === 'basic') {
+        return (
+            <IntegratedWorkBoard
+                workerRecords={workerRecords}
+                safetyCheckRecords={safetyCheckRecords}
+                setCurrentPage={setCurrentPage}
+                onOpenAdvanced={() => {
+                    setIsDashboardUIModeLocked(false);
+                    setDashboardUIMode('advanced');
+                }}
+            />
+        );
+    }
     return (
         <div className={`${isEssentialMobile ? 'space-y-3' : 'space-y-3 sm:space-y-4 lg:space-y-6'} animate-fade-in-up`}>
             <div className="sm:hidden mb-2 rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">

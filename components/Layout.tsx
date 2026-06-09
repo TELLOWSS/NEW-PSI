@@ -122,18 +122,22 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
 
     const mobilePageGroupsBase: Record<MobileTabId, Page[]> = {
         home: ['dashboard'],
-        alerts: ['site-issue-management'],
-        profile: ['worker-management'],
-        predictive: ['predictive-analysis', 'intervention-coaching'],
-        more: ['monthly-guidance-report', 'reports', 'judgment-tagging-input', 'settings'],
+        alerts: ['ocr-analysis'],
+        profile: ['monthly-guidance-report'],
+        predictive: ['admin-training'],
+        more: ['performance-analysis', 'reports', 'settings'],
     };
 
+    const isMobilePageVisible = (page: Page) =>
+        isPageVisibleByOperationalMode(page, operationalMode)
+        && !uiCompositionConfig.hiddenSidebarPages.includes(page);
+
     const filteredMobilePageGroups: Record<MobileTabId, Page[]> = {
-        home: mobilePageGroupsBase.home.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
-        alerts: mobilePageGroupsBase.alerts.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
-        profile: mobilePageGroupsBase.profile.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
-        predictive: mobilePageGroupsBase.predictive.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
-        more: mobilePageGroupsBase.more.filter((page) => isPageVisibleByOperationalMode(page, operationalMode)),
+        home: mobilePageGroupsBase.home.filter(isMobilePageVisible),
+        alerts: mobilePageGroupsBase.alerts.filter(isMobilePageVisible),
+        profile: mobilePageGroupsBase.profile.filter(isMobilePageVisible),
+        predictive: mobilePageGroupsBase.predictive.filter(isMobilePageVisible),
+        more: mobilePageGroupsBase.more.filter(isMobilePageVisible),
     };
 
     const mobileBottomTabs: Array<{ id: MobileTabId; label: string; page?: Page; icon: React.ReactNode }> = [
@@ -145,63 +149,47 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         },
         {
             id: 'alerts',
-            label: '알림',
+            label: '위험분석',
             page: filteredMobilePageGroups.alerts[0],
-            icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5" /></svg>,
+            icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-3-3v6m8 5H4a2 2 0 01-2-2V6a2 2 0 012-2h16a2 2 0 012 2v12a2 2 0 01-2 2z" /></svg>,
         },
         {
             id: 'profile',
-            label: '프로파일',
+            label: '계도',
             page: filteredMobilePageGroups.profile[0],
-            icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6m4 6V7m4 10v-3M5 19h14" /></svg>,
+            icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" /></svg>,
         },
         {
             id: 'predictive',
-            label: '예측',
+            label: '교육/QR',
             page: filteredMobilePageGroups.predictive[0],
-            icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3a1 1 0 011 1v1.07a7.002 7.002 0 015.932 5.932H19a1 1 0 110 2h-1.068A7.002 7.002 0 0112 18.93V20a1 1 0 11-2 0v-1.07a7.002 7.002 0 01-5.932-5.93H3a1 1 0 110-2h1.068A7.002 7.002 0 0110 5.07V4a1 1 0 011-1zm0 4a5 5 0 100 10 5 5 0 000-10z" /></svg>,
+            icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5s3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18s-3.332.477-4.5 1.253" /></svg>,
         },
         {
             id: 'more',
             label: '더보기',
-            page: filteredMobilePageGroups.more[0] || 'reports',
+            page: filteredMobilePageGroups.more[0] || 'performance-analysis',
             icon: <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6h.01M12 12h.01M12 18h.01" /></svg>,
         },
     ];
-
     const activeMobileTab = (Object.entries(filteredMobilePageGroups).find(([, pages]) => pages.includes(currentPage))?.[0] as MobileTabId | undefined) ?? 'home';
 
     const mobileQuickLinksRaw: Array<{ page: Page; label: string }> =
         activeMobileTab === 'home'
-            ? [
-                { page: 'dashboard', label: getRouteLabel('dashboard', uiAudienceMode) },
-            ]
+            ? [{ page: 'dashboard', label: getRouteLabel('dashboard', uiAudienceMode) }]
             : activeMobileTab === 'alerts'
-                ? [
-                    { page: 'site-issue-management', label: getRouteLabel('site-issue-management', uiAudienceMode) },
-                ]
+                ? [{ page: 'ocr-analysis', label: getRouteLabel('ocr-analysis', uiAudienceMode) }]
                 : activeMobileTab === 'profile'
-                ? [
-                    { page: 'worker-management', label: getRouteLabel('worker-management', uiAudienceMode) },
-                ]
-                : activeMobileTab === 'predictive'
-                    ? [
-                        { page: 'predictive-analysis', label: getRouteLabel('predictive-analysis', uiAudienceMode) },
-                        { page: 'intervention-coaching', label: getRouteLabel('intervention-coaching', uiAudienceMode) },
-                    ]
-                    : activeMobileTab === 'more'
-                        ? [
-                            { page: 'monthly-guidance-report', label: getRouteLabel('monthly-guidance-report', uiAudienceMode) },
-                            { page: 'reports', label: getRouteLabel('reports', uiAudienceMode) },
-                            { page: 'judgment-tagging-input', label: getRouteLabel('judgment-tagging-input', uiAudienceMode) },
-                            { page: 'settings', label: getRouteLabel('settings', uiAudienceMode) },
-                        ]
+                    ? [{ page: 'monthly-guidance-report', label: getRouteLabel('monthly-guidance-report', uiAudienceMode) }]
+                    : activeMobileTab === 'predictive'
+                        ? [{ page: 'admin-training', label: getRouteLabel('admin-training', uiAudienceMode) }]
                         : [
+                            { page: 'performance-analysis', label: getRouteLabel('performance-analysis', uiAudienceMode) },
                             { page: 'reports', label: getRouteLabel('reports', uiAudienceMode) },
+                            { page: 'settings', label: getRouteLabel('settings', uiAudienceMode) },
                         ];
 
-    const mobileQuickLinks = mobileQuickLinksRaw.filter((item) => isPageVisibleByOperationalMode(item.page, operationalMode));
-
+    const mobileQuickLinks = mobileQuickLinksRaw.filter((item) => isMobilePageVisible(item.page));
     const handlePageChange = (page: Page) => {
         setCurrentPage(page);
         setIsMobileMenuOpen(false); // Close mobile menu on navigation
