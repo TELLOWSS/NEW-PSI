@@ -3,6 +3,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import { isSupabasePermissionError, supabase } from '../lib/supabaseClient';
 import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
+import type { TranslationQualityReport } from '../utils/constructionTrainingTranslation';
 
 interface WorkerTrainingProps {
     sessionId: string;
@@ -773,6 +774,13 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
 
     const normalizedAudioMap = useMemo(() => normalizeMapObject(sessionData?.audio_urls), [sessionData]);
     const normalizedTextMap = useMemo(() => normalizeMapObject(sessionData?.translated_texts), [sessionData]);
+    const translationQualityMap = useMemo(() => {
+        try {
+            return JSON.parse(normalizedTextMap.__quality__ || '{}') as Record<string, TranslationQualityReport>;
+        } catch {
+            return {};
+        }
+    }, [normalizedTextMap]);
 
     const availableLanguageCodes = useMemo(() => {
         const fromAudio = Object.keys(normalizedAudioMap).filter((code) => {
@@ -838,6 +846,67 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
         const current = normalizedTextMap[effectiveLangKey];
         return typeof current === 'string' && current.trim().length > 0;
     }, [normalizedTextMap, effectiveLangKey]);
+    const selectedTranslationQuality = translationQualityMap[effectiveLangKey];
+    const nativeSummaryLabel = uiLocale === 'vi'
+        ? 'Bản tóm tắt một trang bằng tiếng mẹ đẻ'
+        : uiLocale === 'zh'
+            ? '母语单页摘要'
+            : uiLocale === 'en'
+                ? 'Native-language one-page summary'
+                : '모국어 한 장 요약';
+    const renderNativeSummary = () => (
+        <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white text-left shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r from-blue-950 to-blue-700 px-4 py-3 text-white">
+                <div>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-blue-200">{nativeSummaryLabel}</p>
+                    <p className="mt-1 text-sm font-black">{LANGUAGE_FLAG_EMOJI[effectiveLangKey] || '🌐'} {LANGUAGE_LABELS[effectiveLangKey] || effectiveLangKey}</p>
+                </div>
+                <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${
+                    !selectedTranslationQuality
+                        ? 'bg-white/20 text-white'
+                        : selectedTranslationQuality.status === 'review'
+                            ? 'bg-amber-300 text-amber-950'
+                            : 'bg-emerald-300 text-emerald-950'
+                }`}>
+                    {!selectedTranslationQuality
+                        ? (uiLocale === 'ko' ? '기존 번역' : 'Existing translation')
+                        : selectedTranslationQuality.status === 'review'
+                            ? (uiLocale === 'ko' ? '관리자 검수 필요' : 'Supervisor review')
+                            : (uiLocale === 'ko' ? '현장 용어 기준' : 'Site terminology')}
+                </span>
+            </div>
+            <div className="p-4">
+                <p className="mb-2 text-[11px] font-black text-slate-500">{t.guidanceLabel}</p>
+                <div
+                    ref={guidanceRef}
+                    onScroll={() => {
+                        const node = guidanceRef.current;
+                        if (!node) return;
+                        const maxScrollable = node.scrollHeight - node.clientHeight;
+                        if (maxScrollable <= 0) {
+                            setGuidanceProgress(100);
+                            setHasReviewedGuidance(true);
+                            return;
+                        }
+
+                        const progress = Math.min(100, Math.round((node.scrollTop / maxScrollable) * 100));
+                        setGuidanceProgress(progress);
+                        setHasReviewedGuidance(node.scrollTop + node.clientHeight >= node.scrollHeight - 4);
+                    }}
+                    className="max-h-[28rem] overflow-y-auto pr-2 scroll-smooth"
+                >
+                    <p className="whitespace-pre-wrap text-[15px] font-bold leading-7 text-slate-800">{selectedTranslatedText}</p>
+                </div>
+                {selectedTranslationQuality?.status === 'review' && (
+                    <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-black leading-5 text-amber-800">
+                        {uiLocale === 'ko'
+                            ? '일부 표현은 관리자 또는 현장 통역자의 대조 확인이 필요합니다.'
+                            : 'Some wording requires supervisor or site interpreter review.'}
+                    </p>
+                )}
+            </div>
+        </div>
+    );
 
     const trainingInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
         return [
@@ -1690,6 +1759,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                                     📝 {ux.signNow}
                                 </button>
                             </div>
+                            {renderNativeSummary()}
                         </div>
                     ) : (
                         <>
@@ -1743,29 +1813,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                                 onPause={() => setIsPlaying(false)}
                                 onEnded={() => setIsPlaying(false)}
                             />
-                            <div className="mt-3 p-3 rounded-xl border border-slate-200 bg-slate-50">
-                                <p className="text-[11px] font-black text-slate-500 mb-1">{t.guidanceLabel}</p>
-                                <div
-                            ref={guidanceRef}
-                            onScroll={() => {
-                                const node = guidanceRef.current;
-                                if (!node) return;
-                                const maxScrollable = node.scrollHeight - node.clientHeight;
-                                if (maxScrollable <= 0) {
-                                    setGuidanceProgress(100);
-                                    setHasReviewedGuidance(true);
-                                    return;
-                                }
-
-                                const progress = Math.min(100, Math.round((node.scrollTop / maxScrollable) * 100));
-                                setGuidanceProgress(progress);
-                                setHasReviewedGuidance(node.scrollTop + node.clientHeight >= node.scrollHeight - 4);
-                            }}
-                            className="max-h-52 overflow-y-auto pr-1 scroll-smooth"
-                        >
-                            <p className="text-[15px] leading-7 font-bold text-slate-700 whitespace-pre-wrap">{selectedTranslatedText}</p>
-                        </div>
-                    </div>
+                            {renderNativeSummary()}
                         </>
                     )}
                 </div>

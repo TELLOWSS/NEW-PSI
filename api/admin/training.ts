@@ -1,50 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 import { buildSignedTrainingMobileUrl, resolveLinkTtlMinutes } from '../../lib/server/trainingLinkToken.js';
 import { isValidAdminAuthRequest, sendUnauthorizedAdminResponse } from '../../lib/server/adminAuthGuard.js';
+import {
+    assessConstructionTranslation,
+    buildConstructionTranslationPrompt,
+    TRAINING_LANGUAGE_LABELS,
+    type TrainingLanguageCode,
+    type TranslationQualityReport,
+} from '../../utils/constructionTrainingTranslation.js';
 
-type TrainingAudioLanguageCode =
-    | 'ko-KR'
-    | 'cmn-CN'
-    | 'vi-VN'
-    | 'km-KH'
-    | 'id-ID'
-    | 'ms-MY'
-    | 'mn-MN'
-    | 'my-MM'
-    | 'ru-RU'
-    | 'uz-UZ'
-    | 'th-TH'
-    | 'kk-KZ';
-
-const TRAINING_AUDIO_LANGUAGE_CODES: TrainingAudioLanguageCode[] = [
-    'ko-KR',
-    'cmn-CN',
-    'vi-VN',
-    'km-KH',
-    'id-ID',
-    'ms-MY',
-    'mn-MN',
-    'my-MM',
-    'ru-RU',
-    'uz-UZ',
-    'th-TH',
-    'kk-KZ',
-];
-
-const TRAINING_AUDIO_LANGUAGE_LABELS: Record<TrainingAudioLanguageCode, string> = {
-    'ko-KR': '한국어',
-    'cmn-CN': '중국어',
-    'vi-VN': '베트남어',
-    'km-KH': '크메르어',
-    'id-ID': '인도네시아어',
-    'ms-MY': '말레이시아어',
-    'mn-MN': '몽골어',
-    'my-MM': '미얀마어',
-    'ru-RU': '러시아어',
-    'uz-UZ': '우즈베크어',
-    'th-TH': '태국어',
-    'kk-KZ': '카자흐어',
-};
+const TRAINING_AUDIO_LANGUAGE_CODES = Object.keys(TRAINING_LANGUAGE_LABELS) as TrainingLanguageCode[];
 
 const TRAINING_AUDIO_LANGUAGE_SET = new Set<string>(TRAINING_AUDIO_LANGUAGE_CODES);
 
@@ -189,11 +154,9 @@ function resolveChecklistComplete(checklist: unknown): boolean {
 async function translateSingleLanguageSafe(
     apiKey: string,
     sourceTextKo: string,
-    languageCode: TrainingAudioLanguageCode,
-): Promise<[TrainingAudioLanguageCode, string | null]> {
+    languageCode: TrainingLanguageCode,
+): Promise<[TrainingLanguageCode, string | null, TranslationQualityReport | null]> {
     try {
-        const languageLabel = TRAINING_AUDIO_LANGUAGE_LABELS[languageCode] || languageCode;
-
         const response = await fetch(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
             {
@@ -204,14 +167,7 @@ async function translateSingleLanguageSafe(
                         {
                             parts: [
                                 {
-                                    text: [
-                                        '다음 한국어 위험성평가 교육 대본을 지정 언어로만 번역하세요.',
-                                        '반드시 JSON 객체만 반환하고 키는 "translated"만 사용하세요.',
-                                        '',
-                                        `[대상 언어] ${languageCode} (${languageLabel})`,
-                                        '[원문]',
-                                        sourceTextKo,
-                                    ].join('\n'),
+                                    text: buildConstructionTranslationPrompt(sourceTextKo, languageCode),
                                 },
                             ],
                         },
@@ -221,23 +177,31 @@ async function translateSingleLanguageSafe(
             }
         );
 
-        if (!response.ok) return [languageCode, null];
+        if (!response.ok) return [languageCode, null, null];
 
         const data = await response.json();
         const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
         const parsed = JSON.parse(rawText) as Record<string, unknown>;
         const translated = typeof parsed?.translated === 'string' ? parsed.translated.trim() : '';
-        return [languageCode, translated || null];
+        const verificationKo = typeof parsed?.verificationKo === 'string' ? parsed.verificationKo : '';
+        const warnings = Array.isArray(parsed?.warnings)
+            ? parsed.warnings.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 5)
+            : [];
+        return [
+            languageCode,
+            translated || null,
+            translated ? assessConstructionTranslation(sourceTextKo, translated, verificationKo, warnings) : null,
+        ];
     } catch {
-        return [languageCode, null];
+        return [languageCode, null, null];
     }
 }
 
 async function translateParallelSafe(
     sourceTextKo: string,
     apiKey: string,
-    langs: TrainingAudioLanguageCode[],
-): Promise<Record<string, string>> {
+    langs: TrainingLanguageCode[],
+): Promise<{ texts: Record<string, string>; reports: Record<string, TranslationQualityReport> }> {
     let timerId: ReturnType<typeof setTimeout> | null = null;
 
     try {
@@ -253,17 +217,19 @@ async function translateParallelSafe(
 
         if (raceResult === 'TIMEOUT') {
             workPromise.catch(() => {});
-            return {};
+            return { texts: { 'ko-KR': sourceTextKo }, reports: {} };
         }
 
         const texts: Record<string, string> = {};
-        for (const [code, value] of raceResult) {
+        const reports: Record<string, TranslationQualityReport> = {};
+        for (const [code, value, report] of raceResult) {
             if (value) texts[code] = value;
+            if (report) reports[code] = report;
         }
         texts['ko-KR'] = sourceTextKo;
-        return texts;
+        return { texts, reports };
     } catch {
-        return {};
+        return { texts: { 'ko-KR': sourceTextKo }, reports: {} };
     } finally {
         if (timerId) clearTimeout(timerId);
     }
@@ -308,17 +274,26 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
         : [];
 
     let translatedTexts: Record<string, string> = {};
+    let translationReports: Record<string, TranslationQualityReport> = {};
     const shouldSkipTranslation = !normalizedSourceText || !env.geminiApiKey;
 
     if (!shouldSkipTranslation) {
         const requestedLanguages = Array.isArray(selectedLanguages)
             ? (selectedLanguages as string[]).filter(
-                (code): code is TrainingAudioLanguageCode => TRAINING_AUDIO_LANGUAGE_SET.has(code)
+                (code): code is TrainingLanguageCode => TRAINING_AUDIO_LANGUAGE_SET.has(code)
             )
             : [];
         const langs = requestedLanguages.length > 0 ? requestedLanguages : [...TRAINING_AUDIO_LANGUAGE_CODES];
-        translatedTexts = await translateParallelSafe(normalizedSourceText, env.geminiApiKey, langs);
+        const translationResult = await translateParallelSafe(normalizedSourceText, env.geminiApiKey, langs);
+        translatedTexts = translationResult.texts;
+        translationReports = translationResult.reports;
     }
+    translatedTexts['ko-KR'] = normalizedSourceText;
+    translatedTexts.__quality__ = JSON.stringify(translationReports);
+    const requestedLanguageCodes = Array.isArray(selectedLanguages)
+        ? (selectedLanguages as string[]).filter((code) => TRAINING_AUDIO_LANGUAGE_SET.has(code))
+        : [];
+    const failedLanguages = requestedLanguageCodes.filter((code) => code !== 'ko-KR' && !translatedTexts[code]);
 
     const generatedId = createUuidV4();
     const insertCandidates: Array<Record<string, unknown>> = [
@@ -401,6 +376,8 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
         ttlMinutes,
         audioUrls: {},
         translatedTexts,
+        translationReports,
+        failedLanguages,
         translationSkipped: shouldSkipTranslation,
     });
 }
@@ -521,7 +498,7 @@ async function handleUploadAudio(res: any, body: Record<string, unknown>) {
     const supabase = getSupabaseClient();
     const audioUrls = Object.fromEntries(
         TRAINING_AUDIO_LANGUAGE_CODES.map((code) => [code, null])
-    ) as Record<TrainingAudioLanguageCode, string | null>;
+    ) as Record<TrainingLanguageCode, string | null>;
 
     for (const [code, item] of fileEntries) {
         if (!TRAINING_AUDIO_LANGUAGE_SET.has(code)) continue;
@@ -561,7 +538,7 @@ async function handleUploadAudio(res: any, body: Record<string, unknown>) {
         }
 
         const publicUrl = supabase.storage.from('training_audio').getPublicUrl(path).data.publicUrl;
-        audioUrls[code as TrainingAudioLanguageCode] = `${publicUrl}?v=${Date.now()}`;
+        audioUrls[code as TrainingLanguageCode] = `${publicUrl}?v=${Date.now()}`;
     }
 
     const updateRes = await supabase

@@ -5,6 +5,7 @@ import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { fetchWithTimeout, postAdminJson } from '../utils/adminApiClient';
 import { TBM_MONTHLY_PACKAGE_STORAGE_KEY } from '../utils/tbmEducationStudio';
+import type { TranslationQualityReport } from '../utils/constructionTrainingTranslation';
 
 type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
 const LINK_HISTORY_STORAGE_KEY = 'psi_training_link_history';
@@ -534,6 +535,8 @@ const AdminTraining: React.FC = () => {
     const [audioUploadFiles, setAudioUploadFiles] = useState<Record<string, File | null>>({});
     const [failedLanguages, setFailedLanguages] = useState<string[]>([]);
     const [failedLanguageAttempts, setFailedLanguageAttempts] = useState<Record<string, string[]>>({});
+    const [translatedTexts, setTranslatedTexts] = useState<Record<string, string>>({});
+    const [translationReports, setTranslationReports] = useState<Record<string, TranslationQualityReport>>({});
     const [savedPreset, setSavedPreset] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
     const [selectedLanguages, setSelectedLanguages] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
     const [recentSessions, setRecentSessions] = useState<TrainingSessionRow[]>([]);
@@ -1006,6 +1009,8 @@ const AdminTraining: React.FC = () => {
         setAudioUploadFiles({});
         setFailedLanguages([]);
         setFailedLanguageAttempts({});
+        setTranslatedTexts({});
+        setTranslationReports({});
 
         try {
             const response = await fetchWithTimeout('/api/admin/training', {
@@ -1043,6 +1048,8 @@ const AdminTraining: React.FC = () => {
             setCurrentSessionId(String(data.sessionId || ''));
             setLinkExpiresAt(Number(data.linkExpiresAt || 0) || null);
             setSessionAudioUrls(data?.audioUrls && typeof data.audioUrls === 'object' ? data.audioUrls : {});
+            setTranslatedTexts(data?.translatedTexts && typeof data.translatedTexts === 'object' ? data.translatedTexts : {});
+            setTranslationReports(data?.translationReports && typeof data.translationReports === 'object' ? data.translationReports : {});
             setAudioUploadFiles({});
             if (data.sessionId && data.mobileUrl && data.linkExpiresAt) {
                 appendLinkHistory({
@@ -1304,6 +1311,47 @@ const AdminTraining: React.FC = () => {
                 </button>
 
                 {message && <p className="mt-4 text-sm font-bold text-slate-700 dark:text-slate-200">{message}</p>}
+                {Object.keys(translatedTexts).filter((code) => code !== '__quality__').length > 0 && (
+                    <section className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <h3 className="text-sm font-black text-emerald-950 dark:text-emerald-100">나라별 한 장 요약 번역 검수</h3>
+                                <p className="mt-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">건설현장 용어, 1~5단계 순서, 작업중지 의미를 자동 검사했습니다. ‘검수 필요’ 언어는 QR 공유 전에 현장 통역자와 대조하세요.</p>
+                            </div>
+                            <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-black text-emerald-800 shadow-sm dark:bg-slate-900 dark:text-emerald-200">
+                                번역 {Object.keys(translatedTexts).filter((code) => code !== '__quality__').length}개
+                            </span>
+                        </div>
+                        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                            {Object.entries(translatedTexts)
+                                .filter(([code, text]) => code !== '__quality__' && Boolean(text))
+                                .map(([code, text]) => {
+                                    const report = translationReports[code];
+                                    const languageLabel = LANGUAGE_OPTIONS.find((item) => item.code === code)?.label.ko || code;
+                                    const ready = code === 'ko-KR' || report?.status === 'ready';
+                                    return (
+                                        <details key={code} className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                                            <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                                                <span className="text-sm font-black text-slate-900 dark:text-slate-100">{languageLabel}</span>
+                                                <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${ready ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}>
+                                                    {ready ? '공유 가능' : '검수 필요'}
+                                                </span>
+                                            </summary>
+                                            <div className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs font-semibold leading-6 text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                                {text}
+                                            </div>
+                                            {report && (
+                                                <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 p-3 text-[11px] font-bold leading-5 text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-100">
+                                                    <p>{report.verificationKo}</p>
+                                                    {report.warnings.length > 0 && <p className="mt-1 text-amber-700 dark:text-amber-300">확인: {report.warnings.join(' · ')}</p>}
+                                                </div>
+                                            )}
+                                        </details>
+                                    );
+                                })}
+                        </div>
+                    </section>
+                )}
                 {failedLanguages.length > 0 && (
                     <div className="mt-3">
                         <p className="text-xs font-black text-amber-700 mb-2">{t.failedLangTitle}</p>
