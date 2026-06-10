@@ -225,13 +225,13 @@ export const routeMetaMap: Record<Page, RouteMeta> = {
         errorMessage: '리포트를 불러오지 못했습니다.',
     }),
     'a4-education-material': createMeta({
-        id: 'a4-education-material', productGroup: 'tbm', practitionerLabel: 'A4 교육자료 자동생성', workerLabel: '다음 달 위험교육', developerLabel: 'A4 Education Material',
-        description: '다음 달 위험성평가 작성 전 공종별 위험과 실천행동을 확인하는 도움자료입니다.', menuVisibleInPractitionerMode: true, menuVisibleInWorkerMode: false, menuVisibleInDeveloperMode: true,
-        fallbackTitle: 'A4 교육자료', emptyStateMessage: '교육자료를 만들 분석 기록이 없습니다.', errorMessage: 'A4 교육자료를 불러오지 못했습니다.',
+        id: 'a4-education-material', productGroup: 'tbm', practitionerLabel: '다음 달 TBM 교육자료', workerLabel: '다음 달 위험교육', developerLabel: 'TBM Education Studio',
+        description: '위험성평가 기록과 교육 원문을 근거로 다음 달 전파교육용 한 장 자료를 만들고 PDF·PPTX로 저장합니다.', menuVisibleInPractitionerMode: true, menuVisibleInWorkerMode: false, menuVisibleInDeveloperMode: true,
+        fallbackTitle: '다음 달 TBM 교육자료', emptyStateMessage: '자료를 추가하거나 기본 보기글로 교육자료를 만들 수 있습니다.', errorMessage: 'TBM 교육자료 스튜디오를 불러오지 못했습니다.',
     }),
     'ppt-pdf-one-page-summary': createMeta({
-        id: 'ppt-pdf-one-page-summary', productGroup: 'tbm', practitionerLabel: 'PPT/PDF 한장요약', workerLabel: '교육 한장요약', developerLabel: 'PPT/PDF One Page Summary',
-        description: '기존 교육자료를 현장 공유용 한 장 브리핑으로 정리합니다.', menuVisibleInPractitionerMode: true, menuVisibleInWorkerMode: false, menuVisibleInDeveloperMode: true,
+        id: 'ppt-pdf-one-page-summary', productGroup: 'tbm', practitionerLabel: '교육자료 통합 경로', workerLabel: '교육 한장요약', developerLabel: 'Education Studio Legacy Route',
+        description: '기존 주소를 통합 TBM 교육자료 스튜디오로 연결합니다.', menuVisibleInPractitionerMode: false, menuVisibleInWorkerMode: false, menuVisibleInDeveloperMode: false,
         fallbackTitle: 'PPT/PDF 한장요약', emptyStateMessage: '요약할 교육자료를 선택해 주세요.', errorMessage: '한장요약 화면을 불러오지 못했습니다.',
     }),
     'admin-training': createMeta({

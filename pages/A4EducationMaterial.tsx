@@ -1,16 +1,494 @@
-﻿import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { WorkerRecord } from '../types';
-interface Props { workerRecords: WorkerRecord[]; }
-const getNextMonth = () => { const date = new Date(); date.setMonth(date.getMonth() + 1); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; };
-const A4EducationMaterial: React.FC<Props> = ({ workerRecords }) => {
-    const [educationMonth, setEducationMonth] = useState(getNextMonth); const [workType, setWorkType] = useState('전체 공종'); const [action, setAction] = useState('작업 전 위험요소와 안전조치를 작업자 전원이 함께 확인한다.');
-    const workTypes = useMemo(() => ['전체 공종', ...Array.from(new Set(workerRecords.map((item) => item.jobField).filter(Boolean))).sort()], [workerRecords]);
-    const targetRecords = useMemo(() => workType === '전체 공종' ? workerRecords : workerRecords.filter((item) => item.jobField === workType), [workerRecords, workType]);
-    const risks = useMemo(() => { const counts = new Map<string, number>(); targetRecords.forEach((item) => (item.weakAreas || []).forEach((risk) => counts.set(risk, (counts.get(risk) || 0) + 1))); return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4); }, [targetRecords]);
-    return <div className="space-y-5 pb-16"><style>{`@media print{.a4-controls{display:none!important}.a4-sheet{box-shadow:none!important;border:0!important}}`}</style>
-        <section className="a4-controls rounded-3xl bg-gradient-to-br from-orange-500 to-amber-500 p-6 text-white shadow-xl"><p className="text-xs font-black uppercase tracking-[0.16em]">Next Month Preparation</p><h2 className="mt-2 text-2xl font-black">A4 교육자료 자동생성</h2><p className="mt-2 text-sm font-semibold text-orange-50">다음 달 위험성평가 작성 전에 사용하는 도움자료입니다. 개인 점수는 포함하지 않습니다.</p></section>
-        <section className="a4-controls grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 md:grid-cols-3"><label className="text-sm font-black">교육 대상월<input type="month" value={educationMonth} onChange={(event) => setEducationMonth(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3" /></label><label className="text-sm font-black">대상 공종<select value={workType} onChange={(event) => setWorkType(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3">{workTypes.map((item) => <option key={item}>{item}</option>)}</select></label><label className="text-sm font-black">이번 달 실천행동<input value={action} onChange={(event) => setAction(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-3" /></label></section>
-        <article className="a4-sheet mx-auto min-h-[297mm] w-full max-w-[210mm] rounded-2xl border border-slate-200 bg-white p-8 shadow-xl"><header className="border-b-4 border-orange-500 pb-5"><p className="text-sm font-black text-orange-600">PSI 다음 달 위험교육 도움자료</p><h1 className="mt-2 text-3xl font-black">{educationMonth} {workType} 작업 전 안전확인</h1><p className="mt-2 text-sm font-semibold text-slate-500">다음 달 예정 위험작업 또는 본인 작업을 기준으로 수기 기록을 작성하기 전에 확인합니다.</p></header><section className="mt-7 grid gap-4 sm:grid-cols-2">{risks.length ? risks.map(([risk, count], index) => <div key={risk} className="rounded-2xl border border-orange-100 bg-orange-50 p-5"><span className="text-xs font-black text-orange-600">주요 위험 {index + 1} · 지난 기록 {count}건</span><h2 className="mt-2 text-xl font-black">{risk}</h2><p className="mt-2 text-sm font-semibold text-slate-600">발생 위치와 작업 순서를 확인하고 제거, 차단, 보호구 순서로 대책을 작성합니다.</p></div>) : <div className="sm:col-span-2 rounded-2xl bg-slate-50 p-6 text-sm font-bold text-slate-500">분석 기록이 없어 기본 확인 항목으로 생성했습니다.</div>}</section><section className="mt-7 rounded-2xl bg-slate-900 p-6 text-white"><h2 className="text-xl font-black">이번 달 반드시 실천할 행동</h2><p className="mt-3 text-lg font-bold">{action}</p></section><section className="mt-7"><h2 className="text-xl font-black">수기 작성 4단계</h2><ol className="mt-4 grid gap-3 sm:grid-cols-2">{['수행할 작업을 구체적으로 적기', '가장 큰 위험의 시간과 위치 적기', '위험등급과 발생 조건 적기', '작업 전·중·후 실천행동 적기'].map((item, index) => <li key={item} className="rounded-xl border border-slate-200 p-4 text-sm font-bold"><b className="mr-2 text-orange-600">{index + 1}</b>{item}</li>)}</ol></section></article>
-        <button type="button" onClick={() => window.print()} className="a4-controls w-full rounded-xl bg-orange-500 px-5 py-4 text-sm font-black text-white">A4 인쇄 / PDF 저장</button></div>;
+import { ensureHtml2Canvas, ensureJsPdfConstructor } from '../utils/externalScripts';
+import { buildPsiExportFileName } from '../utils/exportFileNaming';
+import { captureReportCanvas, saveCanvasAsA4Pdf } from '../utils/pdfCapture';
+import {
+    buildFieldRecordSource,
+    buildTbmEducationDraft,
+    estimateEducationTokens,
+    type TbmEducationDraft,
+    type TbmEvidenceSource,
+} from '../utils/tbmEducationStudio';
+import { extractTbmSourceFromFile } from '../utils/tbmSourceExtraction';
+
+interface Props {
+    workerRecords: WorkerRecord[];
+}
+
+type StudioTab = 'sources' | 'editor' | 'preview';
+
+const getNextMonth = (): string => {
+    const date = new Date();
+    date.setMonth(date.getMonth() + 1);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 };
+
+const MESSAGE_TEMPLATES = [
+    '작업 시작 전 오늘의 작업, 주요 위험, 안전조치를 전원이 함께 확인하고 조건 변경 시 즉시 멈춘다.',
+    '위험요인은 발견 즉시 제거하거나 차단하고, 불가능하면 작업을 중지한 뒤 관리자에게 알린다.',
+    '서두르지 않고 정해진 작업순서와 보호구 착용 기준을 지키며 동료의 위험도 함께 확인한다.',
+];
+
+const CHECKLIST_TEMPLATES = [
+    '작업 장소와 이동 동선의 위험요인을 직접 확인했는가?',
+    '장비, 안전시설, 보호구의 이상 유무를 확인했는가?',
+    '작업자별 역할과 신호 방법을 모두 이해했는가?',
+    '기상, 공정, 인원 변경 시 작업중지 기준을 알고 있는가?',
+];
+
+const STUDIO_STORAGE_KEY = 'psi_tbm_education_studio_v1';
+
+interface StoredStudioState {
+    educationMonth: string;
+    workType: string;
+    sources: TbmEvidenceSource[];
+    draft: TbmEducationDraft;
+}
+
+const loadStudioState = (): StoredStudioState | null => {
+    if (typeof window === 'undefined') return null;
+    try {
+        const parsed = JSON.parse(localStorage.getItem(STUDIO_STORAGE_KEY) || 'null') as StoredStudioState | null;
+        return parsed?.draft && Array.isArray(parsed.sources) ? parsed : null;
+    } catch {
+        return null;
+    }
+};
+
+const updateAt = (items: string[], index: number, value: string): string[] =>
+    items.map((item, itemIndex) => itemIndex === index ? value : item);
+
+const A4EducationMaterial: React.FC<Props> = ({ workerRecords }) => {
+    const initialState = useRef(loadStudioState());
+    const [activeTab, setActiveTab] = useState<StudioTab>('sources');
+    const [educationMonth, setEducationMonth] = useState(initialState.current?.educationMonth || getNextMonth);
+    const [workType, setWorkType] = useState(initialState.current?.workType || '전체 공종');
+    const [manualText, setManualText] = useState('');
+    const [sources, setSources] = useState<TbmEvidenceSource[]>(initialState.current?.sources || []);
+    const [isExtracting, setIsExtracting] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+    const [notice, setNotice] = useState('');
+    const [draft, setDraft] = useState<TbmEducationDraft>(() =>
+        initialState.current?.draft || buildTbmEducationDraft({
+            workerRecords,
+            sources: [],
+            month: getNextMonth(),
+            workType: '전체 공종',
+        }),
+    );
+    const sheetRef = useRef<HTMLElement>(null);
+
+    const workTypes = useMemo(
+        () => ['전체 공종', ...Array.from(new Set(workerRecords.map((item) => item.jobField).filter(Boolean))).sort()],
+        [workerRecords],
+    );
+    const fieldSource = useMemo(
+        () => buildFieldRecordSource(workerRecords, workType),
+        [workerRecords, workType],
+    );
+    const allSources = useMemo(
+        () => fieldSource ? [fieldSource, ...sources] : sources,
+        [fieldSource, sources],
+    );
+    const estimatedTokens = estimateEducationTokens(allSources);
+
+    useEffect(() => {
+        localStorage.setItem(STUDIO_STORAGE_KEY, JSON.stringify({
+            educationMonth,
+            workType,
+            sources,
+            draft,
+        } satisfies StoredStudioState));
+    }, [draft, educationMonth, sources, workType]);
+
+    const generateDraft = () => {
+        setDraft(buildTbmEducationDraft({
+            workerRecords,
+            sources,
+            month: educationMonth,
+            workType,
+            coreMessage: draft.coreMessage,
+        }));
+        setActiveTab('editor');
+        setNotice('근거 자료를 기준으로 한 장 초안을 다시 구성했습니다.');
+    };
+
+    const resetStudio = () => {
+        const month = getNextMonth();
+        const nextDraft = buildTbmEducationDraft({
+            workerRecords,
+            sources: [],
+            month,
+            workType: '전체 공종',
+        });
+        setEducationMonth(month);
+        setWorkType('전체 공종');
+        setSources([]);
+        setManualText('');
+        setDraft(nextDraft);
+        setNotice('교육자료 작업 내용을 초기화했습니다.');
+    };
+
+    const addManualSource = () => {
+        const text = manualText.trim();
+        if (!text) {
+            setNotice('붙여넣을 교육 내용이나 다음 달 작업계획을 입력해 주세요.');
+            return;
+        }
+        setSources((current) => [{
+            id: `manual-${Date.now()}`,
+            kind: 'manual',
+            title: `직접 입력 ${current.filter((source) => source.kind === 'manual').length + 1}`,
+            text,
+            createdAt: new Date().toISOString(),
+        }, ...current]);
+        setManualText('');
+        setNotice('직접 입력 내용을 자료함에 추가했습니다.');
+    };
+
+    const handleFiles = async (files: FileList | null) => {
+        if (!files?.length) return;
+        setIsExtracting(true);
+        setNotice('');
+        try {
+            const extracted: TbmEvidenceSource[] = [];
+            for (const file of Array.from(files).slice(0, 6)) {
+                extracted.push(await extractTbmSourceFromFile(file));
+            }
+            setSources((current) => [...extracted, ...current]);
+            setNotice(`${extracted.length}개 자료에서 글자를 추출해 자료함에 추가했습니다.`);
+        } catch (error) {
+            setNotice(error instanceof Error ? error.message : '자료를 읽지 못했습니다.');
+        } finally {
+            setIsExtracting(false);
+        }
+    };
+
+    const captureSheet = async () => {
+        if (!sheetRef.current) throw new Error('내보낼 한 장 자료를 찾지 못했습니다.');
+        const html2canvas = await ensureHtml2Canvas();
+        return captureReportCanvas(sheetRef.current, html2canvas, { scale: 3 });
+    };
+
+    const exportImage = async () => {
+        setIsExporting(true);
+        try {
+            const canvas = await captureSheet();
+            const link = document.createElement('a');
+            link.download = buildPsiExportFileName({
+                tokens: ['TBM교육자료', educationMonth, workType],
+                extension: 'png',
+            });
+            link.href = canvas.toDataURL('image/png', 1);
+            link.click();
+            setNotice('화면 품질을 유지한 PNG 이미지를 저장했습니다.');
+        } catch (error) {
+            setNotice(error instanceof Error ? error.message : 'PNG 이미지를 저장하지 못했습니다.');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const exportPdf = async () => {
+        setIsExporting(true);
+        try {
+            const [canvas, JsPDF] = await Promise.all([captureSheet(), ensureJsPdfConstructor()]);
+            if (!JsPDF) throw new Error('PDF 생성 도구를 불러오지 못했습니다.');
+            saveCanvasAsA4Pdf(canvas, JsPDF, buildPsiExportFileName({
+                tokens: ['TBM교육자료', educationMonth, workType],
+                extension: 'pdf',
+            }));
+            setNotice('A4 비율과 화면 품질을 유지한 PDF를 저장했습니다.');
+        } catch (error) {
+            setNotice(error instanceof Error ? error.message : 'PDF를 저장하지 못했습니다.');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const exportPptx = async () => {
+        setIsExporting(true);
+        try {
+            const canvas = await captureSheet();
+            const { default: PptxGenJS } = await import('pptxgenjs');
+            const pptx = new PptxGenJS();
+            pptx.defineLayout({ name: 'PSI_A4', width: 8.27, height: 11.69 });
+            pptx.layout = 'PSI_A4';
+            pptx.author = 'PSI';
+            pptx.subject = '다음 달 위험성평가 전파교육';
+            pptx.title = draft.title;
+            const slide = pptx.addSlide();
+            slide.background = { color: 'FFFFFF' };
+            slide.addImage({ data: canvas.toDataURL('image/png', 1), x: 0, y: 0, w: 8.27, h: 11.69 });
+            await pptx.writeFile({
+                fileName: buildPsiExportFileName({
+                    tokens: ['TBM교육자료', educationMonth, workType],
+                    extension: 'pptx',
+                }),
+            });
+            setNotice('동일한 한 장 디자인으로 PPTX를 저장했습니다.');
+        } catch (error) {
+            setNotice(error instanceof Error ? error.message : 'PPTX를 저장하지 못했습니다.');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    return (
+        <div className="space-y-5 pb-16">
+            <section className="rounded-3xl bg-gradient-to-br from-blue-950 via-blue-800 to-orange-500 p-6 text-white shadow-xl no-print">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-100">Evidence-based TBM Studio</p>
+                <h2 className="mt-2 text-2xl font-black sm:text-3xl">다음 달 TBM 교육자료 스튜디오</h2>
+                <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-blue-50">
+                    위험성평가 기록, PDF·PPTX, 직접 입력 내용을 한 자료함에서 검토하고 다음 달 전파교육용 한 장 자료로 정리합니다.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
+                    <span className="rounded-full bg-white/15 px-3 py-2">로컬 초안 생성</span>
+                    <span className="rounded-full bg-white/15 px-3 py-2">출처 표시</span>
+                    <span className="rounded-full bg-white/15 px-3 py-2">PNG · PDF · PPTX</span>
+                    <span className="rounded-full bg-emerald-400/20 px-3 py-2 text-emerald-100">AI 호출 없이 사용 가능</span>
+                </div>
+            </section>
+
+            <nav className="grid grid-cols-3 gap-2 rounded-2xl border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900 no-print" aria-label="교육자료 제작 단계">
+                {([
+                    ['sources', '1. 자료 모으기'],
+                    ['editor', '2. 내용 편집'],
+                    ['preview', '3. 한 장 확인'],
+                ] as Array<[StudioTab, string]>).map(([id, label]) => (
+                    <button
+                        key={id}
+                        type="button"
+                        onClick={() => setActiveTab(id)}
+                        className={`min-h-11 rounded-xl px-3 py-2 text-xs font-black transition-colors sm:text-sm ${
+                            activeTab === id
+                                ? 'bg-blue-700 text-white'
+                                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
+                        }`}
+                    >
+                        {label}
+                    </button>
+                ))}
+            </nav>
+
+            {notice && (
+                <p className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-800 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200 no-print">
+                    {notice}
+                </p>
+            )}
+
+            {activeTab === 'sources' && (
+                <div className="space-y-4 no-print">
+                    <section className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900 lg:grid-cols-3">
+                        <label className="text-sm font-black text-slate-800 dark:text-slate-100">
+                            교육 대상월
+                            <input type="month" value={educationMonth} onChange={(event) => setEducationMonth(event.target.value)} className="mt-2 w-full rounded-xl border px-3 py-3" />
+                        </label>
+                        <label className="text-sm font-black text-slate-800 dark:text-slate-100">
+                            대상 공종
+                            <select value={workType} onChange={(event) => setWorkType(event.target.value)} className="mt-2 w-full rounded-xl border px-3 py-3">
+                                {workTypes.map((item) => <option key={item}>{item}</option>)}
+                            </select>
+                        </label>
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+                            <p className="text-xs font-black text-emerald-800 dark:text-emerald-200">무료 사용량 보호</p>
+                            <p className="mt-2 text-2xl font-black text-emerald-900 dark:text-emerald-100">약 {estimatedTokens.toLocaleString()} 토큰</p>
+                            <p className="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">현재 자료를 AI에 보낼 경우의 예상량입니다. 초안 생성은 토큰을 쓰지 않습니다.</p>
+                        </div>
+                    </section>
+
+                    <section className="grid gap-4 lg:grid-cols-2">
+                        <label className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-blue-300 bg-blue-50 p-5 text-center transition hover:border-blue-500 dark:border-blue-500/50 dark:bg-blue-500/10">
+                            <span className="text-base font-black text-blue-800 dark:text-blue-200">{isExtracting ? '자료에서 글자를 읽는 중...' : 'PDF · PPTX · TXT 자료 추가'}</span>
+                            <span className="mt-2 text-xs font-semibold leading-5 text-blue-600 dark:text-blue-300">최대 6개 파일을 한 번에 추가합니다. 스캔 PDF는 아래 직접 입력을 이용해 주세요.</span>
+                            <input type="file" multiple accept=".pdf,.pptx,.txt,.md" className="sr-only" disabled={isExtracting} onChange={(event) => void handleFiles(event.target.files)} />
+                        </label>
+                        <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                            <label className="text-sm font-black text-slate-800 dark:text-slate-100">
+                                다음 달 작업계획 · 교육 원문 직접 입력
+                                <textarea
+                                    value={manualText}
+                                    onChange={(event) => setManualText(event.target.value)}
+                                    rows={5}
+                                    placeholder="예: 7월 철골 설치 작업, 고소작업대 사용, 개구부 주변 작업이 예정되어 추락 방지조치를 중점 교육한다."
+                                    className="mt-2 w-full rounded-xl border p-3 text-sm font-semibold"
+                                />
+                            </label>
+                            <button type="button" onClick={addManualSource} className="mt-3 min-h-11 w-full rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white dark:bg-slate-100 dark:text-slate-900">
+                                자료함에 추가
+                            </button>
+                        </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <h3 className="text-lg font-black">근거 자료함</h3>
+                                <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">각 위험 항목에는 선택에 사용된 출처가 함께 표시됩니다.</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <button type="button" onClick={resetStudio} className="min-h-11 rounded-xl border border-slate-300 px-4 py-3 text-xs font-black text-slate-600 dark:border-slate-600 dark:text-slate-300">
+                                    작업 초기화
+                                </button>
+                                <button type="button" onClick={generateDraft} className="min-h-11 rounded-xl bg-orange-500 px-5 py-3 text-sm font-black text-white hover:bg-orange-600">
+                                    한 장 초안 만들기
+                                </button>
+                            </div>
+                        </div>
+                        <div className="mt-4 grid gap-3 md:grid-cols-2">
+                            {allSources.map((source) => (
+                                <article key={source.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/70">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <span className="text-[10px] font-black uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                                                {source.kind === 'field-record' ? '현장 기록' : source.kind === 'manual' ? '직접 입력' : '업로드 자료'}
+                                            </span>
+                                            <h4 className="mt-1 text-sm font-black">{source.title}</h4>
+                                        </div>
+                                        {source.kind !== 'field-record' && (
+                                            <button type="button" onClick={() => setSources((current) => current.filter((item) => item.id !== source.id))} className="text-xs font-bold text-rose-600 dark:text-rose-300">
+                                                삭제
+                                            </button>
+                                        )}
+                                    </div>
+                                    <p className="mt-3 line-clamp-3 text-xs font-medium leading-5 text-slate-600 dark:text-slate-300">{source.text}</p>
+                                </article>
+                            ))}
+                            {!allSources.length && (
+                                <p className="rounded-xl bg-slate-50 p-6 text-center text-sm font-bold text-slate-500 dark:bg-slate-800 dark:text-slate-300 md:col-span-2">
+                                    아직 자료가 없습니다. 자료를 추가하지 않아도 기본 안전교육 보기글로 초안을 만들 수 있습니다.
+                                </p>
+                            )}
+                        </div>
+                    </section>
+                </div>
+            )}
+
+            {activeTab === 'editor' && (
+                <div className="space-y-4 no-print">
+                    <section className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900 lg:grid-cols-2">
+                        <label className="text-sm font-black">교육자료 제목<input value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} className="mt-2 w-full rounded-xl border px-3 py-3" /></label>
+                        <label className="text-sm font-black">교육 시작 안내<input value={draft.opening} onChange={(event) => setDraft({ ...draft, opening: event.target.value })} className="mt-2 w-full rounded-xl border px-3 py-3" /></label>
+                        <label className="text-sm font-black lg:col-span-2">
+                            핵심 전달 문구
+                            <textarea value={draft.coreMessage} onChange={(event) => setDraft({ ...draft, coreMessage: event.target.value })} rows={3} className="mt-2 w-full rounded-xl border p-3" />
+                        </label>
+                        <div className="lg:col-span-2">
+                            <p className="text-xs font-black text-slate-500 dark:text-slate-400">보기글 선택</p>
+                            <div className="mt-2 grid gap-2 md:grid-cols-3">
+                                {MESSAGE_TEMPLATES.map((template) => (
+                                    <button key={template} type="button" onClick={() => setDraft({ ...draft, coreMessage: template })} className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-left text-xs font-bold leading-5 hover:border-blue-400 dark:border-slate-700 dark:bg-slate-800">
+                                        {template}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="space-y-3">
+                        {draft.risks.map((item, index) => (
+                            <article key={item.id} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900 md:grid-cols-[0.7fr_1.3fr]">
+                                <label className="text-sm font-black">주요 위험 {index + 1}<input value={item.risk} onChange={(event) => setDraft({ ...draft, risks: draft.risks.map((risk) => risk.id === item.id ? { ...risk, risk: event.target.value } : risk) })} className="mt-2 w-full rounded-xl border px-3 py-3" /></label>
+                                <label className="text-sm font-black">핵심 안전조치<textarea value={item.action} onChange={(event) => setDraft({ ...draft, risks: draft.risks.map((risk) => risk.id === item.id ? { ...risk, action: event.target.value } : risk) })} rows={2} className="mt-2 w-full rounded-xl border p-3" /></label>
+                                <p className="text-xs font-bold text-slate-500 dark:text-slate-400 md:col-span-2">선정 근거: {item.evidenceLabels.join(' · ')}</p>
+                            </article>
+                        ))}
+                    </section>
+
+                    <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                        <div className="flex items-center justify-between gap-3">
+                            <h3 className="text-lg font-black">현장 실천 확인</h3>
+                            <button type="button" onClick={() => setDraft({ ...draft, checklist: CHECKLIST_TEMPLATES })} className="text-xs font-black text-blue-700 dark:text-blue-300">보기글 적용</button>
+                        </div>
+                        <div className="mt-3 grid gap-2 md:grid-cols-2">
+                            {draft.checklist.map((item, index) => (
+                                <input key={index} value={item} onChange={(event) => setDraft({ ...draft, checklist: updateAt(draft.checklist, index, event.target.value) })} className="rounded-xl border px-3 py-3 text-sm font-semibold" />
+                            ))}
+                        </div>
+                    </section>
+                    <button type="button" onClick={() => setActiveTab('preview')} className="min-h-12 w-full rounded-xl bg-blue-700 px-5 py-4 text-sm font-black text-white">
+                        완성된 한 장 확인
+                    </button>
+                </div>
+            )}
+
+            {(activeTab === 'preview' || activeTab === 'editor') && (
+                <section className={activeTab === 'editor' ? 'hidden' : ''}>
+                    <article ref={sheetRef} data-report-template-root="true" className="mx-auto w-[210mm] max-w-full bg-white text-slate-900 shadow-2xl">
+                        <div data-report-page="true" className="flex h-[297mm] w-[210mm] max-w-full flex-col overflow-hidden bg-white p-[12mm]">
+                            <header className="border-b-[5px] border-orange-500 pb-5">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <p className="text-sm font-black text-blue-700">PSI 다음 달 위험성평가 전파교육</p>
+                                        <h1 className="mt-2 text-[28px] font-black leading-tight">{draft.title}</h1>
+                                    </div>
+                                    <div className="rounded-xl bg-blue-950 px-4 py-3 text-center text-white">
+                                        <p className="text-[10px] font-bold text-blue-200">교육 대상</p>
+                                        <p className="mt-1 text-sm font-black">{draft.workType}</p>
+                                    </div>
+                                </div>
+                                <p className="mt-3 text-sm font-semibold text-slate-600">{draft.opening}</p>
+                            </header>
+
+                            <section className="mt-5 rounded-2xl bg-blue-950 p-5 text-white">
+                                <p className="text-xs font-black text-blue-200">오늘 반드시 전달할 한 문장</p>
+                                <p className="mt-2 text-[20px] font-black leading-8">{draft.coreMessage}</p>
+                            </section>
+
+                            <section className="mt-5 grid grid-cols-3 gap-3">
+                                {draft.risks.map((item, index) => (
+                                    <article key={item.id} className="rounded-2xl border border-slate-200 p-4">
+                                        <p className="text-[10px] font-black text-orange-600">주요 위험 {index + 1}</p>
+                                        <h2 className="mt-1 text-lg font-black">{item.risk}</h2>
+                                        <p className="mt-3 text-xs font-semibold leading-5 text-slate-600">{item.action}</p>
+                                    </article>
+                                ))}
+                            </section>
+
+                            <section className="mt-5 grid grid-cols-[1.15fr_0.85fr] gap-4">
+                                <div>
+                                    <h2 className="text-lg font-black">작업 전 확인</h2>
+                                    <ol className="mt-3 space-y-2">
+                                        {draft.checklist.map((item, index) => (
+                                            <li key={index} className="flex gap-3 rounded-xl bg-slate-100 px-3 py-2.5 text-xs font-bold leading-5">
+                                                <b className="text-blue-700">{index + 1}</b><span>{item}</span>
+                                            </li>
+                                        ))}
+                                    </ol>
+                                </div>
+                                <div className="rounded-2xl border-2 border-dashed border-orange-300 bg-orange-50 p-4">
+                                    <h2 className="text-base font-black text-orange-900">이해 확인 질문</h2>
+                                    <ul className="mt-3 space-y-3">
+                                        {draft.confirmationQuestions.map((question, index) => (
+                                            <li key={index} className="text-xs font-bold leading-5 text-orange-900">Q{index + 1}. {question}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </section>
+
+                            <footer className="mt-auto flex items-end justify-between border-t border-slate-200 pt-4 text-[10px] font-semibold text-slate-500">
+                                <div>
+                                    <p>근거 자료 {draft.sourceCount}개 · 생성 {new Date(draft.generatedAt).toLocaleDateString('ko-KR')}</p>
+                                    <p className="mt-1">관리자가 현장 조건과 실제 작업계획을 최종 확인한 후 교육에 사용합니다.</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-center">
+                                    <span className="w-20 border-b border-slate-400 pb-1">교육자</span>
+                                    <span className="w-20 border-b border-slate-400 pb-1">확인자</span>
+                                </div>
+                            </footer>
+                        </div>
+                    </article>
+
+                    <div className="mt-4 grid gap-2 sm:grid-cols-3 no-print">
+                        <button type="button" disabled={isExporting} onClick={() => void exportImage()} className="min-h-12 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-black text-blue-800 disabled:opacity-50 dark:border-blue-500/40 dark:bg-slate-900 dark:text-blue-200">PNG 이미지</button>
+                        <button type="button" disabled={isExporting} onClick={() => void exportPdf()} className="min-h-12 rounded-xl bg-blue-700 px-4 py-3 text-sm font-black text-white disabled:opacity-50">PDF 저장</button>
+                        <button type="button" disabled={isExporting} onClick={() => void exportPptx()} className="min-h-12 rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">PPTX 저장</button>
+                    </div>
+                </section>
+            )}
+        </div>
+    );
+};
+
 export default A4EducationMaterial;

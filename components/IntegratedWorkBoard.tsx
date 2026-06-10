@@ -35,11 +35,10 @@ const BOARD_STEPS: BoardStep[] = [
     { number: 1, title: '상세 분석 대시보드', subtitle: '현장 위험과 월별 지표를 상세 분석합니다.', page: 'dashboard', accent: 'blue' },
     { number: 2, title: '위험성평가 작성·분석', subtitle: '사진, PDF 또는 수기 내용으로 평가를 작성합니다.', page: 'ocr-analysis', accent: 'blue' },
     { number: 3, title: '월별 계도 리포트', subtitle: '지난달 작성 내용을 익명화하여 공유합니다.', page: 'monthly-guidance-report', accent: 'orange' },
-    { number: 4, title: 'A4 교육자료 만들기', subtitle: '다음 달 위험작업 교육자료를 준비합니다.', page: 'a4-education-material', accent: 'orange' },
-    { number: 5, title: 'PPT·PDF 한 장 요약', subtitle: '기존 교육자료를 현장용 한 장으로 정리합니다.', page: 'ppt-pdf-one-page-summary', accent: 'blue' },
-    { number: 6, title: '다국어 교육·QR', subtitle: '언어별 교육을 배포하고 참여를 확인합니다.', page: 'admin-training', accent: 'green' },
-    { number: 7, title: '월별 성과 확인', subtitle: '개선 이행과 반복 위험 변화를 확인합니다.', page: 'performance-analysis', accent: 'green' },
-    { number: 8, title: '환경 설정', subtitle: '현장, 언어, 화면 구성을 관리합니다.', page: 'settings', accent: 'blue' },
+    { number: 4, title: '다음 달 TBM 교육자료', subtitle: '기록과 PDF·PPTX를 근거로 전파교육 한 장을 만듭니다.', page: 'a4-education-material', accent: 'orange' },
+    { number: 5, title: '다국어 교육·QR', subtitle: '언어별 교육을 배포하고 참여를 확인합니다.', page: 'admin-training', accent: 'green' },
+    { number: 6, title: '월별 성과 확인', subtitle: '개선 이행과 반복 위험 변화를 확인합니다.', page: 'performance-analysis', accent: 'green' },
+    { number: 7, title: '환경 설정', subtitle: '현장, 언어, 화면 구성을 관리합니다.', page: 'settings', accent: 'blue' },
 ];
 
 const QUICK_FLOW: Array<{ title: string; subtitle: string; page: Page }> = [
@@ -64,7 +63,6 @@ const CORE_MENU_PAGES = new Set<Page>([
     'ocr-analysis',
     'monthly-guidance-report',
     'a4-education-material',
-    'ppt-pdf-one-page-summary',
     'admin-training',
     'reports',
     'performance-analysis',
@@ -179,7 +177,6 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
         return { scoreValues, improvementValues };
     }, [workerRecords]);
 
-    const recentUploads = useMemo(() => workerRecords.slice(0, 3), [workerRecords]);
     const topRisks = useMemo(() => {
         const counts = new Map<string, number>();
         workerRecords.forEach((record) => {
@@ -318,10 +315,9 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                         {step.number === 2 && <div className="mt-5 rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-4 text-center"><p className="text-sm font-black text-blue-800">사진·PDF·수기 입력</p><p className="mt-1 text-[11px] text-blue-600">현장 상황에 맞는 입력 방식을 선택합니다.</p></div>}
                         {step.number === 3 && <div className="mt-4 space-y-2">{topRisks.length ? topRisks.map(([risk, count], index) => <div key={risk} className="flex items-center gap-2 text-xs"><b className="w-5 text-blue-700">{index + 1}</b><span className="flex-1 truncate font-bold">{risk}</span><span className="text-slate-400">{count}건</span></div>) : <p className="rounded-xl bg-slate-50 p-4 text-xs font-bold text-slate-400">분석 후 주요 위험 항목이 표시됩니다.</p>}</div>}
                         {step.number === 4 && <div className="mt-4 rounded-2xl bg-orange-50 p-4 text-center"><b className="text-3xl text-orange-700">A4</b><p className="mt-2 text-xs font-bold text-orange-800">인쇄 가능한 현장 교육자료</p></div>}
-                        {step.number === 5 && <div className="mt-4 space-y-2">{recentUploads.length ? recentUploads.map((record) => <div key={record.id} className="truncate rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">{record.filename || `${record.date} 분석자료`}</div>) : <p className="rounded-xl bg-slate-50 p-4 text-xs font-bold text-slate-400">등록된 자료가 없습니다.</p>}</div>}
-                        {step.number === 6 && <div className="mt-4 rounded-2xl bg-emerald-50 p-4"><p className="text-xs font-black text-emerald-800">서버 교육 세션</p><p className="mt-2 text-2xl font-black text-emerald-700">{trainingSummary ? trainingSummary.trainingSessions : '-'}건</p><p className="mt-1 text-[11px] font-semibold text-emerald-700">실제 QR은 교육 화면에서 생성됩니다.</p></div>}
-                        {step.number === 7 && <div className="mt-4"><p className="text-xs font-black text-emerald-800">개선 이행 추세</p><TrendChart values={monthlyTrends.improvementValues} color="#059669" label="최근 월별 개선 이행 추세" /></div>}
-                        {step.number === 8 && <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-xs font-bold leading-6 text-slate-600">현장 정보, 언어, 분석 키, 화면 구성을 설정 화면에서 관리합니다.</div>}
+                        {step.number === 5 && <div className="mt-4 rounded-2xl bg-emerald-50 p-4"><p className="text-xs font-black text-emerald-800">서버 교육 세션</p><p className="mt-2 text-2xl font-black text-emerald-700">{trainingSummary ? trainingSummary.trainingSessions : '-'}건</p><p className="mt-1 text-[11px] font-semibold text-emerald-700">실제 QR은 교육 화면에서 생성됩니다.</p></div>}
+                        {step.number === 6 && <div className="mt-4"><p className="text-xs font-black text-emerald-800">개선 이행 추세</p><TrendChart values={monthlyTrends.improvementValues} color="#059669" label="최근 월별 개선 이행 추세" /></div>}
+                        {step.number === 7 && <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-xs font-bold leading-6 text-slate-600">현장 정보, 언어, 분석 키, 화면 구성을 설정 화면에서 관리합니다.</div>}
 
                         <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-[11px] font-black text-blue-700">
                             <span>{step.number === 1 ? `${safetyCheckRecords.length}건 현장점검` : '화면 열기'}</span>

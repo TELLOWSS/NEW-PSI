@@ -59,6 +59,8 @@
     "@supabase/supabase-js": "^2.57.2",
     "chart.js": "^4.5.1",
     "html-to-image": "^1.11.13",
+    "pdfjs-dist": "^6.0.227",
+    "pptxgenjs": "^4.0.1",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
