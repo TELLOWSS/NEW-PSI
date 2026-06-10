@@ -16,18 +16,23 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
     if (!show) return null;
 
     return (
-        <section className="mb-4 rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-slate-900 shadow-sm backdrop-blur-sm transition-colors dark:border-slate-700/60 dark:bg-slate-900/80 dark:text-slate-100 sm:px-5 sm:py-4">
-            <div className="flex flex-wrap items-center gap-2">
-                {groupLabel ? (
-                    <span className="inline-flex h-6 items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 text-[11px] font-bold text-sky-700 dark:border-sky-400/35 dark:bg-sky-500/15 dark:text-sky-200">
-                        {groupLabel}
-                    </span>
-                ) : null}
-                <h1 className="text-base font-extrabold tracking-tight sm:text-lg">{title}</h1>
+        <section className="psi-page-header mb-5">
+            <div className="flex min-w-0 items-start gap-3">
+                <span aria-hidden="true" className="mt-1 h-10 w-1 shrink-0 rounded-full bg-gradient-to-b from-blue-500 to-cyan-400" />
+                <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                        {groupLabel ? (
+                            <span className="psi-status-badge">
+                                {groupLabel}
+                            </span>
+                        ) : null}
+                        <h1 className="text-lg font-black tracking-tight sm:text-xl">{title}</h1>
+                    </div>
+                    {description ? (
+                        <p className="mt-1.5 max-w-4xl text-xs font-semibold leading-5 psi-copy-muted sm:text-sm">{description}</p>
+                    ) : null}
+                </div>
             </div>
-            {description ? (
-                <p className="mt-1 text-xs font-medium text-slate-600 dark:text-slate-300 sm:text-sm">{description}</p>
-            ) : null}
         </section>
     );
 };

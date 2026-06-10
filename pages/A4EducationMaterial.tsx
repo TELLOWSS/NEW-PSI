@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ExternalAiHandoffPanel } from '../components/tbm/ExternalAiHandoffPanel';
 import type { WorkerRecord } from '../types';
 import { ensureHtml2Canvas, ensureJsPdfConstructor } from '../utils/externalScripts';
 import { buildPsiExportFileName } from '../utils/exportFileNaming';
@@ -21,7 +22,7 @@ interface Props {
     onOpenTraining?: () => void;
 }
 
-type StudioTab = 'sources' | 'package' | 'editor' | 'preview';
+type StudioTab = 'sources' | 'ai' | 'package' | 'editor' | 'preview';
 
 const getNextMonth = (): string => {
     const date = new Date();
@@ -49,6 +50,8 @@ interface StoredStudioState {
     workType: string;
     sources: TbmEvidenceSource[];
     draft: TbmEducationDraft;
+    translatedTexts?: Record<string, string>;
+    translationSourceText?: string;
 }
 
 const loadStudioState = (): StoredStudioState | null => {
@@ -76,6 +79,12 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     const [isExtracting, setIsExtracting] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
     const [notice, setNotice] = useState('');
+    const [translatedTexts, setTranslatedTexts] = useState<Record<string, string>>(
+        initialState.current?.translatedTexts || {},
+    );
+    const [translationSourceText, setTranslationSourceText] = useState(
+        initialState.current?.translationSourceText || '',
+    );
     const [draft, setDraft] = useState<TbmEducationDraft>(() =>
         initialState.current?.draft || buildTbmEducationDraft({
             workerRecords,
@@ -107,17 +116,22 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             workType,
             sources,
             draft,
+            translatedTexts,
+            translationSourceText,
         } satisfies StoredStudioState));
-    }, [draft, educationMonth, sources, workType]);
+    }, [draft, educationMonth, sources, translatedTexts, translationSourceText, workType]);
 
     const generateDraft = () => {
-        setDraft(buildTbmEducationDraft({
+        const nextDraft = buildTbmEducationDraft({
             workerRecords,
             sources,
             month: educationMonth,
             workType,
             coreMessage: draft.coreMessage,
-        }));
+        });
+        setDraft(nextDraft);
+        setTranslatedTexts({});
+        setTranslationSourceText('');
         setActiveTab('package');
         setNotice('근거 자료를 기준으로 5단계 월간 교육 패키지를 다시 구성했습니다.');
     };
@@ -134,6 +148,8 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         setWorkType('전체 공종');
         setSources([]);
         setManualText('');
+        setTranslatedTexts({});
+        setTranslationSourceText('');
         setDraft(nextDraft);
         setNotice('교육자료 작업 내용을 초기화했습니다.');
     };
@@ -174,13 +190,36 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     };
 
     const sendToTraining = () => {
+        const sourceText = buildMonthlyEducationPackageText(draft);
+        const translationsMatchCurrentDraft = translationSourceText === sourceText;
         localStorage.setItem(TBM_MONTHLY_PACKAGE_STORAGE_KEY, JSON.stringify({
             draft,
-            sourceText: buildMonthlyEducationPackageText(draft),
+            sourceText,
+            translatedTexts: translationsMatchCurrentDraft ? translatedTexts : {},
             savedAt: new Date().toISOString(),
         }));
-        setNotice('5단계 교육 원문을 다국어 교육에 전달했습니다.');
+        setNotice(
+            translationsMatchCurrentDraft || Object.keys(translatedTexts).length === 0
+                ? '5단계 교육 원문을 다국어 교육에 전달했습니다.'
+                : '한국어 초안이 수정되어 기존 AI 번역은 제외했습니다. 배포 단계에서 현재 원문 기준으로 번역합니다.',
+        );
         onOpenTraining?.();
+    };
+
+    const importExternalAiDraft = (
+        nextDraft: TbmEducationDraft,
+        nextTranslations: Record<string, string>,
+    ) => {
+        setDraft(nextDraft);
+        setTranslatedTexts(nextTranslations);
+        setTranslationSourceText(buildMonthlyEducationPackageText(nextDraft));
+        setActiveTab('package');
+        const translationCount = Object.keys(nextTranslations).length;
+        setNotice(
+            translationCount > 0
+                ? `AI 초안과 다국어 결과 ${translationCount}개를 반영했습니다. 5단계 내용을 검수해 주세요.`
+                : 'AI 초안을 반영했습니다. 5단계 내용을 검수해 주세요.',
+        );
     };
 
     const captureSheet = async () => {
@@ -254,27 +293,28 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     };
 
     return (
-        <div className="space-y-5 pb-16">
-            <section className="rounded-3xl bg-gradient-to-br from-blue-950 via-blue-800 to-orange-500 p-6 text-white shadow-xl no-print">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-100">Evidence-based TBM Studio</p>
+        <div className="psi-page space-y-5 pb-16">
+            <section className="psi-enterprise-hero no-print">
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-100">Evidence-based TBM Studio</p>
                 <h2 className="mt-2 text-2xl font-black sm:text-3xl">다음 달 TBM 교육자료 스튜디오</h2>
                 <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-blue-50">
-                    위험성평가 기록, PDF·PPTX, 직접 입력 내용을 한 자료함에서 검토하고 다음 달 전파교육용 한 장 자료로 정리합니다.
+                    현장 기록과 첨부자료를 근거로 5단계 전파교육 초안을 만들고, 선택한 AI의 정밀 분석 결과를 한 장 자료·다국어 교육으로 이어갑니다.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2 text-xs font-bold">
-                    <span className="rounded-full bg-white/15 px-3 py-2">로컬 초안 생성</span>
+                    <span className="rounded-full bg-white/15 px-3 py-2">ChatGPT · Claude · Gemini</span>
+                    <span className="rounded-full bg-white/15 px-3 py-2">로컬 무료 초안</span>
                     <span className="rounded-full bg-white/15 px-3 py-2">출처 표시</span>
                     <span className="rounded-full bg-white/15 px-3 py-2">PNG · PDF · PPTX</span>
-                    <span className="rounded-full bg-emerald-400/20 px-3 py-2 text-emerald-100">AI 호출 없이 사용 가능</span>
                 </div>
             </section>
 
-            <nav className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900 sm:grid-cols-4 no-print" aria-label="교육자료 제작 단계">
+            <nav className="psi-segmented-nav grid grid-cols-2 gap-2 sm:grid-cols-5 no-print" aria-label="교육자료 제작 단계">
                 {([
                     ['sources', '1. 자료 모으기'],
-                    ['package', '2. 5단계 구성'],
-                    ['editor', '3. 한 장 편집'],
-                    ['preview', '4. 출력 확인'],
+                    ['ai', '2. AI 정밀 초안'],
+                    ['package', '3. 5단계 검수'],
+                    ['editor', '4. 한 장 편집'],
+                    ['preview', '5. 출력 확인'],
                 ] as Array<[StudioTab, string]>).map(([id, label]) => (
                     <button
                         key={id}
@@ -282,7 +322,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                         onClick={() => setActiveTab(id)}
                         className={`min-h-11 rounded-xl px-3 py-2 text-xs font-black transition-colors sm:text-sm ${
                             activeTab === id
-                                ? 'bg-blue-700 text-white'
+                                ? 'bg-blue-700 text-white shadow-md'
                                 : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
                         }`}
                     >
@@ -299,7 +339,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
             {activeTab === 'sources' && (
                 <div className="space-y-4 no-print">
-                    <section className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900 lg:grid-cols-3">
+                    <section className="psi-enterprise-panel grid gap-4 p-5 lg:grid-cols-3">
                         <label className="text-sm font-black text-slate-800 dark:text-slate-100">
                             교육 대상월
                             <input type="month" value={educationMonth} onChange={(event) => setEducationMonth(event.target.value)} className="mt-2 w-full rounded-xl border px-3 py-3" />
@@ -346,12 +386,15 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                 <h3 className="text-lg font-black">근거 자료함</h3>
                                 <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">각 위험 항목에는 선택에 사용된 출처가 함께 표시됩니다.</p>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-2">
                                 <button type="button" onClick={resetStudio} className="min-h-11 rounded-xl border border-slate-300 px-4 py-3 text-xs font-black text-slate-600 dark:border-slate-600 dark:text-slate-300">
                                     작업 초기화
                                 </button>
-                                <button type="button" onClick={generateDraft} className="min-h-11 rounded-xl bg-orange-500 px-5 py-3 text-sm font-black text-white hover:bg-orange-600">
-                                    한 장 초안 만들기
+                                <button type="button" onClick={generateDraft} className="psi-button-secondary">
+                                    AI 없이 기본 초안
+                                </button>
+                                <button type="button" onClick={() => setActiveTab('ai')} className="psi-button-primary">
+                                    AI 정밀 초안 만들기
                                 </button>
                             </div>
                         </div>
@@ -382,6 +425,18 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                         </div>
                     </section>
                 </div>
+            )}
+
+            {activeTab === 'ai' && (
+                <ExternalAiHandoffPanel
+                    sources={allSources}
+                    month={educationMonth}
+                    workType={workType}
+                    draft={draft}
+                    onImport={importExternalAiDraft}
+                    onUseLocalDraft={generateDraft}
+                    onNotice={setNotice}
+                />
             )}
 
             {activeTab === 'package' && (

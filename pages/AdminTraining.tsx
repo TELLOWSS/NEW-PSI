@@ -11,12 +11,24 @@ type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
 const LINK_HISTORY_STORAGE_KEY = 'psi_training_link_history';
 const ACTIVE_QR_STATE_STORAGE_KEY = 'psi_training_active_qr_state';
 
-const loadMonthlyPackageText = (): string => {
+const loadMonthlyPackage = (): { sourceText: string; translatedTexts: Record<string, string> } => {
     try {
-        const parsed = JSON.parse(localStorage.getItem(TBM_MONTHLY_PACKAGE_STORAGE_KEY) || 'null') as { sourceText?: unknown } | null;
-        return typeof parsed?.sourceText === 'string' ? parsed.sourceText : '';
+        const parsed = JSON.parse(localStorage.getItem(TBM_MONTHLY_PACKAGE_STORAGE_KEY) || 'null') as {
+            sourceText?: unknown;
+            translatedTexts?: unknown;
+        } | null;
+        const translatedTexts = parsed?.translatedTexts && typeof parsed.translatedTexts === 'object'
+            ? Object.fromEntries(
+                Object.entries(parsed.translatedTexts as Record<string, unknown>)
+                    .filter(([, value]) => typeof value === 'string' && value.trim()),
+            ) as Record<string, string>
+            : {};
+        return {
+            sourceText: typeof parsed?.sourceText === 'string' ? parsed.sourceText : '',
+            translatedTexts,
+        };
     } catch {
-        return '';
+        return { sourceText: '', translatedTexts: {} };
     }
 };
 
@@ -536,6 +548,7 @@ const AdminTraining: React.FC = () => {
     const [failedLanguages, setFailedLanguages] = useState<string[]>([]);
     const [failedLanguageAttempts, setFailedLanguageAttempts] = useState<Record<string, string[]>>({});
     const [translatedTexts, setTranslatedTexts] = useState<Record<string, string>>({});
+    const [pretranslatedTexts, setPretranslatedTexts] = useState<Record<string, string>>({});
     const [translationReports, setTranslationReports] = useState<Record<string, TranslationQualityReport>>({});
     const [savedPreset, setSavedPreset] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
     const [selectedLanguages, setSelectedLanguages] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
@@ -1016,7 +1029,12 @@ const AdminTraining: React.FC = () => {
             const response = await fetchWithTimeout('/api/admin/training', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'create', sourceTextKo, selectedLanguages }),
+                body: JSON.stringify({
+                    action: 'create',
+                    sourceTextKo,
+                    selectedLanguages,
+                    pretranslatedTexts,
+                }),
             });
 
             const contentType = response.headers.get('content-type') || '';
@@ -1244,13 +1262,22 @@ const AdminTraining: React.FC = () => {
                     <button
                         type="button"
                         onClick={() => {
-                            const packageText = loadMonthlyPackageText();
-                            if (!packageText) {
+                            const monthlyPackage = loadMonthlyPackage();
+                            if (!monthlyPackage.sourceText) {
                                 setMessage('TBM 교육자료 스튜디오에서 먼저 5단계 교육 원문을 보내 주세요.');
                                 return;
                             }
-                            setSourceTextKo(packageText);
-                            setMessage('5단계 월간 교육 원문을 불러왔습니다. 내용을 확인한 뒤 세션을 생성해 주세요.');
+                            setSourceTextKo(monthlyPackage.sourceText);
+                            setPretranslatedTexts(monthlyPackage.translatedTexts);
+                            const availableCodes = Object.keys(monthlyPackage.translatedTexts).filter(isValidLanguageCode);
+                            if (availableCodes.length > 0) {
+                                setSelectedLanguages((current) => Array.from(new Set([...current, ...availableCodes])));
+                            }
+                            setMessage(
+                                availableCodes.length > 0
+                                    ? `5단계 원문과 AI 번역 ${availableCodes.length}개를 불러왔습니다. 기존 번역은 다시 생성하지 않아 사용량을 줄입니다.`
+                                    : '5단계 월간 교육 원문을 불러왔습니다. 내용을 확인한 뒤 세션을 생성해 주세요.',
+                            );
                         }}
                         className="min-h-10 rounded-lg bg-blue-700 px-4 py-2 text-xs font-black text-white hover:bg-blue-800"
                     >
@@ -1260,7 +1287,10 @@ const AdminTraining: React.FC = () => {
 
                 <textarea
                     value={sourceTextKo}
-                    onChange={(e) => setSourceTextKo(e.target.value)}
+                    onChange={(e) => {
+                        setSourceTextKo(e.target.value);
+                        setPretranslatedTexts({});
+                    }}
                     rows={8}
                     placeholder={t.sourcePlaceholder}
                     className="w-full mt-4 p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 font-bold text-sm text-slate-900 dark:text-slate-100"

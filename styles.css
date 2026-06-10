@@ -16,6 +16,11 @@
         --psi-border: #d7e0eb;
         --psi-border-strong: #b8c6d8;
         --psi-focus: #2563eb;
+        --psi-brand: #174ea6;
+        --psi-brand-strong: #0b2f63;
+        --psi-accent: #f97316;
+        --psi-success: #047857;
+        --psi-radius: 18px;
         --psi-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
         --psi-shadow-raised: 0 18px 48px rgba(15, 23, 42, 0.12);
     }
@@ -33,6 +38,10 @@
         --psi-border: #334155;
         --psi-border-strong: #475569;
         --psi-focus: #60a5fa;
+        --psi-brand: #60a5fa;
+        --psi-brand-strong: #bfdbfe;
+        --psi-accent: #fb923c;
+        --psi-success: #34d399;
         --psi-shadow: 0 14px 36px rgba(0, 0, 0, 0.34);
         --psi-shadow-raised: 0 22px 56px rgba(0, 0, 0, 0.48);
     }
@@ -114,6 +123,241 @@
     .psi-app-shell {
         background: var(--psi-canvas);
         color: var(--psi-text);
+    }
+
+    .psi-page {
+        color: var(--psi-text);
+    }
+
+    .psi-topbar {
+        border-color: color-mix(in srgb, var(--psi-border) 84%, transparent);
+        background: color-mix(in srgb, var(--psi-surface) 92%, transparent);
+        box-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+    }
+
+    html.dark .psi-topbar {
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.26);
+    }
+
+    .psi-page-header {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid var(--psi-border);
+        border-radius: var(--psi-radius);
+        background:
+            linear-gradient(110deg, color-mix(in srgb, var(--psi-surface) 96%, var(--psi-focus)), var(--psi-surface));
+        padding: 1rem 1.15rem;
+        color: var(--psi-text);
+        box-shadow: var(--psi-shadow);
+    }
+
+    .psi-page-header::after {
+        content: '';
+        position: absolute;
+        right: -34px;
+        top: -54px;
+        width: 150px;
+        height: 150px;
+        border-radius: 9999px;
+        background: color-mix(in srgb, var(--psi-focus) 8%, transparent);
+        pointer-events: none;
+    }
+
+    .psi-enterprise-hero {
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(147, 197, 253, 0.25);
+        border-radius: 26px;
+        background:
+            radial-gradient(circle at 86% 10%, rgba(56, 189, 248, 0.22), transparent 28%),
+            radial-gradient(circle at 74% 94%, rgba(249, 115, 22, 0.2), transparent 30%),
+            linear-gradient(135deg, #071a38 0%, #123f83 62%, #185cae 100%);
+        padding: clamp(1.4rem, 3vw, 2.2rem);
+        color: white;
+        box-shadow: 0 24px 60px rgba(8, 47, 107, 0.24);
+    }
+
+    .psi-enterprise-panel {
+        border: 1px solid var(--psi-border);
+        border-radius: var(--psi-radius);
+        background: var(--psi-surface);
+        color: var(--psi-text);
+        box-shadow: var(--psi-shadow);
+    }
+
+    .psi-segmented-nav {
+        border: 1px solid var(--psi-border);
+        border-radius: var(--psi-radius);
+        background: color-mix(in srgb, var(--psi-surface) 94%, var(--psi-focus));
+        padding: 0.5rem;
+        box-shadow: var(--psi-shadow);
+    }
+
+    .psi-eyebrow {
+        color: var(--psi-brand);
+        font-size: 0.7rem;
+        font-weight: 900;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+    }
+
+    .psi-input {
+        border: 1px solid var(--psi-border);
+        border-radius: 14px;
+        background: var(--psi-surface-muted);
+        color: var(--psi-text);
+        transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease;
+    }
+
+    .psi-input:focus {
+        border-color: var(--psi-focus);
+        background: var(--psi-surface);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--psi-focus) 14%, transparent);
+        outline: none;
+    }
+
+    .psi-button-primary,
+    .psi-button-secondary {
+        display: inline-flex;
+        min-height: 44px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        padding: 0.7rem 1rem;
+        font-size: 0.8rem;
+        font-weight: 900;
+        transition: transform 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+    }
+
+    .psi-button-primary {
+        border: 1px solid #1d4ed8;
+        background: linear-gradient(135deg, #1d4ed8, #0f5ca8);
+        color: white;
+        box-shadow: 0 10px 24px rgba(29, 78, 216, 0.2);
+    }
+
+    .psi-button-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 14px 28px rgba(29, 78, 216, 0.26);
+    }
+
+    .psi-button-secondary {
+        border: 1px solid var(--psi-border-strong);
+        background: var(--psi-surface);
+        color: var(--psi-text);
+    }
+
+    .psi-button-secondary:hover {
+        background: var(--psi-surface-muted);
+    }
+
+    .psi-status-badge {
+        display: inline-flex;
+        min-height: 26px;
+        align-items: center;
+        border: 1px solid color-mix(in srgb, var(--psi-focus) 30%, var(--psi-border));
+        border-radius: 9999px;
+        background: color-mix(in srgb, var(--psi-focus) 9%, var(--psi-surface));
+        padding: 0.25rem 0.7rem;
+        color: var(--psi-brand);
+        font-size: 0.68rem;
+        font-weight: 900;
+    }
+
+    .psi-step-card {
+        display: flex;
+        min-height: 88px;
+        align-items: center;
+        gap: 0.85rem;
+        border: 1px solid var(--psi-border);
+        border-radius: 16px;
+        background: var(--psi-surface-muted);
+        padding: 1rem;
+    }
+
+    .psi-step-card > span {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        flex: 0 0 auto;
+        place-items: center;
+        border-radius: 10px;
+        background: var(--psi-brand);
+        color: white;
+        font-size: 0.8rem;
+        font-weight: 900;
+    }
+
+    .psi-step-card b {
+        display: block;
+        font-size: 0.82rem;
+    }
+
+    .psi-step-card p {
+        margin-top: 0.2rem;
+        color: var(--psi-text-muted);
+        font-size: 0.7rem;
+        font-weight: 650;
+        line-height: 1.45;
+    }
+
+    .psi-choice-chip {
+        display: flex;
+        min-height: 42px;
+        cursor: pointer;
+        align-items: center;
+        gap: 0.55rem;
+        border: 1px solid var(--psi-border);
+        border-radius: 12px;
+        background: var(--psi-surface-muted);
+        padding: 0.6rem 0.75rem;
+        color: var(--psi-text-muted);
+        font-size: 0.75rem;
+        font-weight: 800;
+    }
+
+    .psi-choice-chip.is-selected {
+        border-color: color-mix(in srgb, var(--psi-focus) 55%, var(--psi-border));
+        background: color-mix(in srgb, var(--psi-focus) 11%, var(--psi-surface));
+        color: var(--psi-brand);
+    }
+
+    .psi-provider-button {
+        display: flex;
+        min-height: 64px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        border: 1px solid var(--psi-border);
+        border-radius: 14px;
+        background: var(--psi-surface-muted);
+        padding: 0.8rem 1rem;
+        text-align: left;
+        transition: border-color 0.16s ease, transform 0.16s ease, background-color 0.16s ease;
+    }
+
+    .psi-provider-button:hover {
+        transform: translateY(-1px);
+        border-color: var(--psi-focus);
+        background: var(--psi-surface);
+    }
+
+    .psi-provider-button b,
+    .psi-provider-button small {
+        display: block;
+    }
+
+    .psi-provider-button small {
+        margin-top: 0.2rem;
+        color: var(--psi-text-muted);
+        font-size: 0.68rem;
+        font-weight: 650;
+    }
+
+    .psi-provider-button strong {
+        flex: 0 0 auto;
+        color: var(--psi-brand);
+        font-size: 0.7rem;
     }
 
     .psi-panel {

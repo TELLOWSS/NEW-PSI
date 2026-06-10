@@ -258,6 +258,7 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
     const trainingCategory = body.trainingCategory;
     const targetMode = body.targetMode;
     const targetWorkerNames = body.targetWorkerNames;
+    const pretranslatedTexts = body.pretranslatedTexts;
 
     const normalizedSourceText = typeof sourceTextKo === 'string' ? sourceTextKo.trim() : '';
     const normalizedTrainingTitle = typeof trainingTitle === 'string' ? trainingTitle.trim() : '';
@@ -273,19 +274,32 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
         ).slice(0, 5000)
         : [];
 
-    let translatedTexts: Record<string, string> = {};
+    const providedTranslations = pretranslatedTexts && typeof pretranslatedTexts === 'object'
+        ? Object.fromEntries(
+            Object.entries(pretranslatedTexts as Record<string, unknown>)
+                .filter(([code, value]) =>
+                    TRAINING_AUDIO_LANGUAGE_SET.has(code)
+                    && code !== 'ko-KR'
+                    && typeof value === 'string'
+                    && value.trim().length > 0
+                )
+                .map(([code, value]) => [code, String(value).trim()]),
+        )
+        : {};
+    let translatedTexts: Record<string, string> = { ...providedTranslations };
     let translationReports: Record<string, TranslationQualityReport> = {};
     const shouldSkipTranslation = !normalizedSourceText || !env.geminiApiKey;
+    const requestedLanguages = Array.isArray(selectedLanguages)
+        ? (selectedLanguages as string[]).filter(
+            (code): code is TrainingLanguageCode => TRAINING_AUDIO_LANGUAGE_SET.has(code)
+        )
+        : [];
+    const langs = requestedLanguages.length > 0 ? requestedLanguages : [...TRAINING_AUDIO_LANGUAGE_CODES];
+    const missingLanguages = langs.filter((code) => code !== 'ko-KR' && !translatedTexts[code]);
 
-    if (!shouldSkipTranslation) {
-        const requestedLanguages = Array.isArray(selectedLanguages)
-            ? (selectedLanguages as string[]).filter(
-                (code): code is TrainingLanguageCode => TRAINING_AUDIO_LANGUAGE_SET.has(code)
-            )
-            : [];
-        const langs = requestedLanguages.length > 0 ? requestedLanguages : [...TRAINING_AUDIO_LANGUAGE_CODES];
-        const translationResult = await translateParallelSafe(normalizedSourceText, env.geminiApiKey, langs);
-        translatedTexts = translationResult.texts;
+    if (!shouldSkipTranslation && missingLanguages.length > 0) {
+        const translationResult = await translateParallelSafe(normalizedSourceText, env.geminiApiKey, missingLanguages);
+        translatedTexts = { ...translatedTexts, ...translationResult.texts };
         translationReports = translationResult.reports;
     }
     translatedTexts['ko-KR'] = normalizedSourceText;
