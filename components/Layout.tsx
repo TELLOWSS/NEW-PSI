@@ -8,7 +8,6 @@ import { ShellBackground } from './shell/ShellBackground';
 import type { Page } from '../types';
 import { API_MODE_CHANGED_EVENT, getIsPaidApiMode } from '../utils/apiModeUtils';
 import { BestPracticeSyncBadge } from './shared/BestPracticeSyncBadge';
-import { StatusBadge } from './shared/StatusBadge';
 import {
     BEST_PRACTICE_SYNC_STATUS_EVENT,
     getBestPracticeSyncFailureLogs,
@@ -88,6 +87,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     const [isDark, setIsDark] = useState(() => getResolvedTheme(getStoredTheme()) === 'dark');
     const [showScrollTop, setShowScrollTop] = useState(false);
     const mainRef = useRef<HTMLElement>(null);
+    const operatorMenuRef = useRef<HTMLDetailsElement>(null);
     const { isDevMode, toggle: toggleDevMode } = useDevMode();
     const { mode: operationalMode, cycleMode: cycleOperationalMode } = useOperationalMode();
     const [userRolePreset, setUserRolePreset] = useState<UserRolePreset>(() => getUserRolePreset());
@@ -340,6 +340,27 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         return () => el.removeEventListener('scroll', onScroll);
     }, []);
 
+    useEffect(() => {
+        const closeOperatorMenu = (event: PointerEvent | KeyboardEvent) => {
+            const menu = operatorMenuRef.current;
+            if (!menu?.open) return;
+            if (event instanceof KeyboardEvent && event.key === 'Escape') {
+                menu.removeAttribute('open');
+                return;
+            }
+            if (event instanceof PointerEvent && !menu.contains(event.target as Node)) {
+                menu.removeAttribute('open');
+            }
+        };
+
+        document.addEventListener('pointerdown', closeOperatorMenu);
+        document.addEventListener('keydown', closeOperatorMenu);
+        return () => {
+            document.removeEventListener('pointerdown', closeOperatorMenu);
+            document.removeEventListener('keydown', closeOperatorMenu);
+        };
+    }, []);
+
     return (
         <AppShell
             desktopSidebar={
@@ -385,58 +406,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                     isDark={isDark}
                     themeMode={themeMode}
                     onToggleTheme={handleToggleTheme}
-                    patentBadge={
-                        <div
-                            className="relative group/patent shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
-                            title="특허출원 제10-2026-0039151호 (발명자: 박성훈)"
-                            aria-label="특허출원 상태"
-                            tabIndex={0}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Escape') {
-                                    (e.currentTarget as HTMLDivElement).blur();
-                                }
-                            }}
-                        >
-                            <StatusBadge variant="sky" className="gap-1 text-xs font-bold">
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l7 4v5c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V7l7-4z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
-                                </svg>
-                                <span className="hidden md:inline">Pat. Pending</span>
-                            </StatusBadge>
-                            <div className="pointer-events-none absolute left-0 top-full z-30 mt-2 max-w-[min(260px,calc(100vw-2rem))] rounded-lg bg-slate-900 px-3 py-2 text-[11px] font-medium text-white opacity-0 shadow-lg transition-all duration-200 group-hover/patent:translate-y-0 group-hover/patent:opacity-100 group-focus-within/patent:translate-y-0 group-focus-within/patent:opacity-100 translate-y-1 sm:left-1/2 sm:w-max sm:max-w-none sm:-translate-x-1/2">
-                                특허출원 제10-2026-0039151호 (발명자: 박성훈)
-                            </div>
-                        </div>
-                    }
                     controls={
-                        <>
-                            <button
-                                type="button"
-                                onClick={() => void onAdminLogout()}
-                                className="ml-1 min-h-11 rounded-lg border border-slate-300 bg-slate-100 px-2 text-[10px] font-black text-slate-700 transition-colors hover:bg-slate-200 dark:border-slate-500/70 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-700/90"
-                                title="관리자 로그아웃"
-                                aria-label="관리자 로그아웃"
-                            >
-                                로그아웃
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setUserRolePreset(cycleUserRolePreset())}
-                                className="ml-1 min-h-11 rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-black text-emerald-800 transition-colors hover:bg-emerald-100 dark:border-emerald-400/40 dark:bg-emerald-500/15 dark:text-emerald-200 dark:hover:bg-emerald-500/25"
-                                title="사용자군 프리셋 순환: 실무자 → 관리자 → 소장"
-                                aria-label="사용자군 프리셋 변경"
-                            >
-                                {getUserRolePresetLabel(userRolePreset)}
-                            </button>
+                        <div className="flex items-center gap-1">
                             {isSettingsPage && (
                                 <button
                                     type="button"
                                     onClick={() => setIsCompositionEditMode((prev) => !prev)}
-                                    className={`ml-1 min-h-11 rounded-lg border px-2 text-[10px] font-black transition-colors ${
+                                    className={`hidden min-h-10 rounded-xl border px-3 text-[11px] font-black transition-colors md:inline-flex md:items-center ${
                                         isCompositionEditMode
-                                            ? 'border-orange-400/70 bg-orange-500/20 text-orange-100 hover:bg-orange-500/30'
-                                            : 'border-slate-500/70 bg-slate-800/80 text-slate-200 hover:bg-slate-700/90'
+                                            ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-700'
+                                            : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800'
                                     }`}
                                     title="설정 페이지에서 메뉴 구성 편집 열기"
                                     aria-label={isCompositionEditMode ? '메뉴 구성 편집 닫기' : '메뉴 구성 편집 열기'}
@@ -471,14 +450,53 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                     {isDevMode ? '진단 ON' : '진단 OFF'}
                                 </button>
                             )}
-                        </>
+                            <details ref={operatorMenuRef} className="psi-operator-menu relative">
+                                <summary aria-label="운영자 메뉴 열기" className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-xl border border-slate-300 bg-white px-2.5 text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-blue-500/60 dark:hover:bg-blue-500/10">
+                                    <span className="grid h-7 w-7 place-items-center rounded-lg bg-blue-950 text-[10px] font-black text-white dark:bg-blue-500">PSI</span>
+                                    <span className="hidden text-left md:block">
+                                        <b className="block text-[11px] leading-none">{getUserRolePresetLabel(userRolePreset)}</b>
+                                        <small className="mt-1 block text-[9px] font-semibold leading-none psi-copy-subtle">운영자 메뉴</small>
+                                    </span>
+                                    <svg className="hidden h-3.5 w-3.5 md:block" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m6 9 6 6 6-6" />
+                                    </svg>
+                                </summary>
+                                <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-2xl border border-slate-200 bg-white p-2 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+                                    <div className="px-3 py-2">
+                                        <p className="text-xs font-black">현장 관리자</p>
+                                        <p className="mt-1 text-[10px] font-semibold psi-copy-subtle">안전 운영 계정</p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setUserRolePreset(cycleUserRolePreset());
+                                            operatorMenuRef.current?.removeAttribute('open');
+                                        }}
+                                        className="flex min-h-10 w-full items-center justify-between rounded-xl px-3 text-left text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800"
+                                    >
+                                        사용자 화면
+                                        <span className="psi-status-badge">{getUserRolePresetLabel(userRolePreset)}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            operatorMenuRef.current?.removeAttribute('open');
+                                            void onAdminLogout();
+                                        }}
+                                        className="mt-1 flex min-h-10 w-full items-center rounded-xl px-3 text-left text-xs font-bold text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                                    >
+                                        관리자 로그아웃
+                                    </button>
+                                </div>
+                            </details>
+                        </div>
                     }
                 />
             }
             content={
                 <main ref={mainRef} className="relative flex-1 overflow-y-auto p-3 pb-24 sm:p-4 md:p-6 lg:p-8 lg:pb-10">
                     <ShellBackground isDark={isDark} />
-                    <div key={currentPage} className="mx-auto max-w-7xl animate-fade-in-up">
+                    <div key={currentPage} className="mx-auto w-full max-w-[1440px] animate-fade-in-up">
                         <div className="mb-3 flex gap-2 overflow-x-auto no-scrollbar lg:hidden">
                             {mobileQuickLinks.map((item) => {
                                 const isActive = currentPage === item.page;
@@ -489,8 +507,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                         onClick={() => handlePageChange(item.page)}
                                         className={`min-h-11 shrink-0 rounded-full border px-3 py-2 text-xs font-bold transition-colors ${
                                             isActive
-                                                ? 'border-orange-400/70 bg-orange-500/85 text-white'
-                                                : 'border-slate-600 bg-slate-900/70 text-slate-200'
+                                                ? 'border-blue-600 bg-blue-700 text-white shadow-sm'
+                                                : 'border-slate-300 bg-white text-slate-700 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200'
                                         }`}
                                     >
                                         {item.label}
@@ -509,7 +527,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                 </main>
             }
             mobileBottomNav={
-                <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] pt-2 backdrop-blur transition-colors dark:border-slate-700 dark:bg-slate-900/95 lg:hidden no-print" aria-label="모바일 하단 탐색">
+                <nav className="psi-mobile-nav fixed inset-x-0 bottom-0 z-40 border-t px-2 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] pt-2 backdrop-blur transition-colors lg:hidden no-print" aria-label="모바일 하단 탐색">
                     <div className="grid grid-cols-5 gap-1">
                         {mobileBottomTabs.map((tab) => {
                             const isActive = tab.id === activeMobileTab;
@@ -524,10 +542,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                     key={tab.id}
                                     type="button"
                                     onClick={handleClick}
-                                    className={`flex min-h-[60px] flex-col items-center justify-center rounded-2xl px-1 py-2 text-[11px] font-bold transition-colors ${
+                                    className={`relative flex min-h-[60px] flex-col items-center justify-center rounded-xl px-1 py-2 text-[11px] font-bold transition-colors ${
                                         isActive
-                                            ? 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-200'
-                                            : 'text-slate-600 dark:text-slate-400'
+                                            ? 'bg-blue-50 text-blue-800 dark:bg-blue-500/15 dark:text-blue-200'
+                                            : 'text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
                                     }`}
                                     aria-current={isActive ? 'page' : undefined}
                                 >
@@ -544,7 +562,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                     <button
                         type="button"
                         onClick={handleScrollToTop}
-                        className="fixed bottom-24 right-5 z-[300] flex h-11 w-11 items-center justify-center rounded-full bg-orange-500 text-white shadow-md transition-colors hover:bg-orange-400 active:scale-95 lg:bottom-6 no-print"
+                        className="fixed bottom-24 right-5 z-[300] flex h-11 w-11 items-center justify-center rounded-xl bg-blue-700 text-white shadow-lg transition-colors hover:bg-blue-600 active:scale-95 lg:bottom-6 no-print"
                         aria-label="최상단으로 이동"
                         title="최상단으로 이동"
                     >

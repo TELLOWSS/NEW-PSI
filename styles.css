@@ -21,8 +21,10 @@
         --psi-accent: #f97316;
         --psi-success: #047857;
         --psi-radius: 18px;
-        --psi-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
-        --psi-shadow-raised: 0 18px 48px rgba(15, 23, 42, 0.12);
+        --psi-radius-sm: 12px;
+        --psi-radius-lg: 22px;
+        --psi-shadow: 0 8px 24px rgba(15, 23, 42, 0.07);
+        --psi-shadow-raised: 0 16px 40px rgba(15, 23, 42, 0.11);
     }
 
     html.dark {
@@ -42,8 +44,8 @@
         --psi-brand-strong: #bfdbfe;
         --psi-accent: #fb923c;
         --psi-success: #34d399;
-        --psi-shadow: 0 14px 36px rgba(0, 0, 0, 0.34);
-        --psi-shadow-raised: 0 22px 56px rgba(0, 0, 0, 0.48);
+        --psi-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+        --psi-shadow-raised: 0 18px 44px rgba(0, 0, 0, 0.4);
     }
 
     body {
@@ -51,6 +53,24 @@
         color: var(--psi-text);
         font-family: 'Pretendard', 'Noto Sans KR', sans-serif;
         transition: background-color 0.2s ease, color 0.2s ease;
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+    }
+
+    button,
+    a,
+    summary,
+    input,
+    textarea,
+    select {
+        touch-action: manipulation;
+    }
+
+    button:disabled,
+    input:disabled,
+    textarea:disabled,
+    select:disabled {
+        cursor: not-allowed;
     }
 
     ::selection {
@@ -102,6 +122,17 @@
         }
     }
 
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            scroll-behavior: auto !important;
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+        }
+    }
+
     @media print {
         body {
             background: white !important;
@@ -132,7 +163,7 @@
     .psi-topbar {
         border-color: color-mix(in srgb, var(--psi-border) 84%, transparent);
         background: color-mix(in srgb, var(--psi-surface) 92%, transparent);
-        box-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+        box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
     }
 
     html.dark .psi-topbar {
@@ -144,8 +175,7 @@
         overflow: hidden;
         border: 1px solid var(--psi-border);
         border-radius: var(--psi-radius);
-        background:
-            linear-gradient(110deg, color-mix(in srgb, var(--psi-surface) 96%, var(--psi-focus)), var(--psi-surface));
+        background: var(--psi-surface);
         padding: 1rem 1.15rem;
         color: var(--psi-text);
         box-shadow: var(--psi-shadow);
@@ -159,7 +189,7 @@
         width: 150px;
         height: 150px;
         border-radius: 9999px;
-        background: color-mix(in srgb, var(--psi-focus) 8%, transparent);
+        background: color-mix(in srgb, var(--psi-focus) 7%, transparent);
         pointer-events: none;
     }
 
@@ -167,14 +197,14 @@
         position: relative;
         overflow: hidden;
         border: 1px solid rgba(147, 197, 253, 0.25);
-        border-radius: 26px;
+        border-radius: var(--psi-radius-lg);
         background:
             radial-gradient(circle at 86% 10%, rgba(56, 189, 248, 0.22), transparent 28%),
             radial-gradient(circle at 74% 94%, rgba(249, 115, 22, 0.2), transparent 30%),
             linear-gradient(135deg, #071a38 0%, #123f83 62%, #185cae 100%);
         padding: clamp(1.4rem, 3vw, 2.2rem);
         color: white;
-        box-shadow: 0 24px 60px rgba(8, 47, 107, 0.24);
+        box-shadow: 0 18px 44px rgba(8, 47, 107, 0.2);
     }
 
     .psi-enterprise-panel {
@@ -190,7 +220,7 @@
         border-radius: var(--psi-radius);
         background: color-mix(in srgb, var(--psi-surface) 94%, var(--psi-focus));
         padding: 0.5rem;
-        box-shadow: var(--psi-shadow);
+        box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
     }
 
     .psi-eyebrow {
@@ -239,6 +269,11 @@
     .psi-button-primary:hover {
         transform: translateY(-1px);
         box-shadow: 0 14px 28px rgba(29, 78, 216, 0.26);
+    }
+
+    .psi-button-primary:active,
+    .psi-button-secondary:active {
+        transform: translateY(0);
     }
 
     .psi-button-secondary {
@@ -378,6 +413,85 @@
         background: var(--psi-surface-muted);
         border-color: var(--psi-border);
         color: var(--psi-text);
+    }
+
+    .psi-sidebar-surface {
+        border-color: var(--psi-border);
+        background:
+            linear-gradient(180deg, color-mix(in srgb, var(--psi-surface) 98%, var(--psi-focus)) 0%, var(--psi-surface) 68%, var(--psi-surface-muted) 100%);
+        box-shadow: 4px 0 18px rgba(15, 23, 42, 0.035);
+    }
+
+    html.dark .psi-sidebar-surface {
+        background: linear-gradient(180deg, #0a1220 0%, #0d1728 68%, #101b2d 100%);
+        box-shadow: 4px 0 22px rgba(0, 0, 0, 0.18);
+    }
+
+    .psi-sidebar-item {
+        position: relative;
+    }
+
+    .psi-sidebar-item.is-active::before {
+        content: '';
+        position: absolute;
+        inset-block: 9px;
+        left: 0;
+        width: 3px;
+        border-radius: 9999px;
+        background: #93c5fd;
+    }
+
+    .psi-mobile-nav {
+        border-color: var(--psi-border);
+        background: color-mix(in srgb, var(--psi-surface) 94%, transparent);
+        box-shadow: 0 -10px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    html.dark .psi-mobile-nav {
+        box-shadow: 0 -12px 34px rgba(0, 0, 0, 0.3);
+    }
+
+    .psi-operator-menu > summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .psi-operator-menu[open] > summary {
+        border-color: var(--psi-focus);
+        background: color-mix(in srgb, var(--psi-focus) 8%, var(--psi-surface));
+    }
+
+    .psi-industrial-panel {
+        border: 1px solid var(--psi-border);
+        border-radius: var(--psi-radius);
+        background: var(--psi-surface);
+        color: var(--psi-text);
+        box-shadow: var(--psi-shadow);
+    }
+
+    .psi-industrial-panel--flat {
+        box-shadow: none;
+    }
+
+    .psi-data-notice {
+        border: 1px solid color-mix(in srgb, var(--psi-focus) 24%, var(--psi-border));
+        border-radius: var(--psi-radius-sm);
+        background: color-mix(in srgb, var(--psi-focus) 5%, var(--psi-surface));
+        color: var(--psi-text-muted);
+    }
+
+    .psi-interactive-card {
+        border: 1px solid var(--psi-border);
+        border-radius: var(--psi-radius);
+        background: var(--psi-surface);
+        color: var(--psi-text);
+        box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+        transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease;
+    }
+
+    .psi-interactive-card:hover {
+        border-color: color-mix(in srgb, var(--psi-focus) 46%, var(--psi-border));
+        box-shadow: var(--psi-shadow-raised);
+        transform: translateY(-2px);
     }
 
     .psi-copy-muted {

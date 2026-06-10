@@ -19,7 +19,7 @@ export const SectionCard: React.FC<SectionCardProps> = ({
 }) => {
     return (
         <section
-            className={`rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900/70 shadow-sm dark:shadow-slate-950/25 ${compact ? 'p-4' : 'p-5 sm:p-6'} ${className}`}
+            className={`psi-industrial-panel ${compact ? 'p-4' : 'p-5 sm:p-6'} ${className}`}
             aria-label={title}
         >
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3">

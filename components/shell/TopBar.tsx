@@ -59,11 +59,11 @@ export const TopBar: React.FC<TopBarProps> = ({
                     </div>
 
                     <div className="hidden items-center gap-2 xl:flex">
-                        <span className="inline-flex h-8 items-center rounded-full border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-sky-700 dark:border-sky-400/30 dark:bg-sky-500/15 dark:text-sky-200">
+                        <span className="hidden h-8 items-center rounded-full border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-sky-700 dark:border-sky-400/30 dark:bg-sky-500/15 dark:text-sky-200 2xl:inline-flex">
                             {todayLabel}
                         </span>
                         <StatusPill variant="normal" label={statusLabel} size="md" />
-                        <span className="inline-flex h-8 items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-800 dark:border-emerald-400/35 dark:bg-emerald-500/15 dark:text-emerald-200">
+                        <span className="hidden h-8 items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-800 dark:border-emerald-400/35 dark:bg-emerald-500/15 dark:text-emerald-200 2xl:inline-flex">
                             {analysisModeLabel}
                         </span>
                     </div>
@@ -73,7 +73,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                     <button
                         type="button"
                         onClick={onToggleTheme}
-                        className="ml-1 flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-slate-100 px-3 text-slate-700 transition-colors hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                        className="ml-1 flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:hover:border-blue-500/60 dark:hover:bg-blue-500/10"
                         aria-label={`테마 전환 (현재: ${themeLabel})`}
                         title={`테마: ${themeLabel} (클릭: 라이트→다크→시스템 순환)`}
                     >

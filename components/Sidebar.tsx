@@ -175,7 +175,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }, [visibleMenuItems]);
 
     return (
-        <div className="psi-sidebar flex h-full w-72 shrink-0 flex-col border-r border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_58%,#eef3f8_100%)] text-slate-800 shadow-xl shadow-slate-300/30 transition-colors dark:border-slate-800/80 dark:bg-[linear-gradient(180deg,#0b1220_0%,#111827_58%,#0f172a_100%)] dark:text-slate-100 dark:shadow-slate-950/30">
+        <div className="psi-sidebar psi-sidebar-surface flex h-full w-72 shrink-0 flex-col border-r text-slate-800 transition-colors dark:text-slate-100">
             <div className="border-b border-slate-200 px-5 pb-5 pt-6 dark:border-slate-800/80">
                 <div className="flex items-center gap-3">
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 p-1.5 dark:border-white/10 dark:bg-white/10">
@@ -183,7 +183,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
                     <div>
                         <p className="text-2xl font-black tracking-tight leading-none">psi</p>
-                        <p className="text-[11px] text-slate-300 mt-1">건설현장 안전관리</p>
+                        <p className="mt-1 text-[11px] font-semibold psi-copy-subtle">건설현장 안전관리</p>
                     </div>
                 </div>
             </div>
@@ -252,9 +252,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                         key={item.id}
                                         type="button"
                                         onClick={() => setCurrentPage(item.id)}
-                                        className={`w-full flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors ${
+                                        className={`psi-sidebar-item w-full flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors ${
                                             isActive
-                                                ? 'bg-orange-500/90 text-white shadow-sm shadow-orange-700/30'
+                                                ? 'is-active bg-blue-700 text-white shadow-sm'
                                                 : 'text-slate-700 hover:bg-slate-200/80 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800/90 dark:hover:text-white'
                                         }`}
                                         aria-current={isActive ? 'page' : undefined}
@@ -275,8 +275,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A11.955 11.955 0 0112 16c2.5 0 4.824.76 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     </div>
                     <div>
-                        <p className="text-sm font-bold text-slate-100">현장 관리자</p>
-                        <p className="text-xs text-slate-400">안전 운영 계정</p>
+                        <p className="text-sm font-bold text-slate-800 dark:text-slate-100">현장 관리자</p>
+                        <p className="text-xs psi-copy-subtle">안전 운영 계정</p>
                     </div>
                 </div>
             </div>

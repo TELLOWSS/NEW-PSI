@@ -70,9 +70,9 @@ const CORE_MENU_PAGES = new Set<Page>([
 ]);
 
 const accentClass = {
-    blue: 'border-blue-100 bg-blue-50 text-blue-700',
-    orange: 'border-orange-100 bg-orange-50 text-orange-700',
-    green: 'border-emerald-100 bg-emerald-50 text-emerald-700',
+    blue: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/35 dark:bg-blue-500/10 dark:text-blue-200',
+    orange: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/35 dark:bg-amber-500/10 dark:text-amber-200',
+    green: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/35 dark:bg-emerald-500/10 dark:text-emerald-200',
 };
 
 const formatMonth = (date = new Date()) => `${date.getFullYear()}년 ${date.getMonth() + 1}월`;
@@ -207,8 +207,8 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
     };
 
     return (
-        <div className="psi-work-board min-h-full space-y-4 bg-[#f7f9fc] pb-12 text-slate-900">
-            <section className="rounded-3xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
+        <div className="psi-work-board min-h-full space-y-4 pb-12 text-slate-900">
+            <section className="psi-industrial-panel px-4 py-5 sm:px-6">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                     <div>
                         <p className="text-xs font-black text-blue-700">오늘의 안전업무</p>
@@ -217,7 +217,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                         <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700">{formatMonth()} 운영</span>
-                        <button type="button" onClick={() => setShowFeatureLocker((value) => !value)} className="min-h-11 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-700 hover:border-blue-300 hover:text-blue-700">
+                        <button type="button" onClick={() => setShowFeatureLocker((value) => !value)} className="psi-button-secondary">
                             {showFeatureLocker ? '기능 설정 닫기' : '화면 기능 설정'}
                         </button>
                     </div>
@@ -225,7 +225,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
 
                 <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
                     {QUICK_FLOW.map((item, index) => (
-                        <button key={item.title} type="button" onClick={() => setCurrentPage(item.page)} className="group flex min-h-20 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-left transition hover:-translate-y-0.5 hover:border-blue-300 hover:bg-white hover:shadow-md">
+                        <button key={item.title} type="button" onClick={() => setCurrentPage(item.page)} className="group flex min-h-20 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-left transition hover:border-blue-300 hover:bg-white dark:border-slate-700 dark:bg-slate-800/60 dark:hover:border-blue-500/50 dark:hover:bg-slate-800">
                             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-blue-100 bg-white text-sm font-black text-blue-700">{index + 1}</span>
                             <span>
                                 <span className="block text-xs font-black text-slate-800">{item.title}</span>
@@ -237,7 +237,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
             </section>
 
             {showFeatureLocker && (
-                <section className="rounded-3xl border border-blue-200 bg-white p-5 shadow-lg shadow-blue-100/50">
+                <section className="psi-industrial-panel p-5">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
                             <p className="text-xs font-black text-blue-600">화면 기능 설정</p>
@@ -253,7 +253,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                             const fixed = CORE_MENU_PAGES.has(page);
                             const visible = !composition.hiddenSidebarPages.includes(page);
                             return (
-                                <label key={page} className={`flex min-h-12 items-center justify-between rounded-xl border px-3 py-3 ${fixed ? 'border-blue-100 bg-blue-50' : 'border-slate-200 bg-slate-50'}`}>
+                                <label key={page} className={`flex min-h-12 items-center justify-between rounded-xl border px-3 py-3 ${fixed ? 'border-blue-200 bg-blue-50 dark:border-blue-500/30 dark:bg-blue-500/10' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800'}`}>
                                     <span className="text-sm font-bold text-slate-700">{getRouteLabel(page, 'practitioner')}</span>
                                     <input type="checkbox" checked={visible} disabled={fixed} onChange={(event) => updateFeature(page, event.target.checked)} className="h-5 w-5 rounded border-slate-300 text-blue-700 focus:ring-blue-600 disabled:opacity-50" />
                                 </label>
@@ -263,9 +263,9 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                 </section>
             )}
 
-            <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
-                <p className="text-xs font-black text-amber-800">데이터 기준</p>
-                <p className="mt-1 text-xs font-semibold leading-5 text-amber-700">
+            <section className="psi-data-notice px-4 py-3">
+                <p className="text-xs font-black text-blue-800 dark:text-blue-200">데이터 기준</p>
+                <p className="mt-1 text-xs font-semibold leading-5">
                     작성물과 AI 분석 수치는 현재 브라우저에 저장된 현장 기록 기준입니다. 교육 세션과 참여 기록은 서버에 저장된 전체 운영 데이터입니다.
                 </p>
             </section>
@@ -279,7 +279,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                     ['교육 세션', trainingSummary ? `${trainingSummary.trainingSessions}건` : '-', '서버 전체'],
                     ['교육 참여', trainingSummary?.trainingSubmissions == null ? '-' : `${trainingSummary.trainingSubmissions}건`, '서버 전체'],
                 ].map(([label, value, helper]) => (
-                    <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div key={label} className="psi-industrial-panel psi-industrial-panel--flat p-4">
                         <p className="text-xs font-black text-slate-500">{label}</p>
                         <p className="mt-2 text-2xl font-black text-[#0c377d]">{value}</p>
                         <p className="mt-1 text-xs font-semibold text-slate-400">{helper}</p>
@@ -295,9 +295,9 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
 
             <section className="grid gap-4 xl:grid-cols-4">
                 {BOARD_STEPS.map((step) => (
-                    <button key={step.number} type="button" onClick={() => openStep(step)} className="group min-h-[240px] rounded-3xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-1 hover:border-blue-300 hover:shadow-xl">
+                    <button key={step.number} type="button" onClick={() => openStep(step)} className="psi-interactive-card group min-h-[230px] p-4 text-left">
                         <div className="flex items-start justify-between">
-                            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#082d66] text-sm font-black text-white">{step.number}</span>
+                            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-950 text-sm font-black text-white dark:bg-blue-600">{step.number}</span>
                             <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${accentClass[step.accent]}`}>{step.number === 1 ? '상세 보기' : '바로가기'}</span>
                         </div>
                         <h3 className="mt-4 text-base font-black text-slate-900">{step.title}</h3>
@@ -306,15 +306,15 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                         {step.number === 1 && (
                             <div className="mt-4">
                                 <div className="grid grid-cols-2 gap-2 text-center">
-                                    <div className="rounded-xl bg-slate-50 p-2"><b className="text-lg text-blue-700">{summary.averageScore}</b><span className="block text-[10px] text-slate-400">평균 점수</span></div>
-                                    <div className="rounded-xl bg-slate-50 p-2"><b className="text-lg text-emerald-700">{summary.workTypes}</b><span className="block text-[10px] text-slate-400">분석 공종</span></div>
+                                    <div className="rounded-xl bg-slate-50 p-2 dark:bg-slate-800"><b className="text-lg text-blue-700 dark:text-blue-300">{summary.averageScore}</b><span className="block text-[10px] text-slate-400">평균 점수</span></div>
+                                    <div className="rounded-xl bg-slate-50 p-2 dark:bg-slate-800"><b className="text-lg text-emerald-700 dark:text-emerald-300">{summary.workTypes}</b><span className="block text-[10px] text-slate-400">분석 공종</span></div>
                                 </div>
                                 <TrendChart values={monthlyTrends.scoreValues} label="최근 월별 평균 안전점수 추세" />
                             </div>
                         )}
                         {step.number === 2 && <div className="mt-5 rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-4 text-center"><p className="text-sm font-black text-blue-800">사진·PDF·수기 입력</p><p className="mt-1 text-[11px] text-blue-600">현장 상황에 맞는 입력 방식을 선택합니다.</p></div>}
                         {step.number === 3 && <div className="mt-4 space-y-2">{topRisks.length ? topRisks.map(([risk, count], index) => <div key={risk} className="flex items-center gap-2 text-xs"><b className="w-5 text-blue-700">{index + 1}</b><span className="flex-1 truncate font-bold">{risk}</span><span className="text-slate-400">{count}건</span></div>) : <p className="rounded-xl bg-slate-50 p-4 text-xs font-bold text-slate-400">분석 후 주요 위험 항목이 표시됩니다.</p>}</div>}
-                        {step.number === 4 && <div className="mt-4 rounded-2xl bg-orange-50 p-4 text-center"><b className="text-3xl text-orange-700">A4</b><p className="mt-2 text-xs font-bold text-orange-800">인쇄 가능한 현장 교육자료</p></div>}
+                        {step.number === 4 && <div className="mt-4 rounded-2xl bg-amber-50 p-4 text-center dark:bg-amber-500/10"><b className="text-3xl text-amber-700 dark:text-amber-300">A4</b><p className="mt-2 text-xs font-bold text-amber-800 dark:text-amber-200">인쇄 가능한 현장 교육자료</p></div>}
                         {step.number === 5 && <div className="mt-4 rounded-2xl bg-emerald-50 p-4"><p className="text-xs font-black text-emerald-800">서버 교육 세션</p><p className="mt-2 text-2xl font-black text-emerald-700">{trainingSummary ? trainingSummary.trainingSessions : '-'}건</p><p className="mt-1 text-[11px] font-semibold text-emerald-700">실제 QR은 교육 화면에서 생성됩니다.</p></div>}
                         {step.number === 6 && <div className="mt-4"><p className="text-xs font-black text-emerald-800">개선 이행 추세</p><TrendChart values={monthlyTrends.improvementValues} color="#059669" label="최근 월별 개선 이행 추세" /></div>}
                         {step.number === 7 && <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-xs font-bold leading-6 text-slate-600">현장 정보, 언어, 분석 키, 화면 구성을 설정 화면에서 관리합니다.</div>}
@@ -328,7 +328,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
             </section>
 
             {!workerRecords.length && (
-                <section className="rounded-3xl border border-dashed border-blue-200 bg-white p-6 text-center">
+                <section className="psi-industrial-panel border-dashed p-6 text-center">
                     <h2 className="text-lg font-black text-slate-900">아직 이 브라우저에 현장 기록이 없습니다.</h2>
                     <p className="mt-2 text-sm font-semibold text-slate-500">사진, PDF 또는 수기 입력으로 첫 위험성평가를 등록하면 실제 지표와 추세가 표시됩니다.</p>
                     <button type="button" onClick={() => setCurrentPage('ocr-analysis')} className="mt-4 min-h-11 rounded-xl bg-blue-700 px-5 py-3 text-sm font-black text-white hover:bg-blue-800">첫 평가 작성하기</button>

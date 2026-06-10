@@ -1403,22 +1403,18 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </button>
                 </div>
             </div>
-            <div className="bg-slate-900 rounded-3xl sm:rounded-[30px] p-5 sm:p-8 md:p-10 text-white shadow-2xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-4 sm:gap-6">
-                <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl -mr-32 -mt-32"></div>
-                <div className="relative z-10">
-                    <h2 className="text-2xl sm:text-3xl font-black mb-1.5 sm:mb-2">시스템 설정 (System Configuration)</h2>
-                    <p className="text-slate-400 max-w-xl text-sm sm:text-base md:text-lg">현장 맞춤형 환경을 구성하고 API 키를 관리하세요.</p>
+            <div className="psi-industrial-panel hidden flex-col items-start justify-between gap-4 p-6 sm:flex md:flex-row md:items-center">
+                <div>
+                    <p className="psi-eyebrow">Operations Configuration</p>
+                    <h2 className="mt-2 text-2xl font-black text-slate-900 dark:text-slate-100">현장 운영 설정</h2>
+                    <p className="mt-2 max-w-xl text-sm font-semibold psi-copy-muted">현장 정보, 분석 방식, 교육 언어와 화면 구성을 한 곳에서 관리합니다.</p>
                 </div>
-                <div className="relative z-10 inline-flex items-center gap-2 rounded-full border border-indigo-300/30 bg-white/10 px-4 py-2 text-xs font-black text-indigo-100">
-                    <span className="h-2 w-2 rounded-full bg-emerald-400"></span>
-                    현재 버전 {PSI_APP_VERSION}
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="psi-status-badge"><span className="mr-2 h-2 w-2 rounded-full bg-emerald-500" />버전 {PSI_APP_VERSION}</span>
+                    <button onClick={() => setShowGuide(!showGuide)} className="psi-button-secondary">
+                        {showGuide ? '가이드 닫기' : '운영 가이드'}
+                    </button>
                 </div>
-                <button
-                    onClick={() => setShowGuide(!showGuide)}
-                    className={`relative z-10 w-full md:w-auto px-5 sm:px-6 py-3 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg ${showGuide ? 'bg-white text-indigo-900' : 'bg-indigo-600 text-white hover:bg-indigo-500'}`}
-                >
-                    {showGuide ? '가이드 닫기' : '초보자 가이드 보기'}
-                </button>
             </div>
 
             <InterpretationCardGrid
@@ -1446,7 +1442,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 </div>
             </div>
 
-            <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100">
+            <div className="psi-industrial-panel p-5 sm:p-7">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <h3 className="text-lg sm:text-xl font-bold text-slate-900">테마/다크모드 운영 설정</h3>

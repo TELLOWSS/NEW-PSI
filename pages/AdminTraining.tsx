@@ -1229,30 +1229,30 @@ const AdminTraining: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-6 sm:p-8 shadow-sm">
+            <div className="psi-industrial-panel p-5 sm:p-7">
                 <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">{t.title}</h2>
                 <p className="text-sm font-bold text-slate-500 dark:text-slate-300 mt-2">{t.subtitle}</p>
 
-                <div className="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
-                    <p className="text-sm font-black text-indigo-900">관리자 사용 순서</p>
-                    <div className="mt-2 space-y-2 text-[12px] font-black text-indigo-800">
-                        <p>1. 한국어 안내문만 입력합니다.</p>
-                        <p>2. 필요한 국적 언어만 체크합니다.</p>
-                        <p>3. 세션 생성 후 외부에서 준비한 팟캐스트 음성을 언어별로 업로드합니다.</p>
-                    </div>
-                    <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3">
-                        <p className="text-[12px] font-black text-emerald-800">외부 제작 팟캐스트 음성 업로드 방식</p>
-                        <p className="mt-1 text-[11px] font-bold text-emerald-700">MP3/M4A 파일을 나라별로 업로드해 두면 근로자 접속 시 해당 언어 음성을 우선 재생합니다.</p>
-                    </div>
-                    <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50 px-3 py-3">
-                        <p className="text-[12px] font-black text-violet-800">운영 목적</p>
-                        <p className="mt-1 text-[11px] font-bold text-violet-700">다국적 근로자에게 국적별 모국어 음성을 제공해 교육 이해도와 사전 집중도를 높이는 용도입니다. 현장에서는 팟캐스트형 음성 안내로 재생하면 됩니다.</p>
-                    </div>
-                    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
-                        <p className="text-[12px] font-black text-amber-800">안되는 언어 대응</p>
-                                                <p className="mt-1 text-[11px] font-bold text-amber-700">몽골어 등 일부 언어는 생성 대상에 포함되어 있어도 외부 음성 생성 상태에 따라 추가 확인 안내가 필요할 수 있습니다. 이 경우 해당 언어는 텍스트 안내로 자동 대체하고, 필요 시 가장 가까운 공용 언어(예: 한국어/영어/러시아어) 또는 현장 통역 지원을 함께 운영하세요.</p>
-                    </div>
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                    {[
+                        ['1', '한국어 원문 확인', 'TBM 스튜디오 원문을 불러오거나 직접 입력'],
+                        ['2', '대상 언어 선택', '현장 국적에 필요한 언어만 선택'],
+                        ['3', 'QR 배포', '세션 생성 후 음성·텍스트·참여 현황 관리'],
+                    ].map(([step, title, description]) => (
+                        <article key={step} className="psi-step-card">
+                            <span>{step}</span>
+                            <div><b>{title}</b><p>{description}</p></div>
+                        </article>
+                    ))}
                 </div>
+
+                <details className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60">
+                    <summary className="cursor-pointer text-xs font-black text-slate-700 dark:text-slate-200">음성 업로드·미지원 언어 운영 기준 보기</summary>
+                    <div className="mt-3 grid gap-3 text-[11px] font-semibold leading-5 psi-copy-muted md:grid-cols-2">
+                        <p><b className="text-slate-800 dark:text-slate-100">외부 음성:</b> MP3/M4A 파일을 언어별로 업로드하면 근로자 접속 시 해당 언어 음성을 우선 재생합니다.</p>
+                        <p><b className="text-slate-800 dark:text-slate-100">미지원 언어:</b> 음성이 준비되지 않으면 텍스트로 대체하고 공용 언어 또는 현장 통역을 함께 운영합니다.</p>
+                    </div>
+                </details>
 
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-500/30 dark:bg-blue-500/10">
                     <div>
@@ -1279,7 +1279,7 @@ const AdminTraining: React.FC = () => {
                                     : '5단계 월간 교육 원문을 불러왔습니다. 내용을 확인한 뒤 세션을 생성해 주세요.',
                             );
                         }}
-                        className="min-h-10 rounded-lg bg-blue-700 px-4 py-2 text-xs font-black text-white hover:bg-blue-800"
+                        className="psi-button-primary"
                     >
                         스튜디오 원문 불러오기
                     </button>
@@ -1335,7 +1335,7 @@ const AdminTraining: React.FC = () => {
                 <button
                     onClick={handleCreate}
                     disabled={loading}
-                    className="mt-4 px-6 py-3 rounded-xl bg-indigo-600 text-white font-black text-sm hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="psi-button-primary mt-4 px-6 text-sm disabled:opacity-50"
                 >
                     {loading ? t.creating : t.create}
                 </button>
