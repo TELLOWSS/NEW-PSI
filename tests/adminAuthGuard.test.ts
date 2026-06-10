@@ -11,7 +11,6 @@ const originalEnv = { ...process.env };
 
 describe('adminAuthGuard', () => {
     beforeEach(() => {
-        process.env.ADMIN_LOGIN_PASSWORD = 'test-password';
         process.env.ADMIN_SESSION_SECRET = 'test-session-secret-with-enough-entropy';
         delete process.env.ADMIN_API_AUTH_TOKEN;
     });
@@ -20,8 +19,8 @@ describe('adminAuthGuard', () => {
         process.env = { ...originalEnv };
     });
 
-    it('fails closed when required authentication secrets are missing', () => {
-        delete process.env.ADMIN_LOGIN_PASSWORD;
+    it('fails closed when the session signing secret is missing', () => {
+        delete process.env.ADMIN_SESSION_SECRET;
         expect(isAdminAuthConfigured()).toBe(false);
         expect(verifyAdminLoginPassword('test-password')).toBe(false);
         expect(isValidAdminAuthRequest({ headers: {} })).toBe(false);
@@ -29,7 +28,7 @@ describe('adminAuthGuard', () => {
 
     it('validates a signed HttpOnly session cookie', () => {
         expect(isAdminAuthConfigured()).toBe(true);
-        expect(verifyAdminLoginPassword('test-password')).toBe(true);
+        expect(verifyAdminLoginPassword('psi1234')).toBe(true);
         expect(verifyAdminLoginPassword('wrong-password')).toBe(false);
 
         const token = createAdminSessionToken();
