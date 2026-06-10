@@ -57,6 +57,8 @@ type UploadItem = {
 type TrainingAction =
     | 'create'
     | 'reissue-link'
+    | 'list-sessions'
+    | 'dashboard-summary'
     | 'awareness-stats'
     | 'upload-audio'
     | 'delete-session';
@@ -113,6 +115,41 @@ function sendJsonError(res: any, statusCode: number, message: string) {
         ok: false,
         error: message,
         message,
+    });
+}
+
+async function handleListSessions(res: any) {
+    const supabase = getSupabaseClient();
+    const result = await supabase
+        .from('training_sessions')
+        .select('id, source_text_ko, audio_urls, created_at')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+    if (result.error) {
+        return sendJsonError(res, 500, formatSupabaseError(result.error));
+    }
+
+    return res.status(200).json({ ok: true, sessions: result.data || [] });
+}
+
+async function handleDashboardSummary(res: any) {
+    const supabase = getSupabaseClient();
+    const [sessionsResult, submissionsResult] = await Promise.all([
+        supabase.from('training_sessions').select('id', { count: 'exact', head: true }),
+        supabase.from('training_logs').select('id', { count: 'exact', head: true }),
+    ]);
+
+    if (sessionsResult.error) {
+        return sendJsonError(res, 500, formatSupabaseError(sessionsResult.error));
+    }
+
+    return res.status(200).json({
+        ok: true,
+        summary: {
+            trainingSessions: sessionsResult.count || 0,
+            trainingSubmissions: submissionsResult.error ? null : (submissionsResult.count || 0),
+        },
     });
 }
 
@@ -611,6 +648,10 @@ export default async function handler(req: any, res: any) {
                 return await handleCreate(req, res, body);
             case 'reissue-link':
                 return await handleReissue(req, res, body);
+            case 'list-sessions':
+                return await handleListSessions(res);
+            case 'dashboard-summary':
+                return await handleDashboardSummary(res);
             case 'awareness-stats':
                 return await handleAwarenessStats(res, body);
             case 'upload-audio':

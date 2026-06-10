@@ -44,8 +44,8 @@ const getActiveApiKey = (): string => {
 
     const localFree = String(localStorage.getItem('freeApiKey') || '').trim();
     const localPaid = String(localStorage.getItem('paidApiKey') || '').trim();
-    const envFree = String(import.meta.env.VITE_GEMINI_API_KEY_FREE || '').trim();
-    const envPaid = String(import.meta.env.VITE_GEMINI_API_KEY_PAID || '').trim();
+    const envFree = '';
+    const envPaid = '';
 
     if (status.source === 'local-primary') return isPaidApiMode ? localPaid : localFree;
     if (status.source === 'env-primary') return isPaidApiMode ? envPaid : envFree;
@@ -76,8 +76,8 @@ const getApiKeyForMode = (options?: {
 
     const localFree = String((options?.freeLocalKey ?? localStorage.getItem('freeApiKey')) || '').trim();
     const localPaid = String((options?.paidLocalKey ?? localStorage.getItem('paidApiKey')) || '').trim();
-    const envFree = String((options?.freeEnvKey ?? import.meta.env.VITE_GEMINI_API_KEY_FREE) || '').trim();
-    const envPaid = String((options?.paidEnvKey ?? import.meta.env.VITE_GEMINI_API_KEY_PAID) || '').trim();
+    const envFree = String(options?.freeEnvKey || '').trim();
+    const envPaid = String(options?.paidEnvKey || '').trim();
 
     if (keyStatus.source === 'local-primary') return { apiKey: isPaidApiMode ? localPaid : localFree, keyStatus };
     if (keyStatus.source === 'env-primary') return { apiKey: isPaidApiMode ? envPaid : envFree, keyStatus };
@@ -1185,7 +1185,7 @@ function normalizeNationality(rawNationality: string): string {
 /**
  * [Enhanced Mime Detector - Step 3 Image Format Compatibility]
  * Detects the real MIME type based on Base64 Magic Bytes (File Signatures).
- * Supports: PNG, JPEG, GIF, WebP, HEIC, TIFF, BMP, SVG
+ * Supports: PDF, PNG, JPEG, GIF, WebP, HEIC, TIFF, BMP, SVG
  * Fixes issues where header says 'image/jpeg' but data is actually 'image/png'.
  */
 function detectMimeTypeFromBase64(base64Data: string): string {
@@ -1193,6 +1193,9 @@ function detectMimeTypeFromBase64(base64Data: string): string {
     
     // First 12+ characters contain magic bytes for format detection
     const signature = base64Data.substring(0, 16);
+
+    // PDF: JVBERi0 (%PDF-)
+    if (signature.startsWith('JVBERi0')) return 'application/pdf';
     
     // Check for various image formats by their magic bytes
     // PNG: iVBORw0KGgo=
@@ -1275,7 +1278,7 @@ function validateImageFormat(base64Data: string): { isValid: boolean; detectedFo
     const paddedBase64 = `${normalizedBase64}${'='.repeat(paddingLength)}`;
 
     const detectedMime = detectMimeTypeFromBase64(paddedBase64);
-    const supportedFormats = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/tiff', 'image/bmp', 'image/svg+xml'];
+    const supportedFormats = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/tiff', 'image/bmp', 'image/svg+xml'];
     const isSupported = supportedFormats.includes(detectedMime);
 
     // Validate base64 format (only alphanumeric + /+= allowed with whitespace)
@@ -1302,10 +1305,10 @@ function validateImageFormat(base64Data: string): { isValid: boolean; detectedFo
 /**
  * [Image Format Compatibility Check]
  * Checks if the detected image format is compatible with Gemini AI
- * Gemini supports: JPEG, PNG, GIF, WebP, HEIC
+ * Gemini supports: PDF, JPEG, PNG, GIF, WebP, HEIC
  */
 function isFormatCompatibleWithAI(mimeType: string): boolean {
-    const aiSupportedFormats = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic'];
+    const aiSupportedFormats = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic'];
     return aiSupportedFormats.includes(mimeType);
 }
 
@@ -1314,7 +1317,7 @@ function isFormatCompatibleWithAI(mimeType: string): boolean {
  */
 async function callGeminiWithRetry(
     imageSource: string, 
-    _unusedMimeType: string | null, 
+    declaredMimeType: string | null,
     modelName: string, 
     filenameHint?: string, 
     maxRetries = 3, // Increased default retries
@@ -1338,7 +1341,9 @@ async function callGeminiWithRetry(
     try {
         const payload = getCleanImagePayload(imageSource);
         imageData = payload.data;
-        mimeType = payload.mimeType;
+        mimeType = payload.mimeType === 'image/jpeg' && declaredMimeType === 'application/pdf'
+            ? declaredMimeType
+            : payload.mimeType;
         
         // Only log in non-production/dev debug environments to avoid leaking info in prod
         const isDevWindow = getWindowProp<boolean>('__DEV__');
@@ -1845,8 +1850,8 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
     throw new Error(`2차 재가공 실패: ${extractMessage(lastError) || '알 수 없는 오류'}`);
 }
 
-export async function analyzeWorkerRiskAssessment(imageSource: string, _unusedMimeType: string, filenameHint?: string): Promise<WorkerRecord[]> {
-    return await callGeminiWithRetry(imageSource, null, OCR_MODEL_PRIMARY, filenameHint, 3, OCR_MODEL_FALLBACK);
+export async function analyzeWorkerRiskAssessment(documentSource: string, mimeType: string, filenameHint?: string): Promise<WorkerRecord[]> {
+    return await callGeminiWithRetry(documentSource, mimeType, OCR_MODEL_PRIMARY, filenameHint, 3, OCR_MODEL_FALLBACK);
 }
 
 export async function generateSpeechFromText(text: string, voiceName: string = 'Kore'): Promise<string> {

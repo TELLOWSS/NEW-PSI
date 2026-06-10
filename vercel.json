@@ -28,6 +28,10 @@
     }
   ],
   "functions": {
+    "api/admin/auth.ts": {
+      "maxDuration": 10,
+      "memory": 128
+    },
     "api/admin/safety-management.ts": {
       "maxDuration": 10,
       "memory": 256

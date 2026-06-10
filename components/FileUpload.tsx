@@ -1,5 +1,6 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { isSupportedOcrFile, OCR_FILE_ACCEPT, OCR_MAX_FILE_SIZE_BYTES } from '../utils/ocrFilePolicy';
 
 interface FileUploadProps {
     onFilesChange: (files: File[]) => void;
@@ -19,7 +20,15 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFilesChange, onAnalyze
     const handleFileSelect = useCallback((files: FileList | null) => {
         if (files && files.length > 0) {
             const fileArray = Array.from(files);
-            onFilesChange(fileArray);
+            const supportedFiles = fileArray.filter(isSupportedOcrFile);
+            const uploadableFiles = supportedFiles.filter((file) => file.size <= OCR_MAX_FILE_SIZE_BYTES);
+            if (supportedFiles.length !== fileArray.length) {
+                alert('JPG, PNG, WebP, HEIC 또는 PDF 파일만 업로드할 수 있습니다.');
+            }
+            if (uploadableFiles.length !== supportedFiles.length) {
+                alert('파일당 최대 용량은 20MB입니다. PDF가 큰 경우 필요한 페이지만 분리해 주세요.');
+            }
+            onFilesChange(uploadableFiles);
         } else {
             onFilesChange([]);
         }
@@ -169,7 +178,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFilesChange, onAnalyze
                 ref={fileInputRef}
                 type="file"
                 className="hidden"
-                accept="image/png, image/jpeg, image/jpg, image/gif, image/bmp, image/webp, image/heic, image/heif"
+                accept={OCR_FILE_ACCEPT}
                 multiple
                 onChange={(e) => handleFileSelect(e.target.files)}
             />
@@ -197,7 +206,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFilesChange, onAnalyze
                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                             <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
                         </svg>
-                        <span>파일 찾기</span>
+                        <span>이미지 / PDF 찾기</span>
                     </button>
                     <button type="button" onClick={startCamera} className="px-8 py-3.5 bg-indigo-600 text-white rounded-2xl text-sm font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">

@@ -44,7 +44,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                 <div className="flex min-h-16 items-center gap-2 py-2">
                     <button
                         onClick={onOpenMobileMenu}
-                        className="mr-2 rounded-lg p-2 text-slate-300 transition-colors hover:bg-slate-800 hover:text-white lg:hidden"
+                        className="mr-2 flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-slate-300 transition-colors hover:bg-slate-800 hover:text-white lg:hidden"
                         aria-label="메뉴 열기"
                         aria-expanded={isMobileMenuOpen}
                     >
@@ -73,7 +73,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                     <button
                         type="button"
                         onClick={onToggleTheme}
-                        className="ml-1 flex h-8 w-8 items-center justify-center rounded-lg border border-slate-600 bg-slate-800 text-slate-200 transition-colors hover:bg-slate-700"
+                        className="ml-1 flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-slate-600 bg-slate-800 text-slate-200 transition-colors hover:bg-slate-700"
                         aria-label={`테마 전환 (현재: ${themeLabel})`}
                         title={`테마: ${themeLabel} (클릭: 라이트→다크→시스템 순환)`}
                     >

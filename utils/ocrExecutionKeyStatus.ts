@@ -33,8 +33,8 @@ export const resolveOcrExecutionKeyStatus = ({
 }: ResolveOcrExecutionKeyStatusOptions): OcrExecutionKeyStatus => {
     const localFree = readTrimmed(freeLocalKey ?? (typeof localStorage !== 'undefined' ? localStorage.getItem('freeApiKey') : ''));
     const localPaid = readTrimmed(paidLocalKey ?? (typeof localStorage !== 'undefined' ? localStorage.getItem('paidApiKey') : ''));
-    const envFree = readTrimmed(freeEnvKey ?? import.meta.env.VITE_GEMINI_API_KEY_FREE);
-    const envPaid = readTrimmed(paidEnvKey ?? import.meta.env.VITE_GEMINI_API_KEY_PAID);
+    const envFree = readTrimmed(freeEnvKey);
+    const envPaid = readTrimmed(paidEnvKey);
 
     const primaryLocal = isPaidApiMode ? localPaid : localFree;
     const primaryEnv = isPaidApiMode ? envPaid : envFree;

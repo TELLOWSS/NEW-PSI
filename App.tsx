@@ -9,7 +9,7 @@ import { restoreRecordFromUrl } from './utils/qrUtils';
 import { extractMessage } from './utils/errorUtils';
 import { appendAuditTrail, appendCorrectionHistory, attachEvidenceHash, deriveCompetencyProfile, deriveIntegrityScore, enforceSafetyLevel } from './utils/evidenceUtils';
 import { applyIdentityPolicy } from './utils/identityUtils';
-import { getAdminAuthToken, isAdminAuthenticated, setAdminAuthenticated, setAdminAuthToken, verifyAdminPassword } from './utils/adminGuard';
+import { isAdminAuthenticated, loginAdmin, logoutAdmin, refreshAdminAuthentication } from './utils/adminGuard';
 import { getSafetyLevelThresholds } from './utils/safetyLevelUtils';
 import { appendBestPracticeSyncFailureLog, setBestPracticeSyncState } from './utils/bestPracticeSyncStatus';
 import { useOperationalMode } from './contexts/OperationalModeContext';
@@ -687,6 +687,7 @@ const App: React.FC = () => {
     });
     const [isWorkerKioskMode, setIsWorkerKioskMode] = useState(false);
     const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
+    const [isAdminAuthChecking, setIsAdminAuthChecking] = useState(true);
     const [adminUnlockError, setAdminUnlockError] = useState('');
     const [isUnlockSubmitting, setIsUnlockSubmitting] = useState(false);
     const [workerRecords, setWorkerRecords] = useState<WorkerRecord[]>([]);
@@ -728,8 +729,7 @@ const App: React.FC = () => {
         if (queuedEmbeddingKeysRef.current.has(dedupeKey)) return;
         queuedEmbeddingKeysRef.current.add(dedupeKey);
 
-        const adminAuthToken = getAdminAuthToken();
-        if (!adminAuthToken) return;
+        if (!isAdminAuthenticated()) return;
 
         const body = {
             sourceRecordId: record.id,
@@ -751,9 +751,9 @@ const App: React.FC = () => {
 
         void fetch('/api/gateway?action=ocr.upsert-best-practice', {
             method: 'POST',
+            credentials: 'same-origin',
             headers: {
                 'Content-Type': 'application/json',
-                'x-admin-auth': adminAuthToken,
             },
             body: JSON.stringify(body),
             keepalive: true,
@@ -796,7 +796,15 @@ const App: React.FC = () => {
     const isWorkerKioskRequest = modeFromUrl === 'worker-kiosk' && Boolean(sessionIdFromUrl);
 
     useEffect(() => {
-        setIsAdminUnlocked(isAdminAuthenticated());
+        let active = true;
+        void refreshAdminAuthentication().then((authenticated) => {
+            if (!active) return;
+            setIsAdminUnlocked(authenticated);
+            setIsAdminAuthChecking(false);
+        });
+        return () => {
+            active = false;
+        };
     }, []);
 
     useEffect(() => {
@@ -857,20 +865,23 @@ const App: React.FC = () => {
         setCurrentPage(page);
     }, [operationalMode, isStartChecklistGateActive]);
 
-    const handleAdminUnlock = useCallback((password: string) => {
+    const handleAdminUnlock = useCallback(async (password: string) => {
         setIsUnlockSubmitting(true);
         setAdminUnlockError('');
-
-        if (!verifyAdminPassword(password)) {
-            setAdminUnlockError('비밀번호가 올바르지 않습니다.');
+        try {
+            await loginAdmin(password);
+            setIsAdminUnlocked(true);
+        } catch (error) {
+            setAdminUnlockError(error instanceof Error ? error.message : '관리자 로그인에 실패했습니다.');
+        } finally {
             setIsUnlockSubmitting(false);
-            return;
         }
+    }, []);
 
-        setAdminAuthToken(password);
-        setAdminAuthenticated(true);
-        setIsAdminUnlocked(true);
-        setIsUnlockSubmitting(false);
+    const handleAdminLogout = useCallback(async () => {
+        await logoutAdmin();
+        setIsAdminUnlocked(false);
+        setCurrentPage('dashboard');
     }, []);
 
     useEffect(() => {
@@ -1211,6 +1222,16 @@ const App: React.FC = () => {
     
     const shouldBypassAdminGuard = isWorkerKioskRequest || (currentPage === 'worker-training' && isWorkerKioskMode);
 
+    if (!shouldBypassAdminGuard && isAdminAuthChecking) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4">
+                <div className="rounded-2xl border border-slate-200 bg-white px-6 py-5 text-sm font-bold text-slate-600 shadow-lg">
+                    관리자 로그인 상태를 확인하고 있습니다.
+                </div>
+            </div>
+        );
+    }
+
     if (!shouldBypassAdminGuard && !isAdminUnlocked) {
         return (
             <ErrorBoundary>
@@ -1234,7 +1255,7 @@ const App: React.FC = () => {
                     </div>
                 </div>
             ) : (
-                <Layout currentPage={currentPage} setCurrentPage={navigateToPage}>
+                <Layout currentPage={currentPage} setCurrentPage={navigateToPage} onAdminLogout={handleAdminLogout}>
                     <Suspense fallback={<div className="min-h-[240px] flex items-center justify-center"><Spinner /></div>}>
                         {currentPage === 'dashboard' && <Dashboard workerRecords={workerRecords} safetyCheckRecords={safetyCheckRecords} setCurrentPage={navigateToPage} />}
                         {currentPage === 'ocr-analysis' && (

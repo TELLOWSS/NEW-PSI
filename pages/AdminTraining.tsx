@@ -1,10 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import type { AppSettings } from '../types';
-import { supabase } from '../lib/supabaseClient';
 import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
-import { fetchWithTimeout } from '../utils/adminApiClient';
+import { fetchWithTimeout, postAdminJson } from '../utils/adminApiClient';
 
 type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
 const LINK_HISTORY_STORAGE_KEY = 'psi_training_link_history';
@@ -813,17 +812,12 @@ const AdminTraining: React.FC = () => {
     }, [sourceTextKo, mobileUrl, currentSessionId, linkExpiresAt, failedLanguages, failedLanguageAttempts]);
 
     const fetchRecentSessions = async (): Promise<TrainingSessionRow[]> => {
-        const loadWithColumn = async (column: string) => {
-            return supabase
-                .from('training_sessions')
-                .select('id, source_text_ko, audio_urls, created_at')
-                .order(column, { ascending: false })
-                .limit(5);
-        };
-
-        const createdAtResult = await loadWithColumn('created_at');
-        const fallbackResult = createdAtResult.error ? await loadWithColumn('id') : null;
-        const rows = (fallbackResult?.data || createdAtResult.data || []) as TrainingSessionRow[];
+        const response = await postAdminJson<{ ok: true; sessions: TrainingSessionRow[] }>(
+            '/api/admin/training',
+            { action: 'list-sessions' },
+            { fallbackMessage: '최근 교육 세션을 불러오지 못했습니다.' },
+        );
+        const rows = response.sessions || [];
         setRecentSessions(rows);
         return rows;
     };

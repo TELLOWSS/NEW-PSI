@@ -48,6 +48,7 @@ interface LayoutProps {
     children: React.ReactNode;
     currentPage: Page;
     setCurrentPage: (page: Page) => void;
+    onAdminLogout: () => void | Promise<void>;
 }
 
 type MobileTabId = 'home' | 'alerts' | 'profile' | 'predictive' | 'more';
@@ -78,7 +79,7 @@ const formatTodayLabel = (): string => {
     }
 };
 
-export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage, onAdminLogout }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isPaidApiMode, setIsPaidApiMode] = useState(false);
     const [bestPracticeSyncState, setBestPracticeSyncState] = useState<BestPracticeSyncState>(() => getBestPracticeSyncState());
@@ -413,8 +414,17 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                         <>
                             <button
                                 type="button"
+                                onClick={() => void onAdminLogout()}
+                                className="ml-1 min-h-11 rounded-lg border border-slate-500/70 bg-slate-800/80 px-2 text-[10px] font-black text-slate-200 transition-colors hover:bg-slate-700/90"
+                                title="관리자 로그아웃"
+                                aria-label="관리자 로그아웃"
+                            >
+                                로그아웃
+                            </button>
+                            <button
+                                type="button"
                                 onClick={() => setUserRolePreset(cycleUserRolePreset())}
-                                className="ml-1 rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2 h-8 text-[10px] font-black text-emerald-200 transition-colors hover:bg-emerald-500/25"
+                                className="ml-1 min-h-11 rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2 text-[10px] font-black text-emerald-200 transition-colors hover:bg-emerald-500/25"
                                 title="사용자군 프리셋 순환: 실무자 → 관리자 → 소장"
                                 aria-label="사용자군 프리셋 변경"
                             >
@@ -424,7 +434,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                 <button
                                     type="button"
                                     onClick={() => setIsCompositionEditMode((prev) => !prev)}
-                                    className={`ml-1 rounded-lg border px-2 h-8 text-[10px] font-black transition-colors ${
+                                    className={`ml-1 min-h-11 rounded-lg border px-2 text-[10px] font-black transition-colors ${
                                         isCompositionEditMode
                                             ? 'border-orange-400/70 bg-orange-500/20 text-orange-100 hover:bg-orange-500/30'
                                             : 'border-slate-500/70 bg-slate-800/80 text-slate-200 hover:bg-slate-700/90'
@@ -439,7 +449,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                 <button
                                     type="button"
                                     onClick={cycleOperationalMode}
-                                    className="ml-1 rounded-lg border border-indigo-400/40 bg-indigo-500/15 px-2 h-8 text-[10px] font-black text-indigo-200 transition-colors hover:bg-indigo-500/25"
+                                    className="ml-1 min-h-11 rounded-lg border border-indigo-400/40 bg-indigo-500/15 px-2 text-[10px] font-black text-indigo-200 transition-colors hover:bg-indigo-500/25"
                                     title="운영 모드 순환: 실무 즉시 → 표준 운영 → 개발 확장"
                                     aria-label="운영 모드 변경"
                                 >
@@ -451,7 +461,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                 <button
                                     type="button"
                                     onClick={toggleDevMode}
-                                    className={`ml-1 flex items-center justify-center rounded-lg border px-2 h-8 text-[10px] font-black tracking-wider transition-colors ${
+                                    className={`ml-1 flex min-h-11 items-center justify-center rounded-lg border px-2 text-[10px] font-black tracking-wider transition-colors ${
                                         isDevMode
                                             ? 'border-violet-400 bg-violet-600 text-white hover:bg-violet-500'
                                             : 'border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700'
@@ -478,7 +488,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                         key={item.page}
                                         type="button"
                                         onClick={() => handlePageChange(item.page)}
-                                        className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${
+                                        className={`min-h-11 shrink-0 rounded-full border px-3 py-2 text-xs font-bold transition-colors ${
                                             isActive
                                                 ? 'border-orange-400/70 bg-orange-500/85 text-white'
                                                 : 'border-slate-600 bg-slate-900/70 text-slate-200'

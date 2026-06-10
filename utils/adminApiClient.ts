@@ -1,4 +1,4 @@
-import { assertAdminAuthenticated, getAdminAuthToken } from './adminGuard';
+import { assertAdminAuthenticated, clearAdminAuthentication } from './adminGuard';
 
 /**
  * Vercel 무료(Hobby) 플랜 서버리스 함수 타임아웃 기준: 10초
@@ -62,11 +62,6 @@ export async function postAdminJson<T = any>(
     options: SafeJsonParseOptions,
 ): Promise<T> {
     assertAdminAuthenticated();
-    const adminAuthToken = getAdminAuthToken();
-    if (!adminAuthToken) {
-        throw new Error('관리자 인증 토큰이 없습니다. 다시 로그인해 주세요.');
-    }
-
     const timeoutMs = options.timeoutMs === undefined
         ? VERCEL_FREE_SAFE_TIMEOUT_MS
         : options.timeoutMs;
@@ -85,9 +80,9 @@ export async function postAdminJson<T = any>(
     try {
         response = await fetch(url, {
             method: 'POST',
+            credentials: 'same-origin',
             headers: {
                 'Content-Type': 'application/json',
-                'x-admin-auth': adminAuthToken,
             },
             body: JSON.stringify(payload),
             signal: controller?.signal ?? undefined,
@@ -107,6 +102,9 @@ export async function postAdminJson<T = any>(
     }
 
     if (timerId) clearTimeout(timerId);
+    if (response.status === 401) {
+        clearAdminAuthentication();
+    }
     return parseAdminJsonResponse<T>(response, options);
 }
 
@@ -123,15 +121,18 @@ export async function fetchWithTimeout(
     timeoutMs = VERCEL_FREE_SAFE_TIMEOUT_MS,
 ): Promise<Response> {
     if (timeoutMs <= 0) {
-        return fetch(input, init);
+        const response = await fetch(input, { credentials: 'same-origin', ...init });
+        if (response.status === 401) clearAdminAuthentication();
+        return response;
     }
 
     const controller = new AbortController();
     const timerId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-        const response = await fetch(input, { ...init, signal: controller.signal });
+        const response = await fetch(input, { credentials: 'same-origin', ...init, signal: controller.signal });
         clearTimeout(timerId);
+        if (response.status === 401) clearAdminAuthentication();
         return response;
     } catch (err: unknown) {
         clearTimeout(timerId);

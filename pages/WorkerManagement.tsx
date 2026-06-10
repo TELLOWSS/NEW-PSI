@@ -6,6 +6,7 @@ import { ReportTemplate } from '../components/ReportTemplate';
 import { generateReportUrl, getReportShareDiagnostics } from '../utils/qrUtils';
 import { extractMessage } from '../utils/errorUtils';
 import { postAdminJson } from '../utils/adminApiClient';
+import { loginAdmin } from '../utils/adminGuard';
 import { ensureHtml2Canvas, ensureQRCodeJs } from '../utils/externalScripts';
 import { BRAND_ACTION_LABELS, BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { ActionButton } from '../components/shared/ActionButton';
@@ -3243,14 +3244,8 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     const handleOverrideApproveAndIssue = async () => {
         if (!overrideModalWorker) return;
 
-        const adminSecret = (import.meta.env.VITE_PSI_ADMIN_SECRET || '').trim();
-        if (!adminSecret) {
-            alert('VITE_PSI_ADMIN_SECRET 환경변수가 설정되지 않았습니다.');
-            return;
-        }
-
-        if (!overridePin.trim() || overridePin.trim() !== adminSecret) {
-            alert('관리자 PIN 번호가 일치하지 않습니다.');
+        if (!overridePin.trim()) {
+            alert('관리자 비밀번호를 입력해 주세요.');
             return;
         }
         if (!overrideReason.trim()) {
@@ -3287,6 +3282,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
         setIsOverrideSubmitting(true);
         try {
+            await loginAdmin(overridePin);
             await onUpdateRecord?.(updatedWorker);
             closeOverrideModal();
             startProcessing('sticker', [updatedWorker]);
@@ -4124,13 +4120,13 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
 
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-xs font-black text-slate-500 mb-2">관리자 PIN</label>
+                                <label className="block text-xs font-black text-slate-500 mb-2">관리자 비밀번호 재확인</label>
                                 <input
                                     type="password"
                                     value={overridePin}
                                     onChange={(e) => setOverridePin(e.target.value)}
                                     className={`w-full p-3 rounded-xl border font-bold ${BRAND_TONE.slate}`}
-                                    placeholder="PIN 입력"
+                                    placeholder="관리자 비밀번호 입력"
                                 />
                             </div>
                             <div>

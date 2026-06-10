@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ActionButton } from './shared/ActionButton';
 
 interface AdminLockScreenProps {
-    onUnlock: (password: string) => void;
+    onUnlock: (password: string) => void | Promise<void>;
     errorMessage?: string;
     isSubmitting?: boolean;
 }
@@ -26,6 +26,9 @@ export const AdminLockScreen: React.FC<AdminLockScreenProps> = ({
                 >
                     <input
                         type="password"
+                        name="admin-password"
+                        autoComplete="current-password"
+                        aria-label="관리자 비밀번호"
                         value={password}
                         onChange={(event) => setPassword(event.target.value)}
                         placeholder="비밀번호 입력"
@@ -39,7 +42,7 @@ export const AdminLockScreen: React.FC<AdminLockScreenProps> = ({
                         fullWidth
                         className="px-4 py-3 text-sm font-black"
                     >
-                        관리자 모드 진입
+                        {isSubmitting ? '확인 중...' : '관리자 모드 진입'}
                     </ActionButton>
                 </form>
                 {errorMessage && (

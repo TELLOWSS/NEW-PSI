@@ -630,7 +630,7 @@ const getPreflightFailureReason = (record: WorkerRecord): string | null => {
     }
 
     if (!isFormatCompatibleWithAI(formatValidation.detectedFormat)) {
-        return `AI 미지원 형식입니다. JPG/PNG/WebP/HEIC로 변환 후 다시 등록하세요. (현재: ${formatValidation.detectedFormat})`;
+        return `AI 미지원 형식입니다. PDF/JPG/PNG/WebP/HEIC로 변환 후 다시 등록하세요. (현재: ${formatValidation.detectedFormat})`;
     }
 
     return null;

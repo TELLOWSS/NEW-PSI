@@ -23,7 +23,6 @@ const resolveSupabaseEnv = () => {
 };
 
 const { supabaseUrl, supabaseAnonKey, isConfigured, errorMessage } = resolveSupabaseEnv();
-const psiAdminSecret = import.meta.env.VITE_PSI_ADMIN_SECRET;
 
 export const isSupabaseConfigured = isConfigured;
 export const supabaseConfigError = errorMessage;
@@ -33,11 +32,7 @@ if (!isConfigured && typeof console !== 'undefined') {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-        headers: psiAdminSecret
-            ? { 'x-psi-admin-secret': psiAdminSecret }
-            : {},
-    },
+    auth: { persistSession: false },
 });
 
 type SupabaseErrorLike = {
