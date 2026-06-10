@@ -3123,14 +3123,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 <div className="flex items-center justify-between gap-3">
                     <div>
                         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-300">11) 분석 리포트</p>
-                        <h2 className="mt-1 text-lg font-black">KPI 요약 센터</h2>
+                        <h2 className="mt-1 text-lg font-black">안전 리포트 센터</h2>
                     </div>
                     <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${mobileReportBadge.tone}`}>{mobileReportBadge.label}</span>
                 </div>
                 <div className="mt-3 grid grid-cols-4 gap-1.5">
                     {[
                         { label: '대상', value: filteredRecords.length, tone: 'text-slate-300' },
-                        { label: '연결', value: harnessSummary.connected, tone: harnessSummary.connected > 0 ? 'text-indigo-300' : 'text-slate-400' },
+                        { label: '완료', value: harnessSummary.completed, tone: harnessSummary.completed > 0 ? 'text-indigo-300' : 'text-slate-400' },
                         { label: '승인대기', value: harnessSummary.approvalPending, tone: harnessSummary.approvalPending > 0 ? 'text-amber-300' : 'text-slate-400' },
                         { label: '고위험', value: harnessSummary.highRisk, tone: harnessSummary.highRisk > 0 ? 'text-rose-300' : 'text-slate-400' },
                     ].map((chip) => (
@@ -3158,7 +3158,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 </div>
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 no-print">
-                <h2 className="text-2xl font-black text-slate-900">PSI 정밀 보고서 센터</h2>
+                <div>
+                    <h2 className="text-2xl font-black text-slate-900">안전 리포트 센터</h2>
+                    <p className="mt-1 text-sm font-semibold text-slate-500">팀·공종 현황을 요약하거나 개인별 안전보고서를 생성합니다.</p>
+                </div>
                 <div className="flex items-center space-x-3 bg-white rounded-lg p-1 shadow-sm border border-slate-200">
                     <span className="text-xs font-bold text-slate-500 pl-3 pr-1">운영 상태</span>
                     <StatusPill
@@ -3285,7 +3288,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 </p>
             </SectionCard>
 
-            <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-4 no-print">
+            {isDevMode && <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-4 no-print">
                 <div className="flex items-center justify-between gap-2">
                     <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">운영 브리핑 OPS 3줄 (태깅+개입)</p>
                     <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${opsAlertClassName}`}>
@@ -3349,9 +3352,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         </button>
                     </div>
                 )}
-            </div>
+            </div>}
 
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 no-print">
+            {isDevMode && <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 no-print">
                 <div className="flex items-center justify-between gap-2">
                     <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-700">경보 CTA 클릭 로그 (최근 10건)</p>
                     <div className="flex items-center gap-2">
@@ -3532,7 +3535,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         ))}
                     </div>
                 )}
-            </div>
+            </div>}
 
             <InterpretationCardGrid
                 items={reportSummaryCards}
@@ -3574,14 +3577,19 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             <div className="overflow-x-auto pb-2 -mb-2 shrink-0 no-print">
                 <div className="flex space-x-6 border-b border-slate-200 min-w-max">
                     <button onClick={() => setActiveTab('team-report')} className={`pb-4 text-sm font-bold transition-colors relative ${activeTab === 'team-report' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}>
-                        팀별 통합 리포트
+                        팀·공종 요약
                         {activeTab === 'team-report' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600"></div>}
                     </button>
                     <button onClick={() => setActiveTab('worker-report')} className={`pb-4 text-sm font-bold transition-colors relative ${activeTab === 'worker-report' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}>
-                        전체 근로자 목록
+                        개인별 안전보고서
                         {activeTab === 'worker-report' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600"></div>}
                     </button>
                 </div>
+                <p className="mt-2 text-xs font-semibold text-slate-500">
+                    {activeTab === 'team-report'
+                        ? '팀과 공종별 위험 현황을 회의·관리용으로 요약합니다.'
+                        : '근로자별 내용을 확인하고 개별 보고서를 출력합니다.'}
+                </p>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm dark:border-slate-700/60 dark:bg-slate-900/70 flex flex-wrap gap-4 items-end no-print">
@@ -3653,9 +3661,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 <div>
                     <label className="text-xs font-bold text-slate-500 mb-1 block">일괄 출력 형태</label>
                     <select value={genMode} onChange={e => setGenMode(e.target.value as GenMode)} className="bg-indigo-50 border border-indigo-200 text-indigo-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-black min-w-[200px]">
-                        <option value="individual-pdf">📁 개별 PDF (ZIP 압축)</option>
-                        <option value="individual-img">🖼️ 개별 이미지 (ZIP 압축)</option>
-                        <option value="combined-pdf">📑 통합 PDF (단일 파일)</option>
+                        <option value="individual-pdf">개인별 PDF 묶음</option>
+                        <option value="individual-img">개인별 이미지 묶음</option>
+                        <option value="combined-pdf">전체 통합 PDF</option>
                     </select>
                 </div>
                 

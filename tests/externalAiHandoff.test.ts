@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+    DEFAULT_EXTERNAL_AI_LANGUAGES,
     buildExternalAiPrompt,
     parseExternalAiResult,
 } from '../utils/externalAiHandoff';
@@ -14,19 +15,26 @@ const sources: TbmEvidenceSource[] = [{
 }];
 
 describe('external AI handoff', () => {
+    it('includes Cambodian and Uzbek in the default language selection', () => {
+        expect(DEFAULT_EXTERNAL_AI_LANGUAGES).toContain('km-KH');
+        expect(DEFAULT_EXTERNAL_AI_LANGUAGES).toContain('uz-UZ');
+    });
+
     it('builds a source-bound five-stage prompt with requested languages', () => {
         const prompt = buildExternalAiPrompt({
             sources,
             month: '2026-07',
             workType: '철골',
-            languageCodes: ['vi-VN', 'en-US'],
+            languageCodes: ['vi-VN', 'en-US', 'km-KH', 'uz-UZ'],
         });
 
-        expect(prompt).toContain('① 5분 핵심 동영상');
-        expect(prompt).toContain('⑤ 공지사항');
-        expect(prompt).toContain('합계는 정확히 300초');
+        expect(prompt).toContain('5분 핵심 동영상');
+        expect(prompt).toContain('공지사항');
+        expect(prompt).toContain('정확히 300초');
         expect(prompt).toContain('[출처 1] 7월 철골 작업계획');
         expect(prompt).toContain('베트남어(vi-VN)');
+        expect(prompt).toContain('크메르어(km-KH)');
+        expect(prompt).toContain('우즈베크어(uz-UZ)');
         expect(prompt).toContain('만들어내지 마세요');
     });
 

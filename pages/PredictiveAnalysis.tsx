@@ -11,6 +11,7 @@ import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { MOBILE_CARD_GRID_COMPACT_CLASS, MOBILE_CARD_GRID_ITEM_CLASS, MOBILE_CARD_PANEL_CLASS, MOBILE_CARD_PANEL_COMPACT_CLASS } from '../components/shared/cardTokens';
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
+import { useDevMode } from '../contexts/DevModeContext';
 
 const PREDICTIVE_STATUS_COPY = {
     syncReady: '현재 데이터 기준으로 AI 리스크 결과를 다시 정리할 수 있습니다.',
@@ -613,6 +614,7 @@ interface PredictiveAnalysisProps {
 }
 
 const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, onNavigateToPage }) => {
+    const { isDevMode } = useDevMode();
     // 1. 순수 근로자 필터링
     const sourceRecords = useMemo(() => 
         workerRecords.filter(r => !isManagementRole(r.jobField))
@@ -1785,7 +1787,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                             <button type="button" onClick={() => setExecutionPlanFilter('urgent')} className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">개별 점검 영역</button>
                             <button type="button" onClick={() => setShowAllExecutionPlans((prev) => !prev)} className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">AI 인사이트</button>
                         </div>
-                        <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                        {isDevMode && <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="min-w-0">
                                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">AI Risk 상태 제어</p>
@@ -1820,8 +1822,8 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                                     </div>
                                 )}
                             </div>
-                        </div>
-                        {viewportWidth >= 1024 && (
+                        </div>}
+                        {isDevMode && viewportWidth >= 1024 && (
                             <div className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-3 py-3">
                                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700">PC 운영 바로가기</p>
                                 <div className="mt-2 grid grid-cols-1 gap-2 xl:grid-cols-4">
@@ -1836,29 +1838,29 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                 </div>
             </div>
 
-            <InterpretationCardGrid
+            {isDevMode && <InterpretationCardGrid
                 items={predictiveSummaryCards}
                 cardClassName={MOBILE_CARD_GRID_ITEM_CLASS}
-            />
+            />}
 
-            <SummaryMetricGrid
+            {isDevMode && <SummaryMetricGrid
                 items={harnessSummaryMetrics}
                 className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
                 cardClassName={MOBILE_CARD_GRID_ITEM_CLASS}
-            />
+            />}
 
-            {(harnessSummary.immediateAttention > 0 || harnessSummary.approvalBacklog > 0 || harnessSummary.fallback > 0) && (
+            {isDevMode && (harnessSummary.immediateAttention > 0 || harnessSummary.approvalBacklog > 0 || harnessSummary.fallback > 0) && (
                 <NoticeCallout
                     variant={harnessSummary.immediateAttention > 0 ? 'rose' : harnessSummary.fallback > 0 ? 'amber' : 'indigo'}
-                    eyebrow="Harness priority"
+                    eyebrow="개발자 운영 상태"
                     title={harnessSummary.immediateAttention > 0
                         ? `예측 계획보다 앞서 즉시 보호 대상 ${harnessSummary.immediateAttention}명을 먼저 닫아야 합니다.`
                         : harnessSummary.fallback > 0
-                            ? `하네스 persistence 폴백 ${harnessSummary.fallback}명이 있어 실행 계획과 저장 연결 점검을 함께 봐야 합니다.`
+                            ? `저장 연결 확인이 필요한 대상 ${harnessSummary.fallback}명이 있습니다.`
                             : `승인 백로그 ${harnessSummary.approvalBacklog}명이 남아 있어 다음 달 계획 전에 현재 승인 순서를 먼저 정리해야 합니다.`}
                     description={harnessSummary.immediateAttention > 0
                         ? '예측 대시보드는 미래 개입 우선순위를 정하는 곳이지만, 이미 위험이 확정된 인원은 관리자 승인·보완 흐름으로 먼저 연결해야 보호 공백을 줄일 수 있습니다.'
-                        : '계획 보드에서 하네스 저장·승인 상태를 함께 읽으면 실행 항목은 많아도 실제 보호 흐름이 끊긴 지점을 먼저 보완할 수 있습니다.'}
+                        : '저장 및 승인 상태를 함께 확인해 실제 보호 조치가 끊긴 지점을 먼저 보완합니다.'}
                     className={MOBILE_CARD_PANEL_COMPACT_CLASS}
                     bodyClassName="block"
                     titleClassName="text-sm font-black"
@@ -1868,7 +1870,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div className={`${MOBILE_CARD_GRID_ITEM_CLASS} bg-white border-rose-100`}>
-                    <p className="text-[11px] font-black text-rose-600">고위험군 (RiskScore ≥ 70)</p>
+                    <p className="text-[11px] font-black text-rose-600">고위험 대상</p>
                     <p className="mt-1 text-2xl font-black text-slate-900">{summary.highRiskCount}명</p>
                 </div>
                 <div className={`${MOBILE_CARD_GRID_ITEM_CLASS} bg-white border-amber-100`}>
@@ -1932,9 +1934,9 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                 )}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
+            <div className={`grid grid-cols-1 gap-6 sm:gap-8 ${isDevMode ? 'lg:grid-cols-3' : ''}`}>
                 {/* Left: Ontology Graph (Visual Evidence) */}
-                <div className="lg:col-span-2 bg-slate-900 p-4 sm:p-6 rounded-2xl sm:rounded-[30px] shadow-xl border border-slate-800 flex flex-col">
+                {isDevMode && <div className="lg:col-span-2 bg-slate-900 p-4 sm:p-6 rounded-2xl sm:rounded-[30px] shadow-xl border border-slate-800 flex flex-col">
                     <div className="mb-4">
                         <InterpretationCardGrid
                             items={ontologyInterpretationCards}
@@ -1946,8 +1948,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                             <div className="min-w-0">
                                 <h3 className="text-base sm:text-lg font-black text-white flex items-center gap-2 leading-tight">
                                     <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse shrink-0"></span>
-                                    <span className="break-keep">위험 요인 온톨로지 맵</span>
-                                    <span className="text-slate-400 text-xs sm:text-sm font-bold">(Risk Ontology Map)</span>
+                                    <span className="break-keep">위험 요인 관계도</span>
                                 </h3>
                                 <p className="mt-1 text-[11px] sm:text-xs font-semibold text-slate-400 break-keep">노드에 마우스를 올리면 전체 라벨과 분류를 확인할 수 있습니다.</p>
                             </div>
@@ -2065,7 +2066,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                             * 선의 굵기는 위험 발생 빈도와 연관성을 나타냅니다.
                         </div>
                     </div>
-                </div>
+                </div>}
 
                 {/* Right: Next Month Agenda & Action Items */}
                 <div className="space-y-6">

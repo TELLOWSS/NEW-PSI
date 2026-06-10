@@ -2832,7 +2832,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
                                             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3">
                                                 <div>
-                                                    <p className="text-[11px] font-black text-violet-700">개발자 상세 정보</p>
+                                                    <p className="text-[11px] font-black text-violet-700">관리자 상세 기록</p>
                                                     <p className="mt-1 text-[11px] font-semibold text-violet-600">실무자는 요약만 보고, 필요할 때만 하네스/버전 상세를 펼쳐 확인합니다.</p>
                                                 </div>
                                                 <button
@@ -3068,8 +3068,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             ) : (
                                                 <NoticeCallout
                                                     variant="info"
-                                                    title="개발자 상세 정보는 현재 숨김 상태입니다."
-                                                    description="오버라이드 로그, 컨텍스트/버전 스냅샷, 버전 변경 요약은 '상세 보기' 버튼으로 필요 시에만 확인하세요."
+                                                    title="관리자 상세 기록은 현재 숨김 상태입니다."
+                                                    description="승인 이력과 시스템 변경 기록은 필요한 경우에만 상세 보기에서 확인하세요."
                                                     className="mt-4"
                                                 />
                                             )}

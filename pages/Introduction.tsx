@@ -1608,10 +1608,10 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                 </div>
             </div>
 
-            {/* Developer Message */}
+            {/* Service Message */}
             <div className="mt-20 bg-white rounded-3xl p-12 text-center shadow-xl border border-slate-100 relative overflow-hidden card-gravity-target">
                 <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
-                <h2 className="text-2xl font-bold text-slate-900 mb-8">개발자 메시지</h2>
+                <h2 className="text-2xl font-bold text-slate-900 mb-8">서비스 운영 메시지</h2>
                 <div className="max-w-3xl mx-auto">
                     <div className="flex items-start">
                         <div className="hidden sm:block mr-6">
@@ -1625,7 +1625,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                 <div className="text-right">
                                     <p className="text-slate-900 font-black text-lg">박성훈 부장</p>
                                     <p className="text-indigo-600 text-sm font-bold">(주)휘강건설</p>
-                                    <p className="text-slate-400 text-xs mt-0.5">PSI Project Lead Developer</p>
+                                    <p className="text-slate-400 text-xs mt-0.5">PSI 서비스 책임자</p>
                                 </div>
                                 <div className="relative group shrink-0">
                                     {/* Golden Glow Effect */}

@@ -44,30 +44,34 @@ export function ExternalAiHandoffPanel({
 
     const toggleLanguage = (code: TrainingLanguageCode) => {
         setLanguageCodes((current) =>
-            current.includes(code)
-                ? current.filter((item) => item !== code)
-                : [...current, code],
+            current.includes(code) ? current.filter((item) => item !== code) : [...current, code],
         );
     };
 
     const openProvider = async (provider: ExternalAiProvider) => {
         if (!privacyConfirmed) {
-            onNotice('외부 AI로 보내기 전에 개인정보 포함 여부 확인에 체크해 주세요.');
+            onNotice('외부 AI로 보내기 전에 개인정보 포함 여부 확인을 체크해 주세요.');
             return;
         }
 
-        window.open(EXTERNAL_AI_PROVIDERS[provider].url, '_blank', 'noopener,noreferrer');
+        const opened = window.open(EXTERNAL_AI_PROVIDERS[provider].url, '_blank');
+        if (!opened) {
+            onNotice('새 창이 차단되었습니다. 브라우저의 팝업 허용 후 다시 눌러 주세요.');
+            return;
+        }
+        opened.opener = null;
+
         try {
             await navigator.clipboard.writeText(prompt);
-            onNotice(`${EXTERNAL_AI_PROVIDERS[provider].label}를 열고 프롬프트를 복사했습니다. 새 창에서 Ctrl+V로 붙여넣어 실행해 주세요.`);
+            onNotice(`${EXTERNAL_AI_PROVIDERS[provider].label}를 열고 요청문을 복사했습니다. 새 창에서 붙여넣어 실행해 주세요.`);
         } catch {
-            onNotice('AI 창은 열었습니다. 아래 프롬프트를 직접 복사해 붙여넣어 주세요.');
+            onNotice(`${EXTERNAL_AI_PROVIDERS[provider].label}를 열었습니다. 오른쪽 요청문을 직접 복사해 붙여넣어 주세요.`);
         }
     };
 
     const importResult = () => {
         if (!rawResult.trim()) {
-            onNotice('AI가 반환한 JSON 결과를 먼저 붙여넣어 주세요.');
+            onNotice('AI가 반환한 결과를 먼저 붙여넣어 주세요.');
             return;
         }
         try {
@@ -83,21 +87,21 @@ export function ExternalAiHandoffPanel({
             <section className="psi-enterprise-panel p-5 sm:p-6">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
-                        <p className="psi-eyebrow">External AI Workspace</p>
-                        <h3 className="mt-2 text-xl font-black">자료는 앱이 정리하고, 정밀 분석은 선택한 AI에서</h3>
+                        <p className="psi-eyebrow">외부 AI 활용</p>
+                        <h3 className="mt-2 text-xl font-black">자료는 여기서 정리하고, 초안 작성은 선택한 AI에서 진행합니다.</h3>
                         <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 psi-copy-muted">
-                            Plus·Pro 웹 계정을 그대로 사용합니다. 앱은 근거와 출력 형식을 완성된 프롬프트로 만들고, 결과 JSON을 다시 받아 한 장 자료와 다국어 교육에 연결합니다.
+                            사용 중인 ChatGPT, Claude, Gemini 웹 계정을 활용할 수 있습니다. 개인정보를 확인한 뒤 바로가기를 누르면 교육자료 작성 요청문이 복사됩니다.
                         </p>
                     </div>
                     <button type="button" onClick={onUseLocalDraft} className="psi-button-secondary">
-                        AI 없이 기본 초안
+                        AI 없이 기본 초안 만들기
                     </button>
                 </div>
                 <div className="mt-5 grid gap-3 md:grid-cols-3">
                     {[
-                        ['1', '프롬프트 준비', '자료·5단계·금지 규칙을 자동 구성'],
-                        ['2', 'AI에서 분석', '복사 후 새 창에서 붙여넣어 실행'],
-                        ['3', '결과 반영', 'JSON을 붙여넣어 편집·출력·번역'],
+                        ['1', '언어 선택', '필요한 번역 언어를 고릅니다.'],
+                        ['2', 'AI에서 작성', '바로가기를 열고 복사된 요청문을 붙여넣습니다.'],
+                        ['3', '결과 반영', 'AI 답변을 붙여넣어 교육자료에 반영합니다.'],
                     ].map(([step, title, description]) => (
                         <article key={step} className="psi-step-card">
                             <span>{step}</span>
@@ -110,7 +114,7 @@ export function ExternalAiHandoffPanel({
             <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
                 <div className="psi-enterprise-panel p-5">
                     <h3 className="text-base font-black">다국어 결과 선택</h3>
-                    <p className="mt-1 text-xs font-semibold psi-copy-muted">필요한 언어만 선택하면 프롬프트와 결과 길이를 줄일 수 있습니다.</p>
+                    <p className="mt-1 text-xs font-semibold psi-copy-muted">다음 달 TBM 교육자료에 필요한 언어만 선택하세요.</p>
                     <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
                         {LANGUAGE_OPTIONS.map((code) => (
                             <label key={code} className={`psi-choice-chip ${languageCodes.includes(code) ? 'is-selected' : ''}`}>
@@ -130,13 +134,19 @@ export function ExternalAiHandoffPanel({
                             onChange={(event) => setPrivacyConfirmed(event.target.checked)}
                             className="mt-1"
                         />
-                        <span>자료에 불필요한 이름·연락처 등 개인정보가 없는지 확인했습니다. 앱은 전화번호·이메일·주민번호 형식을 1차로 가립니다.</span>
+                        <span>자료에 불필요한 이름, 연락처, 주민번호 등 개인정보가 없는지 확인했습니다.</span>
                     </label>
                     <div className="mt-4 grid gap-2">
                         {(Object.entries(EXTERNAL_AI_PROVIDERS) as Array<[ExternalAiProvider, typeof EXTERNAL_AI_PROVIDERS[ExternalAiProvider]]>).map(([id, provider]) => (
-                            <button key={id} type="button" onClick={() => void openProvider(id)} className="psi-provider-button">
+                            <button
+                                key={id}
+                                type="button"
+                                onClick={() => void openProvider(id)}
+                                disabled={!privacyConfirmed}
+                                className={`psi-provider-button ${privacyConfirmed ? '' : 'cursor-not-allowed opacity-50'}`}
+                            >
                                 <span><b>{provider.label} 열기</b><small>{provider.description}</small></span>
-                                <strong>복사 + 바로가기</strong>
+                                <strong>{privacyConfirmed ? '복사 후 바로가기' : '개인정보 확인 필요'}</strong>
                             </button>
                         ))}
                     </div>
@@ -145,42 +155,42 @@ export function ExternalAiHandoffPanel({
                 <div className="psi-enterprise-panel p-5">
                     <div className="flex items-center justify-between gap-3">
                         <div>
-                            <h3 className="text-base font-black">자동 생성 프롬프트</h3>
-                            <p className="mt-1 text-xs font-semibold psi-copy-muted">{prompt.length.toLocaleString()}자 · 근거 자료 {sources.length}개</p>
+                            <h3 className="text-base font-black">AI에 전달할 요청문</h3>
+                            <p className="mt-1 text-xs font-semibold psi-copy-muted">근거 자료 {sources.length}개가 반영되었습니다.</p>
                         </div>
                         <button
                             type="button"
                             onClick={() => void navigator.clipboard.writeText(prompt).then(
-                                () => onNotice('프롬프트를 복사했습니다.'),
+                                () => onNotice('AI 요청문을 복사했습니다.'),
                                 () => onNotice('클립보드 복사가 차단되었습니다. 아래 내용을 직접 복사해 주세요.'),
                             )}
                             className="psi-button-secondary"
                         >
-                            프롬프트 복사
+                            요청문 복사
                         </button>
                     </div>
-                    <textarea readOnly value={prompt} rows={18} className="psi-input mt-4 w-full resize-y p-4 font-mono text-xs leading-5" aria-label="외부 AI용 자동 생성 프롬프트" />
+                    <textarea readOnly value={prompt} rows={18} className="psi-input mt-4 w-full resize-y p-4 text-xs leading-5" aria-label="외부 AI 요청문" />
                 </div>
             </section>
 
             <section className="psi-enterprise-panel p-5 sm:p-6">
                 <div className="flex flex-wrap items-end justify-between gap-3">
                     <div>
-                        <h3 className="text-lg font-black">AI 결과 가져오기</h3>
-                        <p className="mt-1 text-xs font-semibold psi-copy-muted">AI 답변의 JSON 전체를 붙여넣으면 기존 입력칸을 자동으로 채우고, 번역문도 교육 배포 단계에 함께 보냅니다.</p>
+                        <h3 className="text-lg font-black">AI 작성 결과 가져오기</h3>
+                        <p className="mt-1 text-xs font-semibold psi-copy-muted">AI 답변 전체를 붙여넣으면 교육자료 초안과 선택한 번역 결과를 반영합니다.</p>
                     </div>
-                    <span className="psi-status-badge">초안은 반영 후 자유롭게 수정 가능</span>
+                    <span className="psi-status-badge">반영 후 자유롭게 수정 가능</span>
                 </div>
                 <textarea
                     value={rawResult}
                     onChange={(event) => setRawResult(event.target.value)}
                     rows={12}
-                    placeholder='{"draft": {...}, "translations": {...}}'
-                    className="psi-input mt-4 w-full p-4 font-mono text-xs leading-5"
-                    aria-label="외부 AI JSON 결과"
+                    placeholder="AI가 작성한 결과 전체를 여기에 붙여넣으세요."
+                    className="psi-input mt-4 w-full p-4 text-xs leading-5"
+                    aria-label="외부 AI 작성 결과"
                 />
                 <button type="button" onClick={importResult} className="psi-button-primary mt-4 w-full">
-                    AI 결과를 한 장 초안에 반영
+                    교육자료 초안에 반영
                 </button>
             </section>
         </div>
