@@ -210,7 +210,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
     };
 
     return (
-        <div className="min-h-full space-y-4 bg-[#f7f9fc] pb-12 text-slate-900">
+        <div className="psi-work-board min-h-full space-y-4 bg-[#f7f9fc] pb-12 text-slate-900">
             <section className="rounded-3xl border border-slate-200 bg-white px-4 py-5 shadow-sm sm:px-6">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                     <div>

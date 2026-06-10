@@ -20,7 +20,7 @@ export const AppShell: React.FC<AppShellProps> = ({
     footer,
 }) => {
     return (
-        <div className="flex h-screen bg-slate-950 text-slate-100 transition-colors duration-200">
+        <div className="psi-app-shell flex h-screen transition-colors duration-200">
             <div className="no-print hidden h-full lg:block">{desktopSidebar}</div>
             {mobileSidebarOverlay}
 

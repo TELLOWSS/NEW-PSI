@@ -11,10 +11,10 @@ interface StatusPillProps {
 }
 
 const variantClassMap: Record<StatusVariant, string> = {
-    normal: 'border-emerald-400/40 bg-emerald-500/15 text-emerald-200',
-    warning: 'border-orange-400/40 bg-orange-500/15 text-orange-200',
-    critical: 'border-rose-400/40 bg-rose-500/15 text-rose-200',
-    offline: 'border-slate-400/40 bg-slate-500/15 text-slate-200',
+    normal: 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/40 dark:bg-emerald-500/15 dark:text-emerald-200',
+    warning: 'border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-400/40 dark:bg-orange-500/15 dark:text-orange-200',
+    critical: 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-400/40 dark:bg-rose-500/15 dark:text-rose-200',
+    offline: 'border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-400/40 dark:bg-slate-500/15 dark:text-slate-200',
 };
 
 const variantLabelMap: Record<StatusVariant, string> = {

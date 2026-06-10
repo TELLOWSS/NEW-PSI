@@ -415,7 +415,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                             <button
                                 type="button"
                                 onClick={() => void onAdminLogout()}
-                                className="ml-1 min-h-11 rounded-lg border border-slate-500/70 bg-slate-800/80 px-2 text-[10px] font-black text-slate-200 transition-colors hover:bg-slate-700/90"
+                                className="ml-1 min-h-11 rounded-lg border border-slate-300 bg-slate-100 px-2 text-[10px] font-black text-slate-700 transition-colors hover:bg-slate-200 dark:border-slate-500/70 dark:bg-slate-800/80 dark:text-slate-200 dark:hover:bg-slate-700/90"
                                 title="관리자 로그아웃"
                                 aria-label="관리자 로그아웃"
                             >
@@ -424,7 +424,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                             <button
                                 type="button"
                                 onClick={() => setUserRolePreset(cycleUserRolePreset())}
-                                className="ml-1 min-h-11 rounded-lg border border-emerald-400/40 bg-emerald-500/15 px-2 text-[10px] font-black text-emerald-200 transition-colors hover:bg-emerald-500/25"
+                                className="ml-1 min-h-11 rounded-lg border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-black text-emerald-800 transition-colors hover:bg-emerald-100 dark:border-emerald-400/40 dark:bg-emerald-500/15 dark:text-emerald-200 dark:hover:bg-emerald-500/25"
                                 title="사용자군 프리셋 순환: 실무자 → 관리자 → 소장"
                                 aria-label="사용자군 프리셋 변경"
                             >
@@ -510,7 +510,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                 </main>
             }
             mobileBottomNav={
-                <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-700 bg-slate-900/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] pt-2 backdrop-blur lg:hidden no-print" aria-label="모바일 하단 탐색">
+                <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] pt-2 backdrop-blur transition-colors dark:border-slate-700 dark:bg-slate-900/95 lg:hidden no-print" aria-label="모바일 하단 탐색">
                     <div className="grid grid-cols-5 gap-1">
                         {mobileBottomTabs.map((tab) => {
                             const isActive = tab.id === activeMobileTab;
@@ -527,8 +527,8 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                                     onClick={handleClick}
                                     className={`flex min-h-[60px] flex-col items-center justify-center rounded-2xl px-1 py-2 text-[11px] font-bold transition-colors ${
                                         isActive
-                                            ? 'bg-orange-500/20 text-orange-200'
-                                            : 'text-slate-400'
+                                            ? 'bg-orange-100 text-orange-800 dark:bg-orange-500/20 dark:text-orange-200'
+                                            : 'text-slate-600 dark:text-slate-400'
                                     }`}
                                     aria-current={isActive ? 'page' : undefined}
                                 >

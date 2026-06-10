@@ -175,10 +175,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }, [visibleMenuItems]);
 
     return (
-        <div className="w-72 bg-[linear-gradient(180deg,#0b1220_0%,#111827_58%,#0f172a_100%)] text-slate-100 shadow-xl shadow-slate-950/30 flex flex-col shrink-0 h-full border-r border-slate-800/80">
-            <div className="px-5 pt-6 pb-5 border-b border-slate-800/80">
+        <div className="psi-sidebar flex h-full w-72 shrink-0 flex-col border-r border-slate-200 bg-[linear-gradient(180deg,#ffffff_0%,#f8fafc_58%,#eef3f8_100%)] text-slate-800 shadow-xl shadow-slate-300/30 transition-colors dark:border-slate-800/80 dark:bg-[linear-gradient(180deg,#0b1220_0%,#111827_58%,#0f172a_100%)] dark:text-slate-100 dark:shadow-slate-950/30">
+            <div className="border-b border-slate-200 px-5 pb-5 pt-6 dark:border-slate-800/80">
                 <div className="flex items-center gap-3">
-                    <div className="h-11 w-11 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center p-1.5">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-blue-100 bg-blue-50 p-1.5 dark:border-white/10 dark:bg-white/10">
                         <BrandPhilosophyLogo className="w-7 h-7" />
                     </div>
                     <div>
@@ -190,7 +190,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <nav className="flex-1 px-3 py-4 overflow-y-auto custom-scrollbar">
                 {compositionEditMode && onCompositionConfigChange && (
-                    <section className="mb-4 rounded-xl border border-slate-700/80 bg-slate-900/70 p-3">
+                    <section className="mb-4 rounded-xl border border-slate-200 bg-white/80 p-3 dark:border-slate-700/80 dark:bg-slate-900/70">
                         <h3 className="text-xs font-black tracking-[0.08em] text-slate-200">메뉴 구성 편집</h3>
                         <p className="mt-1 text-[11px] text-slate-400">표시 여부와 순서를 저장합니다. 문서 분석 관리는 보호 규칙으로 항상 유지됩니다.</p>
                         <div className="mt-3 space-y-2">
@@ -199,7 +199,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 const isFirst = index === 0;
                                 const isLast = index === editRows.length - 1;
                                 return (
-                                    <div key={`edit-${item.id}`} className="flex items-center justify-between rounded-lg border border-slate-700/70 bg-slate-950/40 px-2 py-2">
+                                    <div key={`edit-${item.id}`} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 dark:border-slate-700/70 dark:bg-slate-950/40">
                                         <label className="flex items-center gap-2 text-xs font-semibold text-slate-200">
                                             <input
                                                 type="checkbox"
@@ -241,7 +241,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
                 {groupedMenuItems.map((group) => (
                     <section key={group.id} className="mb-3 last:mb-0">
-                        <h3 className="px-3 pb-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400">
+                        <h3 className="px-3 pb-1.5 text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">
                             {group.label}
                         </h3>
                         <div className="space-y-1">
@@ -255,7 +255,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                         className={`w-full flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-colors ${
                                             isActive
                                                 ? 'bg-orange-500/90 text-white shadow-sm shadow-orange-700/30'
-                                                : 'text-slate-300 hover:text-white hover:bg-slate-800/90'
+                                                : 'text-slate-700 hover:bg-slate-200/80 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800/90 dark:hover:text-white'
                                         }`}
                                         aria-current={isActive ? 'page' : undefined}
                                     >
@@ -269,9 +269,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ))}
             </nav>
 
-            <div className="p-4 border-t border-slate-800/80">
-                <div className="flex items-center gap-3 rounded-xl bg-slate-900/80 border border-slate-700 px-3 py-3">
-                    <div className="h-9 w-9 rounded-full bg-slate-700 flex items-center justify-center">
+            <div className="border-t border-slate-200 p-4 dark:border-slate-800/80">
+                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white/90 px-3 py-3 dark:border-slate-700 dark:bg-slate-900/80">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-200 dark:bg-slate-700">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-200" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A11.955 11.955 0 0112 16c2.5 0 4.824.76 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                     </div>
                     <div>

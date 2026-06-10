@@ -39,12 +39,12 @@ export const TopBar: React.FC<TopBarProps> = ({
                 : '라이트';
 
     return (
-        <header className="z-10 shrink-0 border-b border-slate-700/50 bg-slate-900/95 text-slate-100 shadow-sm backdrop-blur no-print">
+        <header className="z-10 shrink-0 border-b border-slate-200 bg-white/95 text-slate-900 shadow-sm backdrop-blur transition-colors dark:border-slate-700/70 dark:bg-slate-950/95 dark:text-slate-100 no-print">
             <div className="mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex min-h-16 items-center gap-2 py-2">
                     <button
                         onClick={onOpenMobileMenu}
-                        className="mr-2 flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-slate-300 transition-colors hover:bg-slate-800 hover:text-white lg:hidden"
+                        className="mr-2 flex min-h-11 min-w-11 items-center justify-center rounded-lg p-2 text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white lg:hidden"
                         aria-label="메뉴 열기"
                         aria-expanded={isMobileMenuOpen}
                     >
@@ -54,16 +54,16 @@ export const TopBar: React.FC<TopBarProps> = ({
                     </button>
 
                     <div className="min-w-0 flex-1">
-                        <p className="truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">{siteName}</p>
+                        <p className="truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-300">{siteName}</p>
                         <h2 className="truncate text-sm font-extrabold sm:text-base">{currentPageTitle}</h2>
                     </div>
 
                     <div className="hidden items-center gap-2 xl:flex">
-                        <span className="inline-flex h-8 items-center rounded-full border border-sky-400/30 bg-sky-500/15 px-3 text-xs font-bold text-sky-200">
+                        <span className="inline-flex h-8 items-center rounded-full border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-sky-700 dark:border-sky-400/30 dark:bg-sky-500/15 dark:text-sky-200">
                             {todayLabel}
                         </span>
                         <StatusPill variant="normal" label={statusLabel} size="md" />
-                        <span className="inline-flex h-8 items-center rounded-full border border-emerald-400/35 bg-emerald-500/15 px-3 text-xs font-bold text-emerald-200">
+                        <span className="inline-flex h-8 items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-800 dark:border-emerald-400/35 dark:bg-emerald-500/15 dark:text-emerald-200">
                             {analysisModeLabel}
                         </span>
                     </div>
@@ -73,7 +73,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                     <button
                         type="button"
                         onClick={onToggleTheme}
-                        className="ml-1 flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-slate-600 bg-slate-800 text-slate-200 transition-colors hover:bg-slate-700"
+                        className="ml-1 flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-slate-100 px-3 text-slate-700 transition-colors hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
                         aria-label={`테마 전환 (현재: ${themeLabel})`}
                         title={`테마: ${themeLabel} (클릭: 라이트→다크→시스템 순환)`}
                     >
@@ -87,6 +87,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
                             </svg>
                         )}
+                        <span className="hidden text-[11px] font-black md:inline">{themeLabel}</span>
                     </button>
 
                     {controls}
