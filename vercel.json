@@ -36,19 +36,11 @@
       "maxDuration": 10,
       "memory": 256
     },
-    "api/admin/create-training.ts": {
-      "maxDuration": 10,
-      "memory": 512
-    },
     "api/admin/send-report-message.ts": {
       "maxDuration": 10,
       "memory": 256
     },
     "api/admin/training.ts": {
-      "maxDuration": 10,
-      "memory": 512
-    },
-    "api/admin/upload-training-audio.ts": {
       "maxDuration": 10,
       "memory": 512
     },
