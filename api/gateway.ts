@@ -7,6 +7,7 @@ import handleHarnessPersistenceHealth from '../lib/server/harness/handlers/persi
 import handleHarnessReanalyze from '../lib/server/harness/handlers/reanalyze.js';
 import handleHarnessWorkflowStatus from '../lib/server/harness/handlers/workflowStatus.js';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils.js';
+import { resolveGeminiOcrModelChain, type OcrEngineMode } from '../utils/aiEngineSettings.js';
 
 type GatewayAction =
     | 'training.check-access'
@@ -24,7 +25,6 @@ const TRAINING_ACCESS_BLOCK_THRESHOLD = 2;
 const EMBEDDING_MODEL = 'text-embedding-004';
 const OCR_RETRY_TIMEOUT_MS = 25_000;
 const OCR_RETRY_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
-const OCR_RETRY_MODEL_CHAIN = ['gemini-2.5-flash', 'gemini-3.0-flash', 'gemini-3-flash-preview'];
 
 const OCR_RETRY_LANGUAGE_POLICY = [
     '[언어 정책 — 엄격 준수 / 위반 시 실패체제]',
@@ -867,7 +867,7 @@ const shouldTryNextModel = (code?: string): boolean => {
     return true;
 };
 
-async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
+async function analyzeSingleRecord(imageSource: string, filenameHint: string, engine: OcrEngineMode = 'auto') {
     const apiKey = resolveGeminiApiKey();
     if (!apiKey) {
         throw createGatewayHttpError('서버 Gemini API 키가 설정되지 않았습니다. GEMINI_API_KEY 환경변수를 확인하세요.', 502, 'MISSING_SERVER_GEMINI_KEY');
@@ -879,8 +879,12 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
     let fallbackDepth = 0;
     let lastError: GatewayHttpError | null = null;
 
-    for (let modelIndex = 0; modelIndex < OCR_RETRY_MODEL_CHAIN.length; modelIndex++) {
-        const model = OCR_RETRY_MODEL_CHAIN[modelIndex];
+    if (engine === 'openai-precise') {
+        throw createGatewayHttpError('ChatGPT Plus 구독은 OpenAI API가 아닙니다. 별도 OpenAI API 키 연결이 필요합니다.', 400, 'OPENAI_API_NOT_CONFIGURED');
+    }
+    const modelChain = resolveGeminiOcrModelChain(engine);
+    for (let modelIndex = 0; modelIndex < modelChain.length; modelIndex++) {
+        const model = modelChain[modelIndex];
         attempts = modelIndex + 1;
         fallbackDepth = modelIndex;
 
@@ -945,7 +949,7 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
                     mappedError = createGatewayHttpError(`Gemini API 오류 (${response.status}): ${detail}`, 502, 'OCR_UPSTREAM_FAILURE');
                 }
                 lastError = mappedError;
-                if (!shouldTryNextModel(mappedError.code) || modelIndex === OCR_RETRY_MODEL_CHAIN.length - 1) {
+                if (!shouldTryNextModel(mappedError.code) || modelIndex === modelChain.length - 1) {
                     throw mappedError;
                 }
                 continue;
@@ -958,7 +962,7 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
             if (!parsed) {
                 const parseError = createGatewayHttpError('서버 OCR 응답 JSON 파싱에 실패했습니다.', 502, 'OCR_PARSE_FAILURE');
                 lastError = parseError;
-                if (modelIndex === OCR_RETRY_MODEL_CHAIN.length - 1) {
+                if (modelIndex === modelChain.length - 1) {
                     throw parseError;
                 }
                 continue;
@@ -972,7 +976,7 @@ async function analyzeSingleRecord(imageSource: string, filenameHint: string) {
                     ? createGatewayHttpError(`OCR 엔진 응답 시간이 초과되었습니다. (${Math.floor(OCR_RETRY_TIMEOUT_MS / 1000)}초)`, 504, 'OCR_TIMEOUT')
                     : createGatewayHttpError(`OCR 엔진 연결에 실패했습니다: ${String(error?.message || error || 'network_error')}`, 502, 'OCR_UPSTREAM_NETWORK'));
             lastError = gatewayError;
-            if (!shouldTryNextModel(gatewayError.code) || modelIndex === OCR_RETRY_MODEL_CHAIN.length - 1) {
+            if (!shouldTryNextModel(gatewayError.code) || modelIndex === modelChain.length - 1) {
                 throw gatewayError;
             }
         } finally {
@@ -1069,7 +1073,11 @@ async function handleOcrRetry(req: any, res: any) {
     }
 
     const traceStartMs = Date.now();
-    const result = await analyzeSingleRecord(imageSource, filenameHint || recordId);
+    const requestedEngine = String(req.body?.ocrEngine || 'auto') as OcrEngineMode;
+    const engine: OcrEngineMode = ['auto', 'gemini-fast', 'gemini-precise', 'openai-precise'].includes(requestedEngine)
+        ? requestedEngine
+        : 'auto';
+    const result = await analyzeSingleRecord(imageSource, filenameHint || recordId, engine);
     const traceLatencyMs = Date.now() - traceStartMs;
 
     return res.status(200).json({

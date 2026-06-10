@@ -9,6 +9,7 @@ import { getIsPaidApiMode } from '../utils/apiModeUtils';
 import { resolveOcrExecutionKeyStatus } from '../utils/ocrExecutionKeyStatus';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils';
 import { supabase } from '../lib/supabaseClient';
+import { getAiEngineSettings, resolveGeminiOcrModelChain } from '../utils/aiEngineSettings';
 
 /**
  * [API Rate Limiting State Management]
@@ -1851,7 +1852,19 @@ export async function updateAnalysisBasedOnEdits(record: WorkerRecord): Promise<
 }
 
 export async function analyzeWorkerRiskAssessment(documentSource: string, mimeType: string, filenameHint?: string): Promise<WorkerRecord[]> {
-    return await callGeminiWithRetry(documentSource, mimeType, OCR_MODEL_PRIMARY, filenameHint, 3, OCR_MODEL_FALLBACK);
+    const { ocrEngine } = getAiEngineSettings();
+    if (ocrEngine === 'openai-precise') {
+        throw new Error('ChatGPT Plus 구독은 OpenAI API 호출 권한이 아닙니다. OpenAI API 키 연결 후 사용할 수 있습니다.');
+    }
+    const modelChain = resolveGeminiOcrModelChain(ocrEngine);
+    return await callGeminiWithRetry(
+        documentSource,
+        mimeType,
+        modelChain[0] || OCR_MODEL_PRIMARY,
+        filenameHint,
+        3,
+        modelChain[1] || OCR_MODEL_FALLBACK,
+    );
 }
 
 export async function generateSpeechFromText(text: string, voiceName: string = 'Kore'): Promise<string> {

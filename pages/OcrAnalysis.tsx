@@ -28,6 +28,13 @@ import { handleSupabasePermissionError, supabase } from '../lib/supabaseClient';
 import { useMobileBackGuard } from '../hooks/useMobileBackGuard';
 import { API_MODE_CHANGED_EVENT, getIsPaidApiMode } from '../utils/apiModeUtils';
 import { resolveOcrExecutionKeyStatus } from '../utils/ocrExecutionKeyStatus';
+import {
+    AI_ENGINE_SETTINGS_CHANGED_EVENT,
+    getAiEngineSettings,
+    getOcrEngineLabel,
+    setAiEngineSettings,
+    type OcrEngineMode,
+} from '../utils/aiEngineSettings';
 import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils';
@@ -1185,6 +1192,22 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const ocrExecutionKeyStatus = useMemo(() => resolveOcrExecutionKeyStatus({
         isPaidApiMode,
     }), [isPaidApiMode]);
+    const [ocrEngine, setOcrEngine] = useState<OcrEngineMode>(() => getAiEngineSettings().ocrEngine);
+
+    useEffect(() => {
+        const syncEngine = () => setOcrEngine(getAiEngineSettings().ocrEngine);
+        window.addEventListener(AI_ENGINE_SETTINGS_CHANGED_EVENT, syncEngine);
+        return () => window.removeEventListener(AI_ENGINE_SETTINGS_CHANGED_EVENT, syncEngine);
+    }, []);
+
+    const handleOcrEngineChange = (nextEngine: OcrEngineMode) => {
+        if (nextEngine === 'openai-precise') {
+            alert('ChatGPT Plus 구독은 프로그램용 OpenAI API 사용권과 별개입니다. 현재는 별도 OpenAI API 키가 연결되지 않아 선택할 수 없습니다.');
+            return;
+        }
+        setOcrEngine(nextEngine);
+        setAiEngineSettings({ ...getAiEngineSettings(), ocrEngine: nextEngine });
+    };
 
     const syncHarnessAnalyzeResult = useCallback(async (record: WorkerRecord, fileNameOverride?: string) => {
         const fallbackPatch: Partial<WorkerRecord> = {
@@ -2973,6 +2996,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 recordId: record.id,
                 imageSource: bestImageSource,
                 filenameHint: record.filename || record.name,
+                ocrEngine,
             }),
         });
 
@@ -3023,7 +3047,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 }
                 : undefined,
         } as WorkerRecord;
-    }, [getBestRetryImageSource]);
+    }, [getBestRetryImageSource, ocrEngine]);
 
     const extractGatewayErrorCode = useCallback((message: string): string | undefined => {
         const matched = String(message || '').trim().match(/^\[([A-Z0-9_]+)\]/);
@@ -7012,6 +7036,45 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
             <div id="new-ocr-capture-section" className="bg-white p-5 sm:p-10 rounded-3xl shadow-xl border border-slate-100 overflow-hidden relative">
                 <h3 className="text-xl sm:text-2xl font-black text-slate-900 mb-2">신규 기록 분석</h3>
+                <section className="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <p className="text-sm font-black text-indigo-950">OCR 분석 엔진</p>
+                            <p className="mt-1 text-xs font-bold leading-5 text-indigo-700">현재 선택: {getOcrEngineLabel(ocrEngine)} · 신규 분석과 서버 재분석에 함께 적용됩니다.</p>
+                        </div>
+                        <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-black text-indigo-700 shadow-sm">상황별 전환</span>
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                        {([
+                            ['auto', '자동 추천', '일반 문서는 빠르게, 복잡한 경우 정밀 모델로 자동 전환'],
+                            ['gemini-fast', 'Gemini 빠른 분석', '선명한 사진과 대량 처리에 적합'],
+                            ['gemini-precise', 'Gemini 정밀 분석', '흐린 글씨, 복잡한 표, 외국어 혼합 문서에 적합'],
+                            ['openai-precise', 'OpenAI 정밀 분석', 'ChatGPT Plus와 별도인 OpenAI API 연결 필요'],
+                        ] as Array<[OcrEngineMode, string, string]>).map(([value, label, description]) => {
+                            const unavailable = value === 'openai-precise';
+                            const selected = ocrEngine === value;
+                            return (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => handleOcrEngineChange(value)}
+                                    aria-pressed={selected}
+                                    className={`min-h-24 rounded-xl border p-3 text-left transition-colors ${
+                                        selected
+                                            ? 'border-indigo-600 bg-indigo-600 text-white'
+                                            : unavailable
+                                                ? 'border-slate-200 bg-slate-100 text-slate-500'
+                                                : 'border-indigo-100 bg-white text-slate-800 hover:border-indigo-400'
+                                    }`}
+                                >
+                                    <span className="block text-sm font-black">{label}</span>
+                                    <span className={`mt-1 block text-[11px] font-bold leading-5 ${selected ? 'text-indigo-100' : 'text-slate-500'}`}>{description}</span>
+                                    {unavailable && <span className="mt-2 inline-block rounded bg-slate-200 px-2 py-1 text-[10px] font-black text-slate-600">현재 연결 안 됨</span>}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </section>
                 <FileUpload onFilesChange={setFiles} onAnalyze={() => {}} isAnalyzing={isAnalyzing} fileCount={files.length} />
                 {files.length > 0 && !isAnalyzing && (
                     <div className="mt-8 flex justify-center">
