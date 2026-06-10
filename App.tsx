@@ -1273,8 +1273,8 @@ const App: React.FC = () => {
                             />
                         )}
                         {currentPage === 'monthly-guidance-report' && <MonthlyGuidanceReport workerRecords={workerRecords} />}
-                        {currentPage === 'a4-education-material' && <A4EducationMaterial workerRecords={workerRecords} />}
-                        {currentPage === 'ppt-pdf-one-page-summary' && <PptPdfOnePageSummary workerRecords={workerRecords} />}
+                        {currentPage === 'a4-education-material' && <A4EducationMaterial workerRecords={workerRecords} onOpenTraining={() => navigateToPage('admin-training')} />}
+                        {currentPage === 'ppt-pdf-one-page-summary' && <PptPdfOnePageSummary workerRecords={workerRecords} onOpenTraining={() => navigateToPage('admin-training')} />}
                         {currentPage === 'worker-management' && <WorkerManagement workerRecords={workerRecords} onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} onOpenPhotoRegistration={(r, queueRecordIds) => setModalState({type:'recordDetail', record:r, source:'worker-management-photo-queue', queueRecordIds})} onUpdateRecord={handleUpdateRecord} />}
                         {currentPage === 'individual-report' && recordForReport && (
                             <IndividualReport 

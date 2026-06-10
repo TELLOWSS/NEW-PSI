@@ -4,9 +4,13 @@ import { ensureHtml2Canvas, ensureJsPdfConstructor } from '../utils/externalScri
 import { buildPsiExportFileName } from '../utils/exportFileNaming';
 import { captureReportCanvas, saveCanvasAsA4Pdf } from '../utils/pdfCapture';
 import {
+    buildMonthlyEducationPackageText,
     buildFieldRecordSource,
     buildTbmEducationDraft,
     estimateEducationTokens,
+    getFiveMinuteVideoDuration,
+    normalizeTbmEducationDraft,
+    TBM_MONTHLY_PACKAGE_STORAGE_KEY,
     type TbmEducationDraft,
     type TbmEvidenceSource,
 } from '../utils/tbmEducationStudio';
@@ -14,9 +18,10 @@ import { extractTbmSourceFromFile } from '../utils/tbmSourceExtraction';
 
 interface Props {
     workerRecords: WorkerRecord[];
+    onOpenTraining?: () => void;
 }
 
-type StudioTab = 'sources' | 'editor' | 'preview';
+type StudioTab = 'sources' | 'package' | 'editor' | 'preview';
 
 const getNextMonth = (): string => {
     const date = new Date();
@@ -37,7 +42,7 @@ const CHECKLIST_TEMPLATES = [
     '기상, 공정, 인원 변경 시 작업중지 기준을 알고 있는가?',
 ];
 
-const STUDIO_STORAGE_KEY = 'psi_tbm_education_studio_v1';
+const STUDIO_STORAGE_KEY = 'psi_tbm_education_studio_v2';
 
 interface StoredStudioState {
     educationMonth: string;
@@ -50,7 +55,9 @@ const loadStudioState = (): StoredStudioState | null => {
     if (typeof window === 'undefined') return null;
     try {
         const parsed = JSON.parse(localStorage.getItem(STUDIO_STORAGE_KEY) || 'null') as StoredStudioState | null;
-        return parsed?.draft && Array.isArray(parsed.sources) ? parsed : null;
+        return parsed?.draft && Array.isArray(parsed.sources)
+            ? { ...parsed, draft: normalizeTbmEducationDraft(parsed.draft) }
+            : null;
     } catch {
         return null;
     }
@@ -59,7 +66,7 @@ const loadStudioState = (): StoredStudioState | null => {
 const updateAt = (items: string[], index: number, value: string): string[] =>
     items.map((item, itemIndex) => itemIndex === index ? value : item);
 
-const A4EducationMaterial: React.FC<Props> = ({ workerRecords }) => {
+const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining }) => {
     const initialState = useRef(loadStudioState());
     const [activeTab, setActiveTab] = useState<StudioTab>('sources');
     const [educationMonth, setEducationMonth] = useState(initialState.current?.educationMonth || getNextMonth);
@@ -92,6 +99,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords }) => {
         [fieldSource, sources],
     );
     const estimatedTokens = estimateEducationTokens(allSources);
+    const videoDuration = getFiveMinuteVideoDuration(draft);
 
     useEffect(() => {
         localStorage.setItem(STUDIO_STORAGE_KEY, JSON.stringify({
@@ -110,8 +118,8 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords }) => {
             workType,
             coreMessage: draft.coreMessage,
         }));
-        setActiveTab('editor');
-        setNotice('근거 자료를 기준으로 한 장 초안을 다시 구성했습니다.');
+        setActiveTab('package');
+        setNotice('근거 자료를 기준으로 5단계 월간 교육 패키지를 다시 구성했습니다.');
     };
 
     const resetStudio = () => {
@@ -163,6 +171,16 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords }) => {
         } finally {
             setIsExtracting(false);
         }
+    };
+
+    const sendToTraining = () => {
+        localStorage.setItem(TBM_MONTHLY_PACKAGE_STORAGE_KEY, JSON.stringify({
+            draft,
+            sourceText: buildMonthlyEducationPackageText(draft),
+            savedAt: new Date().toISOString(),
+        }));
+        setNotice('5단계 교육 원문을 다국어 교육에 전달했습니다.');
+        onOpenTraining?.();
     };
 
     const captureSheet = async () => {
@@ -251,11 +269,12 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords }) => {
                 </div>
             </section>
 
-            <nav className="grid grid-cols-3 gap-2 rounded-2xl border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900 no-print" aria-label="교육자료 제작 단계">
+            <nav className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900 sm:grid-cols-4 no-print" aria-label="교육자료 제작 단계">
                 {([
                     ['sources', '1. 자료 모으기'],
-                    ['editor', '2. 내용 편집'],
-                    ['preview', '3. 한 장 확인'],
+                    ['package', '2. 5단계 구성'],
+                    ['editor', '3. 한 장 편집'],
+                    ['preview', '4. 출력 확인'],
                 ] as Array<[StudioTab, string]>).map(([id, label]) => (
                     <button
                         key={id}
@@ -365,6 +384,102 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords }) => {
                 </div>
             )}
 
+            {activeTab === 'package' && (
+                <div className="space-y-4 no-print">
+                    <section className="rounded-2xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-500/30 dark:bg-blue-500/10">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                                <h3 className="text-lg font-black text-blue-950 dark:text-blue-100">다음 달 위험성평가 5단계 교육 흐름</h3>
+                                <p className="mt-1 text-xs font-semibold leading-5 text-blue-700 dark:text-blue-300">공통 이해에서 현장 행동으로 이어지도록 영상 → 사례 → 상등급 → 중점관리 → 공지 순서로 진행하고, 마지막에 이해 확인과 작업중지 약속을 남깁니다.</p>
+                            </div>
+                            <span className={`rounded-full px-3 py-2 text-xs font-black ${videoDuration === 300 ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
+                                영상 {Math.floor(videoDuration / 60)}분 {videoDuration % 60}초 {videoDuration === 300 ? '완료' : '조정 필요'}
+                            </span>
+                        </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                        <h3 className="text-lg font-black">1. 교육 전 5분 핵심 동영상 구성</h3>
+                        <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">무료 운영을 위해 MP4 자동 생성 대신 촬영·편집에 바로 쓰는 장면표와 내레이션을 만듭니다.</p>
+                        <div className="mt-4 space-y-3">
+                            {draft.videoScenes.map((scene, index) => (
+                                <article key={scene.id} className="grid gap-3 rounded-xl bg-slate-50 p-4 dark:bg-slate-800 md:grid-cols-[90px_1fr_1fr]">
+                                    <label className="text-xs font-black">장면 {index + 1} 시간
+                                        <input type="number" min={5} value={scene.seconds} onChange={(event) => setDraft({ ...draft, videoScenes: draft.videoScenes.map((item) => item.id === scene.id ? { ...item, seconds: Number(event.target.value) } : item) })} className="mt-2 w-full rounded-lg border px-2 py-2" />
+                                    </label>
+                                    <label className="text-xs font-black">제목 · 내레이션
+                                        <input value={scene.title} onChange={(event) => setDraft({ ...draft, videoScenes: draft.videoScenes.map((item) => item.id === scene.id ? { ...item, title: event.target.value } : item) })} className="mt-2 w-full rounded-lg border px-3 py-2" />
+                                        <textarea value={scene.narration} onChange={(event) => setDraft({ ...draft, videoScenes: draft.videoScenes.map((item) => item.id === scene.id ? { ...item, narration: event.target.value } : item) })} rows={3} className="mt-2 w-full rounded-lg border p-3 text-xs font-semibold" />
+                                    </label>
+                                    <label className="text-xs font-black">화면 구성 지시
+                                        <textarea value={scene.visualGuide} onChange={(event) => setDraft({ ...draft, videoScenes: draft.videoScenes.map((item) => item.id === scene.id ? { ...item, visualGuide: event.target.value } : item) })} rows={5} className="mt-2 w-full rounded-lg border p-3 text-xs font-semibold" />
+                                    </label>
+                                </article>
+                            ))}
+                        </div>
+                    </section>
+
+                    <section className="grid gap-4 lg:grid-cols-2">
+                        <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                            <h3 className="text-lg font-black">2. 최근 재해사례와 현장 연관성</h3>
+                            {draft.accidentCases.slice(0, 1).map((item) => (
+                                <div key={item.id} className="mt-4 grid gap-3">
+                                    <input value={item.title} onChange={(event) => setDraft({ ...draft, accidentCases: [{ ...item, title: event.target.value }] })} aria-label="최근 재해사례 제목" placeholder="사례 제목" className="rounded-xl border px-3 py-3 font-bold" />
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <input type="date" value={item.occurredAt} onChange={(event) => setDraft({ ...draft, accidentCases: [{ ...item, occurredAt: event.target.value }] })} aria-label="사고 발생일" className="rounded-xl border px-3 py-3 text-sm" />
+                                        <input value={item.source} onChange={(event) => setDraft({ ...draft, accidentCases: [{ ...item, source: event.target.value }] })} aria-label="최근 재해사례 출처" placeholder="출처" className="rounded-xl border px-3 py-3 text-sm" />
+                                    </div>
+                                    <textarea value={item.summary} onChange={(event) => setDraft({ ...draft, accidentCases: [{ ...item, summary: event.target.value }] })} rows={3} aria-label="최근 재해사례 요약" placeholder="사례 요약" className="rounded-xl border p-3 text-sm" />
+                                    <textarea value={item.siteRelevance} onChange={(event) => setDraft({ ...draft, accidentCases: [{ ...item, siteRelevance: event.target.value }] })} rows={2} aria-label="최근 재해사례 현장 연관성" placeholder="우리 현장과 밀접한 이유" className="rounded-xl border p-3 text-sm" />
+                                    <textarea value={item.lesson} onChange={(event) => setDraft({ ...draft, accidentCases: [{ ...item, lesson: event.target.value }] })} rows={2} aria-label="최근 재해사례 핵심 교훈" placeholder="반드시 실천할 교훈" className="rounded-xl border p-3 text-sm" />
+                                    {(!item.occurredAt || !item.source || item.source === '관리자 확인 필요') && <p className="text-xs font-black text-amber-700 dark:text-amber-300">발생일과 공식 출처를 확인하기 전에는 실제 사례로 확정 표시하지 않습니다.</p>}
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                            <h3 className="text-lg font-black">3. 다음 달 상등급 위험 공유</h3>
+                            <p className="mt-1 text-xs font-semibold text-slate-500">자동 추천 후 관리자가 등급과 담당자를 최종 확인합니다.</p>
+                            <div className="mt-4 space-y-3">
+                                {draft.risks.map((item) => (
+                                    <article key={item.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <b className="text-sm">{item.risk}</b>
+                                            <label className="flex items-center gap-2 text-xs font-black text-rose-700 dark:text-rose-300">
+                                                <input type="checkbox" checked={item.managerConfirmed} onChange={(event) => setDraft({ ...draft, risks: draft.risks.map((risk) => risk.id === item.id ? { ...risk, managerConfirmed: event.target.checked } : risk) })} />
+                                                상등급 확인
+                                            </label>
+                                        </div>
+                                        <input value={item.owner} onChange={(event) => setDraft({ ...draft, risks: draft.risks.map((risk) => risk.id === item.id ? { ...risk, owner: event.target.value } : risk) })} aria-label={`${item.risk} 위험 담당자`} placeholder="담당자" className="mt-2 w-full rounded-lg border px-3 py-2 text-xs" />
+                                        <p className="mt-2 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">{item.action}</p>
+                                    </article>
+                                ))}
+                            </div>
+                        </div>
+                    </section>
+
+                    <section className="grid gap-4 lg:grid-cols-2">
+                        <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                            <h3 className="text-lg font-black">4. 현장 중점관리 포인트</h3>
+                            <div className="mt-3 space-y-2">{draft.focusPoints.map((item, index) => <textarea key={index} value={item} onChange={(event) => setDraft({ ...draft, focusPoints: updateAt(draft.focusPoints, index, event.target.value) })} rows={2} aria-label={`현장 중점관리 포인트 ${index + 1}`} className="w-full rounded-xl border p-3 text-sm" />)}</div>
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+                            <h3 className="text-lg font-black">5. 공지사항</h3>
+                            <div className="mt-3 space-y-2">{draft.notices.map((item, index) => <textarea key={index} value={item} onChange={(event) => setDraft({ ...draft, notices: updateAt(draft.notices, index, event.target.value) })} rows={2} aria-label={`공지사항 ${index + 1}`} className="w-full rounded-xl border p-3 text-sm" />)}</div>
+                        </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-orange-200 bg-orange-50 p-5 dark:border-orange-500/30 dark:bg-orange-500/10">
+                        <h3 className="text-lg font-black text-orange-950 dark:text-orange-100">교육 마무리: 이해 확인과 행동 약속</h3>
+                        <textarea value={draft.closingCommitment} onChange={(event) => setDraft({ ...draft, closingCommitment: event.target.value })} rows={2} aria-label="교육 마무리 행동 약속" className="mt-3 w-full rounded-xl border p-3 text-sm font-bold" />
+                        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                            <button type="button" onClick={() => setActiveTab('editor')} className="min-h-12 rounded-xl bg-blue-700 px-5 py-3 text-sm font-black text-white">한 장 자료 편집</button>
+                            <button type="button" onClick={sendToTraining} className="min-h-12 rounded-xl bg-violet-700 px-5 py-3 text-sm font-black text-white">다국어 교육 원문으로 보내기</button>
+                        </div>
+                    </section>
+                </div>
+            )}
+
             {activeTab === 'editor' && (
                 <div className="space-y-4 no-print">
                     <section className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900 lg:grid-cols-2">
@@ -436,34 +551,67 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords }) => {
                                 <p className="mt-2 text-[20px] font-black leading-8">{draft.coreMessage}</p>
                             </section>
 
-                            <section className="mt-5 grid grid-cols-3 gap-3">
-                                {draft.risks.map((item, index) => (
-                                    <article key={item.id} className="rounded-2xl border border-slate-200 p-4">
-                                        <p className="text-[10px] font-black text-orange-600">주요 위험 {index + 1}</p>
-                                        <h2 className="mt-1 text-lg font-black">{item.risk}</h2>
-                                        <p className="mt-3 text-xs font-semibold leading-5 text-slate-600">{item.action}</p>
-                                    </article>
-                                ))}
+                            <section className="mt-4 grid grid-cols-2 gap-3">
+                                <article className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                                    <p className="text-[10px] font-black text-blue-700">1. 교육 전 5분 핵심 동영상</p>
+                                    <h2 className="mt-1 text-base font-black">총 {Math.floor(videoDuration / 60)}분 {videoDuration % 60}초 · {draft.videoScenes.length}장면</h2>
+                                    <p className="mt-2 text-xs font-semibold leading-5 text-slate-700">{draft.videoScenes.map((scene) => scene.title).join(' → ')}</p>
+                                </article>
+                                <article className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                    <p className="text-[10px] font-black text-amber-700">2. 최근 재해사례와 현장 연관성</p>
+                                    <h2 className="mt-1 text-base font-black">{draft.accidentCases[0]?.title}</h2>
+                                    <p className="mt-2 text-xs font-semibold leading-5 text-slate-700">{draft.accidentCases[0]?.siteRelevance}</p>
+                                    <p className="mt-1 text-[10px] font-bold text-amber-800">출처: {draft.accidentCases[0]?.source} · {draft.accidentCases[0]?.occurredAt || '발생일 확인 필요'}</p>
+                                </article>
                             </section>
 
-                            <section className="mt-5 grid grid-cols-[1.15fr_0.85fr] gap-4">
+                            <section className="mt-4">
+                                <h2 className="text-sm font-black text-rose-700">3. 다음 달 위험성평가 상등급 공유</h2>
+                                <div className="mt-2 grid grid-cols-3 gap-3">
+                                    {draft.risks.map((item) => (
+                                        <article key={item.id} className="rounded-xl border border-rose-200 p-3">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <h3 className="text-sm font-black">{item.risk}</h3>
+                                                <span className={`rounded px-2 py-1 text-[9px] font-black ${item.managerConfirmed ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-600'}`}>{item.managerConfirmed ? '상등급 확인' : '확인 필요'}</span>
+                                            </div>
+                                            <p className="mt-2 text-[10px] font-semibold leading-4 text-slate-600">{item.action}</p>
+                                            <p className="mt-2 text-[9px] font-bold text-slate-500">담당: {item.owner}</p>
+                                        </article>
+                                    ))}
+                                </div>
+                            </section>
+
+                            <section className="mt-4 grid grid-cols-2 gap-4">
                                 <div>
-                                    <h2 className="text-lg font-black">작업 전 확인</h2>
-                                    <ol className="mt-3 space-y-2">
-                                        {draft.checklist.map((item, index) => (
-                                            <li key={index} className="flex gap-3 rounded-xl bg-slate-100 px-3 py-2.5 text-xs font-bold leading-5">
-                                                <b className="text-blue-700">{index + 1}</b><span>{item}</span>
+                                    <h2 className="text-sm font-black text-emerald-700">4. 현장 중점관리 포인트</h2>
+                                    <ol className="mt-2 space-y-1.5">
+                                        {draft.focusPoints.slice(0, 3).map((item, index) => (
+                                            <li key={index} className="flex gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-[10px] font-bold leading-4">
+                                                <b className="text-emerald-700">{index + 1}</b><span>{item}</span>
                                             </li>
                                         ))}
                                     </ol>
                                 </div>
-                                <div className="rounded-2xl border-2 border-dashed border-orange-300 bg-orange-50 p-4">
-                                    <h2 className="text-base font-black text-orange-900">이해 확인 질문</h2>
-                                    <ul className="mt-3 space-y-3">
-                                        {draft.confirmationQuestions.map((question, index) => (
-                                            <li key={index} className="text-xs font-bold leading-5 text-orange-900">Q{index + 1}. {question}</li>
+                                <div>
+                                    <h2 className="text-sm font-black text-violet-700">5. 공지사항</h2>
+                                    <ul className="mt-2 space-y-1.5">
+                                        {draft.notices.map((notice, index) => (
+                                            <li key={index} className="rounded-lg bg-violet-50 px-3 py-2 text-[10px] font-bold leading-4">{notice}</li>
                                         ))}
                                     </ul>
+                                </div>
+                            </section>
+
+                            <section className="mt-4 rounded-xl border-2 border-dashed border-orange-300 bg-orange-50 p-3">
+                                <div className="grid grid-cols-[1fr_1.2fr] gap-3">
+                                    <div>
+                                        <h2 className="text-xs font-black text-orange-900">이해 확인</h2>
+                                        {draft.confirmationQuestions.slice(0, 2).map((question, index) => <p key={index} className="mt-1 text-[10px] font-bold leading-4 text-orange-900">Q{index + 1}. {question}</p>)}
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xs font-black text-orange-900">행동 약속</h2>
+                                        <p className="mt-1 text-[10px] font-bold leading-4 text-orange-900">{draft.closingCommitment}</p>
+                                    </div>
                                 </div>
                             </section>
 

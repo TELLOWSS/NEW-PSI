@@ -4,10 +4,20 @@ import type { AppSettings } from '../types';
 import { BRAND_STATUS_LABELS } from '../utils/brandLabels';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { fetchWithTimeout, postAdminJson } from '../utils/adminApiClient';
+import { TBM_MONTHLY_PACKAGE_STORAGE_KEY } from '../utils/tbmEducationStudio';
 
 type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
 const LINK_HISTORY_STORAGE_KEY = 'psi_training_link_history';
 const ACTIVE_QR_STATE_STORAGE_KEY = 'psi_training_active_qr_state';
+
+const loadMonthlyPackageText = (): string => {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(TBM_MONTHLY_PACKAGE_STORAGE_KEY) || 'null') as { sourceText?: unknown } | null;
+        return typeof parsed?.sourceText === 'string' ? parsed.sourceText : '';
+    } catch {
+        return '';
+    }
+};
 
 const UI_TEXT: Record<UiLocale, {
     title: string;
@@ -1217,6 +1227,28 @@ const AdminTraining: React.FC = () => {
                         <p className="text-[12px] font-black text-amber-800">안되는 언어 대응</p>
                                                 <p className="mt-1 text-[11px] font-bold text-amber-700">몽골어 등 일부 언어는 생성 대상에 포함되어 있어도 외부 음성 생성 상태에 따라 추가 확인 안내가 필요할 수 있습니다. 이 경우 해당 언어는 텍스트 안내로 자동 대체하고, 필요 시 가장 가까운 공용 언어(예: 한국어/영어/러시아어) 또는 현장 통역 지원을 함께 운영하세요.</p>
                     </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-500/30 dark:bg-blue-500/10">
+                    <div>
+                        <p className="text-xs font-black text-blue-900 dark:text-blue-100">다음 달 위험성평가 5단계 원문</p>
+                        <p className="mt-1 text-[11px] font-bold text-blue-700 dark:text-blue-300">TBM 교육자료 스튜디오에서 확정한 영상·사례·상등급·중점관리·공지 내용을 한 번에 불러옵니다.</p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const packageText = loadMonthlyPackageText();
+                            if (!packageText) {
+                                setMessage('TBM 교육자료 스튜디오에서 먼저 5단계 교육 원문을 보내 주세요.');
+                                return;
+                            }
+                            setSourceTextKo(packageText);
+                            setMessage('5단계 월간 교육 원문을 불러왔습니다. 내용을 확인한 뒤 세션을 생성해 주세요.');
+                        }}
+                        className="min-h-10 rounded-lg bg-blue-700 px-4 py-2 text-xs font-black text-white hover:bg-blue-800"
+                    >
+                        스튜디오 원문 불러오기
+                    </button>
                 </div>
 
                 <textarea
