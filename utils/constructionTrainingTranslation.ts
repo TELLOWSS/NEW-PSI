@@ -1,3 +1,24 @@
+export const TRAINING_LANGUAGE_FLAGS = {
+    'ko-KR': '🇰🇷',
+    'en-US': '🇺🇸',
+    'vi-VN': '🇻🇳',
+    'cmn-CN': '🇨🇳',
+    'th-TH': '🇹🇭',
+    'id-ID': '🇮🇩',
+    'uz-UZ': '🇺🇿',
+    'mn-MN': '🇲🇳',
+    'km-KH': '🇰🇭',
+    'ru-RU': '🇷🇺',
+    'kk-KZ': '🇰🇿',
+    'ne-NP': '🇳🇵',
+    'my-MM': '🇲🇲',
+    'fil-PH': '🇵🇭',
+    'hi-IN': '🇮🇳',
+    'bn-BD': '🇧🇩',
+    'ur-PK': '🇵🇰',
+    'si-LK': '🇱🇰',
+} as const;
+
 export const TRAINING_LANGUAGE_LABELS = {
     'ko-KR': '한국어',
     'en-US': '영어',

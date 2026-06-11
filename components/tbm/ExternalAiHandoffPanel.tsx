@@ -8,6 +8,7 @@ import {
 } from '../../utils/externalAiHandoff';
 import {
     TRAINING_LANGUAGE_LABELS,
+    TRAINING_LANGUAGE_FLAGS,
     type TrainingLanguageCode,
 } from '../../utils/constructionTrainingTranslation';
 import type { TbmEducationDraft, TbmEvidenceSource } from '../../utils/tbmEducationStudio';
@@ -123,7 +124,7 @@ export function ExternalAiHandoffPanel({
                                     checked={languageCodes.includes(code)}
                                     onChange={() => toggleLanguage(code)}
                                 />
-                                <span>{TRAINING_LANGUAGE_LABELS[code]}</span>
+                                <span>{TRAINING_LANGUAGE_FLAGS[code]} {TRAINING_LANGUAGE_LABELS[code]}</span>
                             </label>
                         ))}
                     </div>
