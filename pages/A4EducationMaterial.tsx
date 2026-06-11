@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ExternalAiHandoffPanel } from '../components/tbm/ExternalAiHandoffPanel';
+import { CountryFlag } from '../components/shared/CountryFlag';
+import { TRAINING_LANGUAGE_LABELS } from '../utils/constructionTrainingTranslation';
 import type { WorkerRecord } from '../types';
 import { ensureHtml2Canvas, ensureJsPdfConstructor } from '../utils/externalScripts';
 import { buildPsiExportFileName } from '../utils/exportFileNaming';
@@ -93,6 +95,8 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             workType: '전체 공종',
         }),
     );
+    const [previewLanguage, setPreviewLanguage] = useState<string>('ko-KR');
+    const [viewMode, setViewMode] = useState<'split' | 'single'>('split');
     const sheetRef = useRef<HTMLElement>(null);
 
     const workTypes = useMemo(
@@ -233,8 +237,12 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         try {
             const canvas = await captureSheet();
             const link = document.createElement('a');
+            const langSuffix = previewLanguage !== 'ko-KR' ? previewLanguage.split('-').pop()?.toLowerCase() || '' : '';
+            const exportTokens = ['TBM교육자료', educationMonth, workType];
+            if (langSuffix) exportTokens.push(langSuffix);
+            
             link.download = buildPsiExportFileName({
-                tokens: ['TBM교육자료', educationMonth, workType],
+                tokens: exportTokens,
                 extension: 'png',
             });
             link.href = canvas.toDataURL('image/png', 1);
@@ -252,8 +260,12 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         try {
             const [canvas, JsPDF] = await Promise.all([captureSheet(), ensureJsPdfConstructor()]);
             if (!JsPDF) throw new Error('PDF 생성 도구를 불러오지 못했습니다.');
+            const langSuffix = previewLanguage !== 'ko-KR' ? previewLanguage.split('-').pop()?.toLowerCase() || '' : '';
+            const exportTokens = ['TBM교육자료', educationMonth, workType];
+            if (langSuffix) exportTokens.push(langSuffix);
+
             saveCanvasAsA4Pdf(canvas, JsPDF, buildPsiExportFileName({
-                tokens: ['TBM교육자료', educationMonth, workType],
+                tokens: exportTokens,
                 extension: 'pdf',
             }));
             setNotice('A4 비율과 화면 품질을 유지한 PDF를 저장했습니다.');
@@ -278,9 +290,14 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             const slide = pptx.addSlide();
             slide.background = { color: 'FFFFFF' };
             slide.addImage({ data: canvas.toDataURL('image/png', 1), x: 0, y: 0, w: 8.27, h: 11.69 });
+            
+            const langSuffix = previewLanguage !== 'ko-KR' ? previewLanguage.split('-').pop()?.toLowerCase() || '' : '';
+            const exportTokens = ['TBM교육자료', educationMonth, workType];
+            if (langSuffix) exportTokens.push(langSuffix);
+
             await pptx.writeFile({
                 fileName: buildPsiExportFileName({
-                    tokens: ['TBM교육자료', educationMonth, workType],
+                    tokens: exportTokens,
                     extension: 'pptx',
                 }),
             });
@@ -585,101 +602,323 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
             {(activeTab === 'preview' || activeTab === 'editor') && (
                 <section className={activeTab === 'editor' ? 'hidden' : ''}>
+                    {/* 언어 선택 탭 */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-100 dark:bg-slate-800 p-4 rounded-2xl mb-4 no-print">
+                        <div className="flex flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setPreviewLanguage('ko-KR')}
+                                className={`px-4 py-2 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 ${
+                                    previewLanguage === 'ko-KR'
+                                        ? 'bg-blue-700 border-blue-700 text-white shadow-sm'
+                                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200'
+                                }`}
+                            >
+                                <CountryFlag code="ko-KR" />
+                                한국어 원문
+                            </button>
+                            {Object.entries(translatedTexts).map(([code, text]) => {
+                                if (code === '__quality__' || !text) return null;
+                                return (
+                                    <button
+                                        key={code}
+                                        type="button"
+                                        onClick={() => setPreviewLanguage(code)}
+                                        className={`px-4 py-2 text-xs font-black rounded-xl border transition-all flex items-center gap-1.5 ${
+                                            previewLanguage === code
+                                                ? 'bg-blue-700 border-blue-700 text-white shadow-sm'
+                                                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200'
+                                        }`}
+                                    >
+                                        <CountryFlag code={code} />
+                                        {TRAINING_LANGUAGE_LABELS[code as keyof typeof TRAINING_LANGUAGE_LABELS] || code}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        
+                        {/* 분할 대조 뷰 / 단독 뷰 토글 (다국어가 선택된 경우만 노출) */}
+                        {previewLanguage !== 'ko-KR' && (
+                            <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <button
+                                    type="button"
+                                    onClick={() => setViewMode('split')}
+                                    className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all ${
+                                        viewMode === 'split'
+                                            ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                                            : 'text-slate-500 hover:text-slate-800'
+                                    }`}
+                                >
+                                    좌우 대조
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setViewMode('single')}
+                                    className={`px-3 py-1.5 text-xs font-black rounded-lg transition-all ${
+                                        viewMode === 'single'
+                                            ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                                            : 'text-slate-500 hover:text-slate-800'
+                                    }`}
+                                >
+                                    번역본 단독
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
                     <article ref={sheetRef} data-report-template-root="true" className="mx-auto w-[210mm] max-w-full bg-white text-slate-900 shadow-2xl">
                         <div data-report-page="true" className="flex h-[297mm] w-[210mm] max-w-full flex-col overflow-hidden bg-white p-[12mm]">
-                            <header className="border-b-[5px] border-orange-500 pb-5">
-                                <div className="flex items-start justify-between gap-4">
-                                    <div>
-                                        <p className="text-sm font-black text-blue-700">PSI 다음 달 위험성평가 전파교육</p>
-                                        <h1 className="mt-2 text-[28px] font-black leading-tight">{draft.title}</h1>
-                                    </div>
-                                    <div className="rounded-xl bg-blue-950 px-4 py-3 text-center text-white">
-                                        <p className="text-[10px] font-bold text-blue-200">교육 대상</p>
-                                        <p className="mt-1 text-sm font-black">{draft.workType}</p>
-                                    </div>
-                                </div>
-                                <p className="mt-3 text-sm font-semibold text-slate-600">{draft.opening}</p>
-                            </header>
-
-                            <section className="mt-5 rounded-2xl bg-blue-950 p-5 text-white">
-                                <p className="text-xs font-black text-blue-200">오늘 반드시 전달할 한 문장</p>
-                                <p className="mt-2 text-[20px] font-black leading-8">{draft.coreMessage}</p>
-                            </section>
-
-                            <section className="mt-4 grid grid-cols-2 gap-3">
-                                <article className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                                    <p className="text-[10px] font-black text-blue-700">1. 교육 전 5분 핵심 동영상</p>
-                                    <h2 className="mt-1 text-base font-black">총 {Math.floor(videoDuration / 60)}분 {videoDuration % 60}초 · {draft.videoScenes.length}장면</h2>
-                                    <p className="mt-2 text-xs font-semibold leading-5 text-slate-700">{draft.videoScenes.map((scene) => scene.title).join(' → ')}</p>
-                                </article>
-                                <article className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                                    <p className="text-[10px] font-black text-amber-700">2. 최근 재해사례와 현장 연관성</p>
-                                    <h2 className="mt-1 text-base font-black">{draft.accidentCases[0]?.title}</h2>
-                                    <p className="mt-2 text-xs font-semibold leading-5 text-slate-700">{draft.accidentCases[0]?.siteRelevance}</p>
-                                    <p className="mt-1 text-[10px] font-bold text-amber-800">출처: {draft.accidentCases[0]?.source} · {draft.accidentCases[0]?.occurredAt || '발생일 확인 필요'}</p>
-                                </article>
-                            </section>
-
-                            <section className="mt-4">
-                                <h2 className="text-sm font-black text-rose-700">3. 다음 달 위험성평가 상등급 공유</h2>
-                                <div className="mt-2 grid grid-cols-3 gap-3">
-                                    {draft.risks.map((item) => (
-                                        <article key={item.id} className="rounded-xl border border-rose-200 p-3">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <h3 className="text-sm font-black">{item.risk}</h3>
-                                                <span className={`rounded px-2 py-1 text-[9px] font-black ${item.managerConfirmed ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-600'}`}>{item.managerConfirmed ? '상등급 확인' : '확인 필요'}</span>
+                            {previewLanguage === 'ko-KR' ? (
+                                <>
+                                    <header className="border-b-[5px] border-orange-500 pb-5">
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div>
+                                                <p className="text-sm font-black text-blue-700">PSI 다음 달 위험성평가 전파교육</p>
+                                                <h1 className="mt-2 text-[28px] font-black leading-tight">{draft.title}</h1>
                                             </div>
-                                            <p className="mt-2 text-[10px] font-semibold leading-4 text-slate-600">{item.action}</p>
-                                            <p className="mt-2 text-[9px] font-bold text-slate-500">담당: {item.owner}</p>
+                                            <div className="rounded-xl bg-blue-950 px-4 py-3 text-center text-white">
+                                                <p className="text-[10px] font-bold text-blue-200">교육 대상</p>
+                                                <p className="mt-1 text-sm font-black">{draft.workType}</p>
+                                            </div>
+                                        </div>
+                                        <p className="mt-3 text-sm font-semibold text-slate-600">{draft.opening}</p>
+                                    </header>
+
+                                    <section className="mt-5 rounded-2xl bg-blue-950 p-5 text-white">
+                                        <p className="text-xs font-black text-blue-200">오늘 반드시 전달할 한 문장</p>
+                                        <p className="mt-2 text-[20px] font-black leading-8">{draft.coreMessage}</p>
+                                    </section>
+
+                                    <section className="mt-4 grid grid-cols-2 gap-3">
+                                        <article className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                                            <p className="text-[10px] font-black text-blue-700">1. 교육 전 5분 핵심 동영상</p>
+                                            <h2 className="mt-1 text-base font-black">총 {Math.floor(videoDuration / 60)}분 {videoDuration % 60}초 · {draft.videoScenes.length}장면</h2>
+                                            <p className="mt-2 text-xs font-semibold leading-5 text-slate-700">{draft.videoScenes.map((scene) => scene.title).join(' → ')}</p>
                                         </article>
-                                    ))}
-                                </div>
-                            </section>
+                                        <article className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                                            <p className="text-[10px] font-black text-amber-700">2. 최근 재해사례와 현장 연관성</p>
+                                            <h2 className="mt-1 text-base font-black">{draft.accidentCases[0]?.title}</h2>
+                                            <p className="mt-2 text-xs font-semibold leading-5 text-slate-700">{draft.accidentCases[0]?.siteRelevance}</p>
+                                            <p className="mt-1 text-[10px] font-bold text-amber-800">출처: {draft.accidentCases[0]?.source} · {draft.accidentCases[0]?.occurredAt || '발생일 확인 필요'}</p>
+                                        </article>
+                                    </section>
 
-                            <section className="mt-4 grid grid-cols-2 gap-4">
-                                <div>
-                                    <h2 className="text-sm font-black text-emerald-700">4. 현장 중점관리 포인트</h2>
-                                    <ol className="mt-2 space-y-1.5">
-                                        {draft.focusPoints.slice(0, 3).map((item, index) => (
-                                            <li key={index} className="flex gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-[10px] font-bold leading-4">
-                                                <b className="text-emerald-700">{index + 1}</b><span>{item}</span>
-                                            </li>
-                                        ))}
-                                    </ol>
-                                </div>
-                                <div>
-                                    <h2 className="text-sm font-black text-violet-700">5. 공지사항</h2>
-                                    <ul className="mt-2 space-y-1.5">
-                                        {draft.notices.map((notice, index) => (
-                                            <li key={index} className="rounded-lg bg-violet-50 px-3 py-2 text-[10px] font-bold leading-4">{notice}</li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            </section>
+                                    <section className="mt-4">
+                                        <h2 className="text-sm font-black text-rose-700">3. 다음 달 위험성평가 상등급 공유</h2>
+                                        <div className="mt-2 grid grid-cols-3 gap-3">
+                                            {draft.risks.map((item) => (
+                                                <article key={item.id} className="rounded-xl border border-rose-200 p-3">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <h3 className="text-sm font-black">{item.risk}</h3>
+                                                        <span className={`rounded px-2 py-1 text-[9px] font-black ${item.managerConfirmed ? 'bg-rose-600 text-white' : 'bg-slate-200 text-slate-600'}`}>{item.managerConfirmed ? '상등급 확인' : '확인 필요'}</span>
+                                                    </div>
+                                                    <p className="mt-2 text-[10px] font-semibold leading-4 text-slate-600">{item.action}</p>
+                                                    <p className="mt-2 text-[9px] font-bold text-slate-500">담당: {item.owner}</p>
+                                                </article>
+                                            ))}
+                                        </div>
+                                    </section>
 
-                            <section className="mt-4 rounded-xl border-2 border-dashed border-orange-300 bg-orange-50 p-3">
-                                <div className="grid grid-cols-[1fr_1.2fr] gap-3">
-                                    <div>
-                                        <h2 className="text-xs font-black text-orange-900">이해 확인</h2>
-                                        {draft.confirmationQuestions.slice(0, 2).map((question, index) => <p key={index} className="mt-1 text-[10px] font-bold leading-4 text-orange-900">Q{index + 1}. {question}</p>)}
+                                    <section className="mt-4 grid grid-cols-2 gap-4">
+                                        <div>
+                                            <h2 className="text-sm font-black text-emerald-700">4. 현장 중점관리 포인트</h2>
+                                            <ol className="mt-2 space-y-1.5">
+                                                {draft.focusPoints.slice(0, 3).map((item, index) => (
+                                                    <li key={index} className="flex gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-[10px] font-bold leading-4">
+                                                        <b className="text-emerald-700">{index + 1}</b><span>{item}</span>
+                                                    </li>
+                                                ))}
+                                            </ol>
+                                        </div>
+                                        <div>
+                                            <h2 className="text-sm font-black text-violet-700">5. 공지사항</h2>
+                                            <ul className="mt-2 space-y-1.5">
+                                                {draft.notices.map((notice, index) => (
+                                                    <li key={index} className="rounded-lg bg-violet-50 px-3 py-2 text-[10px] font-bold leading-4">{notice}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    </section>
+
+                                    <section className="mt-4 rounded-xl border-2 border-dashed border-orange-300 bg-orange-50 p-3">
+                                        <div className="grid grid-cols-[1fr_1.2fr] gap-3">
+                                            <div>
+                                                <h2 className="text-xs font-black text-orange-900">이해 확인</h2>
+                                                {draft.confirmationQuestions.slice(0, 2).map((question, index) => <p key={index} className="mt-1 text-[10px] font-bold leading-4 text-orange-900">Q{index + 1}. {question}</p>)}
+                                            </div>
+                                            <div>
+                                                <h2 className="text-xs font-black text-orange-900">행동 약속</h2>
+                                                <p className="mt-1 text-[10px] font-bold leading-4 text-orange-900">{draft.closingCommitment}</p>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    <footer className="mt-auto flex items-end justify-between border-t border-slate-200 pt-4 text-[10px] font-semibold text-slate-500">
+                                        <div>
+                                            <p>근거 자료 {draft.sourceCount}개 · 생성 {new Date(draft.generatedAt).toLocaleDateString('ko-KR')}</p>
+                                            <p className="mt-1">관리자가 현장 조건과 실제 작업계획을 최종 확인한 후 교육에 사용합니다.</p>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-center">
+                                            <span className="w-20 border-b border-slate-400 pb-1">교육자</span>
+                                            <span className="w-20 border-b border-slate-400 pb-1">확인자</span>
+                                        </div>
+                                    </footer>
+                                </>
+                            ) : viewMode === 'split' ? (
+                                <div className="grid grid-cols-2 gap-6 h-full overflow-hidden text-slate-900">
+                                    {/* 좌측: 한국어 요약 */}
+                                    <div className="flex flex-col h-full border-r border-slate-200 pr-5">
+                                        <header className="border-b-[3px] border-orange-500 pb-3">
+                                            <p className="text-[10px] font-black text-blue-700">TBM 위험성평가 전파교육 (요약)</p>
+                                            <h2 className="text-base font-black leading-tight mt-1 truncate">{draft.title}</h2>
+                                            <p className="text-[10px] font-bold text-slate-500 mt-1">대상: {draft.workType} · 월: {educationMonth}</p>
+                                        </header>
+                                        
+                                        <div className="space-y-2.5 mt-3 flex-1 overflow-hidden">
+                                            <article className="rounded-xl border border-blue-100 bg-blue-50/50 p-2.5">
+                                                <p className="text-[9px] font-black text-blue-700">1. 교육 전 5분 핵심 동영상</p>
+                                                <p className="text-[10px] font-bold mt-1">총 {Math.floor(videoDuration / 60)}분 {videoDuration % 60}초</p>
+                                                <p className="text-[9px] text-slate-600 mt-1 leading-normal truncate">{draft.videoScenes.map((scene) => scene.title).join(' → ')}</p>
+                                            </article>
+
+                                            <article className="rounded-xl border border-amber-100 bg-amber-50/50 p-2.5">
+                                                <p className="text-[9px] font-black text-amber-700">2. 최근 재해사례와 현장 연관성</p>
+                                                <p className="text-[10px] font-bold mt-1 truncate">{draft.accidentCases[0]?.title}</p>
+                                                <p className="text-[9px] text-slate-600 mt-1 leading-normal line-clamp-3">{draft.accidentCases[0]?.siteRelevance}</p>
+                                            </article>
+
+                                            <article className="rounded-xl border border-rose-100 bg-rose-50/50 p-2.5">
+                                                <p className="text-[9px] font-black text-rose-700">3. 다음 달 위험성평가 상등급 공유</p>
+                                                <div className="space-y-1.5 mt-1.5">
+                                                    {draft.risks.map((item) => (
+                                                        <div key={item.id} className="text-[9px] leading-normal">
+                                                            <b className="text-slate-800">• {item.risk}</b>: {item.action} <span className="text-slate-400">({item.owner})</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </article>
+
+                                            <article className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-2.5">
+                                                <p className="text-[9px] font-black text-emerald-700">4. 현장 중점관리 및 공지사항</p>
+                                                <div className="space-y-1 mt-1 text-[9px] leading-normal text-slate-700">
+                                                    {draft.focusPoints.slice(0, 2).map((item, idx) => (
+                                                        <div key={idx} className="truncate">- {item}</div>
+                                                    ))}
+                                                    {draft.notices.slice(0, 1).map((item, idx) => (
+                                                        <div key={idx} className="truncate">- {item}</div>
+                                                    ))}
+                                                </div>
+                                            </article>
+
+                                            <article className="rounded-xl border border-orange-200 bg-orange-50/50 p-2.5">
+                                                <p className="text-[9px] font-black text-orange-800">5. 이해 확인과 행동 약속</p>
+                                                <p className="text-[9px] font-bold text-slate-800 mt-1 leading-relaxed line-clamp-2">{draft.closingCommitment}</p>
+                                            </article>
+                                        </div>
+                                        
+                                        <footer className="border-t border-slate-200 pt-3 text-[9px] font-bold text-slate-500 mt-auto">
+                                            <div className="flex justify-between items-center">
+                                                <span>교육자: (인) / 확인자: (인)</span>
+                                                <span>생성: {new Date(draft.generatedAt).toLocaleDateString('ko-KR')}</span>
+                                            </div>
+                                        </footer>
                                     </div>
-                                    <div>
-                                        <h2 className="text-xs font-black text-orange-900">행동 약속</h2>
-                                        <p className="mt-1 text-[10px] font-bold leading-4 text-orange-900">{draft.closingCommitment}</p>
+
+                                    {/* 우측: 다국어 번역 전문 */}
+                                    <div className="flex flex-col h-full pl-1 overflow-hidden">
+                                        <header className="border-b-[3px] border-blue-900 pb-3 flex items-center justify-between">
+                                            <div>
+                                                <p className="text-[10px] font-black text-indigo-700 flex items-center gap-1.5">
+                                                    <CountryFlag code={previewLanguage} />
+                                                    TBM Safety Guide ({TRAINING_LANGUAGE_LABELS[previewLanguage as keyof typeof TRAINING_LANGUAGE_LABELS] || previewLanguage})
+                                                </p>
+                                                <h2 className="text-base font-black leading-tight mt-1">TBM Translation</h2>
+                                            </div>
+                                        </header>
+                                        <div className="mt-3 flex-1 overflow-y-auto pr-1 leading-relaxed">
+                                            {translatedTexts[previewLanguage] ? (
+                                                translatedTexts[previewLanguage].split('\n').map((line, idx) => {
+                                                    const trimmed = line.trim();
+                                                    if (!trimmed) return null;
+                                                    const isHeader = trimmed.startsWith('[') && trimmed.endsWith(']');
+                                                    const isStep = /^[0-9]\./.test(trimmed);
+                                                    
+                                                    return (
+                                                        <p
+                                                            key={idx}
+                                                            className={`text-[10.5px] font-semibold leading-relaxed mb-2 text-slate-800 break-words ${
+                                                                isHeader
+                                                                    ? 'text-[11px] font-black text-slate-900 mt-3 border-l-4 border-blue-600 pl-2'
+                                                                    : isStep
+                                                                        ? 'font-bold text-slate-900 mt-2 pl-1'
+                                                                        : 'pl-3 text-slate-600'
+                                                            }`}
+                                                        >
+                                                            {trimmed}
+                                                        </p>
+                                                    );
+                                                })
+                                            ) : (
+                                                <p className="text-xs text-slate-400">번역본 데이터가 누락되었습니다.</p>
+                                            )}
+                                        </div>
+                                        <footer className="border-t border-slate-200 pt-3 text-[9px] font-semibold text-slate-400 mt-auto">
+                                            <p>This translation was generated by safety translation tools.</p>
+                                        </footer>
                                     </div>
                                 </div>
-                            </section>
-
-                            <footer className="mt-auto flex items-end justify-between border-t border-slate-200 pt-4 text-[10px] font-semibold text-slate-500">
-                                <div>
-                                    <p>근거 자료 {draft.sourceCount}개 · 생성 {new Date(draft.generatedAt).toLocaleDateString('ko-KR')}</p>
-                                    <p className="mt-1">관리자가 현장 조건과 실제 작업계획을 최종 확인한 후 교육에 사용합니다.</p>
+                            ) : (
+                                <div className="flex flex-col h-full text-slate-900">
+                                    <header className="border-b-[5px] border-blue-900 pb-5 flex items-start justify-between">
+                                        <div>
+                                            <p className="text-xs font-black text-indigo-700 flex items-center gap-2">
+                                                <CountryFlag code={previewLanguage} width={24} />
+                                                TBM Safety Translation Sheet ({TRAINING_LANGUAGE_LABELS[previewLanguage as keyof typeof TRAINING_LANGUAGE_LABELS] || previewLanguage})
+                                            </p>
+                                            <h1 className="mt-2 text-[26px] font-black leading-tight">{draft.title}</h1>
+                                        </div>
+                                        <div className="rounded-xl bg-blue-950 px-4 py-3 text-center text-white">
+                                            <p className="text-[10px] font-bold text-blue-200">LANGUAGE</p>
+                                            <p className="mt-1 text-sm font-black uppercase">{previewLanguage.split('-')[0]}</p>
+                                        </div>
+                                    </header>
+                                    
+                                    <div className="mt-6 flex-1 overflow-y-auto pr-2">
+                                        <div className="space-y-1 font-semibold text-[13px] sm:text-[14px]">
+                                            {translatedTexts[previewLanguage] ? (
+                                                translatedTexts[previewLanguage].split('\n').map((line, idx) => {
+                                                    const trimmed = line.trim();
+                                                    if (!trimmed) return null;
+                                                    const isHeader = trimmed.startsWith('[') && trimmed.endsWith(']');
+                                                    const isStep = /^[0-9]\./.test(trimmed);
+                                                    
+                                                    return (
+                                                        <p
+                                                            key={idx}
+                                                            className={`leading-relaxed mb-3 break-words ${
+                                                                isHeader
+                                                                    ? 'text-[15px] font-black text-slate-900 mt-4 border-l-4 border-blue-600 pl-3'
+                                                                    : isStep
+                                                                        ? 'font-bold text-slate-900 mt-3 pl-1'
+                                                                        : 'pl-4 text-slate-700'
+                                                            }`}
+                                                        >
+                                                            {trimmed}
+                                                        </p>
+                                                    );
+                                                })
+                                            ) : (
+                                                <p className="text-sm text-slate-400">번역본 데이터가 누락되었습니다.</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    <footer className="mt-auto border-t border-slate-200 pt-4 text-[10px] font-semibold text-slate-400 flex justify-between">
+                                        <p>This translation guide is provided to help non-Korean workers understand the TBM agenda.</p>
+                                        <p>Target: {draft.workType}</p>
+                                    </footer>
                                 </div>
-                                <div className="grid grid-cols-2 gap-2 text-center">
-                                    <span className="w-20 border-b border-slate-400 pb-1">교육자</span>
-                                    <span className="w-20 border-b border-slate-400 pb-1">확인자</span>
-                                </div>
-                            </footer>
+                            )}
                         </div>
                     </article>
 
