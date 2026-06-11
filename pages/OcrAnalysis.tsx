@@ -5192,9 +5192,21 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             onClick={handleRetryCapture}
                             className="w-full sm:w-auto px-6 py-4 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black text-base shadow-xl transition-all"
                         >
+                            🔄 다시 촬영하기
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {failedRecords.length > 0 && (
-                <div className="bg-white dark:bg-slate-800 border border-rose-100 dark:border-rose-900/40 rounded-3xl p-5 sm:p-6 shadow-lg">
+                <div className="bg-white dark:bg-slate-800 border border-rose-100 dark:border-rose-900/40 rounded-3xl shadow-lg no-print">
+                    <CollapsibleSection
+                        title="⚠️ 우선 조치 대상 (OCR 분석 실패 및 저품질 신호)"
+                        defaultOpen={false}
+                        summary={<span className="rounded-full bg-rose-50 px-2.5 py-0.5 text-[11px] font-black text-rose-700">{BRAND_STATUS_LABELS.attentionPending} {failedRecords.length}건</span>}
+                    >
+                        <div className="space-y-4 pt-2">
+                            
                     <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                         <div>
                             <p className="text-xs font-black text-rose-600 uppercase tracking-widest">{BRAND_STATUS_LABELS.attention} 레코드 해석 뷰</p>
@@ -5509,11 +5521,9 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     </div>
                         </CollapsibleSection>
                     </div>
-                </div>
-            )}
-                            🔄 다시 촬영하기
-                        </button>
-                    </div>
+                
+                        </div>
+                    </CollapsibleSection>
                 </div>
             )}
 
@@ -5692,7 +5702,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                 {/* P2: 월간 리스크 인텔리전스 자동화 패널 */}
                 {riskIntelligence.total30d > 0 && (
-                    <SectionPanelCard
+                    <CollapsibleSection
+                        title="📊 월간 리스크 인텔리전스 패턴 분석"
+                        defaultOpen={false}
+                        summary={<span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-black text-slate-700">30일 처리 {riskIntelligence.total30d}건</span>}
+                    >
+                        <div className="pt-2">
+                            <SectionPanelCard
                         className="rounded-2xl border border-slate-200 bg-white px-4 py-4"
                         eyebrow="월간 리스크 인텔리전스"
                         title={`최근 30일 처리 ${riskIntelligence.total30d}건 · 실패율 ${riskIntelligence.currentFailRate}%${riskIntelligence.trend === 'up' ? ' ▲ 악화' : riskIntelligence.trend === 'down' ? ' ▼ 개선' : ' ─ 안정'}`}
@@ -5750,9 +5766,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             </div>
                         )}
                     </SectionPanelCard>
+                        </div>
+                    </CollapsibleSection>
                 )}
                 {reasonQaPreviewRecords.length > 0 && (
-                    <SectionPanelCard
+                    <CollapsibleSection
+                        title="🔍 승인 및 검토 사유 품질 점검"
+                        defaultOpen={false}
+                        summary={<span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-black text-rose-700">미흡 {reasonQaSummary.missingDecision + reasonQaSummary.weakDecision + reasonQaSummary.weakCorrection}건</span>}
+                    >
+                        <div className="pt-2">
+                            <SectionPanelCard
                         variant="roseGradient"
                         eyebrow="운영 보완 필요"
                         title="승인/검토 사유가 미흡한 기록이 남아 있습니다."
@@ -5838,6 +5862,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             </SectionPanelCard>
                         )}
                     </SectionPanelCard>
+                        </div>
+                    </CollapsibleSection>
                 )}
 
                 {reasonQaPreviewRecords.length > 0 && (
