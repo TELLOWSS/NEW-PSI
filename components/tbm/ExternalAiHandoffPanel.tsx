@@ -39,8 +39,8 @@ export function ExternalAiHandoffPanel({
     const [privacyConfirmed, setPrivacyConfirmed] = useState(false);
     const [rawResult, setRawResult] = useState('');
     const prompt = useMemo(
-        () => buildExternalAiPrompt({ sources, month, workType, languageCodes }),
-        [languageCodes, month, sources, workType],
+        () => buildExternalAiPrompt({ sources, month, workType, languageCodes, draft }),
+        [languageCodes, month, sources, workType, draft],
     );
 
     const toggleLanguage = (code: TrainingLanguageCode) => {

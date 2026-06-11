@@ -1,6 +1,7 @@
 import { TRAINING_LANGUAGE_LABELS, type TrainingLanguageCode } from './constructionTrainingTranslation';
 import {
     normalizeTbmEducationDraft,
+    buildMonthlyEducationPackageText,
     type TbmEducationDraft,
     type TbmEvidenceSource,
 } from './tbmEducationStudio';
@@ -76,6 +77,7 @@ export const buildExternalAiPrompt = (options: {
     month: string;
     workType: string;
     languageCodes?: TrainingLanguageCode[];
+    draft?: TbmEducationDraft;
 }): string => {
     const { text: sourceText, truncated } = buildSourceBlock(options.sources);
     const languageCodes = (options.languageCodes || []).filter((code) => code !== 'ko-KR');
@@ -83,15 +85,33 @@ export const buildExternalAiPrompt = (options: {
         ? languageCodes.map((code) => `${TRAINING_LANGUAGE_LABELS[code]}(${code})`).join(', ')
         : '번역하지 않음';
 
-    return [
+    const currentDraftText = options.draft ? buildMonthlyEducationPackageText(options.draft) : '';
+
+    const lines = [
         '당신은 한국 건설현장의 위험성평가와 TBM 교육자료를 만드는 안전교육 편집자입니다.',
-        '아래 근거 자료만 분석하여 다음 달 교육용 5단계 한 장 초안을 작성하세요.',
+        options.draft
+            ? '아래 제공된 [현재 작성된 한국어 초안]을 그대로 요청된 다국어로 정확하게 번역하세요.'
+            : '아래 근거 자료만 분석하여 다음 달 교육용 5단계 한 장 초안을 작성하세요.',
         '',
         '[대상]',
         `- 교육 월: ${options.month || '관리자 확인 필요'}`,
         `- 공종: ${options.workType || '전체 공종'}`,
         `- 다국어 결과: ${languageRequest}`,
         '',
+    ];
+
+    if (options.draft) {
+        lines.push(
+            '[가장 중요한 번역 지침]',
+            '1. 제공된 [현재 작성된 한국어 초안]이 최우선 기준입니다. 각 다국어 번역본(translations)은 이 한국어 초안의 문장과 내용을 단어 하나, 수치 하나 왜곡하지 않고 그대로 번역해야 합니다.',
+            '2. 근거 자료를 참조하여 AI가 새로운 내용이나 재해사례를 마음대로 상상해서 번역본에 채워넣거나, 기존 초안 내용을 임의로 변경/생략하지 마십시오. 오직 아래 [현재 작성된 한국어 초안]의 문장 그대로만 지정된 언어별로 충실하게 1:1 번역해야 합니다.',
+            '3. 번역본의 구조 또한 한국어 초안의 1~5단계 구분(1., 2., 3., 4., 5.), 질문 번호(Q1., Q2. 등) 및 행동 약속(Confirmation & Pledge)까지 정확히 1:1 대응하여 각 섹션이 포함되도록 완성해야 합니다.',
+            '4. 반환하는 JSON의 `draft` 객체는 아래 [현재 작성된 한국어 초안]의 값(title, opening, coreMessage, videoScenes, accidentCases, risks, focusPoints, notices, confirmationQuestions, closingCommitment 등)을 한국어 그대로 모두 보존하여 반환해 주십시오.',
+            ''
+        );
+    }
+
+    lines.push(
         '[안전 규칙]',
         '1. 근거 자료에 없는 사고 일자, 기관, 수치, 담당자, 안전조치를 만들어내지 마세요.',
         '2. 확인할 수 없는 값은 "관리자 확인 필요"로 표시하세요.',
@@ -140,10 +160,23 @@ export const buildExternalAiPrompt = (options: {
                 '요청한 언어 코드': '한국어 초안 전체를 1~5단계로 유지한 완성 번역문',
             },
         }, null, 2),
-        '',
+        ''
+    );
+
+    if (options.draft) {
+        lines.push(
+            '[현재 작성된 한국어 초안]',
+            currentDraftText,
+            ''
+        );
+    }
+
+    lines.push(
         `[근거 자료${truncated ? ' - 길이 제한으로 일부 생략됨' : ''}]`,
-        sourceText || '등록된 근거 자료 없음. 일반론을 채우지 말고 모든 핵심 항목을 "관리자 확인 필요"로 표시하세요.',
-    ].join('\n');
+        sourceText || '등록된 근거 자료 없음. 일반론을 채우지 말고 모든 핵심 항목을 "관리자 확인 필요"로 표시하세요.'
+    );
+
+    return lines.join('\n');
 };
 
 const asStringArray = (value: unknown): string[] =>
