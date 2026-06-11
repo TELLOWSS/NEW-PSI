@@ -4589,77 +4589,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     <p className="mt-1 text-xs font-bold leading-5 text-amber-800">분석 화면과 파일 업로드는 사용할 수 있습니다. 실제 AI 분석 전 API 키, 현장 정보, 저장 연결 상태를 확인해 주세요.</p>
                 </div>
             )}
-            <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
-                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-indigo-700">10) 태깅 검증 진행</p>
-                <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <div className="rounded-xl border border-white bg-white px-3 py-2">
-                        <p className="text-[10px] font-black text-slate-500">검증 대상</p>
-                        <p className="mt-1 text-lg font-black text-slate-900">{existingRecords.length}건</p>
-                    </div>
-                    <div className="rounded-xl border border-white bg-white px-3 py-2">
-                        <p className="text-[10px] font-black text-slate-500">{BRAND_STATUS_LABELS.attentionPending}</p>
-                        <p className={`mt-1 text-lg font-black ${failedRecords.length > 0 ? 'text-rose-600' : 'text-slate-900'}`}>{failedRecords.length}건</p>
-                    </div>
-                    <div className="rounded-xl border border-white bg-white px-3 py-2">
-                        <p className="text-[10px] font-black text-slate-500">2차 재분석 가능</p>
-                        <p className="mt-1 text-lg font-black text-slate-900">{secondPassTargets.length}건</p>
-                    </div>
-                </div>
-                <p className="mt-2 text-[11px] font-bold text-indigo-700">저신뢰 {lowConfidenceCount}건 · 즉시 조치 카드에서 우선순위 상위 항목을 먼저 처리하세요.</p>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4">
-                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-rose-700">오류 TOP5 (검증 최우선)</p>
-                    <div className="mt-2 space-y-2">
-                        {qualityLoading ? (
-                            <div className="rounded-xl border border-white bg-white px-3 py-2">
-                                <p className="text-[10px] font-bold text-slate-500">데이터 로드 중...</p>
-                            </div>
-                        ) : qualityData?.errorTop && qualityData.errorTop.length > 0 ? (
-                            qualityData.errorTop.slice(0, 5).map((error, idx) => (
-                                <div key={idx} className="rounded-xl border border-white bg-white px-3 py-2">
-                                    <p className="text-[10px] font-black text-rose-600">{idx + 1}순위</p>
-                                    <p className="mt-0.5 text-xs font-bold text-slate-700">{error.message}</p>
-                                    {error.count > 0 && <p className="mt-1 text-[9px] text-slate-600">{error.field} (발생 {error.count}건)</p>}
-                                </div>
-                            ))
-                        ) : (
-                            <div className="rounded-xl border border-white bg-white px-3 py-2">
-                                <p className="text-[10px] font-bold text-emerald-700">✓ 오류 없음 - 품질 검증 PASS</p>
-                            </div>
-                        )}
-                    </div>
-                    <p className="mt-2 text-[10px] font-bold text-rose-700">→ npm run check:judgment-tagging:full 실행 시 자동 갱신됩니다.</p>
-                </div>
-
-                <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-4">
-                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">조치 TOP5 (실행순서)</p>
-                    <div className="mt-2 space-y-2">
-                        {qualityLoading ? (
-                            <div className="rounded-xl border border-white bg-white px-3 py-2">
-                                <p className="text-[10px] font-bold text-slate-500">데이터 로드 중...</p>
-                            </div>
-                        ) : qualityData?.actionItems && qualityData.actionItems.length > 0 ? (
-                            qualityData.actionItems.slice(0, 5).map((action, idx) => (
-                                <div key={idx} className="rounded-xl border border-white bg-white px-3 py-2">
-                                    <p className="text-[10px] font-black text-violet-600">P{action.priority}</p>
-                                    <p className="mt-0.5 text-xs font-bold text-slate-700">{action.title}</p>
-                                    <p className="mt-1 text-[9px] text-slate-600">{action.action}</p>
-                                </div>
-                            ))
-                        ) : (
-                            <div className="rounded-xl border border-white bg-white px-3 py-2">
-                                <p className="text-[10px] font-bold text-slate-700">필수값 누락 우선 보정 후 재검증</p>
-                            </div>
-                        )}
-                    </div>
-                    <p className="mt-2 text-[10px] font-bold text-violet-700">
-                        → npm run check:judgment-tagging:full 실행 시 자동 갱신됩니다.
-                    </p>
-                </div>
-            </div>
-
             {/* Control Panel */}
             <div className="bg-slate-900 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl text-white relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl -mr-48 -mt-48"></div>
@@ -5128,6 +5057,55 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <p className="text-xs sm:text-sm text-emerald-300 font-bold mb-3">{importValidationSummary}</p>
                             <pre className="text-[11px] sm:text-xs leading-relaxed text-slate-200 bg-black/30 rounded-xl p-3 overflow-x-auto max-h-56 whitespace-pre-wrap">{importValidationDetails}</pre>
                         </div>
+                    </div>
+                )}
+            </div>
+
+            <div id="new-ocr-capture-section" className="bg-white p-5 sm:p-10 rounded-3xl shadow-xl border border-slate-100 overflow-hidden relative">
+                <h3 className="text-xl sm:text-2xl font-black text-slate-900 mb-2">신규 기록 분석</h3>
+                <section className="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <p className="text-sm font-black text-indigo-950">OCR 분석 엔진</p>
+                            <p className="mt-1 text-xs font-bold leading-5 text-indigo-700">현재 선택: {getOcrEngineLabel(ocrEngine)} · 신규 분석과 서버 재분석에 함께 적용됩니다.</p>
+                        </div>
+                        <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-black text-indigo-700 shadow-sm">상황별 전환</span>
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                        {([
+                            ['auto', '자동 추천', '일반 문서는 빠르게, 복잡한 경우 정밀 모델로 자동 전환'],
+                            ['gemini-fast', 'Gemini 빠른 분석', '선명한 사진과 대량 처리에 적합'],
+                            ['gemini-precise', 'Gemini 정밀 분석', '흐린 글씨, 복잡한 표, 외국어 혼합 문서에 적합'],
+                            ['openai-precise', 'OpenAI 정밀 분석', 'ChatGPT Plus와 별도인 OpenAI API 연결 필요'],
+                        ] as Array<[OcrEngineMode, string, string]>).map(([value, label, description]) => {
+                            const unavailable = value === 'openai-precise';
+                            const selected = ocrEngine === value;
+                            return (
+                                <button
+                                    key={value}
+                                    type="button"
+                                    onClick={() => handleOcrEngineChange(value)}
+                                    aria-pressed={selected}
+                                    className={`min-h-24 rounded-xl border p-3 text-left transition-colors ${
+                                        selected
+                                            ? 'border-indigo-600 bg-indigo-600 text-white'
+                                            : unavailable
+                                                ? 'border-slate-200 bg-slate-100 text-slate-500'
+                                                : 'border-indigo-100 bg-white text-slate-800 hover:border-indigo-400'
+                                    }`}
+                                >
+                                    <span className="block text-sm font-black">{label}</span>
+                                    <span className={`mt-1 block text-[11px] font-bold leading-5 ${selected ? 'text-indigo-100' : 'text-slate-500'}`}>{description}</span>
+                                    {unavailable && <span className="mt-2 inline-block rounded bg-slate-200 px-2 py-1 text-[10px] font-black text-slate-600">현재 연결 안 됨</span>}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </section>
+                <FileUpload onFilesChange={setFiles} onAnalyze={() => {}} isAnalyzing={isAnalyzing} fileCount={files.length} />
+                {files.length > 0 && !isAnalyzing && (
+                    <div className="mt-8 flex justify-center">
+                        <button onClick={handleAnalyze} className="w-full max-w-md py-4 sm:py-5 bg-indigo-600 text-white text-xl sm:text-2xl font-black rounded-2xl shadow-2xl hover:bg-indigo-700 transition-all animate-pulse-gold">신규 분석 시작</button>
                     </div>
                 )}
             </div>
@@ -7034,53 +7012,85 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 </div>
             </div>
 
-            <div id="new-ocr-capture-section" className="bg-white p-5 sm:p-10 rounded-3xl shadow-xl border border-slate-100 overflow-hidden relative">
-                <h3 className="text-xl sm:text-2xl font-black text-slate-900 mb-2">신규 기록 분석</h3>
-                <section className="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                            <p className="text-sm font-black text-indigo-950">OCR 분석 엔진</p>
-                            <p className="mt-1 text-xs font-bold leading-5 text-indigo-700">현재 선택: {getOcrEngineLabel(ocrEngine)} · 신규 분석과 서버 재분석에 함께 적용됩니다.</p>
+            <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl p-5 sm:p-6">
+                <CollapsibleSection
+                    title="개발자 및 QA 기술 검증 패널 (태깅/오류/조치 지표)"
+                    defaultOpen={false}
+                    summary={<span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 text-[11px] font-black text-slate-700 dark:text-slate-200">개발자 모드 전용</span>}
+                >
+                    <div className="space-y-6">
+                        <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-4">
+                            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-indigo-700">10) 태깅 검증 진행</p>
+                            <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <div className="rounded-xl border border-white bg-white px-3 py-2">
+                                    <p className="text-[10px] font-black text-slate-500">검증 대상</p>
+                                    <p className="mt-1 text-lg font-black text-slate-900">{existingRecords.length}건</p>
+                                </div>
+                                <div className="rounded-xl border border-white bg-white px-3 py-2">
+                                    <p className="text-[10px] font-black text-slate-500">{BRAND_STATUS_LABELS.attentionPending}</p>
+                                    <p className={`mt-1 text-lg font-black ${failedRecords.length > 0 ? 'text-rose-600' : 'text-slate-900'}`}>{failedRecords.length}건</p>
+                                </div>
+                                <div className="rounded-xl border border-white bg-white px-3 py-2">
+                                    <p className="text-[10px] font-black text-slate-500">2차 재분석 가능</p>
+                                    <p className="mt-1 text-lg font-black text-slate-900">{secondPassTargets.length}건</p>
+                                </div>
+                            </div>
+                            <p className="mt-2 text-[11px] font-bold text-indigo-700">저신뢰 {lowConfidenceCount}건 · 즉시 조치 카드에서 우선순위 상위 항목을 먼저 처리하세요.</p>
                         </div>
-                        <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-black text-indigo-700 shadow-sm">상황별 전환</span>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4">
+                                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-rose-700">오류 TOP5 (검증 최우선)</p>
+                                <div className="mt-2 space-y-2">
+                                    {qualityLoading ? (
+                                        <div className="rounded-xl border border-white bg-white px-3 py-2">
+                                            <p className="text-[10px] font-bold text-slate-500">데이터 로드 중...</p>
+                                        </div>
+                                    ) : qualityData?.errorTop && qualityData.errorTop.length > 0 ? (
+                                        qualityData.errorTop.slice(0, 5).map((error, idx) => (
+                                            <div key={idx} className="rounded-xl border border-white bg-white px-3 py-2">
+                                                <p className="text-[10px] font-black text-rose-600">{idx + 1}순위</p>
+                                                <p className="mt-0.5 text-xs font-bold text-slate-700">{error.message}</p>
+                                                {error.count > 0 && <p className="mt-1 text-[9px] text-slate-600">{error.field} (발생 {error.count}건)</p>}
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="rounded-xl border border-white bg-white px-3 py-2">
+                                            <p className="text-[10px] font-bold text-emerald-700">✓ 오류 없음 - 품질 검증 PASS</p>
+                                        </div>
+                                    )}
+                                </div>
+                                <p className="mt-2 text-[10px] font-bold text-rose-700">→ npm run check:judgment-tagging:full 실행 시 자동 갱신됩니다.</p>
+                            </div>
+
+                            <div className="rounded-2xl border border-violet-200 bg-violet-50 px-4 py-4">
+                                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">조치 TOP5 (실행순서)</p>
+                                <div className="mt-2 space-y-2">
+                                    {qualityLoading ? (
+                                        <div className="rounded-xl border border-white bg-white px-3 py-2">
+                                            <p className="text-[10px] font-bold text-slate-500">데이터 로드 중...</p>
+                                        </div>
+                                    ) : qualityData?.actionItems && qualityData.actionItems.length > 0 ? (
+                                        qualityData.actionItems.slice(0, 5).map((action, idx) => (
+                                            <div key={idx} className="rounded-xl border border-white bg-white px-3 py-2">
+                                                <p className="text-[10px] font-black text-violet-600">P{action.priority}</p>
+                                                <p className="mt-0.5 text-xs font-bold text-slate-700">{action.title}</p>
+                                                <p className="mt-1 text-[9px] text-slate-600">{action.action}</p>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="rounded-xl border border-white bg-white px-3 py-2">
+                                            <p className="text-[10px] font-bold text-slate-700">필수값 누락 우선 보정 후 재검증</p>
+                                        </div>
+                                    )}
+                                </div>
+                                <p className="mt-2 text-[10px] font-bold text-violet-700">
+                                    → npm run check:judgment-tagging:full 실행 시 자동 갱신됩니다.
+                                </p>
+                            </div>
+                        </div>
                     </div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                        {([
-                            ['auto', '자동 추천', '일반 문서는 빠르게, 복잡한 경우 정밀 모델로 자동 전환'],
-                            ['gemini-fast', 'Gemini 빠른 분석', '선명한 사진과 대량 처리에 적합'],
-                            ['gemini-precise', 'Gemini 정밀 분석', '흐린 글씨, 복잡한 표, 외국어 혼합 문서에 적합'],
-                            ['openai-precise', 'OpenAI 정밀 분석', 'ChatGPT Plus와 별도인 OpenAI API 연결 필요'],
-                        ] as Array<[OcrEngineMode, string, string]>).map(([value, label, description]) => {
-                            const unavailable = value === 'openai-precise';
-                            const selected = ocrEngine === value;
-                            return (
-                                <button
-                                    key={value}
-                                    type="button"
-                                    onClick={() => handleOcrEngineChange(value)}
-                                    aria-pressed={selected}
-                                    className={`min-h-24 rounded-xl border p-3 text-left transition-colors ${
-                                        selected
-                                            ? 'border-indigo-600 bg-indigo-600 text-white'
-                                            : unavailable
-                                                ? 'border-slate-200 bg-slate-100 text-slate-500'
-                                                : 'border-indigo-100 bg-white text-slate-800 hover:border-indigo-400'
-                                    }`}
-                                >
-                                    <span className="block text-sm font-black">{label}</span>
-                                    <span className={`mt-1 block text-[11px] font-bold leading-5 ${selected ? 'text-indigo-100' : 'text-slate-500'}`}>{description}</span>
-                                    {unavailable && <span className="mt-2 inline-block rounded bg-slate-200 px-2 py-1 text-[10px] font-black text-slate-600">현재 연결 안 됨</span>}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </section>
-                <FileUpload onFilesChange={setFiles} onAnalyze={() => {}} isAnalyzing={isAnalyzing} fileCount={files.length} />
-                {files.length > 0 && !isAnalyzing && (
-                    <div className="mt-8 flex justify-center">
-                        <button onClick={handleAnalyze} className="w-full max-w-md py-4 sm:py-5 bg-indigo-600 text-white text-xl sm:text-2xl font-black rounded-2xl shadow-2xl hover:bg-indigo-700 transition-all animate-pulse-gold">신규 분석 시작</button>
-                    </div>
-                )}
+                </CollapsibleSection>
             </div>
 
             {mobileBackGuideMessage && (
