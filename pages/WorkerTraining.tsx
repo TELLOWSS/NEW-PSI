@@ -795,7 +795,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
 
         const merged = Array.from(new Set([...fromAudio, ...fromText]));
         if (merged.length > 0) return merged;
-        return ['ko-KR', 'vi-VN', 'en-US', 'cmn-CN'];
+        return ['ko-KR', 'vi-VN', 'en-US', 'cmn-CN', 'km-KH'];
     }, [normalizedAudioMap, normalizedTextMap]);
 
     const selectedAudioUrl = useMemo(() => {
