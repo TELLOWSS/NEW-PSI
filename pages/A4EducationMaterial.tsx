@@ -71,6 +71,218 @@ const loadStudioState = (): StoredStudioState | null => {
 const updateAt = (items: string[], index: number, value: string): string[] =>
     items.map((item, itemIndex) => itemIndex === index ? value : item);
 
+interface TbmLocalization {
+    headerTitle: string;
+    targetLabel: string;
+    videoTitle: string;
+    accidentTitle: string;
+    risksTitle: string;
+    focusTitle: string;
+    noticeTitle: string;
+    pledgeBoxTitle: string;
+    qLabel: string;
+    pledgeLabel: string;
+    signInstructor: string;
+    signConfirmer: string;
+    dateLabel: string;
+    footerNotice: string;
+    noVideoScenes: string;
+    noAccidents: string;
+    noRisks: string;
+    noFocus: string;
+    noNotices: string;
+    qPlaceholder: string;
+    pledgePlaceholder: string;
+}
+
+const NATIVE_LANGUAGE_NAMES: Record<string, string> = {
+    'ko-KR': '한국어',
+    'en-US': 'English',
+    'vi-VN': 'Tiếng Việt',
+    'cmn-CN': '中文 (简体)',
+    'th-TH': 'ไทย',
+    'id-ID': 'Bahasa Indonesia',
+    'uz-UZ': 'O\'zbekcha',
+    'mn-MN': 'Монгол хэл',
+    'km-KH': 'ភាសាខ្មែរ',
+    'ru-RU': 'Русский',
+    'kk-KZ': 'Қазақ тілі',
+    'ne-NP': 'नेपाली',
+    'my-MM': 'မြန်မာဘာသာ',
+    'fil-PH': 'Wikang Filipino',
+    'hi-IN': 'हिन्दी',
+    'bn-BD': 'বাংলা',
+    'ur-PK': 'اردو',
+    'si-LK': 'සිංහල',
+};
+
+const TBM_LOCALIZATIONS: Record<string, TbmLocalization> = {
+    'ko-KR': {
+        headerTitle: 'PSI 위험성평가 전파교육',
+        targetLabel: '교육 대상',
+        videoTitle: '1. 교육 전 5분 핵심 동영상',
+        accidentTitle: '2. 최근 재해사례와 현장 연관성',
+        risksTitle: '3. 다음 달 위험성평가 상등급 공유',
+        focusTitle: '4. 현장 중점관리 포인트',
+        noticeTitle: '5. 공지사항',
+        pledgeBoxTitle: '이해 확인과 행동 약속',
+        qLabel: '이해 확인',
+        pledgeLabel: '행동 약속',
+        signInstructor: '교육자 (인)',
+        signConfirmer: '확인자 (인)',
+        dateLabel: '생성일',
+        footerNotice: '이 안전교육 자료는 근로자의 안전을 위해 생성되었습니다.',
+        noVideoScenes: '동영상 장면 정보가 없습니다.',
+        noAccidents: '재해사례 정보가 없습니다.',
+        noRisks: '위험성평가 상등급 항목이 없습니다.',
+        noFocus: '중점관리 사항이 없습니다.',
+        noNotices: '공지사항이 없습니다.',
+        qPlaceholder: '작업 시작 전 이해 확인 질문에 답해주시기 바랍니다.',
+        pledgePlaceholder: '안전 수칙을 준수하고 작업하겠습니다.'
+    },
+    'en-US': {
+        headerTitle: 'PSI TBM Safety Guide',
+        targetLabel: 'TARGET',
+        videoTitle: '1. Video Guidance',
+        accidentTitle: '2. Recent Accident Case',
+        risksTitle: '3. High-Priority Risks',
+        focusTitle: '4. Key Focus Points',
+        noticeTitle: '5. Notices & Scheduling',
+        pledgeBoxTitle: 'Comprehension & Safety Pledge',
+        qLabel: 'Comprehension Checks',
+        pledgeLabel: 'Safety Pledge',
+        signInstructor: 'Instructor (Sign)',
+        signConfirmer: 'Confirmed (Sign)',
+        dateLabel: 'Date',
+        footerNotice: '{loc.footerNotice}',
+        noVideoScenes: 'No scene details available.',
+        noAccidents: 'No accident case available.',
+        noRisks: 'No risk details configured.',
+        noFocus: 'No focus points.',
+        noNotices: 'No active notices.',
+        qPlaceholder: 'Please answer understanding questions before starting work.',
+        pledgePlaceholder: 'I pledge to follow the safety guidelines and work safely.'
+    },
+    'vi-VN': {
+        headerTitle: 'Hướng dẫn An toàn PSI TBM',
+        targetLabel: 'ĐỐI TƯỢNG',
+        videoTitle: '1. Hướng dẫn Video',
+        accidentTitle: '2. Trường hợp Tai nạn Gần đây',
+        risksTitle: '3. Rủi ro Ưu tiên Cao',
+        focusTitle: '4. Điểm Tập trung Chính',
+        noticeTitle: '5. Thông báo & Lịch trình',
+        pledgeBoxTitle: 'Hiểu biết & Cam kết An toàn',
+        qLabel: 'Kiểm tra Hiểu biết',
+        pledgeLabel: 'Cam kết An toàn',
+        signInstructor: 'Người hướng dẫn (Ký)',
+        signConfirmer: 'Xác nhận (Ký)',
+        dateLabel: 'Ngày',
+        footerNotice: 'Tài liệu hướng dẫn an toàn này được dịch tự động cho công nhân nước ngoài.',
+        noVideoScenes: 'Không có chi tiết cảnh quay.',
+        noAccidents: 'Không có thông tin tai nạn.',
+        noRisks: 'Không có cấu hình chi tiết rủi ro.',
+        noFocus: 'Không có điểm tập trung.',
+        noNotices: 'Không có thông báo.',
+        qPlaceholder: 'Vui lòng trả lời câu hỏi hiểu biết trước khi bắt đầu công việc.',
+        pledgePlaceholder: 'Tôi cam kết tuân thủ các hướng dẫn an toàn và làm việc an toàn.'
+    },
+    'cmn-CN': {
+        headerTitle: 'PSI TBM 安全指南',
+        targetLabel: '培训对象',
+        videoTitle: '1. 视频指导',
+        accidentTitle: '2. 最近事故案例',
+        risksTitle: '3. 高优先级风险项目',
+        focusTitle: '4. 关键关注点',
+        noticeTitle: '5. 通知与日程',
+        pledgeBoxTitle: '理解确认与安全承诺',
+        qLabel: '理解检查',
+        pledgeLabel: '安全承诺',
+        signInstructor: '培训员 (签字)',
+        signConfirmer: '确认人 (签字)',
+        dateLabel: '日期',
+        footerNotice: '本安全指南已自动翻译，供非韩籍员工阅读。',
+        noVideoScenes: '无视频场景详情。',
+        noAccidents: '无事故案例。',
+        noRisks: '无风险详情配置。',
+        noFocus: '无重点管理事项。',
+        noNotices: '无通知事项。',
+        qPlaceholder: '请在开始工作前回答理解性问题。',
+        pledgePlaceholder: '我承诺遵守安全守则，安全作业。'
+    },
+    'th-TH': {
+        headerTitle: 'คู่มือความปลอดภัย PSI TBM',
+        targetLabel: 'กลุ่มเป้าหมาย',
+        videoTitle: '1. คำแนะนำผ่านวิดีโอ',
+        accidentTitle: '2. กรณีอุบัติเหตุล่าสุด',
+        risksTitle: '3. ความเสี่ยงที่มีลำดับความสำคัญสูง',
+        focusTitle: '4. จุดเน้นย้ำสำคัญ',
+        noticeTitle: '5. ประกาศและกำหนดการ',
+        pledgeBoxTitle: 'การตรวจสอบความเข้าใจและคำปฏิญาณ',
+        qLabel: 'การตรวจสอบความเข้าใจ',
+        pledgeLabel: 'คำปฏิญาณความปลอดภัย',
+        signInstructor: 'ผู้สอน (ลงชื่อ)',
+        signConfirmer: 'ผู้ยืนยัน (ลงชื่อ)',
+        dateLabel: 'วันที่',
+        footerNotice: 'คู่มือความปลอดภัยนี้ได้รับการแปลโดยอัตมัติสำหรับแรงงานต่างชาติ',
+        noVideoScenes: 'ไม่มีรายละเอียดฉากวิดีโอ',
+        noAccidents: 'ไม่มีข้อมูลอุบัติเหตุ',
+        noRisks: 'ไม่มีการกำหนดรายละเอียดความเสี่ยง',
+        noFocus: 'ไม่มีจุดเน้นย้ำ',
+        noNotices: 'ไม่มีประกาศ',
+        qPlaceholder: 'โปรดตอบคำถามความเข้าใจก่อนเริ่มงาน',
+        pledgePlaceholder: 'ข้าพเจ้าขอปฏิญาณว่าจะปฏิบัติตามหลักความปลอดภัยและทำงานอย่างปลอดภัย'
+    },
+    'km-KH': {
+        headerTitle: 'PSI TBM សៀវភៅណែនាំសុវត្ថិភាព',
+        targetLabel: 'គោលដៅ',
+        videoTitle: '1. ការណែនាំវីដេអូ',
+        accidentTitle: '2. ករណីគ្រោះថ្នាក់ថ្មីៗ',
+        risksTitle: '3. ហានិភ័យអាទិភាពខ្ពស់',
+        focusTitle: '4. ចំណុចសំខាន់ៗដែលត្រូវផ្តោត',
+        noticeTitle: '5. ការជូនដំណឹង និងកាលវិភាគ',
+        pledgeBoxTitle: 'ការយល់ដឹង និងការប្តេជ្ញាចិត្តសុវត្ថិភាព',
+        qLabel: 'ការពិនិត្យការយល់ដឹង',
+        pledgeLabel: 'ការប្តេជ្ញាចិត្តសុវត្ថិភាព',
+        signInstructor: 'អ្នកណែនាំ (ហត្ថលេខា)',
+        signConfirmer: 'អ្នកបញ្ជាក់ (ហត្ថលេខា)',
+        dateLabel: 'កាលបរិច្ឆេទ',
+        footerNotice: 'សន្លឹកណែនាំសុវត្ថិភាពនេះត្រូវបានបកប្រែដោយស្វ័យប្រវត្តិសម្រាប់កម្មករបរទេស។',
+        noVideoScenes: 'មិនមានព័ត៌មានលម្អិតអំពីឈុតឆាកទេ។',
+        noAccidents: 'មិនមានករណីគ្រោះថ្នាក់ត្រូវបានកត់ត្រាទេ។',
+        noRisks: 'មិនមានហានិភ័យត្រូវបានកំណត់រចនាសម្ព័ន្ធទេ។',
+        noFocus: 'មិនមានចំណុចផ្តោតសំខាន់ទេ។',
+        noNotices: 'មិនមានការជូនដំណឹងសកម្មទេ។',
+        qPlaceholder: 'សូមឆ្លើយសំណួរស្វែងយល់មុនពេលចាប់ផ្តើមការងារ។',
+        pledgePlaceholder: 'ខ្ញុំប្តេជ្ញាអនុវត្តតាមគោលការណ៍ណែនាំសុវត្ថិភាព និងធ្វើការដោយសុវត្ថិភាព។'
+    },
+    'uz-UZ': {
+        headerTitle: 'PSI TBM Xavfsizlik Qo\'llanmasi',
+        targetLabel: 'KIM UCHUN',
+        videoTitle: '1. Video Yo\'riqnoma',
+        accidentTitle: '2. Yaqindagi Baxtsiz Hodisa',
+        risksTitle: '3. Yuqori Xavfli Omillar',
+        focusTitle: '4. Asosiy E\'tibor Nuqtalari',
+        noticeTitle: '5. E\'lonlar va Jadval',
+        pledgeBoxTitle: 'Tushunishni Tekshirish va Va\'da',
+        qLabel: 'Tushunishni Tekshirish',
+        pledgeLabel: 'Xavfsizlik Va\'dasi',
+        signInstructor: 'Yo\'riqchi (Imzo)',
+        signConfirmer: 'Tasdiqlovchi (Imzo)',
+        dateLabel: 'Sana',
+        footerNotice: 'Ushbu xavfsizlik yo\'riqnomasi xorijiy ishchilar uchun avtomatik ravishda tarjima qilindi.',
+        noVideoScenes: 'Video lavhalar mavjud emas.',
+        noAccidents: 'Baxtsiz hodisalar haqida ma\'lumot yo\'q.',
+        noRisks: 'Xavfli omillar aniqlanmagan.',
+        noFocus: 'E\'tibor nuqtalari yo\'q.',
+        noNotices: 'E\'lonlar yo\'q.',
+        qPlaceholder: 'Ishni boshlashdan oldin tushunish savollariga javob bering.',
+        pledgePlaceholder: 'Men xavfsizlik qoidalariga rioya qilishga va xavfsiz ishlashga va\'da beraman.'
+    }
+};
+
+const getTbmLocalization = (langCode: string): TbmLocalization => {
+    return TBM_LOCALIZATIONS[langCode] || TBM_LOCALIZATIONS['en-US'];
+};
 
 interface ParsedTbmTranslation {
     title: string;
@@ -927,13 +1139,16 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                             const noticeLines = parsed.noticesText.split('\n').map(l => l.trim().replace(/^-\s*/, '')).filter(Boolean);
                                             const pledgeLines = parsed.pledgeText.split('\n').map(l => l.trim().replace(/^-\s*/, '')).filter(Boolean);
 
+                                            const loc = getTbmLocalization(previewLanguage);
+                                            const nativeName = NATIVE_LANGUAGE_NAMES[previewLanguage] || previewLanguage;
+
                                             return (
                                                 <>
                                                     <header className="border-b-[3px] border-blue-900 pb-3 flex items-center justify-between">
                                                         <div>
                                                             <p className="text-[10px] font-black text-indigo-700 flex items-center gap-1.5">
                                                                 <CountryFlag code={previewLanguage} />
-                                                                TBM Safety Guide ({TRAINING_LANGUAGE_LABELS[previewLanguage as keyof typeof TRAINING_LANGUAGE_LABELS] || previewLanguage})
+                                                                {loc.headerTitle} ({nativeName})
                                                             </p>
                                                             <h2 className="text-xs font-black leading-tight mt-1 text-slate-500 truncate">{parsed.title}</h2>
                                                         </div>
@@ -941,7 +1156,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                     
                                                     <div className="space-y-2.5 mt-3 flex-1 overflow-hidden">
                                                         <article className="rounded-xl border border-blue-100 bg-blue-50/50 p-2.5">
-                                                            <p className="text-[9px] font-black text-blue-700">1. Video Guidance</p>
+                                                            <p className="text-[9px] font-black text-blue-700">{loc.videoTitle}</p>
                                                             <div className="space-y-0.5 mt-1">
                                                                 {videoLines.map((line, idx) => (
                                                                     <p key={idx} className="text-[9.5px] leading-relaxed text-slate-700 truncate">• {line}</p>
@@ -950,7 +1165,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                         </article>
 
                                                         <article className="rounded-xl border border-amber-100 bg-amber-50/50 p-2.5">
-                                                            <p className="text-[9px] font-black text-amber-700">2. Recent Accident Case</p>
+                                                            <p className="text-[9px] font-black text-amber-700">{loc.accidentTitle}</p>
                                                             <div className="space-y-0.5 mt-1">
                                                                 {accidentLines.map((line, idx) => (
                                                                     <p key={idx} className="text-[9.5px] leading-relaxed text-slate-700 line-clamp-3">• {line}</p>
@@ -959,7 +1174,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                         </article>
 
                                                         <article className="rounded-xl border border-rose-100 bg-rose-50/50 p-2.5">
-                                                            <p className="text-[9px] font-black text-rose-700">3. High-Priority Risks</p>
+                                                            <p className="text-[9px] font-black text-rose-700">{loc.risksTitle}</p>
                                                             <div className="space-y-1 mt-1">
                                                                 {riskLines.map((line, idx) => (
                                                                     <div key={idx} className="text-[9.5px] leading-normal text-slate-700 line-clamp-2">
@@ -970,7 +1185,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                         </article>
 
                                                         <article className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-2.5">
-                                                            <p className="text-[9px] font-black text-emerald-700">4. Focus Points & Notices</p>
+                                                            <p className="text-[9px] font-black text-emerald-700">{loc.focusTitle} & {loc.noticeTitle}</p>
                                                             <div className="space-y-1 mt-1 text-[9.5px] leading-normal text-slate-700">
                                                                 {focusLines.slice(0, 2).map((item, idx) => (
                                                                     <div key={idx} className="truncate">- {item}</div>
@@ -982,7 +1197,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                         </article>
 
                                                         <article className="rounded-xl border border-orange-200 bg-orange-50/50 p-2.5">
-                                                            <p className="text-[9px] font-black text-orange-800">5. Pledge & Checks</p>
+                                                            <p className="text-[9px] font-black text-orange-800">{loc.pledgeBoxTitle}</p>
                                                             <div className="space-y-0.5 mt-1 text-[9.5px] leading-relaxed text-slate-800 font-semibold">
                                                                 {pledgeLines.slice(-2).map((line, idx) => (
                                                                     <p key={idx} className="line-clamp-2">{line}</p>
@@ -993,8 +1208,8 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                     
                                                     <footer className="border-t border-slate-200 pt-3 text-[9px] font-bold text-slate-500 mt-auto">
                                                         <div className="flex justify-between items-center">
-                                                            <span>Instructor: (Sign)</span>
-                                                            <span>Date: {new Date(draft.generatedAt).toLocaleDateString('ko-KR')}</span>
+                                                            <span>{loc.signInstructor}</span>
+                                                            <span>{loc.dateLabel}: {new Date(draft.generatedAt).toLocaleDateString('ko-KR')}</span>
                                                         </div>
                                                     </footer>
                                                 </>
@@ -1016,7 +1231,8 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                         const qLines = pledgeLines.filter(line => line.startsWith('Q') || /^[qQ][0-9]/.test(line) || line.toLowerCase().includes('question') || line.includes('?'));
                                         const commitmentLines = pledgeLines.filter(line => !qLines.includes(line));
 
-                                        const langLabel = TRAINING_LANGUAGE_LABELS[previewLanguage as keyof typeof TRAINING_LANGUAGE_LABELS] || previewLanguage;
+                                        const loc = getTbmLocalization(previewLanguage);
+                                        const nativeName = NATIVE_LANGUAGE_NAMES[previewLanguage] || previewLanguage;
 
                                         return (
                                             <>
@@ -1025,12 +1241,12 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                         <div>
                                                             <p className="text-xs font-black text-blue-700 flex items-center gap-1.5">
                                                                 <CountryFlag code={previewLanguage} width={20} />
-                                                                PSI TBM Safety Guide ({langLabel})
+                                                                {loc.headerTitle} ({nativeName})
                                                             </p>
                                                             <h1 className="mt-1.5 text-[22px] font-black leading-tight text-slate-900">{parsed.title}</h1>
                                                         </div>
                                                         <div className="rounded-xl bg-blue-950 px-3 py-2 text-center text-white shrink-0">
-                                                            <p className="text-[9px] font-bold text-blue-200">TARGET</p>
+                                                            <p className="text-[9px] font-bold text-blue-200">{loc.targetLabel}</p>
                                                             <p className="mt-0.5 text-xs font-black">{draft.workType}</p>
                                                         </div>
                                                     </div>
@@ -1039,29 +1255,29 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
                                                 <section className="mt-3.5 grid grid-cols-2 gap-3">
                                                     <article className="rounded-2xl border border-blue-200 bg-blue-50/50 p-3.5">
-                                                        <p className="text-[9px] font-black text-blue-700">1. Video Guidance</p>
-                                                        <h2 className="mt-0.5 text-sm font-black text-slate-800">TBM Video Scenes</h2>
+                                                        <p className="text-[9px] font-black text-blue-700">{loc.videoTitle}</p>
+                                                        <h2 className="mt-0.5 text-sm font-black text-slate-800">{loc.videoTitle}</h2>
                                                         <div className="mt-2 space-y-1">
                                                             {videoLines.map((line, idx) => (
                                                                 <p key={idx} className="text-[10.5px] font-semibold leading-relaxed text-slate-700">• {line}</p>
                                                             ))}
-                                                            {videoLines.length === 0 && <p className="text-[10.5px] text-slate-400">No scene details available.</p>}
+                                                            {videoLines.length === 0 && <p className="text-[10.5px] text-slate-400">{loc.noVideoScenes}</p>}
                                                         </div>
                                                     </article>
                                                     <article className="rounded-2xl border border-amber-200 bg-amber-50/50 p-3.5">
-                                                        <p className="text-[9px] font-black text-amber-700">2. Recent Accident Case</p>
-                                                        <h2 className="mt-0.5 text-sm font-black text-slate-800">Accident Summary & Relevance</h2>
+                                                        <p className="text-[9px] font-black text-amber-700">{loc.accidentTitle}</p>
+                                                        <h2 className="mt-0.5 text-sm font-black text-slate-800">{loc.accidentTitle}</h2>
                                                         <div className="mt-2 space-y-1">
                                                             {accidentLines.map((line, idx) => (
                                                                 <p key={idx} className="text-[10.5px] font-semibold leading-relaxed text-slate-700">• {line}</p>
                                                             ))}
-                                                            {accidentLines.length === 0 && <p className="text-[10.5px] text-slate-400">No accident case available.</p>}
+                                                            {accidentLines.length === 0 && <p className="text-[10.5px] text-slate-400">{loc.noAccidents}</p>}
                                                         </div>
                                                     </article>
                                                 </section>
 
                                                 <section className="mt-3.5">
-                                                    <h2 className="text-xs font-black text-rose-700">3. High-Priority Risk Items</h2>
+                                                    <h2 className="text-xs font-black text-rose-700">{loc.risksTitle}</h2>
                                                     <div className="mt-1.5 grid grid-cols-3 gap-3">
                                                         {riskLines.map((line, idx) => (
                                                             <article key={idx} className="rounded-xl border border-rose-200 p-2.5 bg-rose-50/30 flex flex-col justify-between">
@@ -1069,7 +1285,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                             </article>
                                                         ))}
                                                         {riskLines.length === 0 && (
-                                                            <p className="text-[10.5px] text-slate-400 col-span-3 text-center py-2">No risk details configured.</p>
+                                                            <p className="text-[10.5px] text-slate-400 col-span-3 text-center py-2">{loc.noRisks}</p>
                                                         )}
                                                     </div>
                                                 </section>
@@ -1123,12 +1339,12 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
                                                 <footer className="mt-auto flex items-end justify-between border-t border-slate-200 pt-3 text-[9px] font-semibold text-slate-400">
                                                     <div>
-                                                        <p>TBM Safety Translation Guide ({langLabel})</p>
-                                                        <p className="mt-0.5">This safety instruction sheet has been translated automatically for non-Korean workers.</p>
+                                                        <p>{loc.headerTitle} ({nativeName})</p>
+                                                        <p className="mt-0.5">{loc.footerNotice}</p>
                                                     </div>
                                                     <div className="grid grid-cols-2 gap-2 text-center text-slate-500 shrink-0">
-                                                        <span className="w-16 border-b border-slate-300 pb-0.5">Instructor</span>
-                                                        <span className="w-16 border-b border-slate-300 pb-0.5">Confirmed</span>
+                                                        <span className="w-16 border-b border-slate-300 pb-0.5">{loc.signInstructor}</span>
+                                                        <span className="w-16 border-b border-slate-300 pb-0.5">{loc.signConfirmer}</span>
                                                     </div>
                                                 </footer>
                                             </>
