@@ -62,6 +62,41 @@ import { getHarnessVersionDescriptors } from '../../utils/harnessVersionCatalog'
 import { deriveCompetencyProfile, enforceSafetyLevel, getApprovalBlockers } from '../../utils/evidenceUtils';
 import { getSafetyLevelThresholds, getSafetyLevelFromScore } from '../../utils/safetyLevelUtils';
 
+const QUESTION_LABELS: Record<string, { title: string; subtitle: string }> = {
+    '1': { title: '1. 가장 큰 위험요소', subtitle: '오늘 작업에서 가장 위험하다고 생각되는 위험 요소를 파악합니다.' },
+    'Q1': { title: '1. 가장 큰 위험요소', subtitle: '오늘 작업에서 가장 위험하다고 생각되는 위험 요소를 파악합니다.' },
+    '2': { title: '2. 위험 발생 상황 및 원인', subtitle: '사고가 발생할 수 있는 구체적인 원인과 예측 상황을 기재합니다.' },
+    'Q2': { title: '2. 위험 발생 상황 및 원인', subtitle: '사고가 발생할 수 있는 구체적인 원인과 예측 상황을 기재합니다.' },
+    '3': { title: '3. 위험도 등급 평가', subtitle: '근로자가 작업 전 주관적으로 진단한 자가 위험성 수준(상/중/하)입니다.' },
+    'Q3': { title: '3. 위험도 등급 평가', subtitle: '근로자가 작업 전 주관적으로 진단한 자가 위험성 수준(상/중/하)입니다.' },
+    '4': { title: '4. 현장 안전대책', subtitle: '해당 위험 요소를 실질적으로 통제하기 위한 예방 조치와 대책을 수립합니다.' },
+    'Q4': { title: '4. 현장 안전대책', subtitle: '해당 위험 요소를 실질적으로 통제하기 위한 예방 조치와 대책을 수립합니다.' },
+    '5': { title: '5. 작업 전 다짐 및 점검', subtitle: '작업 시작 전 안전대책의 완벽한 이행을 약속하며 안전 준수를 다짐합니다.' },
+    'Q5': { title: '5. 작업 전 다짐 및 점검', subtitle: '작업 시작 전 안전대책의 완벽한 이행을 약속하며 안전 준수를 다짐합니다.' },
+};
+
+const getNationalityFlag = (nationality: string): string => {
+    const nat = (nationality || '').trim();
+    if (nat.includes('한국') || nat.includes('대한민국') || nat.includes('Korea')) return '🇰🇷';
+    if (nat.includes('베트남') || nat.includes('Vietnam')) return '🇻🇳';
+    if (nat.includes('중국') || nat.includes('China')) return '🇨🇳';
+    if (nat.includes('태국') || nat.includes('Thailand')) return '🇹🇭';
+    if (nat.includes('인도네시아') || nat.includes('Indonesia')) return '🇮🇩';
+    if (nat.includes('우즈베키스탄') || nat.includes('Uzbek')) return '🇺🇿';
+    if (nat.includes('몽골') || nat.includes('Mongolia')) return '🇲🇳';
+    if (nat.includes('캄보디아') || nat.includes('Cambodia')) return '🇰🇭';
+    if (nat.includes('네팔') || nat.includes('Nepal')) return '🇳🇵';
+    if (nat.includes('러시아') || nat.includes('Russia')) return '🇷🇺';
+    if (nat.includes('미얀마') || nat.includes('Myanmar')) return '🇲🇲';
+    if (nat.includes('필리핀') || nat.includes('Philippines')) return '🇵🇭';
+    if (nat.includes('인도') || nat.includes('India')) return '🇮🇳';
+    if (nat.includes('방글라데시') || nat.includes('Bangladesh')) return '🇧🇩';
+    if (nat.includes('파키스탄') || nat.includes('Pakistan')) return '🇵🇰';
+    if (nat.includes('스리랑카') || nat.includes('Sri Lanka')) return '🇱🇰';
+    if (nat.includes('카자흐스탄') || nat.includes('Kazakhstan')) return '🇰🇿';
+    return '🏳️';
+};
+
 type MetricTone = 'slate' | 'indigo' | 'emerald' | 'amber' | 'rose';
 
 interface CompetencyMetricCardProps {
@@ -3301,79 +3336,117 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         >
                                             <></>
                                         </SectionPanelCard>
-                                        {record.handwrittenAnswers.map((ans, idx) => (
-                                            <OperationalPreviewCard
-                                                key={idx}
-                                                variant="whiteElevated"
-                                                eyebrow="원문-해석 문항"
-                                                title={`문항 ${ans.questionNumber}`}
-                                                badge={
-                                                    <StatusBadge variant="violetSoft" className="px-3 py-1 uppercase tracking-widest">
-                                                        비교 검수
-                                                    </StatusBadge>
-                                                }
-                                                className="rounded-2xl border border-slate-200 p-6 shadow-sm"
-                                                titleClassName="mt-1 text-sm font-black text-slate-900"
-                                                bodyClassName="mt-4"
-                                                body={
-                                                    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-                                                        <SectionPanelCard
-                                                            variant="slate"
-                                                            eyebrow="원문 신호"
-                                                            title="작업자가 실제로 남긴 표현"
-                                                            description="OCR 원문이 현장 문맥과 맞는지 확인합니다."
-                                                            className="rounded-xl px-4 py-4"
-                                                            titleClassName="mt-1 text-xs font-black text-slate-700"
-                                                            descriptionClassName="mt-1 text-[11px] font-semibold text-slate-500"
-                                                            bodyClassName="mt-3"
-                                                        >
-                                                            <textarea
-                                                                value={ans.answerText}
-                                                                onChange={(e) => handleAnswerChange(idx, 'answerText', e.target.value)}
-                                                                className="w-full min-h-[110px] text-sm text-slate-600 bg-white border border-slate-200 rounded-lg p-3 font-medium"
-                                                                placeholder="OCR 원문을 확인하거나 수정하세요."
-                                                            />
-                                                        </SectionPanelCard>
-                                                        <SectionPanelCard
-                                                            variant="indigo"
-                                                            eyebrow="관리자 해석"
-                                                            title="한국어 검토 문맥 점검"
-                                                            description="원문 의미가 관리자 해석과 일치하는지 확인합니다."
-                                                            className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-4"
-                                                            eyebrowClassName="text-xs font-bold uppercase tracking-[0.18em] text-indigo-400"
-                                                            titleClassName="mt-1 text-xs font-black text-indigo-700"
-                                                            descriptionClassName="mt-1 text-[11px] font-semibold text-indigo-500"
-                                                            bodyClassName="mt-3"
-                                                        >
-                                                            <textarea
-                                                                value={ans.koreanTranslation}
-                                                                onChange={(e) => handleAnswerChange(idx, 'koreanTranslation', e.target.value)}
-                                                                className="w-full min-h-[110px] text-sm text-slate-700 bg-white border border-indigo-100 rounded-lg p-3 font-bold"
-                                                                placeholder="관리자 검토용 한국어 해석을 확인하거나 수정하세요."
-                                                            />
-                                                        </SectionPanelCard>
-                                                        <SectionPanelCard
-                                                            variant="indigoSoft"
-                                                            eyebrow="작업자 모국어"
-                                                            title="모국어 전달 문맥 점검"
-                                                            description="현장 작업자가 바로 이해할 수 있는 모국어 문장인지 확인합니다."
-                                                            className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-4"
-                                                            eyebrowClassName="text-xs font-bold uppercase tracking-[0.18em] text-violet-400"
-                                                            titleClassName="mt-1 text-xs font-black text-violet-700"
-                                                            descriptionClassName="mt-1 text-[11px] font-semibold text-violet-500"
-                                                            bodyClassName="mt-3"
-                                                        >
-                                                            <textarea
-                                                                value={String((ans as any).nativeTranslation || '')}
-                                                                onChange={(e) => handleAnswerChange(idx, 'nativeTranslation', e.target.value)}
-                                                                className="w-full min-h-[110px] text-sm text-slate-700 bg-white border border-violet-100 rounded-lg p-3 font-bold"
-                                                                placeholder="작업자 모국어 번역을 확인하거나 수정하세요."
-                                                            />
-                                                        </SectionPanelCard>
-                                                    </div>
-                                                }
-                                            />
-                                        ))}
+                                        {record.handwrittenAnswers.map((ans, idx) => {
+                                            const isKorean = isKoreanNationality(record.nationality);
+                                            const flag = getNationalityFlag(record.nationality);
+                                            const nativeLanguage = getNativeLanguageLabel(record.nationality);
+                                            const qInfo = QUESTION_LABELS[ans.questionNumber] || {
+                                                title: `문항 ${ans.questionNumber}`,
+                                                subtitle: '위험성 평가 수기 답변 항목입니다.'
+                                            };
+
+                                            return (
+                                                <OperationalPreviewCard
+                                                    key={idx}
+                                                    variant="whiteElevated"
+                                                    eyebrow="위험성평가 원문-해석 비교"
+                                                    title={qInfo.title}
+                                                    subtitle={qInfo.subtitle}
+                                                    badge={
+                                                        <StatusBadge variant="violetSoft" className="px-3 py-1 uppercase tracking-widest">
+                                                            비교 검수
+                                                        </StatusBadge>
+                                                    }
+                                                    className="rounded-2xl border border-slate-200 p-6 shadow-sm mb-4"
+                                                    titleClassName="mt-1 text-sm font-black text-slate-900"
+                                                    bodyClassName="mt-4"
+                                                    body={
+                                                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                                            {/* 왼쪽 컬럼: 자필 원문 */}
+                                                            <SectionPanelCard
+                                                                variant="slate"
+                                                                eyebrow={`원문 신호 (${flag} ${record.nationality})`}
+                                                                title={isKorean ? "작업자 자필 원문" : `작업자 자필 원문 (${nativeLanguage})`}
+                                                                description={isKorean ? "근로자가 수기로 작성한 원문입니다." : "근로자가 본국 모국어로 직접 작성한 원문입니다."}
+                                                                className="rounded-xl px-4 py-4"
+                                                                titleClassName="mt-1 text-xs font-black text-slate-700"
+                                                                descriptionClassName="mt-1 text-[11px] font-semibold text-slate-500"
+                                                                bodyClassName="mt-3"
+                                                            >
+                                                                <textarea
+                                                                    value={ans.answerText}
+                                                                    onChange={(e) => handleAnswerChange(idx, 'answerText', e.target.value)}
+                                                                    className="w-full min-h-[110px] text-sm text-slate-600 bg-white border border-slate-200 rounded-lg p-3 font-medium focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                                                    placeholder="OCR 원문을 확인하거나 수정하세요."
+                                                                />
+                                                            </SectionPanelCard>
+
+                                                            {/* 오른쪽 컬럼: 한국어 해석 및 (외국인일 경우) 모국어 피드백 */}
+                                                            {isKorean ? (
+                                                                <SectionPanelCard
+                                                                    variant="indigo"
+                                                                    eyebrow="관리자 검토"
+                                                                    title="해석 및 교정 내용"
+                                                                    description="현장 관리를 위해 표준어로 교정 및 해석된 내용입니다."
+                                                                    className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-4"
+                                                                    eyebrowClassName="text-xs font-bold uppercase tracking-[0.18em] text-indigo-400"
+                                                                    titleClassName="mt-1 text-xs font-black text-indigo-700"
+                                                                    descriptionClassName="mt-1 text-[11px] font-semibold text-indigo-500"
+                                                                    bodyClassName="mt-3"
+                                                                >
+                                                                    <textarea
+                                                                        value={ans.koreanTranslation}
+                                                                        onChange={(e) => handleAnswerChange(idx, 'koreanTranslation', e.target.value)}
+                                                                        className="w-full min-h-[110px] text-sm text-slate-700 bg-white border border-indigo-100 rounded-lg p-3 font-bold focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                                                        placeholder="관리자 검토용 한국어 해석을 확인하거나 수정하세요."
+                                                                    />
+                                                                </SectionPanelCard>
+                                                            ) : (
+                                                                <div className="flex flex-col gap-4">
+                                                                    <SectionPanelCard
+                                                                        variant="indigo"
+                                                                        eyebrow="관리자 해석"
+                                                                        title="표준 한국어 해석"
+                                                                        description="관리를 위해 표준 한국어로 번역 및 교정된 내용입니다."
+                                                                        className="rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-4"
+                                                                        eyebrowClassName="text-xs font-bold uppercase tracking-[0.18em] text-indigo-400"
+                                                                        titleClassName="mt-1 text-xs font-black text-indigo-700"
+                                                                        descriptionClassName="mt-1 text-[11px] font-semibold text-indigo-500"
+                                                                        bodyClassName="mt-3"
+                                                                    >
+                                                                        <textarea
+                                                                            value={ans.koreanTranslation}
+                                                                            onChange={(e) => handleAnswerChange(idx, 'koreanTranslation', e.target.value)}
+                                                                            className="w-full min-h-[110px] text-sm text-slate-700 bg-white border border-indigo-100 rounded-lg p-3 font-bold focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                                                            placeholder="관리자 검토용 한국어 해석을 확인하거나 수정하세요."
+                                                                        />
+                                                                    </SectionPanelCard>
+
+                                                                    <SectionPanelCard
+                                                                        variant="indigoSoft"
+                                                                        eyebrow="작업자 모국어 피드백"
+                                                                        title={`모국어 전달 문맥 점검 (${nativeLanguage})`}
+                                                                        description="근로자 교육 및 피드백 전달을 위한 모국어 문장입니다."
+                                                                        className="rounded-xl border border-violet-100 bg-violet-50 px-4 py-4"
+                                                                        eyebrowClassName="text-xs font-bold uppercase tracking-[0.18em] text-violet-400"
+                                                                        titleClassName="mt-1 text-xs font-black text-violet-700"
+                                                                        descriptionClassName="mt-1 text-[11px] font-semibold text-violet-500"
+                                                                        bodyClassName="mt-3"
+                                                                    >
+                                                                        <textarea
+                                                                            value={String((ans as any).nativeTranslation || '')}
+                                                                            onChange={(e) => handleAnswerChange(idx, 'nativeTranslation', e.target.value)}
+                                                                            className="w-full min-h-[110px] text-sm text-slate-700 bg-white border border-violet-100 rounded-lg p-3 font-bold focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                                                                            placeholder="작업자 모국어 번역을 확인하거나 수정하세요."
+                                                                        />
+                                                                    </SectionPanelCard>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    }
+                                                />
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
