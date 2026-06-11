@@ -1139,10 +1139,11 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                         </div>
                     </article>
 
-                    <div className="mt-4 grid gap-2 sm:grid-cols-3 no-print">
+                    <div className="mt-4 grid gap-2 sm:grid-cols-4 no-print">
                         <button type="button" disabled={isExporting} onClick={() => void exportImage()} className="min-h-12 rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-black text-blue-800 disabled:opacity-50 dark:border-blue-500/40 dark:bg-slate-900 dark:text-blue-200">PNG 이미지</button>
                         <button type="button" disabled={isExporting} onClick={() => void exportPdf()} className="min-h-12 rounded-xl bg-blue-700 px-4 py-3 text-sm font-black text-white disabled:opacity-50">PDF 저장</button>
                         <button type="button" disabled={isExporting} onClick={() => void exportPptx()} className="min-h-12 rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">PPTX 저장</button>
+                        <button type="button" onClick={() => window.print()} className="min-h-12 rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white dark:bg-slate-100 dark:text-slate-900">A4 요약 인쇄</button>
                     </div>
                 </section>
             )}
