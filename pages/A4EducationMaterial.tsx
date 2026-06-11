@@ -71,6 +71,98 @@ const loadStudioState = (): StoredStudioState | null => {
 const updateAt = (items: string[], index: number, value: string): string[] =>
     items.map((item, itemIndex) => itemIndex === index ? value : item);
 
+
+interface ParsedTbmTranslation {
+    title: string;
+    opening: string;
+    videoText: string;
+    accidentText: string;
+    risksText: string;
+    focusText: string;
+    noticesText: string;
+    pledgeText: string;
+}
+
+const parseTbmTranslation = (text: string): ParsedTbmTranslation => {
+    const lines = String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
+    let title = '';
+    let opening = '';
+    const videoLines = [];
+    const accidentLines = [];
+    const riskLines = [];
+    const focusLines = [];
+    const noticeLines = [];
+    const pledgeLines = [];
+
+    let currentSection = 0; // 0: title/opening, 1: video, 2: accident, 3: risks, 4: focus, 5: notices, 6: pledge
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const lowerLine = line.toLowerCase();
+
+        if (i === 0 && line.startsWith('[') && line.endsWith(']')) {
+            title = line.slice(1, -1).trim();
+            continue;
+        }
+
+        if (/^1[.)]\s|^1\s|^1\./.test(line) || lowerLine.startsWith('1.') || lowerLine.includes('1. ') || lowerLine.includes('video') || lowerLine.includes('동영상')) {
+            currentSection = 1;
+            continue;
+        }
+        if (/^2[.)]\s|^2\s|^2\./.test(line) || lowerLine.startsWith('2.') || lowerLine.includes('2. ') || lowerLine.includes('accident') || lowerLine.includes('사례') || lowerLine.includes('재해')) {
+            currentSection = 2;
+            continue;
+        }
+        if (/^3[.)]\s|^3\s|^3\./.test(line) || lowerLine.startsWith('3.') || lowerLine.includes('3. ') || lowerLine.includes('risk') || lowerLine.includes('위험') || lowerLine.includes('상등급')) {
+            currentSection = 3;
+            continue;
+        }
+        if (/^4[.)]\s|^4\s|^4\./.test(line) || lowerLine.startsWith('4.') || lowerLine.includes('4. ') || lowerLine.includes('focus') || lowerLine.includes('중점') || lowerLine.includes('포인트')) {
+            currentSection = 4;
+            continue;
+        }
+        if (/^5[.)]\s|^5\s|^5\./.test(line) || lowerLine.startsWith('5.') || lowerLine.includes('5. ') || lowerLine.includes('notice') || lowerLine.includes('공지')) {
+            currentSection = 5;
+            continue;
+        }
+        if (line.startsWith('[') || lowerLine.includes('이해 확인') || lowerLine.includes('행동 약속') || lowerLine.includes('pledge') || lowerLine.includes('확약') || lowerLine.includes('약속')) {
+            currentSection = 6;
+            continue;
+        }
+
+        if (currentSection === 0) {
+            if (!title) {
+                title = line;
+            } else {
+                opening += (opening ? '\n' : '') + line;
+            }
+        } else if (currentSection === 1) {
+            videoLines.push(line);
+        } else if (currentSection === 2) {
+            accidentLines.push(line);
+        } else if (currentSection === 3) {
+            riskLines.push(line);
+        } else if (currentSection === 4) {
+            focusLines.push(line);
+        } else if (currentSection === 5) {
+            noticeLines.push(line);
+        } else if (currentSection === 6) {
+            pledgeLines.push(line);
+        }
+    }
+
+    return {
+        title: title || 'TBM Safety Guide',
+        opening: opening || 'Please review the safety guidelines carefully before beginning work.',
+        videoText: videoLines.join('\n'),
+        accidentText: accidentLines.join('\n'),
+        risksText: riskLines.join('\n'),
+        focusText: focusLines.join('\n'),
+        noticesText: noticeLines.join('\n'),
+        pledgeText: pledgeLines.join('\n'),
+    };
+};
+
 const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining }) => {
     const initialState = useRef(loadStudioState());
     const [activeTab, setActiveTab] = useState<StudioTab>('sources');
@@ -824,99 +916,224 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                         </footer>
                                     </div>
 
-                                    {/* 우측: 다국어 번역 전문 */}
-                                    <div className="flex flex-col h-full pl-1 overflow-hidden">
-                                        <header className="border-b-[3px] border-blue-900 pb-3 flex items-center justify-between">
-                                            <div>
-                                                <p className="text-[10px] font-black text-indigo-700 flex items-center gap-1.5">
-                                                    <CountryFlag code={previewLanguage} />
-                                                    TBM Safety Guide ({TRAINING_LANGUAGE_LABELS[previewLanguage as keyof typeof TRAINING_LANGUAGE_LABELS] || previewLanguage})
-                                                </p>
-                                                <h2 className="text-base font-black leading-tight mt-1">TBM Translation</h2>
-                                            </div>
-                                        </header>
-                                        <div className="mt-3 flex-1 overflow-y-auto pr-1 leading-relaxed">
-                                            {translatedTexts[previewLanguage] ? (
-                                                translatedTexts[previewLanguage].split('\n').map((line, idx) => {
-                                                    const trimmed = line.trim();
-                                                    if (!trimmed) return null;
-                                                    const isHeader = trimmed.startsWith('[') && trimmed.endsWith(']');
-                                                    const isStep = /^[0-9]\./.test(trimmed);
+                                    {/* 우측: 다국어 번역 전문 (구조화 매칭) */}
+                                    <div className="flex flex-col h-full pl-3 overflow-hidden">
+                                        {(() => {
+                                            const parsed = parseTbmTranslation(translatedTexts[previewLanguage] || '');
+                                            const videoLines = parsed.videoText.split('\n').map(l => l.trim().replace(/^-\s*/, '')).filter(Boolean);
+                                            const accidentLines = parsed.accidentText.split('\n').map(l => l.trim().replace(/^-\s*/, '')).filter(Boolean);
+                                            const riskLines = parsed.risksText.split('\n').map(l => l.trim().replace(/^-\s*/, '')).filter(Boolean);
+                                            const focusLines = parsed.focusText.split('\n').map(l => l.trim().replace(/^-\s*/, '')).filter(Boolean);
+                                            const noticeLines = parsed.noticesText.split('\n').map(l => l.trim().replace(/^-\s*/, '')).filter(Boolean);
+                                            const pledgeLines = parsed.pledgeText.split('\n').map(l => l.trim().replace(/^-\s*/, '')).filter(Boolean);
+
+                                            return (
+                                                <>
+                                                    <header className="border-b-[3px] border-blue-900 pb-3 flex items-center justify-between">
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-indigo-700 flex items-center gap-1.5">
+                                                                <CountryFlag code={previewLanguage} />
+                                                                TBM Safety Guide ({TRAINING_LANGUAGE_LABELS[previewLanguage as keyof typeof TRAINING_LANGUAGE_LABELS] || previewLanguage})
+                                                            </p>
+                                                            <h2 className="text-xs font-black leading-tight mt-1 text-slate-500 truncate">{parsed.title}</h2>
+                                                        </div>
+                                                    </header>
                                                     
-                                                    return (
-                                                        <p
-                                                            key={idx}
-                                                            className={`text-[10.5px] font-semibold leading-relaxed mb-2 text-slate-800 break-words ${
-                                                                isHeader
-                                                                    ? 'text-[11px] font-black text-slate-900 mt-3 border-l-4 border-blue-600 pl-2'
-                                                                    : isStep
-                                                                        ? 'font-bold text-slate-900 mt-2 pl-1'
-                                                                        : 'pl-3 text-slate-600'
-                                                            }`}
-                                                        >
-                                                            {trimmed}
-                                                        </p>
-                                                    );
-                                                })
-                                            ) : (
-                                                <p className="text-xs text-slate-400">번역본 데이터가 누락되었습니다.</p>
-                                            )}
-                                        </div>
-                                        <footer className="border-t border-slate-200 pt-3 text-[9px] font-semibold text-slate-400 mt-auto">
-                                            <p>This translation was generated by safety translation tools.</p>
-                                        </footer>
+                                                    <div className="space-y-2.5 mt-3 flex-1 overflow-hidden">
+                                                        <article className="rounded-xl border border-blue-100 bg-blue-50/50 p-2.5">
+                                                            <p className="text-[9px] font-black text-blue-700">1. Video Guidance</p>
+                                                            <div className="space-y-0.5 mt-1">
+                                                                {videoLines.map((line, idx) => (
+                                                                    <p key={idx} className="text-[9.5px] leading-relaxed text-slate-700 truncate">• {line}</p>
+                                                                ))}
+                                                            </div>
+                                                        </article>
+
+                                                        <article className="rounded-xl border border-amber-100 bg-amber-50/50 p-2.5">
+                                                            <p className="text-[9px] font-black text-amber-700">2. Recent Accident Case</p>
+                                                            <div className="space-y-0.5 mt-1">
+                                                                {accidentLines.map((line, idx) => (
+                                                                    <p key={idx} className="text-[9.5px] leading-relaxed text-slate-700 line-clamp-3">• {line}</p>
+                                                                ))}
+                                                            </div>
+                                                        </article>
+
+                                                        <article className="rounded-xl border border-rose-100 bg-rose-50/50 p-2.5">
+                                                            <p className="text-[9px] font-black text-rose-700">3. High-Priority Risks</p>
+                                                            <div className="space-y-1 mt-1">
+                                                                {riskLines.map((line, idx) => (
+                                                                    <div key={idx} className="text-[9.5px] leading-normal text-slate-700 line-clamp-2">
+                                                                        • {line}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </article>
+
+                                                        <article className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-2.5">
+                                                            <p className="text-[9px] font-black text-emerald-700">4. Focus Points & Notices</p>
+                                                            <div className="space-y-1 mt-1 text-[9.5px] leading-normal text-slate-700">
+                                                                {focusLines.slice(0, 2).map((item, idx) => (
+                                                                    <div key={idx} className="truncate">- {item}</div>
+                                                                ))}
+                                                                {noticeLines.slice(0, 1).map((item, idx) => (
+                                                                    <div key={idx} className="truncate">- {item}</div>
+                                                                ))}
+                                                            </div>
+                                                        </article>
+
+                                                        <article className="rounded-xl border border-orange-200 bg-orange-50/50 p-2.5">
+                                                            <p className="text-[9px] font-black text-orange-800">5. Pledge & Checks</p>
+                                                            <div className="space-y-0.5 mt-1 text-[9.5px] leading-relaxed text-slate-800 font-semibold">
+                                                                {pledgeLines.slice(-2).map((line, idx) => (
+                                                                    <p key={idx} className="line-clamp-2">{line}</p>
+                                                                ))}
+                                                            </div>
+                                                        </article>
+                                                    </div>
+                                                    
+                                                    <footer className="border-t border-slate-200 pt-3 text-[9px] font-bold text-slate-500 mt-auto">
+                                                        <div className="flex justify-between items-center">
+                                                            <span>Instructor: (Sign)</span>
+                                                            <span>Date: {new Date(draft.generatedAt).toLocaleDateString('ko-KR')}</span>
+                                                        </div>
+                                                    </footer>
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             ) : (
                                 <div className="flex flex-col h-full text-slate-900">
-                                    <header className="border-b-[5px] border-blue-900 pb-5 flex items-start justify-between">
-                                        <div>
-                                            <p className="text-xs font-black text-indigo-700 flex items-center gap-2">
-                                                <CountryFlag code={previewLanguage} width={24} />
-                                                TBM Safety Translation Sheet ({TRAINING_LANGUAGE_LABELS[previewLanguage as keyof typeof TRAINING_LANGUAGE_LABELS] || previewLanguage})
-                                            </p>
-                                            <h1 className="mt-2 text-[26px] font-black leading-tight">{draft.title}</h1>
-                                        </div>
-                                        <div className="rounded-xl bg-blue-950 px-4 py-3 text-center text-white">
-                                            <p className="text-[10px] font-bold text-blue-200">LANGUAGE</p>
-                                            <p className="mt-1 text-sm font-black uppercase">{previewLanguage.split('-')[0]}</p>
-                                        </div>
-                                    </header>
-                                    
-                                    <div className="mt-6 flex-1 overflow-y-auto pr-2">
-                                        <div className="space-y-1 font-semibold text-[13px] sm:text-[14px]">
-                                            {translatedTexts[previewLanguage] ? (
-                                                translatedTexts[previewLanguage].split('\n').map((line, idx) => {
-                                                    const trimmed = line.trim();
-                                                    if (!trimmed) return null;
-                                                    const isHeader = trimmed.startsWith('[') && trimmed.endsWith(']');
-                                                    const isStep = /^[0-9]\./.test(trimmed);
-                                                    
-                                                    return (
-                                                        <p
-                                                            key={idx}
-                                                            className={`leading-relaxed mb-3 break-words ${
-                                                                isHeader
-                                                                    ? 'text-[15px] font-black text-slate-900 mt-4 border-l-4 border-blue-600 pl-3'
-                                                                    : isStep
-                                                                        ? 'font-bold text-slate-900 mt-3 pl-1'
-                                                                        : 'pl-4 text-slate-700'
-                                                            }`}
-                                                        >
-                                                            {trimmed}
-                                                        </p>
-                                                    );
-                                                })
-                                            ) : (
-                                                <p className="text-sm text-slate-400">번역본 데이터가 누락되었습니다.</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                    
-                                    <footer className="mt-auto border-t border-slate-200 pt-4 text-[10px] font-semibold text-slate-400 flex justify-between">
-                                        <p>This translation guide is provided to help non-Korean workers understand the TBM agenda.</p>
-                                        <p>Target: {draft.workType}</p>
-                                    </footer>
+                                    {(() => {
+                                        const parsed = parseTbmTranslation(translatedTexts[previewLanguage] || '');
+                                        const videoLines = parsed.videoText.split('\n').map(l => l.trim().replace(/^-\s*/, '')).filter(Boolean);
+                                        const accidentLines = parsed.accidentText.split('\n').map(l => l.trim().replace(/^-\s*/, '')).filter(Boolean);
+                                        const riskLines = parsed.risksText.split('\n').map(l => l.trim().replace(/^-\s*/, '')).filter(Boolean);
+                                        const focusLines = parsed.focusText.split('\n').map(l => l.trim().replace(/^-\s*/, '')).filter(Boolean);
+                                        const noticeLines = parsed.noticesText.split('\n').map(l => l.trim().replace(/^-\s*/, '')).filter(Boolean);
+                                        const pledgeLines = parsed.pledgeText.split('\n').map(l => l.trim().replace(/^-\s*/, '')).filter(Boolean);
+
+                                        const qLines = pledgeLines.filter(line => line.startsWith('Q') || /^[qQ][0-9]/.test(line) || line.toLowerCase().includes('question') || line.includes('?'));
+                                        const commitmentLines = pledgeLines.filter(line => !qLines.includes(line));
+
+                                        const langLabel = TRAINING_LANGUAGE_LABELS[previewLanguage as keyof typeof TRAINING_LANGUAGE_LABELS] || previewLanguage;
+
+                                        return (
+                                            <>
+                                                <header className="border-b-[5px] border-orange-500 pb-4">
+                                                    <div className="flex items-start justify-between gap-4">
+                                                        <div>
+                                                            <p className="text-xs font-black text-blue-700 flex items-center gap-1.5">
+                                                                <CountryFlag code={previewLanguage} width={20} />
+                                                                PSI TBM Safety Guide ({langLabel})
+                                                            </p>
+                                                            <h1 className="mt-1.5 text-[22px] font-black leading-tight text-slate-900">{parsed.title}</h1>
+                                                        </div>
+                                                        <div className="rounded-xl bg-blue-950 px-3 py-2 text-center text-white shrink-0">
+                                                            <p className="text-[9px] font-bold text-blue-200">TARGET</p>
+                                                            <p className="mt-0.5 text-xs font-black">{draft.workType}</p>
+                                                        </div>
+                                                    </div>
+                                                    <p className="mt-2 text-xs font-semibold text-slate-600 leading-relaxed">{parsed.opening}</p>
+                                                </header>
+
+                                                <section className="mt-3.5 grid grid-cols-2 gap-3">
+                                                    <article className="rounded-2xl border border-blue-200 bg-blue-50/50 p-3.5">
+                                                        <p className="text-[9px] font-black text-blue-700">1. Video Guidance</p>
+                                                        <h2 className="mt-0.5 text-sm font-black text-slate-800">TBM Video Scenes</h2>
+                                                        <div className="mt-2 space-y-1">
+                                                            {videoLines.map((line, idx) => (
+                                                                <p key={idx} className="text-[10.5px] font-semibold leading-relaxed text-slate-700">• {line}</p>
+                                                            ))}
+                                                            {videoLines.length === 0 && <p className="text-[10.5px] text-slate-400">No scene details available.</p>}
+                                                        </div>
+                                                    </article>
+                                                    <article className="rounded-2xl border border-amber-200 bg-amber-50/50 p-3.5">
+                                                        <p className="text-[9px] font-black text-amber-700">2. Recent Accident Case</p>
+                                                        <h2 className="mt-0.5 text-sm font-black text-slate-800">Accident Summary & Relevance</h2>
+                                                        <div className="mt-2 space-y-1">
+                                                            {accidentLines.map((line, idx) => (
+                                                                <p key={idx} className="text-[10.5px] font-semibold leading-relaxed text-slate-700">• {line}</p>
+                                                            ))}
+                                                            {accidentLines.length === 0 && <p className="text-[10.5px] text-slate-400">No accident case available.</p>}
+                                                        </div>
+                                                    </article>
+                                                </section>
+
+                                                <section className="mt-3.5">
+                                                    <h2 className="text-xs font-black text-rose-700">3. High-Priority Risk Items</h2>
+                                                    <div className="mt-1.5 grid grid-cols-3 gap-3">
+                                                        {riskLines.map((line, idx) => (
+                                                            <article key={idx} className="rounded-xl border border-rose-200 p-2.5 bg-rose-50/30 flex flex-col justify-between">
+                                                                <p className="text-[10px] font-semibold leading-relaxed text-slate-700">{line}</p>
+                                                            </article>
+                                                        ))}
+                                                        {riskLines.length === 0 && (
+                                                            <p className="text-[10.5px] text-slate-400 col-span-3 text-center py-2">No risk details configured.</p>
+                                                        )}
+                                                    </div>
+                                                </section>
+
+                                                <section className="mt-3.5 grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <h2 className="text-xs font-black text-emerald-700">4. Key Focus Points</h2>
+                                                        <ol className="mt-1.5 space-y-1">
+                                                            {focusLines.map((item, index) => (
+                                                                <li key={index} className="flex gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[10px] font-bold leading-relaxed">
+                                                                    <b className="text-emerald-700">{index + 1}</b>
+                                                                    <span className="text-slate-700">{item}</span>
+                                                                </li>
+                                                            ))}
+                                                            {focusLines.length === 0 && <li className="text-[10.5px] text-slate-400">No focus points.</li>}
+                                                        </ol>
+                                                    </div>
+                                                    <div>
+                                                        <h2 className="text-xs font-black text-violet-700">5. Notices & Scheduling</h2>
+                                                        <ul className="mt-1.5 space-y-1">
+                                                            {noticeLines.map((notice, index) => (
+                                                                <li key={index} className="rounded-lg bg-violet-50 px-2.5 py-1.5 text-[10px] font-bold leading-relaxed text-slate-700">{notice}</li>
+                                                            ))}
+                                                            {noticeLines.length === 0 && <li className="text-[10.5px] text-slate-400">No active notices.</li>}
+                                                        </ul>
+                                                    </div>
+                                                </section>
+
+                                                <section className="mt-3.5 rounded-xl border-2 border-dashed border-orange-300 bg-orange-50 p-2.5">
+                                                    <div className="grid grid-cols-[1fr_1.2fr] gap-3">
+                                                        <div>
+                                                            <h2 className="text-[10.5px] font-black text-orange-900">Comprehension Checks</h2>
+                                                            {qLines.map((question, index) => (
+                                                                <p key={index} className="mt-0.5 text-[10px] font-bold leading-relaxed text-orange-900">{question}</p>
+                                                            ))}
+                                                            {qLines.length === 0 && (
+                                                                <p className="mt-0.5 text-[10px] font-bold leading-relaxed text-orange-900">Please answer understanding questions before starting work.</p>
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <h2 className="text-[10.5px] font-black text-orange-900">Safety Pledge</h2>
+                                                            {commitmentLines.map((line, index) => (
+                                                                <p key={index} className="mt-0.5 text-[10px] font-bold leading-relaxed text-orange-900">{line}</p>
+                                                            ))}
+                                                            {commitmentLines.length === 0 && (
+                                                                <p className="mt-0.5 text-[10px] font-bold leading-relaxed text-orange-900">{draft.closingCommitment}</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </section>
+
+                                                <footer className="mt-auto flex items-end justify-between border-t border-slate-200 pt-3 text-[9px] font-semibold text-slate-400">
+                                                    <div>
+                                                        <p>TBM Safety Translation Guide ({langLabel})</p>
+                                                        <p className="mt-0.5">This safety instruction sheet has been translated automatically for non-Korean workers.</p>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-2 text-center text-slate-500 shrink-0">
+                                                        <span className="w-16 border-b border-slate-300 pb-0.5">Instructor</span>
+                                                        <span className="w-16 border-b border-slate-300 pb-0.5">Confirmed</span>
+                                                    </div>
+                                                </footer>
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             )}
                         </div>
