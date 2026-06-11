@@ -5527,7 +5527,497 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 </div>
             )}
 
-            <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 flex flex-col gap-5 no-print">
+            {/* 공종/팀장 일괄 수정 UI */}
+            <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden mb-4">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 items-stretch sm:items-center p-4 border-b border-slate-100">
+                    <span className="font-bold text-slate-700 text-xs mr-2">근로자 일괄 선택</span>
+                    <button
+                        className="px-3 py-1 text-xs rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold hover:bg-indigo-100"
+                        onClick={() => setSelectedIds(filteredRecords.map(r => r.id))}
+                    >전체 선택</button>
+                    <button
+                        className="px-3 py-1 text-xs rounded bg-slate-50 text-slate-500 border border-slate-200 font-bold hover:bg-slate-100"
+                        onClick={() => setSelectedIds([])}
+                    >전체 해제</button>
+                    <span className="px-2 py-1 text-[11px] rounded bg-slate-100 text-slate-700 font-black">선택 {selectedRecords.length}건</span>
+                    <button
+                        className="px-3 py-1 text-xs rounded bg-violet-50 text-violet-700 border border-violet-200 font-bold hover:bg-violet-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={() => { void handleSelectedReanalyze(); }}
+                        disabled={isAnalyzing || selectedRecords.length === 0}
+                        title={selectedRecords.length === 0 ? '선택된 근로자가 없습니다.' : '선택된 근로자만 재분석'}
+                    >선택만 재분석</button>
+                    <button
+                        className="px-3 py-1 text-xs rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={handleDeleteSelectedRecords}
+                        disabled={selectedRecords.length === 0}
+                        title={selectedRecords.length === 0 ? '선택된 근로자가 없습니다.' : '선택된 근로자 삭제'}
+                    >선택 삭제</button>
+                    <span className="mx-3 text-slate-400 text-xs">|</span>
+                    <label className="text-xs font-bold text-slate-600 mr-1">공종 일괄 변경</label>
+                    <select
+                        className="w-full sm:w-auto text-xs border border-slate-200 rounded px-2 py-1 mr-0 sm:mr-2"
+                        value={batchJobField}
+                        onChange={e => setBatchJobField(e.target.value)}
+                    >
+                        <option value="">선택</option>
+                        {[...new Set(filteredRecords.map(r => r.jobField).filter(Boolean))].map(f => (
+                            <option key={f} value={f}>{f}</option>
+                        ))}
+                    </select>
+                    <label className="text-xs font-bold text-slate-600 mr-1">팀장 일괄 지정</label>
+                    <input
+                        className="w-full sm:w-auto text-xs border border-slate-200 rounded px-2 py-1 mr-0 sm:mr-2"
+                        value={batchTeamLeader}
+                        onChange={e => setBatchTeamLeader(e.target.value)}
+                        placeholder="팀장명 입력"
+                    />
+                    <button
+                        className="w-full sm:w-auto px-4 py-2 text-xs rounded bg-emerald-600 text-white font-bold hover:bg-emerald-700"
+                        onClick={() => {
+                            if (selectedIds.length === 0) return alert('수정할 근로자를 선택하세요.');
+                            if (!batchJobField && !batchTeamLeader) return alert('공종 또는 팀장 중 하나 이상 입력하세요.');
+                            filteredRecords.forEach(r => {
+                                if (selectedIds.includes(r.id)) {
+                                    onUpdateRecord({
+                                        ...r,
+                                        ...(batchJobField ? { jobField: batchJobField } : {}),
+                                        ...(batchTeamLeader ? { teamLeader: batchTeamLeader } : {}),
+                                    });
+                                }
+                            });
+                            alert('일괄 수정이 적용되었습니다.');
+                        }}
+                    >선택 근로자 일괄 적용</button>
+                </div>
+                <div className="px-4 sm:px-6 pt-4 pb-2 border-b border-slate-100 bg-white">
+                    <div className="flex flex-col gap-1.5">
+                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">근로자 정보 검색</p>
+                        <div className="relative w-full max-w-2xl">
+                            <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={2}/></svg>
+                            <input type="text" placeholder="근로자명 · 공종 · 국적 · 팀장으로 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-900 dark:text-slate-100" />
+                        </div>
+                        <label className="mt-1 inline-flex items-center gap-2 text-[11px] font-bold text-slate-600">
+                            <input
+                                type="checkbox"
+                                checked={showWorkerSignalDetails}
+                                onChange={(e) => setShowWorkerSignalDetails(e.target.checked)}
+                                className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            행별 신호 상세(상태·근거·다음 행동) 보기
+                        </label>
+                        <label className="inline-flex items-center gap-2 text-[11px] font-bold text-slate-600">
+                            <input
+                                type="checkbox"
+                                checked={showWorkerExtraActions}
+                                onChange={(e) => setShowWorkerExtraActions(e.target.checked)}
+                                className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            행별 보조 액션(관리자 유지/삭제/즉시조치) 보기
+                        </label>
+                    </div>
+                </div>
+                <div className="sm:hidden p-3 space-y-3">
+                    {filteredRecords.map((r: WorkerRecord) => {
+                        const checked = selectedIds.includes(r.id);
+                        const failed = isFailedRecord(r);
+                        const failureCode = failed ? resolveFailureCodeFromRecord(r) : 'UNKNOWN';
+                        const immediateActions = failed ? getFailureImmediateActions(failureCode) : [];
+                        const secondPassEligibility = getSecondPassEligibility(r, secondPassEditedOnly);
+                        const latestCorrectionPreview = getLatestCorrectionPreview(r);
+                        const latestCorrectionTimestampLabel = getLatestCorrectionTimestampLabel(r);
+                        const recentlyCorrected = isRecentlyCorrected(r);
+                        const weakCorrectionReason = hasWeakCorrectionReason(r);
+                        const latestCorrectionReason = getLatestCorrectionReason(r);
+                        const hasImage = hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage);
+                        const rowErrorType = failed ? getOcrErrorTypeFromRecord(r) : null;
+                        const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
+                        const rowGuideMobile = rowErrorType ? getOcrErrorMobileLabel(rowErrorType) : '';
+                        const preflightReason = failed ? getPreflightFailureReason(r) : null;
+                        const reviewTrustState = getReviewTrustState(r);
+                        const rowStatusSummary = failed
+                            ? `${getOcrErrorTypeKoreanLabel(rowErrorType || 'UNKNOWN')} 신호가 남아 있습니다.`
+                            : reviewTrustState === 'PENDING'
+                                ? '관리자 재검토가 남아 있는 상태입니다.'
+                                : reviewTrustState === 'FINALIZED'
+                                    ? '보호 판단이 확정된 상태입니다.'
+                                    : '현재 기록은 기본 흐름 안에서 유지되고 있습니다.';
+                        const rowEvidenceSummary = preflightReason
+                            || latestCorrectionReason
+                            || (typeof r.ocrConfidence === 'number' ? `OCR 신뢰도 ${(r.ocrConfidence * 100).toFixed(0)}% 기준으로 확인 중입니다.` : '최근 수정 및 OCR 근거를 함께 확인할 수 있습니다.');
+                        const rowNextAction = failed
+                            ? hasImage
+                                ? '원문 다시 읽기를 먼저 시도하고, 남으면 상세 판단으로 넘기세요.'
+                                : '이미지 근거가 부족해 재촬영 안내 또는 관리자 판단으로 유지가 우선입니다.'
+                            : secondPassEligibility.eligible
+                                ? '필요 시 2차 재평가로 해석 품질을 더 끌어올릴 수 있습니다.'
+                                : '현재 조건에서는 유지 점검과 리포트 확인이 우선입니다.';
+
+                        return (
+                            <div key={r.id} className={`rounded-2xl border p-3 bg-white ${failed ? 'border-rose-200 bg-rose-50/40' : recentlyCorrected ? 'border-violet-200 bg-violet-50/30' : 'border-slate-200'}`}>
+                                <div className="flex items-start justify-between gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => onViewDetails(r)}
+                                        className="text-left flex-1"
+                                    >
+                                        <p className={`text-sm font-black ${failed ? 'text-rose-700' : 'text-slate-800'} flex items-center gap-1`}>
+                                            {r.name}
+                                            {getLeaderIcon(r)}
+                                        </p>
+                                        <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.nationality} · {r.date}</p>
+                                        <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.jobField} · 팀장 {r.teamLeader || '미지정'}</p>
+                                        {latestCorrectionPreview && (
+                                            <p className="mt-1 text-[10px] text-violet-700 font-black leading-snug" title={latestCorrectionReason || latestCorrectionPreview}>최근 수정: {latestCorrectionPreview}</p>
+                                        )}
+                                        {latestCorrectionReason && (
+                                            <p className="mt-1 text-[10px] text-slate-600 font-semibold leading-snug whitespace-pre-wrap break-words">사유 전문: {latestCorrectionReason}</p>
+                                        )}
+                                        {latestCorrectionTimestampLabel && (
+                                            <p className="mt-0.5 text-[10px] text-violet-500 font-bold">수정 시각: {latestCorrectionTimestampLabel}</p>
+                                        )}
+                                    </button>
+                                    <input
+                                        type="checkbox"
+                                        checked={checked}
+                                        onChange={e => {
+                                            if (e.target.checked) setSelectedIds(ids => [...ids, r.id]);
+                                            else setSelectedIds(ids => ids.filter(id => id !== r.id));
+                                        }}
+                                        className="w-4 h-4 mt-1 accent-indigo-600"
+                                    />
+                                </div>
+
+                                <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
+                                    <span className={`px-2.5 py-1 rounded-full font-black ${getSafetyLevelClass(r.safetyLevel)}`}>{r.safetyScore}점 {getSafetyLevelDisplayLabel(r.safetyLevel)}</span>
+                                    <span className={`px-2 py-1 rounded font-black ${hasImage ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{hasImage ? '이미지 OK' : '이미지 누락'}</span>
+                                    {recentlyCorrected && <span className="px-2 py-1 rounded bg-violet-600 text-white font-black">최근 24h 수정</span>}
+                                    {weakCorrectionReason && <span className="px-2 py-1 rounded bg-amber-100 text-amber-800 font-black" title={latestCorrectionReason || '수정 사유가 비어 있거나 너무 짧습니다.'}>수정사유 보강 필요</span>}
+                                    {getReviewTrustState(r) === 'PENDING' && <span className="px-2 py-1 rounded bg-amber-100 text-amber-700 font-black">재검토 대기</span>}
+                                    {getReviewTrustState(r) === 'FINALIZED' && <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-700 font-black">최종확정</span>}
+                                    {!secondPassEligibility.eligible && !failed && secondPassEligibility.reason && (
+                                        <span className="px-2 py-1 rounded bg-violet-100 text-violet-700 font-black">2차 제외 · {secondPassEligibility.reason}</span>
+                                    )}
+                                </div>
+
+                                {failed && rowErrorType && (
+                                    <div className="mt-2 space-y-1">
+                                        <p className="text-[11px] font-black text-rose-700">⚠️ {getOcrErrorTypeKoreanLabel(rowErrorType)}</p>
+                                        {rowGuideMessage && <p className="text-[11px] font-bold text-rose-600">{rowGuideMobile}</p>}
+                                        {preflightReason && <p className="text-[11px] font-bold text-amber-700">사전검증: {preflightReason}</p>}
+                                    </div>
+                                )}
+
+                                {showWorkerSignalDetails && (
+                                    <StatusEvidenceActionPanel
+                                        className="mt-3 grid grid-cols-1 gap-2 text-[11px]"
+                                        cardClassName="rounded-xl border px-3 py-2"
+                                        titleClassName="mt-1 font-semibold leading-snug text-slate-700"
+                                        descriptionClassName="mt-1 font-semibold leading-snug whitespace-pre-wrap break-words text-slate-700"
+                                        items={[
+                                            {
+                                                key: `${r.id}-row-status`,
+                                                eyebrow: '지금 상태',
+                                                title: rowStatusSummary,
+                                                tone: BRAND_TONE.slate,
+                                                eyebrowClassName: 'font-black text-slate-400 uppercase tracking-[0.18em]',
+                                                description: undefined,
+                                            },
+                                            {
+                                                key: `${r.id}-row-evidence`,
+                                                eyebrow: '판단 근거',
+                                                title: rowEvidenceSummary,
+                                                tone: BRAND_TONE.amberSoft,
+                                                eyebrowClassName: 'font-black text-amber-600 uppercase tracking-[0.18em]',
+                                                description: undefined,
+                                            },
+                                            {
+                                                key: `${r.id}-row-action`,
+                                                eyebrow: '다음 행동',
+                                                title: rowNextAction,
+                                                tone: BRAND_TONE.emeraldSoft,
+                                                eyebrowClassName: 'font-black text-emerald-600 uppercase tracking-[0.18em]',
+                                                description: undefined,
+                                            },
+                                        ]}
+                                    />
+                                )}
+
+                                <div className="mt-3 grid grid-cols-2 gap-2">
+                                    <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-3 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl">상세 판단</button>
+                                    <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-3 py-2 bg-slate-900 text-white font-black text-xs rounded-xl">보호 리포트</button>
+                                    {failed && !isAnalyzing && hasImage && (
+                                        <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className={`col-span-2 px-3 py-2 font-bold text-xs rounded-xl border transition-all ${retryActionButtonClass}`}>원문 다시 읽기</button>
+                                    )}
+                                    {showWorkerExtraActions && (
+                                        <>
+                                            {failed && preflightReason && (
+                                                <div className="col-span-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-800">
+                                                    재분석 사전진단: {preflightReason}
+                                                </div>
+                                            )}
+                                            {failed && !isAnalyzing && (
+                                                <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="col-span-2 px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl" title={`${BRAND_STATUS_LABELS.attention} 안내가 필요한 건을 관리자 검토 후 정상 흐름으로 전환`}>관리자 판단으로 유지</button>
+                                            )}
+                                            {failed && immediateActions.length > 0 && (
+                                                <div className="col-span-2 grid grid-cols-1 gap-2">
+                                                    {immediateActions.map((action) => (
+                                                        <button
+                                                            key={`${r.id}-${action.type}`}
+                                                            onClick={(e) => { e.stopPropagation(); void handleFailureImmediateAction(r, action.type); }}
+                                                            className={`px-3 py-2 font-bold text-xs rounded-xl transition-all ${action.className}`}
+                                                            title={action.title}
+                                                        >
+                                                            {action.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="col-span-2 px-3 py-2 bg-slate-100 text-slate-500 font-bold text-xs rounded-xl">삭제</button>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+                <div className="hidden sm:block overflow-x-auto custom-scrollbar">
+                    <table className="w-full text-left">
+                        <thead>
+                            <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                                <th className="px-2 py-4 text-center w-12">선택</th>
+                                <th className="px-4 sm:px-8 py-4">근로자 정보</th>
+                                <th className="px-4 sm:px-8 py-4">공종/직군</th>
+                                <th className="px-4 sm:px-8 py-4">팀장 (Leader)</th>
+                                <th className="px-4 sm:px-8 py-4 text-center">안전 점수</th>
+                                <th className="px-4 sm:px-8 py-4 text-center">이미지 상태</th>
+                                <th className="px-4 sm:px-8 py-4 text-right">관리</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50 font-medium">
+                            {/* 선택 체크박스 컬럼 추가 */}
+                            {filteredRecords.map((r: WorkerRecord) => {
+                                const checked = selectedIds.includes(r.id);
+                                const isManager = isManagementRole(r.jobField);
+                                const hasImage = hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage);
+                                const failed = isFailedRecord(r);
+                                const failureCode = failed ? resolveFailureCodeFromRecord(r) : 'UNKNOWN';
+                                const immediateActions = failed ? getFailureImmediateActions(failureCode) : [];
+                                const preflightReason = failed ? getPreflightFailureReason(r) : null;
+                                const secondPassEligibility = getSecondPassEligibility(r, secondPassEditedOnly);
+                                const latestCorrectionPreview = getLatestCorrectionPreview(r);
+                                const latestCorrectionTimestampLabel = getLatestCorrectionTimestampLabel(r);
+                                const recentlyCorrected = isRecentlyCorrected(r);
+                                const weakCorrectionReason = hasWeakCorrectionReason(r);
+                                const latestCorrectionReason = getLatestCorrectionReason(r);
+                                const rowErrorType = failed ? getOcrErrorTypeFromRecord(r) : null;
+                                const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
+                                const rowGuideSummary = rowErrorType ? getOcrErrorGuideSummary(rowErrorType) : '';
+                                const rowGuideMobile = rowErrorType ? getOcrErrorMobileLabel(rowErrorType) : '';
+                                const reviewTrustState = getReviewTrustState(r);
+                                const rowStatusSummary = failed
+                                    ? `${getOcrErrorTypeKoreanLabel(rowErrorType || 'UNKNOWN')} 신호가 남아 있습니다.`
+                                    : reviewTrustState === 'PENDING'
+                                        ? '관리자 재검토가 남아 있는 상태입니다.'
+                                        : reviewTrustState === 'FINALIZED'
+                                            ? '보호 판단이 확정된 상태입니다.'
+                                            : '현재 기록은 기본 흐름 안에서 유지되고 있습니다.';
+                                const rowEvidenceSummary = preflightReason
+                                    || latestCorrectionReason
+                                    || (typeof r.ocrConfidence === 'number' ? `OCR 신뢰도 ${(r.ocrConfidence * 100).toFixed(0)}% 기준으로 확인 중입니다.` : '최근 수정 및 OCR 근거를 함께 확인할 수 있습니다.');
+                                const rowNextAction = failed
+                                    ? hasImage
+                                        ? '원문 다시 읽기 후 남는 건을 상세 판단으로 넘기세요.'
+                                        : '재촬영 안내 또는 관리자 판단으로 유지가 우선입니다.'
+                                    : secondPassEligibility.eligible
+                                        ? '필요 시 2차 재평가로 해석 품질을 더 끌어올릴 수 있습니다.'
+                                        : '현재 조건에서는 유지 점검과 리포트 확인이 우선입니다.';
+                                
+                                return (
+                                    <tr key={r.id} className={`hover:bg-indigo-50/30 transition-colors group ${isManager ? 'bg-slate-50/50 opacity-80' : ''} ${failed ? 'bg-rose-50/50' : recentlyCorrected ? 'bg-violet-50/40' : ''}`}>
+                                        <td className="px-2 text-center align-middle">
+                                            <input
+                                                type="checkbox"
+                                                checked={checked}
+                                                onChange={e => {
+                                                    if (e.target.checked) setSelectedIds(ids => [...ids, r.id]);
+                                                    else setSelectedIds(ids => ids.filter(id => id !== r.id));
+                                                }}
+                                                className="w-4 h-4 accent-indigo-600"
+                                            />
+                                        </td>
+                                        <td className="px-4 sm:px-8 py-5 font-black text-slate-800 cursor-pointer" onClick={() => onViewDetails(r)}>
+                                            <div className="flex flex-col">
+                                                <span className={`flex items-center gap-1 ${failed ? 'text-rose-600' : ''}`}>
+                                                    {r.name}
+                                                    {getLeaderIcon(r)}
+                                                </span>
+                                                <span className="text-[10px] text-slate-400 font-bold tracking-wider">{r.nationality} | {r.date}</span>
+                                                {typeof r.ocrConfidence === 'number' && (
+                                                    <span className="text-[9px] text-slate-500 font-bold">OCR 신뢰도: {(r.ocrConfidence * 100).toFixed(0)}%</span>
+                                                )}
+                                                {latestCorrectionPreview && (
+                                                    <span className="text-[10px] text-violet-700 font-black mt-1 leading-snug" title={latestCorrectionReason || latestCorrectionPreview}>
+                                                        최근 수정: {latestCorrectionPreview}
+                                                    </span>
+                                                )}
+                                                {latestCorrectionReason && (
+                                                    <span className="text-[10px] text-slate-600 font-semibold mt-1 leading-snug whitespace-pre-wrap break-words">
+                                                        사유 전문: {latestCorrectionReason}
+                                                    </span>
+                                                )}
+                                                {latestCorrectionTimestampLabel && (
+                                                    <span className="text-[10px] text-violet-500 font-bold mt-0.5 leading-snug">
+                                                        수정 시각: {latestCorrectionTimestampLabel}
+                                                    </span>
+                                                )}
+                                                {recentlyCorrected && (
+                                                    <span className="mt-1 inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-black bg-violet-600 text-white border border-violet-600">
+                                                        최근 24h 수정
+                                                    </span>
+                                                )}
+                                                {weakCorrectionReason && (
+                                                    <span className="mt-1 inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-200" title={latestCorrectionReason || '수정 사유가 비어 있거나 너무 짧습니다.'}>
+                                                        수정사유 보강 필요
+                                                    </span>
+                                                )}
+                                                {failed && <span className="text-[9px] text-rose-500 font-bold">⚠️ 추가 확인 안내</span>}
+                                                {failed && rowErrorType && (
+                                                    <span className="mt-1 inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-100 text-rose-700 border border-rose-200">
+                                                        {getOcrErrorTypeKoreanLabel(rowErrorType)}
+                                                    </span>
+                                                )}
+                                                {failed && rowGuideMessage && (
+                                                    <>
+                                                        <span className="sm:hidden text-[10px] text-rose-700 font-black mt-1 leading-snug" title={rowGuideMessage}>
+                                                            {rowGuideMobile}
+                                                        </span>
+                                                        <span className="hidden sm:block text-[10px] text-rose-700 font-bold mt-1 leading-snug" title={rowGuideMessage}>
+                                                            {rowGuideSummary}
+                                                        </span>
+                                                    </>
+                                                )}
+                                                {!secondPassEligibility.eligible && !failed && secondPassEligibility.reason && (
+                                                    <span className="mt-1 inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-black bg-violet-100 text-violet-700 border border-violet-200">
+                                                        2차 제외 · {secondPassEligibility.reason}
+                                                    </span>
+                                                )}
+                                                {failed && preflightReason && (
+                                                    <span className="text-[10px] text-amber-700 font-black mt-1 leading-snug">
+                                                        사전검증: {preflightReason}
+                                                    </span>
+                                                )}
+                                                {showWorkerSignalDetails && (
+                                                    <StatusEvidenceActionPanel
+                                                        className="mt-2 grid grid-cols-1 gap-1.5 text-[10px] font-semibold"
+                                                        cardClassName="rounded-lg border px-2 py-2"
+                                                        titleClassName="mt-0.5 block text-[10px] font-semibold leading-snug"
+                                                        items={[
+                                                            {
+                                                                key: `${r.id}-row-status`,
+                                                                eyebrow: '지금 상태',
+                                                                title: rowStatusSummary,
+                                                                tone: BRAND_TONE.slateText,
+                                                                eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-slate-400',
+                                                            },
+                                                            {
+                                                                key: `${r.id}-row-evidence`,
+                                                                eyebrow: '판단 근거',
+                                                                title: <span className="whitespace-pre-wrap break-words">{rowEvidenceSummary}</span>,
+                                                                tone: BRAND_TONE.amberSoftTextStrong,
+                                                                eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-amber-600',
+                                                            },
+                                                            {
+                                                                key: `${r.id}-row-action`,
+                                                                eyebrow: '다음 행동',
+                                                                title: rowNextAction,
+                                                                tone: BRAND_TONE.emeraldSoftTextStrong,
+                                                                eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600',
+                                                            },
+                                                        ]}
+                                                    />
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 sm:px-8 py-5 text-slate-500 font-bold">{r.jobField}</td>
+                                        <td className="px-4 sm:px-8 py-5 text-slate-600 font-bold text-sm">
+                                            {r.teamLeader && r.teamLeader !== '미지정' ? (
+                                                <span className={`bg-slate-100 px-2 py-1 rounded border border-slate-200 ${getLeaderIcon(r) ? 'text-indigo-600 font-black border-indigo-200 bg-indigo-50' : 'text-slate-600'}`}>
+                                                    {r.teamLeader}
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-300 text-xs">미지정</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 sm:px-8 py-5 text-center">
+                                            <div className="flex flex-col items-center gap-1">
+                                                <span className={`px-3 py-1 rounded-full text-xs font-black shadow-sm ${getSafetyLevelClass(r.safetyLevel)}`}>{r.safetyScore}</span>
+                                                <span className="text-[10px] font-black text-slate-500">{r.safetyLevel}</span>
+                                                {needsGradeRevalidation(r) && (
+                                                    <span className="text-[9px] font-black text-rose-600 bg-rose-100 px-2 py-0.5 rounded">등급 재검증 필요</span>
+                                                )}
+                                                {getReviewTrustState(r) === 'PENDING' && (
+                                                    <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded">재검토 대기</span>
+                                                )}
+                                                {getReviewTrustState(r) === 'FINALIZED' && (
+                                                    <span className="text-[9px] font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">최종확정</span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-4 sm:px-8 py-5 text-center">
+                                            {hasImage ? (
+                                                <span className="text-emerald-500 font-black text-[9px] uppercase">OK</span>
+                                            ) : (
+                                                <span className="text-rose-400 font-black text-[9px] uppercase bg-rose-100 px-2 py-1 rounded">IMG LOSS</span>
+                                            )}
+                                        </td>
+                                        <td className="px-4 sm:px-8 py-5 text-right">
+                                            <div className="flex justify-end gap-2">
+                                                <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-4 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">상세 판단 바로가기</button>
+                                                <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-4 py-2 bg-slate-900 text-white font-black text-xs rounded-xl hover:bg-black transition-all shadow-sm">보호 리포트 바로가기</button>
+                                                {failed && !isAnalyzing && hasImage && (
+                                                    <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className={`px-3 py-2 font-bold text-xs rounded-xl border transition-all ${retryActionButtonClass}`} title={preflightReason || '사전진단 통과'}>
+                                                        원문 다시 읽기
+                                                    </button>
+                                                )}
+                                                {showWorkerExtraActions && (
+                                                    <>
+                                                        {failed && !isAnalyzing && (
+                                                            <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl hover:bg-amber-200 transition-all" title="다시 확인이 어려운 건을 관리자 확인 후 정상 분류">
+                                                                관리자 판단으로 유지
+                                                            </button>
+                                                        )}
+                                                        {failed && immediateActions.map((action) => (
+                                                            <button
+                                                                key={`${r.id}-${action.type}`}
+                                                                onClick={(e) => { e.stopPropagation(); void handleFailureImmediateAction(r, action.type); }}
+                                                                className={`px-3 py-2 font-bold text-xs rounded-xl transition-all ${action.className}`}
+                                                                title={action.title}
+                                                            >
+                                                                {action.label}
+                                                            </button>
+                                                        ))}
+                                                        <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="p-2 bg-slate-100 text-slate-400 hover:bg-rose-500 hover:text-white rounded-xl transition-all" title="삭제">
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <CollapsibleSection
+                title="🔍 운영 탐색 및 우선순위 정리 (검색·필터 및 통계 분석)"
+                defaultOpen={false}
+                summary={<span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2.5 py-0.5 text-[11px] font-black text-slate-700 dark:text-slate-200">폴백 회복률 {fallbackRecoveryRate}% · 재분석 {secondPassTargets.length}건</span>}
+            >
+                <div className="pt-4">
+                    <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 flex flex-col gap-5 no-print">
                 <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(360px,420px)] gap-4 xl:items-start">
                     <div className="min-w-0">
                         <h4 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">운영 탐색 및 우선순위 정리</h4>
@@ -6553,490 +7043,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 </div>
                 </CollapsibleSection>
             </div>
-
-            {/* 공종/팀장 일괄 수정 UI */}
-            <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden mb-4">
-                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 items-stretch sm:items-center p-4 border-b border-slate-100">
-                    <span className="font-bold text-slate-700 text-xs mr-2">근로자 일괄 선택</span>
-                    <button
-                        className="px-3 py-1 text-xs rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold hover:bg-indigo-100"
-                        onClick={() => setSelectedIds(filteredRecords.map(r => r.id))}
-                    >전체 선택</button>
-                    <button
-                        className="px-3 py-1 text-xs rounded bg-slate-50 text-slate-500 border border-slate-200 font-bold hover:bg-slate-100"
-                        onClick={() => setSelectedIds([])}
-                    >전체 해제</button>
-                    <span className="px-2 py-1 text-[11px] rounded bg-slate-100 text-slate-700 font-black">선택 {selectedRecords.length}건</span>
-                    <button
-                        className="px-3 py-1 text-xs rounded bg-violet-50 text-violet-700 border border-violet-200 font-bold hover:bg-violet-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                        onClick={() => { void handleSelectedReanalyze(); }}
-                        disabled={isAnalyzing || selectedRecords.length === 0}
-                        title={selectedRecords.length === 0 ? '선택된 근로자가 없습니다.' : '선택된 근로자만 재분석'}
-                    >선택만 재분석</button>
-                    <button
-                        className="px-3 py-1 text-xs rounded bg-rose-50 text-rose-700 border border-rose-200 font-bold hover:bg-rose-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                        onClick={handleDeleteSelectedRecords}
-                        disabled={selectedRecords.length === 0}
-                        title={selectedRecords.length === 0 ? '선택된 근로자가 없습니다.' : '선택된 근로자 삭제'}
-                    >선택 삭제</button>
-                    <span className="mx-3 text-slate-400 text-xs">|</span>
-                    <label className="text-xs font-bold text-slate-600 mr-1">공종 일괄 변경</label>
-                    <select
-                        className="w-full sm:w-auto text-xs border border-slate-200 rounded px-2 py-1 mr-0 sm:mr-2"
-                        value={batchJobField}
-                        onChange={e => setBatchJobField(e.target.value)}
-                    >
-                        <option value="">선택</option>
-                        {[...new Set(filteredRecords.map(r => r.jobField).filter(Boolean))].map(f => (
-                            <option key={f} value={f}>{f}</option>
-                        ))}
-                    </select>
-                    <label className="text-xs font-bold text-slate-600 mr-1">팀장 일괄 지정</label>
-                    <input
-                        className="w-full sm:w-auto text-xs border border-slate-200 rounded px-2 py-1 mr-0 sm:mr-2"
-                        value={batchTeamLeader}
-                        onChange={e => setBatchTeamLeader(e.target.value)}
-                        placeholder="팀장명 입력"
-                    />
-                    <button
-                        className="w-full sm:w-auto px-4 py-2 text-xs rounded bg-emerald-600 text-white font-bold hover:bg-emerald-700"
-                        onClick={() => {
-                            if (selectedIds.length === 0) return alert('수정할 근로자를 선택하세요.');
-                            if (!batchJobField && !batchTeamLeader) return alert('공종 또는 팀장 중 하나 이상 입력하세요.');
-                            filteredRecords.forEach(r => {
-                                if (selectedIds.includes(r.id)) {
-                                    onUpdateRecord({
-                                        ...r,
-                                        ...(batchJobField ? { jobField: batchJobField } : {}),
-                                        ...(batchTeamLeader ? { teamLeader: batchTeamLeader } : {}),
-                                    });
-                                }
-                            });
-                            alert('일괄 수정이 적용되었습니다.');
-                        }}
-                    >선택 근로자 일괄 적용</button>
                 </div>
-                <div className="px-4 sm:px-6 pt-4 pb-2 border-b border-slate-100 bg-white">
-                    <div className="flex flex-col gap-1.5">
-                        <p className="text-[11px] font-black uppercase tracking-wider text-slate-500">근로자 정보 검색</p>
-                        <div className="relative w-full max-w-2xl">
-                            <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" strokeWidth={2}/></svg>
-                            <input type="text" placeholder="근로자명 · 공종 · 국적 · 팀장으로 검색" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-12 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-900 dark:text-slate-100" />
-                        </div>
-                        <label className="mt-1 inline-flex items-center gap-2 text-[11px] font-bold text-slate-600">
-                            <input
-                                type="checkbox"
-                                checked={showWorkerSignalDetails}
-                                onChange={(e) => setShowWorkerSignalDetails(e.target.checked)}
-                                className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                            />
-                            행별 신호 상세(상태·근거·다음 행동) 보기
-                        </label>
-                        <label className="inline-flex items-center gap-2 text-[11px] font-bold text-slate-600">
-                            <input
-                                type="checkbox"
-                                checked={showWorkerExtraActions}
-                                onChange={(e) => setShowWorkerExtraActions(e.target.checked)}
-                                className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                            />
-                            행별 보조 액션(관리자 유지/삭제/즉시조치) 보기
-                        </label>
-                    </div>
-                </div>
-                <div className="sm:hidden p-3 space-y-3">
-                    {filteredRecords.map((r: WorkerRecord) => {
-                        const checked = selectedIds.includes(r.id);
-                        const failed = isFailedRecord(r);
-                        const failureCode = failed ? resolveFailureCodeFromRecord(r) : 'UNKNOWN';
-                        const immediateActions = failed ? getFailureImmediateActions(failureCode) : [];
-                        const secondPassEligibility = getSecondPassEligibility(r, secondPassEditedOnly);
-                        const latestCorrectionPreview = getLatestCorrectionPreview(r);
-                        const latestCorrectionTimestampLabel = getLatestCorrectionTimestampLabel(r);
-                        const recentlyCorrected = isRecentlyCorrected(r);
-                        const weakCorrectionReason = hasWeakCorrectionReason(r);
-                        const latestCorrectionReason = getLatestCorrectionReason(r);
-                        const hasImage = hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage);
-                        const rowErrorType = failed ? getOcrErrorTypeFromRecord(r) : null;
-                        const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
-                        const rowGuideMobile = rowErrorType ? getOcrErrorMobileLabel(rowErrorType) : '';
-                        const preflightReason = failed ? getPreflightFailureReason(r) : null;
-                        const reviewTrustState = getReviewTrustState(r);
-                        const rowStatusSummary = failed
-                            ? `${getOcrErrorTypeKoreanLabel(rowErrorType || 'UNKNOWN')} 신호가 남아 있습니다.`
-                            : reviewTrustState === 'PENDING'
-                                ? '관리자 재검토가 남아 있는 상태입니다.'
-                                : reviewTrustState === 'FINALIZED'
-                                    ? '보호 판단이 확정된 상태입니다.'
-                                    : '현재 기록은 기본 흐름 안에서 유지되고 있습니다.';
-                        const rowEvidenceSummary = preflightReason
-                            || latestCorrectionReason
-                            || (typeof r.ocrConfidence === 'number' ? `OCR 신뢰도 ${(r.ocrConfidence * 100).toFixed(0)}% 기준으로 확인 중입니다.` : '최근 수정 및 OCR 근거를 함께 확인할 수 있습니다.');
-                        const rowNextAction = failed
-                            ? hasImage
-                                ? '원문 다시 읽기를 먼저 시도하고, 남으면 상세 판단으로 넘기세요.'
-                                : '이미지 근거가 부족해 재촬영 안내 또는 관리자 판단으로 유지가 우선입니다.'
-                            : secondPassEligibility.eligible
-                                ? '필요 시 2차 재평가로 해석 품질을 더 끌어올릴 수 있습니다.'
-                                : '현재 조건에서는 유지 점검과 리포트 확인이 우선입니다.';
-
-                        return (
-                            <div key={r.id} className={`rounded-2xl border p-3 bg-white ${failed ? 'border-rose-200 bg-rose-50/40' : recentlyCorrected ? 'border-violet-200 bg-violet-50/30' : 'border-slate-200'}`}>
-                                <div className="flex items-start justify-between gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => onViewDetails(r)}
-                                        className="text-left flex-1"
-                                    >
-                                        <p className={`text-sm font-black ${failed ? 'text-rose-700' : 'text-slate-800'} flex items-center gap-1`}>
-                                            {r.name}
-                                            {getLeaderIcon(r)}
-                                        </p>
-                                        <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.nationality} · {r.date}</p>
-                                        <p className="mt-0.5 text-[11px] text-slate-500 font-bold">{r.jobField} · 팀장 {r.teamLeader || '미지정'}</p>
-                                        {latestCorrectionPreview && (
-                                            <p className="mt-1 text-[10px] text-violet-700 font-black leading-snug" title={latestCorrectionReason || latestCorrectionPreview}>최근 수정: {latestCorrectionPreview}</p>
-                                        )}
-                                        {latestCorrectionReason && (
-                                            <p className="mt-1 text-[10px] text-slate-600 font-semibold leading-snug whitespace-pre-wrap break-words">사유 전문: {latestCorrectionReason}</p>
-                                        )}
-                                        {latestCorrectionTimestampLabel && (
-                                            <p className="mt-0.5 text-[10px] text-violet-500 font-bold">수정 시각: {latestCorrectionTimestampLabel}</p>
-                                        )}
-                                    </button>
-                                    <input
-                                        type="checkbox"
-                                        checked={checked}
-                                        onChange={e => {
-                                            if (e.target.checked) setSelectedIds(ids => [...ids, r.id]);
-                                            else setSelectedIds(ids => ids.filter(id => id !== r.id));
-                                        }}
-                                        className="w-4 h-4 mt-1 accent-indigo-600"
-                                    />
-                                </div>
-
-                                <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px]">
-                                    <span className={`px-2.5 py-1 rounded-full font-black ${getSafetyLevelClass(r.safetyLevel)}`}>{r.safetyScore}점 {getSafetyLevelDisplayLabel(r.safetyLevel)}</span>
-                                    <span className={`px-2 py-1 rounded font-black ${hasImage ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{hasImage ? '이미지 OK' : '이미지 누락'}</span>
-                                    {recentlyCorrected && <span className="px-2 py-1 rounded bg-violet-600 text-white font-black">최근 24h 수정</span>}
-                                    {weakCorrectionReason && <span className="px-2 py-1 rounded bg-amber-100 text-amber-800 font-black" title={latestCorrectionReason || '수정 사유가 비어 있거나 너무 짧습니다.'}>수정사유 보강 필요</span>}
-                                    {getReviewTrustState(r) === 'PENDING' && <span className="px-2 py-1 rounded bg-amber-100 text-amber-700 font-black">재검토 대기</span>}
-                                    {getReviewTrustState(r) === 'FINALIZED' && <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-700 font-black">최종확정</span>}
-                                    {!secondPassEligibility.eligible && !failed && secondPassEligibility.reason && (
-                                        <span className="px-2 py-1 rounded bg-violet-100 text-violet-700 font-black">2차 제외 · {secondPassEligibility.reason}</span>
-                                    )}
-                                </div>
-
-                                {failed && rowErrorType && (
-                                    <div className="mt-2 space-y-1">
-                                        <p className="text-[11px] font-black text-rose-700">⚠️ {getOcrErrorTypeKoreanLabel(rowErrorType)}</p>
-                                        {rowGuideMessage && <p className="text-[11px] font-bold text-rose-600">{rowGuideMobile}</p>}
-                                        {preflightReason && <p className="text-[11px] font-bold text-amber-700">사전검증: {preflightReason}</p>}
-                                    </div>
-                                )}
-
-                                {showWorkerSignalDetails && (
-                                    <StatusEvidenceActionPanel
-                                        className="mt-3 grid grid-cols-1 gap-2 text-[11px]"
-                                        cardClassName="rounded-xl border px-3 py-2"
-                                        titleClassName="mt-1 font-semibold leading-snug text-slate-700"
-                                        descriptionClassName="mt-1 font-semibold leading-snug whitespace-pre-wrap break-words text-slate-700"
-                                        items={[
-                                            {
-                                                key: `${r.id}-row-status`,
-                                                eyebrow: '지금 상태',
-                                                title: rowStatusSummary,
-                                                tone: BRAND_TONE.slate,
-                                                eyebrowClassName: 'font-black text-slate-400 uppercase tracking-[0.18em]',
-                                                description: undefined,
-                                            },
-                                            {
-                                                key: `${r.id}-row-evidence`,
-                                                eyebrow: '판단 근거',
-                                                title: rowEvidenceSummary,
-                                                tone: BRAND_TONE.amberSoft,
-                                                eyebrowClassName: 'font-black text-amber-600 uppercase tracking-[0.18em]',
-                                                description: undefined,
-                                            },
-                                            {
-                                                key: `${r.id}-row-action`,
-                                                eyebrow: '다음 행동',
-                                                title: rowNextAction,
-                                                tone: BRAND_TONE.emeraldSoft,
-                                                eyebrowClassName: 'font-black text-emerald-600 uppercase tracking-[0.18em]',
-                                                description: undefined,
-                                            },
-                                        ]}
-                                    />
-                                )}
-
-                                <div className="mt-3 grid grid-cols-2 gap-2">
-                                    <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-3 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl">상세 판단</button>
-                                    <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-3 py-2 bg-slate-900 text-white font-black text-xs rounded-xl">보호 리포트</button>
-                                    {failed && !isAnalyzing && hasImage && (
-                                        <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className={`col-span-2 px-3 py-2 font-bold text-xs rounded-xl border transition-all ${retryActionButtonClass}`}>원문 다시 읽기</button>
-                                    )}
-                                    {showWorkerExtraActions && (
-                                        <>
-                                            {failed && preflightReason && (
-                                                <div className="col-span-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-800">
-                                                    재분석 사전진단: {preflightReason}
-                                                </div>
-                                            )}
-                                            {failed && !isAnalyzing && (
-                                                <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="col-span-2 px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl" title={`${BRAND_STATUS_LABELS.attention} 안내가 필요한 건을 관리자 검토 후 정상 흐름으로 전환`}>관리자 판단으로 유지</button>
-                                            )}
-                                            {failed && immediateActions.length > 0 && (
-                                                <div className="col-span-2 grid grid-cols-1 gap-2">
-                                                    {immediateActions.map((action) => (
-                                                        <button
-                                                            key={`${r.id}-${action.type}`}
-                                                            onClick={(e) => { e.stopPropagation(); void handleFailureImmediateAction(r, action.type); }}
-                                                            className={`px-3 py-2 font-bold text-xs rounded-xl transition-all ${action.className}`}
-                                                            title={action.title}
-                                                        >
-                                                            {action.label}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            )}
-                                            <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="col-span-2 px-3 py-2 bg-slate-100 text-slate-500 font-bold text-xs rounded-xl">삭제</button>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-                <div className="hidden sm:block overflow-x-auto custom-scrollbar">
-                    <table className="w-full text-left">
-                        <thead>
-                            <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                                <th className="px-2 py-4 text-center w-12">선택</th>
-                                <th className="px-4 sm:px-8 py-4">근로자 정보</th>
-                                <th className="px-4 sm:px-8 py-4">공종/직군</th>
-                                <th className="px-4 sm:px-8 py-4">팀장 (Leader)</th>
-                                <th className="px-4 sm:px-8 py-4 text-center">안전 점수</th>
-                                <th className="px-4 sm:px-8 py-4 text-center">이미지 상태</th>
-                                <th className="px-4 sm:px-8 py-4 text-right">관리</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50 font-medium">
-                            {/* 선택 체크박스 컬럼 추가 */}
-                            {filteredRecords.map((r: WorkerRecord) => {
-                                const checked = selectedIds.includes(r.id);
-                                const isManager = isManagementRole(r.jobField);
-                                const hasImage = hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage);
-                                const failed = isFailedRecord(r);
-                                const failureCode = failed ? resolveFailureCodeFromRecord(r) : 'UNKNOWN';
-                                const immediateActions = failed ? getFailureImmediateActions(failureCode) : [];
-                                const preflightReason = failed ? getPreflightFailureReason(r) : null;
-                                const secondPassEligibility = getSecondPassEligibility(r, secondPassEditedOnly);
-                                const latestCorrectionPreview = getLatestCorrectionPreview(r);
-                                const latestCorrectionTimestampLabel = getLatestCorrectionTimestampLabel(r);
-                                const recentlyCorrected = isRecentlyCorrected(r);
-                                const weakCorrectionReason = hasWeakCorrectionReason(r);
-                                const latestCorrectionReason = getLatestCorrectionReason(r);
-                                const rowErrorType = failed ? getOcrErrorTypeFromRecord(r) : null;
-                                const rowGuideMessage = rowErrorType ? getOcrErrorGuideMessage(rowErrorType) : '';
-                                const rowGuideSummary = rowErrorType ? getOcrErrorGuideSummary(rowErrorType) : '';
-                                const rowGuideMobile = rowErrorType ? getOcrErrorMobileLabel(rowErrorType) : '';
-                                const reviewTrustState = getReviewTrustState(r);
-                                const rowStatusSummary = failed
-                                    ? `${getOcrErrorTypeKoreanLabel(rowErrorType || 'UNKNOWN')} 신호가 남아 있습니다.`
-                                    : reviewTrustState === 'PENDING'
-                                        ? '관리자 재검토가 남아 있는 상태입니다.'
-                                        : reviewTrustState === 'FINALIZED'
-                                            ? '보호 판단이 확정된 상태입니다.'
-                                            : '현재 기록은 기본 흐름 안에서 유지되고 있습니다.';
-                                const rowEvidenceSummary = preflightReason
-                                    || latestCorrectionReason
-                                    || (typeof r.ocrConfidence === 'number' ? `OCR 신뢰도 ${(r.ocrConfidence * 100).toFixed(0)}% 기준으로 확인 중입니다.` : '최근 수정 및 OCR 근거를 함께 확인할 수 있습니다.');
-                                const rowNextAction = failed
-                                    ? hasImage
-                                        ? '원문 다시 읽기 후 남는 건을 상세 판단으로 넘기세요.'
-                                        : '재촬영 안내 또는 관리자 판단으로 유지가 우선입니다.'
-                                    : secondPassEligibility.eligible
-                                        ? '필요 시 2차 재평가로 해석 품질을 더 끌어올릴 수 있습니다.'
-                                        : '현재 조건에서는 유지 점검과 리포트 확인이 우선입니다.';
-                                
-                                return (
-                                    <tr key={r.id} className={`hover:bg-indigo-50/30 transition-colors group ${isManager ? 'bg-slate-50/50 opacity-80' : ''} ${failed ? 'bg-rose-50/50' : recentlyCorrected ? 'bg-violet-50/40' : ''}`}>
-                                        <td className="px-2 text-center align-middle">
-                                            <input
-                                                type="checkbox"
-                                                checked={checked}
-                                                onChange={e => {
-                                                    if (e.target.checked) setSelectedIds(ids => [...ids, r.id]);
-                                                    else setSelectedIds(ids => ids.filter(id => id !== r.id));
-                                                }}
-                                                className="w-4 h-4 accent-indigo-600"
-                                            />
-                                        </td>
-                                        <td className="px-4 sm:px-8 py-5 font-black text-slate-800 cursor-pointer" onClick={() => onViewDetails(r)}>
-                                            <div className="flex flex-col">
-                                                <span className={`flex items-center gap-1 ${failed ? 'text-rose-600' : ''}`}>
-                                                    {r.name}
-                                                    {getLeaderIcon(r)}
-                                                </span>
-                                                <span className="text-[10px] text-slate-400 font-bold tracking-wider">{r.nationality} | {r.date}</span>
-                                                {typeof r.ocrConfidence === 'number' && (
-                                                    <span className="text-[9px] text-slate-500 font-bold">OCR 신뢰도: {(r.ocrConfidence * 100).toFixed(0)}%</span>
-                                                )}
-                                                {latestCorrectionPreview && (
-                                                    <span className="text-[10px] text-violet-700 font-black mt-1 leading-snug" title={latestCorrectionReason || latestCorrectionPreview}>
-                                                        최근 수정: {latestCorrectionPreview}
-                                                    </span>
-                                                )}
-                                                {latestCorrectionReason && (
-                                                    <span className="text-[10px] text-slate-600 font-semibold mt-1 leading-snug whitespace-pre-wrap break-words">
-                                                        사유 전문: {latestCorrectionReason}
-                                                    </span>
-                                                )}
-                                                {latestCorrectionTimestampLabel && (
-                                                    <span className="text-[10px] text-violet-500 font-bold mt-0.5 leading-snug">
-                                                        수정 시각: {latestCorrectionTimestampLabel}
-                                                    </span>
-                                                )}
-                                                {recentlyCorrected && (
-                                                    <span className="mt-1 inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-black bg-violet-600 text-white border border-violet-600">
-                                                        최근 24h 수정
-                                                    </span>
-                                                )}
-                                                {weakCorrectionReason && (
-                                                    <span className="mt-1 inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-100 text-amber-800 border border-amber-200" title={latestCorrectionReason || '수정 사유가 비어 있거나 너무 짧습니다.'}>
-                                                        수정사유 보강 필요
-                                                    </span>
-                                                )}
-                                                {failed && <span className="text-[9px] text-rose-500 font-bold">⚠️ 추가 확인 안내</span>}
-                                                {failed && rowErrorType && (
-                                                    <span className="mt-1 inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-100 text-rose-700 border border-rose-200">
-                                                        {getOcrErrorTypeKoreanLabel(rowErrorType)}
-                                                    </span>
-                                                )}
-                                                {failed && rowGuideMessage && (
-                                                    <>
-                                                        <span className="sm:hidden text-[10px] text-rose-700 font-black mt-1 leading-snug" title={rowGuideMessage}>
-                                                            {rowGuideMobile}
-                                                        </span>
-                                                        <span className="hidden sm:block text-[10px] text-rose-700 font-bold mt-1 leading-snug" title={rowGuideMessage}>
-                                                            {rowGuideSummary}
-                                                        </span>
-                                                    </>
-                                                )}
-                                                {!secondPassEligibility.eligible && !failed && secondPassEligibility.reason && (
-                                                    <span className="mt-1 inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[9px] font-black bg-violet-100 text-violet-700 border border-violet-200">
-                                                        2차 제외 · {secondPassEligibility.reason}
-                                                    </span>
-                                                )}
-                                                {failed && preflightReason && (
-                                                    <span className="text-[10px] text-amber-700 font-black mt-1 leading-snug">
-                                                        사전검증: {preflightReason}
-                                                    </span>
-                                                )}
-                                                {showWorkerSignalDetails && (
-                                                    <StatusEvidenceActionPanel
-                                                        className="mt-2 grid grid-cols-1 gap-1.5 text-[10px] font-semibold"
-                                                        cardClassName="rounded-lg border px-2 py-2"
-                                                        titleClassName="mt-0.5 block text-[10px] font-semibold leading-snug"
-                                                        items={[
-                                                            {
-                                                                key: `${r.id}-row-status`,
-                                                                eyebrow: '지금 상태',
-                                                                title: rowStatusSummary,
-                                                                tone: BRAND_TONE.slateText,
-                                                                eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-slate-400',
-                                                            },
-                                                            {
-                                                                key: `${r.id}-row-evidence`,
-                                                                eyebrow: '판단 근거',
-                                                                title: <span className="whitespace-pre-wrap break-words">{rowEvidenceSummary}</span>,
-                                                                tone: BRAND_TONE.amberSoftTextStrong,
-                                                                eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-amber-600',
-                                                            },
-                                                            {
-                                                                key: `${r.id}-row-action`,
-                                                                eyebrow: '다음 행동',
-                                                                title: rowNextAction,
-                                                                tone: BRAND_TONE.emeraldSoftTextStrong,
-                                                                eyebrowClassName: 'text-[9px] font-black uppercase tracking-[0.16em] text-emerald-600',
-                                                            },
-                                                        ]}
-                                                    />
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="px-4 sm:px-8 py-5 text-slate-500 font-bold">{r.jobField}</td>
-                                        <td className="px-4 sm:px-8 py-5 text-slate-600 font-bold text-sm">
-                                            {r.teamLeader && r.teamLeader !== '미지정' ? (
-                                                <span className={`bg-slate-100 px-2 py-1 rounded border border-slate-200 ${getLeaderIcon(r) ? 'text-indigo-600 font-black border-indigo-200 bg-indigo-50' : 'text-slate-600'}`}>
-                                                    {r.teamLeader}
-                                                </span>
-                                            ) : (
-                                                <span className="text-slate-300 text-xs">미지정</span>
-                                            )}
-                                        </td>
-                                        <td className="px-4 sm:px-8 py-5 text-center">
-                                            <div className="flex flex-col items-center gap-1">
-                                                <span className={`px-3 py-1 rounded-full text-xs font-black shadow-sm ${getSafetyLevelClass(r.safetyLevel)}`}>{r.safetyScore}</span>
-                                                <span className="text-[10px] font-black text-slate-500">{r.safetyLevel}</span>
-                                                {needsGradeRevalidation(r) && (
-                                                    <span className="text-[9px] font-black text-rose-600 bg-rose-100 px-2 py-0.5 rounded">등급 재검증 필요</span>
-                                                )}
-                                                {getReviewTrustState(r) === 'PENDING' && (
-                                                    <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded">재검토 대기</span>
-                                                )}
-                                                {getReviewTrustState(r) === 'FINALIZED' && (
-                                                    <span className="text-[9px] font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">최종확정</span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="px-4 sm:px-8 py-5 text-center">
-                                            {hasImage ? (
-                                                <span className="text-emerald-500 font-black text-[9px] uppercase">OK</span>
-                                            ) : (
-                                                <span className="text-rose-400 font-black text-[9px] uppercase bg-rose-100 px-2 py-1 rounded">IMG LOSS</span>
-                                            )}
-                                        </td>
-                                        <td className="px-4 sm:px-8 py-5 text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-4 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">상세 판단 바로가기</button>
-                                                <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-4 py-2 bg-slate-900 text-white font-black text-xs rounded-xl hover:bg-black transition-all shadow-sm">보호 리포트 바로가기</button>
-                                                {failed && !isAnalyzing && hasImage && (
-                                                    <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className={`px-3 py-2 font-bold text-xs rounded-xl border transition-all ${retryActionButtonClass}`} title={preflightReason || '사전진단 통과'}>
-                                                        원문 다시 읽기
-                                                    </button>
-                                                )}
-                                                {showWorkerExtraActions && (
-                                                    <>
-                                                        {failed && !isAnalyzing && (
-                                                            <button onClick={(e) => { e.stopPropagation(); handleAdminNormalizeFailedRecord(r); }} className="px-3 py-2 bg-amber-100 text-amber-700 font-bold text-xs rounded-xl hover:bg-amber-200 transition-all" title="다시 확인이 어려운 건을 관리자 확인 후 정상 분류">
-                                                                관리자 판단으로 유지
-                                                            </button>
-                                                        )}
-                                                        {failed && immediateActions.map((action) => (
-                                                            <button
-                                                                key={`${r.id}-${action.type}`}
-                                                                onClick={(e) => { e.stopPropagation(); void handleFailureImmediateAction(r, action.type); }}
-                                                                className={`px-3 py-2 font-bold text-xs rounded-xl transition-all ${action.className}`}
-                                                                title={action.title}
-                                                            >
-                                                                {action.label}
-                                                            </button>
-                                                        ))}
-                                                        <button onClick={(e) => { e.stopPropagation(); onDeleteRecord(r.id); }} className="p-2 bg-slate-100 text-slate-400 hover:bg-rose-500 hover:text-white rounded-xl transition-all" title="삭제">
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                                        </button>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            </CollapsibleSection>
 
             <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl p-5 sm:p-6">
                 <CollapsibleSection
