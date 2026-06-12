@@ -10,12 +10,30 @@ interface FieldContext {
 }
 
 export const FieldContextInput: React.FC = () => {
-  const [context, setContext] = useState<FieldContext>({
-    fieldName: '',
-    weather: 'clear',
-    personnel: 1,
-    timeOfDay: 'morning',
-    specialNotes: '',
+  const [context, setContext] = useState<FieldContext>(() => {
+    try {
+      const saved = localStorage.getItem('fieldContext');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          fieldName: typeof parsed.fieldName === 'string' ? parsed.fieldName : '',
+          weather: ['clear', 'cloudy', 'rainy', 'snowy'].includes(parsed.weather) ? parsed.weather : 'clear',
+          personnel: typeof parsed.personnel === 'number' && Number.isFinite(parsed.personnel) ? parsed.personnel : 1,
+          timeOfDay: ['morning', 'lunch', 'evening', 'night'].includes(parsed.timeOfDay) ? parsed.timeOfDay : 'morning',
+          specialNotes: typeof parsed.specialNotes === 'string' ? parsed.specialNotes : '',
+          savedAt: parsed.savedAt
+        };
+      }
+    } catch (e) {
+      // ignore
+    }
+    return {
+      fieldName: '',
+      weather: 'clear',
+      personnel: 1,
+      timeOfDay: 'morning',
+      specialNotes: '',
+    };
   });
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');

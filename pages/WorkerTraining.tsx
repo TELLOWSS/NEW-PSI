@@ -715,7 +715,42 @@ const resolveNationalityByLanguageCode = (langCode: string): string => {
     return '기타';
 };
 
+const MOCK_SESSION_DATA: SessionRow = {
+    id: 'mock-session-id',
+    source_text_ko: `[오늘의 TBM 안전 지침]\n1. 고소 작업 시 생명줄 및 안전대 이중 체결 필수\n2. 이동식 사다리 작업 시 2인 1조 작업 및 아웃트리거 설치 확인\n3. 하부 통제구역 설정 및 신호수 배치 상태 점검`,
+    audio_urls: {
+        'ko-KR': 'mock-audio-ko',
+        'en-US': 'mock-audio-en',
+        'vi-VN': 'mock-audio-vi',
+        'zh-CN': 'mock-audio-zh'
+    },
+    translated_texts: {
+        'ko-KR': `[오늘의 TBM 안전 지침]\n1. 고소 작업 시 생명줄 및 안전대 이중 체결 필수\n2. 이동식 사다리 작업 시 2인 1조 작업 및 아웃트리거 설치 확인\n3. 하부 통제구역 설정 및 신호수 배치 상태 점검`,
+        'en-US': `[Today's TBM Safety Guidelines]\n1. Double fastening of lifeline and safety harness is mandatory during high-altitude work.\n2. Ensure 2-person team work and outrigger installation when working on mobile ladders.\n3. Establish lower control zones and inspect signalman deployment status.`,
+        'vi-VN': `[Hướng dẫn an toàn TBM hôm nay]\n1. Bắt buộc phải thắt dây an toàn kép và dây cứu sinh khi làm việc trên cao.\n2. Đảm bảo làm việc nhóm 2 người và lắp đặt chân đỡ khi làm việc trên thang di động.\n3. Thiết lập khu vực kiểm soát phía dưới và kiểm tra tình trạng bố trí của người báo hiệu.`,
+        'zh-CN': `[今日 TBM 安全指南]\n1. 高空作业时必须双重系挂生命线 and 안전대。\n2. 移动梯作业时，ensure/确保2人一组作业并确认支腿安装。\n3. 设置下方管制区域并检查信号工配备状态。`
+    }
+};
+
 const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMode = false }) => {
+    const localActiveSessionId = useMemo(() => {
+        try {
+            const raw = localStorage.getItem('psi_training_active_qr_state');
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                return parsed?.currentSessionId || '';
+            }
+        } catch {
+            return '';
+        }
+        return '';
+    }, []);
+
+    const [activeSessionId, setActiveSessionId] = useState(sessionId || localActiveSessionId);
+
+    useEffect(() => {
+        setActiveSessionId(sessionId || localActiveSessionId);
+    }, [sessionId, localActiveSessionId]);
     const [loading, setLoading] = useState(false);
     const [hasSessionLoaded, setHasSessionLoaded] = useState(false);
     const [loadRequestId, setLoadRequestId] = useState(0);
@@ -1014,7 +1049,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             ppeConfirm: false,
             emergencyConfirm: false,
         });
-    }, [effectiveLangKey, sessionId]);
+    }, [effectiveLangKey, activeSessionId]);
 
     useEffect(() => {
         const node = guidanceRef.current;
@@ -1064,7 +1099,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
 
     useEffect(() => {
         languageInitDoneRef.current = false;
-    }, [sessionId]);
+    }, [activeSessionId]);
 
     useEffect(() => {
         if (!sessionData || languageInitDoneRef.current) return;
@@ -1098,13 +1133,20 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
         setSessionData(null);
         setLoading(false);
         sessionLoadInFlightRef.current = false;
-    }, [sessionId]);
+    }, [activeSessionId]);
 
     useEffect(() => {
-        if (!sessionId) {
+        if (!activeSessionId) {
             setLoading(false);
             setSessionData(null);
             setHasSessionLoaded(false);
+            return;
+        }
+
+        if (activeSessionId === 'mock-session-id') {
+            setSessionData(MOCK_SESSION_DATA);
+            setHasSessionLoaded(true);
+            setLoading(false);
             return;
         }
 
@@ -1124,7 +1166,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             const { data, error } = await supabase
                 .from('training_sessions')
                 .select('id, source_text_ko, audio_urls, translated_texts')
-                .eq('id', sessionId)
+                .eq('id', activeSessionId)
                 .single();
 
             if (error) {
@@ -1144,9 +1186,15 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
         };
 
         void run();
-    }, [sessionId, loadRequestId]);
+    }, [activeSessionId, loadRequestId]);
 
-    if (!sessionId) {
+    if (!activeSessionId) {
+        const handleLoadMockSession = () => {
+            setSessionData(MOCK_SESSION_DATA);
+            setHasSessionLoaded(true);
+            setActiveSessionId('mock-session-id');
+        };
+
         return (
             <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200 shadow-sm max-w-2xl">
                 <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 mb-4">
@@ -1158,6 +1206,16 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                 <p className="mt-2 text-sm font-bold text-slate-600">
                     {t.mobileOnlyDescription}
                 </p>
+                <div className="mt-6 border-t border-slate-100 pt-5">
+                    <p className="text-xs font-bold text-slate-500 mb-3">PC 관제 실무자 테스트 및 화면 미리보기:</p>
+                    <button
+                        type="button"
+                        onClick={handleLoadMockSession}
+                        className="w-full sm:w-auto px-5 py-3 rounded-xl bg-indigo-600 text-white text-sm font-black transition-all hover:bg-indigo-700 hover:-translate-y-0.5 shadow-sm active:translate-y-0"
+                    >
+                        테스트용 데모 세션 로드 (다국어 지원)
+                    </button>
+                </div>
             </div>
         );
     }
@@ -1190,7 +1248,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
     };
 
     const handleLoadSessionData = () => {
-        if (!sessionId) return;
+        if (!activeSessionId) return;
         if (loading || sessionLoadInFlightRef.current) return;
         setLoadRequestId((prev) => prev + 1);
     };
@@ -1201,12 +1259,14 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             return;
         }
 
-        if (isLinkMetaMissing) {
+        const isMock = activeSessionId === 'mock-session-id';
+
+        if (!isMock && isLinkMetaMissing) {
             setMessage(t.linkInvalid);
             return;
         }
 
-        if (isLinkExpired) {
+        if (!isMock && isLinkExpired) {
             setMessage(t.linkExpired);
             return;
         }
@@ -1245,12 +1305,35 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
         setSubmitting(true);
         setMessage('');
 
+        if (isMock) {
+            setTimeout(() => {
+                audioRef.current?.pause();
+                if (audioRef.current) {
+                    audioRef.current.currentTime = 0;
+                }
+                setIsPlaying(false);
+                setSubmittedSnapshot({
+                    workerName: workerName.trim(),
+                    languageCode: effectiveLangKey,
+                    submittedAt: Date.now(),
+                });
+                setMessage('테스트 제출 성공! (시뮬레이션 완료)');
+                setWorkerName('');
+                sigRef.current?.clear();
+                setHasSignature(false);
+                setSignatureWarning(false);
+                setSubmitted(true);
+                setSubmitting(false);
+            }, 1000);
+            return;
+        }
+
         try {
             const response = await fetch('/api/training/submit-signature', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    sessionId,
+                    sessionId: activeSessionId,
                     workerName,
                     nationality,
                     selectedLanguageCode: effectiveLangKey,
@@ -1325,11 +1408,11 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
         return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{noTrainingDataMessage}</div>;
     }
 
-    if (isLinkMetaMissing) {
+    if (activeSessionId !== 'mock-session-id' && isLinkMetaMissing) {
         return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.linkInvalid}</div>;
     }
 
-    if (isLinkExpired) {
+    if (activeSessionId !== 'mock-session-id' && isLinkExpired) {
         return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.linkExpired}</div>;
     }
 

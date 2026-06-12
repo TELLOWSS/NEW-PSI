@@ -879,6 +879,7 @@ const App: React.FC = () => {
         }
         // 시작 체크리스트 게이트
         if (operationalMode === 'immediate' && isStartChecklistGateActive && isPageBlockedByStartChecklist(page)) {
+            alert('⚠️ 금일 TBM 안전 점검(체크리스트)이 완료되지 않아 해당 페이지로 이동할 수 없습니다. 대시보드에서 금일 점검 항목을 완료해 주세요.');
             setCurrentPage('dashboard');
             return;
         }
