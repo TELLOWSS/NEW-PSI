@@ -154,7 +154,7 @@ const TBM_LOCALIZATIONS: Record<string, TbmLocalization> = {
         signInstructor: 'Instructor (Sign)',
         signConfirmer: 'Confirmed (Sign)',
         dateLabel: 'Date',
-        footerNotice: '{loc.footerNotice}',
+        footerNotice: 'This safety guide has been automatically translated for foreign workers.',
         noVideoScenes: 'No scene details available.',
         noAccidents: 'No accident case available.',
         noRisks: 'No risk details configured.',
@@ -280,8 +280,28 @@ const TBM_LOCALIZATIONS: Record<string, TbmLocalization> = {
     }
 };
 
+const normalizeLanguageCode = (code: string): string => {
+    if (!code) return 'en-US';
+    const c = code.toLowerCase();
+    if (c.startsWith('zh') || c.startsWith('cmn')) return 'cmn-CN';
+    return code;
+};
+
+const LANGUAGE_KOREAN_NAMES: Record<string, string> = {
+    'ko-KR': '한국어',
+    'en-US': '영어',
+    'vi-VN': '베트남어',
+    'cmn-CN': '중국어',
+    'th-TH': '태국어',
+    'km-KH': '캄보디아어',
+    'uz-UZ': '우즈베크어',
+    'zh-CN': '중국어',
+    'zh': '중국어',
+};
+
 const getTbmLocalization = (langCode: string): TbmLocalization => {
-    return TBM_LOCALIZATIONS[langCode] || TBM_LOCALIZATIONS['en-US'];
+    const code = normalizeLanguageCode(langCode);
+    return TBM_LOCALIZATIONS[code] || TBM_LOCALIZATIONS['en-US'];
 };
 
 interface ParsedTbmTranslation {
@@ -541,9 +561,9 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         try {
             const canvas = await captureSheet();
             const link = document.createElement('a');
-            const langSuffix = previewLanguage !== 'ko-KR' ? previewLanguage.split('-').pop()?.toLowerCase() || '' : '';
+            const langLabel = previewLanguage !== 'ko-KR' ? LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(previewLanguage)] || '다국어' : '';
             const exportTokens = ['TBM교육자료', educationMonth, workType];
-            if (langSuffix) exportTokens.push(langSuffix);
+            if (langLabel) exportTokens.push(langLabel);
             
             link.download = buildPsiExportFileName({
                 tokens: exportTokens,
@@ -564,9 +584,9 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         try {
             const [canvas, JsPDF] = await Promise.all([captureSheet(), ensureJsPdfConstructor()]);
             if (!JsPDF) throw new Error('PDF 생성 도구를 불러오지 못했습니다.');
-            const langSuffix = previewLanguage !== 'ko-KR' ? previewLanguage.split('-').pop()?.toLowerCase() || '' : '';
+            const langLabel = previewLanguage !== 'ko-KR' ? LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(previewLanguage)] || '다국어' : '';
             const exportTokens = ['TBM교육자료', educationMonth, workType];
-            if (langSuffix) exportTokens.push(langSuffix);
+            if (langLabel) exportTokens.push(langLabel);
 
             saveCanvasAsA4Pdf(canvas, JsPDF, buildPsiExportFileName({
                 tokens: exportTokens,
@@ -595,9 +615,9 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
             slide.background = { color: 'FFFFFF' };
             slide.addImage({ data: canvas.toDataURL('image/png', 1), x: 0, y: 0, w: 8.27, h: 11.69 });
             
-            const langSuffix = previewLanguage !== 'ko-KR' ? previewLanguage.split('-').pop()?.toLowerCase() || '' : '';
+            const langLabel = previewLanguage !== 'ko-KR' ? LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(previewLanguage)] || '다국어' : '';
             const exportTokens = ['TBM교육자료', educationMonth, workType];
-            if (langSuffix) exportTokens.push(langSuffix);
+            if (langLabel) exportTokens.push(langLabel);
 
             await pptx.writeFile({
                 fileName: buildPsiExportFileName({
@@ -609,6 +629,68 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
         } catch (error) {
             setNotice(error instanceof Error ? error.message : 'PPTX를 저장하지 못했습니다.');
         } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const exportAllImages = async () => {
+        setIsExporting(true);
+        const originalLang = previewLanguage;
+        const targetLanguages = ['ko-KR', ...Object.keys(translatedTexts).filter(code => code !== '__quality__' && translatedTexts[code])];
+        
+        try {
+            for (const lang of targetLanguages) {
+                setPreviewLanguage(lang);
+                await new Promise((resolve) => setTimeout(resolve, 400));
+                
+                const canvas = await captureSheet();
+                const link = document.createElement('a');
+                const langLabel = lang !== 'ko-KR' ? LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(lang)] || '다국어' : '한국어';
+                const exportTokens = ['TBM교육자료', educationMonth, workType, langLabel];
+                
+                link.download = buildPsiExportFileName({
+                    tokens: exportTokens,
+                    extension: 'png',
+                });
+                link.href = canvas.toDataURL('image/png', 1);
+                link.click();
+            }
+            setNotice('선택된 모든 언어의 PNG 이미지를 일괄 저장했습니다.');
+        } catch (error) {
+            setNotice(error instanceof Error ? error.message : '일괄 PNG 이미지 저장 중 오류가 발생했습니다.');
+        } finally {
+            setPreviewLanguage(originalLang);
+            setIsExporting(false);
+        }
+    };
+
+    const exportAllPdfs = async () => {
+        setIsExporting(true);
+        const originalLang = previewLanguage;
+        const targetLanguages = ['ko-KR', ...Object.keys(translatedTexts).filter(code => code !== '__quality__' && translatedTexts[code])];
+        
+        try {
+            const JsPDF = await ensureJsPdfConstructor();
+            if (!JsPDF) throw new Error('PDF 생성 도구를 불러오지 못했습니다.');
+            
+            for (const lang of targetLanguages) {
+                setPreviewLanguage(lang);
+                await new Promise((resolve) => setTimeout(resolve, 400));
+                
+                const canvas = await captureSheet();
+                const langLabel = lang !== 'ko-KR' ? LANGUAGE_KOREAN_NAMES[normalizeLanguageCode(lang)] || '다국어' : '한국어';
+                const exportTokens = ['TBM교육자료', educationMonth, workType, langLabel];
+
+                saveCanvasAsA4Pdf(canvas, JsPDF, buildPsiExportFileName({
+                    tokens: exportTokens,
+                    extension: 'pdf',
+                }));
+            }
+            setNotice('선택된 모든 언어의 PDF를 일괄 저장했습니다.');
+        } catch (error) {
+            setNotice(error instanceof Error ? error.message : '일괄 PDF 저장 중 오류가 발생했습니다.');
+        } finally {
+            setPreviewLanguage(originalLang);
             setIsExporting(false);
         }
     };
@@ -1140,7 +1222,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                             const pledgeLines = parsed.pledgeText.split('\n').map(l => l.trim().replace(/^-\s*/, '')).filter(Boolean);
 
                                             const loc = getTbmLocalization(previewLanguage);
-                                            const nativeName = NATIVE_LANGUAGE_NAMES[previewLanguage] || previewLanguage;
+                                            const nativeName = NATIVE_LANGUAGE_NAMES[normalizeLanguageCode(previewLanguage)] || previewLanguage;
 
                                             return (
                                                 <>
@@ -1232,7 +1314,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                         const commitmentLines = pledgeLines.filter(line => !qLines.includes(line));
 
                                         const loc = getTbmLocalization(previewLanguage);
-                                        const nativeName = NATIVE_LANGUAGE_NAMES[previewLanguage] || previewLanguage;
+                                        const nativeName = NATIVE_LANGUAGE_NAMES[normalizeLanguageCode(previewLanguage)] || previewLanguage;
 
                                         return (
                                             <>
@@ -1292,7 +1374,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
                                                 <section className="mt-3.5 grid grid-cols-2 gap-3">
                                                     <div>
-                                                        <h2 className="text-xs font-black text-emerald-700">4. Key Focus Points</h2>
+                                                        <h2 className="text-xs font-black text-emerald-700">{loc.focusTitle}</h2>
                                                         <ol className="mt-1.5 space-y-1">
                                                             {focusLines.map((item, index) => (
                                                                 <li key={index} className="flex gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-[10px] font-bold leading-relaxed">
@@ -1300,16 +1382,16 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                                     <span className="text-slate-700">{item}</span>
                                                                 </li>
                                                             ))}
-                                                            {focusLines.length === 0 && <li className="text-[10.5px] text-slate-400">No focus points.</li>}
+                                                            {focusLines.length === 0 && <li className="text-[10.5px] text-slate-400">{loc.noFocus}</li>}
                                                         </ol>
                                                     </div>
                                                     <div>
-                                                        <h2 className="text-xs font-black text-violet-700">5. Notices & Scheduling</h2>
+                                                        <h2 className="text-xs font-black text-violet-700">{loc.noticeTitle}</h2>
                                                         <ul className="mt-1.5 space-y-1">
                                                             {noticeLines.map((notice, index) => (
                                                                 <li key={index} className="rounded-lg bg-violet-50 px-2.5 py-1.5 text-[10px] font-bold leading-relaxed text-slate-700">{notice}</li>
                                                             ))}
-                                                            {noticeLines.length === 0 && <li className="text-[10.5px] text-slate-400">No active notices.</li>}
+                                                            {noticeLines.length === 0 && <li className="text-[10.5px] text-slate-400">{loc.noNotices}</li>}
                                                         </ul>
                                                     </div>
                                                 </section>
@@ -1317,21 +1399,21 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                 <section className="mt-3.5 rounded-xl border-2 border-dashed border-orange-300 bg-orange-50 p-2.5">
                                                     <div className="grid grid-cols-[1fr_1.2fr] gap-3">
                                                         <div>
-                                                            <h2 className="text-[10.5px] font-black text-orange-900">Comprehension Checks</h2>
+                                                            <h2 className="text-[10.5px] font-black text-orange-900">{loc.qLabel}</h2>
                                                             {qLines.map((question, index) => (
                                                                 <p key={index} className="mt-0.5 text-[10px] font-bold leading-relaxed text-orange-900">{question}</p>
                                                             ))}
                                                             {qLines.length === 0 && (
-                                                                <p className="mt-0.5 text-[10px] font-bold leading-relaxed text-orange-900">Please answer understanding questions before starting work.</p>
+                                                                <p className="mt-0.5 text-[10px] font-bold leading-relaxed text-orange-900">{loc.qPlaceholder}</p>
                                                             )}
                                                         </div>
                                                         <div>
-                                                            <h2 className="text-[10.5px] font-black text-orange-900">Safety Pledge</h2>
+                                                            <h2 className="text-[10.5px] font-black text-orange-900">{loc.pledgeLabel}</h2>
                                                             {commitmentLines.map((line, index) => (
                                                                 <p key={index} className="mt-0.5 text-[10px] font-bold leading-relaxed text-orange-900">{line}</p>
                                                             ))}
                                                             {commitmentLines.length === 0 && (
-                                                                <p className="mt-0.5 text-[10px] font-bold leading-relaxed text-orange-900">{draft.closingCommitment}</p>
+                                                                <p className="mt-0.5 text-[10px] font-bold leading-relaxed text-orange-900">{loc.pledgePlaceholder}</p>
                                                             )}
                                                         </div>
                                                     </div>
@@ -1361,6 +1443,12 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                         <button type="button" disabled={isExporting} onClick={() => void exportPptx()} className="min-h-12 rounded-xl bg-orange-500 px-4 py-3 text-sm font-black text-white disabled:opacity-50">PPTX 저장</button>
                         <button type="button" onClick={() => window.print()} className="min-h-12 rounded-xl bg-slate-900 px-4 py-3 text-sm font-black text-white dark:bg-slate-100 dark:text-slate-900">A4 요약 인쇄</button>
                     </div>
+                    {Object.keys(translatedTexts).filter(code => code !== '__quality__' && translatedTexts[code]).length > 0 && (
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2 no-print border-t border-slate-200 dark:border-slate-800 pt-3">
+                            <button type="button" disabled={isExporting} onClick={() => void exportAllImages()} className="min-h-12 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50/50 px-4 py-3 text-sm font-black text-blue-900 hover:bg-blue-50 disabled:opacity-50">전체 다국어 PNG 이미지 일괄 저장</button>
+                            <button type="button" disabled={isExporting} onClick={() => void exportAllPdfs()} className="min-h-12 rounded-xl border-2 border-dashed border-indigo-300 bg-indigo-50/50 px-4 py-3 text-sm font-black text-indigo-900 hover:bg-indigo-50 disabled:opacity-50">전체 다국어 PDF 일괄 저장</button>
+                        </div>
+                    )}
                 </section>
             )}
         </div>

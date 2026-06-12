@@ -20,11 +20,12 @@ export const getCountryCodeFromLanguage = (code: string): string => {
     const lastPart = parts[parts.length - 1];
     
     // 특이 언어/국가 예외 처리
-    if (lastPart.toLowerCase() === 'us') return 'us';
-    if (lastPart.toLowerCase() === 'cn' || lastPart.toLowerCase() === 'cmn') return 'cn';
-    if (lastPart.toLowerCase() === 'vn') return 'vn';
-    if (lastPart.toLowerCase() === 'kr') return 'kr';
-    if (lastPart.toLowerCase() === 'jp') return 'jp';
+    const lp = lastPart.toLowerCase();
+    if (lp === 'us') return 'us';
+    if (lp === 'cn' || lp === 'cmn' || lp === 'zh') return 'cn';
+    if (lp === 'vn') return 'vn';
+    if (lp === 'kr') return 'kr';
+    if (lp === 'jp') return 'jp';
     
     return lastPart.toLowerCase();
 };
