@@ -14,6 +14,8 @@ import { getSafetyLevelThresholds } from './utils/safetyLevelUtils';
 import { appendBestPracticeSyncFailureLog, setBestPracticeSyncState } from './utils/bestPracticeSyncStatus';
 import { useOperationalMode } from './contexts/OperationalModeContext';
 import { isPageVisibleByOperationalMode } from './utils/operationalModeUtils';
+import { isRouteVisibleInMode } from './config/routeMeta';
+import { useUiAudienceMode } from './hooks/useUiAudienceMode';
 import { getTodayChecklist, OPS_CHECKLIST_CHANGED_EVENT } from './utils/opsChecklistUtils';
 import { isPageBlockedByStartChecklist } from './utils/navigationPolicy';
 
@@ -680,6 +682,7 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
 
 const App: React.FC = () => {
     const { mode: operationalMode } = useOperationalMode();
+    const uiAudienceMode = useUiAudienceMode();
     const [currentPage, setCurrentPage] = useState<Page>('dashboard');
     const [isStartChecklistGateActive, setIsStartChecklistGateActive] = useState<boolean>(() => {
         const checklist = getTodayChecklist();
@@ -833,14 +836,20 @@ const App: React.FC = () => {
     useEffect(() => {
         const isKioskTrainingFlow = currentPage === 'worker-training' && isWorkerKioskMode;
         if (isKioskTrainingFlow) return;
+        // 운영 모드 기반 가드
         if (!isPageVisibleByOperationalMode(currentPage, operationalMode)) {
+            setCurrentPage('dashboard');
+            return;
+        }
+        // 역할(UiAudienceMode) 기반 가드 — 사이드바 표시 조건과 동일하게 맞춤
+        if (!isRouteVisibleInMode(currentPage, uiAudienceMode)) {
             setCurrentPage('dashboard');
             return;
         }
         if (operationalMode === 'immediate' && isStartChecklistGateActive && isPageBlockedByStartChecklist(currentPage)) {
             setCurrentPage('dashboard');
         }
-    }, [currentPage, operationalMode, isWorkerKioskMode, isStartChecklistGateActive]);
+    }, [currentPage, operationalMode, uiAudienceMode, isWorkerKioskMode, isStartChecklistGateActive]);
 
     useEffect(() => {
         const syncStartChecklistGate = () => {
@@ -858,12 +867,23 @@ const App: React.FC = () => {
     }, []);
 
     const navigateToPage = useCallback((page: Page) => {
+        // 운영 모드 기반 방어
+        if (!isPageVisibleByOperationalMode(page, operationalMode)) {
+            setCurrentPage('dashboard');
+            return;
+        }
+        // 역할(UiAudienceMode) 기반 방어 — 사이드바 표시 조건과 동일하게 맞춤
+        if (!isRouteVisibleInMode(page, uiAudienceMode)) {
+            setCurrentPage('dashboard');
+            return;
+        }
+        // 시작 체크리스트 게이트
         if (operationalMode === 'immediate' && isStartChecklistGateActive && isPageBlockedByStartChecklist(page)) {
             setCurrentPage('dashboard');
             return;
         }
         setCurrentPage(page);
-    }, [operationalMode, isStartChecklistGateActive]);
+    }, [operationalMode, uiAudienceMode, isStartChecklistGateActive]);
 
     const handleAdminUnlock = useCallback(async (password: string) => {
         setIsUnlockSubmitting(true);
