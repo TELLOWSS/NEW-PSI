@@ -24,6 +24,7 @@ import { SectionPanelCard } from '../shared/SectionPanelCard';
 import { StatusBadge } from '../shared/StatusBadge';
 import { SummaryMetricGrid } from '../shared/SummaryMetricGrid';
 import { WhyThisResultPanel } from '../shared/WhyThisResultPanel';
+import { CollapsibleSection } from '../shared/CollapsibleSection';
 import { updateAnalysisBasedOnEdits } from '../../services/geminiService';
 import {
     approveHarnessRecord,

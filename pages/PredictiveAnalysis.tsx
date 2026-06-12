@@ -11,7 +11,7 @@ import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { MOBILE_CARD_GRID_COMPACT_CLASS, MOBILE_CARD_GRID_ITEM_CLASS, MOBILE_CARD_PANEL_CLASS, MOBILE_CARD_PANEL_COMPACT_CLASS } from '../components/shared/cardTokens';
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
-import { useDevMode } from '../contexts/DevModeContext';
+import { useUiAudienceMode } from '../hooks/useUiAudienceMode';
 
 const PREDICTIVE_STATUS_COPY = {
     syncReady: '현재 데이터 기준으로 AI 리스크 결과를 다시 정리할 수 있습니다.',
@@ -614,7 +614,8 @@ interface PredictiveAnalysisProps {
 }
 
 const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, onNavigateToPage }) => {
-    const { isDevMode } = useDevMode();
+    const uiAudienceMode = useUiAudienceMode();
+    const isDevMode = uiAudienceMode === 'developer';
     // 1. 순수 근로자 필터링
     const sourceRecords = useMemo(() => 
         workerRecords.filter(r => !isManagementRole(r.jobField))
@@ -1695,13 +1696,13 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                     </div>
                 </div>
                 {/* 하네스 요약 */}
-                <div className="mt-3 grid grid-cols-4 gap-1.5">
+                <div className="mt-3 grid gap-1.5" style={{ gridTemplateColumns: uiAudienceMode === 'developer' ? 'repeat(4, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))' }}>
                     {[
-                        { label: '연결', value: harnessSummary.connected, tone: 'text-indigo-300' },
-                        { label: '즉시', value: harnessSummary.immediateAttention, tone: harnessSummary.immediateAttention > 0 ? 'text-rose-300' : 'text-slate-400' },
-                        { label: '백로그', value: harnessSummary.approvalBacklog, tone: harnessSummary.approvalBacklog > 0 ? 'text-amber-300' : 'text-slate-400' },
-                        { label: '폴백', value: harnessSummary.fallback + harnessSummary.pending, tone: 'text-slate-400' },
-                    ].map((chip) => (
+                        { label: uiAudienceMode === 'developer' ? '연결' : '기록 연동', value: harnessSummary.connected, tone: 'text-indigo-300', visible: true },
+                        { label: uiAudienceMode === 'developer' ? '즉시' : '즉시 보호', value: harnessSummary.immediateAttention, tone: harnessSummary.immediateAttention > 0 ? 'text-rose-300' : 'text-slate-400', visible: true },
+                        { label: uiAudienceMode === 'developer' ? '백로그' : '결재 대기', value: harnessSummary.approvalBacklog, tone: harnessSummary.approvalBacklog > 0 ? 'text-amber-300' : 'text-slate-400', visible: true },
+                        { label: '폴백', value: harnessSummary.fallback + harnessSummary.pending, tone: 'text-slate-400', visible: uiAudienceMode === 'developer' },
+                    ].filter(chip => chip.visible).map((chip) => (
                         <div key={chip.label} className="rounded-xl border border-slate-700 bg-slate-900/60 px-1.5 py-2 text-center">
                             <p className="text-[9px] font-black text-slate-500">{chip.label}</p>
                             <p className={`text-sm font-black ${chip.tone}`}>{chip.value}</p>

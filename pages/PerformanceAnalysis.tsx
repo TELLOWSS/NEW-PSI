@@ -10,6 +10,8 @@ import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 import { buildMonthlyTrendDashboards } from '../utils/reportBuilders';
+import { useUiAudienceMode } from '../hooks/useUiAudienceMode';
+import type { UiAudienceMode } from '../config/routeMeta';
 
 interface PerformanceAnalysisProps {
     workerRecords: WorkerRecord[];
@@ -64,8 +66,6 @@ const getHarnessPersistenceState = (record: Partial<WorkerRecord>): 'connected' 
 const PERFORMANCE_VIEW_MODE_STORAGE_KEY = 'psi_performance_view_mode';
 const PERFORMANCE_VIEW_MODE_MANUAL_KEY = 'psi_performance_view_mode_manual';
 
-type StoredAudience = 'worker' | 'manager' | 'executive';
-
 const getStoredPerformanceViewMode = (): PerformanceViewMode | null => {
     if (typeof window === 'undefined') return null;
     try {
@@ -88,23 +88,10 @@ const getStoredPerformanceViewModeManual = (): boolean => {
     }
 };
 
-const getStoredAudience = (): StoredAudience => {
-    if (typeof window === 'undefined') return 'manager';
-    try {
-        const value = window.localStorage.getItem('psi_dashboard_audience');
-        if (value === 'worker' || value === 'manager' || value === 'executive') {
-            return value;
-        }
-    } catch {
-        return 'manager';
-    }
-    return 'manager';
-};
-
-const getRecommendedPerformanceViewMode = (audience: StoredAudience, viewportWidth: number): PerformanceViewMode => {
+const getRecommendedPerformanceViewMode = (audience: UiAudienceMode, viewportWidth: number): PerformanceViewMode => {
     if (viewportWidth < 640) return 'essential';
     if (audience === 'worker') return 'essential';
-    if (audience === 'executive') return 'full';
+    if (audience === 'developer') return 'full';
     return viewportWidth >= 1280 ? 'full' : 'balanced';
 };
 
@@ -161,6 +148,7 @@ const calculateStandardDeviation = (scores: number[]) => {
 };
 
 const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords }) => {
+    const uiAudienceMode = useUiAudienceMode();
     const [timeRange, setTimeRange] = useState('최근 6개월');
     const [compareMode, setCompareMode] = useState<'field' | 'team'>('field'); // New state for Radar Chart
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
@@ -192,15 +180,14 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
 
     useEffect(() => {
         if (isViewModeManual) return;
-        const audience = getStoredAudience();
-        setViewMode(getRecommendedPerformanceViewMode(audience, viewportWidth));
-    }, [viewportWidth, isViewModeManual]);
+        setViewMode(getRecommendedPerformanceViewMode(uiAudienceMode, viewportWidth));
+    }, [viewportWidth, isViewModeManual, uiAudienceMode]);
 
     useEffect(() => {
         trackUIViewMetric('view_enter', 'performance-analysis', viewMetricSessionRef.current, {
             viewMode,
             viewportWidth,
-            audience: getStoredAudience(),
+            audience: uiAudienceMode,
         });
 
         return () => {
@@ -208,7 +195,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                 dwellMs: Date.now() - viewMetricStartRef.current,
             });
         };
-    }, []);
+    }, [uiAudienceMode]);
 
     useEffect(() => {
         if (prevTimeRangeRef.current === timeRange) return;
@@ -239,7 +226,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
             mode,
             source: 'manual',
             viewportWidth,
-            audience: getStoredAudience(),
+            audience: uiAudienceMode,
         });
     };
 
@@ -400,46 +387,57 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
         },
     ], [riskKeywords, safetyHabitRanking.length]);
 
-    const harnessSummaryMetrics = useMemo(() => ([
-        {
-            key: 'performance-harness-connected',
-            label: '저장 연결',
-            value: `${harnessSummary.connected}명`,
-            helper: `run 연결 ${harnessSummary.runLinked}명 / 전체 ${harnessSummary.total}명`,
-            tone: BRAND_TONE.emeraldSoft80,
-            labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700',
-            helperClassName: 'mt-1 text-xs font-bold text-emerald-700',
-        },
-        {
-            key: 'performance-harness-backlog',
-            label: '검토 대기 항목',
-            value: `${harnessSummary.approvalBacklog}명`,
-            helper: `재검토 필요 ${harnessSummary.reviewNeeded}명`,
-            tone: harnessSummary.approvalBacklog > 0 ? 'border-amber-200 bg-amber-50/80 dark:border-amber-700 dark:bg-amber-900/30' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800',
-            labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.approvalBacklog > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-slate-500 dark:text-slate-300'}`,
-            helperClassName: `mt-1 text-xs font-bold ${harnessSummary.approvalBacklog > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'}`,
-        },
-        {
-            key: 'performance-harness-attention',
-            label: '즉시 보호',
-            value: `${harnessSummary.immediateAttention}명`,
-            helper: '성과 편차보다 먼저 닫아야 할 보호 대상',
-            tone: harnessSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-indigo-200 bg-indigo-50/70',
-            labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.immediateAttention > 0 ? 'text-rose-700' : 'text-indigo-700'}`,
-            helperClassName: `mt-1 text-xs font-bold ${harnessSummary.immediateAttention > 0 ? 'text-rose-700' : 'text-indigo-700'}`,
-        },
-        {
-            key: 'performance-harness-fallback',
-            label: '폴백·저장 대기',
-            value: `${harnessSummary.fallback + harnessSummary.pending}명`,
-            helper: `폴백 ${harnessSummary.fallback}명 · 대기 ${harnessSummary.pending}명`,
-            tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80 dark:border-amber-700 dark:bg-amber-900/30' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800',
-            labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.fallback > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-slate-500 dark:text-slate-300'}`,
-            helperClassName: `mt-1 text-xs font-bold ${harnessSummary.fallback > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'}`,
-        },
-    ]), [harnessSummary]);
+    const harnessSummaryMetrics = useMemo(() => {
+        const isDev = uiAudienceMode === 'developer';
+        
+        const metrics = [
+            {
+                key: 'performance-harness-connected',
+                label: isDev ? '저장 연결' : '기록 연동 완료',
+                value: `${harnessSummary.connected}명`,
+                helper: isDev 
+                    ? `run 연결 ${harnessSummary.runLinked}명 / 전체 ${harnessSummary.total}명` 
+                    : `기록 연동 ${harnessSummary.connected}명 / 전체 ${harnessSummary.total}명`,
+                tone: BRAND_TONE.emeraldSoft80,
+                labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700',
+                helperClassName: 'mt-1 text-xs font-bold text-emerald-700',
+            },
+            {
+                key: 'performance-harness-backlog',
+                label: isDev ? '검토 대기 항목' : '결재 대기 항목',
+                value: `${harnessSummary.approvalBacklog}명`,
+                helper: `재검토 필요 ${harnessSummary.reviewNeeded}명`,
+                tone: harnessSummary.approvalBacklog > 0 ? 'border-amber-200 bg-amber-50/80 dark:border-amber-700 dark:bg-amber-900/30' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800',
+                labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.approvalBacklog > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-slate-500 dark:text-slate-300'}`,
+                helperClassName: `mt-1 text-xs font-bold ${harnessSummary.approvalBacklog > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'}`,
+            },
+            {
+                key: 'performance-harness-attention',
+                label: '즉시 보호',
+                value: `${harnessSummary.immediateAttention}명`,
+                helper: '성과 편차보다 먼저 닫아야 할 보호 대상',
+                tone: harnessSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-indigo-200 bg-indigo-50/70',
+                labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.immediateAttention > 0 ? 'text-rose-700' : 'text-indigo-700'}`,
+                helperClassName: `mt-1 text-xs font-bold ${harnessSummary.immediateAttention > 0 ? 'text-rose-700' : 'text-indigo-700'}`,
+            }
+        ];
 
-    const isFullMode = viewMode === 'full';
+        if (isDev) {
+            metrics.push({
+                key: 'performance-harness-fallback',
+                label: '폴백·저장 대기',
+                value: `${harnessSummary.fallback + harnessSummary.pending}명`,
+                helper: `폴백 ${harnessSummary.fallback}명 · 대기 ${harnessSummary.pending}명`,
+                tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80 dark:border-amber-700 dark:bg-amber-900/30' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800',
+                labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.fallback > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-slate-500 dark:text-slate-300'}`,
+                helperClassName: `mt-1 text-xs font-bold ${harnessSummary.fallback > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'}`,
+            });
+        }
+
+        return metrics;
+    }, [harnessSummary, uiAudienceMode]);
+
+    const isFullMode = uiAudienceMode !== 'worker' && viewMode === 'full';
     const isEssentialMode = viewMode === 'essential';
     const isEssentialMobile = isEssentialMode && viewportWidth < 640;
 
@@ -474,59 +472,65 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                     </div>
                 </div>
 
-                <div className="relative z-10 mt-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 sm:p-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-300">화면 구성 모드</p>
-                        <p className="mt-1 text-xs font-bold text-slate-600 dark:text-slate-200">
-                            {viewMode === 'full' ? '현재 구성' : viewMode === 'balanced' ? '중간 구성' : '필수 구성'}
-                        </p>
+                {uiAudienceMode !== 'worker' && (
+                    <div className="relative z-10 mt-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-3 sm:p-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-300">화면 구성 모드</p>
+                            <p className="mt-1 text-xs font-bold text-slate-600 dark:text-slate-200">
+                                {viewMode === 'full' ? '현재 구성' : viewMode === 'balanced' ? '중간 구성' : '필수 구성'}
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {([
+                                { key: 'full', label: '현재 구성' },
+                                { key: 'balanced', label: '중간 구성' },
+                                { key: 'essential', label: '필수 구성' },
+                            ] as Array<{ key: PerformanceViewMode; label: string }>).map((mode) => (
+                                <button
+                                    key={mode.key}
+                                    type="button"
+                                    onClick={() => handleViewModeChange(mode.key)}
+                                    className={`rounded-xl px-3 py-2 text-xs font-black transition-colors ${
+                                        viewMode === mode.key
+                                            ? 'bg-slate-900 text-white'
+                                            : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
+                                    }`}
+                                >
+                                    {mode.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                        {([
-                            { key: 'full', label: '현재 구성' },
-                            { key: 'balanced', label: '중간 구성' },
-                            { key: 'essential', label: '필수 구성' },
-                        ] as Array<{ key: PerformanceViewMode; label: string }>).map((mode) => (
-                            <button
-                                key={mode.key}
-                                type="button"
-                                onClick={() => handleViewModeChange(mode.key)}
-                                className={`rounded-xl px-3 py-2 text-xs font-black transition-colors ${
-                                    viewMode === mode.key
-                                        ? 'bg-slate-900 text-white'
-                                        : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700'
-                                }`}
-                            >
-                                {mode.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
+                )}
             </div>
 
-            {!isEssentialMode && (
+            {uiAudienceMode !== 'worker' && !isEssentialMode && (
                 <InterpretationCardGrid
                     items={performanceSummaryCards}
                     cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
                 />
             )}
 
-            <SummaryMetricGrid
-                items={harnessSummaryMetrics}
-                className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
-                cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
-            />
+            {uiAudienceMode !== 'worker' && (
+                <SummaryMetricGrid
+                    items={harnessSummaryMetrics}
+                    className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
+                    cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                />
+            )}
 
-            {(harnessSummary.immediateAttention > 0 || harnessSummary.approvalBacklog > 0 || harnessSummary.fallback > 0) && (
+            {uiAudienceMode !== 'worker' && (harnessSummary.immediateAttention > 0 || harnessSummary.approvalBacklog > 0 || (uiAudienceMode === 'developer' && harnessSummary.fallback > 0)) && (
                 <NoticeCallout
-                    variant={harnessSummary.immediateAttention > 0 ? 'rose' : harnessSummary.fallback > 0 ? 'amber' : 'indigo'}
+                    variant={harnessSummary.immediateAttention > 0 ? 'rose' : (harnessSummary.fallback > 0 && uiAudienceMode === 'developer') ? 'amber' : 'indigo'}
                     eyebrow="우선 점검 항목"
                     title={harnessSummary.immediateAttention > 0
                         ? `성과 해석 전에 즉시 관찰 보호 대상 ${harnessSummary.immediateAttention}명을 먼저 조치해야 합니다.`
-                        : harnessSummary.fallback > 0
+                        : (uiAudienceMode === 'developer' && harnessSummary.fallback > 0)
                             ? `안전 기록 저장 폴백 ${harnessSummary.fallback}명이 있어 성과 데이터와 저장 연결 상태를 함께 확인해야 합니다.`
-                            : `검토 대기 항목이 ${harnessSummary.approvalBacklog}명이 남아 있어 점수 비교 전에 결재 검토 순서를 먼저 정리해야 합니다.`}
-                    description="성과 분석은 추세를 읽는 화면이지만, 현재 보호 흐름이 끊긴 인원이 있으면 평균과 변동성보다 먼저 안전 기록 승인·저장 상태를 확인해야 운영 판단이 어긋나지 않습니다."
+                            : `결재 대기 항목이 ${harnessSummary.approvalBacklog}명이 남아 있어 점수 비교 전에 결재 검토 순서를 먼저 정리해야 합니다.`}
+                    description={uiAudienceMode === 'developer'
+                        ? "성과 분석은 추세를 읽는 화면이지만, 현재 보호 흐름이 끊긴 인원이 있으면 평균과 변동성보다 먼저 안전 기록 승인·저장 상태를 확인해야 운영 판단이 어긋나지 않습니다."
+                        : "성과 분석은 추세를 읽는 화면이지만, 현재 보호 흐름이 끊긴 인원이 있으면 평균과 변동성보다 먼저 안전 기록 결재·기록 연동 상태를 확인해야 운영 판단이 어긋나지 않습니다."}
                     className="rounded-2xl border px-4 py-3 shadow-sm"
                     bodyClassName="block"
                     titleClassName="text-sm font-black"
@@ -534,11 +538,13 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                 />
             )}
 
-            <section className="rounded-2xl border border-blue-200 bg-blue-50/70 p-5 shadow-sm">
-                <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-black text-blue-700">MonthlyTrendDashboard</p><h3 className="mt-1 text-lg font-black text-slate-900">월별 개선 추적 요약</h3></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700">{latestMonthlyTrend?.month || '분석 대기'}</span></div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">월 평균 점수</p><p className="mt-1 text-2xl font-black">{latestMonthlyTrend?.averageScore ?? 0}</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">개선이행률</p><p className="mt-1 text-2xl font-black text-emerald-700">{latestMonthlyTrend?.improvementExecutionRate ?? 0}%</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">반복지적 건수</p><p className="mt-1 text-2xl font-black text-orange-700">{latestMonthlyTrend?.repeatedIssueCount ?? 0}건</p></div></div>
-                <p className="mt-3 text-sm font-bold text-slate-600">다음 교육 반영: {latestMonthlyTrend?.nextEducationFocus.join(' · ') || '월별 분석 데이터가 쌓이면 자동 제안됩니다.'}</p>
-            </section>
+            {uiAudienceMode !== 'worker' && (
+                <section className="rounded-2xl border border-blue-200 bg-blue-50/70 p-5 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-black text-blue-700">MonthlyTrendDashboard</p><h3 className="mt-1 text-lg font-black text-slate-900">월별 개선 추적 요약</h3></div><span className="rounded-full bg-white px-3 py-1 text-xs font-black text-blue-700">{latestMonthlyTrend?.month || '분석 대기'}</span></div>
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">월 평균 점수</p><p className="mt-1 text-2xl font-black">{latestMonthlyTrend?.averageScore ?? 0}</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">개선이행률</p><p className="mt-1 text-2xl font-black text-emerald-700">{latestMonthlyTrend?.improvementExecutionRate ?? 0}%</p></div><div className="rounded-xl bg-white p-4"><p className="text-xs font-bold text-slate-500">반복지적 건수</p><p className="mt-1 text-2xl font-black text-orange-700">{latestMonthlyTrend?.repeatedIssueCount ?? 0}건</p></div></div>
+                    <p className="mt-3 text-sm font-bold text-slate-600">다음 교육 반영: {latestMonthlyTrend?.nextEducationFocus.join(' · ') || '월별 분석 데이터가 쌓이면 자동 제안됩니다.'}</p>
+                </section>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                 <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-700 flex flex-col justify-between group hover:-translate-y-1 transition-transform duration-300">
                     <div className="flex justify-between items-start mb-4">
@@ -562,7 +568,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                         </div>
                         <div className="text-right">
-                            <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold">Consistency</p>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold">{uiAudienceMode === 'developer' ? 'Consistency' : '일관성'}</p>
                         </div>
                     </div>
                     <div>
@@ -598,7 +604,32 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                 </div>
             </div>
 
-            {isEssentialMode ? (
+            {uiAudienceMode === 'worker' ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+                    <div className="bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 안전 성과 추이</h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">핵심 추세만 빠르게 확인합니다.</p>
+                            </div>
+                        </div>
+                        <div className="h-80 w-full">
+                            <MonthlyTrendChart records={filteredBaseRecords} />
+                        </div>
+                    </div>
+                    <div className="bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 안전 등급 분포 변화 (6개월)</h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">월별 근로자 안전 등급 구성 비율의 변화를 추적합니다.</p>
+                            </div>
+                        </div>
+                        <div className="h-80 w-full">
+                            <SafetyGradeTrendChart records={filteredBaseRecords} />
+                        </div>
+                    </div>
+                </div>
+            ) : isEssentialMode ? (
                 <div className="bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
                     <div className="flex items-center justify-between mb-6">
                         <div>
