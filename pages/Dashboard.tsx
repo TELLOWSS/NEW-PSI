@@ -2677,37 +2677,152 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             </div>
                         </section>
 
-                        <section className="rounded-3xl border border-white/10 bg-white/10 p-4 sm:p-5 backdrop-blur-sm shadow-lg shadow-slate-950/10">
-                            <div className="flex items-center justify-between gap-2">
+                        <section className="rounded-3xl border border-white/10 bg-slate-950/45 p-4 sm:p-5 backdrop-blur-md shadow-2xl transition-all duration-300 hover:border-white/15">
+                            <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-3">
                                 <div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-200">MOBILE APP</p>
-                                    <h3 className="mt-1 text-lg sm:text-xl font-black text-white">12화면 이동 허브</h3>
-                                    <p className="mt-1 text-xs sm:text-sm font-medium text-slate-200">모바일은 실행 순서를 먼저 보여주고, 손가락 한 번으로 핵심 화면으로 들어가도록 구성합니다.</p>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
+                                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-300">FIELD MOBILE SYNC</p>
+                                    </div>
+                                    <h3 className="mt-1 text-lg sm:text-xl font-black text-white">실시간 현장 모바일 연동 허브 (12채널)</h3>
+                                    <p className="mt-1 text-xs font-medium text-slate-400 leading-relaxed">
+                                        현장 근로자용 모바일 앱의 12개 채널 실시간 상태를 모니터링하고 원클릭으로 관제 화면으로 즉시 전환합니다.
+                                    </p>
                                 </div>
-                                <div className="rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-right">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-200">FLOW</p>
-                                    <p className="mt-0.5 text-sm font-black text-white">12 Screens</p>
+                                <div className="hidden sm:block shrink-0 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-right">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-300">ACTIVE</p>
+                                    <p className="mt-0.5 text-xs font-black text-white">12 Channels</p>
                                 </div>
                             </div>
 
-                            <div className="mt-4 grid grid-cols-2 gap-2">
+                            <div className="mt-4 grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
                                 {[
-                                    ['1', '홈', 'dashboard' as Page],
-                                    ['2', '경보', 'site-issue-management' as Page],
-                                    ['4', '진단', 'worker-training' as Page],
-                                    ['7', '예측', 'predictive-analysis' as Page],
-                                    ['8', '개입', 'intervention-coaching' as Page],
-                                    ['11', '리포트', 'reports' as Page],
-                                ].map(([step, label, page]) => (
+                                    {
+                                        step: '01',
+                                        label: '홈 대시보드',
+                                        page: 'dashboard' as Page,
+                                        desc: '현장 위험현황 요약',
+                                        status: `평균 ${stats.averageScore.toFixed(1)}점`,
+                                        isWarning: false,
+                                    },
+                                    {
+                                        step: '02',
+                                        label: '실시간 경보',
+                                        page: 'site-issue-management' as Page,
+                                        desc: '우선 대응 경보 목록',
+                                        status: stats.highRiskWorkers > 0 ? `고위험 ${stats.highRiskWorkers}명` : '정상 상태',
+                                        isWarning: stats.highRiskWorkers > 0,
+                                    },
+                                    {
+                                        step: '03',
+                                        label: '인지 프로파일',
+                                        page: 'worker-management' as Page,
+                                        desc: '안전 인지 프로파일',
+                                        status: `총 ${stats.totalWorkers}명 등록`,
+                                        isWarning: false,
+                                    },
+                                    {
+                                        step: '04',
+                                        label: '위험인지 진단',
+                                        page: 'worker-training' as Page,
+                                        desc: '자가진단 테스트',
+                                        status: '진단 활성화',
+                                        isWarning: false,
+                                    },
+                                    {
+                                        step: '05',
+                                        label: '현장 컨텍스트',
+                                        page: 'field-context-input' as Page,
+                                        desc: '기상/시간/공정 입력',
+                                        status: '연동 정상',
+                                        isWarning: false,
+                                    },
+                                    {
+                                        step: '06',
+                                        label: '행동 패턴 분석',
+                                        page: 'safety-behavior-management' as Page,
+                                        desc: '행동 유형 추적',
+                                        status: '패턴 감지 중',
+                                        isWarning: false,
+                                    },
+                                    {
+                                        step: '07',
+                                        label: 'AI 위험 예측',
+                                        page: 'predictive-analysis' as Page,
+                                        desc: '사고 확률 예측',
+                                        status: '분석 갱신 완료',
+                                        isWarning: false,
+                                    },
+                                    {
+                                        step: '08',
+                                        label: '현장 개입 추천',
+                                        page: 'intervention-coaching' as Page,
+                                        desc: '행동 교정 코칭 가이드',
+                                        status: harnessDashboardSummary.immediateAttention > 0 ? `즉시 조치 ${harnessDashboardSummary.immediateAttention}건` : '조치 완료',
+                                        isWarning: harnessDashboardSummary.immediateAttention > 0,
+                                    },
+                                    {
+                                        step: '09',
+                                        label: '수기 데이터 입력',
+                                        page: 'judgment-tagging-input' as Page,
+                                        desc: '원문 판단 태깅 입력',
+                                        status: '대기 중',
+                                        isWarning: false,
+                                    },
+                                    {
+                                        step: '10',
+                                        label: '데이터 태깅 검증',
+                                        page: 'ocr-analysis' as Page,
+                                        desc: 'AI OCR 자동 검증',
+                                        status: harnessDashboardSummary.approvalBacklog > 0 ? `승인 대기 ${harnessDashboardSummary.approvalBacklog}건` : '검증 완료',
+                                        isWarning: harnessDashboardSummary.approvalBacklog > 0,
+                                    },
+                                    {
+                                        step: '11',
+                                        label: '안전 분석 리포트',
+                                        page: 'reports' as Page,
+                                        desc: '이행 감사 보고서',
+                                        status: '보고서 갱신',
+                                        isWarning: false,
+                                    },
+                                    {
+                                        step: '12',
+                                        label: '시스템 환경 설정',
+                                        page: 'settings' as Page,
+                                        desc: '권한 및 연동 설정',
+                                        status: '연동 완료',
+                                        isWarning: false,
+                                    },
+                                ].map((channel) => (
                                     <button
-                                        key={`${step}-${label}`}
+                                        key={channel.step}
                                         type="button"
-                                        onClick={() => setCurrentPage(page)}
-                                        className="rounded-2xl border border-white/10 bg-slate-950/25 px-3 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:bg-slate-950/35"
+                                        onClick={() => setCurrentPage(channel.page)}
+                                        className="relative group rounded-2xl border border-white/5 bg-slate-900/40 p-3 text-left transition-all duration-300 hover:border-indigo-500/50 hover:bg-slate-900/90 hover:shadow-[0_0_20px_rgba(99,102,241,0.2)] hover:-translate-y-0.5"
                                     >
-                                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-200">STEP {step}</p>
-                                        <p className="mt-1 text-sm font-black text-white">{label}</p>
-                                        <p className="mt-1 text-[11px] font-medium text-indigo-100">즉시 열기</p>
+                                        <div className="flex items-center justify-between gap-1 mb-1.5">
+                                            <span className="text-[9px] font-black tracking-widest text-indigo-400">CH {channel.step}</span>
+                                            {channel.isWarning && (
+                                                <span className="flex h-2 w-2 relative">
+                                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                                                </span>
+                                            )}
+                                        </div>
+                                        <h4 className="text-xs sm:text-sm font-black text-white group-hover:text-indigo-200 transition-colors">
+                                            {channel.label}
+                                        </h4>
+                                        <p className="mt-0.5 text-[10px] text-slate-500 font-bold overflow-hidden text-ellipsis whitespace-nowrap">
+                                            {channel.desc}
+                                        </p>
+                                        <div className="mt-2 flex items-center justify-between border-t border-white/5 pt-1.5">
+                                            <span className={`text-[10px] font-bold ${channel.isWarning ? 'text-rose-400' : 'text-slate-300'}`}>
+                                                {channel.status}
+                                            </span>
+                                            <span className="text-[9px] font-bold text-indigo-300 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-1 group-hover:translate-x-0">
+                                                이동 →
+                                            </span>
+                                        </div>
                                     </button>
                                 ))}
                             </div>
