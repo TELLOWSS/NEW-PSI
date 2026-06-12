@@ -20,6 +20,9 @@ const IMMEDIATE_VISIBLE_PAGES = new Set<Page>([
     'settings',
     'individual-report',
     'worker-training',
+    'field-context-input',
+    'intervention-coaching',
+    'judgment-tagging-input',
 ]);
 
 const parseOperationalMode = (value: string | null): OperationalMode => {
