@@ -11,6 +11,7 @@ interface MetricCardProps {
     footer?: React.ReactNode;
     icon?: React.ReactNode;
     className?: string;
+    darkBg?: boolean;
 }
 
 const toneClassMap: Record<MetricCardTone, string> = {
@@ -36,16 +37,27 @@ export const MetricCard: React.FC<MetricCardProps> = ({
     footer,
     icon,
     className = '',
+    darkBg = false,
 }) => {
+    const titleColor = darkBg ? 'text-indigo-200' : 'text-slate-650 dark:text-slate-300';
+    const unitColor = darkBg ? 'text-indigo-300' : 'text-slate-500 dark:text-slate-300';
+    const footerColor = darkBg ? 'border-white/10 text-indigo-300' : 'text-slate-500 dark:border-white/10 dark:text-slate-300';
+
+    const toneClass = darkBg
+        ? 'border-white/10 bg-white/5 text-white'
+        : toneClassMap[tone];
+
     return (
         <section
-            className={`min-h-[128px] rounded-2xl border px-4 py-4 shadow-sm transition-colors sm:px-5 ${toneClassMap[tone]} ${className}`}
+            className={`min-h-[128px] rounded-2xl border px-4 py-4 shadow-sm transition-colors sm:px-5 ${toneClass} ${className}`}
             aria-label={`${title} 지표`}
         >
             <div className="flex items-start justify-between gap-3">
-                <p className="text-xs font-bold tracking-wide text-slate-600 dark:text-slate-300 sm:text-sm">{title}</p>
+                <p className={`text-xs font-bold tracking-wide ${titleColor} sm:text-sm`}>{title}</p>
                 {icon ? (
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
+                    <span className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-white ${
+                        darkBg ? 'border-white/10 bg-white/5 text-indigo-250' : 'border-slate-200 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-200'
+                    }`}>
                         {icon}
                     </span>
                 ) : null}
@@ -53,7 +65,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
 
             <div className="mt-3 flex items-end gap-1.5">
                 <strong className="text-2xl font-black leading-none tracking-tight sm:text-3xl">{value}</strong>
-                {unit ? <span className="pb-0.5 text-sm font-bold text-slate-500 dark:text-slate-300">{unit}</span> : null}
+                {unit ? <span className={`pb-0.5 text-sm font-bold ${unitColor}`}>{unit}</span> : null}
             </div>
 
             {deltaText ? (
@@ -62,7 +74,7 @@ export const MetricCard: React.FC<MetricCardProps> = ({
                 </p>
             ) : null}
 
-            {footer ? <div className="mt-3 border-t border-slate-200 pt-2 text-xs text-slate-500 dark:border-white/10 dark:text-slate-300">{footer}</div> : null}
+            {footer ? <div className={`mt-3 border-t pt-2 text-xs ${footerColor}`}>{footer}</div> : null}
         </section>
     );
 };

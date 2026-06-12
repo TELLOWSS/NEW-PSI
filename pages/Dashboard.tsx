@@ -2910,6 +2910,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 </svg>
                             )}
                             className="bg-white/5 backdrop-blur-sm border-white/10"
+                            darkBg
                         />
 
                         <MetricCard
@@ -2924,6 +2925,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 </svg>
                             )}
                             className="bg-white/5 backdrop-blur-sm border-white/10"
+                            darkBg
                         />
 
                         <div className="sm:col-span-2 lg:col-span-1">
@@ -2939,6 +2941,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     </svg>
                                 )}
                                 className="bg-white/5 backdrop-blur-sm border-white/10"
+                                darkBg
                             />
                         </div>
                     </div>
