@@ -11,8 +11,8 @@
         --psi-surface-muted: #eef3f8;
         --psi-surface-inset: #e7edf5;
         --psi-text: #0f172a;
-        --psi-text-muted: #475569;
-        --psi-text-subtle: #64748b;
+        --psi-text-muted: #334155;
+        --psi-text-subtle: #475569;
         --psi-border: #d7e0eb;
         --psi-border-strong: #b8c6d8;
         --psi-focus: #2563eb;
@@ -35,8 +35,8 @@
         --psi-surface-muted: #0d1524;
         --psi-surface-inset: #202c40;
         --psi-text: #f8fafc;
-        --psi-text-muted: #cbd5e1;
-        --psi-text-subtle: #94a3b8;
+        --psi-text-muted: #e2e8f0;
+        --psi-text-subtle: #cbd5e1;
         --psi-border: #334155;
         --psi-border-strong: #475569;
         --psi-focus: #60a5fa;
@@ -599,6 +599,10 @@
 
 @layer utilities {
     .text-slate-400 {
+        color: var(--psi-text-subtle);
+    }
+
+    .text-slate-500 {
         color: var(--psi-text-subtle);
     }
 

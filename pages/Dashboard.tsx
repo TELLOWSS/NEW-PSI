@@ -2578,11 +2578,11 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     {[
                         { label: '근로자', value: stats.totalWorkers, tone: 'text-slate-200' },
                         { label: '평균', value: stats.averageScore.toFixed(1), tone: 'text-indigo-300' },
-                        { label: '고위험', value: stats.highRiskWorkers, tone: stats.highRiskWorkers > 0 ? 'text-rose-300' : 'text-slate-400' },
-                        { label: '백로그', value: harnessDashboardSummary.approvalBacklog, tone: harnessDashboardSummary.approvalBacklog > 0 ? 'text-amber-300' : 'text-slate-400' },
+                        { label: '고위험', value: stats.highRiskWorkers, tone: stats.highRiskWorkers > 0 ? 'text-rose-300' : 'text-slate-300' },
+                        { label: '백로그', value: harnessDashboardSummary.approvalBacklog, tone: harnessDashboardSummary.approvalBacklog > 0 ? 'text-amber-300' : 'text-slate-300' },
                     ].map((chip) => (
                         <div key={chip.label} className="rounded-xl border border-slate-700 bg-slate-900/60 px-1.5 py-2 text-center">
-                            <p className="text-[9px] font-black text-slate-500">{chip.label}</p>
+                            <p className="text-[9px] font-black text-slate-400">{chip.label}</p>
                             <p className={`text-sm font-black ${chip.tone}`}>{chip.value}</p>
                         </div>
                     ))}
@@ -3151,7 +3151,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 <div className={`${MOBILE_CARD_PANEL_CLASS} border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800`}>
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div>
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">최근 7일 공종 집중도</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-650 dark:text-slate-350">최근 7일 공종 집중도</p>
                             <h3 className="mt-1 text-sm font-black text-slate-800 dark:text-slate-100">전이 차단·승인·재분석이 몰린 공종을 우선 확인합니다.</h3>
                         </div>
                         <div className="rounded-full bg-violet-50 px-3 py-1 text-[11px] font-black text-violet-700">
@@ -3161,7 +3161,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
                     <div className="mt-4 overflow-auto">
                         <table className="w-full min-w-[760px] text-left text-[11px]">
-                            <thead className="text-slate-500 dark:text-slate-300">
+                            <thead className="text-slate-650 dark:text-slate-300">
                                 <tr>
                                     <th className="py-2 pr-3">공종</th>
                                     <th className="py-2 pr-3">최근 운영 대상</th>
@@ -3215,7 +3215,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             <div className={`${MOBILE_CARD_PANEL_CLASS} border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800`}>
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Harness Drill-down</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-650 dark:text-slate-350">Harness Drill-down</p>
                         <h3 className="mt-1 text-sm font-black text-slate-800 dark:text-slate-100">백로그와 hotspot을 대시보드 안에서 바로 좁혀 봅니다.</h3>
                     </div>
                     {activeHarnessDrilldown ? (
@@ -3258,7 +3258,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         <div className="flex items-center justify-between gap-3 flex-wrap">
                             <div>
                                 <p className="text-sm font-black text-slate-800 dark:text-slate-100">{harnessDrilldownPreview.title}</p>
-                                <p className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-300">{harnessDrilldownPreview.description}</p>
+                                <p className="mt-1 text-[11px] font-bold text-slate-650 dark:text-slate-300">{harnessDrilldownPreview.description}</p>
                             </div>
                             <div className="flex flex-wrap gap-2">
                                 <button
@@ -3299,7 +3299,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         <div className="flex items-start justify-between gap-3">
                                             <div>
                                                 <p className="text-xs font-black text-slate-800 dark:text-slate-100">{record.name}</p>
-                                                <p className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-300">{record.jobField} · {record.teamLeader || '미지정 팀'}</p>
+                                                <p className="mt-1 text-[11px] font-bold text-slate-650 dark:text-slate-300">{record.jobField} · {record.teamLeader || '미지정 팀'}</p>
                                             </div>
                                             <span className="rounded-full bg-white dark:bg-slate-900 px-2 py-1 text-[10px] font-black text-slate-600 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
                                                 {Number(record.safetyScore).toFixed(0)}점
@@ -3314,7 +3314,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     </div>
                                 );
                             }) : (
-                                <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-4 text-[11px] font-bold text-slate-500 dark:text-slate-300 xl:col-span-2">
+                                <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-4 text-[11px] font-bold text-slate-655 dark:text-slate-300 xl:col-span-2">
                                     현재 선택 조건에서 바로 보여드릴 대상이 없습니다.
                                 </div>
                             )}
@@ -3392,32 +3392,32 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     onClick={handleNavigateToUnassignedRecords}
                     className={`w-full rounded-xl sm:rounded-2xl border px-4 sm:px-5 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-left transition-colors ${
                     isUnassignedWarning
-                        ? 'bg-amber-50 border-amber-300 hover:bg-amber-100 cursor-pointer'
-                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100 cursor-pointer'
+                        ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-700 hover:bg-amber-100 dark:hover:bg-amber-900/40 cursor-pointer'
+                        : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer'
                 }`}
                 >
                     <div className="flex items-start sm:items-center gap-2.5">
                         <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                            isUnassignedWarning ? 'bg-amber-100 text-amber-600' : 'bg-slate-200 text-slate-500'
+                            isUnassignedWarning ? 'bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                         }`}>
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" />
                             </svg>
                         </div>
                         <div>
-                            <p className={`text-sm font-black ${isUnassignedWarning ? 'text-amber-800' : 'text-slate-700'}`}>
+                            <p className={`text-sm font-black ${isUnassignedWarning ? 'text-amber-900 dark:text-amber-200' : 'text-slate-800 dark:text-slate-100'}`}>
                                 식별 불가 데이터 (Unassigned Records)
                             </p>
-                            <p className={`text-xs font-medium ${isUnassignedWarning ? 'text-amber-700' : 'text-slate-500'}`}>
+                            <p className={`text-xs font-medium ${isUnassignedWarning ? 'text-amber-800 dark:text-amber-300' : 'text-slate-650 dark:text-slate-400'}`}>
                                 고유 식별자(worker_uuid/employeeId/qrId) 미매핑 레코드는 개인 이력 분석에서 제외됩니다.
                             </p>
                         </div>
                     </div>
                     <div className="flex items-end gap-1 sm:gap-1.5">
-                        <span className={`text-2xl sm:text-3xl font-black ${isUnassignedWarning ? 'text-amber-700' : 'text-slate-500'}`}>
+                        <span className={`text-2xl sm:text-3xl font-black ${isUnassignedWarning ? 'text-amber-800 dark:text-amber-200' : 'text-slate-700 dark:text-slate-300'}`}>
                             {unassignedCount}
                         </span>
-                        <span className={`text-sm font-bold pb-0.5 ${isUnassignedWarning ? 'text-amber-600' : 'text-slate-500'}`}>건</span>
+                        <span className={`text-sm font-bold pb-0.5 ${isUnassignedWarning ? 'text-amber-700 dark:text-amber-400' : 'text-slate-650 dark:text-slate-400'}`}>건</span>
                     </div>
                 </button>
             )}
@@ -3709,7 +3709,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                                     isSelectedForComparison
                                                         ? 'border-emerald-300 bg-emerald-100 text-emerald-800'
                                                         : isSelectionLocked
-                                                            ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                                                            ? 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed'
                                                             : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
                                                 }`}
                                             >
@@ -3979,7 +3979,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         setMobileInsightTab('chart');
                                     }}
                                     disabled={!hasSelectedTeamForDrilldown}
-                                    className="px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 text-xs font-bold hover:bg-violet-100 transition-colors disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
+                                    className="px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 text-xs font-bold hover:bg-violet-100 transition-colors disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-500 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
                                 >
                                     {hasSelectedTeamForDrilldown ? '선택 1팀 국적 보기' : '먼저 팀 선택'}
                                 </button>
@@ -4417,24 +4417,24 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
                         {weakestTeam && strongestTeam && (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
-                                    <p className="text-[10px] uppercase tracking-wide font-black text-red-500">최취약 팀</p>
+                                <div className="rounded-2xl border border-red-100 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 p-4">
+                                    <p className="text-[10px] uppercase tracking-wide font-black text-red-700 dark:text-red-300">최취약 팀</p>
                                     <div className="mt-2 flex items-start justify-between gap-3">
                                         <div className="min-w-0">
-                                            <p className="text-sm font-black text-red-700 truncate">{weakestTeam.team}</p>
-                                            <p className="text-[11px] text-red-600 mt-1">고위험 {weakestTeam.riskCount}명 · 인원 {weakestTeam.workerCount}명</p>
+                                            <p className="text-sm font-black text-red-900 dark:text-red-100 truncate">{weakestTeam.team}</p>
+                                            <p className="text-[11px] text-red-800 dark:text-red-300 mt-1">고위험 {weakestTeam.riskCount}명 · 인원 {weakestTeam.workerCount}명</p>
                                         </div>
-                                        <p className="text-xl font-black text-red-700 shrink-0">{weakestTeam.avgScore.toFixed(1)}</p>
+                                        <p className="text-xl font-black text-red-700 dark:text-red-350 shrink-0">{weakestTeam.avgScore.toFixed(1)}</p>
                                     </div>
                                 </div>
-                                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-                                    <p className="text-[10px] uppercase tracking-wide font-black text-emerald-500">최우수 팀</p>
+                                <div className="rounded-2xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-950/20 p-4">
+                                    <p className="text-[10px] uppercase tracking-wide font-black text-emerald-700 dark:text-emerald-300">최우수 팀</p>
                                     <div className="mt-2 flex items-start justify-between gap-3">
                                         <div className="min-w-0">
-                                            <p className="text-sm font-black text-emerald-700 truncate">{strongestTeam.team}</p>
-                                            <p className="text-[11px] text-emerald-600 mt-1">양호 {strongestTeam.goodCount}명 · 인원 {strongestTeam.workerCount}명</p>
+                                            <p className="text-sm font-black text-emerald-900 dark:text-emerald-100 truncate">{strongestTeam.team}</p>
+                                            <p className="text-[11px] text-emerald-800 dark:text-emerald-300 mt-1">양호 {strongestTeam.goodCount}명 · 인원 {strongestTeam.workerCount}명</p>
                                         </div>
-                                        <p className="text-xl font-black text-emerald-700 shrink-0">{strongestTeam.avgScore.toFixed(1)}</p>
+                                        <p className="text-xl font-black text-emerald-700 dark:text-emerald-350 shrink-0">{strongestTeam.avgScore.toFixed(1)}</p>
                                     </div>
                                 </div>
                             </div>
@@ -4448,7 +4448,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             {selectedTeamsForComparison.length < 2 && (
                                 <div className="rounded-2xl border border-dashed border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 p-6">
                                     <p className="text-sm font-bold text-indigo-600 dark:text-indigo-300 text-center">팀 2~3개를 먼저 선택하세요.</p>
-                                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 text-center">메인 비교는 선택한 팀만 같은 축으로 보여 줍니다.</p>
+                                    <p className="text-xs text-slate-650 dark:text-slate-400 mt-1 text-center">메인 비교는 선택한 팀만 같은 축으로 보여 줍니다.</p>
                                     <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                         {visibleTeamComparison.map((team) => {
                                             const isSelectedForComparison = selectedTeamsForComparison.includes(team.team);
@@ -4464,7 +4464,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                                         isSelectedForComparison
                                                             ? 'border-indigo-300 bg-indigo-50 text-slate-700'
                                                             : isSelectionLocked
-                                                                ? 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                                                                ? 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed'
                                                                 : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
                                                     }`}
                                                 >
@@ -4503,10 +4503,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         ? `↓ ${Math.abs(team.avgDelta).toFixed(1)}점`
                                         : '→ 보합';
                                 const trendToneClass = team.trendDirection === 'up'
-                                    ? 'bg-emerald-50 text-emerald-600'
+                                    ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300'
                                     : team.trendDirection === 'down'
-                                        ? 'bg-rose-50 text-rose-600'
-                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-200';
+                                        ? 'bg-rose-50 dark:bg-rose-950/20 text-rose-800 dark:text-rose-300'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-250';
 
                                 return (
                                     <div
@@ -4534,29 +4534,29 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                                         )}
                                                         <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-200 text-[10px] font-black">{selectedTradeForComparison}</span>
                                                         {rankingIndex === 0 && (
-                                                            <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-600 text-[10px] font-black">현재 기준 최상단</span>
+                                                            <span className="px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-300 text-[10px] font-black">현재 기준 최상단</span>
                                                         )}
                                                         {rankingIndex === selectedTradeTeamComparison.length - 1 && teamComparisonSort === 'score-asc' && (
-                                                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-600 text-[10px] font-black">최우수팀</span>
+                                                            <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-[10px] font-black">최우수팀</span>
                                                         )}
                                                     </div>
-                                                    <p className="text-[11px] text-slate-500 dark:text-slate-300 mt-1">최신 반영 {team.workerCount}명 · {team.latestDate ? new Date(team.latestDate).toLocaleDateString('ko-KR') : '-'}</p>
+                                                    <p className="text-[11px] text-slate-550 dark:text-slate-300 mt-1">최신 반영 {team.workerCount}명 · {team.latestDate ? new Date(team.latestDate).toLocaleDateString('ko-KR') : '-'}</p>
                                                 </div>
                                             </div>
 
                                             <div className="flex-1 space-y-2">
                                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                                     <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-2.5 sm:p-3 text-center">
-                                                        <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500">평균점수</p>
+                                                        <p className="text-[10px] font-bold text-slate-550 dark:text-slate-400">평균점수</p>
                                                         <p className="text-sm sm:text-base font-black text-slate-800 dark:text-slate-100 mt-1">{team.avgScore.toFixed(1)}</p>
                                                     </div>
-                                                    <div className="rounded-xl bg-red-50 p-2.5 sm:p-3 text-center">
-                                                        <p className="text-[10px] font-bold text-red-400">위험</p>
-                                                        <p className="text-sm sm:text-base font-black text-red-600 mt-1">{team.riskCount}</p>
+                                                    <div className="rounded-xl bg-red-50 dark:bg-red-950/20 p-2.5 sm:p-3 text-center">
+                                                        <p className="text-[10px] font-bold text-red-800 dark:text-red-300">위험</p>
+                                                        <p className="text-sm sm:text-base font-black text-red-600 dark:text-red-400 mt-1">{team.riskCount}</p>
                                                     </div>
-                                                    <div className="rounded-xl bg-amber-50 p-2.5 sm:p-3 text-center">
-                                                        <p className="text-[10px] font-bold text-amber-500">미처리</p>
-                                                        <p className="text-sm sm:text-base font-black text-amber-600 mt-1">{team.unresolvedCount}</p>
+                                                    <div className="rounded-xl bg-amber-50 dark:bg-amber-950/20 p-2.5 sm:p-3 text-center">
+                                                        <p className="text-[10px] font-bold text-amber-800 dark:text-amber-300">미처리</p>
+                                                        <p className="text-sm sm:text-base font-black text-amber-600 dark:text-amber-400 mt-1">{team.unresolvedCount}</p>
                                                     </div>
                                                     <div className={`rounded-xl p-2.5 sm:p-3 text-center ${trendToneClass}`}>
                                                         <p className="text-[10px] font-bold">추세</p>
@@ -4582,7 +4582,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                                         isSelectedForComparison
                                                             ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
                                                             : isSelectionLocked
-                                                                ? 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                                                                ? 'border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 cursor-not-allowed'
                                                             : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
                                                     }`}
                                                 >
