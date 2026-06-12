@@ -1929,59 +1929,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     {/* RIGHT: PROFILE & INFO EDIT AREA */}
                     <div className="w-full lg:w-[50%] flex flex-col bg-slate-50 overflow-hidden">
                         <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-5 sm:space-y-8 custom-scrollbar">
-                            {!isCompactViewActive && (
-                                <SectionPanelCard
-                                    variant="indigo"
-                                    eyebrow="모바일 작업 순서 안내"
-                                    title="저장 → 판단 근거 → 보호 판단 확정 흐름을 빠르게 이어갑니다."
-                                    description="현장 검수자가 가장 적은 클릭으로 보호 판단을 마칠 수 있게 정리했습니다."
-                                    className="rounded-3xl px-5 py-5 shadow-sm"
-                                    titleClassName="mt-2 text-sm font-black text-indigo-900"
-                                    descriptionClassName="mt-2 text-xs font-bold leading-relaxed text-indigo-700"
-                                    bodyClassName="mt-4"
-                                >
-                                    <NextActionChecklist
-                                        title="권장 순서"
-                                        className="mt-0 border-t-0 pt-0"
-                                        titleClassName="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500"
-                                        listClassName="space-y-1.5 text-xs font-bold leading-relaxed text-indigo-800"
-                                        itemClassName="flex items-start gap-2"
-                                        bulletClassName="mt-[2px] text-indigo-500"
-                                        items={[
-                                            { key: 'step-1', content: '근로자 정보와 원문/해석 내용을 먼저 수정합니다.' },
-                                            { key: 'step-2', content: '상단 1차 저장으로 수정본을 고정합니다.' },
-                                            { key: 'step-3', content: '하단 승인영역에 검토 근거를 남깁니다.' },
-                                            { key: 'step-4', content: '최종 승인으로 2차 가공을 실행합니다.' },
-                                            { key: 'step-5', content: '보호 리포트로 연결해 현장 공유를 이어갑니다.' },
-                                        ]}
-                                    />
-                                </SectionPanelCard>
-                            )}
-
-                            {hasChanges && hasWeakSaveReason && (
-                                <NoticeCallout
-                                    variant="amber"
-                                    eyebrow="수정 사유 보강 권장"
-                                    title="1차 저장 전에 하단 승인영역 코멘트에 수정 이유를 6자 이상 남겨주세요."
-                                    description={<><span>저장은 가능하지만, 사유가 짧으면 OCR 화면에서 </span><span className="underline">수정사유 보강 필요</span><span> 배지로 표시됩니다.</span></>}
-                                    className="w-full rounded-3xl border px-5 py-4 shadow-sm"
-                                    bodyClassName="block"
-                                    eyebrowClassName="text-[11px] font-black uppercase tracking-[0.2em] text-amber-700"
-                                    titleClassName="mt-2 text-sm font-black text-amber-800"
-                                    descriptionClassName="mt-2 text-xs font-bold leading-relaxed text-amber-700"
-                                />
-                            )}
-
-                            {!isCompactViewActive && (
-                                <InterpretationCardGrid
-                                    items={reviewDecisionCards}
-                                    className="grid grid-cols-1 xl:grid-cols-3 gap-3"
-                                    cardClassName="rounded-3xl border p-5 shadow-sm"
-                                    titleClassName="mt-2 text-base font-black text-slate-900"
-                                    descriptionClassName="mt-2 text-sm font-semibold leading-relaxed text-slate-600"
-                                />
-                            )}
-
+                            
                             <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
                                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                                     <div>
@@ -2054,11 +2002,27 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             <div key={panel.key} className={`h-full ${isCompactViewActive ? 'min-h-[120px]' : 'min-h-[260px]'} rounded-2xl border ${isCompactViewActive ? 'p-3' : 'p-4'} ${panel.tone}`}>
                                             <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">{panel.eyebrow}</p>
                                             <h4 className="mt-2 text-sm font-black">{panel.title}</h4>
-                                                <p className={`mt-2 ${isCompactViewActive ? 'text-xs' : 'text-sm'} font-semibold leading-relaxed whitespace-pre-wrap`}>{panel.body}</p>
+                                                <p className={`mt-2 ${isCompactViewActive ? 'text-xs max-h-[120px]' : 'text-sm max-h-[220px]'} font-semibold leading-relaxed whitespace-pre-wrap overflow-y-auto custom-scrollbar pr-1`}>{panel.body}</p>
                                         </div>
                                     ))}
                                 </div>
                             </div>
+
+                            
+
+                            {hasChanges && hasWeakSaveReason && (
+                                <NoticeCallout
+                                    variant="amber"
+                                    eyebrow="수정 사유 보강 권장"
+                                    title="1차 저장 전에 하단 승인영역 코멘트에 수정 이유를 6자 이상 남겨주세요."
+                                    description={<><span>저장은 가능하지만, 사유가 짧으면 OCR 화면에서 </span><span className="underline">수정사유 보강 필요</span><span> 배지로 표시됩니다.</span></>}
+                                    className="w-full rounded-3xl border px-5 py-4 shadow-sm"
+                                    bodyClassName="block"
+                                    eyebrowClassName="text-[11px] font-black uppercase tracking-[0.2em] text-amber-700"
+                                    titleClassName="mt-2 text-sm font-black text-amber-800"
+                                    descriptionClassName="mt-2 text-xs font-bold leading-relaxed text-amber-700"
+                                />
+                            )}
 
                             <div className="lg:hidden bg-white border border-slate-200 rounded-2xl p-2 grid grid-cols-3 gap-2 sticky top-0 z-10 shadow-sm">
                                 <ActionButton
@@ -2085,241 +2049,6 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                     보호 리포트
                                 </ActionButton>
                             </div>
-                            
-                            {/* 1. Profile Photo Section (NEW) */}
-                            <SectionPanelCard
-                                variant="whiteSoft"
-                                eyebrow="프로필 자산"
-                                title="증명사진(프로필) 등록"
-                                description={<><span>사원증(ID Card) 및 개인 리포트의 프로필 영역에 사용되며, 문서 이미지와 별도로 관리됩니다.</span></>}
-                                className="rounded-3xl border border-slate-200 bg-white px-6 py-6 shadow-sm"
-                                titleClassName="mt-1 text-lg font-black text-slate-900"
-                                descriptionClassName="mt-1 text-xs font-medium leading-relaxed text-slate-500"
-                                bodyClassName="mt-0"
-                            >
-                                <div className="flex items-center gap-6">
-                                    <div className="relative group shrink-0">
-                                        <div className="w-24 h-24 rounded-2xl overflow-hidden bg-slate-100 border-2 border-slate-200 shadow-inner flex items-center justify-center relative">
-                                            {hasProfileImage ? (
-                                                <img src={record.profileImage} className="w-full h-full object-cover" alt="Profile" />
-                                            ) : (
-                                                <svg className="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                            )}
-                                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                            </div>
-                                            <input type="file" ref={profileInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'profile')} />
-                                            <button onClick={() => profileInputRef.current?.click()} className="absolute inset-0 w-full h-full cursor-pointer"></button>
-                                        </div>
-                                        <div className="absolute -bottom-2 -right-2 bg-indigo-600 text-white p-1.5 rounded-full shadow border-2 border-white pointer-events-none">
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                                        </div>
-                                    </div>
-                                    <div className="flex-1">
-                                        {isPhotoQueueMode && (
-                                            <NoticeCallout
-                                                variant="emerald"
-                                                eyebrow="가장 빠른 등록 방식"
-                                                title="사진 업로드 시 자동 저장과 다음 대상 이동을 함께 진행합니다."
-                                                description="다음 대상이 있으면 자동으로 이어지고, 마지막 대상이면 목록으로 돌아갑니다. 필요하면 상단에서 바로 다음 대상을 수동으로 열 수도 있습니다."
-                                                className="mt-3 w-full rounded-2xl border px-3 py-3"
-                                                bodyClassName="block"
-                                                eyebrowClassName="text-[11px] font-black text-emerald-800"
-                                                titleClassName="mt-1 text-[11px] font-black text-emerald-800"
-                                                descriptionClassName="mt-1 text-[11px] font-bold leading-relaxed text-emerald-700"
-                                            />
-                                        )}
-                                        {photoQueueNotice && (
-                                            <NoticeCallout
-                                                variant={photoQueueNotice.includes(BRAND_STATUS_LABELS.attention) ? 'rose' : 'indigo'}
-                                                eyebrow={photoQueueNotice.includes(BRAND_STATUS_LABELS.attention) ? '추가 확인 안내' : '자동 진행 상태'}
-                                                title={photoQueueNotice}
-                                                className="mt-3 w-full rounded-2xl border px-3 py-3"
-                                                bodyClassName="block"
-                                                eyebrowClassName={photoQueueNotice.includes(BRAND_STATUS_LABELS.attention)
-                                                    ? 'text-[11px] font-black text-rose-700'
-                                                    : 'text-[11px] font-black text-indigo-700'}
-                                                titleClassName={photoQueueNotice.includes(BRAND_STATUS_LABELS.attention)
-                                                    ? 'mt-1 text-[11px] font-black text-rose-700'
-                                                    : 'mt-1 text-[11px] font-black text-indigo-700'}
-                                            />
-                                        )}
-                                        {!hasProfileImage && (
-                                            <button onClick={() => profileInputRef.current?.click()} className="mt-3 text-xs font-bold text-indigo-600 hover:underline">
-                                                + 사진 업로드하기
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            </SectionPanelCard>
-
-                            <SectionPanelCard
-                                variant="whiteSoft"
-                                eyebrow="근로자 정보 편집"
-                                title={(
-                                    <span className="flex items-center gap-3 text-indigo-600">
-                                        <span className="rounded-lg bg-indigo-50 p-1.5">
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                        </span>
-                                        근로자 기본 정보 수정
-                                    </span>
-                                )}
-                                description="기본 정보, 역할, 특수 임무를 한 번에 조정하고 필요하면 관리자 검수 갱신을 이어갑니다."
-                                headerAction={
-                                    <ActionButton
-                                        onClick={handleReflectChanges}
-                                        disabled={isUpdatingAnalysis || isFinalizedRecord}
-                                        variant={isUpdatingAnalysis || isFinalizedRecord ? 'slateSoft' : 'indigo'}
-                                        className="px-3 py-1.5 text-[10px] border-0"
-                                    >
-                                        {isUpdatingAnalysis ? (
-                                            <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                        ) : (
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                        )}
-                                        관리자 검수 및 수정사항 반영 갱신
-                                    </ActionButton>
-                                }
-                                className="rounded-3xl border border-slate-200 bg-white px-8 py-8 shadow-sm"
-                                titleClassName="mt-0 text-xs font-black uppercase tracking-widest"
-                                descriptionClassName="mt-2 text-[11px] font-bold text-slate-500"
-                                bodyClassName="mt-6"
-                            >
-                                <div className="space-y-6">
-                                    <div className="flex gap-4">
-                                        <div className="flex-1">
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">
-                                                근로자 성명 
-                                                {isLeader && <span className="text-yellow-500 ml-1">👑</span>}
-                                                {isSubLeader && <span className="text-slate-400 ml-1">🛡️</span>}
-                                                {record.isTranslator && <span className="text-blue-500 ml-1">🗣️</span>}
-                                                {record.isSignalman && <span className="text-green-500 ml-1">🚦</span>}
-                                            </label>
-                                            <input 
-                                                type="text" 
-                                                value={record.name} 
-                                                onChange={(e) => handleChange('name', e.target.value)}
-                                                className="w-full text-2xl font-black p-4 rounded-2xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-600 h-[72px]"
-                                                placeholder="성명 확인/수정"
-                                            />
-                                        </div>
-                                        <div className="w-40 shrink-0">
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px] text-center">직급 (Hierarchy)</label>
-                                            <div className="relative h-[72px]">
-                                                <select 
-                                                    value={record.role || 'worker'} 
-                                                    onChange={(e) => handleChange('role', e.target.value)}
-                                                    className={`w-full h-full px-4 rounded-2xl font-black text-xs appearance-none cursor-pointer border-2 transition-all shadow-sm focus:outline-none focus:ring-4 focus:ring-opacity-20
-                                                        ${record.role === 'leader' 
-                                                            ? 'bg-yellow-50 text-yellow-800 border-yellow-300 focus:ring-yellow-400' 
-                                                            : record.role === 'sub_leader' 
-                                                                ? 'bg-slate-100 text-slate-700 border-slate-300 focus:ring-slate-400' 
-                                                                : 'bg-white text-slate-600 border-slate-200 focus:ring-indigo-500 focus:border-indigo-500'}`}
-                                                >
-                                                    <option value="worker">일반 팀원</option>
-                                                    <option value="sub_leader">부팀장/반장</option>
-                                                    <option value="leader">팀장/소장</option>
-                                                </select>
-                                                <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none">
-                                                    <svg className={`w-5 h-5 ${
-                                                        record.role === 'leader' ? 'text-yellow-600' :
-                                                        'text-slate-400'
-                                                    }`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Duties Selection */}
-                                    <div className="p-4 bg-slate-100 rounded-xl border border-slate-200">
-                                        <label className="block text-[10px] font-black text-slate-500 uppercase mb-3 tracking-[2px]">특수 임무 부여 (겸직 가능)</label>
-                                        <div className="flex gap-4">
-                                            <label className={`flex-1 flex items-center justify-center p-3 rounded-xl border-2 cursor-pointer transition-all ${record.isTranslator ? 'bg-blue-50 border-blue-400 text-blue-700 shadow-sm' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'}`}>
-                                                <input type="checkbox" checked={!!record.isTranslator} onChange={(e) => handleChange('isTranslator', e.target.checked)} className="hidden" />
-                                                <span className="text-xl mr-2">🗣️</span>
-                                                <span className="font-bold text-sm">통역 담당</span>
-                                            </label>
-                                            <label className={`flex-1 flex items-center justify-center p-3 rounded-xl border-2 cursor-pointer transition-all ${record.isSignalman ? 'bg-green-50 border-green-400 text-green-700 shadow-sm' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'}`}>
-                                                <input type="checkbox" checked={!!record.isSignalman} onChange={(e) => handleChange('isSignalman', e.target.checked)} className="hidden" />
-                                                <span className="text-xl mr-2">🚦</span>
-                                                <span className="font-bold text-sm">신호수/유도원</span>
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <div>
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">공종</label>
-                                            <input type="text" value={record.jobField} onChange={(e) => handleChange('jobField', e.target.value)} className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">팀장 (Team Leader)</label>
-                                            <input 
-                                                type="text" 
-                                                value={record.teamLeader || ""} 
-                                                onChange={(e) => handleChange('teamLeader', e.target.value)} 
-                                                placeholder="예: 홍길동 팀장"
-                                                className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600" 
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <div>
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">사번 (Employee ID)</label>
-                                            <input
-                                                type="text"
-                                                value={record.employeeId || ''}
-                                                onChange={(e) => handleChange('employeeId', e.target.value)}
-                                                placeholder="예: EMP-2026-001"
-                                                className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">QR 식별자 (QR ID)</label>
-                                            <input
-                                                type="text"
-                                                value={record.qrId || ''}
-                                                onChange={(e) => handleChange('qrId', e.target.value)}
-                                                placeholder="예: QR-7F3A"
-                                                className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <div>
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">국적 (AI 번역 기준)</label>
-                                            <select 
-                                                value={record.nationality} 
-                                                onChange={(e) => handleChange('nationality', e.target.value)} 
-                                                className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600 appearance-none"
-                                            >
-                                                <option value="한국">한국 (Korea)</option>
-                                                <option value="중국">중국 (China)</option>
-                                                <option value="베트남">베트남 (Vietnam)</option>
-                                                <option value="태국">태국 (Thailand)</option>
-                                                <option value="캄보디아">캄보디아 (Cambodia)</option>
-                                                <option value="인도네시아">인도네시아 (Indonesia)</option>
-                                                <option value="우즈베키스탄">우즈베키스탄 (Uzbekistan)</option>
-                                                <option value="몽골">몽골 (Mongolia)</option>
-                                                <option value="카자흐스탄">카자흐스탄 (Kazakhstan)</option>
-                                                <option value="러시아">러시아 (Russia)</option>
-                                                <option value="필리핀">필리핀 (Philippines)</option>
-                                                <option value="네팔">네팔 (Nepal)</option>
-                                                <option value="미얀마">미얀마 (Myanmar)</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">작성일 (Date)</label>
-                                            <input 
-                                                type="date" 
-                                                value={record.date} 
-                                                onChange={(e) => handleChange('date', e.target.value)}
-                                                className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </SectionPanelCard>
 
                             <div className="flex gap-2 p-1.5 bg-slate-200 rounded-2xl shrink-0">
                                 {['info', 'analysis', 'qna'].map(t => (
@@ -2332,7 +2061,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                             <div className="min-h-[300px]">
                                 {activeTab === 'info' && (
                                     <div className="space-y-4">
-                                        <WhyThisResultPanel
+                                        <CollapsibleSection title="안전 검수 사전 확인 포인트 (클릭 시 확인)" defaultOpen={false}>
+                                            <div className="pt-2">
+                                                <WhyThisResultPanel
                                             title="승인 전에 꼭 맞춰볼 세 가지"
                                             badge={
                                                 <StatusBadge variant="slateSoft" className="px-3 py-1.5 text-[11px] font-black">
@@ -2375,6 +2106,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             titleClassName="text-sm font-black text-slate-900"
                                             listClassName="mt-4 grid grid-cols-1 xl:grid-cols-3 gap-3"
                                         />
+                                            </div>
+                                        </CollapsibleSection>
 
                                         <SectionPanelCard
                                             variant="whiteSoft"
@@ -2415,7 +2148,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         </div>
                                         </SectionPanelCard>
 
-                                        <SectionPanelCard
+                                        <CollapsibleSection title="개인 안전역량 세부지표 및 루브릭 (클릭 시 확인)" defaultOpen={false}>
+                                            <div className="pt-2">
+                                                <SectionPanelCard
                                             variant="whiteSoft"
                                             eyebrow="역량 세부지표"
                                             title="개인 안전역량 세부지표"
@@ -2444,6 +2179,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 ))}
                                             </div>
                                         </SectionPanelCard>
+                                            </div>
+                                        </CollapsibleSection>
 
                                         {scoreDropNeedsIntegrityReason && (
                                             <SectionPanelCard
@@ -2490,7 +2227,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             </SectionPanelCard>
                                         )}
 
-                                        <SectionPanelCard
+                                        <CollapsibleSection title="신규 현장 조치 이력 등록 (클릭 시 확인)" defaultOpen={false}>
+                                            <div className="pt-2">
+                                                <SectionPanelCard
                                             variant="whiteSoft"
                                             eyebrow="조치 로그"
                                             title="조치 이력 등록 (S165/S166)"
@@ -2521,6 +2260,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 </ActionButton>
                                             </div>
                                         </SectionPanelCard>
+                                            </div>
+                                        </CollapsibleSection>
 
                                         <SectionPanelCard
                                             variant="whiteSoft"
@@ -3450,6 +3191,297 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                     </div>
                                 )}
                             </div>
+                        
+
+                            {!isCompactViewActive && (
+                                <CollapsibleSection title="안전 검수 가이드 및 흐름 판단법 (클릭 시 확인)" defaultOpen={false}>
+                                    <div className="space-y-4 pt-2">
+                                        {!isCompactViewActive && (
+                                <SectionPanelCard
+                                    variant="indigo"
+                                    eyebrow="모바일 작업 순서 안내"
+                                    title="저장 → 판단 근거 → 보호 판단 확정 흐름을 빠르게 이어갑니다."
+                                    description="현장 검수자가 가장 적은 클릭으로 보호 판단을 마칠 수 있게 정리했습니다."
+                                    className="rounded-3xl px-5 py-5 shadow-sm"
+                                    titleClassName="mt-2 text-sm font-black text-indigo-900"
+                                    descriptionClassName="mt-2 text-xs font-bold leading-relaxed text-indigo-700"
+                                    bodyClassName="mt-4"
+                                >
+                                    <NextActionChecklist
+                                        title="권장 순서"
+                                        className="mt-0 border-t-0 pt-0"
+                                        titleClassName="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500"
+                                        listClassName="space-y-1.5 text-xs font-bold leading-relaxed text-indigo-800"
+                                        itemClassName="flex items-start gap-2"
+                                        bulletClassName="mt-[2px] text-indigo-500"
+                                        items={[
+                                            { key: 'step-1', content: '근로자 정보와 원문/해석 내용을 먼저 수정합니다.' },
+                                            { key: 'step-2', content: '상단 1차 저장으로 수정본을 고정합니다.' },
+                                            { key: 'step-3', content: '하단 승인영역에 검토 근거를 남깁니다.' },
+                                            { key: 'step-4', content: '최종 승인으로 2차 가공을 실행합니다.' },
+                                            { key: 'step-5', content: '보호 리포트로 연결해 현장 공유를 이어갑니다.' },
+                                        ]}
+                                    />
+                                </SectionPanelCard>
+                            )}
+
+                            {hasChanges && hasWeakSaveReason && (
+                                <NoticeCallout
+                                    variant="amber"
+                                    eyebrow="수정 사유 보강 권장"
+                                    title="1차 저장 전에 하단 승인영역 코멘트에 수정 이유를 6자 이상 남겨주세요."
+                                    description={<><span>저장은 가능하지만, 사유가 짧으면 OCR 화면에서 </span><span className="underline">수정사유 보강 필요</span><span> 배지로 표시됩니다.</span></>}
+                                    className="w-full rounded-3xl border px-5 py-4 shadow-sm"
+                                    bodyClassName="block"
+                                    eyebrowClassName="text-[11px] font-black uppercase tracking-[0.2em] text-amber-700"
+                                    titleClassName="mt-2 text-sm font-black text-amber-800"
+                                    descriptionClassName="mt-2 text-xs font-bold leading-relaxed text-amber-700"
+                                />
+                            )}
+                                    </div>
+                                </CollapsibleSection>
+                            )}
+
+                            <CollapsibleSection title="인적 정보 및 사진 등록 (클릭 시 확인)" defaultOpen={false}>
+                                <div className="space-y-5 pt-2">
+                                    {/* 1. Profile Photo Section (NEW) */}
+                            <SectionPanelCard
+                                variant="whiteSoft"
+                                eyebrow="프로필 자산"
+                                title="증명사진(프로필) 등록"
+                                description={<><span>사원증(ID Card) 및 개인 리포트의 프로필 영역에 사용되며, 문서 이미지와 별도로 관리됩니다.</span></>}
+                                className="rounded-3xl border border-slate-200 bg-white px-6 py-6 shadow-sm"
+                                titleClassName="mt-1 text-lg font-black text-slate-900"
+                                descriptionClassName="mt-1 text-xs font-medium leading-relaxed text-slate-500"
+                                bodyClassName="mt-0"
+                            >
+                                <div className="flex items-center gap-6">
+                                    <div className="relative group shrink-0">
+                                        <div className="w-24 h-24 rounded-2xl overflow-hidden bg-slate-100 border-2 border-slate-200 shadow-inner flex items-center justify-center relative">
+                                            {hasProfileImage ? (
+                                                <img src={record.profileImage} className="w-full h-full object-cover" alt="Profile" />
+                                            ) : (
+                                                <svg className="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                            )}
+                                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                            </div>
+                                            <input type="file" ref={profileInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'profile')} />
+                                            <button onClick={() => profileInputRef.current?.click()} className="absolute inset-0 w-full h-full cursor-pointer"></button>
+                                        </div>
+                                        <div className="absolute -bottom-2 -right-2 bg-indigo-600 text-white p-1.5 rounded-full shadow border-2 border-white pointer-events-none">
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1">
+                                        {isPhotoQueueMode && (
+                                            <NoticeCallout
+                                                variant="emerald"
+                                                eyebrow="가장 빠른 등록 방식"
+                                                title="사진 업로드 시 자동 저장과 다음 대상 이동을 함께 진행합니다."
+                                                description="다음 대상이 있으면 자동으로 이어지고, 마지막 대상이면 목록으로 돌아갑니다. 필요하면 상단에서 바로 다음 대상을 수동으로 열 수도 있습니다."
+                                                className="mt-3 w-full rounded-2xl border px-3 py-3"
+                                                bodyClassName="block"
+                                                eyebrowClassName="text-[11px] font-black text-emerald-800"
+                                                titleClassName="mt-1 text-[11px] font-black text-emerald-800"
+                                                descriptionClassName="mt-1 text-[11px] font-bold leading-relaxed text-emerald-700"
+                                            />
+                                        )}
+                                        {photoQueueNotice && (
+                                            <NoticeCallout
+                                                variant={photoQueueNotice.includes(BRAND_STATUS_LABELS.attention) ? 'rose' : 'indigo'}
+                                                eyebrow={photoQueueNotice.includes(BRAND_STATUS_LABELS.attention) ? '추가 확인 안내' : '자동 진행 상태'}
+                                                title={photoQueueNotice}
+                                                className="mt-3 w-full rounded-2xl border px-3 py-3"
+                                                bodyClassName="block"
+                                                eyebrowClassName={photoQueueNotice.includes(BRAND_STATUS_LABELS.attention)
+                                                    ? 'text-[11px] font-black text-rose-700'
+                                                    : 'text-[11px] font-black text-indigo-700'}
+                                                titleClassName={photoQueueNotice.includes(BRAND_STATUS_LABELS.attention)
+                                                    ? 'mt-1 text-[11px] font-black text-rose-700'
+                                                    : 'mt-1 text-[11px] font-black text-indigo-700'}
+                                            />
+                                        )}
+                                        {!hasProfileImage && (
+                                            <button onClick={() => profileInputRef.current?.click()} className="mt-3 text-xs font-bold text-indigo-600 hover:underline">
+                                                + 사진 업로드하기
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            </SectionPanelCard>
+
+                            <SectionPanelCard
+                                variant="whiteSoft"
+                                eyebrow="근로자 정보 편집"
+                                title={(
+                                    <span className="flex items-center gap-3 text-indigo-600">
+                                        <span className="rounded-lg bg-indigo-50 p-1.5">
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                        </span>
+                                        근로자 기본 정보 수정
+                                    </span>
+                                )}
+                                description="기본 정보, 역할, 특수 임무를 한 번에 조정하고 필요하면 관리자 검수 갱신을 이어갑니다."
+                                headerAction={
+                                    <ActionButton
+                                        onClick={handleReflectChanges}
+                                        disabled={isUpdatingAnalysis || isFinalizedRecord}
+                                        variant={isUpdatingAnalysis || isFinalizedRecord ? 'slateSoft' : 'indigo'}
+                                        className="px-3 py-1.5 text-[10px] border-0"
+                                    >
+                                        {isUpdatingAnalysis ? (
+                                            <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                        ) : (
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                        )}
+                                        관리자 검수 및 수정사항 반영 갱신
+                                    </ActionButton>
+                                }
+                                className="rounded-3xl border border-slate-200 bg-white px-8 py-8 shadow-sm"
+                                titleClassName="mt-0 text-xs font-black uppercase tracking-widest"
+                                descriptionClassName="mt-2 text-[11px] font-bold text-slate-500"
+                                bodyClassName="mt-6"
+                            >
+                                <div className="space-y-6">
+                                    <div className="flex gap-4">
+                                        <div className="flex-1">
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">
+                                                근로자 성명 
+                                                {isLeader && <span className="text-yellow-500 ml-1">👑</span>}
+                                                {isSubLeader && <span className="text-slate-400 ml-1">🛡️</span>}
+                                                {record.isTranslator && <span className="text-blue-500 ml-1">🗣️</span>}
+                                                {record.isSignalman && <span className="text-green-500 ml-1">🚦</span>}
+                                            </label>
+                                            <input 
+                                                type="text" 
+                                                value={record.name} 
+                                                onChange={(e) => handleChange('name', e.target.value)}
+                                                className="w-full text-2xl font-black p-4 rounded-2xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-600 h-[72px]"
+                                                placeholder="성명 확인/수정"
+                                            />
+                                        </div>
+                                        <div className="w-40 shrink-0">
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px] text-center">직급 (Hierarchy)</label>
+                                            <div className="relative h-[72px]">
+                                                <select 
+                                                    value={record.role || 'worker'} 
+                                                    onChange={(e) => handleChange('role', e.target.value)}
+                                                    className={`w-full h-full px-4 rounded-2xl font-black text-xs appearance-none cursor-pointer border-2 transition-all shadow-sm focus:outline-none focus:ring-4 focus:ring-opacity-20
+                                                        ${record.role === 'leader' 
+                                                            ? 'bg-yellow-50 text-yellow-800 border-yellow-300 focus:ring-yellow-400' 
+                                                            : record.role === 'sub_leader' 
+                                                                ? 'bg-slate-100 text-slate-700 border-slate-300 focus:ring-slate-400' 
+                                                                : 'bg-white text-slate-600 border-slate-200 focus:ring-indigo-500 focus:border-indigo-500'}`}
+                                                >
+                                                    <option value="worker">일반 팀원</option>
+                                                    <option value="sub_leader">부팀장/반장</option>
+                                                    <option value="leader">팀장/소장</option>
+                                                </select>
+                                                <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none">
+                                                    <svg className={`w-5 h-5 ${
+                                                        record.role === 'leader' ? 'text-yellow-600' :
+                                                        'text-slate-400'
+                                                    }`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Duties Selection */}
+                                    <div className="p-4 bg-slate-100 rounded-xl border border-slate-200">
+                                        <label className="block text-[10px] font-black text-slate-500 uppercase mb-3 tracking-[2px]">특수 임무 부여 (겸직 가능)</label>
+                                        <div className="flex gap-4">
+                                            <label className={`flex-1 flex items-center justify-center p-3 rounded-xl border-2 cursor-pointer transition-all ${record.isTranslator ? 'bg-blue-50 border-blue-400 text-blue-700 shadow-sm' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'}`}>
+                                                <input type="checkbox" checked={!!record.isTranslator} onChange={(e) => handleChange('isTranslator', e.target.checked)} className="hidden" />
+                                                <span className="text-xl mr-2">🗣️</span>
+                                                <span className="font-bold text-sm">통역 담당</span>
+                                            </label>
+                                            <label className={`flex-1 flex items-center justify-center p-3 rounded-xl border-2 cursor-pointer transition-all ${record.isSignalman ? 'bg-green-50 border-green-400 text-green-700 shadow-sm' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'}`}>
+                                                <input type="checkbox" checked={!!record.isSignalman} onChange={(e) => handleChange('isSignalman', e.target.checked)} className="hidden" />
+                                                <span className="text-xl mr-2">🚦</span>
+                                                <span className="font-bold text-sm">신호수/유도원</span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">공종</label>
+                                            <input type="text" value={record.jobField} onChange={(e) => handleChange('jobField', e.target.value)} className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">팀장 (Team Leader)</label>
+                                            <input 
+                                                type="text" 
+                                                value={record.teamLeader || ""} 
+                                                onChange={(e) => handleChange('teamLeader', e.target.value)} 
+                                                placeholder="예: 홍길동 팀장"
+                                                className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600" 
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">사번 (Employee ID)</label>
+                                            <input
+                                                type="text"
+                                                value={record.employeeId || ''}
+                                                onChange={(e) => handleChange('employeeId', e.target.value)}
+                                                placeholder="예: EMP-2026-001"
+                                                className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">QR 식별자 (QR ID)</label>
+                                            <input
+                                                type="text"
+                                                value={record.qrId || ''}
+                                                onChange={(e) => handleChange('qrId', e.target.value)}
+                                                placeholder="예: QR-7F3A"
+                                                className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">국적 (AI 번역 기준)</label>
+                                            <select 
+                                                value={record.nationality} 
+                                                onChange={(e) => handleChange('nationality', e.target.value)} 
+                                                className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600 appearance-none"
+                                            >
+                                                <option value="한국">한국 (Korea)</option>
+                                                <option value="중국">중국 (China)</option>
+                                                <option value="베트남">베트남 (Vietnam)</option>
+                                                <option value="태국">태국 (Thailand)</option>
+                                                <option value="캄보디아">캄보디아 (Cambodia)</option>
+                                                <option value="인도네시아">인도네시아 (Indonesia)</option>
+                                                <option value="우즈베키스탄">우즈베키스탄 (Uzbekistan)</option>
+                                                <option value="몽골">몽골 (Mongolia)</option>
+                                                <option value="카자흐스탄">카자흐스탄 (Kazakhstan)</option>
+                                                <option value="러시아">러시아 (Russia)</option>
+                                                <option value="필리핀">필리핀 (Philippines)</option>
+                                                <option value="네팔">네팔 (Nepal)</option>
+                                                <option value="미얀마">미얀마 (Myanmar)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">작성일 (Date)</label>
+                                            <input 
+                                                type="date" 
+                                                value={record.date} 
+                                                onChange={(e) => handleChange('date', e.target.value)}
+                                                className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </SectionPanelCard>
+
+                            
+                                </div>
+                            </CollapsibleSection>
                         </div>
 
                         {/* Footer Buttons */}
