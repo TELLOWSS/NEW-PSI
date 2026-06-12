@@ -406,6 +406,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                     isDark={isDark}
                     themeMode={themeMode}
                     onToggleTheme={handleToggleTheme}
+                    onGoToDashboard={currentPage !== 'dashboard' ? () => handlePageChange('dashboard') : undefined}
                     controls={
                         <div className="flex items-center gap-1">
                             {isSettingsPage && (

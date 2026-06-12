@@ -15,6 +15,7 @@ interface TopBarProps {
     patentBadge?: React.ReactNode;
     controls?: React.ReactNode;
     statusLabel?: string;
+    onGoToDashboard?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -30,6 +31,7 @@ export const TopBar: React.FC<TopBarProps> = ({
     patentBadge,
     controls,
     statusLabel = '정상 운영',
+    onGoToDashboard,
 }) => {
     const themeLabel =
         themeMode === 'system'
@@ -53,9 +55,24 @@ export const TopBar: React.FC<TopBarProps> = ({
                         </svg>
                     </button>
 
-                    <div className="min-w-0 flex-1">
-                        <p className="truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-300">{siteName}</p>
-                        <h2 className="truncate text-sm font-extrabold sm:text-base">{currentPageTitle}</h2>
+                    <div className="min-w-0 flex-1 flex items-center gap-3">
+                        {onGoToDashboard && (
+                            <button
+                                type="button"
+                                onClick={onGoToDashboard}
+                                className="group flex items-center justify-center h-9 w-9 rounded-xl border border-slate-300 bg-white text-slate-600 transition-all duration-200 hover:border-indigo-400 hover:bg-indigo-50/50 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-300 shadow-sm"
+                                aria-label="메인 화면으로 돌아가기"
+                                title="메인 화면(대시보드)으로 돌아가기"
+                            >
+                                <svg className="h-4.5 w-4.5 transition-transform duration-200 group-hover:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                                </svg>
+                            </button>
+                        )}
+                        <div className="min-w-0">
+                            <p className="truncate text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-300">{siteName}</p>
+                            <h2 className="truncate text-sm font-extrabold sm:text-base">{currentPageTitle}</h2>
+                        </div>
                     </div>
 
                     <div className="hidden items-center gap-2 xl:flex">
