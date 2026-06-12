@@ -230,7 +230,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
         },
         {
             key: 'safety-checks-harness-backlog',
-            label: '승인 백로그',
+            label: '검토 대기 항목',
             value: `${harnessSummary.approvalBacklog}명`,
             helper: `재검토 필요 ${harnessSummary.reviewNeeded}명`,
             tone: harnessSummary.approvalBacklog > 0 ? BRAND_TONE.amberSoft80 : BRAND_TONE.slate,
@@ -339,10 +339,10 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                     variant={harnessSummary.immediateAttention > 0 ? 'rose' : harnessSummary.fallback > 0 ? 'amber' : 'indigo'}
                     eyebrow="Harness priority"
                     title={harnessSummary.immediateAttention > 0
-                        ? `새 점검을 추가하기 전에 즉시 보호 대상 ${harnessSummary.immediateAttention}명을 먼저 확인해야 합니다.`
+                        ? `새 점검을 추가하기 전에 즉시 관찰 보호 대상 ${harnessSummary.immediateAttention}명을 먼저 확인해야 합니다.`
                         : harnessSummary.fallback > 0
-                            ? `하네스 persistence 폴백 ${harnessSummary.fallback}명이 있어 점검 기록과 저장 연결 상태를 함께 살펴봐야 합니다.`
-                            : `승인 백로그 ${harnessSummary.approvalBacklog}명이 남아 있어 점검 등록 전에 관리자 검토 우선순위를 먼저 정리해야 합니다.`}
+                            ? `오프라인 대체 저장 ${harnessSummary.fallback}명이 있어 점검 기록과 저장 연동 상태를 함께 살펴봐야 합니다.`
+                            : `검토 대기 항목이 ${harnessSummary.approvalBacklog}명이 남아 있어 점검 등록 전에 결재 검토 우선순위를 먼저 정리해야 합니다.`}
                     description="점검 기록은 새 신호를 남기는 화면이지만, 기존 보호 흐름이 끊긴 인원이 있으면 신규 기록보다 승인·보완·저장 연결 상태를 먼저 닫아야 현장 조치가 누락되지 않습니다."
                     className="rounded-2xl border px-4 py-3 shadow-sm"
                     bodyClassName="block"

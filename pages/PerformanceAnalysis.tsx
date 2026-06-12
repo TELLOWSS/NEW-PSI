@@ -412,7 +412,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
         },
         {
             key: 'performance-harness-backlog',
-            label: '승인 백로그',
+            label: '검토 대기 항목',
             value: `${harnessSummary.approvalBacklog}명`,
             helper: `재검토 필요 ${harnessSummary.reviewNeeded}명`,
             tone: harnessSummary.approvalBacklog > 0 ? 'border-amber-200 bg-amber-50/80 dark:border-amber-700 dark:bg-amber-900/30' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800',
@@ -522,10 +522,10 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                     variant={harnessSummary.immediateAttention > 0 ? 'rose' : harnessSummary.fallback > 0 ? 'amber' : 'indigo'}
                     eyebrow="우선 점검 항목"
                     title={harnessSummary.immediateAttention > 0
-                        ? `성과 해석 전에 즉시 보호 대상 ${harnessSummary.immediateAttention}명을 먼저 닫아야 합니다.`
+                        ? `성과 해석 전에 즉시 관찰 보호 대상 ${harnessSummary.immediateAttention}명을 먼저 조치해야 합니다.`
                         : harnessSummary.fallback > 0
                             ? `안전 기록 저장 폴백 ${harnessSummary.fallback}명이 있어 성과 데이터와 저장 연결 상태를 함께 확인해야 합니다.`
-                            : `승인 백로그 ${harnessSummary.approvalBacklog}명이 남아 있어 점수 비교 전에 관리자 검토 순서를 먼저 정리해야 합니다.`}
+                            : `검토 대기 항목이 ${harnessSummary.approvalBacklog}명이 남아 있어 점수 비교 전에 결재 검토 순서를 먼저 정리해야 합니다.`}
                     description="성과 분석은 추세를 읽는 화면이지만, 현재 보호 흐름이 끊긴 인원이 있으면 평균과 변동성보다 먼저 안전 기록 승인·저장 상태를 확인해야 운영 판단이 어긋나지 않습니다."
                     className="rounded-2xl border px-4 py-3 shadow-sm"
                     bodyClassName="block"

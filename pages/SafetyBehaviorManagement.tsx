@@ -1080,7 +1080,7 @@ const SafetyBehaviorManagement: React.FC<SafetyBehaviorManagementProps> = ({ wor
         },
         {
             key: 'behavior-harness-backlog',
-            label: '승인 백로그',
+            label: '검토 대기 항목',
             value: `${harnessSummary.approvalBacklog}명`,
             helper: `재검토 필요 ${harnessSummary.reviewNeeded}명`,
             tone: harnessSummary.approvalBacklog > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
@@ -1110,7 +1110,7 @@ const SafetyBehaviorManagement: React.FC<SafetyBehaviorManagementProps> = ({ wor
     const mobileStatusBadge = harnessSummary.immediateAttention > 0
         ? { label: '즉시 개입 우선', tone: 'bg-rose-500/20 text-rose-300 border border-rose-400/40' }
         : harnessSummary.approvalBacklog > 0
-            ? { label: '승인 백로그 확인', tone: 'bg-amber-500/20 text-amber-300 border border-amber-400/40' }
+            ? { label: '검토 대기 항목 확인', tone: 'bg-amber-500/20 text-amber-300 border border-amber-400/40' }
             : { label: '관찰 루프 안정', tone: 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40' };
 
     const mobilePriorityTab: Tab = harnessSummary.immediateAttention > 0 ? 'review' : 'observe';
@@ -1204,13 +1204,13 @@ const SafetyBehaviorManagement: React.FC<SafetyBehaviorManagementProps> = ({ wor
                     variant={harnessSummary.immediateAttention > 0 ? 'rose' : harnessSummary.fallback > 0 ? 'amber' : 'indigo'}
                     eyebrow="Harness priority"
                     title={harnessSummary.immediateAttention > 0
-                        ? `불안전행동 관리 범위에서 즉시 보호 대상 ${harnessSummary.immediateAttention}명이 먼저 닫혀야 합니다.`
+                        ? `불안전행동 관리 범위에서 즉시 관찰 보호 대상 ${harnessSummary.immediateAttention}명이 먼저 조치 완료되어야 합니다.`
                         : harnessSummary.fallback > 0
-                            ? `하네스 persistence 폴백 ${harnessSummary.fallback}명이 있어 관찰 기록과 저장 연결 점검을 함께 진행해야 합니다.`
-                            : `승인 백로그 ${harnessSummary.approvalBacklog}명이 남아 있어 코칭 이후 관리자 검토 순서를 먼저 정리해야 합니다.`}
+                            ? `오프라인 대체 저장 ${harnessSummary.fallback}명이 있어 관찰 기록과 저장 연동 점검을 함께 진행해야 합니다.`
+                            : `검토 대기 항목이 ${harnessSummary.approvalBacklog}명이 남아 있어 코칭 이후 결재 검토 순서를 먼저 정리해야 합니다.`}
                     description={activeTab === 'observe'
-                        ? '관찰·코칭 입력이 많아도 하네스 승인·저장 흐름이 끊기면 보호 조치가 닫히지 않습니다. 입력 전에 현재 백로그를 함께 읽어야 합니다.'
-                        : '무결성 판정 결과는 단독 점수로 끝나지 않고 하네스 승인·보완 흐름과 함께 닫혀야 실제 보호 루프가 완성됩니다.'}
+                        ? '관찰·코칭 입력이 많아도 안전 이행 승인 및 저장 흐름이 끊기면 보호 조치가 닫히지 않습니다. 입력 전에 현재 백로그를 함께 읽어야 합니다.'
+                        : '무결성 판정 결과는 단독 점수로 끝나지 않고 이행 조치 승인 및 보완 흐름과 함께 닫혀야 실제 보호 루프가 완성됩니다.'}
                     className="mb-5 rounded-2xl border px-4 py-3 shadow-sm"
                     bodyClassName="block"
                     titleClassName="text-sm font-black"

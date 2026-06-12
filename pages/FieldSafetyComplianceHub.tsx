@@ -1562,14 +1562,14 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[]; wo
                                 },
                                 {
                                     key: 'review-harness-backlog',
-                                    label: '승인 백로그',
+                                    label: '검토 대기 항목',
                                     value: `${reviewHarnessSummary.approvalBacklog}명`,
                                     helper: `재확인 필요 ${reviewHarnessSummary.reviewNeeded}명을 포함합니다.`,
                                     tone: reviewHarnessSummary.approvalBacklog > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
                                 },
                                 {
                                     key: 'review-harness-risk',
-                                    label: '즉시 보호 대상',
+                                    label: '즉시 관찰 보호 대상',
                                     value: `${reviewHarnessSummary.immediateAttention}명`,
                                     helper: '행동 무결성 판정 전에 먼저 설명·보완이 필요한 대상입니다.',
                                     tone: reviewHarnessSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-slate-200 bg-slate-50',
@@ -1590,10 +1590,10 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[]; wo
                             <NoticeCallout
                                 variant={reviewHarnessSummary.immediateAttention > 0 ? 'rose' : reviewHarnessSummary.fallback > 0 ? 'amber' : 'indigo'}
                                 title={reviewHarnessSummary.immediateAttention > 0
-                                    ? `즉시 보호 대상 ${reviewHarnessSummary.immediateAttention}명이 있어 종합판정 전 설명·보완 우선순위를 먼저 확인해야 합니다.`
+                                    ? `즉시 관찰 보호 대상 ${reviewHarnessSummary.immediateAttention}명이 있어 종합판정 전 설명·보완 우선순위를 먼저 확인해야 합니다.`
                                     : reviewHarnessSummary.fallback > 0
                                         ? `persistence 폴백 ${reviewHarnessSummary.fallback}명이 있어 저장 연결 상태를 함께 읽어야 합니다.`
-                                        : `승인 백로그 ${reviewHarnessSummary.approvalBacklog}명이 남아 있어 종합판정 전에 관리자 검토 순서를 정리해야 합니다.`}
+                                        : `검토 대기 항목이 ${reviewHarnessSummary.approvalBacklog}명이 남아 있어 종합판정 전에 결재 검토 순서를 정리해야 합니다.`}
                                 description="행동 무결성 판정 결과를 단독 점수로 보지 않고 안전 기록 승인·저장 상태와 함께 읽으면 실제 현장 보호 흐름이 더 선명해집니다."
                                 className="rounded-2xl border px-4 py-3"
                                 bodyClassName="block"
@@ -1743,7 +1743,7 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
         : harnessSummary.fallback > 0
             ? { label: '저장 연결 점검', tone: 'bg-amber-500/20 text-amber-300 border border-amber-400/40' }
             : harnessSummary.approvalBacklog > 0
-                ? { label: '승인 백로그', tone: 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/40' }
+                ? { label: '검토 대기 항목', tone: 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/40' }
                 : { label: '운영 안정', tone: 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40' };
 
     const mobilePriorityTab: ActiveTab = harnessSummary.immediateAttention > 0
@@ -1872,10 +1872,10 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
                         <NoticeCallout
                             variant={harnessSummary.immediateAttention > 0 ? 'rose' : harnessSummary.fallback > 0 ? 'amber' : 'indigo'}
                             title={harnessSummary.immediateAttention > 0
-                                ? `즉시 보호 대상 ${harnessSummary.immediateAttention}명이 있어 이행점검·코칭·지적 등록보다 먼저 보호 설명 순서를 정해야 합니다.`
+                                ? `즉시 관찰 보호 대상 ${harnessSummary.immediateAttention}명이 있어 이행점검·코칭·지적 등록보다 먼저 보호 설명 순서를 정해야 합니다.`
                                 : harnessSummary.fallback > 0
                                     ? `안전 기록 저장 폴백 ${harnessSummary.fallback}명이 있어 저장 연결 여부를 함께 점검해야 합니다.`
-                                    : `승인 백로그 ${harnessSummary.approvalBacklog}명이 남아 있어 종합판정 전 관리자 검토 순서를 먼저 정리해야 합니다.`}
+                                    : `검토 대기 항목이 ${harnessSummary.approvalBacklog}명이 남아 있어 종합판정 전 결재 검토 순서를 먼저 정리해야 합니다.`}
                             description="허브 화면에서 안전 기록 우선순위를 먼저 읽으면 탭별 입력이 단편 기록이 아니라 실제 보호 처리 흐름으로 이어집니다."
                             className="rounded-2xl border px-4 py-3"
                             bodyClassName="block"

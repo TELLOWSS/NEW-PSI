@@ -545,15 +545,15 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                     <SummaryMetricGrid
                         items={[
                             {
-                                key: 'site-issue-harness-connected',
+                                key: 'site-issue-system-connected',
                                 label: '안전 기록 저장 상태',
                                 value: `${harnessSummary.connected}명`,
-                                helper: `${harnessSummary.runLinked}명이 처리 번호와 연결되어 있습니다.`,
+                                helper: '관제 시스템 연동 완료',
                                 tone: BRAND_TONE.emeraldSoft80,
                             },
                             {
-                                key: 'site-issue-harness-backlog',
-                                label: '승인 백로그',
+                                key: 'site-issue-system-backlog',
+                                label: '검토 대기 항목',
                                 value: `${harnessSummary.approvalBacklog}명`,
                                 helper: `재확인 필요 ${harnessSummary.reviewNeeded}명을 포함합니다.`,
                                 tone: harnessSummary.approvalBacklog > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
@@ -566,10 +566,10 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                                 tone: harnessSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-slate-200 bg-slate-50',
                             },
                             {
-                                key: 'site-issue-harness-fallback',
-                                label: '폴백/저장 대기',
+                                key: 'site-issue-system-fallback',
+                                label: '오프라인 대체 저장',
                                 value: `${harnessSummary.fallback + harnessSummary.pending}명`,
-                                helper: `폴백 ${harnessSummary.fallback}명 · 저장 대기 ${harnessSummary.pending}명`,
+                                helper: `대체 저장 ${harnessSummary.fallback}명 · 전송 대기 ${harnessSummary.pending}명`,
                                 tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
                             },
                         ]}
@@ -580,11 +580,11 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                         <NoticeCallout
                             variant={harnessSummary.immediateAttention > 0 ? 'rose' : harnessSummary.fallback > 0 ? 'amber' : 'indigo'}
                             title={harnessSummary.immediateAttention > 0
-                                ? `즉시 보호 대상 ${harnessSummary.immediateAttention}명이 있어 지적사항 조치 전에 보호 설명 우선순위를 먼저 확인해야 합니다.`
+                                ? `즉시 관찰 보호 대상 ${harnessSummary.immediateAttention}명이 있어 지적사항 조치 전에 조치 우선순위를 먼저 확인해야 합니다.`
                                 : harnessSummary.fallback > 0
-                                    ? `안전 기록 저장 폴백 ${harnessSummary.fallback}명이 있어 지적사항 조치와 함께 저장 연결 여부도 점검해야 합니다.`
-                                    : `승인 백로그 ${harnessSummary.approvalBacklog}명이 남아 있어 지적사항 후속 조치 전에 관리자 검토 순서를 먼저 정리해야 합니다.`}
-                            description="현장 지적사항 관리도 안전 기록 승인·저장 상태와 함께 읽으면 기록이 단순 지적 목록이 아니라 보호 우선순위 지도처럼 작동합니다."
+                                    ? `안전 기록 대체 저장 ${harnessSummary.fallback}명이 있어 지적사항 조치와 함께 저장 연동 여부도 점검해야 합니다.`
+                                    : `검토 대기 항목이 ${harnessSummary.approvalBacklog}명 남아 있어 지적사항 후속 조치 전에 승인 대기 건을 먼저 정리해야 합니다.`}
+                            description="현장 지적사항 관리도 안전 기록 승인 및 저장 연동 상태와 함께 읽으면 기록이 단순 지적 목록이 아니라 보호 우선순위 지도처럼 작동합니다."
                             className="rounded-2xl border px-4 py-3"
                             bodyClassName="block"
                             titleClassName="text-sm font-black"

@@ -315,46 +315,46 @@ const getHarnessPersistenceState = (record: Partial<WorkerRecord> | null | undef
 
 const getHarnessWorkflowStateLabel = (state: string): string => {
     switch (state) {
-        case 'uploaded': return '업로드됨';
-        case 'ocr_validating': return 'OCR 검증 중';
-        case 'manual_review_required': return '수동 검토 필요';
-        case 'context_ready': return '컨텍스트 준비';
-        case 'first_pass_analyzing': return '1차 분석 중';
-        case 'evaluator_review': return '검증 중';
-        case 'awaiting_manager_approval': return '관리자 승인 대기';
-        case 'manager_revised': return '관리자 수정 완료';
-        case 'second_pass_analyzing': return '2차 재분석 중';
-        case 'completed': return '완료';
+        case 'uploaded': return '서류 업로드 완료';
+        case 'ocr_validating': return '서류 판독 및 검증 중';
+        case 'manual_review_required': return '추가 검토 필요';
+        case 'context_ready': return '분석 환경 구성 완료';
+        case 'first_pass_analyzing': return '1차 평가 분석 중';
+        case 'evaluator_review': return '평가 정합성 검증 중';
+        case 'awaiting_manager_approval': return '현장 소장 승인 대기';
+        case 'manager_revised': return '현장 소장 검토/수정 완료';
+        case 'second_pass_analyzing': return '2차 심층 재평가 중';
+        case 'completed': return '이행 검증 완료';
         default: return '확인 필요';
     }
 };
 
 const getHarnessRiskDecisionLabel = (decision: string): string => {
     switch (decision) {
-        case 'SAFE_TO_PROCEED': return '진행 가능';
-        case 'SUPPLEMENTARY_REVIEW': return '보완 검토';
-        case 'IMMEDIATE_ATTENTION': return '즉시 확인 필요';
-        case 'CRITICAL_STOP': return '작업 중지 검토';
+        case 'SAFE_TO_PROCEED': return '작업 진행 가능';
+        case 'SUPPLEMENTARY_REVIEW': return '안전 조치 보완 검토';
+        case 'IMMEDIATE_ATTENTION': return '즉시 관찰 보호';
+        case 'CRITICAL_STOP': return '작업 즉시 중단 및 보완';
         default: return '확인 필요';
     }
 };
 
 const getHarnessApprovalStateLabel = (state: string): string => {
     switch (state) {
-        case 'NOT_REQUIRED': return '승인 불필요';
-        case 'REQUIRED': return '승인 필요';
-        case 'PENDING': return '승인 대기';
-        case 'APPROVED': return '승인 완료';
-        case 'REJECTED': return '반려';
+        case 'NOT_REQUIRED': return '승인 대상 제외';
+        case 'REQUIRED': return '소장 결재 필요';
+        case 'PENDING': return '결재 대기';
+        case 'APPROVED': return '결재 승인 완료';
+        case 'REJECTED': return '결재 반려';
         default: return '확인 필요';
     }
 };
 
 const getHarnessPersistenceLabel = (state: HarnessPersistenceState): string => {
     switch (state) {
-        case 'connected': return '저장 연결됨';
-        case 'fallback': return '폴백 동작중';
-        default: return '저장 대기';
+        case 'connected': return '중앙 서버 연동 완료';
+        case 'fallback': return '로컬 대체 저장 작동중';
+        default: return '서버 저장 대기';
     }
 };
 
@@ -3077,7 +3077,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         switch (activeHarnessDashboardFilter.type) {
             case 'approval-backlog':
                 return {
-                    title: '대시보드 승인 백로그 필터 적용 중',
+                    title: '대시보드 검토 대기 항목 필터 적용 중',
                     description: 'Dashboard에서 선택한 승인 대기 대상만 현재 목록에 좁혀 보여드리고 있습니다.',
                     variant: 'violet' as const,
                 };

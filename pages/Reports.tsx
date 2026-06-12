@@ -1076,7 +1076,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         },
         {
             key: 'harness-risk',
-            label: '즉시 보호 대상',
+            label: '즉시 관찰 보호 대상',
             value: `${harnessSummary.highRisk}건`,
             helper: '보고서 우선 설명·보완 순서를 정할 때 먼저 읽어야 하는 대상입니다.',
             tone: harnessSummary.highRisk > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-slate-200 bg-slate-50',
@@ -1104,21 +1104,21 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             },
             {
                 key: 'report-harness-backlog',
-                eyebrow: '승인 백로그',
+                eyebrow: '검토 대기 항목',
                 title: `현재 보고 대상 중 ${backlogRate}%가 추가 승인 또는 재확인이 필요합니다.`,
                 description: harnessSummary.approvalPending > 0
                     ? `승인 대기 ${harnessSummary.approvalPending}건과 재확인 필요 ${harnessSummary.reviewNeeded}건을 함께 읽으시면 보고 설명 순서를 정하시기 쉽습니다.`
-                    : '현재 대상은 승인 백로그가 크지 않아 보고서 확정 흐름을 비교적 안정적으로 이어가실 수 있습니다.',
+                    : '현재 대상은 검토 대기 항목이 많지 않아 보고서 확정 흐름을 비교적 안정적으로 이어가실 수 있습니다.',
                 tone: harnessSummary.approvalPending > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
             },
             {
                 key: 'report-harness-action',
                 eyebrow: '권장 보고 순서',
                 title: harnessSummary.highRisk > 0
-                    ? '즉시 보호 대상 설명을 먼저 배치하시는 편이 안전합니다.'
+                    ? '즉시 관찰 보호 대상 설명을 먼저 배치하시는 편이 안전합니다.'
                     : '현재는 승인·영속 저장 상태 설명을 먼저 붙이시면 충분합니다.',
                 description: harnessSummary.highRisk > 0
-                    ? `즉시 보호 대상 ${harnessSummary.highRisk}건은 일반 성과 요약보다 앞서 근거·보호 조치와 함께 설명하시는 것이 적절합니다.`
+                    ? `즉시 관찰 보호 대상 ${harnessSummary.highRisk}건은 일반 성과 요약보다 앞서 근거·보호 조치와 함께 설명하시는 것이 적절합니다.`
                     : '고위험 배지가 크지 않은 경우에는 저장 연결 상태와 승인 이력을 먼저 설명하셔도 운영 흐름에 무리가 없습니다.',
                 tone: harnessSummary.highRisk > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-indigo-200 bg-indigo-50/80',
             },

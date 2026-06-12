@@ -891,7 +891,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         },
         {
             key: 'dashboard-harness-approval',
-            label: '승인 백로그',
+            label: '승인 대기 건수',
             value: `${harnessDashboardSummary.approvalBacklog}명`,
             helper: `재확인 필요 ${harnessDashboardSummary.reviewNeeded}명을 포함합니다.`,
             tone: harnessDashboardSummary.approvalBacklog > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
@@ -905,9 +905,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         },
         {
             key: 'dashboard-harness-fallback',
-            label: '폴백/저장 대기',
+            label: '대체 저장/저장 대기',
             value: `${harnessDashboardSummary.fallback + harnessDashboardSummary.pending}명`,
-            helper: `폴백 ${harnessDashboardSummary.fallback}명 · 저장 대기 ${harnessDashboardSummary.pending}명`,
+            helper: `대체 저장 ${harnessDashboardSummary.fallback}명 · 전송 대기 ${harnessDashboardSummary.pending}명`,
             tone: harnessDashboardSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
         },
     ], [harnessDashboardSummary]);
@@ -951,33 +951,33 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         return [
             {
                 key: 'dashboard-harness-coverage',
-                eyebrow: '운영 커버리지',
-                title: `현재 안전 기록 저장 연결률은 ${coverageRate}%입니다.`,
+                eyebrow: '시스템 연동률',
+                title: `현재 안전 기록 연동 성공률은 ${coverageRate}%입니다.`,
                 description: harnessDashboardSummary.pending > 0
-                    ? `저장 대기 ${harnessDashboardSummary.pending}명과 폴백 ${harnessDashboardSummary.fallback}명을 우선 정리하셔야 운영 추적이 안정됩니다.`
-                    : '현재 연결된 런 기준으로 승인 흐름과 보호 상태를 비교적 안정적으로 추적하실 수 있습니다.',
+                    ? `전송 대기 ${harnessDashboardSummary.pending}명과 대체 저장 ${harnessDashboardSummary.fallback}명을 우선 확인하셔야 안전 이행 추적이 안정됩니다.`
+                    : '현재 연동 완료된 기록 기준으로 승인 흐름과 보호 상태를 비교적 안정적으로 추적하실 수 있습니다.',
                 tone: coverageRate < 70 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
             },
             {
                 key: 'dashboard-harness-trade',
                 eyebrow: '공종 우선순위',
                 title: topTrade
-                    ? `${topTrade.trade} 공종에서 보호 신호가 가장 많이 감지됩니다.`
+                    ? `${topTrade.trade} 공종에서 안전 관리 필요 신호가 가장 많이 감지됩니다.`
                     : '현재 공종별 위험 경보 집중 구간은 크지 않습니다.',
                 description: topTrade
-                    ? `승인 ${topTrade.approval}건 · 즉시 보호 ${topTrade.immediate}건 · 저장 점검 ${topTrade.fallback}건 기준으로 우선순위를 정리하시면 됩니다.`
-                    : '현재는 승인 대기, 즉시 보호, 저장 폴백 신호가 특정 공종에 과도하게 몰리지 않았습니다.',
+                    ? `승인 대기 ${topTrade.approval}건 · 즉시 보호 ${topTrade.immediate}건 · 대체 저장 점검 ${topTrade.fallback}건 기준으로 우선순위를 정리하시면 됩니다.`
+                    : '현재는 승인 대기, 즉시 보호, 대체 저장 점검 신호가 특정 공종에 과도하게 몰리지 않았습니다.',
                 tone: topTrade ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
             },
             {
                 key: 'dashboard-harness-action',
                 eyebrow: '권장 액션',
                 title: harnessDashboardSummary.immediateAttention > 0
-                    ? '즉시 보호 대상부터 승인 대기열보다 먼저 정리하시는 편이 안전합니다.'
-                    : '즉시 중단 대상이 없다면 승인 백로그와 저장 연결부터 정리하시면 됩니다.',
+                    ? '즉시 관찰 보호 대상부터 승인 대기 대상보다 먼저 확인하시는 편이 안전합니다.'
+                    : '즉시 중단 대상이 없다면 승인 대기 건과 시스템 연동 상태부터 점검하시면 됩니다.',
                 description: harnessDashboardSummary.immediateAttention > 0
                     ? '고위험 배지가 붙은 대상은 보고서 생성보다 현장 보호 조치와 관리자 판단을 먼저 이어가셔야 합니다.'
-                    : '현재는 설명 지연보다 승인 누락과 영속 저장 누락을 줄이는 쪽이 운영 효율에 더 직접적입니다.',
+                    : '현재는 지연보다 승인 누락과 중앙 저장소 연동 누락을 점검하는 것이 좋습니다.',
                 tone: harnessDashboardSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-indigo-200 bg-indigo-50/80',
             },
         ];
@@ -1017,30 +1017,30 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const harnessAuditMetrics = useMemo(() => [
         {
             key: 'dashboard-harness-audit-linked',
-            label: '감사 연결 대상',
+            label: '이행 검증 대상',
             value: `${harnessAuditSummary.auditLinked}명`,
-            helper: '안전 기록 관련 감사 메모가 남아 있는 최신 레코드 기준입니다.',
+            helper: '안전 기록 관련 조치 이력이 남아 있는 최신 레코드 기준입니다.',
             tone: harnessAuditSummary.auditLinked > 0 ? 'border-indigo-200 bg-indigo-50/80' : 'border-slate-200 bg-slate-50',
         },
         {
             key: 'dashboard-harness-transition-blocked',
-            label: '전이 차단 이력',
+            label: '결재 반려 이력',
             value: `${harnessAuditSummary.transitionBlocked}명`,
-            helper: '승인/재분석 시 상태 조건 불일치로 차단된 기록 수입니다.',
+            helper: '승인 및 재평가 시 정합성 검증으로 반려된 건수입니다.',
             tone: harnessAuditSummary.transitionBlocked > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
         },
         {
             key: 'dashboard-harness-approval-audit',
-            label: '승인 감사 기록',
+            label: '승인 이력 기록',
             value: `${harnessAuditSummary.approvalAudited}명`,
-            helper: '최신 레코드 기준 승인 stage 감사 로그가 존재하는 대상입니다.',
+            helper: '최신 레코드 기준 승인 단계 감사 이력이 존재하는 대상입니다.',
             tone: harnessAuditSummary.approvalAudited > 0 ? 'border-emerald-200 bg-emerald-50/80' : 'border-slate-200 bg-slate-50',
         },
         {
             key: 'dashboard-harness-audit-events',
-            label: '누적 감사 이벤트',
+            label: '누적 이행 검증 이력',
             value: `${harnessAuditSummary.auditEvents}건`,
-            helper: `validation ${harnessAuditSummary.validationAudited}명 · approval ${harnessAuditSummary.approvalAudited}명 기준`,
+            helper: `검증 ${harnessAuditSummary.validationAudited}명 · 승인 ${harnessAuditSummary.approvalAudited}명 기준`,
             tone: harnessAuditSummary.auditEvents > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
         },
     ], [harnessAuditSummary]);
@@ -1051,22 +1051,22 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 key: 'dashboard-harness-audit-action',
                 eyebrow: '감사 우선순위',
                 title: harnessAuditSummary.transitionBlocked > 0
-                    ? `전이 차단 이력 ${harnessAuditSummary.transitionBlocked}명을 먼저 재검토하셔야 합니다.`
-                    : '전이 차단 이력은 크지 않으며 승인·저장 연결 점검을 우선하시면 됩니다.',
+                    ? `결재 반려 이력 ${harnessAuditSummary.transitionBlocked}건을 먼저 재검토하셔야 합니다.`
+                    : '결재 반려 이력은 크지 않으며 승인 및 저장 연동 점검을 우선하시면 됩니다.',
                 description: harnessAuditSummary.transitionBlocked > 0
-                    ? '상태 전이 거부는 증빙 누락, 승인 순서 오류, 완료 후 재분석 시도 가능성을 뜻하므로 관리자 QA 우선 대상입니다.'
-                    : '현재는 차단 이력보다 승인 백로그와 저장 연결 누락을 줄이는 쪽이 운영 효율에 더 직접적입니다.',
+                    ? '결재 반려는 증빙 누락, 승인 순서 오류, 완료된 평가의 재분석 시도 가능성을 뜻하므로 관리자 검토 우선 대상입니다.'
+                    : '현재는 반려 이력보다 승인 대기 건과 중앙 저장소 연동 누락을 줄이는 쪽이 현장 안전 관리에 더 효과적입니다.',
                 tone: harnessAuditSummary.transitionBlocked > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
             },
             {
                 key: 'dashboard-harness-audit-coverage',
-                eyebrow: '감사 커버리지',
+                eyebrow: '검증 이력율',
                 title: harnessAuditSummary.auditLinked > 0
-                    ? `최신 레코드 ${harnessAuditSummary.auditLinked}명에 안전 기록 감사 메모가 연결되어 있습니다.`
+                    ? `최신 레코드 ${harnessAuditSummary.auditLinked}명에 안전 기록 이행 검증 메모가 연결되어 있습니다.`
                     : '아직 안전 기록 감사 메모가 충분히 누적되지 않았습니다.',
                 description: harnessAuditSummary.auditLinked > 0
-                    ? `승인 감사 ${harnessAuditSummary.approvalAudited}명, validation 감사 ${harnessAuditSummary.validationAudited}명을 함께 읽으면 운영 통제 설명이 쉬워집니다.`
-                    : '관리자 모달에서 승인/재분석/차단 흐름을 사용하면서 감사 로그 누적을 늘리셔야 대시보드 설명력이 커집니다.',
+                    ? `승인 이력 ${harnessAuditSummary.approvalAudited}명, 검증 이력 ${harnessAuditSummary.validationAudited}명을 함께 읽으면 안전 관리 이행 설명이 쉬워집니다.`
+                    : '승인/재분석/반려 단계를 진행하면서 이행 이력을 누적해야 대시보드 관리 효율이 커집니다.',
                 tone: harnessAuditSummary.auditLinked > 0 ? 'border-indigo-200 bg-indigo-50/80' : 'border-slate-200 bg-slate-50',
             },
         ];
@@ -1112,30 +1112,30 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         return [
             {
                 key: 'dashboard-harness-recent-audits',
-                label: '최근 7일 감사 이벤트',
+                label: '최근 7일 검증 이력',
                 value: `${harnessRecentOpsSummary.recentAuditEvents}건`,
-                helper: `${touchedWorkerCount}명 레코드에서 최근 운영 흔적이 확인되었습니다.`,
+                helper: `${touchedWorkerCount}명 레코드에서 최근 조치 흔적이 확인되었습니다.`,
                 tone: harnessRecentOpsSummary.recentAuditEvents > 0 ? 'border-indigo-200 bg-indigo-50/80' : 'border-slate-200 bg-slate-50',
             },
             {
                 key: 'dashboard-harness-recent-approvals',
-                label: '최근 승인/반려 로그',
+                label: '최근 승인/반려 이력',
                 value: `${harnessRecentOpsSummary.recentApprovalDecisions}건`,
-                helper: `approval stage ${harnessRecentOpsSummary.recentApprovals}건 기준입니다.`,
+                helper: `승인 단계 ${harnessRecentOpsSummary.recentApprovals}건 기준입니다.`,
                 tone: harnessRecentOpsSummary.recentApprovalDecisions > 0 ? 'border-emerald-200 bg-emerald-50/80' : 'border-slate-200 bg-slate-50',
             },
             {
                 key: 'dashboard-harness-recent-blocks',
-                label: '최근 전이 차단',
+                label: '최근 결재 반려',
                 value: `${harnessRecentOpsSummary.recentTransitionBlocks}건`,
-                helper: '승인 차단 또는 상태 전이 거부 메모 기준입니다.',
+                helper: '승인 반려 또는 결재 기준 미달 반려 메모 기준입니다.',
                 tone: harnessRecentOpsSummary.recentTransitionBlocks > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
             },
             {
                 key: 'dashboard-harness-recent-reassess',
-                label: '최근 재분석 실행',
+                label: '최근 재평가 실행',
                 value: `${harnessRecentOpsSummary.recentReassessments}건`,
-                helper: 'reassessment stage 기록 기준입니다.',
+                helper: '재평가 단계 기록 기준입니다.',
                 tone: harnessRecentOpsSummary.recentReassessments > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
             },
         ];
@@ -1144,36 +1144,36 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const harnessRecentOpsInsights = useMemo(() => {
         const touchedWorkerCount = harnessRecentOpsSummary.touchedWorkers.size;
         const dominantSignal = [
-            { key: 'transition', count: harnessRecentOpsSummary.recentTransitionBlocks, label: '전이 차단' },
-            { key: 'reassessment', count: harnessRecentOpsSummary.recentReassessments, label: '재분석' },
+            { key: 'transition', count: harnessRecentOpsSummary.recentTransitionBlocks, label: '결재 반려' },
+            { key: 'reassessment', count: harnessRecentOpsSummary.recentReassessments, label: '재평가' },
             { key: 'approval', count: harnessRecentOpsSummary.recentApprovalDecisions, label: '승인/반려' },
         ].sort((a, b) => b.count - a.count)[0];
 
         return [
             {
                 key: 'dashboard-harness-recent-window',
-                eyebrow: '최근 7일 운영 창',
+                eyebrow: '최근 7일 이행 현황',
                 title: touchedWorkerCount > 0
-                    ? `${touchedWorkerCount}명에서 최근 운영 이력이 확인되었습니다.`
-                    : '최근 7일 기준 운영 이력이 아직 많지 않습니다.',
+                    ? `${touchedWorkerCount}명에서 최근 안전 조치 이력이 확인되었습니다.`
+                    : '최근 7일 기준 안전 조치 이력이 아직 많지 않습니다.',
                 description: touchedWorkerCount > 0
-                    ? `감사 이벤트 ${harnessRecentOpsSummary.recentAuditEvents}건을 기준으로 최근 승인, 차단, 재분석 흐름을 빠르게 읽으실 수 있습니다.`
-                    : '승인/재분석/차단 흐름이 누적되면 대시보드의 단기 운영 설명력이 더 좋아집니다.',
+                    ? `검증 이력 ${harnessRecentOpsSummary.recentAuditEvents}건을 기준으로 최근 승인, 반려, 재평가 흐름을 빠르게 읽으실 수 있습니다.`
+                    : '승인/재평가/반려 흐름이 누적되면 대시보드의 단기 안전 관리 분석력이 더 좋아집니다.',
                 tone: touchedWorkerCount > 0 ? 'border-indigo-200 bg-indigo-50/80' : 'border-slate-200 bg-slate-50',
             },
             {
                 key: 'dashboard-harness-recent-dominant',
                 eyebrow: '우세 신호',
                 title: dominantSignal.count > 0
-                    ? `최근 운영 로그에서는 ${dominantSignal.label} 신호가 가장 크게 보입니다.`
-                    : '최근 7일 기준으로 특정 운영 신호 쏠림은 크지 않습니다.',
+                    ? `최근 안전 관리 로그에서는 ${dominantSignal.label} 신호가 가장 크게 보입니다.`
+                    : '최근 7일 기준으로 특정 안전 관리 신호 쏠림은 크지 않습니다.',
                 description: dominantSignal.key === 'transition'
-                    ? '상태 전이 조건과 승인 순서를 먼저 재정렬하시면 운영 마찰을 줄이기 쉽습니다.'
+                    ? '승인 기준과 결재 순서를 먼저 점검하시면 업무 혼선을 줄이기 쉽습니다.'
                     : dominantSignal.key === 'reassessment'
-                        ? '현장 수정 이후 재분석 루프가 많으므로 코멘트 품질과 OCR 원문 품질을 함께 보시는 편이 좋습니다.'
+                        ? '재평가 진행 횟수가 많으므로 피드백 및 OCR 파일의 글 판독 품질을 함께 보시는 편이 좋습니다.'
                         : dominantSignal.key === 'approval'
-                            ? '최근 승인/반려 판단이 활발하므로 승인 근거 문구와 감사 저장 품질을 함께 관리하셔야 합니다.'
-                            : '최근 로그가 충분히 쌓이면 주간 운영 요약 정밀도가 더 좋아집니다.',
+                            ? '최근 승인/반려 판단이 활발하므로 승인 근거 내용과 검증 이력 저장 상태를 함께 관리하셔야 합니다.'
+                            : '최근 로그가 충분히 쌓이면 주간 안전 조치 요약 정밀도가 더 좋아집니다.',
                 tone: dominantSignal.count > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
             },
         ];
@@ -2164,32 +2164,32 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         return [
             {
                 key: 'pc-console-ocr',
-                label: 'OCR 운영',
-                description: '신규 분석과 운영 재검토를 바로 시작합니다.',
+                label: '안전 평가 서류 분석(OCR)',
+                description: '평가서 분석 및 점검을 진행합니다.',
                 page: 'ocr-analysis',
             },
             {
                 key: 'pc-console-risk',
-                label: 'AI 리스크 운영',
-                description: '우선 개입 대상과 조치 계획을 확인합니다.',
+                label: 'AI 위험성 예측 분석',
+                description: '우선 관리 근로자 조치 계획을 확인합니다.',
                 page: 'predictive-analysis',
             },
             {
                 key: 'pc-console-reports',
-                label: '리포트',
-                description: '보고서 생성/검토 흐름으로 이동합니다.',
+                label: '보고서 관리',
+                description: '이행 보고서 검토 및 다운로드 화면으로 이동합니다.',
                 page: 'reports',
             },
             {
                 key: 'pc-console-workers',
-                label: '근로자 관리',
-                description: '대상자 필터링과 이력 확인을 진행합니다.',
+                label: '현장 근로자 관리',
+                description: '근로자별 안전 점검 및 조치 이력을 확인합니다.',
                 page: 'worker-management',
             },
             {
                 key: 'pc-console-settings',
-                label: '설정/관리자',
-                description: '환경 상태와 운영 정책을 점검합니다.',
+                label: '시스템 환경 설정',
+                description: '연동 상태 및 안전 관리 정책을 설정합니다.',
                 page: 'settings',
             },
         ];
@@ -2373,9 +2373,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 };
             case 'fallback-pending':
                 return {
-                    headline: '저장 점검 대상은 환경 상태와 개별 레코드 상태를 함께 보셔야 합니다.',
-                    detail: '설정 화면에서 persistence 환경 상태를 먼저 확인하고, 이후 근로자 관리 필터로 실제 폴백·대기 레코드를 좁히시면 됩니다.',
-                    primaryLabel: '근로자 관리에서 저장 점검 대상 열기',
+                    headline: '데이터 저장 점검 대상은 연동 환경과 개별 기록 상태를 함께 보셔야 합니다.',
+                    detail: '설정 화면에서 데이터 연동 환경 상태를 먼저 확인하고, 이후 근로자 관리 필터로 실제 대체 저장·대기 기록을 좁히시면 됩니다.',
+                    primaryLabel: '근로자 관리에서 대체 저장 점검 열기',
                     secondaryLabel: '설정 화면으로 이동',
                     secondaryPage: 'settings',
                 };
@@ -2383,7 +2383,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 return {
                     headline: `${activeHarnessDrilldown.trade || '선택 공종'}은 최근 운영 신호가 집중된 공종입니다.`,
                     detail: '대상 공종을 근로자 관리 필터로 바로 넘겨 우선순위를 정리하고, 보고서 화면에서 공종별 감사 근거를 함께 확인하시면 됩니다.',
-                    primaryLabel: '근로자 관리에서 공종 hotspot 열기',
+                    primaryLabel: '근로자 관리에서 집중 관리 공종 열기',
                     secondaryLabel: '보고서 화면으로 이동',
                     secondaryPage: 'reports',
                 };
@@ -2422,16 +2422,16 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             : activeHarnessDrilldown.type === 'immediate-attention'
                 ? '즉시 보호 대상 미리보기'
                 : activeHarnessDrilldown.type === 'fallback-pending'
-                    ? '저장 연결 점검 대상 미리보기'
-                    : `${activeHarnessDrilldown.trade || '선택 공종'} 최근 7일 hotspot 미리보기`;
+                    ? '데이터 저장 점검 대상 미리보기'
+                    : `${activeHarnessDrilldown.trade || '선택 공종'} 최근 7일 집중 관리 미리보기`;
 
         const description = activeHarnessDrilldown.type === 'approval-backlog'
             ? '승인 또는 추가 검토가 남아 있는 최신 대상만 추렸습니다.'
             : activeHarnessDrilldown.type === 'immediate-attention'
                 ? '즉시 보호 또는 중단 판단이 필요한 최신 대상입니다.'
                 : activeHarnessDrilldown.type === 'fallback-pending'
-                    ? 'persistence 폴백 또는 저장 대기 상태의 최신 대상입니다.'
-                    : '선택 공종에서 최근 7일 감사 이벤트가 집중된 최신 대상을 보여드립니다.';
+                    ? '오프라인 대체 저장 또는 전송 대기 상태의 최신 대상입니다.'
+                    : '선택 공종에서 최근 7일 이행 감사 이벤트가 집중된 최신 대상을 보여드립니다.';
 
         return {
             title,
@@ -3218,16 +3218,16 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             <div className={`${MOBILE_CARD_PANEL_CLASS} border-slate-200 bg-slate-50/80 dark:border-slate-700 dark:bg-slate-800`}>
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-650 dark:text-slate-350">Harness Drill-down</p>
-                        <h3 className="mt-1 text-sm font-black text-slate-800 dark:text-slate-100">백로그와 hotspot을 대시보드 안에서 바로 좁혀 봅니다.</h3>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-655 dark:text-slate-350">안전 이행 상세 분석</p>
+                        <h3 className="mt-1 text-sm font-black text-slate-800 dark:text-slate-100">대기 항목과 집중 관리 공종을 대시보드 안에서 바로 분석합니다.</h3>
                     </div>
                     {activeHarnessDrilldown ? (
                         <button
-                            type="button"
-                            onClick={() => setActiveHarnessDrilldown(null)}
-                            className="rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1 text-[11px] font-black text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                             type="button"
+                             onClick={() => setActiveHarnessDrilldown(null)}
+                             className="rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1 text-[11px] font-black text-slate-600 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
                         >
-                            Drill-down 해제
+                            상세 분석 해제
                         </button>
                     ) : null}
                 </div>
@@ -3252,7 +3252,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         onClick={() => openHarnessOperationalDrilldown('fallback-pending')}
                         className={`rounded-full px-3 py-1.5 text-[11px] font-black transition-colors ${activeHarnessDrilldown?.type === 'fallback-pending' ? 'bg-amber-600 text-white' : 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'}`}
                     >
-                        저장 점검 {harnessDashboardSummary.fallback + harnessDashboardSummary.pending}명
+                        대체 저장 점검 {harnessDashboardSummary.fallback + harnessDashboardSummary.pending}명
                     </button>
                 </div>
 

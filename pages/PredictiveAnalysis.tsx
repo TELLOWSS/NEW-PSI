@@ -1852,15 +1852,15 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
             {isDevMode && (harnessSummary.immediateAttention > 0 || harnessSummary.approvalBacklog > 0 || harnessSummary.fallback > 0) && (
                 <NoticeCallout
                     variant={harnessSummary.immediateAttention > 0 ? 'rose' : harnessSummary.fallback > 0 ? 'amber' : 'indigo'}
-                    eyebrow="개발자 운영 상태"
+                    eyebrow="안전 이행 검증 상태"
                     title={harnessSummary.immediateAttention > 0
-                        ? `예측 계획보다 앞서 즉시 보호 대상 ${harnessSummary.immediateAttention}명을 먼저 닫아야 합니다.`
+                        ? `예측 계획보다 앞서 즉시 관찰 보호 대상 ${harnessSummary.immediateAttention}명을 먼저 조치해야 합니다.`
                         : harnessSummary.fallback > 0
-                            ? `저장 연결 확인이 필요한 대상 ${harnessSummary.fallback}명이 있습니다.`
-                            : `승인 백로그 ${harnessSummary.approvalBacklog}명이 남아 있어 다음 달 계획 전에 현재 승인 순서를 먼저 정리해야 합니다.`}
+                            ? `저장 연동 확인이 필요한 대상 ${harnessSummary.fallback}명이 있습니다.`
+                            : `검토 대기 항목이 ${harnessSummary.approvalBacklog}명 남아 있어 다음 달 계획 전에 현재 승인 대기 건을 먼저 정리해야 합니다.`}
                     description={harnessSummary.immediateAttention > 0
-                        ? '예측 대시보드는 미래 개입 우선순위를 정하는 곳이지만, 이미 위험이 확정된 인원은 관리자 승인·보완 흐름으로 먼저 연결해야 보호 공백을 줄일 수 있습니다.'
-                        : '저장 및 승인 상태를 함께 확인해 실제 보호 조치가 끊긴 지점을 먼저 보완합니다.'}
+                        ? '예측 대시보드는 미래 개입 우선순위를 정하는 곳이지만, 이미 위험이 확정된 인원은 소장 결재 및 보완 조치 흐름으로 먼저 연결해야 보호 공백을 줄일 수 있습니다.'
+                        : '저장 연동 및 승인 상태를 함께 확인해 실제 보호 조치가 끊긴 지점을 먼저 보완합니다.'}
                     className={MOBILE_CARD_PANEL_COMPACT_CLASS}
                     bodyClassName="block"
                     titleClassName="text-sm font-black"

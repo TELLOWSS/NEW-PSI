@@ -53,7 +53,7 @@ const OCR_STATUS_COPY = {
 
 const buildMasterDataLoadErrorMessage = (rawMessage?: string) => {
     const message = String(rawMessage || '알 수 없는 오류');
-    return `기록 양식/배정 데이터 조회 실패: ${message}\n\n현재 group 전용 모드입니다. Supabase에 group 뷰/컬럼이 적용되었는지 확인해 주세요.`;
+    return `기록 양식/배정 데이터 조회 실패: ${message}\n\n현재 group 전용 모드입니다. 중앙 서버에 작업 그룹 설정이 적용되었는지 확인해 주세요.`;
 };
 
 const buildReassessmentAuditNote = (before: WorkerRecord, updated: Partial<WorkerRecord>): string => {
@@ -322,9 +322,9 @@ const getHarnessPersistenceState = (record: Partial<WorkerRecord>): HarnessPersi
 
 const getHarnessPersistenceLabel = (state: HarnessPersistenceState): string => {
     switch (state) {
-        case 'connected': return '저장 연결됨';
-        case 'fallback': return '폴백 동작중';
-        default: return '저장 대기';
+        case 'connected': return '중앙 서버 연동 완료';
+        case 'fallback': return '로컬 대체 저장 작동중';
+        default: return '서버 저장 대기';
     }
 };
 
@@ -338,41 +338,41 @@ const getHarnessPersistenceBadgeVariant = (state: HarnessPersistenceState): Stat
 
 const getHarnessWorkflowStateLabel = (state: HarnessWorkflowState): string => {
     switch (state) {
-        case 'uploaded': return '업로드됨';
-        case 'ocr_validating': return 'OCR 검증 중';
-        case 'manual_review_required': return '수동 검토 필요';
-        case 'context_ready': return '컨텍스트 준비';
-        case 'first_pass_analyzing': return '1차 분석 중';
-        case 'evaluator_review': return '검증 중';
-        case 'awaiting_manager_approval': return '관리자 승인 대기';
-        case 'manager_revised': return '관리자 수정 완료';
-        case 'second_pass_analyzing': return '2차 재분석 중';
+        case 'uploaded': return '서류 업로드 완료';
+        case 'ocr_validating': return '서류 판독 및 검증 중';
+        case 'manual_review_required': return '추가 검토 필요';
+        case 'context_ready': return '분석 환경 구성 완료';
+        case 'first_pass_analyzing': return '1차 평가 분석 중';
+        case 'evaluator_review': return '평가 정합성 검증 중';
+        case 'awaiting_manager_approval': return '현장 소장 승인 대기';
+        case 'manager_revised': return '현장 소장 검토/수정 완료';
+        case 'second_pass_analyzing': return '2차 심층 재평가 중';
         case 'completed':
         default:
-            return '확정 완료';
+            return '이행 검증 완료';
     }
 };
 
 const getHarnessRiskDecisionLabel = (decision: HarnessRiskDecision): string => {
     switch (decision) {
-        case 'SAFE_TO_PROCEED': return '진행 가능';
-        case 'SUPPLEMENTARY_REVIEW': return '추가 확인 필요';
-        case 'IMMEDIATE_ATTENTION': return '즉시 확인 필요';
+        case 'SAFE_TO_PROCEED': return '작업 진행 가능';
+        case 'SUPPLEMENTARY_REVIEW': return '안전 조치 보완 검토';
+        case 'IMMEDIATE_ATTENTION': return '즉시 관찰 보호';
         case 'CRITICAL_STOP':
         default:
-            return '작업 중지 검토';
+            return '작업 즉시 중단 및 보완';
     }
 };
 
 const getHarnessApprovalStateLabel = (state: HarnessApprovalState): string => {
     switch (state) {
-        case 'NOT_REQUIRED': return '승인 불필요';
-        case 'REQUIRED': return '승인 필요';
-        case 'PENDING': return '승인 대기';
-        case 'APPROVED': return '승인 완료';
+        case 'NOT_REQUIRED': return '승인 대상 제외';
+        case 'REQUIRED': return '소장 결재 필요';
+        case 'PENDING': return '결재 대기';
+        case 'APPROVED': return '결재 승인 완료';
         case 'REJECTED':
         default:
-            return '반려/재검토';
+            return '결재 반려';
     }
 };
 
@@ -5230,7 +5230,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         items={[
                             {
                                 key: 'failed-harness-status',
-                                eyebrow: isDevMode ? '하네스 상태' : 'OCR 처리 상태',
+                                eyebrow: isDevMode ? '이행 검증 상태' : 'OCR 처리 상태',
                                 title: `${failedHarnessSummary.pendingApprovalCount}건이 관리자 판단 또는 승인 대기입니다`,
                                 description: isDevMode
                                     ? `실패 건 중 ${failedHarnessSummary.manualReviewCount}건은 수동 검토 흐름으로 묶여 있으며, ${failedHarnessSummary.immediateAttentionCount}건은 즉시 확인 우선 대상입니다. 저장 연결 ${failedHarnessSummary.connectedCount}건 · 폴백 ${failedHarnessSummary.fallbackCount}건 · 대기 ${failedHarnessSummary.pendingPersistenceCount}건입니다.`
@@ -5241,7 +5241,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 key: 'failed-harness-evidence',
                                 eyebrow: '판단 근거',
                                 title: 'OCR 실패와 저품질 입력은 자동 확정이 아니라 상태 잠금 대상으로 읽어야 합니다',
-                                description: '하네스 상태는 단순 오류 표식이 아니라, 어떤 건을 다시 읽고 어떤 건을 관리자 승인 대기로 넘길지 운영 순서를 알려주는 통제 신호입니다.',
+                                description: '이행 검증 상태는 단순 오류 표식이 아니라, 어떤 건을 다시 읽고 어떤 건을 현장 소장 승인 대기로 넘길지 운영 순서를 알려주는 통제 신호입니다.',
                                 tone: BRAND_TONE.amberSoft,
                             },
                             {

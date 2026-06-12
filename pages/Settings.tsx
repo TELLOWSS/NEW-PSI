@@ -1173,7 +1173,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         },
         {
             key: 'settings-harness-backlog',
-            label: '승인 백로그',
+            label: '검토 대기 항목',
             value: `${harnessSummary.approvalBacklog}명`,
             helper: `재검토 필요 ${harnessSummary.reviewNeeded}명`,
             tone: harnessSummary.approvalBacklog > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
@@ -1436,7 +1436,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     <button type="button" onClick={() => { trackQuickAction('set_theme_system_mode', { currentThemeMode: themeMode }); handleThemeModeChange('system'); }} className="min-h-[44px] rounded-xl border border-indigo-200 bg-white px-3 py-2 text-left text-xs font-black text-indigo-700 hover:bg-indigo-50">테마 자동 모드</button>
                     <button type="button" onClick={() => { trackQuickAction('refresh_ui_metrics'); loadUIViewMetrics(); }} className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-xs font-black text-slate-700 hover:bg-slate-50">UI 지표 새로고침</button>
                     <button type="button" onClick={() => { trackQuickAction('run_harness_health_check'); handleRunHarnessHealthCheck(); }} className="min-h-[44px] rounded-xl border border-emerald-200 bg-white px-3 py-2 text-left text-xs font-black text-emerald-700 hover:bg-emerald-50">헬스체크 실행</button>
-                    <button type="button" onClick={() => { trackQuickAction('run_workflow_probe', { candidateCount: harnessCandidates.length }); handleRunHarnessProbe(); }} disabled={isHarnessProbeLoading || harnessCandidates.length === 0} className={`min-h-[44px] rounded-xl border border-violet-200 bg-white px-3 py-2 text-left text-xs font-black text-violet-700 ${isHarnessProbeLoading || harnessCandidates.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-violet-50'}`}>워크플로 진단 실행</button>
+                    <button type="button" onClick={() => { trackQuickAction('run_workflow_probe', { candidateCount: harnessCandidates.length }); handleRunHarnessProbe(); }} disabled={isHarnessProbeLoading || harnessCandidates.length === 0} className={`min-h-[44px] rounded-xl border border-violet-200 bg-white px-3 py-2 text-left text-xs font-black text-violet-700 ${isHarnessProbeLoading || harnessCandidates.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-violet-50'}`}>조치 흐름 진단 실행</button>
                     <button type="button" onClick={handleResetMenuComposition} className="min-h-[44px] rounded-xl border border-amber-200 bg-white px-3 py-2 text-left text-xs font-black text-amber-700 hover:bg-amber-50">메뉴 구성 기본값 복원</button>
                     <button type="button" onClick={() => { trackQuickAction('save_settings'); handleSave(); }} className="min-h-[44px] rounded-xl border border-sky-200 bg-white px-3 py-2 text-left text-xs font-black text-sky-700 hover:bg-sky-50">설정 저장/적용</button>
                 </div>
@@ -1621,10 +1621,10 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     variant={harnessSummary.immediateAttention > 0 ? 'rose' : harnessSummary.fallback > 0 ? 'amber' : 'indigo'}
                     eyebrow="Harness priority"
                     title={harnessSummary.immediateAttention > 0
-                        ? `설정 조정 전에 즉시 보호 대상 ${harnessSummary.immediateAttention}명을 먼저 확인해야 합니다.`
+                        ? `설정 조정 전에 즉시 관찰 보호 대상 ${harnessSummary.immediateAttention}명을 먼저 확인해야 합니다.`
                         : harnessSummary.fallback > 0
-                            ? `하네스 persistence 폴백 ${harnessSummary.fallback}명이 있어 운영 기준 변경 전 저장 연결 상태를 함께 점검해야 합니다.`
-                            : `승인 백로그 ${harnessSummary.approvalBacklog}명이 남아 있어 설정 변경과 함께 관리자 검토 순서를 먼저 정리해야 합니다.`}
+                            ? `오프라인 대체 저장 ${harnessSummary.fallback}명이 있어 운영 기준 변경 전 저장 연동 상태를 함께 점검해야 합니다.`
+                            : `검토 대기 항목이 ${harnessSummary.approvalBacklog}명이 남아 있어 설정 변경과 함께 결재 검토 순서를 먼저 정리해야 합니다.`}
                     description="설정 화면은 정책 기준을 바꾸는 곳이므로, 현재 보호 흐름이 끊긴 레코드가 있는지 먼저 확인해야 운영 기준 변경이 현장 혼선을 만들지 않습니다."
                     className="rounded-2xl border px-4 py-3 shadow-sm"
                     bodyClassName="block"
@@ -1637,9 +1637,9 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                            <h3 className="text-base sm:text-lg font-black text-slate-900">하네스 persistence 환경 상태</h3>
+                            <h3 className="text-base sm:text-lg font-black text-slate-900">중앙 서버 연동 및 데이터 보존 상태</h3>
                             <p className="mt-1 text-xs sm:text-sm text-slate-500 leading-relaxed">
-                                Supabase 환경변수, 키 모드, 하네스 테이블 준비 상태와 현재 적재 건수를 한 번에 확인해 실환경 persisted 검증 전에 환경 문제를 먼저 분리합니다.
+                                Supabase 환경변수, 키 모드, 중앙 서버 테이블 준비 상태와 현재 적재 건수를 한 번에 확인해 실환경 데이터 저장 검증 전에 환경 문제를 먼저 분리합니다.
                             </p>
                         </div>
                         <button
@@ -1688,9 +1688,9 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">하네스 persistence 진단 준비</h3>
+                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">서버 연동 및 데이터 보존 진단 준비</h3>
                         <p className="mt-1 text-xs sm:text-sm text-slate-500 leading-relaxed">
-                            최근 workflow run 연결 레코드를 기준으로 persisted 상태를 즉시 조회해 `직접 조회`, `원본 레코드 기준 조회`, `실데이터 미발견` 케이스를 설정 화면에서 바로 분류할 수 있습니다.
+                            최근 workflow run 연결 레코드를 기준으로 서버 저장 상태를 즉시 조회해 `직접 조회`, `원본 기록 기준 조회`, `실데이터 미발견` 케이스를 설정 화면에서 바로 분류할 수 있습니다.
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -1716,7 +1716,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                             disabled={isHarnessProbeLoading || harnessCandidates.length === 0}
                             className={`px-4 py-2.5 rounded-2xl text-sm font-black transition-all ${isHarnessProbeLoading || harnessCandidates.length === 0 ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg'}`}
                         >
-                            {isHarnessProbeLoading ? '진단 조회 중...' : '최근 workflow run 진단 새로고침'}
+                            {isHarnessProbeLoading ? '진단 조회 중...' : '최근 조치 흐름 진단 새로고침'}
                         </button>
                     </div>
                 </div>
@@ -1751,7 +1751,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
 
                 {harnessCandidates.length === 0 ? (
                     <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm font-semibold text-slate-500">
-                        아직 `workflowRunId`가 연결된 최신 레코드가 없어 실환경 persistence 진단 대상을 만들 수 없습니다. 먼저 OCR/리포트 흐름에서 하네스 run 연결을 생성해야 합니다.
+                        아직 `workflowRunId`가 연결된 최신 레코드가 없어 실환경 데이터 저장 진단 대상을 만들 수 없습니다. 먼저 문서 분석(OCR)/보고서 흐름에서 안전 이행 시스템 연결을 생성해야 합니다.
                     </div>
                 ) : (
                     <div className="mt-4 space-y-3">
