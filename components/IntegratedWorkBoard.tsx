@@ -216,9 +216,21 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                         <p className="mt-2 text-sm font-semibold text-slate-500">작성, 분석, 교육, 개선 확인을 한 화면에서 시작합니다.</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700">{formatMonth()} 운영</span>
-                        <button type="button" onClick={() => setShowFeatureLocker((value) => !value)} className="psi-button-secondary">
-                            {showFeatureLocker ? '기능 설정 닫기' : '화면 기능 설정'}
+                        <span className="rounded-full border border-blue-100 bg-blue-50 px-3.5 py-2 text-xs font-black text-blue-700 dark:border-blue-500/20 dark:bg-blue-950/30 dark:text-blue-300">{formatMonth()} 운영</span>
+                        <button
+                            type="button"
+                            onClick={() => setShowFeatureLocker((value) => !value)}
+                            className={`inline-flex items-center gap-1.5 min-h-[40px] px-4 py-2 text-xs font-black rounded-xl transition-all duration-200 ${
+                                showFeatureLocker
+                                    ? 'bg-slate-200 text-slate-700 hover:bg-slate-300 border border-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600 dark:border-slate-600'
+                                    : 'bg-gradient-to-r from-blue-700 to-blue-800 text-white hover:from-blue-800 hover:to-blue-900 shadow-md shadow-blue-500/10 hover:shadow-lg hover:shadow-blue-500/20 hover:-translate-y-0.5'
+                            }`}
+                        >
+                            <svg className="w-4 h-4 transition-transform duration-700 hover:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            {showFeatureLocker ? '설정 닫기' : '화면 기능 설정'}
                         </button>
                     </div>
                 </div>
@@ -237,10 +249,10 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
             </section>
 
             {showFeatureLocker && (
-                <section className="psi-industrial-panel p-5">
+                <section className="psi-industrial-panel p-5 border-blue-400/80 bg-blue-50/15 dark:border-blue-500/40 dark:bg-blue-950/10 ring-4 ring-blue-500/5 transition-all duration-300">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                            <p className="text-xs font-black text-blue-600">화면 기능 설정</p>
+                            <p className="text-xs font-black text-blue-600 dark:text-blue-400">화면 기능 설정</p>
                             <h2 className="mt-1 text-lg font-black">현장에서 사용할 메뉴를 선택하세요.</h2>
                         </div>
                         <div className="flex gap-2">
