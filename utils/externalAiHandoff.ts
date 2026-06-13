@@ -78,7 +78,9 @@ export const buildExternalAiPrompt = (options: {
     workType: string;
     languageCodes?: TrainingLanguageCode[];
     draft?: TbmEducationDraft;
+    mode?: 'generation' | 'translation';
 }): string => {
+    const mode = options.mode || 'generation';
     const { text: sourceText, truncated } = buildSourceBlock(options.sources);
     const languageCodes = (options.languageCodes || []).filter((code) => code !== 'ko-KR');
     const languageRequest = languageCodes.length
@@ -89,9 +91,9 @@ export const buildExternalAiPrompt = (options: {
 
     const lines = [
         '당신은 한국 건설현장의 위험성평가와 TBM 교육자료를 만드는 안전교육 편집자입니다.',
-        options.draft
+        mode === 'translation' && options.draft
             ? '아래 제공된 [현재 작성된 한국어 초안]을 그대로 요청된 다국어로 정확하게 번역하세요.'
-            : '아래 근거 자료만 분석하여 다음 달 교육용 5단계 한 장 초안을 작성하세요.',
+            : '아래 근거 자료를 정밀 분석하여 다음 달 교육용 5단계 한 장 초안(한국어)을 작성하고 지정된 다국어 번역을 동시에 반환하세요.',
         '',
         '[대상]',
         `- 교육 월: ${options.month || '관리자 확인 필요'}`,
@@ -100,7 +102,7 @@ export const buildExternalAiPrompt = (options: {
         '',
     ];
 
-    if (options.draft) {
+    if (mode === 'translation' && options.draft) {
         lines.push(
             '[가장 중요한 번역 지침]',
             '1. 제공된 [현재 작성된 한국어 초안]이 최우선 기준입니다. 각 다국어 번역본(translations)은 이 한국어 초안의 문장과 내용을 단어 하나, 수치 하나 왜곡하지 않고 그대로 번역해야 합니다.',
@@ -109,6 +111,15 @@ export const buildExternalAiPrompt = (options: {
             '4. 반환하는 JSON의 `draft` 객체는 아래 [현재 작성된 한국어 초안]의 값(title, opening, coreMessage, videoScenes, accidentCases, risks, focusPoints, notices, confirmationQuestions, closingCommitment 등)을 한국어 그대로 모두 보존하여 반환해 주십시오.',
             '5. 번역본(translations)의 최종 텍스트 결과물 안에는 한국어나 영어 단어(예: "TBM", "seconds", "seconds", "narration", "visualGuide", "accidentCases", "risks", "focusPoints", "notices", "Q1", "Q2" 등)가 결코 섞여 나와서는 안 됩니다. 100% 해당 번역 대상 국가의 공식 모국어 문자와 자연스러운 현지 표현으로 완전히 번역해 주십시오.',
             '6. 각 단계의 머리말 레이블(예: "1. 교육 전 5분 핵심 동영상", "2. 최근 재해사례와 현장 연관성", "[이해 확인 및 행동 약속]" 등)과 질문 기호(Q1., Q2. 등) 또한 해당 모국어의 숫자 기호나 정제된 표현으로 완벽하게 번역해야 합니다.',
+            ''
+        );
+    } else {
+        lines.push(
+            '[가장 중요한 초안 생성 지침]',
+            '1. 제공된 [근거 자료]만을 기반으로 사실적이고 실행 가능한 위험성평가 전파교육 내용(한국어 초안 `draft`)을 직접 구성하십시오. 확인되지 않은 사실이나 재해사례는 상상해서 채워넣지 마시고 누락된 사항은 "관리자 확인 필요"로 남겨두십시오.',
+            '2. 구성된 한국어 초안(`draft`)을 지정된 다국어 결과(translations)로 각각 정확하게 번역하여 함께 반환하십시오. 번역본은 한국어 초안의 구조와 100% 매칭되어야 합니다.',
+            '3. 제공된 [현재 작성된 참고용 초안]은 기본 틀(템플릿) 역할만 합니다. 여기에 적힌 내용에 얽매이지 말고, 만약 새로운 [근거 자료]의 내용(위험 요소, 안전조치 등)이 있다면 이를 분석하여 더 정확하고 구체적인 초안을 만들어주십시오.',
+            '4. 번역본(translations)의 최종 결과물 안에는 한국어 단어나 영어 기호가 결코 섞여 나와서는 안 됩니다. 100% 해당 국가의 공식 모국어로 완벽히 번역해 주십시오.',
             ''
         );
     }
@@ -167,7 +178,7 @@ export const buildExternalAiPrompt = (options: {
 
     if (options.draft) {
         lines.push(
-            '[현재 작성된 한국어 초안]',
+            '[현재 작성된 참고용 초안]',
             currentDraftText,
             ''
         );

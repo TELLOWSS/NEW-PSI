@@ -38,9 +38,10 @@ export function ExternalAiHandoffPanel({
     const [languageCodes, setLanguageCodes] = useState<TrainingLanguageCode[]>(DEFAULT_EXTERNAL_AI_LANGUAGES);
     const [privacyConfirmed, setPrivacyConfirmed] = useState(false);
     const [rawResult, setRawResult] = useState('');
+    const [aiMode, setAiMode] = useState<'generation' | 'translation'>('generation');
     const prompt = useMemo(
-        () => buildExternalAiPrompt({ sources, month, workType, languageCodes, draft }),
-        [languageCodes, month, sources, workType, draft],
+        () => buildExternalAiPrompt({ sources, month, workType, languageCodes, draft, mode: aiMode }),
+        [languageCodes, month, sources, workType, draft, aiMode],
     );
 
     const toggleLanguage = (code: TrainingLanguageCode) => {
@@ -114,6 +115,33 @@ export function ExternalAiHandoffPanel({
 
             <section className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
                 <div className="psi-enterprise-panel p-5">
+                    <h3 className="text-base font-black">AI 분석 및 번역 모드</h3>
+                    <p className="mt-1 text-xs font-semibold psi-copy-muted">AI에 요청할 작업의 목적을 선택하세요.</p>
+                    <div className="mt-3 grid grid-cols-2 gap-2 mb-4">
+                        <button
+                            type="button"
+                            onClick={() => setAiMode('generation')}
+                            className={`min-h-11 rounded-xl px-3 py-2 text-xs font-black transition-colors ${
+                                aiMode === 'generation'
+                                    ? 'bg-blue-700 text-white shadow-md'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                            }`}
+                        >
+                            신규 초안 분석 및 번역
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setAiMode('translation')}
+                            className={`min-h-11 rounded-xl px-3 py-2 text-xs font-black transition-colors ${
+                                aiMode === 'translation'
+                                    ? 'bg-blue-700 text-white shadow-md'
+                                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                            }`}
+                        >
+                            기존 초안 유지 및 번역
+                        </button>
+                    </div>
+
                     <h3 className="text-base font-black">다국어 결과 선택</h3>
                     <p className="mt-1 text-xs font-semibold psi-copy-muted">다음 달 TBM 교육자료에 필요한 언어만 선택하세요.</p>
                     <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">

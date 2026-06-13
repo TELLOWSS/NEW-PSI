@@ -559,6 +559,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     );
     const [previewLanguage, setPreviewLanguage] = useState<string>('ko-KR');
     const [viewMode, setViewMode] = useState<'split' | 'single'>('split');
+    const [isOverflowing, setIsOverflowing] = useState(false);
     const sheetRef = useRef<HTMLElement>(null);
 
     const workTypes = useMemo(
@@ -575,6 +576,37 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
     );
     const estimatedTokens = estimateEducationTokens(allSources);
     const videoDuration = getFiveMinuteVideoDuration(draft);
+
+    // 교육월 & 대상 공종 변경 시 draft 문서와 실시간 동기화
+    useEffect(() => {
+        setDraft((prev) => {
+            if (prev.month === educationMonth && prev.workType === workType) return prev;
+            return {
+                ...prev,
+                month: educationMonth,
+                workType: workType,
+                title: `${educationMonth} ${workType} 위험성평가 전파교육`,
+            };
+        });
+    }, [educationMonth, workType]);
+
+    // 실시간 오버플로우(A4 1장 범위 초과) 감지
+    useEffect(() => {
+        if (activeTab !== 'preview') {
+            setIsOverflowing(false);
+            return;
+        }
+        const checkOverflow = () => {
+            const pageEl = sheetRef.current?.querySelector('[data-report-page="true"]');
+            if (pageEl) {
+                const hasOverflow = pageEl.scrollHeight > pageEl.clientHeight;
+                setIsOverflowing(hasOverflow);
+            }
+        };
+
+        const timer = setTimeout(checkOverflow, 400);
+        return () => clearTimeout(timer);
+    }, [activeTab, draft, previewLanguage, viewMode, translatedTexts]);
 
     useEffect(() => {
         localStorage.setItem(STUDIO_STORAGE_KEY, JSON.stringify({
@@ -849,6 +881,25 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                 </div>
             </section>
 
+            {/* 공통 설정 영역 (교육 대상월 및 공종 선택) */}
+            <section className="psi-enterprise-panel grid gap-4 p-5 lg:grid-cols-3 no-print">
+                <label className="text-sm font-black text-slate-800 dark:text-slate-100">
+                    교육 대상월
+                    <input type="month" value={educationMonth} onChange={(event) => setEducationMonth(event.target.value)} className="mt-2 w-full rounded-xl border px-3 py-3 bg-white dark:bg-slate-900" />
+                </label>
+                <label className="text-sm font-black text-slate-800 dark:text-slate-100">
+                    대상 공종
+                    <select value={workType} onChange={(event) => setWorkType(event.target.value)} className="mt-2 w-full rounded-xl border px-3 py-3 bg-white dark:bg-slate-900">
+                        {workTypes.map((item) => <option key={item}>{item}</option>)}
+                    </select>
+                </label>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10 flex flex-col justify-center">
+                    <p className="text-xs font-black text-emerald-800 dark:text-emerald-200">무료 사용량 보호</p>
+                    <p className="mt-1 text-xl font-black text-emerald-900 dark:text-emerald-100">약 {estimatedTokens.toLocaleString()} 토큰</p>
+                    <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">현재 근거자료를 AI에 보낼 경우의 예상량입니다.</p>
+                </div>
+            </section>
+
             <nav className="psi-segmented-nav grid grid-cols-2 gap-2 sm:grid-cols-5 no-print" aria-label="교육자료 제작 단계">
                 {([
                     ['sources', '1. 자료 모으기'],
@@ -880,24 +931,6 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
             {activeTab === 'sources' && (
                 <div className="space-y-4 no-print">
-                    <section className="psi-enterprise-panel grid gap-4 p-5 lg:grid-cols-3">
-                        <label className="text-sm font-black text-slate-800 dark:text-slate-100">
-                            교육 대상월
-                            <input type="month" value={educationMonth} onChange={(event) => setEducationMonth(event.target.value)} className="mt-2 w-full rounded-xl border px-3 py-3" />
-                        </label>
-                        <label className="text-sm font-black text-slate-800 dark:text-slate-100">
-                            대상 공종
-                            <select value={workType} onChange={(event) => setWorkType(event.target.value)} className="mt-2 w-full rounded-xl border px-3 py-3">
-                                {workTypes.map((item) => <option key={item}>{item}</option>)}
-                            </select>
-                        </label>
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10">
-                            <p className="text-xs font-black text-emerald-800 dark:text-emerald-200">무료 사용량 보호</p>
-                            <p className="mt-2 text-2xl font-black text-emerald-900 dark:text-emerald-100">약 {estimatedTokens.toLocaleString()} 토큰</p>
-                            <p className="mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">현재 자료를 AI에 보낼 경우의 예상량입니다. 초안 생성은 토큰을 쓰지 않습니다.</p>
-                        </div>
-                    </section>
-
                     <section className="grid gap-4 lg:grid-cols-2">
                         <label className="flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-blue-300 bg-blue-50 p-5 text-center transition hover:border-blue-500 dark:border-blue-500/50 dark:bg-blue-500/10">
                             <span className="text-base font-black text-blue-800 dark:text-blue-200">{isExtracting ? '자료에서 글자를 읽는 중...' : 'PDF · PPTX · TXT 자료 추가'}</span>
@@ -1126,6 +1159,14 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
             {(activeTab === 'preview' || activeTab === 'editor') && (
                 <section className={activeTab === 'editor' ? 'hidden' : ''}>
+                    {/* 오버플로우 경고 배너 */}
+                    {isOverflowing && (
+                        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200 mb-4 flex items-center gap-2 no-print">
+                            <span>⚠️</span>
+                            <span>입력한 안전 교육 내용이 너무 많아 A4 한 장 범위를 초과했습니다. 실제 인쇄/출력 시 하단 내용이 잘릴 수 있으니 편집 단계에서 문구를 요약해 주세요.</span>
+                        </div>
+                    )}
+
                     {/* 언어 선택 탭 */}
                     <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-100 dark:bg-slate-800 p-4 rounded-2xl mb-4 no-print">
                         <div className="flex flex-wrap gap-2">
@@ -1191,7 +1232,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                     </div>
 
                     <article ref={sheetRef} data-report-template-root="true" className="mx-auto w-[210mm] max-w-full bg-white text-slate-900 shadow-2xl">
-                        <div data-report-page="true" className="flex h-[297mm] w-[210mm] max-w-full flex-col overflow-hidden bg-white p-[12mm]">
+                        <div data-report-page="true" className="flex h-[297mm] w-[210mm] max-w-full flex-col overflow-y-auto print:overflow-hidden bg-white p-[12mm]">
                             {previewLanguage === 'ko-KR' ? (
                                 <>
                                     <header className="border-b-[5px] border-orange-500 pb-5">
