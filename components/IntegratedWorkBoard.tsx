@@ -98,7 +98,7 @@ const TrendChart = ({ values, color = '#2563eb', label }: { values: number[]; co
         .map((value, index) => `${index * (120 / (values.length - 1))},${42 - ((value - min) / range) * 32}`)
         .join(' ');
     return (
-        <svg viewBox="0 0 120 48" className="mt-3 h-12 w-full" role="img" aria-label={label}>
+        <svg viewBox="0 0 120 48" className="mt-1 h-7 w-full" role="img" aria-label={label}>
             <polyline fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={points} />
             {values.map((value, index) => (
                 <circle key={`${value}-${index}`} cx={index * (120 / (values.length - 1))} cy={42 - ((value - min) / range) * 32} r="2.5" fill={color} />
@@ -207,8 +207,8 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
     };
 
     return (
-        <div className="psi-work-board min-h-full space-y-4 pb-12 text-slate-900">
-            <section className="psi-industrial-panel px-4 py-5 sm:px-6">
+        <div className="psi-work-board min-h-full space-y-2 pb-1.5 text-slate-900">
+            <section className="psi-industrial-panel px-3 py-3 sm:px-4">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                     <div>
                         <p className="text-xs font-black text-blue-700">오늘의 안전업무</p>
@@ -235,9 +235,9 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                     </div>
                 </div>
 
-                <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                <div className="mt-2.5 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
                     {QUICK_FLOW.map((item, index) => (
-                        <button key={item.title} type="button" onClick={() => setCurrentPage(item.page)} className="group flex min-h-20 items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-left transition hover:border-blue-300 hover:bg-white dark:border-slate-700 dark:bg-slate-800/60 dark:hover:border-blue-500/50 dark:hover:bg-slate-800">
+                        <button key={item.title} type="button" onClick={() => setCurrentPage(item.page)} className="group flex min-h-[56px] items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-left transition hover:border-blue-300 hover:bg-white dark:border-slate-700 dark:bg-slate-800/60 dark:hover:border-blue-500/50 dark:hover:bg-slate-800">
                             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-blue-100 bg-white text-sm font-black text-blue-700">{index + 1}</span>
                             <span>
                                 <span className="block text-xs font-black text-slate-800">{item.title}</span>
@@ -275,14 +275,14 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                 </section>
             )}
 
-            <section className="psi-data-notice px-4 py-3">
+            <section className="psi-data-notice px-3 py-1">
                 <p className="text-xs font-black text-blue-800 dark:text-blue-200">데이터 기준</p>
                 <p className="mt-1 text-xs font-semibold leading-5">
                     작성물과 AI 분석 수치는 현재 브라우저에 저장된 현장 기록 기준입니다. 교육 세션과 참여 기록은 서버에 저장된 전체 운영 데이터입니다.
                 </p>
             </section>
 
-            <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+            <section className="grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
                 {[
                     ['현장 작성물', `${workerRecords.length}건`, '이 브라우저'],
                     ['AI 분석 완료', `${summary.analyzed}건`, `평균 ${summary.averageScore}점`],
@@ -291,7 +291,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                     ['교육 세션', trainingSummary ? `${trainingSummary.trainingSessions}건` : '-', '서버 전체'],
                     ['교육 참여', trainingSummary?.trainingSubmissions == null ? '-' : `${trainingSummary.trainingSubmissions}건`, '서버 전체'],
                 ].map(([label, value, helper]) => (
-                    <div key={label} className="psi-industrial-panel psi-industrial-panel--flat p-4">
+                    <div key={label} className="psi-industrial-panel psi-industrial-panel--flat px-3 py-2">
                         <p className="text-xs font-black text-slate-500">{label}</p>
                         <p className="mt-2 text-2xl font-black text-[#0c377d]">{value}</p>
                         <p className="mt-1 text-xs font-semibold text-slate-400">{helper}</p>
@@ -305,33 +305,33 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                 </p>
             )}
 
-            <section className="grid gap-4 xl:grid-cols-4">
+            <section className="grid gap-2 xl:grid-cols-7">
                 {BOARD_STEPS.map((step) => (
-                    <button key={step.number} type="button" onClick={() => openStep(step)} className="psi-interactive-card group min-h-[230px] p-4 text-left">
+                    <button key={step.number} type="button" onClick={() => openStep(step)} className="psi-interactive-card group min-h-[185px] px-2.5 py-2 text-left">
                         <div className="flex items-start justify-between">
                             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-950 text-sm font-black text-white dark:bg-blue-600">{step.number}</span>
                             <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${accentClass[step.accent]}`}>{step.number === 1 ? '상세 보기' : '바로가기'}</span>
                         </div>
-                        <h3 className="mt-4 text-base font-black text-slate-900">{step.title}</h3>
+                        <h3 className="mt-2 text-sm font-black text-slate-900">{step.title}</h3>
                         <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{step.subtitle}</p>
 
                         {step.number === 1 && (
-                            <div className="mt-4">
+                            <div className="mt-2">
                                 <div className="grid grid-cols-2 gap-2 text-center">
-                                    <div className="rounded-xl bg-slate-50 p-2 dark:bg-slate-800"><b className="text-lg text-blue-700 dark:text-blue-300">{summary.averageScore}</b><span className="block text-[10px] text-slate-400">평균 점수</span></div>
-                                    <div className="rounded-xl bg-slate-50 p-2 dark:bg-slate-800"><b className="text-lg text-emerald-700 dark:text-emerald-300">{summary.workTypes}</b><span className="block text-[10px] text-slate-400">분석 공종</span></div>
+                                    <div className="rounded-lg bg-slate-50/70 p-1.5 dark:bg-slate-800"><b className="text-base text-blue-700 dark:text-blue-300">{summary.averageScore}</b><span className="block text-[10px] text-slate-400">평균 점수</span></div>
+                                    <div className="rounded-lg bg-slate-50/70 p-1.5 dark:bg-slate-800"><b className="text-base text-emerald-700 dark:text-emerald-300">{summary.workTypes}</b><span className="block text-[10px] text-slate-400">분석 공종</span></div>
                                 </div>
-                                <TrendChart values={monthlyTrends.scoreValues} label="최근 월별 평균 안전점수 추세" />
+                                <TrendChart values={monthlyTrends.scoreValues} label="최근 평균 안전점수 추세" />
                             </div>
                         )}
-                        {step.number === 2 && <div className="mt-5 rounded-2xl border border-dashed border-blue-200 bg-blue-50 p-4 text-center"><p className="text-sm font-black text-blue-800">사진·PDF·수기 입력</p><p className="mt-1 text-[11px] text-blue-600">현장 상황에 맞는 입력 방식을 선택합니다.</p></div>}
-                        {step.number === 3 && <div className="mt-4 space-y-2">{topRisks.length ? topRisks.map(([risk, count], index) => <div key={risk} className="flex items-center gap-2 text-xs"><b className="w-5 text-blue-700">{index + 1}</b><span className="flex-1 truncate font-bold">{risk}</span><span className="text-slate-400">{count}건</span></div>) : <p className="rounded-xl bg-slate-50 p-4 text-xs font-bold text-slate-400">분석 후 주요 위험 항목이 표시됩니다.</p>}</div>}
-                        {step.number === 4 && <div className="mt-4 rounded-2xl bg-amber-50 p-4 text-center dark:bg-amber-500/10"><b className="text-3xl text-amber-700 dark:text-amber-300">A4</b><p className="mt-2 text-xs font-bold text-amber-800 dark:text-amber-200">인쇄 가능한 현장 교육자료</p></div>}
-                        {step.number === 5 && <div className="mt-4 rounded-2xl bg-emerald-50 p-4"><p className="text-xs font-black text-emerald-800">서버 교육 세션</p><p className="mt-2 text-2xl font-black text-emerald-700">{trainingSummary ? trainingSummary.trainingSessions : '-'}건</p><p className="mt-1 text-[11px] font-semibold text-emerald-700">실제 QR은 교육 화면에서 생성됩니다.</p></div>}
-                        {step.number === 6 && <div className="mt-4"><p className="text-xs font-black text-emerald-800">개선 이행 추세</p><TrendChart values={monthlyTrends.improvementValues} color="#059669" label="최근 월별 개선 이행 추세" /></div>}
-                        {step.number === 7 && <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-xs font-bold leading-6 text-slate-600">현장 정보, 언어, 분석 키, 화면 구성을 설정 화면에서 관리합니다.</div>}
+                        {step.number === 2 && <div className="mt-1 rounded-lg border border-dashed border-blue-200 bg-blue-50/50 px-1 py-1 text-center"><p className="text-xs font-black text-blue-800">사진·PDF·수기 입력</p><p className="mt-1 text-[11px] text-blue-600">현장 상황에 맞는 입력 방식을 선택합니다.</p></div>}
+                        {step.number === 3 && <div className="mt-1.5 space-y-0.5">{topRisks.length ? topRisks.map(([risk, count], index) => <div key={risk} className="flex items-center gap-2 text-xs"><b className="w-5 text-blue-700">{index + 1}</b><span className="flex-1 truncate font-bold">{risk}</span><span className="text-slate-400">{count}건</span></div>) : <p className="rounded-xl bg-slate-50 p-4 text-xs font-bold text-slate-400">분석 후 주요 위험 항목이 표시됩니다.</p>}</div>}
+                        {step.number === 4 && <div className="mt-1 rounded-lg bg-amber-50 p-1 text-center dark:bg-amber-500/10"><b className="text-xl text-amber-700 dark:text-amber-300">A4</b><p className="mt-2 text-xs font-bold text-amber-800 dark:text-amber-200">인쇄 가능한 현장 교육자료</p></div>}
+                        {step.number === 5 && <div className="mt-1 rounded-lg bg-emerald-50 p-1 text-center"><p className="text-xs font-black text-emerald-800">서버 교육 세션</p><p className="mt-0.5 text-base font-black text-emerald-750">{trainingSummary ? trainingSummary.trainingSessions : '-'}건</p><p className="mt-1 text-[11px] font-semibold text-emerald-700">실제 QR은 교육 화면에서 생성됩니다.</p></div>}
+                        {step.number === 6 && <div className="mt-2"><p className="text-xs font-black text-emerald-800">개선 이행 추세</p><TrendChart values={monthlyTrends.improvementValues} color="#059669" label="최근 개선 이행 추세" /></div>}
+                        {step.number === 7 && <div className="mt-1 rounded-lg bg-slate-50 p-1.5 text-[9px] font-bold leading-3.5 text-slate-500">현장 정보, 언어, 분석 키, 화면 구성을 설정 화면에서 관리합니다.</div>}
 
-                        <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-[11px] font-black text-blue-700">
+                        <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-1.5 text-[10px] font-black text-blue-700">
                             <span>{step.number === 1 ? `${safetyCheckRecords.length}건 현장점검` : '화면 열기'}</span>
                             <span aria-hidden="true" className="transition group-hover:translate-x-1">→</span>
                         </div>

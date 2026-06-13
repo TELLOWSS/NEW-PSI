@@ -495,7 +495,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                 />
             }
             content={
-                <main ref={mainRef} className="relative flex-1 overflow-y-auto p-3 pb-24 sm:p-4 md:p-6 lg:p-8 lg:pb-10">
+                <main ref={mainRef} className={`relative flex-1 overflow-y-auto p-3 ${currentPage === 'dashboard' ? 'pb-2 sm:p-4 md:p-4 lg:px-6 lg:py-3.5' : 'pb-24 sm:p-4 md:p-6 lg:p-8 lg:pb-10'}`}>
                     <ShellBackground isDark={isDark} />
                     <div key={currentPage} className="mx-auto w-full max-w-[1440px] animate-fade-in-up">
                         <div className="mb-3 flex gap-2 overflow-x-auto no-scrollbar lg:hidden">
