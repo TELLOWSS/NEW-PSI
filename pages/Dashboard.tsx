@@ -472,15 +472,8 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         return getDefaultDashboardViewMode(typeof window !== 'undefined' ? window.innerWidth : 1440);
     });
 
-    // 기본/고급 모드 토글 (PC Dashboard 진입점 단순화)
-    const [dashboardUIMode, setDashboardUIMode] = useState<'basic' | 'advanced'>(() => {
-        try {
-            const saved = window.localStorage.getItem(DASHBOARD_UI_MODE_STORAGE_KEY);
-            return saved === 'advanced' ? 'advanced' : 'basic';
-        } catch {
-            return 'basic';
-        }
-    });
+    // 기본/고급 모드 토글 (첫 로딩 및 리셋 시에는 항상 'basic' 통합 보드 노출)
+    const [dashboardUIMode, setDashboardUIMode] = useState<'basic' | 'advanced'>('basic');
     const [isDashboardUIModeLocked, setIsDashboardUIModeLocked] = useState<boolean>(() => {
         try {
             const saved = window.localStorage.getItem(DASHBOARD_UI_MODE_LOCK_KEY);
@@ -2635,7 +2628,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 onClick={() => {
                                     setDashboardUIMode('basic');
                                     try {
-                                        window.localStorage.setItem('psi_dashboard_ui_mode', 'basic');
+                                        window.localStorage.setItem(DASHBOARD_UI_MODE_STORAGE_KEY, 'basic');
                                     } catch {}
                                 }}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-black rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white transition duration-200"
