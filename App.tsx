@@ -753,7 +753,7 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
 const App: React.FC = () => {
     const { mode: operationalMode } = useOperationalMode();
     const uiAudienceMode = useUiAudienceMode();
-    const [currentPage, setCurrentPage] = useState<Page>('dashboard');
+    const [currentPage, setCurrentPage] = useState<Page>('introduction');
     // Checklist gate is deactivated by default
     const [isWorkerKioskMode, setIsWorkerKioskMode] = useState(false);
     const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
