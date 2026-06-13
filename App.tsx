@@ -10,6 +10,7 @@ import { extractMessage } from './utils/errorUtils';
 import { appendAuditTrail, appendCorrectionHistory, attachEvidenceHash, deriveCompetencyProfile, deriveIntegrityScore, enforceSafetyLevel } from './utils/evidenceUtils';
 import { applyIdentityPolicy } from './utils/identityUtils';
 import { isAdminAuthenticated, loginAdmin, logoutAdmin, refreshAdminAuthentication } from './utils/adminGuard';
+import { postAdminJson } from './utils/adminApiClient';
 import { getSafetyLevelThresholds } from './utils/safetyLevelUtils';
 import { appendBestPracticeSyncFailureLog, setBestPracticeSyncState } from './utils/bestPracticeSyncStatus';
 import { useOperationalMode } from './contexts/OperationalModeContext';
@@ -424,6 +425,76 @@ const applyWorkerProfilePolicy = (record: WorkerRecord, existingRecords: WorkerR
         qrId: record.qrId || source.qrId,
         profileImage: record.profileImage || source.profileImage,
     }, existingRecords);
+};
+
+const registerWorkersToServer = async (records: WorkerRecord[]) => {
+    try {
+        const uniqueWorkersMap = new Map<string, any>();
+        for (const r of records) {
+            const rAny = r as any;
+            const name = String(rAny.name || '').trim();
+            const jobField = String(rAny.jobField || rAny.job_field || '').trim();
+            const teamName = String(rAny.teamLeader || rAny.team_name || '미지정').trim();
+            if (name && jobField) {
+                const key = `${name.toLowerCase()}|${jobField.toLowerCase()}|${teamName.toLowerCase()}`;
+                if (!uniqueWorkersMap.has(key)) {
+                    uniqueWorkersMap.set(key, { ...rAny });
+                } else {
+                    const existing = uniqueWorkersMap.get(key)!;
+                    existing.phone_number = existing.phone_number || existing.phoneNumber || rAny.phone_number || rAny.phoneNumber;
+                    existing.birth_date = existing.birth_date || existing.birthDate || rAny.birth_date || rAny.birthDate;
+                    existing.passport_number = existing.passport_number || existing.passportNumber || rAny.passport_number || rAny.passportNumber;
+                    existing.nationality = existing.nationality || rAny.nationality;
+                }
+            }
+        }
+
+        const ALLOWED_JOB_FIELDS_CLIENT = [
+            '형틀', '철근', '갱폼', '알폼', '시스템', '관리', '바닥미장', '할석미장견출', '해체정리', '직영', '용역', '콘크리트비계'
+        ];
+        const JOB_FIELD_ALIASES_CLIENT: Record<string, string> = {
+            '형틀': '형틀', '철근': '철근', '갱폼': '갱폼', '알폼': '알폼', '시스템': '시스템', '관리': '관리', '관리도': '관리',
+            '바닥미장': '바닥미장', '바닥 미장': '바닥미장', '할석미장견출': '할석미장견출', '해체정리': '해체정리',
+            '직영(용역포함)': '직영', '직영용역포함': '직영', '직영': '직영', '용역': '용역', '콘크리트비계': '콘크리트비계'
+        };
+        const clientNormalizeJobField = (raw: string): string => {
+            const base = String(raw || '').trim();
+            if (!base) return '직영';
+            const compact = base.replace(/\s+/g, '');
+            const resolved = JOB_FIELD_ALIASES_CLIENT[compact] || JOB_FIELD_ALIASES_CLIENT[base] || base;
+            return ALLOWED_JOB_FIELDS_CLIENT.includes(resolved) ? resolved : '직영';
+        };
+
+        const workersToRegister = Array.from(uniqueWorkersMap.values()).map(w => {
+            const phone = String(w.phone_number || w.phoneNumber || '').replace(/\D/g, '');
+            const birth = String(w.birth_date || w.birthDate || '').replace(/\D/g, '');
+            const passport = String(w.passport_number || w.passportNumber || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+            
+            const finalBirth = (!phone && !birth && !passport) ? '000000' : birth;
+
+            return {
+                name: w.name,
+                nationality: w.nationality || '미상',
+                job_field: clientNormalizeJobField(w.jobField || w.job_field || ''),
+                team_name: w.teamLeader || w.team_name || '미지정',
+                phone_number: phone || null,
+                birth_date: finalBirth || null,
+                passport_number: passport || null
+            };
+        });
+
+        if (workersToRegister.length > 0) {
+            await postAdminJson('/api/admin/safety-management', {
+                action: 'bulk-upload-workers',
+                payload: { workers: workersToRegister }
+            }, {
+                fallbackMessage: '근로자 서버 등록 실패'
+            });
+            console.log(`[Import] Registered ${workersToRegister.length} workers on server.`);
+        }
+    } catch (apiErr) {
+        console.warn('[Import] Server worker registration failed:', apiErr);
+    }
 };
 
 const reconcileWorkerProfiles = (records: WorkerRecord[]): { records: WorkerRecord[]; changedIds: string[] } => {
@@ -1150,6 +1221,7 @@ const App: React.FC = () => {
         for (const record of reconciled.records.filter((item) => reconciled.changedIds.includes(item.id))) {
             await saveRecordToDB(record);
         }
+        await registerWorkersToServer(records);
     }, []);
 
     const addWorkerRecords = useCallback(async (newRecords: WorkerRecord[]) => {
@@ -1181,6 +1253,7 @@ const App: React.FC = () => {
             const unique = combined.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
             return unique.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         });
+        await registerWorkersToServer(newRecords);
     }, []);
 
     const handleReanalyzeRecord = useCallback(async (record: WorkerRecord): Promise<WorkerRecord | null> => {

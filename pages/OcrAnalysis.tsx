@@ -1159,6 +1159,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [showQuickUtilityActions, setShowQuickUtilityActions] = useState(false);
     const [showExtendedOverviewMetrics, setShowExtendedOverviewMetrics] = useState(false);
     const [showDashboardIntroDetail, setShowDashboardIntroDetail] = useState(false);
+    const [isNewOcrSectionCollapsed, setIsNewOcrSectionCollapsed] = useState(false);
     const [showWorkerSignalDetails, setShowWorkerSignalDetails] = useState(false);
     const [showWorkerExtraActions, setShowWorkerExtraActions] = useState(false);
     const [showAllFailureCodeCards, setShowAllFailureCodeCards] = useState(false);
@@ -4845,7 +4846,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             </button>
                         )}
                         
-                        {/* Force Reanalyze Button */}
+{/* Force Reanalyze Button */}
                         {failedRecords.length > 0 && !isAnalyzing && (
                             <button 
                                 onClick={handleForceReanalyze}
@@ -5062,7 +5063,29 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             </div>
 
             <div id="new-ocr-capture-section" className="bg-white p-5 sm:p-10 rounded-3xl shadow-xl border border-slate-100 overflow-hidden relative">
-                <h3 className="text-xl sm:text-2xl font-black text-slate-900 mb-2">신규 기록 분석</h3>
+                <div className="flex items-center justify-between gap-3 mb-6">
+                    <h3 className="text-xl sm:text-2xl font-black text-slate-900">신규 기록 분석</h3>
+                    <button
+                        type="button"
+                        onClick={() => setIsNewOcrSectionCollapsed(prev => !prev)}
+                        className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-black text-xs transition-all flex items-center gap-1.5"
+                    >
+                        {isNewOcrSectionCollapsed ? (
+                            <>
+                                펼치기
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" /></svg>
+                            </>
+                        ) : (
+                            <>
+                                접기
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 15l7-7 7 7" /></svg>
+                            </>
+                        )}
+                    </button>
+                </div>
+                
+                {!isNewOcrSectionCollapsed && (
+                    <>
                 <section className="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
@@ -5107,6 +5130,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     <div className="mt-8 flex justify-center">
                         <button onClick={handleAnalyze} className="w-full max-w-md py-4 sm:py-5 bg-indigo-600 text-white text-xl sm:text-2xl font-black rounded-2xl shadow-2xl hover:bg-indigo-700 transition-all animate-pulse-gold">신규 분석 시작</button>
                     </div>
+                )}
+                    </>
                 )}
             </div>
 
