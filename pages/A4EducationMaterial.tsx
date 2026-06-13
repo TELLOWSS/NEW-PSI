@@ -1068,21 +1068,65 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
 
                         <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
                             <h3 className="text-lg font-black">3. 다음 달 상등급 위험 공유</h3>
-                            <p className="mt-1 text-xs font-semibold text-slate-500">자동 추천 후 관리자가 등급과 담당자를 최종 확인합니다.</p>
+                            <p className="mt-1 text-xs font-semibold text-slate-500">자동 추천 후 관리자가 등급과 담당자를 최종 확인하고 편집할 수 있습니다.</p>
                             <div className="mt-4 space-y-3">
                                 {draft.risks.map((item) => (
-                                    <article key={item.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+                                    <article key={item.id} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30">
                                         <div className="flex items-center justify-between gap-2">
-                                            <b className="text-sm">{item.risk}</b>
-                                            <label className="flex items-center gap-2 text-xs font-black text-rose-700 dark:text-rose-300">
-                                                <input type="checkbox" checked={item.managerConfirmed} onChange={(event) => setDraft({ ...draft, risks: draft.risks.map((risk) => risk.id === item.id ? { ...risk, managerConfirmed: event.target.checked } : risk) })} />
-                                                상등급 확인
-                                            </label>
+                                            <input
+                                                value={item.risk}
+                                                onChange={(event) => setDraft({ ...draft, risks: draft.risks.map((risk) => risk.id === item.id ? { ...risk, risk: event.target.value } : risk) })}
+                                                placeholder="위험 요인"
+                                                className="text-sm font-bold border-b border-transparent hover:border-slate-300 focus:border-blue-500 bg-transparent px-1 py-0.5 focus:bg-white dark:focus:bg-slate-900 rounded w-[60%]"
+                                            />
+                                            <div className="flex items-center gap-3">
+                                                <label className="flex items-center gap-1.5 text-xs font-black text-rose-700 dark:text-rose-300 cursor-pointer">
+                                                    <input type="checkbox" checked={item.managerConfirmed} onChange={(event) => setDraft({ ...draft, risks: draft.risks.map((risk) => risk.id === item.id ? { ...risk, managerConfirmed: event.target.checked } : risk) })} />
+                                                    상등급 확인
+                                                </label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDraft({ ...draft, risks: draft.risks.filter((risk) => risk.id !== item.id) })}
+                                                    className="text-xs font-bold text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300"
+                                                >
+                                                    제외
+                                                </button>
+                                            </div>
                                         </div>
-                                        <input value={item.owner} onChange={(event) => setDraft({ ...draft, risks: draft.risks.map((risk) => risk.id === item.id ? { ...risk, owner: event.target.value } : risk) })} aria-label={`${item.risk} 위험 담당자`} placeholder="담당자" className="mt-2 w-full rounded-lg border px-3 py-2 text-xs" />
-                                        <p className="mt-2 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">{item.action}</p>
+                                        <input
+                                            value={item.owner}
+                                            onChange={(event) => setDraft({ ...draft, risks: draft.risks.map((risk) => risk.id === item.id ? { ...risk, owner: event.target.value } : risk) })}
+                                            aria-label={`${item.risk} 위험 담당자`}
+                                            placeholder="담당자 지정"
+                                            className="mt-2 w-full rounded-lg border px-3 py-1.5 text-xs bg-white dark:bg-slate-900"
+                                        />
+                                        <textarea
+                                            value={item.action}
+                                            onChange={(event) => setDraft({ ...draft, risks: draft.risks.map((risk) => risk.id === item.id ? { ...risk, action: event.target.value } : risk) })}
+                                            placeholder="핵심 안전조치 내용"
+                                            rows={2}
+                                            className="mt-2 w-full rounded-lg border p-2 text-xs font-semibold bg-white dark:bg-slate-900 resize-none"
+                                        />
                                     </article>
                                 ))}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const newRisk = {
+                                            id: `custom-risk-${Date.now()}`,
+                                            risk: '새로운 위험 요인',
+                                            action: '작업 전 핵심 안전조치 사항을 여기에 작성하십시오.',
+                                            evidenceLabels: ['수동 추가'],
+                                            score: 0,
+                                            owner: '담당자 지정 필요',
+                                            managerConfirmed: true,
+                                        };
+                                        setDraft({ ...draft, risks: [...draft.risks, newRisk] });
+                                    }}
+                                    className="min-h-10 w-full rounded-xl border border-dashed border-slate-300 hover:border-slate-400 text-xs font-black text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                                >
+                                    + 새로운 위험요인 수동 추가
+                                </button>
                             </div>
                         </div>
                     </section>
@@ -1239,7 +1283,18 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                         <div className="flex items-start justify-between gap-4">
                                             <div>
                                                 <p className="text-sm font-black text-blue-700">PSI 다음 달 위험성평가 전파교육</p>
-                                                <h1 className="mt-2 text-[28px] font-black leading-tight">{draft.title}</h1>
+                                                <h1
+                                                    className="mt-2 font-black leading-tight break-keep"
+                                                    style={{
+                                                        fontSize: draft.title.length > 22
+                                                            ? '18px'
+                                                            : draft.title.length > 15
+                                                                ? '22px'
+                                                                : '28px'
+                                                    }}
+                                                >
+                                                    {draft.title}
+                                                </h1>
                                             </div>
                                             <div className="rounded-xl bg-blue-950 px-4 py-3 text-center text-white">
                                                 <p className="text-[10px] font-bold text-blue-200">교육 대상</p>
@@ -1335,7 +1390,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                     <div className="flex flex-col h-full border-r border-slate-200 pr-5">
                                         <header className="border-b-[3px] border-orange-500 pb-3">
                                             <p className="text-[10px] font-black text-blue-700">TBM 위험성평가 전파교육 (요약)</p>
-                                            <h2 className="text-base font-black leading-tight mt-1 truncate">{draft.title}</h2>
+                                            <h2 className="text-base font-black leading-tight mt-1 break-keep">{draft.title}</h2>
                                             <p className="text-[10px] font-bold text-slate-500 mt-1">대상: {draft.workType} · 월: {educationMonth}</p>
                                         </header>
                                         
@@ -1411,7 +1466,7 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                                 <CountryFlag code={previewLanguage} />
                                                                 {loc.headerTitle} ({nativeName})
                                                             </p>
-                                                            <h2 className="text-xs font-black leading-tight mt-1 text-slate-500 truncate">{parsed.title}</h2>
+                                                            <h2 className="text-xs font-black leading-tight mt-1 text-slate-500 break-keep">{parsed.title}</h2>
                                                         </div>
                                                     </header>
                                                     
@@ -1504,7 +1559,18 @@ const A4EducationMaterial: React.FC<Props> = ({ workerRecords, onOpenTraining })
                                                                 <CountryFlag code={previewLanguage} width={20} />
                                                                 {loc.headerTitle} ({nativeName})
                                                             </p>
-                                                            <h1 className="mt-1.5 text-[22px] font-black leading-tight text-slate-900">{parsed.title}</h1>
+                                                            <h1
+                                                                className="mt-1.5 font-black leading-tight text-slate-900 break-keep"
+                                                                style={{
+                                                                    fontSize: parsed.title.length > 22
+                                                                        ? '16px'
+                                                                        : parsed.title.length > 15
+                                                                            ? '19px'
+                                                                            : '22px'
+                                                                }}
+                                                            >
+                                                                {parsed.title}
+                                                            </h1>
                                                         </div>
                                                         <div className="rounded-xl bg-blue-950 px-3 py-2 text-center text-white shrink-0">
                                                             <p className="text-[9px] font-bold text-blue-200">{loc.targetLabel}</p>
