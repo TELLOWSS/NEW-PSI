@@ -16,8 +16,7 @@ import { useOperationalMode } from './contexts/OperationalModeContext';
 import { isPageVisibleByOperationalMode } from './utils/operationalModeUtils';
 import { isRouteVisibleInMode } from './config/routeMeta';
 import { useUiAudienceMode } from './hooks/useUiAudienceMode';
-import { getTodayChecklist, OPS_CHECKLIST_CHANGED_EVENT } from './utils/opsChecklistUtils';
-import { isPageBlockedByStartChecklist } from './utils/navigationPolicy';
+// Removed checklist imports
 
 const DYNAMIC_IMPORT_RELOAD_KEY = 'psi_dynamic_import_reload_once';
 const APP_RUNTIME_RECOVERY_RELOAD_KEY = 'psi_app_runtime_recovery_reload_once';
@@ -684,10 +683,7 @@ const App: React.FC = () => {
     const { mode: operationalMode } = useOperationalMode();
     const uiAudienceMode = useUiAudienceMode();
     const [currentPage, setCurrentPage] = useState<Page>('dashboard');
-    const [isStartChecklistGateActive, setIsStartChecklistGateActive] = useState<boolean>(() => {
-        const checklist = getTodayChecklist();
-        return checklist.startChecks.some((checked) => !checked);
-    });
+    // Checklist gate is deactivated by default
     const [isWorkerKioskMode, setIsWorkerKioskMode] = useState(false);
     const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
     const [isAdminAuthChecking, setIsAdminAuthChecking] = useState(true);
@@ -834,6 +830,15 @@ const App: React.FC = () => {
     }, []);
 
     useEffect(() => {
+        if (typeof window !== 'undefined') {
+            (window as any).__setCurrentPage = (page: any) => {
+                setCurrentPage(page);
+            };
+        }
+    }, []);
+
+    useEffect(() => {
+        if (currentPage === 'ppt-pdf-one-page-summary') return;
         const isKioskTrainingFlow = currentPage === 'worker-training' && isWorkerKioskMode;
         if (isKioskTrainingFlow) return;
         // 운영 모드 기반 가드
@@ -846,25 +851,7 @@ const App: React.FC = () => {
             setCurrentPage('dashboard');
             return;
         }
-        if (operationalMode === 'immediate' && isStartChecklistGateActive && isPageBlockedByStartChecklist(currentPage)) {
-            setCurrentPage('dashboard');
-        }
-    }, [currentPage, operationalMode, uiAudienceMode, isWorkerKioskMode, isStartChecklistGateActive]);
-
-    useEffect(() => {
-        const syncStartChecklistGate = () => {
-            const checklist = getTodayChecklist();
-            setIsStartChecklistGateActive(checklist.startChecks.some((checked) => !checked));
-        };
-
-        syncStartChecklistGate();
-        window.addEventListener(OPS_CHECKLIST_CHANGED_EVENT, syncStartChecklistGate);
-        window.addEventListener('storage', syncStartChecklistGate);
-        return () => {
-            window.removeEventListener(OPS_CHECKLIST_CHANGED_EVENT, syncStartChecklistGate);
-            window.removeEventListener('storage', syncStartChecklistGate);
-        };
-    }, []);
+    }, [currentPage, operationalMode, uiAudienceMode, isWorkerKioskMode]);
 
     const navigateToPage = useCallback((page: Page) => {
         // 운영 모드 기반 방어
@@ -877,14 +864,8 @@ const App: React.FC = () => {
             setCurrentPage('dashboard');
             return;
         }
-        // 시작 체크리스트 게이트
-        if (operationalMode === 'immediate' && isStartChecklistGateActive && isPageBlockedByStartChecklist(page)) {
-            alert('⚠️ 금일 TBM 안전 점검(체크리스트)이 완료되지 않아 해당 페이지로 이동할 수 없습니다. 대시보드에서 금일 점검 항목을 완료해 주세요.');
-            setCurrentPage('dashboard');
-            return;
-        }
         setCurrentPage(page);
-    }, [operationalMode, uiAudienceMode, isStartChecklistGateActive]);
+    }, [operationalMode, uiAudienceMode]);
 
     const handleAdminUnlock = useCallback(async (password: string) => {
         setIsUnlockSubmitting(true);
@@ -1290,7 +1271,7 @@ const App: React.FC = () => {
                                 onDeleteRecord={handleDeleteRecord} 
                                 onUpdateRecord={handleUpdateRecord}
                                 onNavigateToPredictive={() => navigateToPage('predictive-analysis')}
-                                isStartChecklistIncomplete={isStartChecklistGateActive}
+                                isStartChecklistIncomplete={false}
                             />
                         )}
                         {currentPage === 'monthly-guidance-report' && <MonthlyGuidanceReport workerRecords={workerRecords} />}

@@ -35,9 +35,8 @@ import { BRAND_TONE } from '../utils/brandToneTokens';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
-import { getUserRolePreset, mapUserRolePresetToDashboardAudience, USER_ROLE_PRESET_CHANGED_EVENT } from '../utils/userRolePresetUtils';
-import { OperationalSessionChecklist } from '../components/shared/OperationalSessionChecklist';
 import type { UiAudienceMode } from '../config/routeMeta';
+import { getUserRolePreset, mapUserRolePresetToDashboardAudience, USER_ROLE_PRESET_CHANGED_EVENT } from '../utils/userRolePresetUtils';
 import { getPhrase } from '../utils/phraseUtils';
 import { EmptyState, LoadingSkeleton, MetricCard, RiskBadge, SectionCard, WorkTypeBadge } from '../components/common';
 
@@ -2605,11 +2604,6 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     </button>
                 </div>
             </div>
-            {isImmediateOperationalMode && (
-                <div className="mb-4">
-                    <OperationalSessionChecklist />
-                </div>
-            )}
 
             {/* AI-Powered Safety Command Center */}
             <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 rounded-2xl sm:rounded-3xl p-4 sm:p-5 lg:p-6 text-white shadow-2xl relative overflow-hidden border border-white/10">

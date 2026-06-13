@@ -1,0 +1,1296 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NEW-PSI 기술소개자료 - Hyper-Safety & AI Open Innovation</title>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700;800;900&family=Outfit:wght@500;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy-dark: #0f172a;
+      --navy-primary: #1e293b;
+      --navy-light: #334155;
+      --orange-safety: #f97316;
+      --blue-accent: #2563eb;
+      --blue-light: #eff6ff;
+      --slate-50: #f8fafc;
+      --slate-100: #f1f5f9;
+      --slate-200: #e2e8f0;
+      --slate-700: #334155;
+      --slate-800: #1e293b;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+      --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.02);
+      --font-family: 'Pretendard', sans-serif;
+      --font-outfit: 'Outfit', sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-family);
+      background-color: #525659; /* PDF reader gray background */
+      color: var(--navy-dark);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px 0;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    /* Standard A4 Landscape Aspect Ratio Container */
+    .slide {
+      width: 297mm;
+      height: 210mm;
+      background-color: #ffffff;
+      margin-bottom: 20px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding: 16mm 20mm;
+      page-break-after: always;
+    }
+
+    @media print {
+      body {
+        background-color: #ffffff;
+        padding: 0;
+      }
+      .slide {
+        margin: 0;
+        box-shadow: none;
+        width: 297mm;
+        height: 210mm;
+      }
+    }
+
+    /* Slide Header */
+    .slide-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid var(--slate-100);
+      padding-bottom: 4mm;
+      margin-bottom: 6mm;
+    }
+
+    .slide-header .topic {
+      display: flex;
+      align-items: center;
+      gap: 3mm;
+    }
+
+    .slide-header .topic-badge {
+      background-color: var(--navy-dark);
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 1mm 2.5mm;
+      border-radius: 4px;
+      text-transform: uppercase;
+      font-family: var(--font-outfit);
+      letter-spacing: 0.5px;
+    }
+
+    .slide-header h2 {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--navy-dark);
+    }
+
+    .slide-header .logo-area {
+      text-align: right;
+    }
+
+    .slide-header .logo-area .brand {
+      font-family: var(--font-outfit);
+      font-size: 18px;
+      font-weight: 900;
+      color: var(--navy-dark);
+      letter-spacing: -0.5px;
+    }
+
+    .slide-header .logo-area .brand span {
+      color: var(--orange-safety);
+    }
+
+    .slide-header .logo-area .tagline {
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--slate-700);
+      margin-top: 1px;
+    }
+
+    /* Slide Footer */
+    .slide-footer {
+      position: absolute;
+      bottom: 8mm;
+      left: 20mm;
+      right: 20mm;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--slate-200);
+      padding-top: 3mm;
+      font-size: 10px;
+      color: var(--slate-700);
+      font-weight: 600;
+    }
+
+    .slide-footer .patent-notice {
+      display: flex;
+      align-items: center;
+      gap: 1.5mm;
+    }
+
+    .slide-footer .patent-badge {
+      background-color: var(--orange-safety);
+      color: white;
+      font-size: 9px;
+      padding: 0.5mm 1.5mm;
+      border-radius: 3px;
+      font-weight: 800;
+    }
+
+    .slide-footer .slide-num {
+      font-family: var(--font-outfit);
+      font-weight: 700;
+    }
+
+    /* Content Layout Utilities */
+    .grid-2col {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 10mm;
+      flex-grow: 1;
+      height: calc(100% - 30mm);
+    }
+
+    .grid-2col-reverse {
+      display: grid;
+      grid-template-columns: 0.9fr 1.1fr;
+      gap: 10mm;
+      flex-grow: 1;
+      height: calc(100% - 30mm);
+    }
+
+    .full-content {
+      flex-grow: 1;
+      height: calc(100% - 30mm);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Typography & Visual Blocks */
+    h3 {
+      font-size: 16px;
+      font-weight: 800;
+      margin-bottom: 3mm;
+      color: var(--navy-primary);
+      display: flex;
+      align-items: center;
+      gap: 2mm;
+    }
+
+    h3::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 16px;
+      background-color: var(--orange-safety);
+      border-radius: 2px;
+    }
+
+    p.lead {
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--slate-700);
+      margin-bottom: 4mm;
+    }
+
+    .card {
+      background-color: var(--slate-50);
+      border: 1px solid var(--slate-200);
+      border-radius: 12px;
+      padding: 5mm;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .card-title {
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--navy-dark);
+      margin-bottom: 2mm;
+    }
+
+    /* Bullet Lists */
+    ul.bullets {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 3.5mm;
+    }
+
+    ul.bullets li {
+      position: relative;
+      padding-left: 5mm;
+      font-size: 13.5px;
+      line-height: 1.6;
+      color: var(--slate-800);
+    }
+
+    ul.bullets li::before {
+      content: '■';
+      position: absolute;
+      left: 0;
+      top: 1px;
+      color: var(--blue-accent);
+      font-size: 9px;
+    }
+
+    ul.bullets li strong {
+      color: var(--navy-dark);
+      font-weight: 700;
+    }
+
+    ul.bullets li span.highlight {
+      background-color: #fef3c7;
+      padding: 0.2mm 1mm;
+      border-radius: 3px;
+      font-weight: 700;
+    }
+
+    /* Cover Slide Styling */
+    .cover-slide {
+      background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy-primary) 100%);
+      color: #ffffff;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 30mm;
+    }
+
+    .cover-slide .badge-group {
+      display: flex;
+      gap: 3mm;
+      margin-bottom: 6mm;
+    }
+
+    .cover-slide .top-badge {
+      background-color: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.25);
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 1.5mm 3.5mm;
+      border-radius: 9999px;
+      letter-spacing: 0.5px;
+    }
+
+    .cover-slide .orange-badge {
+      background-color: var(--orange-safety);
+      color: white;
+      font-weight: 900;
+      font-size: 11px;
+      padding: 1.5mm 3.5mm;
+      border-radius: 9999px;
+    }
+
+    .cover-slide h1 {
+      font-family: var(--font-outfit);
+      font-weight: 900;
+      font-size: 46px;
+      letter-spacing: -1px;
+      margin-bottom: 2mm;
+      line-height: 1.1;
+    }
+
+    .cover-slide h1 span {
+      color: var(--orange-safety);
+    }
+
+    .cover-slide .subtitle {
+      font-size: 21px;
+      font-weight: 700;
+      color: var(--slate-200);
+      margin-bottom: 22mm;
+      letter-spacing: -0.5px;
+    }
+
+    .cover-slide .author-info {
+      border-left: 3px solid var(--orange-safety);
+      padding-left: 5mm;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5mm;
+    }
+
+    .cover-slide .author-info .presenter {
+      font-size: 15px;
+      font-weight: 800;
+      color: #ffffff;
+    }
+
+    .cover-slide .author-info .purpose {
+      font-size: 12px;
+      color: var(--slate-200);
+      font-weight: 500;
+    }
+
+    /* Flow Chart Elements (Slide 3) */
+    .flow-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 4mm;
+      margin-bottom: 6mm;
+    }
+
+    .flow-step {
+      background-color: var(--slate-50);
+      border: 2px solid var(--slate-200);
+      border-radius: 12px;
+      width: 32mm;
+      height: 38mm;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3mm;
+      text-align: center;
+      position: relative;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .flow-step.highlighted {
+      border-color: var(--orange-safety);
+      background-color: #fffaf7;
+    }
+
+    .flow-step .step-num {
+      background-color: var(--navy-dark);
+      color: white;
+      font-family: var(--font-outfit);
+      font-weight: 700;
+      font-size: 10px;
+      width: 18px;
+      height: 18px;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 2mm;
+    }
+
+    .flow-step.highlighted .step-num {
+      background-color: var(--orange-safety);
+    }
+
+    .flow-step .step-title {
+      font-size: 11.5px;
+      font-weight: 800;
+      color: var(--navy-dark);
+      margin-bottom: 1.5mm;
+      line-height: 1.3;
+    }
+
+    .flow-step .step-desc {
+      font-size: 9px;
+      color: var(--slate-700);
+      line-height: 1.4;
+    }
+
+    .flow-arrow {
+      color: var(--slate-200);
+      font-size: 20px;
+      font-weight: 900;
+      font-family: var(--font-outfit);
+    }
+
+    /* Screenshot Styles */
+    .screenshot-container {
+      border: 1px solid var(--slate-200);
+      border-radius: 12px;
+      box-shadow: var(--shadow-lg);
+      background-color: #ffffff;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .screenshot-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .screenshot-caption {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background-color: rgba(15, 23, 42, 0.85);
+      color: white;
+      font-size: 11px;
+      padding: 2.5mm 4mm;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .split-screenshots {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4mm;
+      height: 100%;
+    }
+
+    .triple-screenshots {
+      display: grid;
+      grid-template-columns: 1.2fr 0.9fr 0.9fr;
+      gap: 4mm;
+      height: 100%;
+    }
+
+    /* KPI Table */
+    .kpi-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 2mm;
+    }
+
+    .kpi-table th {
+      background-color: var(--navy-dark);
+      color: white;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2.5mm;
+      text-align: left;
+      border: 1px solid var(--navy-dark);
+    }
+
+    .kpi-table td {
+      border: 1px solid var(--slate-200);
+      padding: 2.5mm;
+      font-size: 11.5px;
+      color: var(--slate-800);
+      line-height: 1.4;
+    }
+
+    .kpi-table tr:nth-child(even) {
+      background-color: var(--slate-50);
+    }
+
+    .kpi-target {
+      color: var(--orange-safety);
+      font-weight: 800;
+      font-family: var(--font-outfit);
+    }
+
+    /* Alert Banner */
+    .alert-banner {
+      background-color: var(--blue-light);
+      border-left: 4px solid var(--blue-accent);
+      padding: 3.5mm 5mm;
+      border-radius: 4px 12px 12px 4px;
+      margin-top: auto;
+      font-size: 12px;
+      color: var(--slate-800);
+      line-height: 1.5;
+      font-weight: 600;
+    }
+
+    .alert-banner strong {
+      color: var(--blue-accent);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Slide 1: Cover -->
+  <div class="slide cover-slide">
+    <div class="badge-group">
+      <span class="top-badge">Safety AI System</span>
+      <span class="orange-badge">Daewoo E&C Open Innovation</span>
+    </div>
+    <h1>NEW-PSI <span>Safety Intelligence</span></h1>
+    <div class="subtitle">AI 기반 근로자 참여형 위험성평가 분석 및 월별 안전계도 시스템</div>
+    
+    <div class="author-info">
+      <div class="presenter">예비창업자 박성훈</div>
+      <div class="purpose">Hyper-Safety & AI Open Innovation 제출용 기술 소개자료</div>
+    </div>
+    
+    <div class="slide-footer">
+      <div>© 2026 NEW-PSI Safety Intelligence. All Rights Reserved.</div>
+      <div class="patent-notice">
+        <span class="patent-badge">특허출원</span>
+        <span>10-2026-0039151</span>
+      </div>
+      <div class="slide-num">01</div>
+    </div>
+  </div>
+
+
+  <!-- Slide 2: Problem Definition -->
+  <div class="slide">
+    <div class="slide-header">
+      <div class="topic">
+        <span class="topic-badge">Analysis</span>
+        <h2>현장 안전관리의 문제 정의 (Bottleneck)</h2>
+      </div>
+      <div class="logo-area">
+        <div class="brand">NEW-<span>PSI</span></div>
+        <div class="tagline">Safety Intelligence</div>
+      </div>
+    </div>
+
+    <div class="grid-2col">
+      <div>
+        <h3>기존 건설 안전관리의 한계점</h3>
+        <p class="lead">현재 건설 현장의 위험성평가는 작성 및 서명 위주로 흘러가, 근로자의 능동적 인식 제고와 정량화에 한계를 보입니다.</p>
+        
+        <ul class="bullets" style="margin-top: 4mm;">
+          <li>
+            <strong>작성·서명 중심의 형식적 운영:</strong> 법적 요건 충족을 위한 서명 날인 위주로 전락하여 근로자가 안전 수칙을 깊이 인지하지 못한 채 작업에 투입됩니다.
+          </li>
+          <li>
+            <strong>근로자 실제 이해도 확인 불가:</strong> 근로자가 오늘 작업의 진짜 위험요소와 행동 강령을 완벽히 숙지했는지 정량적으로 검증할 지표가 없습니다.
+          </li>
+          <li>
+            <strong>수기 기록의 사장화 (Dark Data):</strong> 매일 쏟아지는 종이 위험성평가지가 데이터화되지 못하고 단순 보관되어, 공종별 위험 추세 분석에 쓰이지 못합니다.
+          </li>
+          <li>
+            <strong>외국인 근로자 전파 교육 부실:</strong> 다국적 근로자 비율이 급증하고 있으나, 모국어 번역과 피드백 연동이 가능한 체계가 현저히 부족합니다.
+          </li>
+          <li>
+            <strong>안전관리자의 과도한 행정 업무:</strong> 수기 자료를 매주/매월 취합하고 보고서를 가공하는 불필요한 서류 정리에 평균 업무 시간의 30%를 낭비합니다.
+          </li>
+        </ul>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 4mm;">
+        <div class="card" style="border-left: 4px solid var(--orange-safety);">
+          <div class="card-title" style="color: var(--orange-safety); font-size: 14px;">핵심 극복 과제</div>
+          <p style="font-size: 12px; line-height: 1.6; color: var(--slate-700);">
+            위험성평가에 대규모 AI OCR 기법과 자연어 처리를 결합하여 <strong>"근로자 응답 표준화"</strong> 및 <strong>"6대 지표 계량화"</strong>를 이룩하고, 이를 징계용이 아닌 <strong>"현장 맞춤형 교육자료로 환류"</strong>하여 자율 안전 문화를 조성합니다.
+          </p>
+        </div>
+        
+        <div class="card" style="background-color: var(--blue-light); border-color: rgba(37,99,235,0.2); flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 6mm;">
+          <div style="font-size: 32px; font-weight: 900; color: var(--blue-accent); font-family: var(--font-outfit);">30%<span style="font-size: 14px; font-weight: 700; color: var(--slate-700);"> 이상</span></div>
+          <div style="font-size: 13px; font-weight: 700; color: var(--navy-dark); margin-top: 1mm;">안전관리자 불필요한 문서 정리 시간 절감</div>
+          <div style="font-size: 11px; color: var(--slate-700); margin-top: 2px;">수기 기록 OCR 및 AI 리포트 초안 자동화의 성과</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <div>NEW-PSI Safety Intelligence 기술제안서</div>
+      <div class="patent-notice">
+        <span class="patent-badge">특허출원</span>
+        <span>10-2026-0039151</span>
+      </div>
+      <div class="slide-num">02</div>
+    </div>
+  </div>
+
+
+  <!-- Slide 3: Solution Architecture -->
+  <div class="slide">
+    <div class="slide-header">
+      <div class="topic">
+        <span class="topic-badge">Architecture</span>
+        <h2>NEW-PSI 해결 구조 및 데이터 흐름</h2>
+      </div>
+      <div class="logo-area">
+        <div class="brand">NEW-<span>PSI</span></div>
+        <div class="tagline">Safety Intelligence</div>
+      </div>
+    </div>
+
+    <div class="full-content">
+      <h3>근로자 기록지 분석부터 안전교육 환류까지의 End-to-End 프로세스</h3>
+      <p class="lead">종이로 기록되던 아날로그 정보가 모바일 촬영과 AI 분석을 통해 현장의 정량적 디지털 안전 자산으로 바뀝니다.</p>
+
+      <div class="flow-container">
+        <div class="flow-step">
+          <div class="step-num">1</div>
+          <div class="step-title">수기지 수집</div>
+          <div class="step-desc">근로자가 작성한 자기규율 위험성평가 기록 수집</div>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <div class="step-num">2</div>
+          <div class="step-title">OCR 고속인식</div>
+          <div class="step-desc">모바일 촬영 후 이미지 문자 고속 디지털 텍스트 변환</div>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <div class="step-num">3</div>
+          <div class="step-title">AI 5문항 구조화</div>
+          <div class="step-desc">자유 서술형 답변을 5대 표준 안전 문항으로 구조화</div>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <div class="step-num">4</div>
+          <div class="step-title">6대 지표화</div>
+          <div class="step-desc">위험 인지, 숙련도 등 6가지 안전지표 정량 분석</div>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step highlighted">
+          <div class="step-num" style="background-color: var(--orange-safety);">5</div>
+          <div class="step-title" style="color: var(--orange-safety);">관리자 검토</div>
+          <div class="step-desc">안전관리자가 AI 판독 오류 및 특이점 최종 검제</div>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <div class="step-num">6</div>
+          <div class="step-title">계도 리포트</div>
+          <div class="step-desc">개인별 점수 비공개 기반, 익명화된 월별 분석 보고서 생성</div>
+        </div>
+        <div class="flow-arrow">➔</div>
+        <div class="flow-step">
+          <div class="step-num">7</div>
+          <div class="step-title">다국어 교육 환류</div>
+          <div class="step-desc">다음 달 다국어 A4 교안 발행 및 현장 TBM 교육 연동</div>
+        </div>
+      </div>
+
+      <div class="alert-banner">
+        <strong>⚠️ 대우건설 안전 파이프라인의 보완적 역할:</strong> 
+        본 시스템은 대우건설의 기존 종합안전관리 플랫폼을 대체하지 않으며, 기존 시스템에 입력되기 전 단계에서 
+        현장 위험성평가 원천 데이터의 무결성(Integrity)을 물리적으로 한 단계 높여주는 <strong>품질 보완형 AI 모듈</strong>로 작용합니다.
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <div>NEW-PSI Safety Intelligence 기술제안서</div>
+      <div class="patent-notice">
+        <span class="patent-badge">특허출원</span>
+        <span>10-2026-0039151</span>
+      </div>
+      <div class="slide-num">03</div>
+    </div>
+  </div>
+
+
+  <!-- Slide 4: Input Data -->
+  <div class="slide">
+    <div class="slide-header">
+      <div class="topic">
+        <span class="topic-badge">Input System</span>
+        <h2>핵심 입력자료: 자기규율 위험성평가 기록지</h2>
+      </div>
+      <div class="logo-area">
+        <div class="brand">NEW-<span>PSI</span></div>
+        <div class="tagline">Safety Intelligence</div>
+      </div>
+    </div>
+
+    <div class="grid-2col">
+      <div>
+        <h3>비정형 데이터를 규격화하는 근로자 5문항 구조</h3>
+        <p class="lead">근로자가 작업 전 직접 자필로 작성하는 핵심 항목입니다. AI는 이 답변들의 논리적 정합성을 대조하여 신뢰도를 측정합니다.</p>
+
+        <ul class="bullets" style="margin-top: 3mm;">
+          <li>
+            <strong>1문항: 가장 위험한 작업 [작업명 인지]</strong><br>
+            오늘 본인이 실제로 수행하는 상세 작업 공종에 대한 명확한 인지 여부를 판독합니다.
+          </li>
+          <li>
+            <strong>2문항: 가장 큰 위험요소 [위험요소 특정]</strong><br>
+            해당 작업에 잠재된 낙하, 전도, 붕괴 등 핵심 재해 유발 원인을 구체적으로 서술했는지 확인합니다.
+          </li>
+          <li>
+            <strong>3문항: 위험등급과 이유 [위험도 자기 진단]</strong><br>
+            위험의 크기(상/중/하)를 본인 기준에서 스스로 매기고, 그 설득력 있는 논리적 배경을 진단합니다.
+          </li>
+          <li>
+            <strong>4문항: 내가 할 수 있는 안전조치 [개인 안전 대책]</strong><br>
+            보호구 착용, 장비 점검, 안전핀 설치 등 근로자가 현장에서 수행 가능한 1차 예방 조치를 구체화합니다.
+          </li>
+          <li>
+            <strong>5문항: 오늘부터 실천할 안전행동 [TBM 행동 약속]</strong><br>
+            동료간 신호 확인, 불안전 구간 진입 금지 등 당일 작업 시 팀 단위 혹은 개인 안전 실천 약속을 규정합니다.
+          </li>
+        </ul>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 4mm;">
+        <div class="card" style="background-color: var(--slate-100); flex-grow: 1; display: flex; flex-direction: column; justify-content: center; padding: 6mm;">
+          <div style="font-size: 13px; font-weight: 800; color: var(--navy-primary); margin-bottom: 3mm; border-bottom: 2px solid var(--slate-200); padding-bottom: 2mm;">
+            다국어 지원 자필 기록지 구성 예시 (Bilingual Sheets)
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 2mm;">
+            <div style="background-color: white; border: 1px dashed var(--slate-700); padding: 3mm; border-radius: 6px; font-size: 11px;">
+              <span style="font-weight: 800; color: var(--blue-accent);">[KO]</span> 오늘 가장 위험한 작업은 무엇인가요? (예: 비계 위 파이프 조립)<br>
+              <span style="color: var(--slate-700); font-family: monospace;">-> "고소 작업대에서 앵커 볼트 설치"</span>
+            </div>
+            <div style="background-color: white; border: 1px dashed var(--slate-700); padding: 3mm; border-radius: 6px; font-size: 11px;">
+              <span style="font-weight: 800; color: var(--orange-safety);">[VI]</span> Công việc nguy hiểm nhất hôm nay là gì? (Ví dụ: lắp ráp ống trên giàn giáo)<br>
+              <span style="color: var(--slate-700); font-family: monospace;">-> "Lắp đặt bulông neo trên sàn thao tác cao"</span>
+            </div>
+          </div>
+          <div style="margin-top: 4mm; font-size: 11px; color: var(--slate-700); line-height: 1.5;">
+            * 베트남어, 영어, 태국어 등 주요 외국어 기록지를 혼용 배포하며, AI가 각 다국어 수기 답변을 실시간 번역 후 통합 분석합니다.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <div>NEW-PSI Safety Intelligence 기술제안서</div>
+      <div class="patent-notice">
+        <span class="patent-badge">특허출원</span>
+        <span>10-2026-0039151</span>
+      </div>
+      <div class="slide-num">04</div>
+    </div>
+  </div>
+
+
+  <!-- Slide 5: Key Features -->
+  <div class="slide">
+    <div class="slide-header">
+      <div class="topic">
+        <span class="topic-badge">Core Technology</span>
+        <h2>NEW-PSI 주요 기능 핵심 요약</h2>
+      </div>
+      <div class="logo-area">
+        <div class="brand">NEW-<span>PSI</span></div>
+        <div class="tagline">Safety Intelligence</div>
+      </div>
+    </div>
+
+    <div class="full-content">
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5mm; flex-grow: 1;">
+        
+        <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div style="background-color: var(--blue-light); color: var(--blue-accent); font-weight: 800; font-size: 11px; padding: 1mm 2mm; border-radius: 4px; display: inline-block; margin-bottom: 2mm;">FEATURE 01</div>
+            <div class="card-title">OCR 기반 수기 기록 고속 분석</div>
+            <p style="font-size: 11.5px; color: var(--slate-700); line-height: 1.5;">
+              모바일 또는 사무실 스캐너로 수집된 종이 위험성평가지를 자동 이미지 분할 및 하이브리드 OCR 기술로 고속 디지털화하여 관리 서버에 적재합니다.
+            </p>
+          </div>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div style="background-color: var(--blue-light); color: var(--blue-accent); font-weight: 800; font-size: 11px; padding: 1mm 2mm; border-radius: 4px; display: inline-block; margin-bottom: 2mm;">FEATURE 02</div>
+            <div class="card-title">AI 자연어처리 5문항 구조화</div>
+            <p style="font-size: 11.5px; color: var(--slate-700); line-height: 1.5;">
+              비정형 근로자 서술형 답변을 LLM(거대언어모델) 엔진을 통해 5대 안전 항목으로 매핑하고, 논리적 맥락 충돌 여부를 감지해 신뢰도를 판별합니다.
+            </p>
+          </div>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div style="background-color: var(--blue-light); color: var(--blue-accent); font-weight: 800; font-size: 11px; padding: 1mm 2mm; border-radius: 4px; display: inline-block; margin-bottom: 2mm;">FEATURE 03</div>
+            <div class="card-title">6대 안전인식 지표 자동 도출</div>
+            <p style="font-size: 11.5px; color: var(--slate-700); line-height: 1.5;">
+              위험 인식도, 공종 이해도, 위험성평가 이해도, 작업 숙련도, 개선이행성, 반복지적 감점을 계량 연산하여 근로자의 안전 인식을 과학적으로 수치화합니다.
+            </p>
+          </div>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div style="background-color: var(--blue-light); color: var(--blue-accent); font-weight: 800; font-size: 11px; padding: 1mm 2mm; border-radius: 4px; display: inline-block; margin-bottom: 2mm;">FEATURE 04</div>
+            <div class="card-title">월별 계도 리포트 생성</div>
+            <p style="font-size: 11.5px; color: var(--slate-700); line-height: 1.5;">
+              현장 전체의 월간 안전 경향, 공종별 취약 분야, 반복 지적 빈도 등을 분석하여 안전관리자 검토용 종합 의사결정 보고서를 자동 발행합니다.
+            </p>
+          </div>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div style="background-color: var(--blue-light); color: var(--blue-accent); font-weight: 800; font-size: 11px; padding: 1mm 2mm; border-radius: 4px; display: inline-block; margin-bottom: 2mm;">FEATURE 05</div>
+            <div class="card-title">다국어 A4 교육자료 환류</div>
+            <p style="font-size: 11.5px; color: var(--slate-700); line-height: 1.5;">
+              외국인 근로자가 작성한 고위험 취약 분야를 기반으로 국가별(베트남, 태국, 미얀마 등) 번역이 적용된 아침 TBM용 안전교육 한 장 교재를 생성합니다.
+            </p>
+          </div>
+        </div>
+
+        <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <div style="background-color: var(--blue-light); color: var(--blue-accent); font-weight: 800; font-size: 11px; padding: 1mm 2mm; border-radius: 4px; display: inline-block; margin-bottom: 2mm;">FEATURE 06</div>
+            <div class="card-title">개선이행 추적 및 위험 관리</div>
+            <p style="font-size: 11.5px; color: var(--slate-700); line-height: 1.5;">
+              현장의 취약 부적합 사항이 교육 전파 및 원격 피드백을 통해 실제 안전 행동의 질적 변화로 이어졌는지 월간 연속선상에서 추적 관리합니다.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <div>NEW-PSI Safety Intelligence 기술제안서</div>
+      <div class="patent-notice">
+        <span class="patent-badge">특허출원</span>
+        <span>10-2026-0039151</span>
+      </div>
+      <div class="slide-num">05</div>
+    </div>
+  </div>
+
+
+  <!-- Slide 6: Program Screen 1 -->
+  <div class="slide">
+    <div class="slide-header">
+      <div class="topic">
+        <span class="topic-badge">Software UI 1</span>
+        <h2>시스템 화면: 현장 종합 안전 관제센터</h2>
+      </div>
+      <div class="logo-area">
+        <div class="brand">NEW-<span>PSI</span></div>
+        <div class="tagline">Safety Intelligence</div>
+      </div>
+    </div>
+
+    <div class="grid-2col-reverse">
+      <div class="screenshot-container">
+        <img src="./screenshots/01_newpsi_dashboard.png" alt="NEW-PSI Dashboard Interface">
+        <div class="screenshot-caption">
+          <strong>NEW-PSI 통합 안전 관제 대시보드</strong> - 현장 전체의 일일 안전 스코어, 공종별 현황, 고위험 감지 신호 시각화
+        </div>
+      </div>
+
+      <div>
+        <h3>실시간 현장 안전 모니터링 허브</h3>
+        <p class="lead">관리자가 현장의 일일 위험성평가 입력 분포와 정량화된 안전 수준 추이를 직관적으로 관제할 수 있습니다.</p>
+        
+        <ul class="bullets" style="margin-top: 4mm;">
+          <li>
+            <strong>위험 인지 수준 정량 스코어링:</strong> 근로자들의 일일 자필 응답 품질을 6대 안전 지표로 연산하여 현장 전체의 실시간 종합 안전 지수를 계량 표시합니다.
+          </li>
+          <li>
+            <strong>공종별 작성 현황 및 분석률:</strong> 비계공, 형틀공, 철근공 등 당일 세부 공종별 평가서 작성률과 누적 참여 인원 상태를 파악합니다.
+          </li>
+          <li>
+            <strong>고위험 취약 공종 우선순위 도출:</strong> 지표 점수가 급락하거나 위험 인지 성실도가 낮은 공정을 적색 경고로 표출하여 집중 모니터링 대상으로 지정합니다.
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <div>NEW-PSI Safety Intelligence 기술제안서</div>
+      <div class="patent-notice">
+        <span class="patent-badge">특허출원</span>
+        <span>10-2026-0039151</span>
+      </div>
+      <div class="slide-num">06</div>
+    </div>
+  </div>
+
+
+  <!-- Slide 7: Program Screen 2 -->
+  <div class="slide">
+    <div class="slide-header">
+      <div class="topic">
+        <span class="topic-badge">Software UI 2</span>
+        <h2>시스템 화면: 위험성평가 분석 (OCR 업로드)</h2>
+      </div>
+      <div class="logo-area">
+        <div class="brand">NEW-<span>PSI</span></div>
+        <div class="tagline">Safety Intelligence</div>
+      </div>
+    </div>
+
+    <div class="grid-2col">
+      <div>
+        <h3>아날로그 기록의 지능적 디지털 텍스트 변환</h3>
+        <p class="lead">근로자가 현장에서 손으로 쓴 다국어 위험성평가지의 아날로그 종이 필기 데이터를 고유의 OCR 모듈로 추출하여 보관합니다.</p>
+        
+        <ul class="bullets" style="margin-top: 4mm;">
+          <li>
+            <strong>필기체 특화 OCR 텍스트 감지:</strong> 현장의 악조건(연필 작성, 흘려 쓴 서명, 종이 구겨짐 등) 속에서도 높은 한글/다국어 문자 판독 정확도를 자랑합니다.
+          </li>
+          <li>
+            <strong>원본 서류 이미지 매핑 보관:</strong> 디지털 변환 텍스트와 실제 수기 종이 이미지의 일대일 대조 기능을 제공하여 데이터 검증 편의성을 크게 확대합니다.
+          </li>
+          <li>
+            <strong>비식별화 자동 전처리:</strong> 입력 과정에서 근로자의 고유 개인정보(휴대폰 번호, 주민번호 패턴 등)는 내부 규정에 근거하여 자동 마스킹 또는 블러 처리합니다.
+          </li>
+        </ul>
+      </div>
+
+      <div class="screenshot-container">
+        <img src="./screenshots/02_newpsi_ocr_upload.png" alt="NEW-PSI OCR Document Upload View">
+        <div class="screenshot-caption">
+          <strong>위험성평가 수기문서 OCR 판독실</strong> - 종이 기록지 수집 및 이미지 문자 검출 텍스트화 인터페이스
+        </div>
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <div>NEW-PSI Safety Intelligence 기술제안서</div>
+      <div class="patent-notice">
+        <span class="patent-badge">특허출원</span>
+        <span>10-2026-0039151</span>
+      </div>
+      <div class="slide-num">07</div>
+    </div>
+  </div>
+
+
+  <!-- Slide 8: Program Screen 3 -->
+  <div class="slide">
+    <div class="slide-header">
+      <div class="topic">
+        <span class="topic-badge">Software UI 3</span>
+        <h2>시스템 화면: 5문항 구조화 및 6대 지표 정량화</h2>
+      </div>
+      <div class="logo-area">
+        <div class="brand">NEW-<span>PSI</span></div>
+        <div class="tagline">Safety Intelligence</div>
+      </div>
+    </div>
+
+    <div class="full-content">
+      <div class="split-screenshots" style="height: calc(100% - 20mm);">
+        <div class="screenshot-container">
+          <img src="./screenshots/03_newpsi_five_questions.png" alt="NEW-PSI 5 Questions Structuring">
+          <div class="screenshot-caption">
+            <strong>AI 5문항 구조 분석실</strong> - 근로자의 자유 서술형 자필을 5개 영역으로 분석하여 표준 키워드로 매핑
+          </div>
+        </div>
+
+        <div class="screenshot-container">
+          <img src="./screenshots/04_newpsi_six_indicators.png" alt="NEW-PSI 6 Safety Indicators Screen">
+          <div class="screenshot-caption">
+            <strong>6대 안전지표 종합 정량 시각화</strong> - 위험인지, 공종이해, 숙련도, 참여도, 이행력, 감점 요인 연계
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 3mm; display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 6mm;">
+        <div>
+          <span style="font-size: 11.5px; color: var(--slate-800); line-height: 1.5; display: block;">
+            <strong>5문항 구조화:</strong> 근로자의 정성 답변을 의미론적 자연어 처리 기법으로 해석하여 "가장 위험한 공정", "필요 안전 대책" 등의 규격화된 테이블 필드로 태깅 처리합니다.
+          </span>
+        </div>
+        <div>
+          <span style="font-size: 11.5px; color: var(--slate-800); line-height: 1.5; display: block;">
+            <strong>6대 지표 정량화:</strong> 근로자의 안전 인식, 문맥 분석을 기반으로 위험 감수 경향을 6가지 독립 지표로 정량 점수화하여 통계적 예측 관리가 가능하게 돕습니다.
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <div>NEW-PSI Safety Intelligence 기술제안서</div>
+      <div class="patent-notice">
+        <span class="patent-badge">특허출원</span>
+        <span>10-2026-0039151</span>
+      </div>
+      <div class="slide-num">08</div>
+    </div>
+  </div>
+
+
+  <!-- Slide 9: Program Screen 4 -->
+  <div class="slide">
+    <div class="slide-header">
+      <div class="topic">
+        <span class="topic-badge">Software UI 4</span>
+        <h2>시스템 화면: 월별 계도 및 다국어 A4 TBM 환류</h2>
+      </div>
+      <div class="logo-area">
+        <div class="brand">NEW-<span>PSI</span></div>
+        <div class="tagline">Safety Intelligence</div>
+      </div>
+    </div>
+
+    <div class="full-content">
+      <div class="triple-screenshots" style="height: calc(100% - 20mm);">
+        <div class="screenshot-container">
+          <img src="./screenshots/05_newpsi_monthly_report.png" alt="NEW-PSI Monthly Guidance Report">
+          <div class="screenshot-caption">
+            <strong>월별 계도 리포트 생성</strong> - 익명화된 트렌드 보고
+          </div>
+        </div>
+
+        <div class="screenshot-container">
+          <img src="./screenshots/06_newpsi_multilingual_a4.png" alt="NEW-PSI Multilingual A4 Material">
+          <div class="screenshot-caption">
+            <strong>다국어 A4 교육자료</strong> - 모국어 밀착형 교육
+          </div>
+        </div>
+
+        <div class="screenshot-container">
+          <img src="./screenshots/07_newpsi_pdf_export.png" alt="NEW-PSI PDF Export Summary">
+          <div class="screenshot-caption">
+            <strong>원클릭 PDF/PPT 추출</strong> - 현장 회의 및 TBM 즉각 인쇄
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: 3mm; font-size: 11px; line-height: 1.5; color: var(--slate-800);">
+        * <strong>월간 환류 프로세스:</strong> 특정 개인을 적발하여 징벌하기 위한 것이 아니며, 전월의 종합 위험 요소 및 반복 위반 경향을 토대로 
+        베트남어, 영어 등 다국어 교재를 자동 컴파일하여 다음 달 아침 TBM 시간 전파 교육에 물리적으로 연동하는 선순환을 지원합니다.
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <div>NEW-PSI Safety Intelligence 기술제안서</div>
+      <div class="patent-notice">
+        <span class="patent-badge">특허출원</span>
+        <span>10-2026-0039151</span>
+      </div>
+      <div class="slide-num">09</div>
+    </div>
+  </div>
+
+
+  <!-- Slide 10: Operational Principles -->
+  <div class="slide">
+    <div class="slide-header">
+      <div class="topic">
+        <span class="topic-badge">Operational Principle</span>
+        <h2>Human-in-the-loop 기반 현장 운영 원칙</h2>
+      </div>
+      <div class="logo-area">
+        <div class="brand">NEW-<span>PSI</span></div>
+        <div class="tagline">Safety Intelligence</div>
+      </div>
+    </div>
+
+    <div class="grid-2col">
+      <div>
+        <h3>현장 안전관리 협업의 4대 철칙</h3>
+        <p class="lead">AI는 보조자이자 도구일 뿐, 현장의 최종 결정과 안전 가치 판단은 전문 인간 안전관리자가 총괄합니다.</p>
+
+        <ul class="bullets" style="margin-top: 3mm;">
+          <li>
+            <strong>안전관리자 최종 검토 및 정제:</strong> AI OCR 판독 오류, 현장 맥락 오해, 또는 불가피한 임시 공종 변동에 대비해 모든 AI 생성 리포트는 <strong>관리자의 승인 후 발행</strong>됩니다.
+          </li>
+          <li>
+            <strong>처벌/인사 조치 수단 활용 절대 금지:</strong> 본 시스템은 근로자의 실수나 무지를 적발해 징계나 감점을 주는 것이 아니라, <strong>적정 교육 수준 식별과 코칭 개선 목적</strong>으로만 가동됩니다.
+          </li>
+          <li>
+            <strong>개인 정보 보호 및 비공개 통제:</strong> 개인의 원천 점수나 취약점 원문은 안전관리자 관리 페이지 내로 강하게 제한하며, 교육 현장에는 <strong>완전 익명화·종합화된 트렌드</strong>로만 환류합니다.
+          </li>
+          <li>
+            <strong>대우건설 기존 종합안전망 보완:</strong> 기존 플랫폼을 침범하거나 대체하지 않고, 수기 위험성평가지 데이터의 품질을 선제적으로 정제해 전달하는 <strong>Pre-Input 신뢰도 향상 모듈</strong>입니다.
+          </li>
+        </ul>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 4mm;">
+        <div class="card" style="border-left: 4px solid var(--blue-accent); background-color: var(--blue-light);">
+          <div class="card-title" style="color: var(--blue-accent); font-size: 14px;">Human-in-the-loop (인간 중심 검증)</div>
+          <p style="font-size: 12px; line-height: 1.6; color: var(--slate-700);">
+            안전 관리는 현장의 즉각적인 소통과 신뢰에 기반합니다. AI의 가차없는 오판율을 최소화하기 위해, 현장 안전관리자의 직관과 검토가 개입하는 구조적 보정 단계를 표준 설계하였습니다.
+          </p>
+        </div>
+
+        <div class="card" style="background-color: #fffbeb; border-color: #fef3c7;">
+          <div class="card-title" style="color: #d97706; font-size: 12px;">주요 보안 및 관리 한계 정책</div>
+          <p style="font-size: 11px; line-height: 1.5; color: var(--slate-700);">
+            • 데이터 아카이빙 시 AWS KMS 기반 암호화 적재<br>
+            • 모바일 Kiosk 서명 시 수집 항목 비식별 전처리 자동 통제<br>
+            • 대외 유출 불가한 폐쇄망 및 Sandbox형 테스팅 호환 설계
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <div>NEW-PSI Safety Intelligence 기술제안서</div>
+      <div class="patent-notice">
+        <span class="patent-badge">특허출원</span>
+        <span>10-2026-0039151</span>
+      </div>
+      <div class="slide-num">10</div>
+    </div>
+  </div>
+
+
+  <!-- Slide 11: PoC Plan -->
+  <div class="slide">
+    <div class="slide-header">
+      <div class="topic">
+        <span class="topic-badge">Execution Plan</span>
+        <h2>대우건설 현장 적용을 위한 PoC 계획</h2>
+      </div>
+      <div class="logo-area">
+        <div class="brand">NEW-<span>PSI</span></div>
+        <div class="tagline">Safety Intelligence</div>
+      </div>
+    </div>
+
+    <div class="grid-2col">
+      <div>
+        <h3>8~12주 PoC 현장 검증 절차</h3>
+        <p class="lead">대우건설 현장 1개소(근로자 100~300명 규모)를 시범 선정하여 고유 프로세스의 현장 정착력과 효과를 실증합니다.</p>
+        
+        <ul class="bullets" style="margin-top: 3mm;">
+          <li>
+            <strong>1주차: 기준 조율 및 준비:</strong> 시범 적용 현장 협의, 비식별화 수준 및 다국어 언어군 매핑, 수기 기록지 수집 체계 구축.
+          </li>
+          <li>
+            <strong>2~3주차: OCR/AI 판독 튜닝:</strong> 수기 위험성평가 데이터 스캔 적용, AI 5문항 구조화 및 6대 지표 초기 도출 성능 정밀 조율.
+          </li>
+          <li>
+            <strong>4~5주차: 첫 리포트 및 교육 연계:</strong> 1차 월간 계도 리포트 발행, 국가별 A4 교육자료 출력 및 TBM 전파 시범 시행.
+          </li>
+          <li>
+            <strong>6~7주차: 실천력 변화 관찰:</strong> 교육 적용 후 근로자의 위험 인지 및 자필 평가 작성 품질 개선 현황 밀착 추적.
+          </li>
+          <li>
+            <strong>8주차: 종합 KPI 분석 및 보고:</strong> PoC 종료 후 투입 대비 성과 계측 및 대우건설 제출용 최종 성과보고서 작성.
+          </li>
+        </ul>
+      </div>
+
+      <div>
+        <h3>PoC 핵심 성과 측정지표 (KPI)</h3>
+        <table class="kpi-table">
+          <thead>
+            <tr>
+              <th>구분</th>
+              <th>평가 지표 (KPI)</th>
+              <th>목표 수준</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>정확도</strong></td>
+              <td>한글 필기체 OCR 인식률 및 5문항 분류 정합도</td>
+              <td class="kpi-target">90% 이상</td>
+            </tr>
+            <tr>
+              <td><strong>업무시간</strong></td>
+              <td>안전관리자 수기 데이터 분석 및 정리 소요 시간</td>
+              <td class="kpi-target">30% 이상 절감</td>
+            </tr>
+            <tr>
+              <td><strong>교육환류</strong></td>
+              <td>다국어 TBM 교재 원클릭 생성 및 TBM 배포 시간</td>
+              <td class="kpi-target">90% 단축</td>
+            </tr>
+            <tr>
+              <td><strong>전파율</strong></td>
+              <td>외국인 근로자의 모국어 교육 확인 및 서명 제출률</td>
+              <td class="kpi-target">95% 이상</td>
+            </tr>
+            <tr>
+              <td><strong>행동 개선</strong></td>
+              <td>전월 안전계도 이후 동일 지적사항 재발률 감소</td>
+              <td class="kpi-target">20% 이상 감소</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <div>NEW-PSI Safety Intelligence 기술제안서</div>
+      <div class="patent-notice">
+        <span class="patent-badge">특허출원</span>
+        <span>10-2026-0039151</span>
+      </div>
+      <div class="slide-num">11</div>
+    </div>
+  </div>
+
+
+  <!-- Slide 12: Business Impact & Proof -->
+  <div class="slide">
+    <div class="slide-header">
+      <div class="topic">
+        <span class="topic-badge">Value Proposition</span>
+        <h2>독점적 기술 증빙 및 기대효과</h2>
+      </div>
+      <div class="logo-area">
+        <div class="brand">NEW-<span>PSI</span></div>
+        <div class="tagline">Safety Intelligence</div>
+      </div>
+    </div>
+
+    <div class="grid-2col">
+      <div>
+        <h3>특허출원 기반의 원천 기술력 확보</h3>
+        <p class="lead">NEW-PSI는 법적 보호를 받는 차별화된 건설 안전 AI 독점 기술입니다.</p>
+
+        <div class="card" style="background-color: var(--slate-100); margin-bottom: 4mm;">
+          <div style="font-weight: 800; font-size: 13.5px; color: var(--navy-dark); margin-bottom: 2mm; display: flex; align-items: center; gap: 2mm;">
+            <span style="background-color: var(--orange-safety); color: white; font-size: 10px; padding: 0.5mm 1.5mm; border-radius: 3px;">출원완료</span>
+            특허 출원 정보
+          </div>
+          <div style="font-size: 11.5px; line-height: 1.6; color: var(--slate-700);">
+            • <strong>출원번호:</strong> 10-2026-0039151 (출원일: 2026.03.04.)<br>
+            • <strong>발명의 명칭:</strong> 인공지능(AI) 기반 위험성평가 무결성 검증 및 대규모 근로자 안전 관리 자동화 시스템<br>
+            • <strong>대외 성과:</strong> 2026 모두의 아이디어 지정공모 우수참가자 선정
+          </div>
+        </div>
+
+        <ul class="bullets">
+          <li>
+            <strong>자율 예방 안전 문화 확립:</strong> 지시 하달 방식이 아닌 근로자 스스로 위험 요소를 인지하는 능동적 안전 행태 변화 촉진.
+          </li>
+          <li>
+            <strong>다국적 근로자 교육 장벽 혁파:</strong> 모국어 번역 환류 교재를 통해 비영어권 외국인 근로자 전파 교육의 명확한 전달력 달성.
+          </li>
+        </ul>
+      </div>
+
+      <div>
+        <h3>대우건설 도입 시 정량적 기대효과</h3>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; margin-top: 2mm;">
+          <div class="card" style="text-align: center; padding: 4mm;">
+            <div style="font-size: 11px; color: var(--slate-700); font-weight: 700;">중대재해 예방율</div>
+            <div style="font-size: 26px; font-weight: 900; color: var(--blue-accent); font-family: var(--font-outfit); margin-top: 1mm;">Zero</div>
+            <div style="font-size: 9.5px; color: var(--slate-700); margin-top: 1mm;">위험 인지 누출 최소화</div>
+          </div>
+
+          <div class="card" style="text-align: center; padding: 4mm;">
+            <div style="font-size: 26px; font-weight: 900; color: var(--orange-safety); font-family: var(--font-outfit); margin-top: 1mm;">-20%</div>
+            <div style="font-size: 11px; color: var(--slate-700); font-weight: 700;">반복 지적 재발률</div>
+            <div style="font-size: 9.5px; color: var(--slate-700); margin-top: 1mm;">행동 연계형 지속 계도 효과</div>
+          </div>
+
+          <div class="card" style="text-align: center; padding: 4mm;">
+            <div style="font-size: 26px; font-weight: 900; color: var(--navy-dark); font-family: var(--font-outfit); margin-top: 1mm;">-4hr/wk</div>
+            <div style="font-size: 11px; color: var(--slate-700); font-weight: 700;">안전관리 행정 시간</div>
+            <div style="font-size: 9.5px; color: var(--slate-700); margin-top: 1mm;">수기 분석 및 보고서 자동화</div>
+          </div>
+
+          <div class="card" style="text-align: center; padding: 4mm;">
+            <div style="font-size: 26px; font-weight: 900; color: var(--blue-accent); font-family: var(--font-outfit); margin-top: 1mm;">100%</div>
+            <div style="font-size: 11px; color: var(--slate-700); font-weight: 700;">데이터 자산화</div>
+            <div style="font-size: 9.5px; color: var(--slate-700); margin-top: 1mm;">현장 종이 기록지 DB 연계</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <div>NEW-PSI Safety Intelligence 기술제안서</div>
+      <div class="patent-notice">
+        <span class="patent-badge">특허출원</span>
+        <span>10-2026-0039151</span>
+      </div>
+      <div class="slide-num">12</div>
+    </div>
+  </div>
+
+</body>
+</html>
