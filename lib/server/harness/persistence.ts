@@ -267,7 +267,7 @@ export async function persistHarnessAnalysis(options: {
         }
 
         if (!workflowRunId) {
-            return { persisted: false, workflowRunId: null, warning: 'workflow run id 생성 실패' };
+            return { persisted: false, workflowRunId: null, warning: '처리 번호 생성 실패' };
         }
 
         const { error: contextError } = await client
@@ -387,7 +387,7 @@ export async function persistHarnessApproval(options: {
         }
 
         if (!workflowRunId) {
-            return { persisted: false, workflowRunId: null, warning: 'workflow run id 생성 실패' };
+            return { persisted: false, workflowRunId: null, warning: '처리 번호 생성 실패' };
         }
 
         const approvalTimestamp = new Date().toISOString();

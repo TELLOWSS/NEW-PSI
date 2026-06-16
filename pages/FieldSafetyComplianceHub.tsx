@@ -763,7 +763,7 @@ const BehaviorCoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOp
                 const c   = Number(data.inserted_coaching || 0);
                 setResult({ ok: true, message: `통합 등록 완료 (관찰 ${obs}건 / 코칭 ${c}건)` });
             } else {
-                setResult({ ok: true, message: `[오프라인] ${selected.size}명 관찰 기록 완료 (서버 미연결)` });
+                setResult({ ok: true, message: `[로컬 보관] ${selected.size}명 관찰 기록 완료 (서버 연결 전)` });
             }
 
             setSelected(new Set()); setBehavior(null); setEvidenceNote(''); setPhoto('');

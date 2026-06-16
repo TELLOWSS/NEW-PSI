@@ -1206,7 +1206,7 @@ const SafetyBehaviorManagement: React.FC<SafetyBehaviorManagementProps> = ({ wor
                     title={harnessSummary.immediateAttention > 0
                         ? `불안전행동 관리 범위에서 즉시 관찰 보호 대상 ${harnessSummary.immediateAttention}명이 먼저 조치 완료되어야 합니다.`
                         : harnessSummary.fallback > 0
-                            ? `오프라인 대체 저장 ${harnessSummary.fallback}명이 있어 관찰 기록과 저장 연동 점검을 함께 진행해야 합니다.`
+                            ? `로컬 보관 ${harnessSummary.fallback}명이 있어 관찰 기록과 저장 연동 점검을 함께 진행해야 합니다.`
                             : `검토 대기 항목이 ${harnessSummary.approvalBacklog}명이 남아 있어 코칭 이후 결재 검토 순서를 먼저 정리해야 합니다.`}
                     description={activeTab === 'observe'
                         ? '관찰·코칭 입력이 많아도 안전 이행 승인 및 저장 흐름이 끊기면 보호 조치가 닫히지 않습니다. 입력 전에 현재 백로그를 함께 읽어야 합니다.'

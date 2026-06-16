@@ -39,7 +39,7 @@ export default async function handler(req: any, res: any) {
     }
 
     const lookupMissWarning = persisted.persisted && !persisted.warning
-        ? '저장 환경은 연결됐지만 조회한 workflow run에 해당하는 영속 데이터는 아직 없습니다.'
+        ? '저장 환경은 연결됐지만 조회한 처리 기록에 해당하는 중앙 저장 데이터는 아직 없습니다.'
         : persisted.warning;
 
     return res.status(200).json({

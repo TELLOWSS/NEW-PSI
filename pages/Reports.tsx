@@ -2788,7 +2788,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     action: 'append-ops-alert-click-log',
                     payload: entry,
                 },
-                { fallbackMessage: '경보 CTA 로그 저장 실패' },
+                { fallbackMessage: '경보 CTA 로그 저장 확인 필요' },
             ).catch((error) => {
                 console.warn('[Reports] 경보 CTA 로그 서버 저장 실패 (로컬 유지):', extractMessage(error));
             });

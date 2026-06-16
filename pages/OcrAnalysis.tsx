@@ -322,9 +322,9 @@ const getHarnessPersistenceState = (record: Partial<WorkerRecord>): HarnessPersi
 
 const getHarnessPersistenceLabel = (state: HarnessPersistenceState): string => {
     switch (state) {
-        case 'connected': return '중앙 서버 연동 완료';
-        case 'fallback': return '로컬 대체 저장 작동중';
-        default: return '서버 저장 대기';
+        case 'connected': return '중앙 저장소 연결 완료';
+        case 'fallback': return '로컬 보관중';
+        default: return '저장 대기';
     }
 };
 
@@ -1542,7 +1542,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
         if (result.error) {
             if (!handleSupabasePermissionError(result.error)) {
-                alert(`배정 저장 실패: ${result.error.message}`);
+                alert(`배정 저장 확인 필요: ${result.error.message}`);
             }
             return;
         }

@@ -352,9 +352,9 @@ const getHarnessApprovalStateLabel = (state: string): string => {
 
 const getHarnessPersistenceLabel = (state: HarnessPersistenceState): string => {
     switch (state) {
-        case 'connected': return '중앙 서버 연동 완료';
-        case 'fallback': return '로컬 대체 저장 작동중';
-        default: return '서버 저장 대기';
+        case 'connected': return '중앙 저장소 연결 완료';
+        case 'fallback': return '로컬 보관중';
+        default: return '저장 대기';
     }
 };
 
@@ -1777,7 +1777,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 case '타임아웃':
                     return '첨부 이미지 용량과 네트워크 상태를 먼저 점검한 뒤 재발송';
                 case '인증/권한':
-                    return 'SOLAPI 키/발신번호와 관리자 인증 상태를 즉시 확인';
+                    return '문자 발송 계정, 발신번호, 관리자 인증 상태를 즉시 확인';
                 case '전화번호 오류':
                     return '등록 근로자 전화번호를 수정하고 개별 리포트에서 재발송';
                 case '한도/속도 제한':

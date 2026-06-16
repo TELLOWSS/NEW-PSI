@@ -1476,7 +1476,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                     dueLabel: plan.dueLabel,
                 },
             },
-            { fallbackMessage: '실행 계획 상태 저장 실패' }
+            { fallbackMessage: '실행 계획 상태 저장 확인 필요' }
         )
             .then((response) => {
                 const item = response?.item;

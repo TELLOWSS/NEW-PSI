@@ -2425,9 +2425,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                         variant="amber"
                                                         title={harnessStatusWarning}
                                                         description={harnessDiagnostics?.found === false && isHarnessPersisted === true
-                                                            ? '실환경 persistence는 연결되어 있지만 현재 런 ID 또는 원본 레코드로 조회된 저장 이벤트가 없습니다.'
+                                                            ? '중앙 저장소는 연결되어 있지만 현재 처리 번호 또는 원본 기록으로 조회된 저장 이벤트가 없습니다.'
                                                             : harnessDiagnostics?.resolvedBy === 'source_record_id'
-                                                                ? '현재 응답은 workflow run id 대신 원본 레코드 기준 최신 저장 런으로 보정되었습니다.'
+                                                                ? '현재 응답은 처리 번호 대신 원본 기록 기준의 최신 저장 기록으로 보정되었습니다.'
                                                                 : undefined}
                                                         className="mt-3 w-full rounded-xl border px-3 py-2"
                                                         bodyClassName="block"

@@ -36,7 +36,7 @@ export default async function handler(req: any, res: any) {
         const currentWorkflow = await fetchPersistedHarnessWorkflowStatus(workflowRunId);
 
         if (currentWorkflow.persisted && !currentWorkflow.found) {
-            return res.status(404).json({ ok: false, message: '해당 workflow run을 찾지 못했습니다. 승인 전에 저장 연결 상태를 먼저 확인해 주십시오.' });
+            return res.status(404).json({ ok: false, message: '해당 처리 기록을 찾지 못했습니다. 승인 전에 저장 연결 상태를 먼저 확인해 주십시오.' });
         }
 
         const persistedWorkflow = currentWorkflow.data;

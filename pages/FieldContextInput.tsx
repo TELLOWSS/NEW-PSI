@@ -102,7 +102,7 @@ export const FieldContextInput: React.FC = () => {
                 {saveState === 'success' 
                   ? '✅ 저장됨' 
                   : saveState === 'error' 
-                    ? '❌ 저장 실패' 
+                    ? '❌ 저장 확인 필요'
                     : saveState === 'saving' 
                       ? '⏳ 저장 중...' 
                       : '⭕ 대기'}

@@ -611,7 +611,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         try {
             updateGenerationProgress(15, '문자용 양면 이미지 생성 중');
             const reportImages = await buildReportMessageImages();
-            updateGenerationProgress(70, 'SOLAPI 발송 요청 중');
+            updateGenerationProgress(70, '문자 발송 요청 중');
 
             const response = await postAdminJson<{ ok: true; data: { sentCount: number; phonePersistResult?: { updated?: boolean; reason?: string } } }>(
                 '/api/admin/send-report-message',
@@ -866,7 +866,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                                     />
                                 </label>
                                 <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500">
-                                    <span className="rounded-full bg-slate-100 px-3 py-1">SOLAPI MMS 2건 발송</span>
+                                    <span className="rounded-full bg-slate-100 px-3 py-1">MMS 2건 발송</span>
                                     <span className="rounded-full bg-indigo-50 px-3 py-1 text-indigo-700">이미지당 200KB 이하 자동 압축</span>
                                 </div>
                                 {lastMessageHistory && (
@@ -917,7 +917,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                                     {isSendingMessage ? '문자 발송 중...' : '자동 문자 발송'}
                                 </button>
                                 <p className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-[11px] font-bold leading-relaxed text-slate-500">
-                                    발신번호는 서버 환경변수의 SOLAPI_SENDER를 사용합니다. 문자가 정상 발송되면 등록 근로자 번호도 함께 갱신을 시도합니다.
+                                    발신번호는 서버에 등록된 문자 발송 번호를 사용합니다. 문자가 정상 발송되면 등록 근로자 번호도 함께 갱신을 시도합니다.
                                 </p>
                             </div>
                         </div>
@@ -926,7 +926,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             )}
 
             <div hidden className="w-full max-w-[210mm] rounded-2xl border border-fuchsia-100 bg-fuchsia-50 px-4 py-3 text-[12px] font-bold text-fuchsia-900 shadow-sm">
-                모바일에서는 문자공유 버튼으로 양면 리포트 이미지를 문자/MMS·메신저 앱에 바로 첨부할 수 있습니다. 자동문자 버튼은 서버에 연결된 SOLAPI 계정으로 직접 MMS를 발송합니다.
+                모바일에서는 문자공유 버튼으로 양면 리포트 이미지를 문자/MMS·메신저 앱에 바로 첨부할 수 있습니다. 자동문자 버튼은 서버에 연결된 문자 발송 계정으로 직접 MMS를 발송합니다.
             </div>
 
             {isQrScanMode && (

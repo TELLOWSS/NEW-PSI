@@ -209,6 +209,20 @@ type HarnessHealthState = {
     message?: string;
 };
 
+const formatCentralStorageMessage = (message?: string | null): string => {
+    const raw = String(message || '').trim();
+    if (!raw) return '';
+    if (/Supabase.*환경변수|환경변수.*Supabase|SUPABASE/i.test(raw)) {
+        return '중앙 저장소 연결값이 아직 준비되지 않았습니다. Vercel 운영 환경 설정을 확인해 주세요.';
+    }
+    return raw
+        .replace(/Supabase/g, '중앙 저장소')
+        .replace(/환경변수/g, '연결값')
+        .replace(/service_role/g, '서버 운영키')
+        .replace(/\banon\b/g, '제한 운영키')
+        .replace(/workflow run/gi, '처리 기록');
+};
+
 const downloadTextFile = (fileName: string, content: string, mimeType: string) => {
     const blob = new Blob([content], { type: mimeType });
     const objectUrl = URL.createObjectURL(blob);
@@ -1614,7 +1628,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     title={harnessSummary.immediateAttention > 0
                         ? `설정 조정 전에 즉시 관찰 보호 대상 ${harnessSummary.immediateAttention}명을 먼저 확인해야 합니다.`
                         : harnessSummary.fallback > 0
-                            ? `오프라인 대체 저장 ${harnessSummary.fallback}명이 있어 운영 기준 변경 전 저장 연동 상태를 함께 점검해야 합니다.`
+                            ? `로컬 보관 ${harnessSummary.fallback}명이 있어 운영 기준 변경 전 저장 연동 상태를 함께 점검해야 합니다.`
                             : `검토 대기 항목이 ${harnessSummary.approvalBacklog}명이 남아 있어 설정 변경과 함께 결재 검토 순서를 먼저 정리해야 합니다.`}
                     description="설정 화면은 정책 기준을 바꾸는 곳이므로, 현재 보호 흐름이 끊긴 레코드가 있는지 먼저 확인해야 운영 기준 변경이 현장 혼선을 만들지 않습니다."
                     className="rounded-2xl border px-4 py-3 shadow-sm"
@@ -1630,7 +1644,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                         <div>
                             <h3 className="text-base sm:text-lg font-black text-slate-900">중앙 서버 연동 및 데이터 보존 상태</h3>
                             <p className="mt-1 text-xs sm:text-sm text-slate-500 leading-relaxed">
-                                Supabase 환경변수, 키 모드, 중앙 서버 테이블 준비 상태와 현재 적재 건수를 한 번에 확인해 실환경 데이터 저장 검증 전에 환경 문제를 먼저 분리합니다.
+                                중앙 저장소 연결값, 운영 키 방식, 서버 테이블 준비 상태와 현재 적재 건수를 한 번에 확인해 실제 데이터 저장 전 환경 문제를 먼저 분리합니다.
                             </p>
                         </div>
                         <button
@@ -1645,32 +1659,32 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
 
                     <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
                         <div className={`rounded-2xl border px-4 py-3 ${harnessHealthState.data?.envConfigured ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80'}`}>
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">환경변수</p>
-                            <p className="mt-1 text-xl font-black text-slate-900">{harnessHealthState.data?.envConfigured ? '준비됨' : '미구성'}</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">연결값</p>
+                            <p className="mt-1 text-xl font-black text-slate-900">{harnessHealthState.data?.envConfigured ? '준비됨' : '연결값 필요'}</p>
                         </div>
                         <div className={`rounded-2xl border px-4 py-3 ${harnessHealthState.data?.keyMode === 'service_role' ? 'border-indigo-200 bg-indigo-50/70' : harnessHealthState.data?.keyMode === 'anon' ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50'}`}>
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">키 모드</p>
-                            <p className="mt-1 text-xl font-black text-slate-900">{harnessHealthState.data?.keyMode === 'service_role' ? 'service_role' : harnessHealthState.data?.keyMode === 'anon' ? 'anon' : '-'}</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">운영 키</p>
+                            <p className="mt-1 text-xl font-black text-slate-900">{harnessHealthState.data?.keyMode === 'service_role' ? '서버 운영키' : harnessHealthState.data?.keyMode === 'anon' ? '제한 운영키' : '-'}</p>
                         </div>
                         <div className={`rounded-2xl border px-4 py-3 ${harnessHealthState.data?.tablesReady ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80'}`}>
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">테이블 준비</p>
                             <p className="mt-1 text-xl font-black text-slate-900">{harnessHealthState.data?.tablesReady ? '완료' : '미확인'}</p>
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">workflow runs</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">처리 기록</p>
                             <p className="mt-1 text-xl font-black text-slate-900">{harnessHealthState.data?.counts.workflowRuns ?? 0}</p>
                         </div>
                         <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">events / approvals</p>
+                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-600">이력 / 승인</p>
                             <p className="mt-1 text-xl font-black text-slate-900">{`${harnessHealthState.data?.counts.workflowEvents ?? 0} / ${harnessHealthState.data?.counts.humanApprovals ?? 0}`}</p>
                         </div>
                     </div>
 
                     {harnessHealthState.status === 'error' ? (
-                        <p className="mt-3 text-xs font-bold text-rose-700">{harnessHealthState.message}</p>
+                        <p className="mt-3 text-xs font-bold text-rose-700">{formatCentralStorageMessage(harnessHealthState.message)}</p>
                     ) : null}
                     {harnessHealthState.data?.warning ? (
-                        <p className="mt-3 text-xs font-bold text-amber-700">{harnessHealthState.data.warning}</p>
+                        <p className="mt-3 text-xs font-bold text-amber-700">{formatCentralStorageMessage(harnessHealthState.data.warning)}</p>
                     ) : null}
                     {harnessHealthState.data?.checkedAt ? (
                         <p className="mt-2 text-[11px] font-semibold text-slate-500">마지막 점검: {new Date(harnessHealthState.data.checkedAt).toLocaleString('ko-KR')}</p>
@@ -1679,9 +1693,9 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">서버 연동 및 데이터 보존 진단 준비</h3>
+                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">중앙 저장소 보존 진단 준비</h3>
                         <p className="mt-1 text-xs sm:text-sm text-slate-500 leading-relaxed">
-                            최근 workflow run 연결 레코드를 기준으로 서버 저장 상태를 즉시 조회해 `직접 조회`, `원본 기록 기준 조회`, `실데이터 미발견` 케이스를 설정 화면에서 바로 분류할 수 있습니다.
+                            최근 처리 번호가 연결된 기록을 기준으로 서버 저장 상태를 즉시 조회해 직접 확인, 원본 기록 기준 확인, 실데이터 미발견 케이스를 설정 화면에서 바로 분류할 수 있습니다.
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">

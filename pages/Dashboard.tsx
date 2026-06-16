@@ -898,9 +898,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         },
         {
             key: 'dashboard-harness-fallback',
-            label: '대체 저장/저장 대기',
+            label: '저장 보완/저장 대기',
             value: `${harnessDashboardSummary.fallback + harnessDashboardSummary.pending}명`,
-            helper: `대체 저장 ${harnessDashboardSummary.fallback}명 · 전송 대기 ${harnessDashboardSummary.pending}명`,
+            helper: `저장 보완 ${harnessDashboardSummary.fallback}명 · 저장 대기 ${harnessDashboardSummary.pending}명`,
             tone: harnessDashboardSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
         },
     ], [harnessDashboardSummary]);
@@ -947,7 +947,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 eyebrow: '시스템 연동률',
                 title: `현재 안전 기록 연동 성공률은 ${coverageRate}%입니다.`,
                 description: harnessDashboardSummary.pending > 0
-                    ? `전송 대기 ${harnessDashboardSummary.pending}명과 대체 저장 ${harnessDashboardSummary.fallback}명을 우선 확인하셔야 안전 이행 추적이 안정됩니다.`
+                    ? `저장 대기 ${harnessDashboardSummary.pending}명과 저장 보완 ${harnessDashboardSummary.fallback}명을 우선 확인하셔야 안전 이행 추적이 안정됩니다.`
                     : '현재 연동 완료된 기록 기준으로 승인 흐름과 보호 상태를 비교적 안정적으로 추적하실 수 있습니다.',
                 tone: coverageRate < 70 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
             },
@@ -958,8 +958,8 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     ? `${topTrade.trade} 공종에서 안전 관리 필요 신호가 가장 많이 감지됩니다.`
                     : '현재 공종별 위험 경보 집중 구간은 크지 않습니다.',
                 description: topTrade
-                    ? `승인 대기 ${topTrade.approval}건 · 즉시 보호 ${topTrade.immediate}건 · 대체 저장 점검 ${topTrade.fallback}건 기준으로 우선순위를 정리하시면 됩니다.`
-                    : '현재는 승인 대기, 즉시 보호, 대체 저장 점검 신호가 특정 공종에 과도하게 몰리지 않았습니다.',
+                    ? `승인 대기 ${topTrade.approval}건 · 즉시 보호 ${topTrade.immediate}건 · 저장 보완 점검 ${topTrade.fallback}건 기준으로 우선순위를 정리하시면 됩니다.`
+                    : '현재는 승인 대기, 즉시 보호, 저장 보완 점검 신호가 특정 공종에 과도하게 몰리지 않았습니다.',
                 tone: topTrade ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
             },
             {
@@ -2367,8 +2367,8 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             case 'fallback-pending':
                 return {
                     headline: '데이터 저장 점검 대상은 연동 환경과 개별 기록 상태를 함께 보셔야 합니다.',
-                    detail: '설정 화면에서 데이터 연동 환경 상태를 먼저 확인하고, 이후 근로자 관리 필터로 실제 대체 저장·대기 기록을 좁히시면 됩니다.',
-                    primaryLabel: '근로자 관리에서 대체 저장 점검 열기',
+                    detail: '설정 화면에서 데이터 연동 환경 상태를 먼저 확인하고, 이후 근로자 관리 필터로 실제 저장 보완·대기 기록을 좁히시면 됩니다.',
+                    primaryLabel: '근로자 관리에서 저장 보완 점검 열기',
                     secondaryLabel: '설정 화면으로 이동',
                     secondaryPage: 'settings',
                 };
@@ -2423,7 +2423,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             : activeHarnessDrilldown.type === 'immediate-attention'
                 ? '즉시 보호 또는 중단 판단이 필요한 최신 대상입니다.'
                 : activeHarnessDrilldown.type === 'fallback-pending'
-                    ? '오프라인 대체 저장 또는 전송 대기 상태의 최신 대상입니다.'
+                    ? '로컬 보관 또는 저장 대기 상태의 최신 대상입니다.'
                     : '선택 공종에서 최근 7일 이행 감사 이벤트가 집중된 최신 대상을 보여드립니다.';
 
         return {
@@ -3378,7 +3378,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         onClick={() => openHarnessOperationalDrilldown('fallback-pending')}
                         className={`rounded-full px-3 py-1.5 text-[11px] font-black transition-colors ${activeHarnessDrilldown?.type === 'fallback-pending' ? 'bg-amber-600 text-white' : 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'}`}
                     >
-                        대체 저장 점검 {harnessDashboardSummary.fallback + harnessDashboardSummary.pending}명
+                        저장 보완 점검 {harnessDashboardSummary.fallback + harnessDashboardSummary.pending}명
                     </button>
                 </div>
 

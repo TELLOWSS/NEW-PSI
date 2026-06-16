@@ -28,7 +28,7 @@ export default async function handler(req: any, res: any) {
             const currentWorkflow = await fetchPersistedHarnessWorkflowStatus(lookupId);
 
             if (payload.workflowRunId && currentWorkflow.persisted && !currentWorkflow.found) {
-                return res.status(404).json({ ok: false, message: '재분석 대상 workflow run을 찾지 못했습니다. 저장 연결 상태를 먼저 확인해 주십시오.' });
+                return res.status(404).json({ ok: false, message: '재분석 대상 처리 기록을 찾지 못했습니다. 저장 연결 상태를 먼저 확인해 주십시오.' });
             }
 
             if (currentWorkflow.found && currentWorkflow.data) {

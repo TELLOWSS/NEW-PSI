@@ -567,9 +567,9 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                             },
                             {
                                 key: 'site-issue-system-fallback',
-                                label: '오프라인 대체 저장',
+                                label: '로컬 보관/저장 대기',
                                 value: `${harnessSummary.fallback + harnessSummary.pending}명`,
-                                helper: `대체 저장 ${harnessSummary.fallback}명 · 전송 대기 ${harnessSummary.pending}명`,
+                                helper: `로컬 보관 ${harnessSummary.fallback}명 · 저장 대기 ${harnessSummary.pending}명`,
                                 tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
                             },
                         ]}
@@ -582,7 +582,7 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                             title={harnessSummary.immediateAttention > 0
                                 ? `즉시 관찰 보호 대상 ${harnessSummary.immediateAttention}명이 있어 지적사항 조치 전에 조치 우선순위를 먼저 확인해야 합니다.`
                                 : harnessSummary.fallback > 0
-                                    ? `안전 기록 대체 저장 ${harnessSummary.fallback}명이 있어 지적사항 조치와 함께 저장 연동 여부도 점검해야 합니다.`
+                                    ? `안전 기록 로컬 보관 ${harnessSummary.fallback}명이 있어 지적사항 조치와 함께 저장 연동 여부도 점검해야 합니다.`
                                     : `검토 대기 항목이 ${harnessSummary.approvalBacklog}명 남아 있어 지적사항 후속 조치 전에 승인 대기 건을 먼저 정리해야 합니다.`}
                             description="현장 지적사항 관리도 안전 기록 승인 및 저장 연동 상태와 함께 읽으면 기록이 단순 지적 목록이 아니라 보호 우선순위 지도처럼 작동합니다."
                             className="rounded-2xl border px-4 py-3"
