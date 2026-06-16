@@ -715,8 +715,11 @@ const resolveNationalityByLanguageCode = (langCode: string): string => {
     return '기타';
 };
 
+const TRAINING_DEMO_SESSION_ID = 'mock-session-id';
+const isTrainingDemoEnabled = import.meta.env.DEV || import.meta.env.VITE_ENABLE_TRAINING_DEMO === 'true';
+
 const MOCK_SESSION_DATA: SessionRow = {
-    id: 'mock-session-id',
+    id: TRAINING_DEMO_SESSION_ID,
     source_text_ko: `[오늘의 TBM 안전 지침]\n1. 고소 작업 시 생명줄 및 안전대 이중 체결 필수\n2. 이동식 사다리 작업 시 2인 1조 작업 및 아웃트리거 설치 확인\n3. 하부 통제구역 설정 및 신호수 배치 상태 점검`,
     audio_urls: {
         'ko-KR': 'mock-audio-ko',
@@ -1143,7 +1146,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             return;
         }
 
-        if (activeSessionId === 'mock-session-id') {
+        if (activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoEnabled) {
             setSessionData(MOCK_SESSION_DATA);
             setHasSessionLoaded(true);
             setLoading(false);
@@ -1192,7 +1195,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
         const handleLoadMockSession = () => {
             setSessionData(MOCK_SESSION_DATA);
             setHasSessionLoaded(true);
-            setActiveSessionId('mock-session-id');
+            setActiveSessionId(TRAINING_DEMO_SESSION_ID);
         };
 
         return (
@@ -1206,16 +1209,18 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                 <p className="mt-2 text-sm font-bold text-slate-600">
                     {t.mobileOnlyDescription}
                 </p>
-                <div className="mt-6 border-t border-slate-100 pt-5">
-                    <p className="text-xs font-bold text-slate-500 mb-3">PC 관제 실무자 테스트 및 화면 미리보기:</p>
-                    <button
-                        type="button"
-                        onClick={handleLoadMockSession}
-                        className="w-full sm:w-auto px-5 py-3 rounded-xl bg-indigo-600 text-white text-sm font-black transition-all hover:bg-indigo-700 hover:-translate-y-0.5 shadow-sm active:translate-y-0"
-                    >
-                        테스트용 데모 세션 로드 (다국어 지원)
-                    </button>
-                </div>
+                {isTrainingDemoEnabled && (
+                    <div className="mt-6 border-t border-slate-100 pt-5">
+                        <p className="text-xs font-bold text-slate-500 mb-3">개발자 화면 미리보기:</p>
+                        <button
+                            type="button"
+                            onClick={handleLoadMockSession}
+                            className="w-full sm:w-auto px-5 py-3 rounded-xl bg-indigo-600 text-white text-sm font-black transition-all hover:bg-indigo-700 hover:-translate-y-0.5 shadow-sm active:translate-y-0"
+                        >
+                            개발용 미리보기 세션 열기
+                        </button>
+                    </div>
+                )}
             </div>
         );
     }
@@ -1259,7 +1264,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             return;
         }
 
-        const isMock = activeSessionId === 'mock-session-id';
+        const isMock = activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoEnabled;
 
         if (!isMock && isLinkMetaMissing) {
             setMessage(t.linkInvalid);
@@ -1408,11 +1413,11 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
         return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{noTrainingDataMessage}</div>;
     }
 
-    if (activeSessionId !== 'mock-session-id' && isLinkMetaMissing) {
+    if (!(activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoEnabled) && isLinkMetaMissing) {
         return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.linkInvalid}</div>;
     }
 
-    if (activeSessionId !== 'mock-session-id' && isLinkExpired) {
+    if (!(activeSessionId === TRAINING_DEMO_SESSION_ID && isTrainingDemoEnabled) && isLinkExpired) {
         return <div className="bg-white p-6 rounded-2xl border border-rose-200 text-rose-700 font-bold">{t.linkExpired}</div>;
     }
 

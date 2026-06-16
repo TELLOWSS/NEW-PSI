@@ -32,11 +32,10 @@ export const MonthlyTrendChart: React.FC<ChartProps> = ({ records }) => {
             return acc;
         }, {} as { [key: string]: { totalScore: number; count: number } });
         
-        // Ensure we have data, otherwise mock a baseline for visualization if empty
+        // 데이터가 없을 때는 가상 추세를 만들지 않고 대기 기준점만 표시합니다.
         let sortedMonths = Object.keys(monthlyData).sort();
         let dataPoints = sortedMonths.map(month => (monthlyData[month].totalScore / monthlyData[month].count));
 
-        // If no data, show placeholder line
         if (sortedMonths.length === 0) {
             const today = new Date();
             sortedMonths = [today.toISOString().substring(0,7)];

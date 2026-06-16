@@ -45,32 +45,6 @@ interface InterventionCoachingProps {
 export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ workerRecords = [] }) => {
   const [handoffPlans, setHandoffPlans] = useState<PredictiveHandoffPlan[]>([]);
   const [focusedPlanKey, setFocusedPlanKey] = useState<string | null>(null);
-  const [mockInterventions, setMockInterventions] = useState<Intervention[]>([
-    {
-      key: 'mock-immediate',
-      priority: 'immediate',
-      title: '장비 안전 점검',
-      reason: '최근 1주일 내 3건의 장비 관련 경고 누적',
-      timescale: '당일 완료',
-      status: 'not-started',
-    },
-    {
-      key: 'mock-medium',
-      priority: 'medium',
-      title: '팀 회의 개최',
-      reason: '팀 내 안전 문화 강화 필요',
-      timescale: '3~7일 내',
-      status: 'not-started',
-    },
-    {
-      key: 'mock-long-term',
-      priority: 'long-term',
-      title: '안전 교육 프로그램',
-      reason: '새로운 공정 도입으로 지식 향상 필요',
-      timescale: '2주 이상',
-      status: 'not-started',
-    },
-  ]);
 
   useEffect(() => {
     const readHandoff = () => {
@@ -142,7 +116,7 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
     }));
   }, [handoffPlans]);
 
-  const interventions = liveInterventions.length > 0 ? liveInterventions : mockInterventions;
+  const interventions = liveInterventions;
 
   useEffect(() => {
     if (!focusedPlanKey) return;
@@ -162,15 +136,6 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
     const nextStatus = getNextStatus(intervention.status);
 
     if (!intervention.key) return;
-
-    if (liveInterventions.length === 0) {
-      setMockInterventions((previous) => previous.map((item) => (
-        item.key === intervention.key
-          ? { ...item, status: nextStatus }
-          : item
-      )));
-      return;
-    }
 
     setHandoffPlans((previous) => {
       const nextPlans = previous.map((plan) =>
@@ -300,7 +265,7 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
         <p className="mt-2 text-[11px] font-bold text-violet-700">
           {liveInterventions.length > 0
             ? `7번 예측 화면에서 전달된 ${liveInterventions.length}건을 우선순위대로 표시합니다.`
-            : '예측 전달 데이터가 없어 기본 개입 템플릿을 표시합니다.'}
+            : '7번 예측 화면에서 우선 개입 대상을 전달하면 이곳에 조치 카드가 생성됩니다.'}
         </p>
 
         {topPriorityIntervention && (
@@ -325,6 +290,14 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
           </div>
         )}
         <div className="mt-6 space-y-4">
+          {interventions.length === 0 && (
+            <div className="rounded-xl border border-dashed border-violet-200 bg-white/70 px-4 py-5 text-center">
+              <p className="text-sm font-black text-slate-800">예측 전달 대기 중</p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                선행 위험신호 화면에서 우선 개입 대상을 선택하면 담당자, 기한, 조치 카드가 이곳에 표시됩니다.
+              </p>
+            </div>
+          )}
           {interventions.map((intervention, idx) => (
             <div
               key={intervention.key || idx}

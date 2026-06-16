@@ -327,7 +327,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
         { title: '8. 더보기', desc: '리포트/설정/검증', page: 'reports' },
     ]), [previewMetrics]);
 
-    const mobileFeatureChecklist = useMemo<Array<{ title: string; feature: string; state: '연결됨' | '검증필요'; dataState: '데이터확인' | '샘플표시'; page: Page }>>(() => {
+    const mobileFeatureChecklist = useMemo<Array<{ title: string; feature: string; state: '연결됨' | '검증필요'; dataState: '데이터확인' | '데이터대기'; page: Page }>>(() => {
         const labels: Array<{ title: string; feature: string; page: Page; dataCount: number }> = [
             { title: '1. 홈 대시보드', feature: '위험 분포/KPI 요약', page: 'dashboard', dataCount: previewMetrics.totalWorkers },
             { title: '2. 경보 알림', feature: '전조 알림 우선 대응', page: 'site-issue-management', dataCount: previewMetrics.alertSignals },
@@ -350,7 +350,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
             feature: item.feature,
             page: item.page,
             state: availablePages.has(item.page) ? '연결됨' : '검증필요',
-            dataState: item.dataCount > 0 ? '데이터확인' : '샘플표시',
+            dataState: item.dataCount > 0 ? '데이터확인' : '데이터대기',
         }));
     }, [mobileFlowCards, previewMetrics]);
 
@@ -1087,7 +1087,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                         {mobileFeatureValidation.hasWarnings ? (
                                             <div className={`mb-2 rounded-xl border px-2.5 py-2 ${BRAND_TONE.amber}`}>
                                                 <p className="text-[9px] font-black text-amber-700">QA 경보 모드 · 검증 필요 {mobileFeatureValidation.warnItems}건</p>
-                                                <p className="mt-0.5 text-[8px] font-semibold text-amber-700/90">샘플 데이터 또는 미연결 항목이 있어 런타임 점검이 필요합니다.</p>
+                                                <p className="mt-0.5 text-[8px] font-semibold text-amber-700/90">현장 데이터 대기 또는 미연결 항목이 있어 런타임 점검이 필요합니다.</p>
                                                 <p className="mt-1 text-[8px] font-semibold text-amber-800/90">
                                                     경고 항목 카드를 누르면 해당 기능 화면으로 바로 이동합니다.
                                                 </p>

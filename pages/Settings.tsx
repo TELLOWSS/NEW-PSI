@@ -2099,7 +2099,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                         <span className="text-sm font-bold text-slate-700">전송 시 현장/시간/버전 메타데이터 포함</span>
                     </label>
                     <p className="text-xs text-slate-500 mt-3 leading-relaxed">
-                        비워두면 피드백 탭은 데모 모드(시뮬레이션)로 동작합니다. URL을 입력하면 실제 전송을 시도하고,
+                        비워두면 피드백 탭은 미전송 보관 모드로 동작합니다. URL을 입력하면 실제 전송을 시도하고,
                         실패 시 로컬 Outbox에 자동 보관됩니다.
                     </p>
                 </div>

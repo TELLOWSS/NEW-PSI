@@ -35,25 +35,27 @@ export const WeaknessPieChart: React.FC<ChartProps> = ({ records }) => {
             return acc;
         }, {} as { [key: string]: number });
         
-        if (Object.keys(weaknessCounts).length === 0) {
-            // Add some mock data if no real data is available
-            Object.assign(weaknessCounts, {
-                '기계안전': 3,
-                '화재예방': 2,
-                '고소작업': 5,
-                '기타': 8,
-            });
-        }
-
-        const labels = Object.keys(weaknessCounts);
-        const data = Object.values(weaknessCounts);
-        
         if (chartInstance.current) {
             chartInstance.current.destroy();
+            chartInstance.current = null;
         }
 
         const ctx = chartRef.current.getContext('2d');
         if (!ctx) return;
+
+        if (Object.keys(weaknessCounts).length === 0) {
+            ctx.clearRect(0, 0, chartRef.current.width, chartRef.current.height);
+            ctx.save();
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = "700 13px 'Noto Sans KR', sans-serif";
+            ctx.textAlign = 'center';
+            ctx.fillText('취약 분야 데이터 대기 중', chartRef.current.width / 2, chartRef.current.height / 2);
+            ctx.restore();
+            return;
+        }
+
+        const labels = Object.keys(weaknessCounts);
+        const data = Object.values(weaknessCounts);
 
             try {
                 chartInstance.current = new ChartLib(ctx, {
