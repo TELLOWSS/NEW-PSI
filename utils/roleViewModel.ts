@@ -317,7 +317,7 @@ export const buildDashboardSummaryCards = (options: {
                 eyebrow: '승인·보류 상태',
                 title: `${harnessSummary.approvalBacklog}명 승인 대기 · ${harnessSummary.immediateAttention}명 즉시 확인 필요`,
                 description: harnessSummary.fallback > 0
-                    ? `${harnessSummary.fallback}명은 persistence 폴백 상태이므로 저장 연결과 보호 해석을 함께 확인해야 합니다.`
+                    ? `${harnessSummary.fallback}명은 저장 연결 보완 상태이므로 저장 연결과 보호 해석을 함께 확인해야 합니다.`
                     : '승인 백로그와 즉시 확인 대상을 함께 보면 관리자 처리 순서를 하루 단위로 고정하기 쉽습니다.',
                 tone: harnessSummary.approvalBacklog > 0 || harnessSummary.immediateAttention > 0
                     ? BRAND_TONE.violetSoft80
@@ -355,7 +355,7 @@ export const buildDashboardSummaryCards = (options: {
             eyebrow: '하네스 백로그',
             title: `${harnessSummary.approvalBacklog}명 승인 대기 · ${harnessSummary.immediateAttention}명 즉시 보호 대상`,
             description: harnessSummary.fallback > 0
-                ? `${harnessSummary.fallback}명은 persistence 폴백 상태입니다. 보호 해석은 유지되지만 저장 연결 여부를 함께 확인해야 합니다.`
+                ? `${harnessSummary.fallback}명은 저장 연결 보완 상태입니다. 보호 해석은 유지되지만 저장 연결 여부를 함께 확인해야 합니다.`
                 : '대시보드에서도 승인 백로그와 즉시 보호 대상을 함께 읽어 보고서·OCR·관리자 검토 우선순위를 바로 정할 수 있습니다.',
             tone: harnessSummary.approvalBacklog > 0 || harnessSummary.immediateAttention > 0
                 ? BRAND_TONE.violetSoft80
@@ -696,7 +696,7 @@ export const buildReportsSummaryCards = (options: {
             eyebrow: '하네스 커버리지',
             title: `${harnessSummary.connected}건은 저장 연결, ${harnessSummary.reviewNeeded}건은 추가 보호 판단이 필요합니다.`,
             description: harnessSummary.fallback > 0
-                ? `현재 ${harnessSummary.fallback}건은 persistence 폴백 상태입니다. 보고서 해석은 유지되지만 저장 연결 상태를 함께 읽어야 합니다.`
+                ? `현재 ${harnessSummary.fallback}건은 저장 연결 보완 상태입니다. 보고서 해석은 유지되지만 저장 연결 상태를 함께 읽어야 합니다.`
                 : '보고서 대상마다 하네스 워크플로우·위험·승인 상태를 함께 읽을 수 있어 설명보다 보호 조치를 먼저 정리할 수 있습니다.',
             tone: harnessSummary.fallback > 0 ? BRAND_TONE.amberSoft80 : BRAND_TONE.violetSoft80,
         },
@@ -785,7 +785,7 @@ export const buildFieldHubSummaryCards = (options: {
             eyebrow: '하네스 우선순위',
             title: `${harnessSummary.approvalBacklog}명 승인 대기 · ${harnessSummary.immediateAttention}명 즉시 보호 대상`,
             description: harnessSummary.fallback > 0
-                ? `${harnessSummary.fallback}명은 persistence 폴백 상태입니다. 현장 조치는 계속하되 저장 연결 여부를 함께 점검해야 합니다.`
+                ? `${harnessSummary.fallback}명은 저장 연결 보완 상태입니다. 현장 조치는 계속하되 저장 연결 여부를 함께 점검해야 합니다.`
                 : '현장 안전이행 허브에서도 승인 백로그와 즉시 보호 대상을 함께 읽어 위험성평가, 코칭, 지적, 종합판정을 같은 보호 흐름으로 묶을 수 있습니다.',
             tone: harnessSummary.approvalBacklog > 0 || harnessSummary.immediateAttention > 0 ? BRAND_TONE.violetSoft80 : BRAND_TONE.slate,
         },
@@ -902,7 +902,7 @@ export const buildWorkerRegisteredCards = (options: {
             title: `최신 리포트 연결 ${harnessSummary.linkedReport}명 중 ${harnessSummary.reviewNeeded}명은 추가 보호 판단이 필요합니다.`,
             description:
                 harnessSummary.fallback > 0
-                    ? `하네스 저장 폴백 ${harnessSummary.fallback}명, 저장 대기 ${harnessSummary.pending}명입니다. 등록 정보 정리와 함께 저장 연결 상태를 다시 확인해야 합니다.`
+                    ? `하네스 저장 연결 보완 ${harnessSummary.fallback}명, 저장 대기 ${harnessSummary.pending}명입니다. 등록 정보 정리와 함께 저장 연결 상태를 다시 확인해야 합니다.`
                     : `즉시 보호 대상 ${harnessSummary.highRisk}명, 최신 리포트 미연결 ${harnessSummary.missingReport}명입니다.`,
             tone: BRAND_TONE.violetSoft80,
         },

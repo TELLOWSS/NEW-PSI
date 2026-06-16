@@ -1576,9 +1576,9 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[]; wo
                                 },
                                 {
                                     key: 'review-harness-fallback',
-                                    label: '폴백/저장 대기',
+                                    label: '저장 보완/대기',
                                     value: `${reviewHarnessSummary.fallback + reviewHarnessSummary.pending}명`,
-                                    helper: `폴백 ${reviewHarnessSummary.fallback}명 · 저장 대기 ${reviewHarnessSummary.pending}명`,
+                                    helper: `저장 보완 ${reviewHarnessSummary.fallback}명 · 저장 대기 ${reviewHarnessSummary.pending}명`,
                                     tone: reviewHarnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
                                 },
                             ]}
@@ -1592,7 +1592,7 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[]; wo
                                 title={reviewHarnessSummary.immediateAttention > 0
                                     ? `즉시 관찰 보호 대상 ${reviewHarnessSummary.immediateAttention}명이 있어 종합판정 전 설명·보완 우선순위를 먼저 확인해야 합니다.`
                                     : reviewHarnessSummary.fallback > 0
-                                        ? `persistence 폴백 ${reviewHarnessSummary.fallback}명이 있어 저장 연결 상태를 함께 읽어야 합니다.`
+                                        ? `저장 연결 보완 ${reviewHarnessSummary.fallback}명이 있어 저장 연결 상태를 함께 읽어야 합니다.`
                                         : `검토 대기 항목이 ${reviewHarnessSummary.approvalBacklog}명이 남아 있어 종합판정 전에 결재 검토 순서를 정리해야 합니다.`}
                                 description="행동 무결성 판정 결과를 단독 점수로 보지 않고 안전 기록 승인·저장 상태와 함께 읽으면 실제 현장 보호 흐름이 더 선명해집니다."
                                 className="rounded-2xl border px-4 py-3"
@@ -1779,7 +1779,7 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
                         <p className="text-sm font-black text-rose-300">{harnessSummary.immediateAttention}</p>
                     </div>
                     <div className="rounded-lg bg-slate-900 px-2 py-2">
-                        <p className="text-[10px] text-slate-400">폴백/대기</p>
+                        <p className="text-[10px] text-slate-400">저장 보완/대기</p>
                         <p className="text-sm font-black text-amber-300">{harnessSummary.fallback + harnessSummary.pending}</p>
                     </div>
                 </div>
@@ -1858,9 +1858,9 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
                             },
                             {
                                 key: 'hub-harness-fallback',
-                                label: '폴백/저장 대기',
+                                label: '저장 보완/대기',
                                 value: `${harnessSummary.fallback + harnessSummary.pending}명`,
-                                helper: `폴백 ${harnessSummary.fallback}명 · 저장 대기 ${harnessSummary.pending}명`,
+                                helper: `저장 보완 ${harnessSummary.fallback}명 · 저장 대기 ${harnessSummary.pending}명`,
                                 tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
                             },
                         ]}
@@ -1874,7 +1874,7 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
                             title={harnessSummary.immediateAttention > 0
                                 ? `즉시 관찰 보호 대상 ${harnessSummary.immediateAttention}명이 있어 이행점검·코칭·지적 등록보다 먼저 보호 설명 순서를 정해야 합니다.`
                                 : harnessSummary.fallback > 0
-                                    ? `안전 기록 저장 폴백 ${harnessSummary.fallback}명이 있어 저장 연결 여부를 함께 점검해야 합니다.`
+                                    ? `안전 기록 저장 연결 보완 ${harnessSummary.fallback}명이 있어 저장 연결 여부를 함께 점검해야 합니다.`
                                     : `검토 대기 항목이 ${harnessSummary.approvalBacklog}명이 남아 있어 종합판정 전 결재 검토 순서를 먼저 정리해야 합니다.`}
                             description="허브 화면에서 안전 기록 우선순위를 먼저 읽으면 탭별 입력이 단편 기록이 아니라 실제 보호 처리 흐름으로 이어집니다."
                             className="rounded-2xl border px-4 py-3"

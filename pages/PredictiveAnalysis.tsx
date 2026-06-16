@@ -845,9 +845,9 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
         },
         {
             key: 'predictive-harness-fallback',
-            label: '폴백·저장 대기',
+            label: '저장 보완·대기',
             value: `${harnessSummary.fallback + harnessSummary.pending}명`,
-            helper: `폴백 ${harnessSummary.fallback}명 · 대기 ${harnessSummary.pending}명`,
+            helper: `저장 보완 ${harnessSummary.fallback}명 · 대기 ${harnessSummary.pending}명`,
             tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
             labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-500'}`,
             helperClassName: `mt-1 text-xs font-bold ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-600'}`,
@@ -1701,7 +1701,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                         { label: uiAudienceMode === 'developer' ? '연결' : '기록 연동', value: harnessSummary.connected, tone: 'text-indigo-300', visible: true },
                         { label: uiAudienceMode === 'developer' ? '즉시' : '즉시 보호', value: harnessSummary.immediateAttention, tone: harnessSummary.immediateAttention > 0 ? 'text-rose-300' : 'text-slate-400', visible: true },
                         { label: uiAudienceMode === 'developer' ? '백로그' : '결재 대기', value: harnessSummary.approvalBacklog, tone: harnessSummary.approvalBacklog > 0 ? 'text-amber-300' : 'text-slate-400', visible: true },
-                        { label: '폴백', value: harnessSummary.fallback + harnessSummary.pending, tone: 'text-slate-400', visible: uiAudienceMode === 'developer' },
+                        { label: '저장 보완', value: harnessSummary.fallback + harnessSummary.pending, tone: 'text-slate-400', visible: uiAudienceMode === 'developer' },
                     ].filter(chip => chip.visible).map((chip) => (
                         <div key={chip.label} className="rounded-xl border border-slate-700 bg-slate-900/60 px-1.5 py-2 text-center">
                             <p className="text-[9px] font-black text-slate-500">{chip.label}</p>

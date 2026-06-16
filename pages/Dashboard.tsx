@@ -3256,7 +3256,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     title={harnessDashboardSummary.immediateAttention > 0
                         ? `즉시 보호 대상 ${harnessDashboardSummary.immediateAttention}명이 있어 승인·보완 우선순위를 먼저 정해야 합니다.`
                         : harnessDashboardSummary.fallback > 0
-                            ? `안전 기록 저장 폴백 ${harnessDashboardSummary.fallback}명이 있어 저장 연결 여부를 함께 점검해야 합니다.`
+                            ? `안전 기록 저장 연결 보완 ${harnessDashboardSummary.fallback}명이 있어 저장 연결 여부를 함께 점검해야 합니다.`
                             : `승인 백로그 ${harnessDashboardSummary.approvalBacklog}명이 남아 있어 관리자 검토 순서를 먼저 정리해야 합니다.`}
                     description={harnessDashboardSummary.fallback > 0
                         ? '대시보드 단계에서 백로그를 읽고 OCR 분석, 리포트, 관리자 검토로 이어가면 보호 흐름이 끊기지 않습니다.'

@@ -1182,9 +1182,9 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         },
         {
             key: 'settings-harness-fallback',
-            label: '폴백·저장 대기',
+            label: '저장 보완·대기',
             value: `${harnessSummary.fallback + harnessSummary.pending}명`,
-            helper: `폴백 ${harnessSummary.fallback}명 · 대기 ${harnessSummary.pending}명`,
+            helper: `저장 보완 ${harnessSummary.fallback}명 · 대기 ${harnessSummary.pending}명`,
             tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
             labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-500'}`,
             helperClassName: `mt-1 text-xs font-bold ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-600'}`,

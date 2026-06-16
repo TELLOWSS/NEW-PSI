@@ -58,11 +58,13 @@
   - 운영 환경에서 가짜 연결 또는 가짜 데이터처럼 보이는 흐름 제거
   - 피드백 화면의 `시뮬레이션`, `프로토타입`, `Outbox`, `임시 저장` 표현을 운영형 보관 언어로 정리
 
-## 2-2. 현재 진행 중
+## 2-2. 클리어 완료
 
-- [ ] 저장 연결 상태 용어 2차 정리
+- [x] 저장 연결 상태 용어 2차 정리
   - `폴백`, `persistence`처럼 개발자에게는 정확하지만 현장 관리자에게 어려운 표현을 화면별로 구분
-  - 개발자 화면에는 유지하고, 일반 운영 화면에는 `저장 연결 보완`, `저장 대기` 중심으로 전환
+  - 일반 운영 화면에는 `저장 연결 보완`, `저장 보완/대기`, `로컬 보관` 중심으로 전환
+  - OCR 고급 진단 화면에는 기능 의미를 유지하되 `브라우저 대체 분석`, `대체 분석 회복률`처럼 관리자가 읽기 쉬운 용어로 정리
+  - 주석과 내부 유틸의 기술 용어는 운영 화면 신뢰도에 직접 영향을 주지 않는 범위에서 유지
 
 ## 3. 다음 대기 항목
 
@@ -80,6 +82,8 @@
 
 ## 4. 최신 반영 커밋
 
+- `633dc1a` refine feedback storage wording
+- `6a40880` track reinforcement progress and remove demo survey data
 - `e53168b` hide demo-only production surfaces
 - `e128153` refine operational identity wording
 - `4d25943` refine csv and admin identity wording

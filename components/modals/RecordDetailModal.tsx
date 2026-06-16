@@ -2339,7 +2339,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                             <StatusBadge variant={getHarnessApprovalBadgeVariant(record.approvalState || inferHarnessApprovalState(record, record.workflowState || inferHarnessWorkflowState(record)))}>{getHarnessApprovalStateLabel(record.approvalState || inferHarnessApprovalState(record, record.workflowState || inferHarnessWorkflowState(record)))}</StatusBadge>
                                                             {record.workflowRunId ? <StatusBadge variant="slateSoft">런 ID 연결됨</StatusBadge> : <StatusBadge variant="amberSoft">런 ID 대기</StatusBadge>}
                                                             {isHarnessPersisted === true && <StatusBadge variant="emeraldSoft">영속 저장 확인</StatusBadge>}
-                                                            {isHarnessPersisted === false && <StatusBadge variant="amberSoft">영속 저장 폴백</StatusBadge>}
+                                                            {isHarnessPersisted === false && <StatusBadge variant="amberSoft">저장 연결 보완</StatusBadge>}
                                                             {harnessDiagnostics?.found === false && isHarnessPersisted === true && <StatusBadge variant="amberSoft">실데이터 미발견</StatusBadge>}
                                                             {harnessDiagnostics?.resolvedBy === 'source_record_id' && <StatusBadge variant="violetSoft">원본 레코드 기준 조회</StatusBadge>}
                                                         </div>
@@ -2908,7 +2908,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 {
                                                     key: 'native-guidance-status',
                                                     label: '모국어 안내 상태',
-                                                    value: String(record.aiInsights_native || '').trim() ? '추출 완료' : '폴백 표시 중',
+                                                    value: String(record.aiInsights_native || '').trim() ? '추출 완료' : '보완 표시 중',
                                                     tone: String(record.aiInsights_native || '').trim() ? BRAND_TONE.emerald : BRAND_TONE.amber,
                                                     labelClassName: String(record.aiInsights_native || '').trim() ? 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500' : 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-500',
                                                     valueClassName: String(record.aiInsights_native || '').trim() ? 'mt-1 text-xs font-black text-emerald-700' : 'mt-1 text-xs font-black text-amber-700',

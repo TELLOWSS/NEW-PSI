@@ -425,9 +425,9 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
         if (isDev) {
             metrics.push({
                 key: 'performance-harness-fallback',
-                label: '폴백·저장 대기',
+                label: '저장 보완·대기',
                 value: `${harnessSummary.fallback + harnessSummary.pending}명`,
-                helper: `폴백 ${harnessSummary.fallback}명 · 대기 ${harnessSummary.pending}명`,
+                helper: `저장 보완 ${harnessSummary.fallback}명 · 대기 ${harnessSummary.pending}명`,
                 tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80 dark:border-amber-700 dark:bg-amber-900/30' : 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800',
                 labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.fallback > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-slate-500 dark:text-slate-300'}`,
                 helperClassName: `mt-1 text-xs font-bold ${harnessSummary.fallback > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-slate-600 dark:text-slate-300'}`,
@@ -526,7 +526,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                     title={harnessSummary.immediateAttention > 0
                         ? `성과 해석 전에 즉시 관찰 보호 대상 ${harnessSummary.immediateAttention}명을 먼저 조치해야 합니다.`
                         : (uiAudienceMode === 'developer' && harnessSummary.fallback > 0)
-                            ? `안전 기록 저장 폴백 ${harnessSummary.fallback}명이 있어 성과 데이터와 저장 연결 상태를 함께 확인해야 합니다.`
+                            ? `안전 기록 저장 연결 보완 ${harnessSummary.fallback}명이 있어 성과 데이터와 저장 연결 상태를 함께 확인해야 합니다.`
                             : `결재 대기 항목이 ${harnessSummary.approvalBacklog}명이 남아 있어 점수 비교 전에 결재 검토 순서를 먼저 정리해야 합니다.`}
                     description={uiAudienceMode === 'developer'
                         ? "성과 분석은 추세를 읽는 화면이지만, 현재 보호 흐름이 끊긴 인원이 있으면 평균과 변동성보다 먼저 안전 기록 승인·저장 상태를 확인해야 운영 판단이 어긋나지 않습니다."

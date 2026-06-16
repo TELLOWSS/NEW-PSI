@@ -197,7 +197,7 @@ const getFailureCodeTone = (code: OcrFailureCode): string => {
 const getFailureCodeAction = (code: OcrFailureCode): string => {
     switch (code) {
         case 'QUOTA':
-            return '호출량 급증 여부를 확인하고 냉각 후 재분석하거나 브라우저 폴백 성공률을 먼저 확인하세요.';
+            return '호출량 급증 여부를 확인하고 냉각 후 재분석하거나 브라우저 대체 분석 성공률을 먼저 확인하세요.';
         case 'KEY':
             return '서버 API 키와 권한, 배포 환경변수 누락 여부를 가장 먼저 확인하세요.';
         case 'FORMAT':
@@ -207,7 +207,7 @@ const getFailureCodeAction = (code: OcrFailureCode): string => {
         case 'PAYLOAD':
             return 'Base64 손상, 이미지 누락, 용량 초과 여부를 먼저 확인하세요.';
         case 'NETWORK':
-            return '서버 지연 또는 업스트림 연결 문제 가능성이 높으니 네트워크 상태와 브라우저 폴백 경로를 확인하세요.';
+            return '서버 지연 또는 업스트림 연결 문제 가능성이 높으니 네트워크 상태와 브라우저 대체 분석 경로를 확인하세요.';
         default:
             return '동일 코드 반복 여부와 최근 배포 변경점을 함께 확인하세요.';
     }
@@ -1234,7 +1234,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             stage: 'validation',
                             timestamp: new Date().toISOString(),
                             actor: 'psi-harness',
-                            note: `Harness 분석 폴백: ${harness.persistence.warning}`,
+                            note: `Harness 분석 저장 보완: ${harness.persistence.warning}`,
                         },
                     ]
                     : record.auditTrail,
@@ -1285,7 +1285,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             stage: 'reassessment',
                             timestamp: new Date().toISOString(),
                             actor: 'psi-harness',
-                            note: `Harness 재분석 폴백: ${harness.persistence.warning}`,
+                            note: `Harness 재분석 저장 보완: ${harness.persistence.warning}`,
                         },
                     ]
                     : record.auditTrail,
@@ -1917,27 +1917,27 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         if (fallbackOpportunity <= 0) {
             return {
                 className: 'bg-slate-100 text-slate-700 border border-slate-200',
-                text: '폴백 상태: 집계 대기',
+                text: '대체 분석 상태: 집계 대기',
             };
         }
 
         if (fallbackRecoveryRate < 30) {
             return {
                 className: 'bg-rose-100 text-rose-700 border border-rose-200',
-                text: '폴백 상태: 위험',
+                text: '대체 분석 상태: 위험',
             };
         }
 
         if (fallbackRecoveryRate < 70) {
             return {
                 className: 'bg-amber-100 text-amber-700 border border-amber-200',
-                text: '폴백 상태: 주의',
+                text: '대체 분석 상태: 주의',
             };
         }
 
         return {
             className: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
-            text: '폴백 상태: 안정',
+            text: '대체 분석 상태: 안정',
         };
     }, [retryDiagnostics, fallbackRecoveryRate]);
 
@@ -3372,7 +3372,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         try {
                             const modeLabel = forceReanalyze ? '[강제 모드]' : '';
                             const quotaHint = quotaRecoveryTime > 0
-                                ? ` (브라우저 폴백 대기 ${quotaRecoveryTime}초)`
+                                ? ` (브라우저 대체 분석 대기 ${quotaRecoveryTime}초)`
                                 : '';
                             setProgress(`${modeLabel} [${title}] ${record.name || '미상'} 서버 OCR 재분석 요청 중...${quotaHint}`);
 
@@ -3449,12 +3449,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 }
 
                                 const modeLabel = forceReanalyze ? '[강제 모드]' : '';
-                                setProgress(`${modeLabel} [${title}] ${record.name || '미상'} 브라우저 OCR 폴백 실행 중...`);
+                                setProgress(`${modeLabel} [${title}] ${record.name || '미상'} 브라우저 OCR 대체 분석 실행 중...`);
                                 const fallbackQuotaState = getQuotaState();
                                 const fallbackRecoverySeconds = fallbackQuotaState.isExhausted
                                     ? Math.ceil((fallbackQuotaState.nextRetryTime - Date.now()) / 1000)
                                     : 0;
-                                // 서버 키/권한 실패 경로에서는 브라우저 쿼터 잠금 상태를 우회해 실제 폴백 가능 여부를 확인한다.
+                                // 서버 키/권한 실패 경로에서는 브라우저 쿼터 잠금 상태를 우회해 실제 대체 분석 가능 여부를 확인한다.
                                 if (isServerCredentialCode) {
                                     clearQuotaState();
                                 }
@@ -3591,7 +3591,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     stage: 'reassessment',
                                     timestamp: new Date().toISOString(),
                                     actor: 'manager',
-                                    note: `OCR 재분석 성공 (${previousErrorLabel}) | ${usedClientFallback ? '브라우저 폴백' : '서버 성공'}${unknownSubCategory ? ` | UNKNOWN[${unknownSubCategory}]` : ''}${serverFailureHint}`,
+                                    note: `OCR 재분석 성공 (${previousErrorLabel}) | ${usedClientFallback ? '브라우저 대체 분석' : '서버 성공'}${unknownSubCategory ? ` | UNKNOWN[${unknownSubCategory}]` : ''}${serverFailureHint}`,
                                 },
                             ],
                             secondPassStatus: apiResultFailed ? 'NEEDED' : 'DONE',
@@ -3866,7 +3866,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             const fallbackRecoveryState = fallbackOpportunity <= 0
                 ? '집계 대기'
                 : (Number(fallbackRecoveryRateText.replace('%', '')) < 30 ? '위험' : Number(fallbackRecoveryRateText.replace('%', '')) < 70 ? '주의' : '안정');
-            const reasonsReport = `\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 폴백 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}\n- KEY/권한 실패: ${keyFailureCount}\n- 폴백 회복률: ${fallbackRecoveryRateText} (${fallbackRecoveryState})${keyFailureAbortTriggered ? `\n- 자동중단: KEY 연속 실패 ${consecutiveKeyFailureCount}건` : ''}${lastUnhandledBatchErrorMessage ? `\n- 전역중단코드: ${lastUnhandledBatchErrorCode || 'UNKNOWN'}\n- 전역중단메시지: ${lastUnhandledBatchErrorMessage.slice(0, 140)}` : ''}`;
+            const reasonsReport = `\n[원인 집계]\n- 서버 성공: ${serverSuccessCount}\n- 브라우저 대체 분석 성공: ${clientFallbackSuccessCount}\n- 사전 검증 실패: ${preflightFailCount}\n- OCR 처리 실패: ${processingFailCount}\n- 서버 라우트 실패: ${serverRouteFailCount}\n- KEY/권한 실패: ${keyFailureCount}\n- 대체 분석 회복률: ${fallbackRecoveryRateText} (${fallbackRecoveryState})${keyFailureAbortTriggered ? `\n- 자동중단: KEY 연속 실패 ${consecutiveKeyFailureCount}건` : ''}${lastUnhandledBatchErrorMessage ? `\n- 전역중단코드: ${lastUnhandledBatchErrorCode || 'UNKNOWN'}\n- 전역중단메시지: ${lastUnhandledBatchErrorMessage.slice(0, 140)}` : ''}`;
             
             if (stopped) {
                 alert(`${modeLabel} 분석이 중단되었습니다.\n(완료: ${successCount}, ${BRAND_STATUS_LABELS.attentionPending}: ${failCount})${reasonsReport}`);
@@ -4426,7 +4426,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 '- 1) 최근 24h QUOTA 급증 여부 확인',
                 '- 2) 5분 냉각 후 단건 재시도로 정상 복구 확인',
                 '- 3) 대량 재분석은 배치 간격을 늘려 분산 실행',
-                '- 4) 필요 시 브라우저 폴백/서버 체인 전략 점검',
+                '- 4) 필요 시 브라우저 대체 분석/서버 체인 전략 점검',
             ].join('\n');
         } else {
             checklist = [
@@ -5002,7 +5002,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 },
                                 {
                                     key: 'retry-fallback-success',
-                                    label: '폴백 성공',
+                                    label: '대체 성공',
                                     value: retryDiagnostics.clientFallbackSuccess,
                                     tone: BRAND_TONE.darkCyan,
                                     labelClassName: 'text-[10px] font-black uppercase tracking-widest text-cyan-300',
@@ -5258,7 +5258,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 eyebrow: isDevMode ? '이행 검증 상태' : 'OCR 처리 상태',
                                 title: `${failedHarnessSummary.pendingApprovalCount}건이 관리자 판단 또는 승인 대기입니다`,
                                 description: isDevMode
-                                    ? `실패 건 중 ${failedHarnessSummary.manualReviewCount}건은 수동 검토 흐름으로 묶여 있으며, ${failedHarnessSummary.immediateAttentionCount}건은 즉시 확인 우선 대상입니다. 저장 연결 ${failedHarnessSummary.connectedCount}건 · 폴백 ${failedHarnessSummary.fallbackCount}건 · 대기 ${failedHarnessSummary.pendingPersistenceCount}건입니다.`
+                                    ? `실패 건 중 ${failedHarnessSummary.manualReviewCount}건은 수동 검토 흐름으로 묶여 있으며, ${failedHarnessSummary.immediateAttentionCount}건은 즉시 확인 우선 대상입니다. 저장 연결 ${failedHarnessSummary.connectedCount}건 · 저장 보완 ${failedHarnessSummary.fallbackCount}건 · 대기 ${failedHarnessSummary.pendingPersistenceCount}건입니다.`
                                     : `실패 건 중 ${failedHarnessSummary.manualReviewCount}건은 수동 확인이 필요하며, ${failedHarnessSummary.immediateAttentionCount}건은 즉시 조치가 우선입니다.`,
                                 tone: BRAND_TONE.slateWhite,
                             },
@@ -6039,7 +6039,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             <CollapsibleSection
                 title="🔍 운영 탐색 및 우선순위 정리 (검색·필터 및 통계 분석)"
                 defaultOpen={false}
-                summary={<span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2.5 py-0.5 text-[11px] font-black text-slate-700 dark:text-slate-200">폴백 회복률 {fallbackRecoveryRate}% · 재분석 {secondPassTargets.length}건</span>}
+                summary={<span className="rounded-full bg-slate-100 dark:bg-slate-700 px-2.5 py-0.5 text-[11px] font-black text-slate-700 dark:text-slate-200">대체 분석 회복률 {fallbackRecoveryRate}% · 재분석 {secondPassTargets.length}건</span>}
             >
                 <div className="pt-4">
                     <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 flex flex-col gap-5 no-print">
@@ -6053,7 +6053,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 {fallbackRecoveryBadge.text}
                             </span>
                             <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-black text-slate-700">
-                                폴백 회복률 {fallbackRecoveryRate}%
+                                대체 분석 회복률 {fallbackRecoveryRate}%
                             </span>
                         </div>
                         )}
@@ -6796,7 +6796,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         },
                                         {
                                             key: 'retry-browser-fallback',
-                                            label: '브라우저 폴백',
+                                            label: '브라우저 대체 분석',
                                             value: retryDiagnostics.clientFallbackSuccess,
                                             tone: '',
                                             labelClassName: 'text-[11px] font-bold text-slate-600',
@@ -6820,7 +6820,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                         },
                                         {
                                             key: 'retry-fallback-recovery-rate',
-                                            label: '폴백 회복률',
+                                            label: '대체 분석 회복률',
                                             value: `${fallbackRecoveryRate}%`,
                                             tone: fallbackRecoveryMeta.tone,
                                             labelClassName: fallbackRecoveryMeta.labelClassName,

@@ -4706,7 +4706,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             key: 'registered-workers-harness-attention',
                             label: '보호 재확인',
                             value: `${registeredWorkerHarnessSummary.reviewNeeded + registeredWorkerHarnessSummary.highRisk}명`,
-                            helper: `즉시 보호 ${registeredWorkerHarnessSummary.highRisk}명 · 폴백 ${registeredWorkerHarnessSummary.fallback}명`,
+                            helper: `즉시 보호 ${registeredWorkerHarnessSummary.highRisk}명 · 저장 보완 ${registeredWorkerHarnessSummary.fallback}명`,
                             tone: registeredWorkerHarnessSummary.highRisk > 0 ? BRAND_TONE.rose : BRAND_TONE.violet,
                             labelClassName: `text-[10px] font-black ${registeredWorkerHarnessSummary.highRisk > 0 ? 'text-rose-600' : 'text-violet-600'}`,
                             valueClassName: `mt-1 text-lg font-black ${registeredWorkerHarnessSummary.highRisk > 0 ? 'text-rose-900' : 'text-violet-900'}`,
@@ -4719,7 +4719,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         variant="amber"
                         className="mt-3 rounded-xl px-3 py-2"
                         eyebrow="근로자 기록 저장 상태"
-                        title={`현재 등록 근로자 범위에서 ${registeredWorkerHarnessSummary.fallback}명은 영속 저장 폴백 상태입니다.`}
+                        title={`현재 등록 근로자 범위에서 ${registeredWorkerHarnessSummary.fallback}명은 저장 연결 보완 상태입니다.`}
                         description="문자 발송과 리포트 연결은 유지되지만, 처리 번호 저장 여부를 다시 확인한 뒤 운영 판단을 이어가야 합니다."
                     />
                 )}

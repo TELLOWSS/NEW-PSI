@@ -102,7 +102,7 @@ const getHarnessPersistenceState = (record: Partial<WorkerRecord>): HarnessPersi
 const getHarnessPersistenceLabel = (state: HarnessPersistenceState): string => {
     switch (state) {
         case 'connected': return '저장 연결됨';
-        case 'fallback': return '폴백 동작중';
+        case 'fallback': return '로컬 보관중';
         default: return '저장 대기';
     }
 };
@@ -487,9 +487,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 setOpsAlertSyncState('server');
                 setOpsAlertSyncNote('서버 동기화 완료');
             } catch (error) {
-                console.warn('[Reports] 경보 CTA 로그 서버 조회 실패 (로컬 폴백 유지):', extractMessage(error));
+                console.warn('[Reports] 경보 CTA 로그 서버 조회 실패 (로컬 보관 유지):', extractMessage(error));
                 setOpsAlertSyncState('fallback');
-                setOpsAlertSyncNote(toVercelFriendlyMessage(error, '서버 조회 실패 · 로컬 폴백 사용'));
+                setOpsAlertSyncNote(toVercelFriendlyMessage(error, '서버 조회 실패 · 로컬 보관 사용'));
             }
         };
 
@@ -1062,9 +1062,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         },
         {
             key: 'harness-fallback',
-            label: '폴백/대기',
+            label: '저장 보완/대기',
             value: `${harnessSummary.fallback + harnessSummary.pending}건`,
-            helper: `폴백 ${harnessSummary.fallback}건 · 저장 대기 ${harnessSummary.pending}건`,
+            helper: `저장 보완 ${harnessSummary.fallback}건 · 저장 대기 ${harnessSummary.pending}건`,
             tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
         },
         {
@@ -1098,7 +1098,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 eyebrow: '추적 커버리지',
                 title: `현재 보고 대상의 리포트 저장 연결률은 ${runCoverageRate}%입니다.`,
                 description: harnessSummary.pending > 0 || harnessSummary.fallback > 0
-                    ? `저장 대기 ${harnessSummary.pending}건과 폴백 ${harnessSummary.fallback}건은 감사 근거 패키지 생성 전 먼저 확인하셔야 합니다.`
+                    ? `저장 대기 ${harnessSummary.pending}건과 저장 연결 보완 ${harnessSummary.fallback}건은 감사 근거 패키지 생성 전 먼저 확인하셔야 합니다.`
                     : '현재 대상은 대부분 리포트 처리 번호와 연결되어 있어 보고서 근거 추적에 유리한 상태입니다.',
                 tone: runCoverageRate < 70 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
             },
@@ -3388,7 +3388,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     </div>
                 </div>
                 <p className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-                    동기화 상태: {opsAlertSyncState === 'server' ? '서버 연결' : opsAlertSyncState === 'syncing' ? '확인 중' : opsAlertSyncState === 'fallback' ? '로컬 폴백' : '초기 상태'}
+                    동기화 상태: {opsAlertSyncState === 'server' ? '서버 연결' : opsAlertSyncState === 'syncing' ? '확인 중' : opsAlertSyncState === 'fallback' ? '로컬 보관' : '초기 상태'}
                     {hasOpsAlertServerFetched
                         ? (opsAlertSyncNote ? ` · ${opsAlertSyncNote}` : '')
                         : ' · 최근 상태를 아직 불러오지 않았습니다. 필요 시 최신 상태 불러오기를 눌러 확인해 주세요.'}
@@ -3553,7 +3553,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         <NoticeCallout
                             variant="amber"
                             eyebrow="리포트 저장 상태"
-                            title={`현재 보고서 범위에서 ${harnessSummary.fallback}건이 영속 저장 폴백 상태입니다.`}
+                            title={`현재 보고서 범위에서 ${harnessSummary.fallback}건이 저장 연결 보완 상태입니다.`}
                             description="보고서 해석과 증빙 데이터 내보내기는 계속 가능하지만, 저장 연결 여부를 함께 읽어 재확인 순서를 정해야 합니다."
                         />
                     )}

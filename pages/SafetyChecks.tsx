@@ -248,9 +248,9 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
         },
         {
             key: 'safety-checks-harness-fallback',
-            label: '폴백·저장 대기',
+            label: '저장 보완·대기',
             value: `${harnessSummary.fallback + harnessSummary.pending}명`,
-            helper: `폴백 ${harnessSummary.fallback}명 · 대기 ${harnessSummary.pending}명`,
+            helper: `저장 보완 ${harnessSummary.fallback}명 · 대기 ${harnessSummary.pending}명`,
             tone: harnessSummary.fallback > 0 ? BRAND_TONE.amberSoft80 : BRAND_TONE.slate,
             labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-500'}`,
             helperClassName: `mt-1 text-xs font-bold ${harnessSummary.fallback > 0 ? 'text-amber-700' : 'text-slate-600'}`,
