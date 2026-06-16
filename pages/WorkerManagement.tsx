@@ -248,18 +248,32 @@ const hasProfilePhoto = (worker: Pick<WorkerRecord, 'profileImage'>): boolean =>
 };
 
 const normalizeIdentityToken = (value: unknown): string => {
-    return typeof value === 'string' ? value.trim().toUpperCase() : '';
+    return typeof value === 'string' ? value.trim().toUpperCase().replace(/\s+/g, '') : '';
+};
+
+const getWorkerNameIdentityKey = (record: WorkerRecord): string => {
+    const name = normalizeIdentityToken(record.name);
+    if (!name) return '';
+
+    const genericNames = new Set(['식별대기', '이름없음', '이름미확인', '미상', '분석실패']);
+    if (genericNames.has(name)) return '';
+
+    const nationality = normalizeIdentityToken(record.nationality) || 'UNKNOWN';
+    return `name:${name}|nationality:${nationality}`;
 };
 
 const getWorkerPrimaryIdentityKey = (record: WorkerRecord): string => {
-    const workerUuid = normalizeIdentityToken(record.worker_uuid || record.workerUuid);
-    if (workerUuid) return `worker_uuid:${workerUuid}`;
+    const nameKey = getWorkerNameIdentityKey(record);
+    if (nameKey) return nameKey;
 
     const employeeId = normalizeIdentityToken(record.employeeId);
     if (employeeId) return `employeeId:${employeeId}`;
 
     const qrId = normalizeIdentityToken(record.qrId);
     if (qrId) return `qrId:${qrId}`;
+
+    const workerUuid = normalizeIdentityToken(record.worker_uuid || record.workerUuid);
+    if (workerUuid) return `worker_uuid:${workerUuid}`;
 
     return `fallback:${normalizeIdentityToken(record.name)}|${normalizeIdentityToken(record.teamLeader || '미지정')}|${normalizeIdentityToken(record.jobField)}|${normalizeIdentityToken(record.nationality)}`;
 };

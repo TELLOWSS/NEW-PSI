@@ -309,6 +309,22 @@ const getWorkerUuidValue = (record: Partial<WorkerRecord>): string => {
     return normalizeIdentityText(record.worker_uuid || record.workerUuid);
 };
 
+const getWorkerNameIdentitySeed = (record: Partial<WorkerRecord>): string => {
+    const normalizedName = normalizeIdentityText(record.name).replace(/\s+/g, '');
+    if (!normalizedName) return '';
+
+    const genericNames = new Set(['식별대기', '이름없음', '이름미확인', '미상', '분석실패']);
+    if (genericNames.has(normalizedName)) return '';
+
+    const normalizedNationality = normalizeIdentityText(record.nationality).replace(/\s+/g, '') || 'UNKNOWN';
+    return `${normalizedName}|${normalizedNationality}`;
+};
+
+const buildNameBasedWorkerUuid = (record: Partial<WorkerRecord>): string => {
+    const seed = getWorkerNameIdentitySeed(record);
+    return seed ? `WN-${stableWorkerHash(seed).slice(0, 12)}` : '';
+};
+
 const hasUsableProfileImage = (record: Partial<WorkerRecord>): boolean => {
     return typeof record.profileImage === 'string' && record.profileImage.length > 50;
 };
@@ -372,8 +388,60 @@ const findBestWorkerSource = (record: WorkerRecord, existingRecords: WorkerRecor
         })[0]?.candidate || null;
 };
 
+const isSameWorkerTimeline = (base: Partial<WorkerRecord>, candidate: Partial<WorkerRecord>): boolean => {
+    const baseNameSeed = getWorkerNameIdentitySeed(base);
+    const candidateNameSeed = getWorkerNameIdentitySeed(candidate);
+    if (baseNameSeed && candidateNameSeed) return baseNameSeed === candidateNameSeed;
+
+    const baseEmployeeId = normalizeIdentityText(base.employeeId);
+    const candidateEmployeeId = normalizeIdentityText(candidate.employeeId);
+    if (baseEmployeeId && candidateEmployeeId) return baseEmployeeId === candidateEmployeeId;
+
+    const baseQrId = normalizeIdentityText(base.qrId);
+    const candidateQrId = normalizeIdentityText(candidate.qrId);
+    if (baseQrId && candidateQrId) return baseQrId === candidateQrId;
+
+    const baseUuid = getWorkerUuidValue(base);
+    const candidateUuid = getWorkerUuidValue(candidate);
+    if (baseUuid && candidateUuid) return baseUuid === candidateUuid;
+
+    const baseName = normalizeIdentityText(base.name);
+    const candidateName = normalizeIdentityText(candidate.name);
+    const baseNationality = normalizeIdentityText(base.nationality);
+    const candidateNationality = normalizeIdentityText(candidate.nationality);
+    return Boolean(baseName && candidateName && baseName === candidateName && baseNationality === candidateNationality);
+};
+
 const ensureWorkerUuid = (record: WorkerRecord, existingRecords: WorkerRecord[] = []): WorkerRecord => {
+    const employeeId = normalizeIdentityText(record.employeeId);
+    const qrId = normalizeIdentityText(record.qrId);
+    const nameBasedUuid = buildNameBasedWorkerUuid(record);
     const existingUuid = getWorkerUuidValue(record);
+
+    if (nameBasedUuid) {
+        return {
+            ...record,
+            worker_uuid: nameBasedUuid,
+            workerUuid: nameBasedUuid,
+        };
+    }
+
+    if (employeeId) {
+        return {
+            ...record,
+            worker_uuid: `WU-${employeeId}`,
+            workerUuid: `WU-${employeeId}`,
+        };
+    }
+
+    if (qrId) {
+        return {
+            ...record,
+            worker_uuid: `WU-${qrId}`,
+            workerUuid: `WU-${qrId}`,
+        };
+    }
+
     if (existingUuid) {
         return {
             ...record,
@@ -392,19 +460,13 @@ const ensureWorkerUuid = (record: WorkerRecord, existingRecords: WorkerRecord[] 
         };
     }
 
-    const employeeId = normalizeIdentityText(record.employeeId);
-    const qrId = normalizeIdentityText(record.qrId);
-    const generatedUuid = employeeId
-        ? `WU-${employeeId}`
-        : qrId
-            ? `WU-${qrId}`
-            : `WU-${stableWorkerHash([
-                normalizeIdentityText(record.name),
-                normalizeIdentityText(record.nationality),
-                normalizeIdentityText(record.teamLeader),
-                normalizeIdentityText(record.jobField),
-                normalizeIdentityText(record.role),
-            ].join('|')).slice(0, 12)}`;
+    const generatedUuid = `WU-${stableWorkerHash([
+        normalizeIdentityText(record.name),
+        normalizeIdentityText(record.nationality),
+        normalizeIdentityText(record.teamLeader),
+        normalizeIdentityText(record.jobField),
+        normalizeIdentityText(record.role),
+    ].join('|')).slice(0, 12)}`;
 
     return {
         ...record,
@@ -1221,7 +1283,9 @@ const App: React.FC = () => {
             await saveRecordToDB(hashed);
         }
         const allData = await loadWorkerRecordsFromDB();
-        const reconciled = reconcileWorkerProfiles(sanitizeRecords(allData));
+        const mergedImportedData = [...importedRecords, ...allData]
+            .filter((record, index, array) => array.findIndex((item) => item.id === record.id) === index);
+        const reconciled = reconcileWorkerProfiles(sanitizeRecords(mergedImportedData));
         setWorkerRecords(reconciled.records);
         for (const record of reconciled.records.filter((item) => reconciled.changedIds.includes(item.id))) {
             await saveRecordToDB(record);
@@ -1362,7 +1426,7 @@ const App: React.FC = () => {
                             <IndividualReport 
                                 record={recordForReport} 
                                 isQrScanMode={isQrScanMode}
-                                history={workerRecords.filter(r => r.name === recordForReport.name && r.teamLeader === recordForReport.teamLeader)} 
+                                history={workerRecords.filter(r => isSameWorkerTimeline(recordForReport, r))}
                                 onBack={() => { setRecordForReport(null); setIsQrScanMode(false); navigateToPage('ocr-analysis'); }} 
                                 onUpdateRecord={(updated) => {
                                     const normalized = applyIdentityPolicy(updated, workerRecordsRef.current);

@@ -118,12 +118,26 @@ export const normalizeDashboardTrade = (raw: string | undefined | null) => {
 };
 
 const normalizeIdentityValue = (value: string | undefined | null) => {
-    const normalized = (value ?? '').trim();
+    const normalized = (value ?? '').trim().toUpperCase().replace(/\s+/g, '');
     return normalized.length > 0 ? normalized : null;
+};
+
+const getNameBasedWorkerIdentity = (record: WorkerRecord): string | null => {
+    const name = normalizeIdentityValue(record.name);
+    if (!name) return null;
+
+    const genericNames = new Set(['식별대기', '이름없음', '이름미확인', '미상', '분석실패']);
+    if (genericNames.has(name)) return null;
+
+    const nationality = normalizeIdentityValue(record.nationality) || 'UNKNOWN';
+    return `name:${name}|nationality:${nationality}`;
 };
 
 const getStrictWorkerIdentity = (record: WorkerRecord): string | null => {
     const extra = record as unknown as Record<string, unknown>;
+
+    const nameIdentity = getNameBasedWorkerIdentity(record);
+    if (nameIdentity) return nameIdentity;
 
     const workerUuid = normalizeIdentityValue(
         typeof extra.worker_uuid === 'string'

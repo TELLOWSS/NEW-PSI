@@ -896,12 +896,18 @@ const normalizeWorkerGroupText = (value: unknown): string => {
 };
 
 const getWorkerAccumulationKey = (record: WorkerRecord): string => {
-    const workerUuid = normalizeWorkerGroupText(record.worker_uuid || record.workerUuid);
-    if (workerUuid) return `worker:${workerUuid}`;
-
     const name = normalizeWorkerGroupText(record.name);
     const nationality = normalizeWorkerGroupText(record.nationality);
     if (name) return `name:${name}|nationality:${nationality || 'unknown'}`;
+
+    const employeeId = normalizeWorkerGroupText(record.employeeId);
+    if (employeeId) return `employee:${employeeId}`;
+
+    const qrId = normalizeWorkerGroupText(record.qrId);
+    if (qrId) return `qr:${qrId}`;
+
+    const workerUuid = normalizeWorkerGroupText(record.worker_uuid || record.workerUuid);
+    if (workerUuid) return `worker:${workerUuid}`;
 
     return `record:${record.id}`;
 };
@@ -1799,6 +1805,52 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
         });
     }, [baseFilteredRecords, secondPassEditedOnly, secondPassExcludedOnly, secondPassReasonFilter, recordSortMode]);
+
+    const resetWorkerSearchFiltersForImport = useCallback(() => {
+        setSearchTerm('');
+        setFilterLevel('all');
+        setFilterField('all');
+        setFilterLeader('all');
+        setFilterTrust('all');
+        setFilterReason('all');
+        setFilterStatus('all');
+        setSecondPassStatusFilter('all');
+        setSecondPassExcludedOnly(false);
+        setSecondPassReasonFilter('all');
+        setRecordSortMode('recent-correction');
+        setFailedOnlyDefault(false);
+        setSelectedIds([]);
+    }, []);
+
+    const hasActiveRecordFilters = useMemo(() => {
+        return Boolean(
+            searchTerm.trim() ||
+            filterLevel !== 'all' ||
+            filterField !== 'all' ||
+            filterLeader !== 'all' ||
+            filterTrust !== 'all' ||
+            filterReason !== 'all' ||
+            filterStatus !== 'all' ||
+            secondPassStatusFilter !== 'all' ||
+            secondPassExcludedOnly ||
+            secondPassReasonFilter !== 'all'
+        );
+    }, [filterField, filterLeader, filterLevel, filterReason, filterStatus, filterTrust, searchTerm, secondPassExcludedOnly, secondPassReasonFilter, secondPassStatusFilter]);
+
+    const autoResetEmptyFilterRef = useRef(false);
+
+    useEffect(() => {
+        if (existingRecords.length === 0 || filteredRecords.length > 0) {
+            autoResetEmptyFilterRef.current = false;
+            return;
+        }
+
+        if (!hasActiveRecordFilters || autoResetEmptyFilterRef.current) return;
+
+        autoResetEmptyFilterRef.current = true;
+        resetWorkerSearchFiltersForImport();
+        setImportValidationSummary('기존 근로자 기록이 필터에 가려져 전체 보기로 자동 전환했습니다.');
+    }, [existingRecords.length, filteredRecords.length, hasActiveRecordFilters, resetWorkerSearchFiltersForImport]);
 
     const workerAccumulationGroups = useMemo<WorkerAccumulationGroup[]>(() => {
         const groupMap = new Map<string, WorkerRecord[]>();
@@ -4381,22 +4433,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         }
         onViewDetails(target);
     }, [existingRecords, onViewDetails]);
-
-    const resetWorkerSearchFiltersForImport = useCallback(() => {
-        setSearchTerm('');
-        setFilterLevel('all');
-        setFilterField('all');
-        setFilterLeader('all');
-        setFilterTrust('all');
-        setFilterReason('all');
-        setFilterStatus('all');
-        setSecondPassStatusFilter('all');
-        setSecondPassExcludedOnly(false);
-        setSecondPassReasonFilter('all');
-        setRecordSortMode('recent-correction');
-        setFailedOnlyDefault(false);
-        setSelectedIds([]);
-    }, []);
 
     // File Upload Handler (Simple Version)
     const handleAnalyze = async () => {
