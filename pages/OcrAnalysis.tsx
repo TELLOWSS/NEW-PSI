@@ -876,6 +876,36 @@ const formatCompactDateTime = (value?: string | number | null): string | null =>
     });
 };
 
+const getWorkerGroupDateValue = (record: WorkerRecord): number => {
+    const parsed = new Date(record.date || 0).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const formatWorkerGroupMonth = (record: WorkerRecord): string => {
+    const parsed = getWorkerGroupDateValue(record);
+    if (!parsed) return String(record.date || '날짜 없음').slice(0, 10);
+
+    return new Date(parsed).toLocaleDateString('ko-KR', {
+        year: '2-digit',
+        month: '2-digit',
+    });
+};
+
+const normalizeWorkerGroupText = (value: unknown): string => {
+    return String(value || '').trim().toLowerCase().replace(/\s+/g, '');
+};
+
+const getWorkerAccumulationKey = (record: WorkerRecord): string => {
+    const workerUuid = normalizeWorkerGroupText(record.worker_uuid || record.workerUuid);
+    if (workerUuid) return `worker:${workerUuid}`;
+
+    const name = normalizeWorkerGroupText(record.name);
+    const nationality = normalizeWorkerGroupText(record.nationality);
+    if (name) return `name:${name}|nationality:${nationality || 'unknown'}`;
+
+    return `record:${record.id}`;
+};
+
 const formatComparisonValue = (value: unknown): string => {
     if (Array.isArray(value)) {
         const items = value.map((item) => String(item || '').trim()).filter(Boolean);
@@ -949,6 +979,22 @@ const getLatestRecordActivityTimestamp = (record: WorkerRecord): number => {
 };
 
 type RecordSortMode = 'recent-correction' | 'score-desc' | 'failed-first' | 'error-type';
+
+type WorkerAccumulationGroup = {
+    key: string;
+    latestRecord: WorkerRecord;
+    records: WorkerRecord[];
+    averageScore: number;
+    latestScore: number;
+    previousScore: number | null;
+    deltaScore: number | null;
+    monthCount: number;
+    dateRangeLabel: string;
+    failedCount: number;
+    finalizedCount: number;
+    jobFields: string[];
+    teamLeaders: string[];
+};
 
 const getRecordSortModeLabel = (mode: RecordSortMode): string => {
     switch (mode) {
@@ -1753,6 +1799,60 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             return new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime();
         });
     }, [baseFilteredRecords, secondPassEditedOnly, secondPassExcludedOnly, secondPassReasonFilter, recordSortMode]);
+
+    const workerAccumulationGroups = useMemo<WorkerAccumulationGroup[]>(() => {
+        const groupMap = new Map<string, WorkerRecord[]>();
+
+        filteredRecords.forEach((record) => {
+            const key = getWorkerAccumulationKey(record);
+            const current = groupMap.get(key) || [];
+            current.push(record);
+            groupMap.set(key, current);
+        });
+
+        return Array.from(groupMap.entries()).map(([key, records]) => {
+            const sortedDesc = [...records].sort((a, b) => getWorkerGroupDateValue(b) - getWorkerGroupDateValue(a));
+            const sortedAsc = [...records].sort((a, b) => getWorkerGroupDateValue(a) - getWorkerGroupDateValue(b));
+            const latestRecord = sortedDesc[0];
+            const validScores = records
+                .map((record) => Number(record.safetyScore))
+                .filter((score) => Number.isFinite(score));
+            const averageScore = validScores.length > 0
+                ? Math.round(validScores.reduce((sum, score) => sum + score, 0) / validScores.length)
+                : 0;
+            const latestScore = Number.isFinite(Number(latestRecord.safetyScore)) ? Number(latestRecord.safetyScore) : 0;
+            const previousRecord = sortedAsc.length > 1 ? sortedAsc[sortedAsc.length - 2] : null;
+            const previousScore = previousRecord && Number.isFinite(Number(previousRecord.safetyScore))
+                ? Number(previousRecord.safetyScore)
+                : null;
+            const deltaScore = previousScore === null ? null : latestScore - previousScore;
+            const monthKeys = new Set(records.map(formatWorkerGroupMonth));
+            const firstRecord = sortedAsc[0] || latestRecord;
+            const dateRangeLabel = records.length > 1
+                ? `${String(firstRecord.date || '').slice(0, 10)} ~ ${String(latestRecord.date || '').slice(0, 10)}`
+                : String(latestRecord.date || '').slice(0, 10);
+
+            return {
+                key,
+                latestRecord,
+                records: sortedDesc,
+                averageScore,
+                latestScore,
+                previousScore,
+                deltaScore,
+                monthCount: monthKeys.size,
+                dateRangeLabel,
+                failedCount: records.filter((record) => isFailedRecord(record)).length,
+                finalizedCount: records.filter((record) => getReviewTrustState(record) === 'FINALIZED').length,
+                jobFields: Array.from(new Set(records.map((record) => record.jobField).filter(Boolean))).sort(),
+                teamLeaders: Array.from(new Set(records.map((record) => record.teamLeader || '미지정').filter(Boolean))).sort(),
+            };
+        }).sort((a, b) => {
+            const latestDateDiff = getWorkerGroupDateValue(b.latestRecord) - getWorkerGroupDateValue(a.latestRecord);
+            if (latestDateDiff !== 0) return latestDateDiff;
+            return String(a.latestRecord.name || '').localeCompare(String(b.latestRecord.name || ''), 'ko-KR');
+        });
+    }, [filteredRecords, getReviewTrustState]);
 
     const recordsWithImages = useMemo(() => {
         return existingRecords.filter(r => hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage));
@@ -4282,6 +4382,22 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         onViewDetails(target);
     }, [existingRecords, onViewDetails]);
 
+    const resetWorkerSearchFiltersForImport = useCallback(() => {
+        setSearchTerm('');
+        setFilterLevel('all');
+        setFilterField('all');
+        setFilterLeader('all');
+        setFilterTrust('all');
+        setFilterReason('all');
+        setFilterStatus('all');
+        setSecondPassStatusFilter('all');
+        setSecondPassExcludedOnly(false);
+        setSecondPassReasonFilter('all');
+        setRecordSortMode('recent-correction');
+        setFailedOnlyDefault(false);
+        setSelectedIds([]);
+    }, []);
+
     // File Upload Handler (Simple Version)
     const handleAnalyze = async () => {
         // Redirect to file processing which uses same logic if needed, 
@@ -4573,7 +4689,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 const reviewRecord = Array.isArray(importedRecords) && importedRecords.length > 0
                     ? importedRecords[0]
                     : validation.objectItems[0] as unknown as WorkerRecord;
-                alert(`백업 복구 완료\n- 원본: ${records.length}건\n- 복구 대상: ${validation.objectItems.length}건\n- 문제 항목: ${validation.problematicItems}건\n\n첫 번째 복구 기록을 상세 판단 화면으로 열어 확인·수정할 수 있게 했습니다. 나머지는 OCR 분석 목록의 '상세 판단'에서 이어서 확인하세요.`);
+                resetWorkerSearchFiltersForImport();
+                alert(`백업 복구 완료\n- 원본: ${records.length}건\n- 복구 대상: ${validation.objectItems.length}건\n- 문제 항목: ${validation.problematicItems}건\n\n근로자 정보검색 필터를 전체 보기로 전환했습니다. 불러온 근로자는 아래 '근로자별 누적 보기'와 기록 목록에서 확인할 수 있습니다.\n\n첫 번째 복구 기록을 상세 판단 화면으로 열어 확인·수정할 수 있게 했습니다. 나머지는 OCR 분석 목록의 '상세 판단'에서 이어서 확인하세요.`);
                 if (reviewRecord) {
                     onViewDetails(reviewRecord);
                 }
@@ -5648,6 +5765,131 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </label>
                     </div>
                 </div>
+                {workerAccumulationGroups.length > 0 && (
+                    <div className="px-4 sm:px-6 py-4 border-b border-slate-100 bg-slate-50/70">
+                        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-2">
+                            <div>
+                                <p className="text-[11px] font-black uppercase tracking-wider text-indigo-600">근로자별 누적 보기</p>
+                                <h4 className="mt-1 text-lg font-black text-slate-900">
+                                    현재 조건의 {filteredRecords.length}건을 {workerAccumulationGroups.length}명 기준으로 묶었습니다.
+                                </h4>
+                                <p className="mt-1 text-xs font-bold text-slate-500 leading-relaxed">
+                                    같은 근로자의 여러 달 기록은 한 카드에 누적됩니다. 이름을 누르면 최신 기록을 열고, 월별 칩을 누르면 해당 월 기록을 바로 확인합니다.
+                                </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2 text-[11px] font-black text-slate-600">
+                                <span className="rounded-full bg-white border border-slate-200 px-3 py-1">전체 기록 {filteredRecords.length}건</span>
+                                <span className="rounded-full bg-white border border-slate-200 px-3 py-1">누적 근로자 {workerAccumulationGroups.length}명</span>
+                            </div>
+                        </div>
+                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3">
+                            {workerAccumulationGroups.slice(0, 18).map((group) => {
+                                const deltaTone = group.deltaScore === null
+                                    ? 'text-slate-400'
+                                    : group.deltaScore > 0
+                                        ? 'text-emerald-600'
+                                        : group.deltaScore < 0
+                                            ? 'text-rose-600'
+                                            : 'text-slate-500';
+                                const deltaLabel = group.deltaScore === null
+                                    ? '추적 시작'
+                                    : `${group.deltaScore > 0 ? '+' : ''}${group.deltaScore}점`;
+                                const latest = group.latestRecord;
+
+                                return (
+                                    <div key={group.key} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:border-indigo-200 hover:shadow-md transition-all">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => onViewDetails(latest)}
+                                                className="min-w-0 text-left"
+                                            >
+                                                <p className="truncate text-base font-black text-slate-900">{latest.name || '이름 미확인'}</p>
+                                                <p className="mt-1 text-[11px] font-bold text-slate-500">
+                                                    {latest.nationality || '국적 미확인'} · {group.dateRangeLabel}
+                                                </p>
+                                            </button>
+                                            <span className="shrink-0 rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-black text-indigo-700">
+                                                {group.records.length}건
+                                            </span>
+                                        </div>
+                                        <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+                                            <div className="rounded-xl bg-slate-50 px-2 py-2">
+                                                <p className="text-[10px] font-black text-slate-400">월수</p>
+                                                <p className="mt-0.5 text-sm font-black text-slate-900">{group.monthCount}</p>
+                                            </div>
+                                            <div className="rounded-xl bg-blue-50 px-2 py-2">
+                                                <p className="text-[10px] font-black text-blue-500">평균</p>
+                                                <p className="mt-0.5 text-sm font-black text-blue-700">{group.averageScore}</p>
+                                            </div>
+                                            <div className="rounded-xl bg-slate-50 px-2 py-2">
+                                                <p className="text-[10px] font-black text-slate-400">최신</p>
+                                                <p className="mt-0.5 text-sm font-black text-slate-900">{group.latestScore}</p>
+                                            </div>
+                                            <div className="rounded-xl bg-slate-50 px-2 py-2">
+                                                <p className="text-[10px] font-black text-slate-400">변화</p>
+                                                <p className={`mt-0.5 text-sm font-black ${deltaTone}`}>{deltaLabel}</p>
+                                            </div>
+                                        </div>
+                                        <div className="mt-3 flex flex-wrap gap-1.5 text-[10px] font-black">
+                                            {group.jobFields.slice(0, 2).map((field) => (
+                                                <span key={`${group.key}-${field}`} className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">{field}</span>
+                                            ))}
+                                            {group.teamLeaders.slice(0, 2).map((leader) => (
+                                                <span key={`${group.key}-${leader}`} className="rounded-full bg-slate-100 px-2 py-1 text-slate-600">{leader}</span>
+                                            ))}
+                                            {group.failedCount > 0 && (
+                                                <span className="rounded-full bg-rose-50 px-2 py-1 text-rose-700">확인 필요 {group.failedCount}건</span>
+                                            )}
+                                            {group.finalizedCount > 0 && (
+                                                <span className="rounded-full bg-emerald-50 px-2 py-1 text-emerald-700">확정 {group.finalizedCount}건</span>
+                                            )}
+                                        </div>
+                                        <div className="mt-3 flex flex-wrap gap-2">
+                                            {group.records.slice(0, 6).map((record) => (
+                                                <button
+                                                    key={record.id}
+                                                    type="button"
+                                                    onClick={() => onViewDetails(record)}
+                                                    className="rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-[11px] font-black text-slate-700 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                                                    title={`${record.name || '근로자'} · ${record.date || '날짜 없음'} · ${record.safetyScore}점`}
+                                                >
+                                                    {formatWorkerGroupMonth(record)} · {record.safetyScore}점
+                                                </button>
+                                            ))}
+                                            {group.records.length > 6 && (
+                                                <span className="rounded-xl bg-slate-100 px-2.5 py-1.5 text-[11px] font-black text-slate-500">
+                                                    +{group.records.length - 6}건
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="mt-3 flex gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedIds(group.records.map((record) => record.id))}
+                                                className="flex-1 rounded-xl bg-slate-900 px-3 py-2 text-[11px] font-black text-white hover:bg-black"
+                                            >
+                                                이 근로자 기록 선택
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => onOpenReport(latest)}
+                                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black text-slate-700 hover:bg-slate-50"
+                                            >
+                                                최신 리포트
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        {workerAccumulationGroups.length > 18 && (
+                            <p className="mt-3 text-[11px] font-bold text-slate-500">
+                                화면 속도를 위해 상위 18명만 먼저 표시합니다. 근로자명 또는 공종 검색으로 대상을 좁히면 해당 근로자의 누적 카드가 바로 올라옵니다.
+                            </p>
+                        )}
+                    </div>
+                )}
                 <div className="sm:hidden p-3 space-y-3">
                     {filteredRecords.map((r: WorkerRecord) => {
                         const checked = selectedIds.includes(r.id);
