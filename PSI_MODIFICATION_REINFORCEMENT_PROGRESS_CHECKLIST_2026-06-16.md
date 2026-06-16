@@ -73,6 +73,26 @@
   - `대체 저장`, `서버 미연결`, `저장 실패`처럼 불안하거나 모호한 문구를 `저장 보완`, `로컬 보관`, `저장 확인 필요`처럼 조치 중심 문구로 정리
   - 문자 발송 화면의 외부 서비스명 노출을 줄이고 `문자 발송 계정`, `서버에 등록된 발신번호` 중심으로 정리
 
+## 2-4. 현재 진행 중
+
+- [x] JSON 복구 후 상세 판단 진입 보강
+  - OCR 분석 화면에서 JSON 백업을 불러오면 저장 후 첫 복구 기록을 바로 `상세 판단` 화면으로 열도록 연결
+  - OCR 분석 목록의 `상세 판단` 버튼은 이력 화면을 거치지 않고 확인·수정 모달로 바로 진입하도록 정리
+  - JSON 파싱 오류와 저장/복구 처리 오류를 구분해 안내하도록 문구 보완
+
+- [x] 관리자 비밀번호 안내 보강
+  - 관리자 로그인 비밀번호는 코드 하드코딩이 아니라 `ADMIN_LOGIN_PASSWORD` 또는 `PSI_ADMIN_PASSWORD` 서버 운영 설정값으로 관리함을 명시
+  - 관리자 세션 서명키 `ADMIN_SESSION_SECRET`과 로그인 비밀번호의 역할을 분리해 문서화
+  - 로그인 화면과 운영/배포 문서에 분실·변경 절차 추가
+
+- [x] 검증 및 배포
+  - 타입 검사 통과
+  - 관리자 인증 보호 테스트 통과
+  - 빠른 전체 검증 통과
+  - 운영 빌드 통과
+  - GitHub main 동기화 완료
+  - Vercel production 배포 확인 완료
+
 ## 3. 다음 대기 항목
 
 - [ ] 대외 기술자료 반영 후보 정리
@@ -85,6 +105,7 @@
 
 ## 4. 최신 반영 커밋
 
+- `bf8cc5f` refine central storage status wording
 - `a5598c3` refine storage connection wording
 - `633dc1a` refine feedback storage wording
 - `6a40880` track reinforcement progress and remove demo survey data

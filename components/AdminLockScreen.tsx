@@ -45,6 +45,9 @@ export const AdminLockScreen: React.FC<AdminLockScreenProps> = ({
                         {isSubmitting ? '확인 중...' : '관리자 모드 진입'}
                     </ActionButton>
                 </form>
+                <p className="mt-3 text-center text-[11px] font-semibold leading-5 text-slate-500">
+                    관리자 비밀번호는 서버 운영 설정값으로 관리됩니다. 분실 시 Vercel 환경변수 `ADMIN_LOGIN_PASSWORD` 또는 `PSI_ADMIN_PASSWORD`를 재설정해 주세요.
+                </p>
                 {errorMessage && (
                     <p className="mt-3 text-center text-xs font-bold text-rose-600">{errorMessage}</p>
                 )}

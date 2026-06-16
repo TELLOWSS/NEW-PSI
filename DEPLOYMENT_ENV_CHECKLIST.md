@@ -21,6 +21,18 @@
   - 용도: 관리자 요청 헤더 및 관리 기능 보호
   - 참조: `lib/supabaseClient.ts`, `api/admin/*.ts`, `api/gateway.ts`, `pages/WorkerManagement.tsx`
 
+- `ADMIN_LOGIN_PASSWORD`
+  - 용도: 관리자 모드 진입 비밀번호
+  - 대체: `PSI_ADMIN_PASSWORD`
+  - 참조: `lib/server/adminAuthGuard.ts`, `api/admin/auth.ts`
+  - 비고: 코드에 하드코딩하지 않고 Vercel 환경변수에서만 관리
+
+- `ADMIN_SESSION_SECRET`
+  - 용도: 관리자 로그인 세션 서명키
+  - 대체: `ADMIN_API_AUTH_TOKEN`, `PSI_ADMIN_SECRET`, `VITE_PSI_ADMIN_SECRET`
+  - 참조: `lib/server/adminAuthGuard.ts`, `api/admin/auth.ts`
+  - 비고: 로그인 비밀번호와 다른 긴 임의 문자열 권장
+
 - `GOOGLE_TTS_API_KEY`
   - 용도: 다국어 음성(TTS) 생성
   - 참조: `api/admin/create-training.ts`
@@ -74,6 +86,8 @@ VITE_SUPABASE_URL=https://xxxx.supabase.co
 VITE_SUPABASE_ANON_KEY=xxxx
 SUPABASE_SERVICE_ROLE_KEY=xxxx
 VITE_PSI_ADMIN_SECRET=xxxx
+ADMIN_LOGIN_PASSWORD=xxxx
+ADMIN_SESSION_SECRET=xxxx
 GOOGLE_TTS_API_KEY=xxxx
 GEMINI_API_KEY=xxxx
 TRAINING_LINK_SECRET=xxxx
@@ -115,7 +129,8 @@ VERCEL_TOKEN=xxxx
   - API 쿼터/권한 상태 확인
 
 - 관리자 기능 접근 실패
-  - `VITE_PSI_ADMIN_SECRET` 또는 `PSI_ADMIN_SECRET` 설정 확인
+  - 관리자 모드 진입 실패: `ADMIN_LOGIN_PASSWORD` 또는 `PSI_ADMIN_PASSWORD` 설정 확인
+  - 로그인 후 관리자 기능 호출 실패: `ADMIN_SESSION_SECRET`, `VITE_PSI_ADMIN_SECRET`, `PSI_ADMIN_SECRET` 설정 확인
   - 운영자 로그인 세션과 배포 환경변수 반영 여부 확인
 
 - 하네스 분석/재분석 실패

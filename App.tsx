@@ -1199,9 +1199,11 @@ const App: React.FC = () => {
         }
     }, []);
 
-    const handleImport = useCallback(async (records: WorkerRecord[]) => {
+    const handleImport = useCallback(async (records: WorkerRecord[]): Promise<WorkerRecord[]> => {
         const sanitized = sanitizeRecords(records);
         const identityContext = [...workerRecordsRef.current];
+        const importedIds = new Set<string>();
+        const importedRecords: WorkerRecord[] = [];
         for (const record of sanitized) {
             const profileAwareRecord = applyWorkerProfilePolicy(record, identityContext);
             const normalizedIdentityRecord = applyIdentityPolicy(profileAwareRecord, identityContext);
@@ -1214,6 +1216,8 @@ const App: React.FC = () => {
             };
             const enforced = enforceSafetyLevel(withMetrics);
             const hashed = await attachEvidenceHash(enforced);
+            importedIds.add(hashed.id);
+            importedRecords.push(hashed);
             await saveRecordToDB(hashed);
         }
         const allData = await loadWorkerRecordsFromDB();
@@ -1223,6 +1227,8 @@ const App: React.FC = () => {
             await saveRecordToDB(record);
         }
         await registerWorkersToServer(records);
+        const reviewRecords = reconciled.records.filter((item) => importedIds.has(item.id));
+        return reviewRecords.length > 0 ? reviewRecords : importedRecords;
     }, []);
 
     const addWorkerRecords = useCallback(async (newRecords: WorkerRecord[]) => {
@@ -1340,7 +1346,7 @@ const App: React.FC = () => {
                                 existingRecords={workerRecords} 
                                 onDeleteAll={handleDeleteAll} 
                                 onImport={handleImport} 
-                                onViewDetails={(r) => setModalState({type:'workerHistory', record:r, workerName:r.name})} 
+                                onViewDetails={(r) => setModalState({type:'recordDetail', record:r, source:'ocr-analysis'})}
                                 onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); navigateToPage('individual-report'); }}
                                 onDeleteRecord={handleDeleteRecord} 
                                 onUpdateRecord={handleUpdateRecord}
@@ -1400,7 +1406,7 @@ const App: React.FC = () => {
                 <RecordDetailModal 
                     record={latestRecord} 
                     onClose={() => setModalState({type:null})} 
-                    onBack={() => modalState.source === 'worker-management-photo-queue' ? setModalState({type:null}) : setModalState({type:'workerHistory', record:latestRecord, workerName:latestRecord.name})} 
+                    onBack={() => (modalState.source === 'worker-management-photo-queue' || modalState.source === 'ocr-analysis') ? setModalState({type:null}) : setModalState({type:'workerHistory', record:latestRecord, workerName:latestRecord.name})}
                     onUpdateRecord={handleUpdateRecord} 
                     onOpenReport={(r) => { setRecordForReport(applyIdentityPolicy(r)); setIsQrScanMode(false); navigateToPage('individual-report'); }} 
                     onReanalyze={handleReanalyzeRecord} 

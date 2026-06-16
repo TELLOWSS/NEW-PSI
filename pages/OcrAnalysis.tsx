@@ -1080,7 +1080,7 @@ interface OcrAnalysisProps {
     onAnalysisComplete: (records: WorkerRecord[]) => void;
     existingRecords: WorkerRecord[];
     onDeleteAll: () => void;
-    onImport: (records: WorkerRecord[]) => void;
+    onImport: (records: WorkerRecord[]) => void | WorkerRecord[] | Promise<void | WorkerRecord[]>;
     onViewDetails: (record: WorkerRecord) => void;
     onOpenReport: (record: WorkerRecord) => void;
     onDeleteRecord: (recordId: string) => void;
@@ -4551,7 +4551,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
     const handleImportFile = (file: File) => {
         const reader = new FileReader();
-        reader.onload = (re) => {
+        reader.onload = async (re) => {
             try {
                 const data = JSON.parse(re.target?.result as string);
                 const records = extractImportRecords(data);
@@ -4569,10 +4569,17 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     return;
                 }
 
-                onImport(validation.objectItems as unknown as WorkerRecord[]);
-                alert(`백업 복구 요청 완료\n- 원본: ${records.length}건\n- 복구 대상: ${validation.objectItems.length}건\n- 문제 항목: ${validation.problematicItems}건\n\n상세는 화면의 '복구 파일 스키마 검증 결과'를 확인하세요.`);
+                const importedRecords = await Promise.resolve(onImport(validation.objectItems as unknown as WorkerRecord[]));
+                const reviewRecord = Array.isArray(importedRecords) && importedRecords.length > 0
+                    ? importedRecords[0]
+                    : validation.objectItems[0] as unknown as WorkerRecord;
+                alert(`백업 복구 완료\n- 원본: ${records.length}건\n- 복구 대상: ${validation.objectItems.length}건\n- 문제 항목: ${validation.problematicItems}건\n\n첫 번째 복구 기록을 상세 판단 화면으로 열어 확인·수정할 수 있게 했습니다. 나머지는 OCR 분석 목록의 '상세 판단'에서 이어서 확인하세요.`);
+                if (reviewRecord) {
+                    onViewDetails(reviewRecord);
+                }
             } catch (err) {
-                alert('파일 형식이 잘못되었습니다.');
+                const message = extractMessage(err);
+                alert(`JSON 불러오기 처리 중 확인이 필요합니다.\n${message || '파일 형식 또는 저장 연결 상태를 확인해 주세요.'}`);
             } finally {
                 if (importInputRef.current) importInputRef.current.value = '';
             }

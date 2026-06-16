@@ -28,7 +28,7 @@ export type ModalState = {
     type: 'workerHistory' | 'recordDetail' | null;
     record?: WorkerRecord;
     workerName?: string;
-    source?: 'worker-management-photo-queue';
+    source?: 'worker-management-photo-queue' | 'ocr-analysis';
     queueRecordIds?: string[];
 };
 
