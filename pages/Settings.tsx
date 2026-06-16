@@ -2100,7 +2100,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </label>
                     <p className="text-xs text-slate-500 mt-3 leading-relaxed">
                         비워두면 피드백 탭은 미전송 보관 모드로 동작합니다. URL을 입력하면 실제 전송을 시도하고,
-                        실패 시 로컬 Outbox에 자동 보관됩니다.
+                        실패 시 미전송 보관함에 자동 보관됩니다.
                     </p>
                 </div>
 

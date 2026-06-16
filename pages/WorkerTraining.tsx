@@ -1322,7 +1322,7 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                     languageCode: effectiveLangKey,
                     submittedAt: Date.now(),
                 });
-                setMessage('테스트 제출 성공! (시뮬레이션 완료)');
+                setMessage('제출 흐름 확인이 완료되었습니다.');
                 setWorkerName('');
                 sigRef.current?.clear();
                 setHasSignature(false);

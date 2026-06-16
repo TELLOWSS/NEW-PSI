@@ -134,14 +134,14 @@ const Feedback: React.FC = () => {
                 eyebrow: '지금 상태',
                 title: hasWebhook
                     ? '현장 의견은 실시간 전송과 로컬 보관을 함께 고려하는 상태입니다.'
-                    : '현재는 시뮬레이션 모드라 실제 전송 대신 제출 흐름 확인에 집중하는 상태입니다.',
+                    : '현재는 미전송 확인 모드라 제출 흐름 확인에 집중하는 상태입니다.',
                 description: hasWebhook
-                    ? 'Webhook이 연결되어 있어 즉시 전달을 우선 시도하고, 실패하면 Outbox에 남겨 현장 의견이 유실되지 않도록 보호합니다.'
+                    ? 'Webhook이 연결되어 있어 즉시 전달을 우선 시도하고, 실패하면 미전송 보관함에 남겨 현장 의견이 유실되지 않도록 보호합니다.'
                     : '운영 채널이 비어 있어도 입력 흐름을 먼저 검증할 수 있지만, 실제 전달을 위해서는 설정 탭 연결이 필요합니다.',
             },
             {
                 eyebrow: '판단 근거',
-                title: `현재 ${outboxItems.length}건이 Outbox에 남아 있고 입력 초안은 ${hasDraft ? '작성 중' : '비어 있음'}입니다.`,
+                title: `현재 ${outboxItems.length}건이 미전송 보관함에 남아 있고 입력 초안은 ${hasDraft ? '작성 중' : '비어 있음'}입니다.`,
                 description: outboxItems.length > 0
                     ? `전송 확인이 더 필요한 ${outboxItems.length}건이 보관되어 있어, 의견 수집 자체보다 재전송 복구가 더 우선인 상태입니다.`
                     : '아직 보관 중인 실패 건이 없어 새 의견 수집에 바로 집중할 수 있습니다.',
@@ -149,7 +149,7 @@ const Feedback: React.FC = () => {
             {
                 eyebrow: '다음 행동',
                 title: outboxItems.length > 0
-                    ? '먼저 Outbox를 정리한 뒤 새 의견을 받으면 현장 신호가 섞이지 않습니다.'
+                    ? '먼저 미전송 보관함을 정리한 뒤 새 의견을 받으면 현장 신호가 섞이지 않습니다.'
                     : '피드백 유형을 고르고, 현장 맥락이 드러나게 이름·공종·상황을 함께 적어 주세요.',
                 description: outboxItems.length > 0
                     ? '보관함 재전송이 끝나면 어떤 의견이 실제 반영 대기 중인지 더 명확하게 판단할 수 있습니다.'
@@ -285,7 +285,7 @@ const Feedback: React.FC = () => {
                 }
             }
 
-            alert(`Outbox 재전송 완료\n성공: ${successCount}건\n실패: ${failCount}건`);
+            alert(`미전송 보관함 재전송 완료\n성공: ${successCount}건\n실패: ${failCount}건`);
         } finally {
             setIsRetryingAll(false);
         }
@@ -323,7 +323,7 @@ const Feedback: React.FC = () => {
             const message = error instanceof Error ? error.message : 'Unknown error';
             saveToOutbox(payload, message);
             setStatus('error');
-            alert('실시간 전송에 실패하여 로컬 Outbox에 임시 저장했습니다. 네트워크 또는 Webhook URL을 확인해주세요.');
+            alert('실시간 전송에 실패하여 미전송 보관함에 저장했습니다. 네트워크 또는 Webhook URL을 확인해주세요.');
             setTimeout(() => setStatus('idle'), 3000);
         }
     };
@@ -530,8 +530,8 @@ const Feedback: React.FC = () => {
                                     </div>
                                 </div>
                                 <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                                    <span className="text-rose-500 font-bold">* 프로토타입 알림:</span><br/>
-                                    설정 탭의 Webhook URL이 비어 있으면 <strong>전송 성공 시뮬레이션</strong>으로 동작합니다. URL이 설정되면 실제 전송을 시도하며, 실패 시 하단 Outbox 보관함에 저장됩니다.
+                                    <span className="text-rose-500 font-bold">* 운영 안내:</span><br/>
+                                    설정 탭의 Webhook URL이 비어 있으면 <strong>제출 흐름 확인</strong>으로 동작합니다. URL이 설정되면 실제 전송을 시도하며, 실패 시 하단 미전송 보관함에 저장됩니다.
                                 </p>
                                 <p className="text-xs text-indigo-600 leading-relaxed font-bold mt-3">
                                     Gemini 협업 논의가 필요한 경우 피드백 유형에서 <strong>"🤖 Gemini 협업: 다음 버전 기획/개선"</strong>을 선택해 주세요.
@@ -622,14 +622,14 @@ const Feedback: React.FC = () => {
                                 {status === 'error' && (
                                     <>
                                         <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-                                        전송 실패 (Outbox 저장)
+                                        전송 실패 (보관함 저장)
                                     </>
                                 )}
                             </button>
                         </form>
 
                         <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                            <p className="text-xs font-black text-slate-700">피드백 Outbox는 하단 보관함에서 관리됩니다.</p>
+                            <p className="text-xs font-black text-slate-700">전송 실패 피드백은 하단 미전송 보관함에서 관리됩니다.</p>
                             <p className="text-[11px] text-slate-500 mt-1">전송 실패 건 {outboxItems.length}건이 하단 경고 섹션에 표시됩니다.</p>
                         </div>
 
@@ -669,9 +669,9 @@ const Feedback: React.FC = () => {
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-5">
                     <div>
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-100 border border-rose-200 mb-2">
-                            <span className="text-rose-600 text-xs font-black">⚠️ Outbox Warning</span>
+                            <span className="text-rose-600 text-xs font-black">⚠️ 미전송 보관 안내</span>
                         </div>
-                        <h3 className="text-2xl font-black text-rose-800">피드백 {BRAND_STATUS_LABELS.attention} 보관함 (Outbox)</h3>
+                        <h3 className="text-2xl font-black text-rose-800">피드백 {BRAND_STATUS_LABELS.attention} 보관함</h3>
                         <p className="text-sm font-bold text-rose-700 mt-1">{BRAND_STATUS_LABELS.attention} 건 {outboxItems.length}건 · 성공 재전송 시 즉시 삭제됩니다.</p>
                     </div>
                     <button
