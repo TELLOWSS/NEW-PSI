@@ -41,50 +41,6 @@ const tradeColor = (trade: string) => TRADE_COLORS[trade] ?? '#94a3b8';
 const QUERY_TRADE_KEY = 'siTrade';
 const QUERY_MONTH_KEY = 'siMonth';
 
-// ─── 데모 데이터 (실데이터 없을 때 사용) ──────────────────────────────────────
-const DEMO_GAP_DATA = [
-    { trade: '골조', managerHigh: 80, workerHigh: 42, gap: 38 },
-    { trade: '철근', managerHigh: 70, workerHigh: 55, gap: 15 },
-    { trade: '형틀', managerHigh: 65, workerHigh: 30, gap: 35 },
-    { trade: '배관', managerHigh: 50, workerHigh: 44, gap: 6 },
-    { trade: '전기', managerHigh: 75, workerHigh: 40, gap: 35 },
-    { trade: '미장', managerHigh: 40, workerHigh: 36, gap: 4 },
-];
-
-const DEMO_RADAR_DATA = [
-    { trade: '골조', A: 80, B: 42 },
-    { trade: '철근', A: 70, B: 55 },
-    { trade: '형틀', A: 65, B: 30 },
-    { trade: '배관', A: 50, B: 44 },
-    { trade: '전기', A: 75, B: 40 },
-    { trade: '미장', A: 40, B: 36 },
-];
-
-const DEMO_KEYWORD_TREND = [
-    { month: '11월', 추락: 18, 끼임: 10, 감전: 5, 충돌: 8 },
-    { month: '12월', 추락: 22, 끼임: 12, 감전: 6, 충돌: 7 },
-    { month: '1월', 추락: 20, 끼임: 15, 감전: 8, 충돌: 9 },
-    { month: '2월', 추락: 30, 끼임: 13, 감전: 7, 충돌: 6 },
-    { month: '3월', 추락: 28, 끼임: 18, 감전: 9, 충돌: 11 },
-    { month: '4월', 추락: 40, 끼임: 16, 감전: 10, 충돌: 13 },
-];
-
-const DEMO_WORD_DATA: { word: string; count: number }[] = [
-    { word: '추락', count: 40 }, { word: '끼임', count: 28 }, { word: '안전벨트', count: 24 },
-    { word: '비계', count: 22 }, { word: '감전', count: 18 }, { word: '충돌', count: 16 },
-    { word: '낙하', count: 14 }, { word: '협착', count: 12 }, { word: '전도', count: 10 },
-    { word: '화재', count: 8 }, { word: '철근', count: 7 }, { word: '크레인', count: 6 },
-];
-
-const DEMO_SPECIFICITY = [
-    { month: '11월', 골조: 1.8, 철근: 2.1, 형틀: 1.5 },
-    { month: '12월', 골조: 2.0, 철근: 2.3, 형틀: 1.8 },
-    { month: '1월',  골조: 2.3, 철근: 2.5, 형틀: 2.0 },
-    { month: '2월',  골조: 2.6, 철근: 2.7, 형틀: 2.4 },
-    { month: '3월',  골조: 2.9, 철근: 3.1, 형틀: 2.7 },
-    { month: '4월',  골조: 3.3, 철근: 3.5, 형틀: 3.0 },
-];
-
 // ─── 유틸 ────────────────────────────────────────────────────────────────────
 const getRiskLevel = (text: string): '상' | '중' | '하' | null => {
     if (!text) return null;
@@ -111,40 +67,22 @@ const specificityScore = (text: string): number => {
 // ─── 데이터 처리 훅 ───────────────────────────────────────────────────────────
 function useSurveyData(records: WorkerRecord[]) {
     return useMemo(() => {
-        const hasSourceData = records.length > 0;
         const hasData = records.some(r => (r.handwrittenAnswers || []).length > 0);
 
         if (!hasData) {
-            if (hasSourceData) {
-                return {
-                    isDemo: false,
-                    gapData: [] as Array<{ trade: string; managerHigh: number; workerHigh: number; gap: number }>,
-                    radarData: [] as Array<{ trade: string; A: number; B: number }>,
-                    keywordTrend: [] as Array<Record<string, number | string>>,
-                    wordData: [] as Array<{ word: string; count: number }>,
-                    specificityTrend: [] as Array<Record<string, number | string>>,
-                    specificityTrades: [] as string[],
-                    topGapTrade: '-',
-                    avgSpecificityLatest: 0,
-                    avgSpecificityPrev: 0,
-                    latestTopKeyword: '-',
-                    latestTopKeywordDelta: 0,
-                };
-            }
-
             return {
-                isDemo: true,
-                gapData: DEMO_GAP_DATA,
-                radarData: DEMO_RADAR_DATA,
-                keywordTrend: DEMO_KEYWORD_TREND,
-                wordData: DEMO_WORD_DATA,
-                specificityTrend: DEMO_SPECIFICITY,
-                specificityTrades: ['골조', '철근', '형틀'],
-                topGapTrade: '골조',
-                avgSpecificityLatest: 3.3,
-                avgSpecificityPrev: 2.9,
-                latestTopKeyword: '추락',
-                latestTopKeywordDelta: 43,
+                isDemo: false,
+                gapData: [] as Array<{ trade: string; managerHigh: number; workerHigh: number; gap: number }>,
+                radarData: [] as Array<{ trade: string; A: number; B: number }>,
+                keywordTrend: [] as Array<Record<string, number | string>>,
+                wordData: [] as Array<{ word: string; count: number }>,
+                specificityTrend: [] as Array<Record<string, number | string>>,
+                specificityTrades: [] as string[],
+                topGapTrade: '-',
+                avgSpecificityLatest: 0,
+                avgSpecificityPrev: 0,
+                latestTopKeyword: '-',
+                latestTopKeywordDelta: 0,
             };
         }
 
@@ -247,7 +185,7 @@ function useSurveyData(records: WorkerRecord[]) {
             gapData,
             radarData,
             keywordTrend,
-            wordData: wordData.length > 0 ? wordData : DEMO_WORD_DATA,
+            wordData,
             specificityTrend,
             specificityTrades: topTrades,
             topGapTrade: topGap?.trade ?? '-',
@@ -438,9 +376,9 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                             <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
                                 설문 인텔리전스
                             </span>
-                            {data.isDemo && (
+                            {data.radarData.length === 0 && (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                                    DEMO 데이터
+                                    현장 데이터 대기
                                 </span>
                             )}
                         </div>

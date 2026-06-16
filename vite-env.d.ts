@@ -4,6 +4,7 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL?: string;
   readonly VITE_SUPABASE_ANON_KEY?: string;
   readonly VITE_ENABLE_TRAINING_DEMO?: string;
+  readonly VITE_ENABLE_QA_SEED?: string;
   readonly NEXT_PUBLIC_SUPABASE_URL?: string;
   readonly NEXT_PUBLIC_SUPABASE_ANON_KEY?: string;
 }

@@ -1845,7 +1845,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </div>
 
                     <div className="relative mb-2 rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3 text-xs font-semibold leading-5 text-indigo-700">
-                        유료 API 전환은 별도 PIN 기억 방식이 아니라, 운영자가 비용 발생 가능성을 확인한 뒤 켜는 방식으로 정리했습니다.
+                        유료 API 전환은 별도 기억번호 방식이 아니라, 운영자가 비용 발생 가능성을 확인한 뒤 켜는 방식으로 정리했습니다.
                     </div>
                     <span className="text-xs text-indigo-500 font-normal cursor-pointer hover:underline" onClick={() => window.open('https://aistudio.google.com/app/apikey')}>키가 없으신가요?</span>
                     <div className="mt-5 flex items-center justify-between gap-3">

@@ -962,7 +962,8 @@ const App: React.FC = () => {
             const qaSeedMode = typeof window !== 'undefined'
                 ? new URL(window.location.href).searchParams.get('qaSeed')
                 : null;
-            const useQaSeed = qaSeedMode === 'multilang' || qaSeedMode === 'multilang-force';
+            const isQaSeedAllowed = import.meta.env.DEV || import.meta.env.VITE_ENABLE_QA_SEED === 'true';
+            const useQaSeed = isQaSeedAllowed && (qaSeedMode === 'multilang' || qaSeedMode === 'multilang-force');
             const forceQaSeed = qaSeedMode === 'multilang-force';
             let sourceData: unknown[] = data;
 
@@ -981,12 +982,12 @@ const App: React.FC = () => {
                         for (const record of reconciled.records) {
                             await saveRecordToDB(record);
                         }
-                        console.info('[PSI][QASeed] 다국어 QA 샘플 데이터가 DB에 주입되었습니다.', {
+                        console.info('[PSI][QASeed] 다국어 QA 검증용 데이터가 DB에 주입되었습니다.', {
                             count: reconciled.records.length,
                             mode: qaSeedMode,
                         });
                     } catch (error) {
-                        console.warn('[PSI][QASeed] 샘플 데이터 저장 실패:', error);
+                        console.warn('[PSI][QASeed] 검증용 데이터 저장 실패:', error);
                     }
                 })();
             }
@@ -1072,7 +1073,7 @@ const App: React.FC = () => {
                 stage: 'validation',
                 timestamp: new Date().toISOString(),
                 actor: 'system',
-                note: `사번/QR ID 표준화 반영 (${normalizedIdentityRecord.employeeId || '-'} / ${normalizedIdentityRecord.qrId || '-'})`,
+                note: `관리 식별/QR 표준화 반영 (${normalizedIdentityRecord.employeeId || '-'} / ${normalizedIdentityRecord.qrId || '-'})`,
             })
             : baseWithAudit;
         const nextCompetencyProfile = deriveCompetencyProfile(withAudit);
