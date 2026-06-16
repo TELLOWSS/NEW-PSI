@@ -76,7 +76,7 @@ export const buildAudienceInsightMessage = (audience: DashboardAudience, highRis
     }
     if (audience === 'executive') {
         return highRiskWorkers > 0
-            ? `고위험 ${highRiskWorkers}명입니다. 취약 공종·팀에 자원을 우선 배분하세요.`
+        ? `추가 확인 ${highRiskWorkers}명입니다. 취약 공종·팀에 자원을 우선 배분하세요.`
             : '안정 흐름입니다. 취약 팀만 선별 관리해 수준을 유지하세요.';
     }
     return highRiskWorkers > 0
@@ -96,7 +96,7 @@ export const buildOverviewStatCards = (audience: DashboardAudience, stats: Dashb
             },
             {
                 key: 'avg-score',
-                title: '실무 평균 안전 점수',
+                title: '실무 응답품질 신호',
                 value: `${stats.averageScore.toFixed(1)}점`,
                 iconType: 'chart',
                 page: 'performance-analysis',
@@ -136,7 +136,7 @@ export const buildOverviewStatCards = (audience: DashboardAudience, stats: Dashb
             },
             {
                 key: 'avg-score',
-                title: '현장 평균 점수',
+                title: '현장 응답품질',
                 value: `${stats.averageScore.toFixed(1)}점`,
                 iconType: 'chart',
                 page: 'performance-analysis',
@@ -155,7 +155,7 @@ export const buildOverviewStatCards = (audience: DashboardAudience, stats: Dashb
         return [
             {
                 key: 'risk-priority',
-                title: '고위험 근로자',
+                title: '추가 확인 대상',
                 value: `${stats.highRiskWorkers}명`,
                 iconType: 'warning',
                 page: 'predictive-analysis',
@@ -169,7 +169,7 @@ export const buildOverviewStatCards = (audience: DashboardAudience, stats: Dashb
             },
             {
                 key: 'avg-score',
-                title: '실무 평균 안전 점수',
+                title: '실무 응답품질 신호',
                 value: `${stats.averageScore.toFixed(1)}점`,
                 iconType: 'chart',
                 page: 'performance-analysis',
@@ -194,14 +194,14 @@ export const buildOverviewStatCards = (audience: DashboardAudience, stats: Dashb
         },
         {
             key: 'avg-score',
-            title: '실무 평균 안전 점수',
+            title: '실무 응답품질 신호',
             value: `${stats.averageScore.toFixed(1)}점`,
             iconType: 'chart',
             page: 'performance-analysis',
         },
         {
             key: 'risk-priority',
-            title: '고위험 근로자',
+            title: '추가 확인 대상',
             value: `${stats.highRiskWorkers}명`,
             iconType: 'warning',
             page: 'predictive-analysis',
@@ -240,7 +240,7 @@ export const buildDashboardSummaryCards = (options: {
                 key: 'dashboard-evidence',
                 eyebrow: '무엇을 보면 되나',
                 title: `평균 ${stats.averageScore.toFixed(1)}점 · 보호 필요 ${stats.highRiskWorkers}명`,
-                description: '점수와 위험 인원은 누가 추가 확인이 필요한지 알려주는 신호입니다. 공종·팀 비교까지 함께 보면 내 작업조의 위치를 더 쉽게 이해할 수 있습니다.',
+                description: '응답품질과 보호 우선 인원은 누가 추가 확인이 필요한지 알려주는 신호입니다. 공종·팀 비교까지 함께 보면 내 작업조의 위치를 더 쉽게 이해할 수 있습니다.',
                 tone: BRAND_TONE.whiteSoft,
             },
             {
@@ -269,14 +269,14 @@ export const buildDashboardSummaryCards = (options: {
             {
                 key: 'dashboard-evidence',
                 eyebrow: '핵심 지표',
-                title: `평균 ${stats.averageScore.toFixed(1)}점 · 고위험 ${stats.highRiskWorkers}명 · 점검 ${stats.totalChecks}건`,
-                description: '평균 점수, 고위험 인원, 점검 건수는 현재 현장의 리스크 수준과 이행 상태를 보여주는 운영 지표입니다.',
+                title: `응답품질 ${stats.averageScore.toFixed(1)}점 · 추가 확인 ${stats.highRiskWorkers}명 · 점검 ${stats.totalChecks}건`,
+                description: '응답품질, 추가 확인 인원, 점검 건수는 현재 현장의 리스크 수준과 이행 상태를 보여주는 운영 지표입니다.',
                 tone: BRAND_TONE.whiteSoft,
             },
             {
                 key: 'dashboard-action',
                 eyebrow: '의사결정 포인트',
-                title: stats.highRiskWorkers > 0 ? '취약 공종과 고위험 인원 중심으로 보호 자원 배분을 검토하세요.' : '안정 구간을 유지하면서 취약 팀만 선별 관리하세요.',
+                title: stats.highRiskWorkers > 0 ? '취약 공종과 추가 확인 인원 중심으로 보호 자원 배분을 검토하세요.' : '안정 구간을 유지하면서 취약 팀만 선별 관리하세요.',
                 description: stats.highRiskWorkers > 0
                     ? '팀 비교와 공종 비교를 함께 보면 어느 구간에 교육·점검 자원을 먼저 투입해야 하는지 빠르게 정리할 수 있습니다.'
                     : '안정 흐름일수록 팀 편차와 식별 불가 데이터를 함께 봐야 잠재 리스크를 놓치지 않습니다.',
@@ -299,14 +299,14 @@ export const buildDashboardSummaryCards = (options: {
             {
                 key: 'dashboard-evidence',
                 eyebrow: '우선순위 근거',
-                title: `고위험 ${stats.highRiskWorkers}명 · 평균 ${stats.averageScore.toFixed(1)}점 · 점검 ${stats.totalChecks}건`,
-                description: '즉시 조치 인원, 평균 점수, 점검 이행 건수를 묶어서 보면 오늘 어떤 팀을 먼저 붙잡아야 하는지 빠르게 결정할 수 있습니다.',
+                title: `추가 확인 ${stats.highRiskWorkers}명 · 응답품질 ${stats.averageScore.toFixed(1)}점 · 점검 ${stats.totalChecks}건`,
+                description: '즉시 조치 인원, 응답품질, 점검 이행 건수를 묶어서 보면 오늘 어떤 팀을 먼저 붙잡아야 하는지 빠르게 결정할 수 있습니다.',
                 tone: BRAND_TONE.whiteSoft,
             },
             {
                 key: 'dashboard-action',
                 eyebrow: '즉시 행동',
-                title: stats.highRiskWorkers > 0 ? '고위험 인원부터 코칭·재점검·승인 흐름으로 연결하세요.' : '안정 구간을 유지하되 반복 취약 신호를 선제 점검하세요.',
+                title: stats.highRiskWorkers > 0 ? '추가 확인 인원부터 코칭·재점검·승인 흐름으로 연결하세요.' : '안정 구간을 유지하되 반복 취약 신호를 선제 점검하세요.',
                 description: stats.highRiskWorkers > 0
                     ? '행동 센터에서 우선 대상을 고른 뒤 팀 비교로 내려가 편차를 확인하고, 필요한 건은 OCR/리포트로 즉시 넘기면 됩니다.'
                     : '공종·팀 비교에서 반복 신호만 선별해 사전 코칭과 점검 계획을 잠그는 것이 효과적입니다.',
@@ -337,14 +337,14 @@ export const buildDashboardSummaryCards = (options: {
         {
             key: 'dashboard-evidence',
             eyebrow: '판단 근거',
-            title: `평균 ${stats.averageScore.toFixed(1)}점 · 고위험 ${stats.highRiskWorkers}명 · 점검 ${stats.totalChecks}건`,
-            description: '평균 점수, 고위험 인원, 점검 건수, 공종·국적·팀 비교가 함께 있어 어느 구간에서 보완이 필요한지 빠르게 읽을 수 있습니다.',
+            title: `응답품질 ${stats.averageScore.toFixed(1)}점 · 추가 확인 ${stats.highRiskWorkers}명 · 점검 ${stats.totalChecks}건`,
+            description: '응답품질, 추가 확인 인원, 점검 건수, 공종·국적·팀 비교가 함께 있어 어느 구간에서 보완이 필요한지 빠르게 읽을 수 있습니다.',
             tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'dashboard-action',
             eyebrow: '다음 행동',
-            title: stats.highRiskWorkers > 0 ? '고위험 인원부터 분석·코칭 흐름으로 연결하세요.' : '현재 안정 흐름을 유지하며 취약 공종만 선별 확인하세요.',
+            title: stats.highRiskWorkers > 0 ? '추가 확인 인원부터 분석·코칭 흐름으로 연결하세요.' : '현재 안정 흐름을 유지하며 취약 공종만 선별 확인하세요.',
             description: stats.highRiskWorkers > 0
                 ? '예측 분석, OCR 분석, 리포트 생성으로 바로 연결해 현장 보호 조치를 끊기지 않게 이어갈 수 있습니다.'
                 : '공종·국적 교차 분석과 팀 비교를 통해 작은 이상 신호를 먼저 찾아 선제 보완할 수 있습니다.',
@@ -602,7 +602,7 @@ export const buildAudienceQuickGuide = (options: {
             {
                 key: 'exec-target',
                 title: '지금 보는 대상',
-                focus: `고위험 ${stats.highRiskWorkers}명과 팀 편차`,
+                focus: `추가 확인 ${stats.highRiskWorkers}명과 팀 편차`,
                 action: '리스크 우선 공종 → 팀편차 → 보고 대상 확정',
             },
             {
@@ -688,7 +688,7 @@ export const buildReportsSummaryCards = (options: {
             title: viewMode === 'preview' ? '현재 미리보기 보고서를 먼저 확인하세요.' : '대상 목록에서 먼저 우선순위를 읽으세요.',
             description: viewMode === 'preview'
                 ? '미리보기에서 내용이 맞는지 확인한 뒤 현재 보고서 내보내기 또는 일괄 생성으로 이어가면 됩니다.'
-                : '약점, 점수, 등급을 함께 비교해 어떤 근로자군부터 설명과 보호 조치를 연결할지 먼저 정리할 수 있습니다.',
+                : '약점, 응답품질, 확인단계를 함께 비교해 어떤 근로자군부터 설명과 보호 조치를 연결할지 먼저 정리할 수 있습니다.',
             tone: viewMode === 'preview' ? BRAND_TONE.emeraldSoft80 : BRAND_TONE.amberSoft80,
         },
         {
@@ -717,16 +717,16 @@ export const buildReportsViewCards = (options: {
             eyebrow: '지금 상태',
             title: viewMode === 'list' ? '생성 대상 목록을 비교 중입니다.' : `${currentPreviewName || '선택된 근로자'} 보고서를 미리보고 있습니다.`,
             description: viewMode === 'list'
-                ? '이름, 공종, 점수, 등급, 취약점을 같은 행에서 확인해 설명이 더 필요한 대상을 빠르게 찾을 수 있습니다.'
+                ? '이름, 공종, 응답품질, 확인단계, 취약점을 같은 행에서 확인해 설명이 더 필요한 대상을 빠르게 찾을 수 있습니다.'
                 : `${previewIndex + 1}/${filteredRecordsLength} 순서이며 현재 보고서 내용을 실제 출력 전 단계에서 검토할 수 있습니다.`,
             tone: BRAND_TONE.slate,
         },
         {
             key: 'view-evidence',
             eyebrow: '판단 근거',
-            title: viewMode === 'list' ? '점수와 약점 조합이 우선 해설 대상을 보여줍니다.' : '미리보기 템플릿이 실제 PDF/이미지 출력 기준입니다.',
+            title: viewMode === 'list' ? '응답품질과 약점 조합이 우선 해설 대상을 보여줍니다.' : '미리보기 템플릿이 실제 PDF/이미지 출력 기준입니다.',
             description: viewMode === 'list'
-                ? '단순 점수보다 주요 취약점을 함께 읽어 어떤 설명과 코칭이 필요한지 보호 중심으로 판단할 수 있습니다.'
+                ? '단순 수치보다 주요 취약점을 함께 읽어 어떤 설명과 코칭이 필요한지 보호 중심으로 판단할 수 있습니다.'
                 : '현재 보이는 템플릿이 그대로 캡처되어 PDF 또는 이미지로 저장됩니다.',
             tone: BRAND_TONE.whiteSoft,
         },

@@ -543,7 +543,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             case 'worker-training': return '4 위험인지 진단';
             case 'field-context-input': return '5 현장 컨텍스트';
             case 'safety-behavior-management': return '6 행동 패턴 분석';
-            case 'predictive-analysis': return '7 위험 예측';
+            case 'predictive-analysis': return '7 선행 위험신호';
             case 'intervention-coaching': return '8 개입 추천';
             case 'judgment-tagging-input': return '9 수기 데이터 입력';
             case 'ocr-analysis': return '10 태깅 검증';
@@ -1119,7 +1119,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     : '현재는 승인·영속 저장 상태 설명을 먼저 붙이시면 충분합니다.',
                 description: harnessSummary.highRisk > 0
                     ? `즉시 관찰 보호 대상 ${harnessSummary.highRisk}건은 일반 성과 요약보다 앞서 근거·보호 조치와 함께 설명하시는 것이 적절합니다.`
-                    : '고위험 배지가 크지 않은 경우에는 저장 연결 상태와 승인 이력을 먼저 설명하셔도 운영 흐름에 무리가 없습니다.',
+                    : '보호 우선 배지가 크지 않은 경우에는 저장 연결 상태와 승인 이력을 먼저 설명하셔도 운영 흐름에 무리가 없습니다.',
                 tone: harnessSummary.highRisk > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-indigo-200 bg-indigo-50/80',
             },
         ];
@@ -3112,7 +3112,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
     const mobileReportBadge =
         harnessSummary.highRisk > 0
-            ? { label: '🔴 고위험', tone: 'bg-rose-500/20 text-rose-200 border border-rose-400/40' }
+            ? { label: '🔴 보호 우선', tone: 'bg-rose-500/20 text-rose-200 border border-rose-400/40' }
             : harnessSummary.approvalPending > 0
               ? { label: '🟡 승인 대기', tone: 'bg-amber-400/20 text-amber-100 border border-amber-300/40' }
               : { label: '🟢 정상', tone: 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40' };
@@ -3132,7 +3132,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         { label: '대상', value: filteredRecords.length, tone: 'text-slate-300' },
                         { label: '완료', value: harnessSummary.completed, tone: harnessSummary.completed > 0 ? 'text-indigo-300' : 'text-slate-400' },
                         { label: '승인대기', value: harnessSummary.approvalPending, tone: harnessSummary.approvalPending > 0 ? 'text-amber-300' : 'text-slate-400' },
-                        { label: '고위험', value: harnessSummary.highRisk, tone: harnessSummary.highRisk > 0 ? 'text-rose-300' : 'text-slate-400' },
+                        { label: '보호우선', value: harnessSummary.highRisk, tone: harnessSummary.highRisk > 0 ? 'text-rose-300' : 'text-slate-400' },
                     ].map((chip) => (
                         <div key={chip.label} className="rounded-xl border border-slate-700 bg-slate-900/60 px-1.5 py-2 text-center">
                             <p className="text-[9px] font-black text-slate-500">{chip.label}</p>
@@ -3612,7 +3612,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     <label className="text-xs font-bold text-slate-500 mb-1 block">등급 필터</label>
                     <select value={filterLevel} onChange={e => setFilterLevel(e.target.value)} className="bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 block p-2.5 font-bold min-w-[120px]">
                         <option value="전체">전체 등급</option>
-                        <option value="초급">초급 (고위험)</option>
+                        <option value="초급">초급 (추가 확인)</option>
                         <option value="중급">중급 (주의)</option>
                         <option value="고급">고급 (우수)</option>
                     </select>
@@ -4530,8 +4530,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                     <tr>
                                         <th className="px-6 py-3">이름</th>
                                         <th className="px-6 py-3">직종 (Team)</th>
-                                        <th className="px-6 py-3">안전점수</th>
-                                        <th className="px-6 py-3">등급</th>
+                                        <th className="px-6 py-3">응답품질</th>
+                                        <th className="px-6 py-3">확인단계</th>
                                         {isDevMode && <th className="px-6 py-3">안전 기록 상태</th>}
                                         <th className="px-6 py-3">주요 취약점</th>
                                         <th className="px-6 py-3 text-right">작업</th>

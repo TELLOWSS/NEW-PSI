@@ -9,7 +9,11 @@ const BASE_URL = `http://${HOST}:${PORT}`;
 const OUTPUT_DIR = path.join(process.cwd(), 'artifacts', 'mobile-qa', '2026-05-04');
 const VIEWPORTS = [320, 360, 375, 390];
 const VIEWPORT_HEIGHT = 844;
-const ADMIN_PASSWORD = process.env.PSI_ADMIN_PASSWORD || 'psi1234';
+const ADMIN_PASSWORD = process.env.PSI_ADMIN_PASSWORD || process.env.ADMIN_LOGIN_PASSWORD || '';
+
+if (!ADMIN_PASSWORD) {
+  throw new Error('Set PSI_ADMIN_PASSWORD or ADMIN_LOGIN_PASSWORD before running mobile QA capture.');
+}
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 

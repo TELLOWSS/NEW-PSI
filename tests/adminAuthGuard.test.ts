@@ -12,6 +12,7 @@ const originalEnv = { ...process.env };
 describe('adminAuthGuard', () => {
     beforeEach(() => {
         process.env.ADMIN_SESSION_SECRET = 'test-session-secret-with-enough-entropy';
+        process.env.ADMIN_LOGIN_PASSWORD = 'test-admin-password';
         delete process.env.ADMIN_API_AUTH_TOKEN;
     });
 
@@ -28,7 +29,7 @@ describe('adminAuthGuard', () => {
 
     it('validates a signed HttpOnly session cookie', () => {
         expect(isAdminAuthConfigured()).toBe(true);
-        expect(verifyAdminLoginPassword('psi1234')).toBe(true);
+        expect(verifyAdminLoginPassword('test-admin-password')).toBe(true);
         expect(verifyAdminLoginPassword('wrong-password')).toBe(false);
 
         const token = createAdminSessionToken();

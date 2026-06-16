@@ -37,19 +37,17 @@ export const refreshAdminAuthentication = async (): Promise<boolean> => {
             setCachedAdminState(authenticated);
             return authenticated;
         }
-    } catch (e) {
-        // ignore
+    } catch {
+        // Keep the client locked when server-side auth cannot be verified.
     }
-    if (isAdminAuthenticated()) {
-        return true;
-    }
+
     setCachedAdminState(false);
     return false;
 };
 
 export const loginAdmin = async (password: string): Promise<void> => {
     const normalized = String(password || '').trim();
-    if (!normalized) throw new Error('비밀번호를 입력해 주세요.');
+    if (!normalized) throw new Error('관리자 비밀번호를 입력해 주세요.');
 
     try {
         const { response, data } = await requestAdminAuth({ action: 'login', password: normalized });
@@ -57,17 +55,14 @@ export const loginAdmin = async (password: string): Promise<void> => {
             setCachedAdminState(true);
             return;
         }
+        throw new Error(data?.message || '관리자 인증에 실패했습니다.');
     } catch (error) {
-        console.warn('[adminGuard] API request failed, falling back to local verification:', error);
+        setCachedAdminState(false);
+        if (error instanceof Error) {
+            throw error;
+        }
+        throw new Error('관리자 인증 서버에 연결하지 못했습니다.');
     }
-
-    if (normalized === 'psi1234') {
-        setCachedAdminState(true);
-        return;
-    }
-
-    setCachedAdminState(false);
-    throw new Error('비밀번호가 올바르지 않습니다.');
 };
 
 export const logoutAdmin = async (): Promise<void> => {

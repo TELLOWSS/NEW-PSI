@@ -471,7 +471,7 @@ const Feedback: React.FC = () => {
                                     </h5>
                                     <ul className="text-xs text-slate-600 font-bold space-y-1.5 list-disc list-inside">
                                         <li>시간축 동기화 알고리즘 개선 (2026 Future-Ready)</li>
-                                        <li>근로자 행동 패턴 기반 초정밀 위험 예측 모델 적용</li>
+                                        <li>반복 위험신호와 조치 우선순위 확인 기능 적용</li>
                                         <li>다국어 실시간 통역/번역 엔진 고도화</li>
                                         <li>심리 분석: 필기 압력 및 레이아웃 위반 감지</li>
                                         <li>무결성 검증: 과거 위반 이력과 기재 내용 대조</li>

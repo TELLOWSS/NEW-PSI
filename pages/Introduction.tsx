@@ -304,11 +304,11 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
     const mobileFlowCards = useMemo<Array<{ title: string; desc: string; page: Page }>>(() => ([
         { title: '1. 홈 대시보드', desc: `${previewMetrics.totalWorkers}명 분석`, page: 'dashboard' },
         { title: '2. 경보 알림', desc: `전조 신호 ${previewMetrics.alertSignals}건`, page: 'site-issue-management' },
-        { title: '3. 개인인지 프로파일', desc: `고위험 ${previewMetrics.highRiskWorkers}명`, page: 'worker-management' },
+        { title: '3. 개인인지 프로파일', desc: `추가 확인 ${previewMetrics.highRiskWorkers}명`, page: 'worker-management' },
         { title: '4. 위험인지 진단', desc: `오늘 입력 ${previewMetrics.todayRecords}건`, page: 'worker-training' },
         { title: '5. 현장 컨텍스트', desc: `오늘 입력 ${previewMetrics.todayRecords}건`, page: 'field-context-input' },
         { title: '6. 행동 패턴 분석', desc: `승인 완료 ${previewMetrics.approvedRecords}건`, page: 'safety-behavior-management' },
-        { title: '7. 위험 예측', desc: `예측 대상 ${previewMetrics.interventionTargets}명`, page: 'predictive-analysis' },
+        { title: '7. 선행 위험신호', desc: `확인 대상 ${previewMetrics.interventionTargets}건`, page: 'predictive-analysis' },
         { title: '8. 개입 추천', desc: `개입 대상 ${previewMetrics.interventionTargets}명`, page: 'intervention-coaching' },
         { title: '9. 수기 데이터 입력', desc: `태깅 대기 ${previewMetrics.taggingQueue}건`, page: 'judgment-tagging-input' },
         { title: '10. 태깅 검증', desc: `QA 대상 ${previewMetrics.qaValidationTargets}건`, page: 'ocr-analysis' },
@@ -319,9 +319,9 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
     const heroMobileCards = useMemo<Array<{ title: string; desc: string; page: Page }>>(() => ([
         { title: '1. 홈 대시보드', desc: `${previewMetrics.totalWorkers}명 분석`, page: 'dashboard' },
         { title: '2. 경보 알림', desc: `전조 신호 ${previewMetrics.alertSignals}건`, page: 'site-issue-management' },
-        { title: '3. 작업자 프로파일', desc: `고위험 ${previewMetrics.highRiskWorkers}명`, page: 'worker-management' },
+        { title: '3. 작업자 프로파일', desc: `추가 확인 ${previewMetrics.highRiskWorkers}명`, page: 'worker-management' },
         { title: '4. 현장 지도 (위험)', desc: `위험 핫스팟 ${previewMetrics.alertSignals}건`, page: 'dashboard' },
-        { title: '5. 위험 예측', desc: `예측 대상 ${previewMetrics.interventionTargets}명`, page: 'predictive-analysis' },
+        { title: '5. 선행 위험신호', desc: `확인 대상 ${previewMetrics.interventionTargets}건`, page: 'predictive-analysis' },
         { title: '6. 개입 관리', desc: `개입 대상 ${previewMetrics.interventionTargets}명`, page: 'intervention-coaching' },
         { title: '7. 데이터 입력', desc: `태깅 대기 ${previewMetrics.taggingQueue}건`, page: 'judgment-tagging-input' },
         { title: '8. 더보기', desc: '리포트/설정/검증', page: 'reports' },
@@ -335,7 +335,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
             { title: '4. 위험인지 진단', feature: '현장 진단 입력', page: 'worker-training', dataCount: previewMetrics.todayRecords },
             { title: '5. 현장 컨텍스트', feature: '작업 맥락 저장', page: 'field-context-input', dataCount: previewMetrics.todayRecords },
             { title: '6. 행동 패턴 분석', feature: '시간대/행동 패턴', page: 'safety-behavior-management', dataCount: previewMetrics.approvedRecords },
-            { title: '7. 위험 예측', feature: '개입 우선순위 예측', page: 'predictive-analysis', dataCount: previewMetrics.interventionTargets },
+            { title: '7. 선행 위험신호', feature: '개입 우선순위 확인', page: 'predictive-analysis', dataCount: previewMetrics.interventionTargets },
             { title: '8. 개입 추천', feature: '코칭/조치 추천', page: 'intervention-coaching', dataCount: previewMetrics.interventionTargets },
             { title: '9. 수기 데이터 입력', feature: '사례 수기 입력', page: 'judgment-tagging-input', dataCount: previewMetrics.taggingQueue },
             { title: '10. 태깅 검증', feature: 'AI 결과 검증', page: 'ocr-analysis', dataCount: previewMetrics.qaValidationTargets },
@@ -816,7 +816,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                             {[
                                                 ['위험성 평균', `${previewMetrics.averageScore}`],
                                                 ['전조 신호', `${previewMetrics.alertSignals}`],
-                                                ['위험 예측', `${previewMetrics.highRiskWorkers}`],
+                                                ['위험신호', `${previewMetrics.highRiskWorkers}`],
                                                 ['개입 완료율', `${previewMetrics.totalWorkers > 0 ? Math.round((previewMetrics.approvedRecords / previewMetrics.totalWorkers) * 100) : 0}%`],
                                             ].map(([label, value]) => (
                                                 <div key={label} className="rounded-xl border border-slate-200 bg-white px-2 py-2.5">
@@ -840,7 +840,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                                             strokeDashoffset={`-${previewMetrics.totalWorkers > 0 ? Math.round((previewMetrics.highRiskWorkers / previewMetrics.totalWorkers) * 100) : 25}`} />
                                                     </svg>
                                                     <div className="space-y-0.5 text-[9px] font-bold">
-                                                        <div className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-indigo-400 shrink-0"></span><span className="text-slate-600">고위험</span></div>
+                                                        <div className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-indigo-400 shrink-0"></span><span className="text-slate-600">보호우선</span></div>
                                                         <div className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0"></span><span className="text-slate-600">전조경보</span></div>
                                                         <div className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-indigo-100 shrink-0"></span><span className="text-slate-600">정상</span></div>
                                                     </div>
@@ -860,9 +860,9 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                                     ))}
                                                 </div>
                                             </div>
-                                            {/* 위험 예측 지도 */}
+                                            {/* 선행 위험신호 지도 */}
                                             <div className="rounded-xl border border-slate-200 bg-white p-2">
-                                                <p className="text-[10px] font-black text-slate-500">위험 예측 지도</p>
+                                                <p className="text-[10px] font-black text-slate-500">선행 위험신호 지도</p>
                                                 <div className={`relative mt-1.5 h-14 rounded-lg border overflow-hidden ${BRAND_TONE.slateSoft}`}>
                                                     <div className="absolute inset-0 grid grid-cols-5 grid-rows-3 gap-px p-1.5">
                                                         {Array.from({ length: 15 }).map((_, i) => (
@@ -949,7 +949,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                                                     {stepNoNum === 1 && (
                                                         <div className="flex gap-1">
                                                             <div className="flex-1 rounded bg-indigo-100 px-1 py-1 text-center"><p className="text-[8px] font-black text-indigo-700">{previewMetrics.totalWorkers}</p><p className="text-[7px] text-slate-400">전체</p></div>
-                                                            <div className="flex-1 rounded bg-rose-50 px-1 py-1 text-center"><p className="text-[8px] font-black text-rose-600">{previewMetrics.highRiskWorkers}</p><p className="text-[7px] text-slate-400">고위험</p></div>
+                                                            <div className="flex-1 rounded bg-rose-50 px-1 py-1 text-center"><p className="text-[8px] font-black text-rose-600">{previewMetrics.highRiskWorkers}</p><p className="text-[7px] text-slate-400">보호우선</p></div>
                                                         </div>
                                                     )}
                                                     {stepNoNum === 2 && (
@@ -1261,7 +1261,7 @@ const Introduction: React.FC<IntroductionProps> = ({ workerRecords, onNavigateTo
                             </div>
                             <div className="mt-0.5 text-[10px] font-semibold text-slate-500">
                                 {dashboardLiveSyncSnapshot
-                                    ? `대시보드 동기화 ${isDashboardSyncFresh ? '정상' : '점검 필요'} · 근로자 ${dashboardLiveSyncSnapshot.totalWorkers} · 평균 ${dashboardLiveSyncSnapshot.averageScore.toFixed(1)} · 고위험 ${dashboardLiveSyncSnapshot.highRiskWorkers}`
+                                    ? `대시보드 동기화 ${isDashboardSyncFresh ? '정상' : '점검 필요'} · 근로자 ${dashboardLiveSyncSnapshot.totalWorkers} · 응답품질 ${dashboardLiveSyncSnapshot.averageScore.toFixed(1)} · 추가 확인 ${dashboardLiveSyncSnapshot.highRiskWorkers}`
                                     : '대시보드 동기화 스냅샷 없음 · 대시보드 화면을 열어 최신 상태를 반영하세요.'}
                             </div>
                             <div className="mt-0.5 text-[10px] font-semibold text-slate-500">

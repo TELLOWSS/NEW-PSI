@@ -10,7 +10,7 @@ export const getAdminPin = (): string => {
         // ignore storage read error and fallback to env
     }
 
-    return import.meta.env.VITE_ADMIN_PIN || '1234';
+    return import.meta.env.VITE_ADMIN_PIN || '';
 };
 
 export const setAdminPin = (pin: string): void => {

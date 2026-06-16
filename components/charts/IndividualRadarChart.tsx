@@ -1,9 +1,8 @@
-
 import React from 'react';
 import type { SixMetricBreakdown, WorkerRecord } from '../../types';
 import { deriveCompetencyProfile } from '../../utils/evidenceUtils';
 
-const RADAR_LABELS = ['① 심리', '② 업무', '③ 위험', '④ 숙련', '⑤ 개선', '⑥ 패널티'];
+const RADAR_LABELS = ['응답 충실', '작업 이해', '위험 이해', '숙련', '개선 이행', '반복 신호'];
 const RADAR_METRIC_MAX = [10, 20, 20, 30, 20, 30] as const;
 
 interface ChartProps {
@@ -81,7 +80,7 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
             className="block h-full w-full overflow-hidden"
             preserveAspectRatio="xMidYMid meet"
             role="img"
-            aria-label="6대 지표 레이더 차트"
+            aria-label="6개 참여 품질 지표 레이더 차트"
         >
             <defs>
                 <linearGradient id="radar-fill-gradient" x1="0" y1="0" x2="1" y2="1">

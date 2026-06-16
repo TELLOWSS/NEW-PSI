@@ -22,7 +22,7 @@ export const SafetyActionCenter: React.FC<SafetyActionCenterProps> = ({ workerRe
 
         const newTasks: ActionItem[] = [
             { id: 't1', text: `TBM: '${topWeakness}' 집중 교육`, type: 'routine', completed: false },
-            { id: 't2', text: `고위험 근로자 ${lowScoreCount}명 관리`, type: 'critical', completed: false },
+            { id: 't2', text: `추가 확인 대상 ${lowScoreCount}명 보호 조치`, type: 'critical', completed: false },
             { id: 't3', text: '현장 순회 점검', type: 'routine', completed: false }
         ];
 

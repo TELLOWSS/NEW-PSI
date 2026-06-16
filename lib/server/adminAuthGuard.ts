@@ -2,7 +2,6 @@ import { createHmac, timingSafeEqual } from 'crypto';
 
 const ADMIN_SESSION_COOKIE = 'psi_admin_session';
 const ADMIN_SESSION_TTL_SECONDS = 8 * 60 * 60;
-const ADMIN_LOGIN_PASSWORD = 'psi1234';
 
 type AdminSessionPayload = {
     exp: number;
@@ -21,7 +20,10 @@ const getSessionSecret = (): string => {
 };
 
 const getLoginPassword = (): string => {
-    return ADMIN_LOGIN_PASSWORD;
+    return (
+        readSecret('PSI_ADMIN_PASSWORD') ||
+        readSecret('ADMIN_LOGIN_PASSWORD')
+    );
 };
 
 const signValue = (value: string, secret: string): string => {

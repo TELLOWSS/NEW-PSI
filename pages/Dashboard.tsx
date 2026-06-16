@@ -969,7 +969,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     ? '즉시 관찰 보호 대상부터 승인 대기 대상보다 먼저 확인하시는 편이 안전합니다.'
                     : '즉시 중단 대상이 없다면 승인 대기 건과 시스템 연동 상태부터 점검하시면 됩니다.',
                 description: harnessDashboardSummary.immediateAttention > 0
-                    ? '고위험 배지가 붙은 대상은 보고서 생성보다 현장 보호 조치와 관리자 판단을 먼저 이어가셔야 합니다.'
+                    ? '보호 우선 배지가 붙은 대상은 보고서 생성보다 현장 보호 조치와 관리자 판단을 먼저 이어가셔야 합니다.'
                     : '현재는 지연보다 승인 누락과 중앙 저장소 연동 누락을 점검하는 것이 좋습니다.',
                 tone: harnessDashboardSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-indigo-200 bg-indigo-50/80',
             },
@@ -1553,16 +1553,16 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const comparisonSummaryLines = useMemo(() => {
         const scope = selectedTradeForComparison
             ? comparedTeamRows.length > 0
-                ? `${teamComparisonHeadline} 기준으로 같은 축에서 점수, 위험, 미처리, 추세를 함께 비교하고 있습니다.`
+                ? `${teamComparisonHeadline} 기준으로 같은 축에서 응답품질, 보호신호, 미처리, 추세를 함께 비교하고 있습니다.`
                 : `${selectedTradeForComparison} 공종에서 비교할 팀 2~3개를 먼저 선택하면 메인 비교가 시작됩니다.`
             : '비교할 공종을 먼저 선택한 뒤 팀 2~3개를 고르면 같은 기준으로 바로 비교할 수 있습니다.';
 
         const priority = priorityTeamForAction
-            ? `우선 조치 팀은 ${priorityTeamForAction.team}이며, 고위험 ${priorityTeamForAction.riskCount}명과 평균 ${priorityTeamForAction.avgScore.toFixed(1)}점 기준으로 즉시 점검 대상입니다.`
+            ? `우선 조치 팀은 ${priorityTeamForAction.team}이며, 추가 확인 ${priorityTeamForAction.riskCount}명과 응답품질 ${priorityTeamForAction.avgScore.toFixed(1)}점 기준으로 즉시 점검 대상입니다.`
             : '우선 조치 팀 판단을 위해 비교할 팀을 2개 이상 선택해 주세요.';
 
         const benchmark = benchmarkTeamForAction
-            ? `벤치마크 팀은 ${benchmarkTeamForAction.team}이며, 평균 ${benchmarkTeamForAction.avgScore.toFixed(1)}점 기준으로 현장 코칭 기준점으로 활용할 수 있습니다.`
+            ? `벤치마크 팀은 ${benchmarkTeamForAction.team}이며, 응답품질 ${benchmarkTeamForAction.avgScore.toFixed(1)}점 기준으로 현장 코칭 기준점으로 활용할 수 있습니다.`
             : '벤치마크 팀 판단은 비교 데이터가 확보되면 자동으로 제안됩니다.';
 
         return { scope, priority, benchmark };
@@ -2216,7 +2216,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     eyebrow: '다음 행동',
                     title: weakestTeam ? `${weakestTeam.team} 등 보호가 더 필요한 팀부터 확인하세요.` : '먼저 취약 공종 또는 팀을 선택하세요.',
                     description: weakestTeam
-                        ? `평균 ${weakestTeam.avgScore.toFixed(1)}점과 고위험 ${weakestTeam.riskCount}명을 기준으로 어떤 작업조에 코칭이 먼저 필요한지 이어서 확인할 수 있습니다.`
+                        ? `응답품질 ${weakestTeam.avgScore.toFixed(1)}점과 추가 확인 ${weakestTeam.riskCount}명을 기준으로 어떤 작업조에 코칭이 먼저 필요한지 이어서 확인할 수 있습니다.`
                         : '차트에서 작업조를 고르면 역량 분포도와 개인별 평가 기록으로 바로 이어져 보완 순서를 구체화할 수 있습니다.',
                     tone: weakestTeam ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
                 },
@@ -2246,7 +2246,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     eyebrow: '의사결정 포인트',
                     title: weakestTeam ? `${weakestTeam.team} 등 취약 팀부터 자원 배분 우선순위를 잡으세요.` : '먼저 취약 공종 또는 팀을 선택하세요.',
                     description: weakestTeam
-                        ? `가장 취약한 팀의 평균 ${weakestTeam.avgScore.toFixed(1)}점과 고위험 ${weakestTeam.riskCount}명을 기준으로 교육·점검·보고 자원 배분 순서를 정할 수 있습니다.`
+                        ? `가장 취약한 팀의 응답품질 ${weakestTeam.avgScore.toFixed(1)}점과 추가 확인 ${weakestTeam.riskCount}명을 기준으로 교육·점검·보고 자원 배분 순서를 정할 수 있습니다.`
                         : '차트에서 작업조를 고르면 역량 분포도와 개인별 평가 기록이 이어져 다음 보호 행동을 구체화할 수 있습니다.',
                     tone: weakestTeam ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
                 },
@@ -2275,7 +2275,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 eyebrow: '다음 행동',
                 title: weakestTeam ? `${weakestTeam.team} 등 취약 팀부터 보완 우선순위를 잡으세요.` : '먼저 취약 공종 또는 팀을 선택하세요.',
                 description: weakestTeam
-                    ? `가장 취약한 팀의 평균 ${weakestTeam.avgScore.toFixed(1)}점과 고위험 ${weakestTeam.riskCount}명을 기준으로 코칭·점검·보고 흐름을 연결할 수 있습니다.`
+                    ? `가장 취약한 팀의 응답품질 ${weakestTeam.avgScore.toFixed(1)}점과 추가 확인 ${weakestTeam.riskCount}명을 기준으로 코칭·점검·보고 흐름을 연결할 수 있습니다.`
                     : '차트에서 작업조를 고르면 역량 분포도와 개인별 평가 기록이 이어져 다음 보호 행동을 구체화할 수 있습니다.',
                 tone: weakestTeam ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
             },
@@ -2535,7 +2535,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
     const mobileDashboardBadge =
         stats.highRiskWorkers > 0
-            ? { label: '🔴 고위험', tone: 'bg-rose-500/20 text-rose-200 border border-rose-400/40' }
+            ? { label: '🔴 보호 우선', tone: 'bg-rose-500/20 text-rose-200 border border-rose-400/40' }
             : harnessDashboardSummary.approvalBacklog > 0
               ? { label: '🟡 승인 대기', tone: 'bg-amber-400/20 text-amber-100 border border-amber-300/40' }
               : { label: '🟢 정상', tone: 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40' };
@@ -2562,7 +2562,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         <h2 className="mt-1 text-lg font-black">오늘 위험 현황</h2>
                     </div>
                     <RiskBadge
-                        level={mobileDashboardBadge.label.includes('고위험') ? 'critical' : mobileDashboardBadge.label.includes('승인 대기') ? 'medium' : 'low'}
+                        level={mobileDashboardBadge.label.includes('보호 우선') ? 'critical' : mobileDashboardBadge.label.includes('승인 대기') ? 'medium' : 'low'}
                         labelOverride={mobileDashboardBadge.label}
                         size="sm"
                     />
@@ -2570,8 +2570,8 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 <div className="mt-3 grid grid-cols-4 gap-1.5">
                     {[
                         { label: '근로자', value: stats.totalWorkers, tone: 'text-slate-200' },
-                        { label: '평균', value: stats.averageScore.toFixed(1), tone: 'text-indigo-300' },
-                        { label: '고위험', value: stats.highRiskWorkers, tone: stats.highRiskWorkers > 0 ? 'text-rose-300' : 'text-slate-300' },
+                        { label: '응답품질', value: stats.averageScore.toFixed(1), tone: 'text-indigo-300' },
+                        { label: '보호우선', value: stats.highRiskWorkers, tone: stats.highRiskWorkers > 0 ? 'text-rose-300' : 'text-slate-300' },
                         { label: '백로그', value: harnessDashboardSummary.approvalBacklog, tone: harnessDashboardSummary.approvalBacklog > 0 ? 'text-amber-300' : 'text-slate-300' },
                     ].map((chip) => (
                         <div key={chip.label} className="rounded-xl border border-slate-700 bg-slate-900/60 px-1.5 py-2 text-center">
@@ -2593,7 +2593,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         onClick={() => setCurrentPage('predictive-analysis')}
                         className="flex-1 min-h-[44px] rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-black text-slate-200 hover:bg-slate-700 transition-colors"
                     >
-                        위험 예측 이동
+                        위험신호 보기
                     </button>
                 </div>
             </div>
@@ -2664,8 +2664,8 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
                                 {[
                                     { label: '총 근로자', value: stats.totalWorkers },
-                                    { label: '평균 점수', value: stats.averageScore.toFixed(1) },
-                                    { label: '고위험', value: stats.highRiskWorkers },
+                                    { label: '응답품질', value: stats.averageScore.toFixed(1) },
+                                    { label: '보호우선', value: stats.highRiskWorkers },
                                     { label: '승인 대기', value: harnessDashboardSummary.approvalBacklog },
                                 ].map((item) => (
                                     <div key={item.label} className="rounded-2xl border border-white/10 bg-white/8 px-3 py-3">
@@ -2683,7 +2683,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     팀 비교 보기
                                 </button>
                                 <button type="button" onClick={() => setCurrentPage('predictive-analysis')} className="rounded-2xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-black text-white transition duration-200 hover:-translate-y-0.5 hover:bg-white/10">
-                                    예측 분석 열기
+                                    위험신호 분석 열기
                                 </button>
                             </div>
                         </section>
@@ -2713,7 +2713,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         label: '홈 대시보드',
                                         page: 'dashboard' as Page,
                                         desc: '현장 위험현황 요약',
-                                        status: `평균 ${stats.averageScore.toFixed(1)}점`,
+                                        status: `응답품질 ${stats.averageScore.toFixed(1)}점`,
                                         isWarning: false,
                                     },
                                     {
@@ -2721,7 +2721,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         label: '실시간 경보',
                                         page: 'site-issue-management' as Page,
                                         desc: '우선 대응 경보 목록',
-                                        status: stats.highRiskWorkers > 0 ? `고위험 ${stats.highRiskWorkers}명` : '정상 상태',
+                                        status: stats.highRiskWorkers > 0 ? `추가 확인 ${stats.highRiskWorkers}명` : '정상 상태',
                                         isWarning: stats.highRiskWorkers > 0,
                                     },
                                     {
@@ -2758,9 +2758,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     },
                                     {
                                         step: '07',
-                                        label: 'AI 위험 예측',
+                                        label: '선행 위험신호',
                                         page: 'predictive-analysis' as Page,
-                                        desc: '사고 확률 예측',
+                                        desc: '조치 우선순위 확인',
                                         status: '분석 갱신 완료',
                                         isWarning: false,
                                     },
@@ -3056,11 +3056,11 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
                         <div className="sm:col-span-2 lg:col-span-1">
                             <MetricCard
-                                title="위험도 모니터링"
+                                title="보호 우선 모니터링"
                                 value={stats.highRiskWorkers}
                                 unit="명"
                                 tone="warn"
-                                footer="고위험 근로자 감지"
+                                footer="추가 확인 대상 감지"
                                 icon={(
                                     <svg className="w-3 h-3 sm:w-4 sm:h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -4464,7 +4464,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         {[
                                             { key: 'score-asc', label: '취약팀순' },
                                             { key: 'score-desc', label: '우수팀순' },
-                                            { key: 'risk-desc', label: '고위험순' },
+                                            { key: 'risk-desc', label: '보호우선순' },
                                             { key: 'workers-desc', label: '인원순' },
                                         ].map(option => (
                                             <button
@@ -4551,7 +4551,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     <div className="mt-2 flex items-start justify-between gap-3">
                                         <div className="min-w-0">
                                             <p className="text-sm font-black text-red-900 dark:text-red-100 truncate">{weakestTeam.team}</p>
-                                            <p className="text-[11px] text-red-800 dark:text-red-300 mt-1">고위험 {weakestTeam.riskCount}명 · 인원 {weakestTeam.workerCount}명</p>
+                                            <p className="text-[11px] text-red-800 dark:text-red-300 mt-1">추가 확인 {weakestTeam.riskCount}명 · 인원 {weakestTeam.workerCount}명</p>
                                         </div>
                                         <p className="text-xl font-black text-red-700 dark:text-red-350 shrink-0">{weakestTeam.avgScore.toFixed(1)}</p>
                                     </div>

@@ -200,7 +200,7 @@ export interface SafetyCompetencyProfile {
  * 총 100점 + 감점(repeatViolationPenalty)
  */
 export interface SixMetricBreakdown {
-    /** ① 심리지표 (10점): 성의·진지한 문장 작성 태도 */
+    /** ① 응답 충실도 (10점): 구체적이고 현장 맥락이 담긴 문장 작성 정도 */
     psychological: number;
     /** ② 업무이해도 (20점): 본인 공종·자재·도구 명시 수준 */
     jobUnderstanding: number;

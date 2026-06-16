@@ -28,7 +28,7 @@ const SIX_METRIC_KEYS = [
 ] as const;
 
 const SIX_METRIC_LABELS: Record<typeof SIX_METRIC_KEYS[number], string> = {
-    psychological: '심리지표',
+    psychological: '응답 충실도',
     jobUnderstanding: '업무이해도',
     riskAssessmentUnderstanding: '위험성평가',
     proficiency: '숙련도',
@@ -64,7 +64,7 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 const RISK_BADGE = (score: number) => {
-    if (score < 60) return { label: '고위험', color: 'bg-red-100 text-red-700' };
+    if (score < 60) return { label: '추가 확인', color: 'bg-red-100 text-red-700' };
     if (score < 75) return { label: '주의',   color: 'bg-amber-100 text-amber-700' };
     return { label: '양호', color: 'bg-emerald-100 text-emerald-700' };
 };

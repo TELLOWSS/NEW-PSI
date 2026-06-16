@@ -236,7 +236,7 @@ const getWorkerInfoNative = (nationality: string): string => {
 const getSixMetricBilingualLabels = (nationality: string): Array<{ ko: string; native: string; max: number; isPenalty?: boolean }> => {
     const nation = (nationality || '').toLowerCase();
     const koBase = [
-        { ko: '① 심리적 안정', max: 100 },
+        { ko: '① 응답 충실도', max: 100 },
         { ko: '② 업무 이해도', max: 100 },
         { ko: '③ 위험평가 이해', max: 100 },
         { ko: '④ 작업 숙련도', max: 100 },
@@ -326,7 +326,7 @@ const getSixMetricBilingualLabels = (nationality: string): Array<{ ko: string; n
     }
 
     return [
-        { ko: koBase[0].ko, native: '심리적 안정', max: 100 },
+        { ko: koBase[0].ko, native: '응답 충실도', max: 100 },
         { ko: koBase[1].ko, native: '업무 이해도', max: 100 },
         { ko: koBase[2].ko, native: '위험평가 이해', max: 100 },
         { ko: koBase[3].ko, native: '작업 숙련도', max: 100 },
@@ -785,7 +785,7 @@ const TrendMiniChart: React.FC<{ history: WorkerRecord[]; record: WorkerRecord }
     const yTicks = [0, 20, 40, 60, 80, 100];
 
     return (
-        <svg viewBox={`0 0 ${width} ${height}`} className="block h-full w-full" role="img" aria-label="6개월 안전 점수 추이">
+        <svg viewBox={`0 0 ${width} ${height}`} className="block h-full w-full" role="img" aria-label="6개월 응답품질 신호 추이">
             <defs>
                 <linearGradient id="trend-fill-gradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="rgba(100,116,139,0.24)" />

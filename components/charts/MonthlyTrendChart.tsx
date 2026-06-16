@@ -62,7 +62,7 @@ export const MonthlyTrendChart: React.FC<ChartProps> = ({ records }) => {
                 data: {
                     labels: sortedMonths,
                     datasets: [{
-                        label: '평균 안전 점수',
+                        label: '평균 응답품질 신호',
                         data: dataPoints,
                         fill: true,
                         backgroundColor: gradient,
@@ -122,7 +122,7 @@ export const MonthlyTrendChart: React.FC<ChartProps> = ({ records }) => {
                                     }
                                     const num = typeof parsedVal === 'number' ? parsedVal : Number(parsedVal ?? 0);
                                     const formatted = Number.isFinite(num) ? num.toFixed(1) : '0.0';
-                                    return `평균 ${formatted}점`;
+                                    return `응답품질 ${formatted}점`;
                                 }
                             }
                         }

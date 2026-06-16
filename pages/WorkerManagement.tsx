@@ -424,12 +424,67 @@ const toDisplayStringArray = (value: unknown): string[] => {
     return value.map(item => toDisplayString(item)).filter(Boolean);
 };
 
-let xlsxModulePromise: Promise<typeof import('xlsx')> | null = null;
-const loadXlsx = () => {
-    if (!xlsxModulePromise) {
-        xlsxModulePromise = import('xlsx');
+const csvEscape = (value: unknown): string => {
+    const text = String(value ?? '');
+    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
+const downloadCsvRows = (rows: unknown[][], filename: string): void => {
+    const csv = rows.map((row) => row.map(csvEscape).join(',')).join('\r\n');
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+};
+
+const parseCsvText = (text: string): Record<string, unknown>[] => {
+    const normalized = text.replace(/^\uFEFF/, '');
+    const rows: string[][] = [];
+    let current = '';
+    let row: string[] = [];
+    let inQuotes = false;
+
+    for (let index = 0; index < normalized.length; index += 1) {
+        const char = normalized[index];
+        const next = normalized[index + 1];
+        if (char === '"') {
+            if (inQuotes && next === '"') {
+                current += '"';
+                index += 1;
+            } else {
+                inQuotes = !inQuotes;
+            }
+            continue;
+        }
+        if (char === ',' && !inQuotes) {
+            row.push(current);
+            current = '';
+            continue;
+        }
+        if ((char === '\n' || char === '\r') && !inQuotes) {
+            if (char === '\r' && next === '\n') index += 1;
+            row.push(current);
+            rows.push(row);
+            row = [];
+            current = '';
+            continue;
+        }
+        current += char;
     }
-    return xlsxModulePromise;
+    row.push(current);
+    rows.push(row);
+
+    const nonEmptyRows = rows.filter((item) => item.some((cell) => cell.trim().length > 0));
+    const headers = (nonEmptyRows.shift() || []).map((header) => header.trim());
+    return nonEmptyRows.map((cells) => headers.reduce<Record<string, unknown>>((record, header, index) => {
+        if (header) record[header] = (cells[index] || '').trim();
+        return record;
+    }, {}));
 };
 
 const toRoleSafe = (value: unknown): WorkerRecord['role'] => {
@@ -548,7 +603,7 @@ const PremiumSticker: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker 
                 <div className="w-8 h-px bg-white/30"></div>
                 <div className="text-center">
                     <span className="block text-lg font-black">{worker.safetyScore}</span>
-                    <span className="block text-[7px] font-bold opacity-80">SCORE</span>
+                    <span className="block text-[7px] font-bold opacity-80">SIGNAL</span>
                 </div>
             </div>
 
@@ -638,7 +693,7 @@ const PremiumIDCard: React.FC<{ worker: WorkerRecord }> = React.memo(({ worker }
                         </div>
                     )}
                     <div className={`absolute bottom-0 w-full py-0.5 text-center text-[7px] font-black text-white ${s.bg} print-color-exact`}>
-                        {worker.safetyLevel} GRADE
+                        {worker.safetyLevel} LEVEL
                     </div>
                 </div>
 
@@ -1249,17 +1304,10 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     };
 
     const parseSpreadsheetFile = async (file: File): Promise<Record<string, unknown>[]> => {
-        const XLSX = await loadXlsx();
-        const buffer = await file.arrayBuffer();
-        const workbook = XLSX.read(buffer, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        if (!firstSheetName) return [];
-        const sheet = workbook.Sheets[firstSheetName];
-        return XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
-            defval: '',
-            raw: false,
-            blankrows: false,
-        });
+        if (!file.name.toLowerCase().endsWith('.csv')) {
+            throw new Error('보안 정책상 CSV 파일만 업로드할 수 있습니다. 업로드 양식 CSV를 내려받아 사용해 주세요.');
+        }
+        return parseCsvText(await file.text());
     };
 
     const deriveRegisteredWorkerListMeta = useCallback((rows: RegisteredWorkerListRow[]) => {
@@ -1924,30 +1972,6 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         URL.revokeObjectURL(url);
     };
 
-    const downloadMessageHistoryExcel = async () => {
-        if (!selectedMessageHistoryWorker || filteredMessageHistoryRows.length === 0) return;
-
-        const XLSX = await loadXlsx();
-        const rangeLabel = getRangeFilterLabel(messageHistoryRangeFilter);
-        const rangeToken = getRangeFilterFileToken(messageHistoryRangeFilter);
-        const exportRows = filteredMessageHistoryRows.map((row) => ({
-            조회기간: rangeLabel,
-            근로자명: row.worker_name || selectedMessageHistoryWorker.name,
-            팀명: row.team_name || selectedMessageHistoryWorker.team_name,
-            전화번호: formatPhoneForDisplay(row.phone_number),
-            발송시각: formatMessageLogDateTime(row.created_at),
-            상태: row.status,
-            페이지수: row.sent_count,
-            공급자: row.provider || '-',
-            메모: row.message || '-',
-        }));
-
-        const workbook = XLSX.utils.book_new();
-        const worksheet = XLSX.utils.json_to_sheet(exportRows);
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'MessageLogs');
-        XLSX.writeFile(workbook, `message_history_${(selectedMessageHistoryWorker.name || 'worker').replace(/\s+/g, '_')}_${rangeToken}.xlsx`);
-    };
-
     const downloadDashboardSummaryJson = () => {
         if (!reportMessageDashboardSummary?.schemaReady) return;
 
@@ -2033,76 +2057,6 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         anchor.click();
         document.body.removeChild(anchor);
         URL.revokeObjectURL(url);
-    };
-
-    const downloadDashboardSummaryExcel = async () => {
-        if (!reportMessageDashboardSummary?.schemaReady) return;
-
-        const rangeLabel = getRangeFilterLabel(dashboardRangeFilter);
-        const rangeToken = getRangeFilterFileToken(dashboardRangeFilter);
-
-        const XLSX = await loadXlsx();
-        const workbook = XLSX.utils.book_new();
-
-        const overviewSheet = XLSX.utils.json_to_sheet([
-            {
-                조회기간: rangeLabel,
-                총발송: reportMessageDashboardSummary.overview.totalCount,
-                성공: reportMessageDashboardSummary.overview.successCount,
-                실패: reportMessageDashboardSummary.overview.failedCount,
-                성공률: `${reportMessageDashboardSummary.overview.successRate}%`,
-                개별발송: reportMessageDashboardSummary.overview.individualCount,
-                일괄발송: reportMessageDashboardSummary.overview.bulkCount,
-                최다팀: reportMessageDashboardSummary.overview.topTeam,
-                주요실패원인: reportMessageDashboardSummary.overview.topFailureCategory,
-            },
-        ]);
-        const monthlySheet = XLSX.utils.json_to_sheet(reportMessageDashboardSummary.monthlyRows.map((row) => ({
-            월: row.month_label,
-            총발송: row.total_count,
-            성공: row.success_count,
-            실패: row.failed_count,
-            성공률: `${row.success_rate}%`,
-        })));
-        const teamSheet = XLSX.utils.json_to_sheet(reportMessageDashboardSummary.teamRows.map((row) => ({
-            팀명: row.team_name,
-            총발송: row.total_count,
-            성공: row.success_count,
-            실패: row.failed_count,
-            성공률: `${row.success_rate}%`,
-            최근발송: formatMessageLogDateTime(row.last_sent_at),
-        })));
-        const failureSheet = XLSX.utils.json_to_sheet(reportMessageDashboardSummary.failureRows.map((row) => ({
-            실패사유: row.failure_category,
-            건수: row.failure_count,
-            최근발생: formatMessageLogDateTime(row.last_occurred_at),
-        })));
-        const sendModeSheet = XLSX.utils.json_to_sheet(reportMessageDashboardSummary.sendModeRows.map((row) => ({
-            발송방식: row.send_mode === 'BULK' ? '일괄발송' : '개별발송',
-            총발송: row.total_count,
-            성공: row.success_count,
-            실패: row.failed_count,
-            성공률: `${row.success_rate}%`,
-            최근발송: formatMessageLogDateTime(row.last_sent_at),
-        })));
-        const retrySheet = XLSX.utils.json_to_sheet(reportMessageDashboardSummary.retryRows.map((row) => ({
-            근로자명: row.worker_name,
-            팀명: row.team_name,
-            전화번호: formatPhoneForDisplay(row.phone_number),
-            실패사유: row.failure_category,
-            우선점수: row.priority_score,
-            실패시각: formatMessageLogDateTime(row.failed_at),
-            공급자: row.provider || '-',
-            메모: row.message || '-',
-        })));
-
-        XLSX.utils.book_append_sheet(workbook, overviewSheet, 'Overview');
-        XLSX.utils.book_append_sheet(workbook, monthlySheet, 'Monthly');
-        XLSX.utils.book_append_sheet(workbook, teamSheet, 'Team');
-        XLSX.utils.book_append_sheet(workbook, failureSheet, 'Failure');
-        XLSX.utils.book_append_sheet(workbook, sendModeSheet, 'SendMode');
-        XLSX.utils.book_append_sheet(workbook, retrySheet, 'RetryQueue');
-        XLSX.writeFile(workbook, `message_dashboard_summary_${rangeToken}_${new Date().toISOString().slice(0, 10)}.xlsx`);
     };
 
     const fetchWorkerMessageHistory = useCallback(async (worker: RegisteredWorkerListRow, options?: { force?: boolean; append?: boolean }) => {
@@ -2734,57 +2688,25 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
         }
     };
 
-    const handleDownloadTemplate = async () => {
-        const XLSX = await loadXlsx();
+    const handleDownloadTemplate = () => {
         const headers = ['이름', '국적', '공종', '팀명', '핸드폰번호', '생년월일', '여권번호'];
         const sampleRows = [
             ['홍길동', '대한민국', '형틀', '김철수팀', '01012345678', '900101', 'M12345678'],
             ['왕샤오밍', '중국', '철근', '박영수팀', '01098765432', '', 'E12345678'],
         ];
-
-        const templateSheet = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
-        templateSheet['!cols'] = [
-            { wch: 14 },
-            { wch: 14 },
-            { wch: 18 },
-            { wch: 16 },
-            { wch: 16 },
-            { wch: 12 },
-            { wch: 16 },
+        const guideRows = [
+            [],
+            ['작성 안내'],
+            ['이름, 국적, 공종, 팀명은 필수 입력입니다.'],
+            ['핸드폰번호, 생년월일, 여권번호 중 가능한 정보를 1개 이상 입력해 주세요.'],
+            ['생년월일은 6자리 또는 8자리만 허용됩니다.'],
+            ['공종은 아래 허용 목록 중 하나로 입력해 주세요.'],
+            [],
+            ['허용 공종'],
+            ...ALLOWED_JOB_FIELDS.map((item) => [item]),
         ];
 
-        const jobFieldRows = ALLOWED_JOB_FIELDS.map((item) => [item]);
-        const jobFieldSheet = XLSX.utils.aoa_to_sheet([['허용 공종'], ...jobFieldRows]);
-
-        const noteRows = [
-            ['업로드 가이드'],
-            ['1) 이름, 국적, 공종, 팀명은 필수 입력'],
-            ['2) 핸드폰번호/생년월일/여권번호 중 1개 이상 필수'],
-            ['3) 생년월일은 6자리 또는 8자리만 허용'],
-            [`4) 공종은 허용 목록만 사용: ${ALLOWED_JOB_FIELDS.join(', ')}`],
-        ];
-        const noteSheet = XLSX.utils.aoa_to_sheet(noteRows);
-        noteSheet['!cols'] = [{ wch: 120 }];
-
-        const templateSheetWithValidation = templateSheet as any;
-        templateSheetWithValidation['!dataValidation'] = [
-            {
-                type: 'list',
-                allowBlank: false,
-                sqref: 'C2:C2000',
-                formula1: `'공종목록'!$A$2:$A$${ALLOWED_JOB_FIELDS.length + 1}`,
-                showErrorMessage: true,
-                errorTitle: '공종 입력 오류',
-                error: '허용된 공종 목록에서 선택해 주세요.',
-            },
-        ];
-
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, templateSheet, '근로자업로드양식');
-        XLSX.utils.book_append_sheet(workbook, jobFieldSheet, '공종목록');
-        XLSX.utils.book_append_sheet(workbook, noteSheet, '안내');
-
-        XLSX.writeFile(workbook, 'workers_bulk_upload_template.xlsx');
+        downloadCsvRows([headers, ...sampleRows, ...guideRows], 'workers_bulk_upload_template.csv');
     };
 
     const validateAndNormalizeRows = (rawRows: Record<string, unknown>[]): BulkWorkerUploadRow[] => {
@@ -3514,7 +3436,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     <div class="left" style="background:${palette.primary};">
         <div class="level-label">LEVEL</div>
         <div class="level">${level}</div>
-        <div class="score-label">SCORE</div>
+        <div class="score-label">SIGNAL</div>
         <div class="score">${score}</div>
     </div>
     <div class="body">
@@ -3551,12 +3473,12 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
     <div class="id-body">
         <div class="photo-wrap">
             ${photoSrc ? `<img class="photo" src="${photoSrc}" alt="Profile" />` : `<div class="photo-empty">👷</div>`}
-            <div class="grade" style="background:${palette.primary};">${level} GRADE</div>
+            <div class="grade" style="background:${palette.primary};">${level} LEVEL</div>
         </div>
         <h3>${name}</h3>
         <p class="sub">${job} · ${team}</p>
         <p>${nation}</p>
-        <p class="score-text">안전점수 ${score}</p>
+        <p class="score-text">응답품질 ${score}</p>
         <div class="id-footer" style="background:${palette.soft};color:${palette.text};border-color:${palette.accent};">ID ${idTail}</div>
     </div>
 </article>`;
@@ -4225,7 +4147,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 <input
                     ref={bulkFileInputRef}
                     type="file"
-                    accept=".xlsx,.xls,.csv"
+                    accept=".csv"
                     className="hidden"
                     onChange={handleBulkFileChange}
                 />
@@ -4650,8 +4572,8 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             </div>
                             
                             <div className="pt-3 border-t border-slate-50 flex justify-between items-center relative z-10">
-                                <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black ${s.lightBg} ${s.text} border ${s.border} border-opacity-20`}>{worker.safetyLevel} GRADE</span>
-                                <span className="text-xl font-black text-slate-900 tracking-tighter">{worker.safetyScore}<span className="text-[9px] text-slate-300 ml-0.5 font-bold">PTS</span></span>
+                                <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black ${s.lightBg} ${s.text} border ${s.border} border-opacity-20`}>{worker.safetyLevel} LEVEL</span>
+                                <span className="text-xl font-black text-slate-900 tracking-tighter">{worker.safetyScore}<span className="text-[9px] text-slate-300 ml-0.5 font-bold">SIGNAL</span></span>
                             </div>
 
                             <div className="relative z-10 min-h-[42px] flex items-center">
@@ -5062,13 +4984,6 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                 {getRangeFilterLabel(range)}
                                             </button>
                                         ))}
-                                        <button
-                                            type="button"
-                                            onClick={() => void downloadDashboardSummaryExcel()}
-                                            className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-emerald-700 hover:bg-emerald-50 ${BRAND_TONE.emeraldWhite}`}
-                                        >
-                                            대시보드 Excel
-                                        </button>
                                         <button
                                             type="button"
                                             onClick={downloadDashboardSummaryCsv}
@@ -5567,13 +5482,6 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                             disabled={!selectedMessageHistoryLatestRecord}
                                         >
                                             최신 리포트 열기
-                                        </ActionButton>
-                                        <ActionButton
-                                            variant="emerald"
-                                            onClick={() => void downloadMessageHistoryExcel()}
-                                            disabled={!selectedMessageHistoryWorker || filteredMessageHistoryRows.length === 0}
-                                        >
-                                            Excel 다운로드
                                         </ActionButton>
                                         <ActionButton
                                             variant="emeraldSoft"

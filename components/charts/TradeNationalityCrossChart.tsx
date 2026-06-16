@@ -150,7 +150,7 @@ export const TradeNationalityCrossChart: React.FC<Props> = ({ onSelect, selected
             )}
             {/* 하단 위험도 안내 */}
             <p className="text-[10px] sm:text-xs text-slate-400 mt-3 text-right">
-                ※ 60점 미만: 고위험 · 60~75점: 주의 · 75점 이상: 양호
+                ※ 60점 미만: 추가 확인 · 60~75점: 주의 · 75점 이상: 양호
             </p>
         </div>
     );

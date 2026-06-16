@@ -76,7 +76,7 @@ export const FieldRadarChart: React.FC<ChartProps> = ({ records, mode = 'field' 
                     labels: labels.length > 0 ? labels : ['데이터 없음'],
                     datasets: [
                         {
-                            label: '평균 안전 점수',
+                            label: '평균 응답품질 신호',
                             data: scoreData.length > 0 ? scoreData : [0],
                             fill: true,
                             backgroundColor: 'rgba(79, 70, 229, 0.2)', // Indigo
@@ -88,7 +88,7 @@ export const FieldRadarChart: React.FC<ChartProps> = ({ records, mode = 'field' 
                             borderWidth: 2
                         },
                         {
-                            label: '안전 일관성 지수',
+                            label: '응답 일관성 지수',
                             data: consistencyData.length > 0 ? consistencyData : [0],
                             fill: true,
                             backgroundColor: 'rgba(20, 184, 166, 0.2)', // Teal

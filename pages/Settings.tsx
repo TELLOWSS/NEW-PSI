@@ -790,7 +790,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             key: 'policy-status',
             eyebrow: '지금 상태',
             title: `현재 승인 정책은 ${settings.approvalPolicy?.strictRoleGate ? '엄격 기준' : '유연 기준'}입니다.`,
-            description: `안전 등급 기준은 고급 ${normalizedAdvancedThreshold}점 이상, 중급 ${normalizedIntermediateThreshold}점 이상으로 설정되어 있습니다.`,
+            description: `확인단계 기준은 고급 ${normalizedAdvancedThreshold}점 이상, 중급 ${normalizedIntermediateThreshold}점 이상으로 설정되어 있습니다.`,
             tone: settings.approvalPolicy?.strictRoleGate ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
         },
         {
@@ -1945,7 +1945,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
 
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-emerald-200 lg:col-span-2">
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">안전 등급 컷오프 설정</h3>
+                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">확인단계 컷오프 설정</h3>
                         <button
                             type="button"
                             onClick={() => setSettings((prev) => ({
@@ -1962,7 +1962,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">고급 최소 점수 (고급: score ≥ advancedMin)</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">고급 최소 응답품질 (고급: score ≥ advancedMin)</label>
                             <input
                                 type="number"
                                 min={0}
@@ -1979,7 +1979,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">중급 최소 점수 (중급: score ≥ intermediateMin)</label>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">중급 최소 응답품질 (중급: score ≥ intermediateMin)</label>
                             <input
                                 type="number"
                                 min={0}

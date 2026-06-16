@@ -929,7 +929,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
         return topRisks.map(([risk], idx) => ({
             rank: idx + 1,
             title: `${nextMonth} ${risk} 집중 관리 기간`,
-            desc: `고위험군에서 ${risk} 비중이 ${(riskCounts[risk]/Math.max(1, riskInsights.length) * 100).toFixed(0)}%입니다. TBM 전파 항목으로 우선 지정하십시오.`
+            desc: `보호 우선군에서 ${risk} 비중이 ${(riskCounts[risk]/Math.max(1, riskInsights.length) * 100).toFixed(0)}%입니다. TBM 전파 항목으로 우선 지정하십시오.`
         }));
     }, [riskInsights, nextMonth]);
 
@@ -1339,14 +1339,14 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
         {
             key: 'predictive-evidence',
             eyebrow: '판단 근거',
-            title: '점수 추세, 반복 취약, 현재 점수, 자가 위험수준이 함께 반영됩니다.',
-            description: '예측 위험점수는 단일 점수 대신 최근 변화와 반복 신호를 함께 읽어 누가 먼저 보호 개입이 필요한지 설명 중심으로 정리합니다.',
+            title: '응답품질 추세, 반복 취약, 현재 신호, 자가 위험수준이 함께 반영됩니다.',
+            description: '예측 위험신호는 단일 수치 대신 최근 변화와 반복 신호를 함께 읽어 누가 먼저 보호 개입이 필요한지 설명 중심으로 정리합니다.',
             tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'predictive-action',
             eyebrow: '다음 행동',
-            title: summary.highRiskCount > 0 ? '고위험군부터 실행 계획과 TBM 안건으로 연결하세요.' : '반복 위험테마를 다음 달 예방 안건으로 정리하세요.',
+            title: summary.highRiskCount > 0 ? '보호 우선군부터 실행 계획과 TBM 안건으로 연결하세요.' : '반복 위험테마를 다음 달 예방 안건으로 정리하세요.',
             description: '우선 개입 대상, 온톨로지 맵, 실행 계획, 공종별 조치율을 같은 흐름으로 연결해 감시가 아니라 선제 보호 동선이 되도록 구성했습니다.',
             tone: summary.highRiskCount > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-emerald-200 bg-emerald-50/80',
         },
@@ -1665,12 +1665,12 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
 
     return (
         <div className="space-y-6 sm:space-y-8 animate-fade-in-up">
-            {/* ── 7번 화면: 위험 예측 (모바일 전용) ── */}
+            {/* ── 7번 화면: 선행 위험신호 (모바일 전용) ── */}
             <div className="sm:hidden mb-2 rounded-2xl border border-slate-800 bg-slate-950 px-4 py-4 text-white">
                 <div className="flex items-center justify-between gap-3">
                     <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-300">7) 위험 예측</p>
-                        <h2 className="mt-1 text-lg font-black">AI 리스크 분석</h2>
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-300">7) 선행 위험신호</p>
+                        <h2 className="mt-1 text-lg font-black">조치 우선순위 분석</h2>
                     </div>
                     <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${mobileRiskBadge.tone}`}>{mobileRiskBadge.label}</span>
                 </div>
@@ -1871,7 +1871,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div className={`${MOBILE_CARD_GRID_ITEM_CLASS} bg-white border-rose-100`}>
-                    <p className="text-[11px] font-black text-rose-600">고위험 대상</p>
+                    <p className="text-[11px] font-black text-rose-600">보호 우선 대상</p>
                     <p className="mt-1 text-2xl font-black text-slate-900">{summary.highRiskCount}명</p>
                 </div>
                 <div className={`${MOBILE_CARD_GRID_ITEM_CLASS} bg-white border-amber-100`}>

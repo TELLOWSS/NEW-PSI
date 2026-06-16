@@ -309,7 +309,7 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                                 variant="whiteSoft"
                                 eyebrow="AI 분석 결과"
                                 title="AI 분석 결과 (수정 가능)"
-                                description="안전 점수와 안전 수준을 조정합니다."
+                                description="응답품질과 확인단계를 조정합니다."
                                 className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm"
                                 titleClassName="mt-1 text-sm font-semibold text-slate-700"
                                 descriptionClassName="mt-1 text-[11px] font-medium text-slate-500"
@@ -317,11 +317,11 @@ export const WorkerHistoryModal: React.FC<WorkerHistoryModalProps> = ({ workerNa
                             >
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                                     <div>
-                                        <label className="font-medium text-slate-500">안전 점수</label>
+                                        <label className="font-medium text-slate-500">응답품질</label>
                                         <input type="number" value={editableRecord.safetyScore} onChange={e => handleFieldChange('safetyScore', parseInt(e.target.value))} className="mt-1 w-full border-slate-300 rounded-md shadow-sm text-sm" />
                                     </div>
                                     <div>
-                                         <label className="font-medium text-slate-500">안전 수준</label>
+                                         <label className="font-medium text-slate-500">확인단계</label>
                                          <select value={editableRecord.safetyLevel} onChange={e => handleFieldChange('safetyLevel', e.target.value)} className="mt-1 w-full border-slate-300 rounded-md shadow-sm text-sm">
                                             <option>초급</option>
                                             <option>중급</option>

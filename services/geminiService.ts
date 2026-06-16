@@ -427,7 +427,7 @@ const workerRecordSchema = {
                 type: Type.OBJECT,
                 description: "6대 핵심 평가 지표별 개별 점수 (월간 안전보건정기교육 전용)",
                 properties: {
-                    psychological: { type: Type.NUMBER, description: "①심리지표 0~10점: 성의 있는 문장 작성 태도" },
+                    psychological: { type: Type.NUMBER, description: "①응답 충실도 0~10점: 구체적이고 현장 맥락이 담긴 작성 정도" },
                     jobUnderstanding: { type: Type.NUMBER, description: "②업무이해도 0~20점: 공종·자재·도구 명시 수준" },
                     riskAssessmentUnderstanding: { type: Type.NUMBER, description: "③위험성평가 이해도 0~20점: 핵심 위험요인을 본인 작업과 연결" },
                     proficiency: { type: Type.NUMBER, description: "④숙련도 0~30점: 0~5 일반론/형식문구, 6~15 단일조치·검증부재, 16~23 순서·조건 포함 2개 이상 실무조치, 24~30 수치·거리·체결·통제범위 등 검증가능 행동 포함" },
@@ -1069,7 +1069,7 @@ const STRICT_SCORE_POLICY = `
 ---
 [6대 핵심 평가 지표 - 총 100점]
 
-① 심리지표 (0~10점)
+① 응답 충실도 (0~10점)
   - 성의 없는 단답형/단어 나열이면 0~3점.
   - 형식적이지만 문장으로 작성하면 4~6점.
   - 진지하게 본인 작업 상황을 문장으로 작성하려는 태도가 보이면 7~10점.

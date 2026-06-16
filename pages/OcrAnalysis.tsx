@@ -777,9 +777,9 @@ const CORRECTION_FIELD_LABELS: Record<string, string> = {
     strengths: '강점',
     weakAreas: '약점',
     aiInsights: 'AI 인사이트',
-    safetyScore: '안전 점수',
-    safetyLevel: '안전 등급',
-    scoreReasoning: '점수 근거',
+    safetyScore: '응답품질',
+    safetyLevel: '확인단계',
+    scoreReasoning: '품질 근거',
     actionable_coaching: '개선 코칭',
     improvement: '개선사항',
     suggestions: '권장사항',
@@ -953,7 +953,7 @@ type RecordSortMode = 'recent-correction' | 'score-desc' | 'failed-first' | 'err
 const getRecordSortModeLabel = (mode: RecordSortMode): string => {
     switch (mode) {
         case 'score-desc':
-            return '점수 높은순';
+            return '응답품질 높은순';
         case 'failed-first':
             return `우선 ${BRAND_STATUS_LABELS.attention}순`;
         case 'error-type':
@@ -2580,7 +2580,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             .filter(e => e.total >= 3)
             .sort((a, b) => b.failRate - a.failRate)
             .slice(0, 3);
-        // 교육-행동 연동 신호 (P2.3): 낮은 점수 + 약점 존재 + 코칭 이력 없음
+        // 교육-행동 연동 신호 (P2.3): 낮은 응답품질 + 약점 존재 + 코칭 이력 없음
         const coachingGapCount = recent30d.filter(r =>
             r.safetyScore < 60 &&
             Array.isArray(r.weakAreas) && r.weakAreas.length > 0 &&
@@ -3907,7 +3907,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             `- 정렬 기준 ${getRecordSortModeLabel(recordSortMode)}\n\n` +
             `[상위 대상 미리보기]\n${previewSummary}\n\n` +
             `- 1차 OCR 원문 재추출이 아닌 수정 반영 재평가\n` +
-            `- 점수, 등급, 강점/약점, AI 인사이트 갱신`
+            `- 응답품질, 확인단계, 강점/약점, AI 인사이트 갱신`
         )) return;
 
         setIsAnalyzing(true);
@@ -4264,7 +4264,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         const proceed = confirm(
             `관리자 수동 정상분류를 진행하시겠습니까?\n\n` +
             `- OCR 실패 플래그를 제거하고\n` +
-            `- 최소 안전점수/등급을 보정하여\n` +
+            `- 최소 응답품질/확인단계를 보정하여\n` +
             `- 정상 기록으로 분류합니다.`
         );
         if (!proceed) return;
@@ -5813,7 +5813,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <th className="px-4 sm:px-8 py-4">근로자 정보</th>
                                 <th className="px-4 sm:px-8 py-4">공종/직군</th>
                                 <th className="px-4 sm:px-8 py-4">팀장 (Leader)</th>
-                                <th className="px-4 sm:px-8 py-4 text-center">안전 점수</th>
+                                <th className="px-4 sm:px-8 py-4 text-center">응답품질</th>
                                 <th className="px-4 sm:px-8 py-4 text-center">이미지 상태</th>
                                 <th className="px-4 sm:px-8 py-4 text-right">관리</th>
                             </tr>
@@ -6276,7 +6276,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <div className="mt-3 p-2.5 rounded-lg bg-amber-50 border border-amber-200">
                                 <p className="text-[9px] font-black uppercase tracking-widest text-amber-700 mb-1.5">⚠ 교육-행동 갭 감지</p>
                                 <p className="text-[10px] font-bold text-amber-700">
-                                    낮은 점수(60점 이하)인데 코칭 이력이 없는 근로자 <span className="font-black text-amber-900">{riskIntelligence.coachingGapCount}명</span> — 현장 교육 실행 후 갱신하세요.
+                                    응답품질 신호가 낮고 코칭 이력이 없는 근로자 <span className="font-black text-amber-900">{riskIntelligence.coachingGapCount}명</span> — 현장 교육 실행 후 갱신하세요.
                                 </p>
                             </div>
                         )}
@@ -6592,7 +6592,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 w-full sm:w-auto">
                                     <button type="button" onClick={() => setRecordSortMode('recent-correction')} className={`px-3 py-2.5 min-h-[42px] rounded-xl text-[12px] sm:text-xs font-black border transition-all ${recordSortMode === 'recent-correction' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>최근 수정순</button>
-                                    <button type="button" onClick={() => setRecordSortMode('score-desc')} className={`px-3 py-2.5 min-h-[42px] rounded-xl text-[12px] sm:text-xs font-black border transition-all ${recordSortMode === 'score-desc' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>점수 높은순</button>
+                                    <button type="button" onClick={() => setRecordSortMode('score-desc')} className={`px-3 py-2.5 min-h-[42px] rounded-xl text-[12px] sm:text-xs font-black border transition-all ${recordSortMode === 'score-desc' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>응답품질 높은순</button>
                                     <button type="button" onClick={() => setRecordSortMode('failed-first')} className={`px-3 py-2.5 min-h-[42px] rounded-xl text-[12px] sm:text-xs font-black border transition-all ${recordSortMode === 'failed-first' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>우선 {BRAND_STATUS_LABELS.attention}</button>
                                     <button type="button" onClick={() => setRecordSortMode('error-type')} className={`px-3 py-2.5 min-h-[42px] rounded-xl text-[12px] sm:text-xs font-black border transition-all ${recordSortMode === 'error-type' ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>{BRAND_STATUS_LABELS.attention} 유형순</button>
                                 </div>
@@ -6605,7 +6605,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         className="rounded-3xl border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-4 shadow-sm sm:p-5"
                         eyebrow="2차 AI 재분석"
                         title="관리자 수정본 기준 재평가"
-                        description="현재 필터 기준으로 OCR 성공 기록만 선별해 점수, 등급, 강점/약점, AI 인사이트를 다시 계산합니다."
+                        description="현재 필터 기준으로 OCR 성공 기록만 선별해 응답품질, 확인단계, 강점/약점, AI 인사이트를 다시 계산합니다."
                         eyebrowClassName="text-[11px] font-black uppercase tracking-[0.2em] text-violet-500"
                         titleClassName="mt-2 text-lg font-black text-slate-900"
                         descriptionClassName="mt-2 text-sm font-semibold leading-relaxed text-slate-600"

@@ -1,6 +1,5 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const xlsx = require('xlsx');
 
 const root = process.cwd();
 
@@ -90,6 +89,59 @@ function resolveFromRoot(filePath) {
   return path.resolve(root, filePath);
 }
 
+function parseCsvText(text) {
+  const normalized = String(text || '').replace(/^\uFEFF/, '');
+  const rows = [];
+  let current = '';
+  let row = [];
+  let inQuotes = false;
+
+  for (let index = 0; index < normalized.length; index += 1) {
+    const char = normalized[index];
+    const next = normalized[index + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      row.push(current);
+      current = '';
+      continue;
+    }
+
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && next === '\n') index += 1;
+      row.push(current);
+      rows.push(row);
+      row = [];
+      current = '';
+      continue;
+    }
+
+    current += char;
+  }
+
+  row.push(current);
+  rows.push(row);
+
+  const nonEmptyRows = rows.filter((cells) => cells.some((cell) => String(cell || '').trim().length > 0));
+  const headers = (nonEmptyRows.shift() || []).map((header) => String(header || '').trim());
+
+  return nonEmptyRows.map((cells) => headers.reduce((record, header, index) => {
+    if (header) {
+      record[header] = String(cells[index] ?? '').trim();
+    }
+    return record;
+  }, {}));
+}
+
 function readCsvRows(filePath) {
   const resolved = resolveFromRoot(filePath);
   if (!fs.existsSync(resolved)) {
@@ -97,12 +149,7 @@ function readCsvRows(filePath) {
     process.exit(1);
   }
 
-  const workbook = xlsx.readFile(resolved, { raw: false });
-  const firstSheetName = workbook.SheetNames[0];
-  if (!firstSheetName) return [];
-
-  const sheet = workbook.Sheets[firstSheetName];
-  return xlsx.utils.sheet_to_json(sheet, { defval: '' });
+  return parseCsvText(fs.readFileSync(resolved, 'utf8'));
 }
 
 function normalize(value) {

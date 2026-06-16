@@ -19,7 +19,7 @@ export const SIX_METRIC_KEYS = [
 ] as const;
 
 export const SIX_METRIC_LABELS: Record<typeof SIX_METRIC_KEYS[number], string> = {
-    psychological: '심리지표',
+    psychological: '응답 충실도',
     jobUnderstanding: '업무이해도',
     riskAssessmentUnderstanding: '위험성평가',
     proficiency: '숙련도',

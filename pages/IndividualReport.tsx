@@ -143,7 +143,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         {
             key: 'individual-evidence',
             eyebrow: '판단 근거',
-            title: `안전점수 ${record.safetyScore || '-'}점 · 등급 ${record.safetyLevel || '-'}`,
+            title: `응답품질 ${record.safetyScore || '-'}점 · 확인단계 ${record.safetyLevel || '-'}`,
             description: `${record.jobField || '미분류'}${record.teamLeader ? ` · ${record.teamLeader}` : ''} 기준 기록과 이력 데이터를 현재 리포트 템플릿에 함께 반영합니다.`,
             tone: BRAND_TONE.whiteSoft,
         },

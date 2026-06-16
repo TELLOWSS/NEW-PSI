@@ -6,7 +6,7 @@ interface Props { workerRecords: WorkerRecord[]; }
 
 type MetricKey = keyof SixMetricBreakdown;
 const metrics: Array<{ key: MetricKey; label: string; max: number; description: string }> = [
-    { key: 'psychological', label: '심리지표', max: 10, description: '위험을 성의 있게 기록하는 경향' },
+    { key: 'psychological', label: '응답 충실도', max: 10, description: '위험을 구체적으로 기록하는 경향' },
     { key: 'jobUnderstanding', label: '공종이해', max: 20, description: '본인 작업·도구·자재를 구체적으로 연결하는 수준' },
     { key: 'riskAssessmentUnderstanding', label: '위험성평가 이해', max: 20, description: '예정 작업의 위험요소와 대책을 연결하는 수준' },
     { key: 'proficiency', label: '숙련도', max: 30, description: '현장 경험이 반영된 실효성 있는 대책 수준' },

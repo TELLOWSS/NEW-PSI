@@ -278,8 +278,8 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
                 {[
                     { label: '현장 작성물', value: `${workerRecords.length}건`, helper: '이 브라우저', icon: '📝', color: 'blue' },
-                    { label: 'AI 분석 완료', value: `${summary.analyzed}건`, helper: `평균 ${summary.averageScore}점`, icon: '🤖', color: 'indigo' },
-                    { label: '고위험 집중', value: `${summary.highRisk}건`, helper: '교육 우선 대상', icon: '🚨', color: 'rose' },
+                    { label: 'AI 분석 완료', value: `${summary.analyzed}건`, helper: `응답품질 ${summary.averageScore}점`, icon: '🤖', color: 'indigo' },
+                    { label: '보호 우선 집중', value: `${summary.highRisk}건`, helper: '교육 우선 대상', icon: '🚨', color: 'rose' },
                     { label: '개선 이행', value: `${summary.improvement}%`, helper: `${summary.workTypes}개 공종`, icon: '✅', color: 'emerald' },
                     { label: '교육 세션', value: trainingSummary ? `${trainingSummary.trainingSessions}건` : '-', helper: '서버 전체', icon: '🏫', color: 'violet' },
                     { label: '교육 참여', value: trainingSummary?.trainingSubmissions == null ? '-' : `${trainingSummary.trainingSubmissions}건`, helper: '서버 전체', icon: '👥', color: 'sky' },
@@ -331,7 +331,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                                             : 'text-slate-500 hover:text-slate-800 dark:text-slate-400'
                                     }`}
                                 >
-                                    안전 점수
+                                    응답품질
                                 </button>
                                 <button
                                     type="button"
@@ -349,14 +349,14 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
 
                         <div className="mt-3">
                             <h3 className="text-sm font-black text-slate-900 dark:text-slate-150">현장 안전 트렌드 & 지표 분석</h3>
-                            <p className="mt-1 text-[11px] font-medium text-slate-400 leading-4">최근 월별 평균 안전 점수 및 공종별 개선 이행 추이를 그래프로 분석합니다.</p>
+                            <p className="mt-1 text-[11px] font-medium text-slate-400 leading-4">최근 월별 응답품질 신호와 공종별 개선 이행 추이를 그래프로 분석합니다.</p>
                         </div>
 
                         {/* 메트릭 정보 요약 */}
                         <div className="mt-3.5 grid grid-cols-3 gap-2 text-center">
                             <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
                                 <b className="text-base font-black text-blue-700 dark:text-blue-400">{summary.averageScore}점</b>
-                                <span className="block text-[9px] font-bold text-slate-400 mt-0.5">평균 안전점수</span>
+                                <span className="block text-[9px] font-bold text-slate-400 mt-0.5">평균 응답품질</span>
                             </div>
                             <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/60">
                                 <b className="text-base font-black text-emerald-700 dark:text-emerald-400">{summary.improvement}%</b>
@@ -372,8 +372,8 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                         <div className="mt-3.5 rounded-xl bg-slate-50/50 p-2 dark:bg-slate-800/30">
                             {activeChartTab === 'score' ? (
                                 <>
-                                    <p className="text-[10px] font-black text-slate-500">최근 평균 안전점수 추세</p>
-                                    <TrendChart values={monthlyTrends.scoreValues} label="최근 평균 안전점수 추세" />
+                                    <p className="text-[10px] font-black text-slate-500">최근 평균 응답품질 추세</p>
+                                    <TrendChart values={monthlyTrends.scoreValues} label="최근 평균 응답품질 추세" />
                                 </>
                             ) : (
                                 <>
@@ -408,7 +408,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                             <div className="mt-3">
                                 <h3 className="text-sm font-black text-[#0c2348] dark:text-slate-150">위험성평가 AI 스튜디오</h3>
                                 <p className="mt-1 text-[11px] font-semibold text-slate-550 dark:text-slate-400 font-sans">
-                                    현장 사진, PDF 보고서 또는 수기 텍스트를 기계 학습 기반 엔진으로 분석하여 즉각적인 안전점수와 상등급 위험 조치를 도출합니다.
+                                    현장 사진, PDF 보고서 또는 수기 텍스트를 기계 학습 기반 엔진으로 분석하여 응답품질 신호와 상등급 위험 조치를 도출합니다.
                                 </p>
                             </div>
                             <div className="mt-3 rounded-xl border border-dashed border-blue-200/60 bg-blue-50/40 p-2.5 text-center dark:border-blue-500/20 dark:bg-blue-950/20">

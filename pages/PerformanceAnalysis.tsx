@@ -558,7 +558,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                         )}
                     </div>
                     <div>
-                        <p className="text-sm font-medium text-slate-500 dark:text-slate-300">종합 근로자 안전 점수</p>
+                        <p className="text-sm font-medium text-slate-500 dark:text-slate-300">종합 응답품질 신호</p>
                         <h3 className="text-3xl font-black text-slate-800 dark:text-slate-100 mt-1">{kpiData?.currentAvg.toFixed(1) || '-'}</h3>
                     </div>
                 </div>
@@ -620,8 +620,8 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                     <div className="bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
                         <div className="flex items-center justify-between mb-6">
                             <div>
-                                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 안전 등급 분포 변화 (6개월)</h3>
-                                <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">월별 근로자 안전 등급 구성 비율의 변화를 추적합니다.</p>
+                                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 확인단계 분포 변화 (6개월)</h3>
+                                <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">월별 근로자 확인단계 구성 비율의 변화를 추적합니다.</p>
                             </div>
                         </div>
                         <div className="h-80 w-full">
@@ -772,8 +772,8 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                 <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
                     <div className="mb-6 flex justify-between items-center">
                         <div>
-                            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 안전 등급 분포 변화 (6개월)</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">월별 근로자 안전 등급 구성 비율의 변화를 추적합니다. 초급자 비율 감소가 목표입니다.</p>
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 확인단계 분포 변화 (6개월)</h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">월별 근로자 확인단계 구성 비율의 변화를 추적합니다. 추가 확인 구간 감소가 목표입니다.</p>
                         </div>
                         <div className="flex gap-3 text-xs font-bold">
                             <span className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-500 rounded-sm"></div>고급</span>

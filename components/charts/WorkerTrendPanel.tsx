@@ -206,7 +206,7 @@ const TrendModal: React.FC<TrendModalProps> = ({ worker, onClose }) => {
                                 </ResponsiveContainer>
                             </div>
                             <p className="text-right text-[10px] text-slate-400 mt-1">
-                                ※ 초록 75점 이상 양호 / 노랑 60~75점 주의 / 빨강 60점 미만 고위험
+                                ※ 초록 75점 이상 양호 / 노랑 60~75점 주의 / 빨강 60점 미만 추가 확인
                             </p>
                         </>
                     )}
@@ -312,7 +312,7 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
         },
         {
             key: 'risk',
-            label: '고위험',
+            label: '추가 확인',
             value: `${riskCount}명`,
             tone: 'bg-rose-50 border-rose-100',
             labelClassName: 'text-[10px] uppercase tracking-wide font-bold text-rose-400',
@@ -338,7 +338,7 @@ export const WorkerTrendPanel: React.FC<Props> = ({ targetGroup }) => {
 
     const quickFilters: Array<{ key: TrendFilter; label: string; count: number }> = [
         { key: 'all', label: '전체', count: searchFilteredWorkers.length },
-        { key: 'high-risk', label: '고위험자', count: searchFilteredWorkers.filter(worker => worker.latestScore < 60).length },
+        { key: 'high-risk', label: '추가 확인', count: searchFilteredWorkers.filter(worker => worker.latestScore < 60).length },
         { key: 'improving', label: '상승자', count: searchFilteredWorkers.filter(worker => worker.deltaScore > 0).length },
         { key: 'declining', label: '하락자', count: searchFilteredWorkers.filter(worker => worker.deltaScore < 0).length },
     ];
