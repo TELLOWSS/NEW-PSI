@@ -3535,10 +3535,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         </div>
                         <div>
                             <p className={`text-sm font-black ${isUnassignedWarning ? 'text-amber-900 dark:text-amber-200' : 'text-slate-800 dark:text-slate-100'}`}>
-                                식별 불가 데이터 (Unassigned Records)
+                                식별 보완 필요 데이터
                             </p>
                             <p className={`text-xs font-medium ${isUnassignedWarning ? 'text-amber-800 dark:text-amber-300' : 'text-slate-650 dark:text-slate-400'}`}>
-                                고유 식별자(worker_uuid/employeeId/qrId) 미매핑 레코드는 개인 이력 분석에서 제외됩니다.
+                                관리자 식별정보가 연결되지 않은 기록은 개인 이력 분석에서 제외됩니다.
                             </p>
                         </div>
                     </div>

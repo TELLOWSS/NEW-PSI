@@ -2793,7 +2793,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 updated,
                 skipped,
                 fileName: file.name,
-                message: '엑셀 업로드가 정상 처리되었습니다.',
+                message: 'CSV 업로드가 정상 처리되었습니다.',
             });
             void fetchRegisteredWorkers();
         } catch (error: any) {
@@ -4169,7 +4169,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         disabled={isBulkUploading}
                         className={`w-full px-4 py-3 text-indigo-700 border rounded-xl text-xs sm:text-sm font-black hover:bg-indigo-100 transition-colors disabled:opacity-60 ${BRAND_TONE.indigo}`}
                     >
-                        {isBulkUploading ? '엑셀 대량 업로드 처리 중...' : '엑셀 대량 업로드'}
+                        {isBulkUploading ? 'CSV 대량 업로드 처리 중...' : 'CSV 대량 업로드'}
                     </button>
                 </div>
 
@@ -4223,7 +4223,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 <SectionPanelCard
                     className={`w-full rounded-2xl border px-4 py-4 ${BRAND_TONE.slate}`}
                     title="프로그램에서 근로자 직접 등록"
-                    description="엑셀 없이 1명씩 바로 등록할 수 있습니다. (공종: 관리 포함)"
+                    description="CSV 없이 1명씩 바로 등록할 수 있습니다. (공종: 관리 포함)"
                     titleClassName="text-sm font-black text-slate-800"
                     descriptionClassName="mt-1 text-[11px] font-bold text-slate-500"
                     bodyClassName="mt-3"

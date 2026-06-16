@@ -3424,22 +3424,22 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                     </div>
                                     <div className="grid grid-cols-2 gap-6">
                                         <div>
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">사번 (Employee ID)</label>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">관리자 식별번호 (선택)</label>
                                             <input
                                                 type="text"
                                                 value={record.employeeId || ''}
                                                 onChange={(e) => handleChange('employeeId', e.target.value)}
-                                                placeholder="예: EMP-2026-001"
+                                                placeholder="관리자가 쓰는 번호가 있을 때만 입력"
                                                 className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600"
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">QR 식별자 (QR ID)</label>
+                                            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-[2px]">QR/NFC 식별자 (선택)</label>
                                             <input
                                                 type="text"
                                                 value={record.qrId || ''}
                                                 onChange={(e) => handleChange('qrId', e.target.value)}
-                                                placeholder="예: QR-7F3A"
+                                                placeholder="자동 발급 또는 관리자 확인용"
                                                 className="w-full font-bold p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-indigo-600"
                                             />
                                         </div>

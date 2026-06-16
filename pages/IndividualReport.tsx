@@ -208,7 +208,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             key: 'qr-status',
             eyebrow: '지금 상태',
             title: 'QR 현장 조회용 핵심 정보가 열려 있습니다.',
-            description: '성명, 사번, QR ID, 등급·점수, 무결성, OCR 신뢰도를 작은 화면에서도 빠르게 읽을 수 있도록 묶었습니다.',
+            description: '성명, 공종, 관리자 식별, 응답품질, 무결성, OCR 신뢰도를 작은 화면에서도 빠르게 읽을 수 있도록 묶었습니다.',
             tone: BRAND_TONE.indigoSoft70,
         },
         {
@@ -944,15 +944,15 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                     </div>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">성명</span><div className="font-black text-slate-800 truncate">{record.name || '-'}</div></div>
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">사번</span><div className="font-black text-slate-800 truncate">{record.employeeId || '-'}</div></div>
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">QR ID</span><div className="font-black text-slate-800 truncate">{record.qrId || '-'}</div></div>
-                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">등급/점수</span><div className="font-black text-slate-800">{record.safetyLevel} / {record.safetyScore}점</div></div>
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">공종</span><div className="font-black text-slate-800 truncate">{record.jobField || '-'}</div></div>
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">관리자 식별</span><div className="font-black text-slate-800 truncate">{record.employeeId || record.qrId || '-'}</div></div>
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">확인단계/응답품질</span><div className="font-black text-slate-800">{record.safetyLevel} / {record.safetyScore}점</div></div>
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">무결성</span><div className="font-black text-slate-800">{typeof record.integrityScore === 'number' ? `${record.integrityScore}점` : '-'}</div></div>
                         <div className="bg-slate-50 border border-slate-200 rounded-lg p-2"><span className="text-slate-400 font-bold">OCR 신뢰도</span><div className="font-black text-slate-800">{typeof record.ocrConfidence === 'number' ? `${Math.round(record.ocrConfidence * 100)}%` : '-'}</div></div>
                     </div>
                     {Array.isArray(record.scoreReasoning) && record.scoreReasoning.length > 0 && (
                         <div className="mt-2 bg-slate-50 border border-slate-200 rounded-lg p-2">
-                            <p className="text-[11px] font-black text-slate-700">AI 상세 채점 근거</p>
+                            <p className="text-[11px] font-black text-slate-700">AI 상세 품질 근거</p>
                             <ul className="mt-1 space-y-1 text-[11px] text-slate-600">
                                 {record.scoreReasoning.slice(0, 3).map((reason, index) => (
                                     <li key={index}>• {reason}</li>
