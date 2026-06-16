@@ -95,7 +95,7 @@ const buildEvidenceLines = (record: WorkerRecord): EvidenceLine[] => {
     const lines: EvidenceLine[] = [];
 
     lines.push({ text: 'PSI 사건 체인 증빙 패키지', kind: 'title' });
-    lines.push({ text: `근로자: ${record.name}  |  사번: ${record.employeeId || '-'}  |  공종: ${record.jobField}`, kind: 'body' });
+    lines.push({ text: `근로자: ${record.name}  |  관리 식별: ${record.employeeId || '-'}  |  공종: ${record.jobField}`, kind: 'body' });
     lines.push({ text: `등급: ${record.safetyLevel} (${record.safetyScore}점)  |  OCR 신뢰도: ${typeof record.ocrConfidence === 'number' ? (record.ocrConfidence * 100).toFixed(0) + '%' : '-'}`, kind: 'body' });
     lines.push({ text: `무결성: ${typeof record.integrityScore === 'number' ? record.integrityScore : '-'}  |  증빙해시: ${record.evidenceHash || '-'}`, kind: 'body' });
 

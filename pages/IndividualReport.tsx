@@ -214,10 +214,10 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         {
             key: 'qr-evidence',
             eyebrow: '판단 근거',
-            title: '재평가 이력과 채점 근거가 즉시 판단 기준이 됩니다.',
+            title: '재평가 이력과 품질 판단 근거가 즉시 확인 기준이 됩니다.',
             description: reassessmentTrail.length > 0
                 ? `최근 재평가 이력 ${reassessmentTrail.length}건이 있어 현장 설명 시 이전 보완 흐름까지 함께 볼 수 있습니다.`
-                : '재평가 이력이 없더라도 현재 점수와 AI 채점 근거를 기준으로 간단한 설명을 바로 이어갈 수 있습니다.',
+                : '재평가 이력이 없더라도 현재 응답품질과 AI 판단 근거를 기준으로 간단한 설명을 바로 이어갈 수 있습니다.',
             tone: BRAND_TONE.whiteSoft,
         },
         {

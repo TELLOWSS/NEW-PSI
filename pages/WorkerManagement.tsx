@@ -4098,7 +4098,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 {isUnassignedFilterActive && (
                     <NoticeCallout
                         variant="amber"
-                        title="⚠️ 식별 불가 데이터 필터링 중"
+                        title="⚠️ 식별 보완 필요 데이터 필터링 중"
                         action={(
                             <div className="flex flex-wrap items-center gap-2">
                                 <button
@@ -4106,7 +4106,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     onClick={() => setShowUnassignedSubData((prev) => !prev)}
                                     className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-amber-800 hover:bg-amber-100 ${BRAND_TONE.amberWhiteStrong}`}
                                 >
-                                    {showUnassignedSubData ? '식별불가 하위데이터 접기' : '식별불가 하위데이터 보기'}
+                                    {showUnassignedSubData ? '식별 보완 하위데이터 접기' : '식별 보완 하위데이터 보기'}
                                 </button>
                                 <button
                                     type="button"
@@ -4487,7 +4487,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 <NoticeCallout
                     variant="slate"
                     title="하위 데이터가 접혀 있습니다"
-                    description="식별 불가/안전기록 상세 필터가 활성화된 상태입니다. 필요할 때만 하위 데이터를 펼쳐서 확인하세요."
+                    description="식별 보완/안전기록 상세 필터가 활성화된 상태입니다. 필요할 때만 하위 데이터를 펼쳐서 확인하세요."
                     action={(
                         <div className="flex flex-wrap items-center gap-2">
                             {isUnassignedFilterActive && (
@@ -4496,7 +4496,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     onClick={() => setShowUnassignedSubData(true)}
                                     className={`inline-flex items-center justify-center rounded-xl border px-3 py-2 text-xs font-black text-amber-800 hover:bg-amber-100 ${BRAND_TONE.amberWhiteStrong}`}
                                 >
-                                    식별불가 하위데이터 펼치기
+                                    식별 보완 하위데이터 펼치기
                                 </button>
                             )}
                             {activeHarnessDashboardFilterMeta && (

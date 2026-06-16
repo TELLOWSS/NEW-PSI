@@ -279,7 +279,7 @@ export const buildDashboardSummaryCards = (options: {
                 title: stats.highRiskWorkers > 0 ? '취약 공종과 추가 확인 인원 중심으로 보호 자원 배분을 검토하세요.' : '안정 구간을 유지하면서 취약 팀만 선별 관리하세요.',
                 description: stats.highRiskWorkers > 0
                     ? '팀 비교와 공종 비교를 함께 보면 어느 구간에 교육·점검 자원을 먼저 투입해야 하는지 빠르게 정리할 수 있습니다.'
-                    : '안정 흐름일수록 팀 편차와 식별 불가 데이터를 함께 봐야 잠재 리스크를 놓치지 않습니다.',
+                    : '안정 흐름일수록 팀 편차와 식별 보완 필요 데이터를 함께 봐야 잠재 리스크를 놓치지 않습니다.',
                 tone: stats.highRiskWorkers > 0 ? BRAND_TONE.amberSoft80 : BRAND_TONE.emeraldSoft80,
             },
         ];

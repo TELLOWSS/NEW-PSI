@@ -195,7 +195,7 @@ export function getApprovalBlockers(record: WorkerRecord, approverRole: 'safety-
         blockers.push('OCR 신뢰도가 70% 미만입니다. (검증 대기열 대상)');
     }
     if (isStrict && !record.employeeId && !record.qrId && (signatureScore === null || signatureScore < 0.6)) {
-        blockers.push('사번/QR/서명 검증값 중 승인 기준(서명 0.6 이상)을 충족하지 못했습니다.');
+        blockers.push('관리 식별/QR/서명 검증값 중 승인 기준(서명 0.6 이상)을 충족하지 못했습니다.');
     }
     if (!record.name || !record.name.trim()) {
         blockers.push('근로자 이름이 비어 있습니다.');

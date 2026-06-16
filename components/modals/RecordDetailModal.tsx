@@ -191,7 +191,7 @@ const CompetencyMetricCard: React.FC<CompetencyMetricCardProps> = ({
                 <div className={`h-full rounded-full ${toneClass.bar}`} style={{ width: `${progress}%` }} />
             </div>
             <div className="mt-2 flex items-center justify-between text-[10px] font-bold text-slate-400">
-                <span>{penalty ? '감점 규모' : '달성 수준'}</span>
+                <span>{penalty ? '보완 반영' : '달성 수준'}</span>
                 <span className={toneClass.text}>{safeScore}/{maxScore}</span>
             </div>
         </div>
@@ -374,11 +374,11 @@ const buildHarnessTransitionGuidance = (options: {
 };
 
 const SCORE_REASON_OPTIONS: Array<{ code: ScoreAdjustmentReasonCode; label: string; impact: string }> = [
-    { code: 'BEHAVIOR_NON_COMPLIANCE', label: '현장 지적(행동 위반)', impact: '개선이행도·숙련도 중심 감점' },
-    { code: 'UNDERSTANDING_GAP', label: '수기 위험성평가 이해도 부족', impact: '위험성평가 이해도·업무이해도 중심 감점' },
-    { code: 'DOCUMENT_INCONSISTENCY', label: '문서 내용 불일치', impact: '무결성·이해도 교차 감점' },
-    { code: 'EVIDENCE_INSUFFICIENT', label: '증빙 부족/확인 불가', impact: '무결성 점수 중심 감점' },
-    { code: 'OTHER', label: '기타(관리자 수기 판단)', impact: '관리자 근거 기반 감점' },
+    { code: 'BEHAVIOR_NON_COMPLIANCE', label: '현장 지적(행동 위반)', impact: '개선이행도·숙련도 중심 보완 반영' },
+    { code: 'UNDERSTANDING_GAP', label: '수기 위험성평가 이해도 부족', impact: '위험성평가 이해도·업무이해도 중심 보완 반영' },
+    { code: 'DOCUMENT_INCONSISTENCY', label: '문서 내용 불일치', impact: '무결성·이해도 교차 보완 반영' },
+    { code: 'EVIDENCE_INSUFFICIENT', label: '증빙 부족/확인 불가', impact: '무결성 중심 보완 반영' },
+    { code: 'OTHER', label: '기타(관리자 수기 판단)', impact: '관리자 근거 기반 보완 반영' },
 ];
 
 interface RecordDetailModalProps {
@@ -923,10 +923,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             tone: 'indigo' as const,
         },
         {
-            label: '반복위반 페널티',
+            label: '반복지적 보완',
             score: profile.repeatViolationPenalty,
             maxScore: 20,
-            subtitle: '반복 표현 증빙 또는 명시 사유가 있을 때만 감점',
+            subtitle: '반복 표현 증빙 또는 명시 사유가 있을 때만 보완 지표에 반영',
             tone: 'rose' as const,
             penalty: true,
         },
@@ -2156,7 +2156,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             eyebrow="역량 세부지표"
                                             title="개인 안전역량 세부지표"
                                             description={(
-                                                <span>채점 루브릭 안내: 숙련도(④)는 검증 가능한 실무 행동의 구체성, 개선이행도(⑤)는 실행 계획의 명확성(담당·시점·확인방법) 중심으로 평가됩니다.</span>
+                                                <span>품질 판단 기준 안내: 숙련도(④)는 검증 가능한 실무 행동의 구체성, 개선이행도(⑤)는 실행 계획의 명확성(담당·시점·확인방법) 중심으로 평가됩니다.</span>
                                             )}
                                             className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6 sm:py-6"
                                             titleClassName="mt-1 text-sm font-black text-slate-800"
@@ -2164,7 +2164,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             bodyClassName="mt-4"
                                         >
                                             <p className="hidden text-[11px] font-bold text-slate-500 mb-4">
-                                                채점 루브릭 안내: 숙련도(④)는 검증 가능한 실무 행동의 구체성, 개선이행도(⑤)는 실행 계획의 명확성(담당·시점·확인방법) 중심으로 평가됩니다.
+                                                품질 판단 기준 안내: 숙련도(④)는 검증 가능한 실무 행동의 구체성, 개선이행도(⑤)는 실행 계획의 명확성(담당·시점·확인방법) 중심으로 평가됩니다.
                                             </p>
                                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                                                 {competencyMetrics.map((metric) => (

@@ -49,7 +49,7 @@ function buildWorkerLabel(w: WorkerRecord): string {
     const team = String(w.teamLeader || '').trim();
     const empId = String(w.employeeId || '').trim();
     const qrId = String(w.qrId || '').trim();
-    const idTag = empId ? `사번:${empId}` : (qrId ? `QR:${qrId.slice(-6)}` : '식별자없음');
+    const idTag = empId ? `관리식별:${empId}` : (qrId ? `QR:${qrId.slice(-6)}` : '식별보완필요');
     const profileTag = field || team ? `${field || '미분류'}${team ? `/${team}` : ''}` : (String(w.nationality || '').trim() || '미상');
     return `${w.name} (${profileTag} · ${idTag})`;
 }

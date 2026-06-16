@@ -14,7 +14,7 @@
 - [.env](.env) 의 실키 제거 완료
   - VITE_GEMINI_API_KEY_FREE=
   - VITE_GEMINI_API_KEY_PAID=
-  - VITE_ADMIN_PIN=
+  - PSI_ADMIN_SECRET=
 - [.gitignore](.gitignore) 정리
   - .env
   - .env.local

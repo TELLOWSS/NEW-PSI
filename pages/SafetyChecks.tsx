@@ -127,8 +127,8 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
             const employeeId = String(record.employeeId || '').trim();
             const qrId = String(record.qrId || '').trim();
             const identityTag = employeeId
-                ? `사번:${employeeId}`
-                : (qrId ? `QR:${qrId.slice(-6)}` : '식별자없음');
+                ? `관리식별:${employeeId}`
+                : (qrId ? `QR:${qrId.slice(-6)}` : '식별보완필요');
             const profileTag = field || team
                 ? `${field || '미분류'}${team ? `/${team}` : ''}`
                 : (nationality || '미상');

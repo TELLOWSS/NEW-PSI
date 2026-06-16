@@ -11,7 +11,7 @@ const metrics: Array<{ key: MetricKey; label: string; max: number; description: 
     { key: 'riskAssessmentUnderstanding', label: '위험성평가 이해', max: 20, description: '예정 작업의 위험요소와 대책을 연결하는 수준' },
     { key: 'proficiency', label: '숙련도', max: 30, description: '현장 경험이 반영된 실효성 있는 대책 수준' },
     { key: 'improvementExecution', label: '개선이행', max: 20, description: '지난달 교육·지적사항이 이번 달 작성내용과 실천행동에 반영되었는지 확인하는 지표' },
-    { key: 'repeatViolationPenalty', label: '반복지적 감점', max: 30, description: '같은 위험요소나 불안전행동의 반복 여부를 다음 교육에 반영하기 위한 지표' },
+    { key: 'repeatViolationPenalty', label: '반복지적 보완', max: 30, description: '같은 위험요소나 불안전행동의 반복 여부를 다음 교육에 반영하기 위한 지표' },
 ];
 
 const monthKey = (value: string) => {

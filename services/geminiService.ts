@@ -376,7 +376,7 @@ const workerRecordSchema = {
         type: Type.OBJECT,
         properties: {
             name: { type: Type.STRING },
-            employeeId: { type: Type.STRING, description: "사번 또는 근로자 식별번호" },
+            employeeId: { type: Type.STRING, description: "관리자가 쓰는 근로자 식별번호(선택)" },
             qrId: { type: Type.STRING, description: "QR/NFC 식별자" },
             jobField: { type: Type.STRING },
             teamLeader: { type: Type.STRING, description: "팀장 이름 (Team Leader Name)" },

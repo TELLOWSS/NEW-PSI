@@ -1205,7 +1205,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <div className="grid h-[46mm] grid-cols-[1fr_1fr] gap-2.5 overflow-hidden">
                             <div className="flex h-[46mm] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
                                 <p className="text-[10px] font-black leading-none text-slate-700 mb-1.5 flex items-center gap-1">
-                                    <SectionSearchIcon /> 핵심 채점 요약
+                                    <SectionSearchIcon /> 핵심 응답품질 요약
                                 </p>
                                 {frontScoreReasonEntries.length > 0 ? (
                                     <ul className="space-y-1 overflow-hidden text-[9px] leading-[1.35] text-slate-700">
@@ -1217,7 +1217,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         ))}
                                     </ul>
                                 ) : (
-                                    <p className="text-[9px] text-slate-400 italic">채점 근거 없음</p>
+                                    <p className="text-[9px] text-slate-400 italic">품질 판단 근거 없음</p>
                                 )}
                                 <p className="mt-auto pt-1.5 text-[7px] text-slate-400 leading-tight border-t border-slate-200">
                                     상세 지표 막대 해설은 후면 부록에서 확인합니다.
@@ -1242,7 +1242,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <div className="grid h-[46mm] grid-cols-2 gap-2.5 overflow-hidden">
                             <div className="flex h-[46mm] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
                                 <p className="text-[10px] font-black leading-none text-slate-700 mb-1.5 flex items-center gap-1">
-                                    <SectionSearchIcon /> 상세 채점 근거
+                                    <SectionSearchIcon /> 상세 품질 판단 근거
                                 </p>
                                 {frontScoreReasonEntries.length > 0 ? (
                                     <ul className="space-y-1 overflow-hidden">
@@ -1263,7 +1263,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                         ))}
                                     </ul>
                                 ) : (
-                                    <p className="text-[10px] text-slate-400 italic">채점 근거 없음</p>
+                                    <p className="text-[10px] text-slate-400 italic">품질 판단 근거 없음</p>
                                 )}
                                 <p className="mt-1 text-[7px] text-slate-400 leading-tight border-t border-slate-200 pt-1.5">
                                     상세 지표 막대 해설은 후면 부록에서 확인합니다.
@@ -1553,7 +1553,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 <div className="flex items-center justify-between gap-2">
                                     <h3 className="text-[9px] font-black tracking-[0.12em] text-slate-700 flex items-center gap-1">
                                         <SectionSearchIcon />
-                                        상세 채점 근거
+                                        상세 품질 판단 근거
                                     </h3>
                                     <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[7px] font-black text-slate-500">검증용 상세 기술</span>
                                 </div>

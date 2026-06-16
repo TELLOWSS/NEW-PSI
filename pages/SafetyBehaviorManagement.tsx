@@ -212,8 +212,8 @@ function buildWorkerOptionLabel(worker: Pick<WorkerRecord, 'name' | 'jobField' |
     const qrId = String(worker.qrId || '').trim();
 
     const identityTag = employeeId
-        ? `사번:${employeeId}`
-        : (qrId ? `QR:${qrId.slice(-6)}` : '식별자없음');
+        ? `관리식별:${employeeId}`
+        : (qrId ? `QR:${qrId.slice(-6)}` : '식별보완필요');
     const profileTag = field || team
         ? `${field || '미분류'}${team ? `/${team}` : ''}`
         : (nationality || '미상');
@@ -376,7 +376,7 @@ const ObserveTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }>
                                 type="text"
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
-                                placeholder="이름, 팀, 공종, 사번 검색"
+                                placeholder="이름, 팀, 공종, 관리 식별 검색"
                                 className="text-xs border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                                 style={{ minWidth: 120 }}
                             />

@@ -115,7 +115,8 @@ VERCEL_TOKEN=xxxx
   - API 쿼터/권한 상태 확인
 
 - 관리자 기능 접근 실패
-  - `VITE_PSI_ADMIN_SECRET` 및 관리자 PIN 설정 확인
+  - `VITE_PSI_ADMIN_SECRET` 또는 `PSI_ADMIN_SECRET` 설정 확인
+  - 운영자 로그인 세션과 배포 환경변수 반영 여부 확인
 
 - 하네스 분석/재분석 실패
   - `GEMINI_API_KEY` 또는 폴백 키 설정 확인

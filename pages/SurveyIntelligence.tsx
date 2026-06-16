@@ -678,7 +678,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                     badge="지표 3"
                     badgeColor="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
                     title="자기규율 약속 구체성 지수 (Self-Discipline Specificity Score)"
-                    subtitle="데이터 출처: Q3 이유 + Q4 안전조치 + Q5 실천약속 텍스트 AI 채점 (1~5점)"
+                    subtitle="데이터 출처: Q3 이유 + Q4 안전조치 + Q5 실천약속 텍스트 응답품질 판단 (1~5점)"
                     actionLabel="마인드셋 변화 근거"
                     actionDesc={`공종별 구체성 점수 월평균 ${specificityDelta >= 0 ? `+${specificityDelta.toFixed(1)}pt` : `${specificityDelta.toFixed(1)}pt`} 변화 — "서류 작업이 아니라 근로자 사고방식을 능동적으로 변화시키고 있다"는 객관적 증거`}
                 >
@@ -715,9 +715,9 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                             </ResponsiveContainer>
                         </div>
 
-                        {/* 채점 기준 안내 */}
+                        {/* 응답품질 기준 안내 */}
                         <div className="flex flex-col gap-3">
-                            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">AI 채점 기준표</p>
+                            <p className="text-xs font-bold text-slate-500 dark:text-slate-400">AI 응답품질 기준표</p>
                             {[
                                 { score: 5, label: '행동+조건+시점 명시', example: '"매일 출근 시 안전벨트 직접 확인하겠다"', color: 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300' },
                                 { score: 4, label: '구체적 행동 명시', example: '"안전벨트 착용 여부를 확인하겠다"', color: 'bg-teal-50 border-teal-200 text-teal-800 dark:bg-teal-900/20 dark:text-teal-300' },

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { AppSettings, WorkerRecord } from '../types';
-import { getIsPaidApiMode, setIsPaidApiMode } from '../utils/apiModeUtils';
+import { API_MODE_WARNING_MESSAGE, getIsPaidApiMode, setIsPaidApiMode } from '../utils/apiModeUtils';
 import { PSI_APP_VERSION, PSI_SYSTEM_NAME } from '../lib/appInfo';
 import { InterpretationCardGrid, type InterpretationCardItem } from '../components/shared/InterpretationCardGrid';
 import { NoticeCallout } from '../components/shared/NoticeCallout';
@@ -356,7 +356,6 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     const [isPaidApiMode, setIsPaidApiModeState] = useState(false);
     const [freeApiKey, setFreeApiKey] = useState('');
     const [paidApiKey, setPaidApiKey] = useState('');
-    const [adminPin, setAdminPinState] = useState('');
     const [weightHistory, setWeightHistory] = useState<Array<{
         timestamp: string;
         previousVersion: string | null;
@@ -462,7 +461,6 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         const savedPaidKey = localStorage.getItem('paidApiKey') || '';
         setFreeApiKey(savedFreeKey);
         setPaidApiKey(savedPaidKey);
-        setAdminPinState(localStorage.getItem('adminPin') || '');
         if (savedSettings) {
             try {
                 const parsed = JSON.parse(savedSettings) as AppSettings;
@@ -500,10 +498,8 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
 
     const handlePaidApiModeToggle = (checked: boolean) => {
         if (checked) {
-            const enteredPin = window.prompt('관리자 PIN 번호를 입력하세요.');
-            const savedPin = localStorage.getItem('adminPin') || '';
-            if (enteredPin !== savedPin) {
-                window.alert('PIN 번호가 틀렸습니다.');
+            const confirmed = window.confirm(`${API_MODE_WARNING_MESSAGE}\n\n운영자 책임 하에 전환 기록과 사용량을 확인해 주세요.`);
+            if (!confirmed) {
                 setIsPaidApiModeState(false);
                 setIsPaidApiMode(false);
                 return;
@@ -522,11 +518,6 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     const handlePaidApiKeyChange = (value: string) => {
         setPaidApiKey(value);
         localStorage.setItem('paidApiKey', value);
-    };
-
-    const handleAdminPinChange = (value: string) => {
-        setAdminPinState(value);
-        localStorage.setItem('adminPin', value);
     };
 
     useEffect(() => {
@@ -772,8 +763,8 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         {
             key: 'api-evidence',
             eyebrow: '판단 근거',
-            title: 'API 키와 관리자 PIN이 처리 권한의 기준입니다.',
-            description: '유료 모드는 PIN 확인을 거쳐야 켜지도록 구성해 무분별한 비용 사용 대신 운영 책임이 남도록 만들었습니다.',
+            title: 'API 키와 운영자 확인이 처리 권한의 기준입니다.',
+            description: '유료 모드는 전환 전 확인창을 거쳐 켜지도록 구성해 무분별한 비용 사용 대신 운영 책임이 남도록 만들었습니다.',
             tone: BRAND_TONE.whiteSoft,
         },
         {
@@ -1850,18 +1841,11 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                             placeholder="유료 API 키 입력"
                             className="w-full p-4 pr-12 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-500 font-mono text-sm transition-all"
                         />
+                        <button onClick={() => setShowKey(!showKey)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600">{showKey ? '숨김' : '보기'}</button>
                     </div>
 
-                    <label className="block text-sm font-bold text-slate-600 mb-2">관리자 PIN 번호</label>
-                    <div className="relative mb-2">
-                        <input
-                            type={showKey ? 'text' : 'password'}
-                            value={adminPin}
-                            onChange={(e) => handleAdminPinChange(e.target.value)}
-                            placeholder="관리자 PIN 번호 입력"
-                            className="w-full p-4 pr-12 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-500 font-mono text-sm transition-all"
-                        />
-                        <button onClick={() => setShowKey(!showKey)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600">{showKey ? '숨김' : '보기'}</button>
+                    <div className="relative mb-2 rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3 text-xs font-semibold leading-5 text-indigo-700">
+                        유료 API 전환은 별도 PIN 기억 방식이 아니라, 운영자가 비용 발생 가능성을 확인한 뒤 켜는 방식으로 정리했습니다.
                     </div>
                     <span className="text-xs text-indigo-500 font-normal cursor-pointer hover:underline" onClick={() => window.open('https://aistudio.google.com/app/apikey')}>키가 없으신가요?</span>
                     <div className="mt-5 flex items-center justify-between gap-3">
