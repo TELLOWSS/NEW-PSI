@@ -1232,6 +1232,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const [showAllFailureCodeCards, setShowAllFailureCodeCards] = useState(false);
     const [showMobileUtilityPanel, setShowMobileUtilityPanel] = useState(false);
     const [showPostAnalysisCta, setShowPostAnalysisCta] = useState(false);
+    const [showAllWorkerAccumulations, setShowAllWorkerAccumulations] = useState(true);
+    const [focusedWorkerGroupKey, setFocusedWorkerGroupKey] = useState<string | null>(null);
     const [mobileMode, setMobileMode] = useState<'quick' | 'detailed'>('quick');
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
     const [isPaidApiMode, setIsPaidApiMode] = useState<boolean>(() => getIsPaidApiMode());
@@ -1920,6 +1922,25 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             return String(a.latestRecord.name || '').localeCompare(String(b.latestRecord.name || ''), 'ko-KR');
         });
     }, [filteredRecords, getReviewTrustState]);
+
+    const visibleWorkerAccumulationGroups = useMemo(() => {
+        return showAllWorkerAccumulations ? workerAccumulationGroups : workerAccumulationGroups.slice(0, 18);
+    }, [showAllWorkerAccumulations, workerAccumulationGroups]);
+
+    const focusedWorkerGroup = useMemo(() => {
+        if (!focusedWorkerGroupKey) return null;
+        return workerAccumulationGroups.find((group) => group.key === focusedWorkerGroupKey) || null;
+    }, [focusedWorkerGroupKey, workerAccumulationGroups]);
+
+    useEffect(() => {
+        if (focusedWorkerGroupKey && !focusedWorkerGroup) {
+            setFocusedWorkerGroupKey(null);
+        }
+    }, [focusedWorkerGroupKey, focusedWorkerGroup]);
+
+    const recordListRecords = useMemo(() => {
+        return focusedWorkerGroup ? focusedWorkerGroup.records : filteredRecords;
+    }, [focusedWorkerGroup, filteredRecords]);
 
     const recordsWithImages = useMemo(() => {
         return existingRecords.filter(r => hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage));
@@ -5733,7 +5754,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     <span className="font-bold text-slate-700 text-xs mr-2">근로자 일괄 선택</span>
                     <button
                         className="px-3 py-1 text-xs rounded bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold hover:bg-indigo-100"
-                        onClick={() => setSelectedIds(filteredRecords.map(r => r.id))}
+                        onClick={() => setSelectedIds(recordListRecords.map(r => r.id))}
                     >전체 선택</button>
                     <button
                         className="px-3 py-1 text-xs rounded bg-slate-50 text-slate-500 border border-slate-200 font-bold hover:bg-slate-100"
@@ -5776,7 +5797,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         onClick={() => {
                             if (selectedIds.length === 0) return alert('수정할 근로자를 선택하세요.');
                             if (!batchJobField && !batchTeamLeader) return alert('공종 또는 팀장 중 하나 이상 입력하세요.');
-                            filteredRecords.forEach(r => {
+                            recordListRecords.forEach(r => {
                                 if (selectedIds.includes(r.id)) {
                                     onUpdateRecord({
                                         ...r,
@@ -5833,8 +5854,24 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 <span className="rounded-full bg-white border border-slate-200 px-3 py-1">누적 근로자 {workerAccumulationGroups.length}명</span>
                             </div>
                         </div>
-                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-3">
-                            {workerAccumulationGroups.slice(0, 18).map((group) => {
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-[11px] font-bold text-slate-500">
+                                {showAllWorkerAccumulations
+                                    ? '누적 근로자 전체를 표시합니다. 카드 영역 안에서 스크롤해 찾을 수 있습니다.'
+                                    : '최근 기준 18명만 간략 표시 중입니다.'}
+                            </p>
+                            {workerAccumulationGroups.length > 18 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAllWorkerAccumulations((prev) => !prev)}
+                                    className="rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-[11px] font-black text-indigo-700 hover:bg-indigo-50"
+                                >
+                                    {showAllWorkerAccumulations ? '핵심 18명만 보기' : `전체 ${workerAccumulationGroups.length}명 보기`}
+                                </button>
+                            )}
+                        </div>
+                        <div className="mt-4 grid max-h-[720px] grid-cols-1 gap-3 overflow-y-auto pr-1 custom-scrollbar md:grid-cols-2 2xl:grid-cols-3">
+                            {visibleWorkerAccumulationGroups.map((group) => {
                                 const deltaTone = group.deltaScore === null
                                     ? 'text-slate-400'
                                     : group.deltaScore > 0
@@ -5848,7 +5885,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 const latest = group.latestRecord;
 
                                 return (
-                                    <div key={group.key} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:border-indigo-200 hover:shadow-md transition-all">
+                                    <div key={group.key} className={`rounded-2xl border bg-white p-4 shadow-sm transition-all hover:border-indigo-200 hover:shadow-md ${focusedWorkerGroupKey === group.key ? 'border-indigo-400 ring-2 ring-indigo-100' : 'border-slate-200'}`}>
                                         <div className="flex items-start justify-between gap-3">
                                             <button
                                                 type="button"
@@ -5914,11 +5951,18 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 </span>
                                             )}
                                         </div>
-                                        <div className="mt-3 flex gap-2">
+                                        <div className="mt-3 grid grid-cols-3 gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setFocusedWorkerGroupKey(group.key)}
+                                                className="rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-black text-white hover:bg-indigo-700"
+                                            >
+                                                월별만 보기
+                                            </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setSelectedIds(group.records.map((record) => record.id))}
-                                                className="flex-1 rounded-xl bg-slate-900 px-3 py-2 text-[11px] font-black text-white hover:bg-black"
+                                                className="rounded-xl bg-slate-900 px-3 py-2 text-[11px] font-black text-white hover:bg-black"
                                             >
                                                 이 근로자 기록 선택
                                             </button>
@@ -5934,15 +5978,60 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 );
                             })}
                         </div>
-                        {workerAccumulationGroups.length > 18 && (
-                            <p className="mt-3 text-[11px] font-bold text-slate-500">
-                                화면 속도를 위해 상위 18명만 먼저 표시합니다. 근로자명 또는 공종 검색으로 대상을 좁히면 해당 근로자의 누적 카드가 바로 올라옵니다.
-                            </p>
-                        )}
+                    </div>
+                )}
+                {focusedWorkerGroup && (
+                    <div className="border-b border-indigo-100 bg-indigo-50/70 px-4 py-4 sm:px-6">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                            <div>
+                                <p className="text-[11px] font-black uppercase tracking-wider text-indigo-600">선택 근로자 월별 보기</p>
+                                <h4 className="mt-1 text-base font-black text-slate-900">
+                                    {focusedWorkerGroup.latestRecord.name || '이름 미확인'} · {focusedWorkerGroup.latestRecord.jobField || '공종 미확인'} · {focusedWorkerGroup.latestRecord.nationality || '국적 미확인'}
+                                </h4>
+                                <p className="mt-1 text-xs font-bold text-slate-600">
+                                    아래 목록은 이 근로자의 {recordListRecords.length}건만 표시합니다. 월별 흐름을 확인한 뒤 상세 판단으로 바로 들어가세요.
+                                </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedIds(recordListRecords.map((record) => record.id))}
+                                    className="rounded-xl bg-slate-900 px-3 py-2 text-[11px] font-black text-white hover:bg-black"
+                                >
+                                    이 근로자 기록 선택
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setFocusedWorkerGroupKey(null)}
+                                    className="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-[11px] font-black text-indigo-700 hover:bg-indigo-50"
+                                >
+                                    전체 월별 목록 보기
+                                </button>
+                            </div>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                            {recordListRecords.map((record) => (
+                                <button
+                                    key={record.id}
+                                    type="button"
+                                    onClick={() => onViewDetails(record)}
+                                    className="rounded-full border border-white bg-white px-3 py-1.5 text-[11px] font-black text-slate-700 shadow-sm hover:border-indigo-300 hover:text-indigo-700"
+                                >
+                                    {String(record.date || '').slice(0, 10) || '날짜 없음'} · {record.safetyScore}점
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                {!focusedWorkerGroup && filteredRecords.length > 0 && (
+                    <div className="border-b border-slate-100 bg-white px-4 py-3 sm:px-6">
+                        <p className="text-[12px] font-bold text-slate-500">
+                            아래 월별 기록 목록은 전체 {filteredRecords.length}건을 표시합니다. 누적 카드에서 <span className="font-black text-indigo-700">월별만 보기</span>를 누르면 한 근로자 기록만 좁혀볼 수 있습니다.
+                        </p>
                     </div>
                 )}
                 <div className="sm:hidden p-3 space-y-3">
-                    {filteredRecords.map((r: WorkerRecord) => {
+                    {recordListRecords.map((r: WorkerRecord) => {
                         const checked = selectedIds.includes(r.id);
                         const failed = isFailedRecord(r);
                         const failureCode = failed ? resolveFailureCodeFromRecord(r) : 'UNKNOWN';
@@ -6067,6 +6156,23 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     />
                                 )}
 
+                                <div className="mt-3 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="text-[10px] font-black uppercase tracking-wider text-indigo-600">상세 판단 바로보기</p>
+                                            <p className="mt-1 text-[12px] font-black leading-snug text-slate-900">{rowStatusSummary}</p>
+                                            <p className="mt-1 text-[11px] font-semibold leading-snug text-slate-600">{rowNextAction}</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); onViewDetails(r); }}
+                                            className="shrink-0 rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-black text-white hover:bg-indigo-700"
+                                        >
+                                            열기
+                                        </button>
+                                    </div>
+                                </div>
+
                                 <div className="mt-3 grid grid-cols-2 gap-2">
                                     <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-3 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl">상세 판단</button>
                                     <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-3 py-2 bg-slate-900 text-white font-black text-xs rounded-xl">보호 리포트</button>
@@ -6120,7 +6226,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         </thead>
                         <tbody className="divide-y divide-slate-50 font-medium">
                             {/* 선택 체크박스 컬럼 추가 */}
-                            {filteredRecords.map((r: WorkerRecord) => {
+                            {recordListRecords.map((r: WorkerRecord) => {
                                 const checked = selectedIds.includes(r.id);
                                 const isManager = isManagementRole(r.jobField);
                                 const hasImage = hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage);
@@ -6296,8 +6402,12 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                             )}
                                         </td>
                                         <td className="px-4 sm:px-8 py-5 text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-4 py-2 bg-white border border-slate-200 text-indigo-600 font-black text-xs rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">상세 판단 바로가기</button>
+                                            <div className="ml-auto flex min-w-[280px] max-w-sm flex-col items-stretch gap-2">
+                                                <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 px-3 py-2 text-left">
+                                                    <p className="text-[10px] font-black uppercase tracking-wider text-indigo-600">상세 판단 바로보기</p>
+                                                    <p className="mt-1 text-[11px] font-black leading-snug text-slate-900">{rowStatusSummary}</p>
+                                                </div>
+                                                <button onClick={(e) => { e.stopPropagation(); onViewDetails(r); }} className="px-4 py-2 bg-indigo-600 border border-indigo-600 text-white font-black text-xs rounded-xl hover:bg-indigo-700 transition-all shadow-sm">상세 판단 바로보기</button>
                                                 <button onClick={(e) => { e.stopPropagation(); onOpenReport(r); }} className="px-4 py-2 bg-slate-900 text-white font-black text-xs rounded-xl hover:bg-black transition-all shadow-sm">보호 리포트 바로가기</button>
                                                 {failed && !isAnalyzing && hasImage && (
                                                     <button onClick={(e) => { e.stopPropagation(); runBatchAnalysis([r], '개별 재분석'); }} className={`px-3 py-2 font-bold text-xs rounded-xl border transition-all ${retryActionButtonClass}`} title={preflightReason || '사전진단 통과'}>
