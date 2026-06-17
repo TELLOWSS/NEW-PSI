@@ -309,6 +309,20 @@ const getWorkerUuidValue = (record: Partial<WorkerRecord>): string => {
     return normalizeIdentityText(record.worker_uuid || record.workerUuid);
 };
 
+const normalizeJobIdentityText = (value: unknown): string => {
+    const raw = typeof value === 'string' ? value.trim().toUpperCase() : '';
+    if (!raw) return '';
+
+    const parts = raw
+        .split(/[,\s/·ㆍ+|]+/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+    return parts.length > 1
+        ? Array.from(new Set(parts)).sort().join('+')
+        : raw.replace(/[,\s/·ㆍ+|]+/g, '');
+};
+
 const getWorkerNameIdentitySeed = (record: Partial<WorkerRecord>): string => {
     const normalizedName = normalizeIdentityText(record.name).replace(/\s+/g, '');
     if (!normalizedName) return '';
@@ -316,8 +330,11 @@ const getWorkerNameIdentitySeed = (record: Partial<WorkerRecord>): string => {
     const genericNames = new Set(['식별대기', '이름없음', '이름미확인', '미상', '분석실패']);
     if (genericNames.has(normalizedName)) return '';
 
+    const normalizedJobField = normalizeJobIdentityText(record.jobField);
+    if (!normalizedJobField) return '';
+
     const normalizedNationality = normalizeIdentityText(record.nationality).replace(/\s+/g, '') || 'UNKNOWN';
-    return `${normalizedName}|${normalizedNationality}`;
+    return `${normalizedJobField}|${normalizedName}|${normalizedNationality}`;
 };
 
 const buildNameBasedWorkerUuid = (record: Partial<WorkerRecord>): string => {
@@ -335,6 +352,12 @@ const getComparableDateValue = (date?: string): number => {
 };
 
 const getWorkerMatchScore = (target: Partial<WorkerRecord>, candidate: Partial<WorkerRecord>): number => {
+    const targetNameSeed = getWorkerNameIdentitySeed(target);
+    const candidateNameSeed = getWorkerNameIdentitySeed(candidate);
+    if (targetNameSeed && candidateNameSeed) {
+        return targetNameSeed === candidateNameSeed ? 130 : -1;
+    }
+
     const targetUuid = getWorkerUuidValue(target);
     const candidateUuid = getWorkerUuidValue(candidate);
     if (targetUuid && candidateUuid && targetUuid === candidateUuid) return 120;
@@ -351,18 +374,23 @@ const getWorkerMatchScore = (target: Partial<WorkerRecord>, candidate: Partial<W
     const candidateName = normalizeIdentityText(candidate.name);
     if (!targetName || !candidateName || targetName !== candidateName) return -1;
 
-    let score = 40;
+    const targetJob = normalizeJobIdentityText(target.jobField);
+    const candidateJob = normalizeJobIdentityText(candidate.jobField);
+    if (!targetJob || !candidateJob || targetJob !== candidateJob) return -1;
+
+    let score = 55;
     const targetNationality = normalizeIdentityText(target.nationality);
     const candidateNationality = normalizeIdentityText(candidate.nationality);
+    if (targetNationality && candidateNationality && targetNationality !== candidateNationality) return -1;
     if (targetNationality && candidateNationality && targetNationality === candidateNationality) score += 15;
 
     const targetTeam = normalizeIdentityText(target.teamLeader);
     const candidateTeam = normalizeIdentityText(candidate.teamLeader);
     if (targetTeam && candidateTeam && targetTeam === candidateTeam) score += 15;
 
-    const targetJob = normalizeIdentityText(target.jobField);
-    const candidateJob = normalizeIdentityText(candidate.jobField);
-    if (targetJob && candidateJob && targetJob === candidateJob) score += 15;
+    const targetJobText = normalizeIdentityText(target.jobField);
+    const candidateJobText = normalizeIdentityText(candidate.jobField);
+    if (targetJobText && candidateJobText && targetJobText === candidateJobText) score += 15;
 
     const targetRole = normalizeIdentityText(target.role);
     const candidateRole = normalizeIdentityText(candidate.role);
@@ -407,9 +435,11 @@ const isSameWorkerTimeline = (base: Partial<WorkerRecord>, candidate: Partial<Wo
 
     const baseName = normalizeIdentityText(base.name);
     const candidateName = normalizeIdentityText(candidate.name);
+    const baseJob = normalizeJobIdentityText(base.jobField);
+    const candidateJob = normalizeJobIdentityText(candidate.jobField);
     const baseNationality = normalizeIdentityText(base.nationality);
     const candidateNationality = normalizeIdentityText(candidate.nationality);
-    return Boolean(baseName && candidateName && baseName === candidateName && baseNationality === candidateNationality);
+    return Boolean(baseJob && candidateJob && baseJob === candidateJob && baseName && candidateName && baseName === candidateName && baseNationality === candidateNationality);
 };
 
 const ensureWorkerUuid = (record: WorkerRecord, existingRecords: WorkerRecord[] = []): WorkerRecord => {

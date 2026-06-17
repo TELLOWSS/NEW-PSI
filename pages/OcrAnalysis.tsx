@@ -895,10 +895,25 @@ const normalizeWorkerGroupText = (value: unknown): string => {
     return String(value || '').trim().toLowerCase().replace(/\s+/g, '');
 };
 
+const normalizeWorkerJobGroupText = (value: unknown): string => {
+    const raw = String(value || '').trim().toLowerCase();
+    if (!raw) return '';
+
+    const parts = raw
+        .split(/[,\s/·ㆍ+|]+/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+    return parts.length > 1
+        ? Array.from(new Set(parts)).sort().join('+')
+        : raw.replace(/[,\s/·ㆍ+|]+/g, '');
+};
+
 const getWorkerAccumulationKey = (record: WorkerRecord): string => {
+    const jobField = normalizeWorkerJobGroupText(record.jobField);
     const name = normalizeWorkerGroupText(record.name);
     const nationality = normalizeWorkerGroupText(record.nationality);
-    if (name) return `name:${name}|nationality:${nationality || 'unknown'}`;
+    if (jobField && name) return `job:${jobField}|name:${name}|nationality:${nationality || 'unknown'}`;
 
     const employeeId = normalizeWorkerGroupText(record.employeeId);
     if (employeeId) return `employee:${employeeId}`;

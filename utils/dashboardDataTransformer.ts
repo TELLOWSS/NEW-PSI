@@ -122,7 +122,26 @@ const normalizeIdentityValue = (value: string | undefined | null) => {
     return normalized.length > 0 ? normalized : null;
 };
 
+const normalizeJobIdentityValue = (value: string | undefined | null) => {
+    const raw = (value ?? '').trim().toUpperCase();
+    if (!raw) return null;
+
+    const parts = raw
+        .split(/[,\s/·ㆍ+|]+/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+    const normalized = parts.length > 1
+        ? Array.from(new Set(parts)).sort().join('+')
+        : raw.replace(/[,\s/·ㆍ+|]+/g, '');
+
+    return normalized.length > 0 ? normalized : null;
+};
+
 const getNameBasedWorkerIdentity = (record: WorkerRecord): string | null => {
+    const jobField = normalizeJobIdentityValue(record.jobField);
+    if (!jobField) return null;
+
     const name = normalizeIdentityValue(record.name);
     if (!name) return null;
 
@@ -130,7 +149,7 @@ const getNameBasedWorkerIdentity = (record: WorkerRecord): string | null => {
     if (genericNames.has(name)) return null;
 
     const nationality = normalizeIdentityValue(record.nationality) || 'UNKNOWN';
-    return `name:${name}|nationality:${nationality}`;
+    return `job:${jobField}|name:${name}|nationality:${nationality}`;
 };
 
 const getStrictWorkerIdentity = (record: WorkerRecord): string | null => {

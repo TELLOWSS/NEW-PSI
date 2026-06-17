@@ -13,6 +13,20 @@ const normalizeIdentityText = (value: unknown): string => typeof value === 'stri
 
 const getWorkerUuidValue = (record: Partial<WorkerRecord>): string => normalizeIdentityText(record.worker_uuid || record.workerUuid);
 
+const normalizeJobIdentityText = (value: unknown): string => {
+    const raw = typeof value === 'string' ? value.trim().toUpperCase() : '';
+    if (!raw) return '';
+
+    const parts = raw
+        .split(/[,\s/·ㆍ+|]+/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+    return parts.length > 1
+        ? Array.from(new Set(parts)).sort().join('+')
+        : raw.replace(/[,\s/·ㆍ+|]+/g, '');
+};
+
 const getWorkerNameIdentitySeed = (record: Partial<WorkerRecord>): string => {
     const name = normalizeIdentityText(record.name);
     if (!name) return '';
@@ -20,8 +34,11 @@ const getWorkerNameIdentitySeed = (record: Partial<WorkerRecord>): string => {
     const genericNames = new Set(['식별대기', '이름없음', '이름미확인', '미상', '분석실패']);
     if (genericNames.has(name)) return '';
 
+    const jobField = normalizeJobIdentityText(record.jobField);
+    if (!jobField) return '';
+
     const nationality = normalizeIdentityText(record.nationality) || 'UNKNOWN';
-    return `${name}|${nationality}`;
+    return `${jobField}|${name}|${nationality}`;
 };
 
 const isSameWorkerHistory = (base: WorkerRecord, candidate: WorkerRecord): boolean => {

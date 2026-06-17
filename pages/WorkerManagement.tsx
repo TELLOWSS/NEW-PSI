@@ -251,6 +251,20 @@ const normalizeIdentityToken = (value: unknown): string => {
     return typeof value === 'string' ? value.trim().toUpperCase().replace(/\s+/g, '') : '';
 };
 
+const normalizeJobIdentityToken = (value: unknown): string => {
+    const raw = typeof value === 'string' ? value.trim().toUpperCase() : '';
+    if (!raw) return '';
+
+    const parts = raw
+        .split(/[,\s/·ㆍ+|]+/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+    return parts.length > 1
+        ? Array.from(new Set(parts)).sort().join('+')
+        : raw.replace(/[,\s/·ㆍ+|]+/g, '');
+};
+
 const getWorkerNameIdentityKey = (record: WorkerRecord): string => {
     const name = normalizeIdentityToken(record.name);
     if (!name) return '';
@@ -258,8 +272,11 @@ const getWorkerNameIdentityKey = (record: WorkerRecord): string => {
     const genericNames = new Set(['식별대기', '이름없음', '이름미확인', '미상', '분석실패']);
     if (genericNames.has(name)) return '';
 
+    const jobField = normalizeJobIdentityToken(record.jobField);
+    if (!jobField) return '';
+
     const nationality = normalizeIdentityToken(record.nationality) || 'UNKNOWN';
-    return `name:${name}|nationality:${nationality}`;
+    return `job:${jobField}|name:${name}|nationality:${nationality}`;
 };
 
 const getWorkerPrimaryIdentityKey = (record: WorkerRecord): string => {
