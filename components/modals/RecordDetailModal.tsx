@@ -263,7 +263,7 @@ const getHarnessWorkflowStateLabel = (state: HarnessWorkflowState): string => {
         case 'uploaded': return '업로드됨';
         case 'ocr_validating': return 'OCR 검증 중';
         case 'manual_review_required': return '수동 검토 필요';
-        case 'context_ready': return '컨텍스트 준비';
+        case 'context_ready': return '현장 맥락 준비';
         case 'first_pass_analyzing': return '1차 분석 중';
         case 'evaluator_review': return '검증 중';
         case 'awaiting_manager_approval': return '관리자 승인 대기';
@@ -368,8 +368,8 @@ const buildHarnessTransitionGuidance = (options: {
 
     return {
         variant: 'slate' as const,
-        title: '현재 하네스 상태 전이 조건을 먼저 확인해 주십시오.',
-        description: message || '워크플로우 상태, 승인 상태, 2차 재분석 상태가 현재 액션과 맞는지 먼저 확인이 필요합니다.',
+        title: '현재 검증 흐름의 다음 단계 조건을 먼저 확인해 주십시오.',
+        description: message || '검증 흐름, 승인 상태, 2차 재분석 상태가 현재 조치와 맞는지 먼저 확인이 필요합니다.',
     };
 };
 
@@ -379,6 +379,14 @@ const SCORE_REASON_OPTIONS: Array<{ code: ScoreAdjustmentReasonCode; label: stri
     { code: 'DOCUMENT_INCONSISTENCY', label: '문서 내용 불일치', impact: '무결성·이해도 교차 보완 반영' },
     { code: 'EVIDENCE_INSUFFICIENT', label: '증빙 부족/확인 불가', impact: '무결성 중심 보완 반영' },
     { code: 'OTHER', label: '기타(관리자 수기 판단)', impact: '관리자 근거 기반 보완 반영' },
+];
+
+type ReviewViewMode = 'simple' | 'detail' | 'pro';
+
+const REVIEW_VIEW_MODE_OPTIONS: Array<{ mode: ReviewViewMode; label: string; helper: string }> = [
+    { mode: 'simple', label: '간단 보기', helper: '실무 판단' },
+    { mode: 'detail', label: '상세 보기', helper: '분석 비교' },
+    { mode: 'pro', label: '프로 검증', helper: '감사 근거' },
 ];
 
 interface RecordDetailModalProps {
@@ -425,13 +433,13 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
     const [harnessPolicyVersion, setHarnessPolicyVersion] = useState<HarnessWorkflowPolicyVersion | null>(null);
     const [harnessVersionDetails, setHarnessVersionDetails] = useState<HarnessWorkflowVersionDetails>({ prompt: [], policy: [], rule: [] });
     const [harnessVersionChangeSummary, setHarnessVersionChangeSummary] = useState<HarnessWorkflowVersionChangeSummary>({ prompt: [], policy: [], rule: [] });
-    const [harnessRuleImpactSummary, setHarnessRuleImpactSummary] = useState<HarnessWorkflowRuleImpactSummary>({ items: [], narrative: '현재 저장된 가드레일 오버라이드는 없습니다.', totalCount: 0, criticalCount: 0 });
+    const [harnessRuleImpactSummary, setHarnessRuleImpactSummary] = useState<HarnessWorkflowRuleImpactSummary>({ items: [], narrative: '현재 저장된 예외 규칙 기록은 없습니다.', totalCount: 0, criticalCount: 0 });
     const [harnessAnalyzerSummary, setHarnessAnalyzerSummary] = useState<HarnessWorkflowAnalyzerSummary>({ summary: null, confidence: null });
     const [harnessEvaluatorSummary, setHarnessEvaluatorSummary] = useState<HarnessWorkflowEvaluatorSummary>({ evidenceSufficiency: null, requiresHumanApproval: null, flags: [] });
     const [harnessLatestApprovalDiff, setHarnessLatestApprovalDiff] = useState<HarnessWorkflowApprovalDiff | null>(null);
     const [harnessTransitionActions, setHarnessTransitionActions] = useState<HarnessWorkflowTransitionAction[]>([]);
     const [showHarnessTechnicalDetails, setShowHarnessTechnicalDetails] = useState(false);
-    const [isCompactReviewView, setIsCompactReviewView] = useState(true);
+    const [reviewViewMode, setReviewViewMode] = useState<ReviewViewMode>('simple');
     const [isMobileViewport, setIsMobileViewport] = useState(false);
     const [isMobileDetailExpanded, setIsMobileDetailExpanded] = useState(false);
     const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -460,7 +468,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         setScoreEvidenceSummary('');
         setIsPhotoAutoSaving(false);
         setPhotoQueueNotice(null);
-        setIsCompactReviewView(true);
+        setReviewViewMode('simple');
         setIsMobileDetailExpanded(false);
     }, [initialRecord]);
 
@@ -512,7 +520,20 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         };
     }, [isMobileDetailExpanded, isMobileViewport]);
 
-    const isCompactViewActive = isMobileViewport ? !isMobileDetailExpanded : isCompactReviewView;
+    const activeReviewViewMode: ReviewViewMode = isMobileViewport && !isMobileDetailExpanded ? 'simple' : reviewViewMode;
+    const isCompactViewActive = activeReviewViewMode === 'simple';
+    const isProfessionalReviewView = activeReviewViewMode === 'pro';
+
+    const handleReviewViewModeChange = useCallback((mode: ReviewViewMode) => {
+        setReviewViewMode(mode);
+        if (isMobileViewport) {
+            setIsMobileDetailExpanded(mode !== 'simple');
+        }
+        if (mode === 'pro') {
+            setActiveTab('info');
+            setShowHarnessTechnicalDetails(true);
+        }
+    }, [isMobileViewport]);
 
     useEffect(() => {
         try {
@@ -539,7 +560,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             setHarnessPolicyVersion(null);
             setHarnessVersionDetails({ prompt: [], policy: [], rule: [] });
             setHarnessVersionChangeSummary({ prompt: [], policy: [], rule: [] });
-            setHarnessRuleImpactSummary({ items: [], narrative: '현재 저장된 가드레일 오버라이드는 없습니다.', totalCount: 0, criticalCount: 0 });
+            setHarnessRuleImpactSummary({ items: [], narrative: '현재 저장된 예외 규칙 기록은 없습니다.', totalCount: 0, criticalCount: 0 });
             setHarnessAnalyzerSummary({ summary: null, confidence: null });
             setHarnessEvaluatorSummary({ evidenceSufficiency: null, requiresHumanApproval: null, flags: [] });
             setHarnessLatestApprovalDiff(null);
@@ -580,7 +601,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                 harnessPersistenceWarning: response.persistence?.warning || undefined,
             })));
         } catch (error) {
-            setHarnessStatusWarning(error instanceof Error ? error.message : '하네스 상태 조회에 추가 확인이 필요합니다.');
+            setHarnessStatusWarning(error instanceof Error ? error.message : '검증 흐름 조회에 추가 확인이 필요합니다.');
             setIsHarnessPersisted(false);
             setHarnessDiagnostics(null);
             setHarnessOverrides([]);
@@ -590,7 +611,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             setHarnessPolicyVersion(null);
             setHarnessVersionDetails({ prompt: [], policy: [], rule: [] });
             setHarnessVersionChangeSummary({ prompt: [], policy: [], rule: [] });
-            setHarnessRuleImpactSummary({ items: [], narrative: '현재 저장된 가드레일 오버라이드는 없습니다.', totalCount: 0, criticalCount: 0 });
+            setHarnessRuleImpactSummary({ items: [], narrative: '현재 저장된 예외 규칙 기록은 없습니다.', totalCount: 0, criticalCount: 0 });
             setHarnessAnalyzerSummary({ summary: null, confidence: null });
             setHarnessEvaluatorSummary({ evidenceSufficiency: null, requiresHumanApproval: null, flags: [] });
             setHarnessLatestApprovalDiff(null);
@@ -604,12 +625,12 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         if (!harnessDiagnostics) return null;
 
         const resolvedByLabel = harnessDiagnostics.resolvedBy === 'workflow_run_id'
-            ? '런 ID 직접 조회'
+            ? '처리 번호 직접 조회'
             : harnessDiagnostics.resolvedBy === 'source_record_id'
                 ? '원본 레코드 기준 조회'
-                : '실데이터 미발견';
+                : '저장 기록 미발견';
 
-        return `${resolvedByLabel} · 이벤트 ${harnessDiagnostics.eventCount}건 · 승인 ${harnessDiagnostics.approvalCount}건 · 오버라이드 ${harnessDiagnostics.overrideCount}건 · 타임라인 ${harnessDiagnostics.timelineCount}건`;
+        return `${resolvedByLabel} · 검증 기록 ${harnessDiagnostics.eventCount}건 · 승인 ${harnessDiagnostics.approvalCount}건 · 예외 규칙 ${harnessDiagnostics.overrideCount}건 · 단계 기록 ${harnessDiagnostics.timelineCount}건`;
     }, [harnessDiagnostics]);
 
     const harnessTransitionGuidance = useMemo(() => buildHarnessTransitionGuidance({
@@ -650,7 +671,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         return [
             {
                 key: 'prompt-version',
-                label: '프롬프트 버전',
+                label: '분석 기준 버전',
                 value: harnessPromptVersion?.version || '미연결',
                 tone: harnessPromptVersion ? BRAND_TONE.indigo : BRAND_TONE.slate,
                 labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-indigo-400',
@@ -658,7 +679,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             },
             {
                 key: 'policy-version',
-                label: '정책 버전',
+                label: '정책 기준 버전',
                 value: harnessPolicyVersion?.version || '미연결',
                 tone: harnessPolicyVersion ? BRAND_TONE.violet : BRAND_TONE.slate,
                 labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-violet-400',
@@ -666,7 +687,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             },
             {
                 key: 'override-count',
-                label: '오버라이드',
+                label: '예외 규칙',
                 value: `${harnessOverrides.length}건`,
                 tone: harnessOverrides.length > 0 ? BRAND_TONE.amber : BRAND_TONE.slate,
                 labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-500',
@@ -682,7 +703,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             },
             {
                 key: 'weather',
-                label: '기상 컨텍스트',
+                label: '기상·현장 맥락',
                 value: weatherLabel,
                 tone: BRAND_TONE.slate,
                 labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
@@ -747,8 +768,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             {
                 key: 'workflow-run',
                 content: record.workflowRunId
-                    ? `워크플로우 런 ID가 연결되어 있습니다. (${record.workflowRunId})`
-                    : '워크플로우 런 ID가 아직 연결되지 않았습니다.',
+                    ? `처리 번호가 연결되어 있습니다. (${record.workflowRunId})`
+                    : '처리 번호가 아직 연결되지 않았습니다.',
             },
             {
                 key: 'evidence-hash',
@@ -765,14 +786,14 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             {
                 key: 'context-snapshot',
                 content: harnessContextSnapshot
-                    ? '컨텍스트 스냅샷이 저장되어 당시 기상, 작업계획, 센서 맥락을 복원할 수 있습니다.'
-                    : '컨텍스트 스냅샷이 없어 당시 현장 맥락 복원이 제한될 수 있습니다.',
+                    ? '현장 맥락 기록이 저장되어 당시 기상, 작업계획, 센서 상황을 다시 확인할 수 있습니다.'
+                    : '현장 맥락 기록이 없어 당시 상황 확인이 제한될 수 있습니다.',
             },
             {
                 key: 'override-review',
                 content: harnessOverrides.length > 0
-                    ? `가드레일 오버라이드 ${harnessOverrides.length}건이 있어 승인 전에 반드시 확인하셔야 합니다.`
-                    : '현재 저장된 가드레일 오버라이드는 없습니다.',
+                    ? `예외 규칙 적용 기록 ${harnessOverrides.length}건이 있어 승인 전에 반드시 확인하셔야 합니다.`
+                    : '현재 저장된 예외 규칙 기록은 없습니다.',
             },
         ];
     }, [approvalComment, harnessContextSnapshot, harnessOverrides.length, record.adminComment, record.evidenceHash, record.reviewReason, record.workflowRunId]);
@@ -840,10 +861,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             `현재 상태는 ${getHarnessWorkflowStateLabel(workflowState)} / ${getHarnessApprovalStateLabel(approvalState)} / ${getHarnessRiskDecisionLabel(riskDecision)} 조합인지 먼저 확인합니다.`,
             harnessLatestApprovalDiff
                 ? `직전 승인 결과는 ${harnessLatestApprovalDiff.action}이며 위험 판단이 ${harnessLatestApprovalDiff.decisionBefore || 'N/A'} → ${harnessLatestApprovalDiff.decisionAfter || 'N/A'}로 바뀌었습니다.`
-                : '직전 승인 diff가 없으면 이번 판단 코멘트에 변경 이유를 더 명확히 남겨야 합니다.',
+                : '직전 승인 변화 기록이 없으면 이번 판단 코멘트에 변경 이유를 더 명확히 남겨야 합니다.',
             harnessOverrides.length > 0
-                ? `오버라이드 ${harnessOverrides.length}건이 있으므로 규칙 우회 사유와 현장 증빙 일치 여부를 반드시 다시 봅니다.`
-                : '현재 오버라이드가 없으므로 원문, 점수, 증빙 정합성 중심으로 확인하시면 됩니다.',
+                ? `예외 규칙 적용 기록 ${harnessOverrides.length}건이 있으므로 규칙 변경 사유와 현장 증빙 일치 여부를 반드시 다시 봅니다.`
+                : '현재 예외 규칙 기록이 없으므로 원문, 점수, 증빙 정합성 중심으로 확인하시면 됩니다.',
             hasCriticalReviewEdits
                 ? '핵심 수정이 있었으므로 승인 전 코멘트에 수정 범위와 반영 이유를 반드시 함께 남깁니다.'
                 : '핵심 수정이 없다면 승인 또는 보완 요청의 판단 사유를 짧고 명확하게 남기면 됩니다.',
@@ -1245,7 +1266,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                         stage: 'approval',
                         timestamp: new Date().toISOString(),
                         actor: effectiveApprover,
-                        note: `하네스 전이 거부: ${error instanceof Error ? error.message : '상태 전이 조건 불일치'}`,
+                        note: `검증 흐름 전이 거부: ${error instanceof Error ? error.message : '상태 전이 조건 불일치'}`,
                     },
                 ],
             };
@@ -1294,7 +1315,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     stage: 'approval',
                     timestamp: new Date().toISOString(),
                     actor: effectiveApprover,
-                    note: `Harness 승인 게이트 동기화: ${harnessDecision.workflowState} · ${harnessDecision.approvalState} · ${harnessDecision.riskDecision}`,
+                    note: `검증 승인 기준 동기화: ${harnessDecision.workflowState} · ${harnessDecision.approvalState} · ${harnessDecision.riskDecision}`,
                 }
             ]
         };
@@ -1758,8 +1779,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         return [
             { key: 'review', label: '검토 상태', value: record.reviewStatus || 'PENDING' },
             { key: 'approval', label: '승인 상태', value: getHarnessApprovalStateLabel(record.approvalState || inferHarnessApprovalState(record, workflowState)) },
-            { key: 'workflow', label: '하네스 상태', value: getHarnessWorkflowStateLabel(workflowState) },
-            { key: 'risk', label: '위험 결정', value: getHarnessRiskDecisionLabel(riskDecision) },
+            { key: 'workflow', label: '검증 흐름', value: getHarnessWorkflowStateLabel(workflowState) },
+            { key: 'risk', label: '보호 판단', value: getHarnessRiskDecisionLabel(riskDecision) },
             { key: 'history', label: '최근 승인', value: latestApprovalEntry ? `${latestApprovalEntry.status} · ${new Date(latestApprovalEntry.timestamp).toLocaleDateString('ko-KR')}` : '이력 없음' },
         ];
     }, [latestApprovalEntry, record]);
@@ -1931,6 +1952,40 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
             },
         ];
     }, [answerComparisonSummary.originalReady, answerComparisonSummary.translated, finalAuditVerdict, hasOriginalImage, record.ocrConfidence, record.safetyLevel, record.safetyScore, verificationAudit.isComplete, verificationAudit.nativeTranslatedAnswerCount]);
+    const activeReviewModeCopy = useMemo(() => {
+        if (isProfessionalReviewView) {
+            return {
+                eyebrow: '프로 검증 보기',
+                title: '감사 근거와 검증 흐름까지 확인합니다.',
+                description: '실무 판단 뒤에 남는 기술 근거, 승인 이력, 규칙 영향, 버전 기록을 한 번에 점검하는 전문가용 화면입니다.',
+                comparisonTitle: '원문, AI 해석, 관리자 판단과 검증 근거를 함께 비교합니다.',
+            };
+        }
+        if (!isCompactViewActive) {
+            return {
+                eyebrow: '상세 분석 보기',
+                title: '원문과 해석을 나란히 비교해 판단합니다.',
+                description: '점수, 원문, AI 해석, 관리자 수정, 보완 조치를 함께 보며 기록 품질을 높입니다.',
+                comparisonTitle: '원문, AI 해석, 관리자 판단을 나란히 비교합니다.',
+            };
+        }
+        return {
+            eyebrow: '실무 핵심 보기',
+            title: '지금 필요한 판단만 먼저 봅니다.',
+            description: '점수, 판정, OCR 신뢰도, 관리자 메모와 다음 행동만 남겨 현장에서 빠르게 처리합니다.',
+            comparisonTitle: '관리자 판단 메모를 우선 확인합니다.',
+        };
+    }, [isCompactViewActive, isProfessionalReviewView]);
+    const visibleReviewDecisionCards = useMemo(() => {
+        return isCompactViewActive
+            ? reviewDecisionCards.filter((card) => card.key !== 'evidence')
+            : reviewDecisionCards;
+    }, [isCompactViewActive, reviewDecisionCards]);
+    const visibleDecisionQuickMetrics = useMemo(() => {
+        return isCompactViewActive
+            ? decisionQuickMetrics.filter((metric) => ['score', 'confidence', 'audit'].includes(metric.key))
+            : decisionQuickMetrics;
+    }, [decisionQuickMetrics, isCompactViewActive]);
     
     // Icon Display
     const isLeader = (record.role === 'leader') || (record.name === record.teamLeader);
@@ -2042,16 +2097,16 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                     <div className={`absolute inset-y-0 left-0 w-1.5 ${decisionBoardTone.accent}`} />
                                     <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                                         <div className="min-w-0">
-                                            <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${decisionBoardTone.eyebrow}`}>상세 판단 바로보기</p>
+                                            <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${decisionBoardTone.eyebrow}`}>{activeReviewModeCopy.eyebrow}</p>
                                             <h3 className="mt-2 text-xl font-black text-slate-950">
                                                 {record.name || '근로자 미상'} · {record.jobField || '공종 미확인'}
                                             </h3>
                                             <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
-                                                원본 이미지, OCR 신호, AI 해석, 관리자 판단을 한 화면에서 맞춰보고 최종 보호 조치를 결정합니다.
+                                                {activeReviewModeCopy.description}
                                             </p>
                                             <div className="mt-3 flex flex-wrap gap-2">
                                                 <StatusBadge variant={decisionBoardTone.badge} className="px-3 py-1 text-[11px]">
-                                                    {isCompactViewActive ? '간단 판단 모드' : '상세 검증 모드'}
+                                                    {isProfessionalReviewView ? '프로 검증 모드' : isCompactViewActive ? '간단 판단 모드' : '상세 분석 모드'}
                                                 </StatusBadge>
                                                 <StatusBadge variant="slateSoft" className="px-3 py-1 text-[11px]">
                                                     {record.nationality || '국적 미확인'}
@@ -2066,38 +2121,26 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="flex shrink-0 flex-wrap items-center gap-2">
-                                            {!isMobileViewport ? (
-                                                <>
-                                                    <ActionButton
-                                                        variant={isCompactReviewView ? 'indigoSolid' : 'slateSoft'}
-                                                        onClick={() => setIsCompactReviewView(true)}
-                                                        className="px-3 py-2 text-xs border-0"
+                                        <div className="grid w-full shrink-0 grid-cols-3 gap-2 xl:w-auto">
+                                            {REVIEW_VIEW_MODE_OPTIONS.map((option) => {
+                                                const selected = activeReviewViewMode === option.mode;
+                                                return (
+                                                    <button
+                                                        key={option.mode}
+                                                        type="button"
+                                                        onClick={() => handleReviewViewModeChange(option.mode)}
+                                                        className={`rounded-2xl border px-3 py-2 text-left transition-all ${selected ? 'border-indigo-500 bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-200 hover:bg-indigo-50'}`}
                                                     >
-                                                        간단 보기
-                                                    </ActionButton>
-                                                    <ActionButton
-                                                        variant={isCompactReviewView ? 'slateSoft' : 'indigoSolid'}
-                                                        onClick={() => setIsCompactReviewView(false)}
-                                                        className="px-3 py-2 text-xs border-0"
-                                                    >
-                                                        상세 보기
-                                                    </ActionButton>
-                                                </>
-                                            ) : (
-                                                <ActionButton
-                                                    variant={isMobileDetailExpanded ? 'slateSoft' : 'indigoSolid'}
-                                                    onClick={() => setIsMobileDetailExpanded((prev) => !prev)}
-                                                    className="px-3 py-2 text-xs border-0"
-                                                >
-                                                    {isMobileDetailExpanded ? '간단으로 복귀' : '상세 잠깐 보기'}
-                                                </ActionButton>
-                                            )}
+                                                        <span className="block text-[11px] font-black">{option.label}</span>
+                                                        <span className={`mt-0.5 block text-[9px] font-bold ${selected ? 'text-indigo-100' : 'text-slate-400'}`}>{option.helper}</span>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     </div>
 
                                     <div className="mt-5 grid grid-cols-1 gap-3 xl:grid-cols-3">
-                                        {reviewDecisionCards.map((card) => (
+                                        {visibleReviewDecisionCards.map((card) => (
                                             <div key={card.key} className={`rounded-2xl border px-4 py-4 ${card.tone}`}>
                                                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{card.eyebrow}</p>
                                                 <h4 className="mt-2 text-sm font-black text-slate-950">{card.title}</h4>
@@ -2107,25 +2150,31 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                     </div>
 
                                     <SummaryMetricGrid
-                                        className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4"
+                                        className={`mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3 ${isCompactViewActive ? '' : 'xl:grid-cols-4'}`}
                                         cardClassName="rounded-2xl border px-3 py-3"
-                                        items={decisionQuickMetrics}
+                                        items={visibleDecisionQuickMetrics}
                                     />
 
                                     <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                                         <ActionButton
                                             variant="slateSoft"
-                                            onClick={() => setActiveTab('qna')}
+                                            onClick={() => {
+                                                handleReviewViewModeChange('detail');
+                                                setActiveTab('qna');
+                                            }}
                                             className="justify-center px-4 py-2 text-xs border-0"
                                         >
                                             원문 비교 먼저 보기
                                         </ActionButton>
                                         <ActionButton
                                             variant="indigoSolid"
-                                            onClick={() => setActiveTab('analysis')}
+                                            onClick={() => {
+                                                handleReviewViewModeChange('detail');
+                                                setActiveTab('analysis');
+                                            }}
                                             className="justify-center px-4 py-2 text-xs border-0"
                                         >
-                                            AI 해석 확인
+                                            분석 상세 확인
                                         </ActionButton>
                                         <ActionButton
                                             variant={hasChanges ? 'indigoSolid' : 'emeraldSoft'}
@@ -2147,7 +2196,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                         <div>
                                             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">판단 근거 비교</p>
                                             <h4 className="mt-1 text-sm font-black text-slate-900">
-                                                {isCompactViewActive ? '관리자 판단 메모를 우선 확인합니다.' : '원문, AI 해석, 관리자 판단을 나란히 비교합니다.'}
+                                                {activeReviewModeCopy.comparisonTitle}
                                             </h4>
                                         </div>
                                         <p className="text-[11px] font-bold text-slate-500">필요하면 아래 탭에서 전체 원문과 문항별 답변을 확인하세요.</p>
@@ -2180,7 +2229,62 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                 />
                             )}
 
-                            <div className="lg:hidden bg-white border border-slate-200 rounded-2xl p-2 grid grid-cols-3 gap-2 sticky top-0 z-10 shadow-sm">
+                            {isCompactViewActive && (
+                                <SectionPanelCard
+                                    variant="whiteSoft"
+                                    eyebrow="실무자 빠른 처리"
+                                    title="간단보기에서는 메모와 최종 행동만 남깁니다."
+                                    description="원본과 상단 판단 보드를 확인한 뒤, 필요한 경우 짧은 근거를 남기고 저장·보완요청·확정을 진행하세요."
+                                    className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm"
+                                    eyebrowClassName="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500"
+                                    titleClassName="mt-1 text-sm font-black text-slate-900"
+                                    descriptionClassName="mt-2 text-xs font-bold leading-relaxed text-slate-500"
+                                    bodyClassName="mt-4"
+                                >
+                                    <textarea
+                                        value={approvalComment}
+                                        onChange={(e) => setApprovalComment(e.target.value)}
+                                        placeholder="예: 원문과 해석이 일치하여 보호 판단 확정 / 이름 확인 필요하여 보완 요청"
+                                        className={`w-full rounded-2xl border bg-slate-50 p-3 text-sm font-semibold leading-relaxed text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 ${hasWeakApprovalReason ? 'border-amber-300 bg-amber-50/50' : 'border-slate-200'}`}
+                                        rows={3}
+                                    />
+                                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-4">
+                                        <ActionButton
+                                            variant="slateSoft"
+                                            onClick={() => handleReviewViewModeChange('detail')}
+                                            className="justify-center px-3 py-2 text-xs border-0"
+                                        >
+                                            상세 근거 열기
+                                        </ActionButton>
+                                        <ActionButton
+                                            variant={hasChanges ? 'indigoSolid' : 'slateSoft'}
+                                            onClick={() => { void handleSave(); }}
+                                            disabled={!hasChanges}
+                                            className="justify-center px-3 py-2 text-xs border-0"
+                                        >
+                                            수정 저장
+                                        </ActionButton>
+                                        <ActionButton
+                                            variant="roseSoft"
+                                            onClick={() => { void handleApprove('rejected'); }}
+                                            disabled={isUpdatingAnalysis}
+                                            className="justify-center px-3 py-2 text-xs border-0"
+                                        >
+                                            보완 요청
+                                        </ActionButton>
+                                        <ActionButton
+                                            variant={isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0) ? 'slateSoft' : 'emeraldSoft'}
+                                            onClick={() => { void handleApprove('approved'); }}
+                                            disabled={isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0)}
+                                            className="justify-center px-3 py-2 text-xs border-0"
+                                        >
+                                            보호 판단 확정
+                                        </ActionButton>
+                                    </div>
+                                </SectionPanelCard>
+                            )}
+
+                            <div className={`${isCompactViewActive ? 'hidden' : 'grid'} lg:hidden bg-white border border-slate-200 rounded-2xl p-2 grid-cols-3 gap-2 sticky top-0 z-10 shadow-sm`}>
                                 <ActionButton
                                     variant={hasChanges ? 'indigoSolid' : 'slateSoft'}
                                     onClick={handleSave}
@@ -2206,15 +2310,15 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                 </ActionButton>
                             </div>
 
-                            <div className="flex gap-2 p-1.5 bg-slate-200 rounded-2xl shrink-0">
+                            <div className={`${isCompactViewActive ? 'hidden' : 'flex'} gap-2 p-1.5 bg-slate-200 rounded-2xl shrink-0`}>
                                 {['info', 'analysis', 'qna'].map(t => (
                                     <button key={t} onClick={() => setActiveTab(t as 'info' | 'analysis' | 'qna')} className={`flex-1 py-3 text-xs font-black rounded-xl transition-all ${activeTab === t ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                                        {t === 'info' ? '판단 요약' : t === 'analysis' ? 'AI 해석' : '원문 비교'}
+                                        {t === 'info' ? '판단 조정' : t === 'analysis' ? '분석 근거' : '원문 비교'}
                                     </button>
                                 ))}
                             </div>
 
-                            <div className="min-h-[300px]">
+                            <div className={`${isCompactViewActive ? 'hidden' : ''} min-h-[300px]`}>
                                 {activeTab === 'info' && (
                                     <div className="space-y-4">
                                         <CollapsibleSection title="안전 검수 사전 확인 포인트 (클릭 시 확인)" defaultOpen={false}>
@@ -2487,25 +2591,25 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             <div className="mb-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
                                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                                     <div>
-                                                        <p className="text-[11px] font-black text-slate-500">하네스 승인 게이트</p>
+                                                        <p className="text-[11px] font-black text-slate-500">검증 승인 기준</p>
                                                         <div className="mt-2 flex flex-wrap gap-1.5">
                                                             <StatusBadge variant={getHarnessWorkflowBadgeVariant(record.workflowState || inferHarnessWorkflowState(record))}>{getHarnessWorkflowStateLabel(record.workflowState || inferHarnessWorkflowState(record))}</StatusBadge>
                                                             <StatusBadge variant={getHarnessRiskBadgeVariant(record.riskDecision || inferHarnessRiskDecision(record))}>{getHarnessRiskDecisionLabel(record.riskDecision || inferHarnessRiskDecision(record))}</StatusBadge>
                                                             <StatusBadge variant={getHarnessApprovalBadgeVariant(record.approvalState || inferHarnessApprovalState(record, record.workflowState || inferHarnessWorkflowState(record)))}>{getHarnessApprovalStateLabel(record.approvalState || inferHarnessApprovalState(record, record.workflowState || inferHarnessWorkflowState(record)))}</StatusBadge>
-                                                            {record.workflowRunId ? <StatusBadge variant="slateSoft">런 ID 연결됨</StatusBadge> : <StatusBadge variant="amberSoft">런 ID 대기</StatusBadge>}
-                                                            {isHarnessPersisted === true && <StatusBadge variant="emeraldSoft">영속 저장 확인</StatusBadge>}
+                                                            {record.workflowRunId ? <StatusBadge variant="slateSoft">처리 번호 연결됨</StatusBadge> : <StatusBadge variant="amberSoft">처리 번호 대기</StatusBadge>}
+                                                            {isHarnessPersisted === true && <StatusBadge variant="emeraldSoft">저장 확인</StatusBadge>}
                                                             {isHarnessPersisted === false && <StatusBadge variant="amberSoft">저장 연결 보완</StatusBadge>}
-                                                            {harnessDiagnostics?.found === false && isHarnessPersisted === true && <StatusBadge variant="amberSoft">실데이터 미발견</StatusBadge>}
+                                                            {harnessDiagnostics?.found === false && isHarnessPersisted === true && <StatusBadge variant="amberSoft">저장 기록 미발견</StatusBadge>}
                                                             {harnessDiagnostics?.resolvedBy === 'source_record_id' && <StatusBadge variant="violetSoft">원본 레코드 기준 조회</StatusBadge>}
                                                         </div>
                                                         {record.workflowRunId && (
-                                                            <p className="mt-2 text-[11px] font-semibold text-slate-500">workflowRunId: {record.workflowRunId}</p>
+                                                            <p className="mt-2 text-[11px] font-semibold text-slate-500">처리 번호: {record.workflowRunId}</p>
                                                         )}
                                                         {harnessLookupSummary && (
                                                             <p className="mt-1 text-[11px] font-semibold text-slate-500">{harnessLookupSummary}</p>
                                                         )}
                                                         {harnessDiagnostics?.sourceRecordId && harnessDiagnostics.sourceRecordId !== record.workflowRunId && (
-                                                            <p className="mt-1 text-[11px] font-semibold text-slate-400">sourceRecordId: {harnessDiagnostics.sourceRecordId}</p>
+                                                            <p className="mt-1 text-[11px] font-semibold text-slate-400">원본 기록번호: {harnessDiagnostics.sourceRecordId}</p>
                                                         )}
                                                     </div>
                                                     {record.workflowRunId && (
@@ -2515,7 +2619,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                             disabled={isHarnessStatusLoading}
                                                             className="w-full sm:w-auto border-0 px-4 py-2 text-sm"
                                                         >
-                                                            {isHarnessStatusLoading ? '하네스 상태 확인 중…' : '하네스 상태 새로고침'}
+                                                            {isHarnessStatusLoading ? '검증 흐름 확인 중…' : '검증 흐름 새로고침'}
                                                         </ActionButton>
                                                     )}
                                                 </div>
@@ -2543,7 +2647,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                                 descriptionClassName="mt-1 text-[11px] font-semibold leading-relaxed"
                                                             />
                                                             <NextActionChecklist
-                                                                title="액션 실행 전 체크"
+                                                                title="조치 실행 전 체크"
                                                                 className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4"
                                                                 titleClassName="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-500"
                                                                 listClassName="space-y-2 text-[11px] font-bold leading-relaxed text-slate-700"
@@ -2553,7 +2657,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                             />
                                                         </div>
                                                         <div className="flex items-center justify-between gap-2 flex-wrap">
-                                                            <p className="text-[11px] font-black text-slate-500">현재 가능한 액션</p>
+                                                            <p className="text-[11px] font-black text-slate-500">현재 가능한 조치</p>
                                                             {harnessTransitionActionSummary.recommended ? (
                                                                 <StatusBadge variant="violetSoft">
                                                                     권장: {getHarnessTransitionActionLabel(harnessTransitionActionSummary.recommended.action)}
@@ -2645,7 +2749,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             <div className="mt-3 text-xs text-slate-500 font-bold">누적 승인 이력: {(record.approvalHistory || []).length}건</div>
                                         </SectionPanelCard>
 
-                                        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                                        <div className={`${isProfessionalReviewView ? 'grid' : 'hidden'} grid-cols-1 gap-4 xl:grid-cols-3`}>
                                             <WhyThisResultPanel
                                                 title="최근 감사 이력"
                                                 badge={<StatusBadge variant="slateSoft" className="px-3 py-1.5 text-[11px] font-black">최근 5건</StatusBadge>}
@@ -2687,7 +2791,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             />
 
                                             <WhyThisResultPanel
-                                                title="하네스 상태 타임라인"
+                                                title="검증 흐름 기록"
                                                 badge={
                                                     <StatusBadge variant={getHarnessWorkflowBadgeVariant(record.workflowState || inferHarnessWorkflowState(record))} className="px-3 py-1.5 text-[11px] font-black">
                                                         {getHarnessWorkflowStateLabel(record.workflowState || inferHarnessWorkflowState(record))}
@@ -2707,8 +2811,8 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                     ),
                                                 }))}
                                                 emptyState={record.workflowRunId
-                                                    ? (isHarnessStatusLoading ? '하네스 타임라인을 불러오는 중입니다.' : '저장된 하네스 타임라인이 아직 없습니다.')
-                                                    : '워크플로우 런이 아직 연결되지 않았습니다.'}
+                                                    ? (isHarnessStatusLoading ? '검증 흐름 기록을 불러오는 중입니다.' : '저장된 검증 흐름 기록이 아직 없습니다.')
+                                                    : '처리 번호가 아직 연결되지 않았습니다.'}
                                                 className="rounded-3xl border border-amber-200 bg-white p-6 shadow-sm min-h-0"
                                                 titleClassName="text-sm font-black text-amber-700"
                                                 listClassName="mt-3 space-y-2 max-h-44 overflow-y-auto custom-scrollbar"
@@ -2718,10 +2822,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
                                         <SectionPanelCard
                                             variant="whiteSoft"
-                                            eyebrow="TIMELINE GUIDE"
-                                            title="타임라인 단계 의미를 먼저 맞추고 승인 판단을 이어갑니다."
+                                            eyebrow="PRO 검증 단계"
+                                            title="검증 단계 의미를 먼저 맞추고 승인 판단을 이어갑니다."
                                             description="검증 / 승인 / 재평가 단계가 무엇을 의미하는지 짧게 확인할 수 있습니다."
-                                            className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6 sm:py-6"
+                                            className={`${isProfessionalReviewView ? '' : 'hidden'} rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6 sm:py-6`}
                                             titleClassName="mt-1 text-sm font-black text-slate-800"
                                             descriptionClassName="mt-2 text-xs font-bold text-slate-500"
                                             bodyClassName="mt-4"
@@ -2738,10 +2842,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
                                         <SectionPanelCard
                                             variant="whiteSoft"
-                                            eyebrow="HARNESS AUDIT SNAPSHOT"
-                                            title="오버라이드, 승인, 컨텍스트, 버전 스냅샷을 함께 확인합니다."
-                                            description="관리자 승인 전 어떤 규칙이 개입했고 당시 어떤 컨텍스트와 정책 버전이 적용됐는지 빠르게 읽을 수 있습니다."
-                                            className="rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6 sm:py-6"
+                                            eyebrow="PRO 검증 기록"
+                                            title="규칙 영향, 승인 이력, 현장 맥락, 버전 기록을 함께 확인합니다."
+                                            description="관리자 승인 전 어떤 규칙이 개입했고 당시 어떤 현장 맥락과 정책 기준이 적용됐는지 빠르게 읽을 수 있습니다."
+                                            className={`${isProfessionalReviewView ? '' : 'hidden'} rounded-3xl border border-slate-200 bg-white px-5 py-5 shadow-sm sm:px-6 sm:py-6`}
                                             titleClassName="mt-1 text-sm font-black text-slate-800"
                                             descriptionClassName="mt-2 text-xs font-bold text-slate-500"
                                             bodyClassName="mt-4"
@@ -2765,14 +2869,14 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-3">
                                                 <div>
                                                     <p className="text-[11px] font-black text-violet-700">관리자 상세 기록</p>
-                                                    <p className="mt-1 text-[11px] font-semibold text-violet-600">실무자는 요약만 보고, 필요할 때만 하네스/버전 상세를 펼쳐 확인합니다.</p>
+                                                    <p className="mt-1 text-[11px] font-semibold text-violet-600">실무자는 요약만 보고, 필요할 때만 검증 흐름과 버전 상세를 펼쳐 확인합니다.</p>
                                                 </div>
                                                 <button
                                                     type="button"
                                                     onClick={() => setShowHarnessTechnicalDetails((prev) => !prev)}
                                                     className="rounded-xl border border-violet-300 bg-white px-3 py-2 text-xs font-black text-violet-700 hover:bg-violet-100 transition-all"
                                                 >
-                                                    {showHarnessTechnicalDetails ? '상세 숨기기' : '상세 보기'}
+                                                    {showHarnessTechnicalDetails ? '기술 기록 숨기기' : '기술 기록 보기'}
                                                 </button>
                                             </div>
 
@@ -2781,15 +2885,15 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
                                             <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
                                                 <WhyThisResultPanel
-                                                    title="분석기/평가기 요약"
+                                                    title="분석 요약 / 검증 요약"
                                                     badge={<StatusBadge variant={harnessAnalyzerSummary.summary || harnessEvaluatorSummary.flags.length > 0 ? 'violetSoft' : 'slateSoft'} className="px-3 py-1.5 text-[11px] font-black">요약</StatusBadge>}
                                                     entries={[
                                                         {
                                                             key: 'analyzer-summary',
                                                             content: (
                                                                 <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-xs">
-                                                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">Analyzer</p>
-                                                                    <p className="mt-1 font-semibold text-indigo-700">{harnessAnalyzerSummary.summary || '저장된 analyzer 요약이 없습니다.'}</p>
+                                                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500">분석 요약</p>
+                                                                    <p className="mt-1 font-semibold text-indigo-700">{harnessAnalyzerSummary.summary || '저장된 분석 요약이 없습니다.'}</p>
                                                                     <p className="mt-1 text-indigo-500">신뢰도: {typeof harnessAnalyzerSummary.confidence === 'number' ? `${Math.round(harnessAnalyzerSummary.confidence * 100)}%` : '미기록'}</p>
                                                                 </div>
                                                             ),
@@ -2798,9 +2902,9 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                             key: 'evaluator-summary',
                                                             content: (
                                                                 <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs">
-                                                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-500">Evaluator</p>
+                                                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-500">검증 요약</p>
                                                                     <p className="mt-1 font-semibold text-violet-700">증거 충분도: {typeof harnessEvaluatorSummary.evidenceSufficiency === 'number' ? `${harnessEvaluatorSummary.evidenceSufficiency}` : '미기록'}</p>
-                                                                    <p className="mt-1 text-violet-600">인간 승인 필요: {typeof harnessEvaluatorSummary.requiresHumanApproval === 'boolean' ? (harnessEvaluatorSummary.requiresHumanApproval ? '예' : '아니오') : '미기록'}</p>
+                                                                    <p className="mt-1 text-violet-600">관리자 확인 필요: {typeof harnessEvaluatorSummary.requiresHumanApproval === 'boolean' ? (harnessEvaluatorSummary.requiresHumanApproval ? '예' : '아니오') : '미기록'}</p>
                                                                     <p className="mt-1 text-violet-600">플래그: {harnessEvaluatorSummary.flags.length > 0 ? harnessEvaluatorSummary.flags.join(' · ') : '없음'}</p>
                                                                 </div>
                                                             ),
@@ -2813,25 +2917,25 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 />
 
                                                 <WhyThisResultPanel
-                                                    title="최신 승인 Diff"
+                                                    title="최신 승인 변화"
                                                     badge={<StatusBadge variant={harnessLatestApprovalDiff ? 'emeraldSoft' : 'slateSoft'} className="px-3 py-1.5 text-[11px] font-black">{harnessLatestApprovalDiff ? harnessLatestApprovalDiff.action : '미기록'}</StatusBadge>}
                                                     entries={harnessLatestApprovalDiff ? [
                                                         {
                                                             key: 'approval-diff',
                                                             content: (
                                                                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs">
-                                                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500">Decision Diff</p>
+                                                                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-500">승인 변화</p>
                                                                     <p className="mt-1 font-semibold text-emerald-700">위험 판단: {harnessLatestApprovalDiff.decisionBefore || 'N/A'} → {harnessLatestApprovalDiff.decisionAfter || 'N/A'}</p>
-                                                                    <p className="mt-1 text-emerald-600">워크플로우: {getHarnessWorkflowStateLabel(harnessLatestApprovalDiff.workflowStateAfter)}</p>
+                                                                    <p className="mt-1 text-emerald-600">검증 흐름: {getHarnessWorkflowStateLabel(harnessLatestApprovalDiff.workflowStateAfter)}</p>
                                                                     <p className="mt-1 text-emerald-600">승인 상태: {getHarnessApprovalStateLabel(harnessLatestApprovalDiff.approvalStateAfter)} · 2차 재분석: {harnessLatestApprovalDiff.secondPassStatusAfter}</p>
-                                                                    <p className="mt-1 text-emerald-600">매니저 승인 필요: {harnessLatestApprovalDiff.requiresManagerApprovalAfter ? '예' : '아니오'}</p>
+                                                                    <p className="mt-1 text-emerald-600">관리자 확인 필요: {harnessLatestApprovalDiff.requiresManagerApprovalAfter ? '예' : '아니오'}</p>
                                                                     <p className="mt-1 font-semibold text-emerald-700">코멘트: {harnessLatestApprovalDiff.comment || '없음'}</p>
                                                                     <p className="mt-1 text-emerald-500">{new Date(harnessLatestApprovalDiff.updatedAt).toLocaleString(timelineLocale, timelineDateTimeOptions)}</p>
                                                                 </div>
                                                             ),
                                                         },
                                                     ] : []}
-                                                    emptyState="저장된 승인 diff가 없습니다."
+                                                    emptyState="저장된 승인 변화 기록이 없습니다."
                                                     className="rounded-3xl border border-emerald-200 bg-white p-6 shadow-sm min-h-0"
                                                     titleClassName="text-sm font-black text-emerald-700"
                                                     listClassName="mt-3 space-y-2"
@@ -2841,7 +2945,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
                                             <div className="mt-4">
                                                 <HarnessRuleImpactSummaryPanel
-                                                    title="Rule Impact Summary"
+                                                    title="규칙 영향 요약"
                                                     summary={harnessRuleImpactSummary}
                                                     className="rounded-3xl border border-amber-200 bg-amber-50/80 p-6 shadow-sm"
                                                     maxVisible={2}
@@ -2850,7 +2954,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
                                             <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
                                                 <WhyThisResultPanel
-                                                    title="가드레일 오버라이드 로그"
+                                                    title="예외 규칙 적용 기록"
                                                     badge={<StatusBadge variant={harnessOverrides.length > 0 ? 'amberSoft' : 'slateSoft'} className="px-3 py-1.5 text-[11px] font-black">{harnessOverrides.length}건</StatusBadge>}
                                                     entries={harnessOverrides.map((override, idx) => ({
                                                         key: `${override.ruleCode}-${override.createdAt}-${idx}`,
@@ -2860,14 +2964,14 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                                     <p className="font-black text-amber-800">{override.ruleCode}</p>
                                                                     <StatusBadge variant="amberSoft">{override.severity}</StatusBadge>
                                                                 </div>
-                                                                <p className="mt-1 text-amber-600">룰 버전: {override.ruleVersion || '미지정'}</p>
+                                                                <p className="mt-1 text-amber-600">규칙 기준 버전: {override.ruleVersion || '미지정'}</p>
                                                                 <p className="mt-1 font-semibold text-amber-700">{override.message}</p>
                                                                 <p className="mt-1 text-amber-600">{override.originalDecision || 'N/A'} → {override.overriddenDecision || 'N/A'}</p>
                                                                 <p className="mt-1 text-amber-500">{new Date(override.createdAt).toLocaleString(timelineLocale, timelineDateTimeOptions)}</p>
                                                             </div>
                                                         ),
                                                     }))}
-                                                    emptyState="저장된 오버라이드 로그가 없습니다."
+                                                    emptyState="저장된 예외 규칙 기록이 없습니다."
                                                     className="rounded-3xl border border-amber-200 bg-white p-6 shadow-sm min-h-0"
                                                     titleClassName="text-sm font-black text-amber-700"
                                                     listClassName="mt-3 space-y-2 max-h-48 overflow-y-auto custom-scrollbar"
@@ -2875,7 +2979,7 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 />
 
                                                 <WhyThisResultPanel
-                                                    title="인간 승인 이력"
+                                                    title="관리자 승인 이력"
                                                     badge={<StatusBadge variant={harnessApprovals.length > 0 ? 'emeraldSoft' : 'slateSoft'} className="px-3 py-1.5 text-[11px] font-black">{harnessApprovals.length}건</StatusBadge>}
                                                     entries={harnessApprovals.map((approval, idx) => ({
                                                         key: `${approval.action}-${approval.createdAt}-${idx}`,
@@ -2899,23 +3003,23 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                 />
 
                                                 <WhyThisResultPanel
-                                                    title="컨텍스트/버전 스냅샷"
+                                                    title="현장 맥락과 기준 버전"
                                                     badge={<StatusBadge variant={harnessPromptVersion || harnessPolicyVersion ? 'violetSoft' : 'slateSoft'} className="px-3 py-1.5 text-[11px] font-black">{harnessContextSnapshot ? '연결됨' : '없음'}</StatusBadge>}
                                                     entries={[
                                                         {
                                                             key: 'prompt-version',
-                                                            content: <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs font-semibold text-violet-700">프롬프트 버전: {harnessPromptVersion?.version || '미연결'}</div>,
+                                                            content: <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs font-semibold text-violet-700">분석 기준 버전: {harnessPromptVersion?.version || '미연결'}</div>,
                                                         },
                                                         {
                                                             key: 'policy-version',
-                                                            content: <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs font-semibold text-violet-700">정책 버전: {harnessPolicyVersion?.version || '미연결'}</div>,
+                                                            content: <div className="rounded-lg border border-violet-200 bg-violet-50 p-3 text-xs font-semibold text-violet-700">정책 기준 버전: {harnessPolicyVersion?.version || '미연결'}</div>,
                                                         },
                                                         {
                                                             key: 'context-meta',
-                                                            content: <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-700">컨텍스트 시각: {harnessContextSnapshot ? new Date(harnessContextSnapshot.createdAt).toLocaleString(timelineLocale, timelineDateTimeOptions) : '없음'}</div>,
+                                                            content: <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-700">현장 맥락 기록 시각: {harnessContextSnapshot ? new Date(harnessContextSnapshot.createdAt).toLocaleString(timelineLocale, timelineDateTimeOptions) : '없음'}</div>,
                                                         },
                                                     ]}
-                                                    emptyState="저장된 컨텍스트 스냅샷이 없습니다."
+                                                    emptyState="저장된 현장 맥락 기록이 없습니다."
                                                     className="rounded-3xl border border-violet-200 bg-white p-6 shadow-sm min-h-0"
                                                     titleClassName="text-sm font-black text-violet-700"
                                                     listClassName="mt-3 space-y-2"
@@ -2925,40 +3029,40 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
 
                                             <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
                                                 <HarnessVersionDetailsPanel
-                                                    title="Prompt 버전 설명"
+                                                    title="분석 기준 버전 설명"
                                                     tone="prompt"
                                                     descriptors={harnessVersionDescriptors.prompt}
-                                                    emptyMessage="현재 연결된 프롬프트 버전 설명이 없습니다."
+                                                    emptyMessage="현재 연결된 분석 기준 설명이 없습니다."
                                                 />
                                                 <HarnessVersionDetailsPanel
-                                                    title="Policy 버전 설명"
+                                                    title="정책 기준 버전 설명"
                                                     tone="policy"
                                                     descriptors={harnessVersionDescriptors.policy}
                                                     emptyMessage="현재 연결된 정책 버전 설명이 없습니다."
                                                 />
                                                 <HarnessVersionDetailsPanel
-                                                    title="Rule 버전 설명"
+                                                    title="규칙 기준 버전 설명"
                                                     tone="rule"
                                                     descriptors={harnessVersionDescriptors.rule}
-                                                    emptyMessage="현재 연결된 룰 버전 설명이 없습니다."
+                                                    emptyMessage="현재 연결된 규칙 기준 설명이 없습니다."
                                                 />
                                             </div>
 
                                             <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-3">
                                                 <HarnessVersionChangeSummaryPanel
-                                                    title="Prompt 변경 요약"
+                                                    title="분석 기준 변경 요약"
                                                     tone="prompt"
                                                     lines={harnessVersionChangeSummary.prompt}
-                                                    emptyMessage="저장된 프롬프트 변경 요약이 없습니다."
+                                                    emptyMessage="저장된 분석 기준 변경 요약이 없습니다."
                                                 />
                                                 <HarnessVersionChangeSummaryPanel
-                                                    title="Policy 변경 요약"
+                                                    title="정책 기준 변경 요약"
                                                     tone="policy"
                                                     lines={harnessVersionChangeSummary.policy}
                                                     emptyMessage="저장된 정책 변경 요약이 없습니다."
                                                 />
                                                 <HarnessVersionChangeSummaryPanel
-                                                    title="Rule 변경 요약"
+                                                    title="규칙 기준 변경 요약"
                                                     tone="rule"
                                                     lines={harnessVersionChangeSummary.rule}
                                                     emptyMessage="저장된 룰 변경 요약이 없습니다."
@@ -2972,12 +3076,12 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                                                         <table className="w-full min-w-[720px] text-left text-[11px]">
                                                             <thead className="text-slate-500">
                                                                 <tr>
-                                                                    <th className="py-2 pr-3">Category</th>
-                                                                    <th className="py-2 pr-3">Version</th>
-                                                                    <th className="py-2 pr-3">Previous</th>
-                                                                    <th className="py-2 pr-3">Released</th>
-                                                                    <th className="py-2 pr-3">Summary</th>
-                                                                    <th className="py-2 pr-3">Change Points</th>
+                                                                    <th className="py-2 pr-3">구분</th>
+                                                                    <th className="py-2 pr-3">버전</th>
+                                                                    <th className="py-2 pr-3">이전 버전</th>
+                                                                    <th className="py-2 pr-3">적용일</th>
+                                                                    <th className="py-2 pr-3">요약</th>
+                                                                    <th className="py-2 pr-3">변경 포인트</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody className="align-top text-slate-700">
