@@ -1,4 +1,5 @@
 import type { WorkerRecord } from '../types';
+import { getWorkerIdentityKey } from './workerIdentity';
 
 export interface SixMetricAverages {
     psychological: number;
@@ -117,63 +118,9 @@ export const normalizeDashboardTrade = (raw: string | undefined | null) => {
     return base;
 };
 
-const normalizeIdentityValue = (value: string | undefined | null) => {
-    const normalized = (value ?? '').trim().toUpperCase().replace(/\s+/g, '');
-    return normalized.length > 0 ? normalized : null;
-};
-
-const normalizeJobIdentityValue = (value: string | undefined | null) => {
-    const raw = (value ?? '').trim().toUpperCase();
-    if (!raw) return null;
-
-    const parts = raw
-        .split(/[,\s/·ㆍ+|]+/)
-        .map((part) => part.trim())
-        .filter(Boolean);
-
-    const normalized = parts.length > 1
-        ? Array.from(new Set(parts)).sort().join('+')
-        : raw.replace(/[,\s/·ㆍ+|]+/g, '');
-
-    return normalized.length > 0 ? normalized : null;
-};
-
-const getNameBasedWorkerIdentity = (record: WorkerRecord): string | null => {
-    const jobField = normalizeJobIdentityValue(record.jobField);
-    if (!jobField) return null;
-
-    const name = normalizeIdentityValue(record.name);
-    if (!name) return null;
-
-    const genericNames = new Set(['식별대기', '이름없음', '이름미확인', '미상', '분석실패']);
-    if (genericNames.has(name)) return null;
-
-    const nationality = normalizeIdentityValue(record.nationality) || 'UNKNOWN';
-    return `job:${jobField}|name:${name}|nationality:${nationality}`;
-};
-
 const getStrictWorkerIdentity = (record: WorkerRecord): string | null => {
-    const extra = record as unknown as Record<string, unknown>;
-
-    const nameIdentity = getNameBasedWorkerIdentity(record);
-    if (nameIdentity) return nameIdentity;
-
-    const workerUuid = normalizeIdentityValue(
-        typeof extra.worker_uuid === 'string'
-            ? extra.worker_uuid
-            : typeof extra.workerUuid === 'string'
-                ? extra.workerUuid
-                : null
-    );
-    if (workerUuid) return `worker_uuid:${workerUuid}`;
-
-    const employeeId = normalizeIdentityValue(record.employeeId);
-    if (employeeId) return `employee:${employeeId}`;
-
-    const qrId = normalizeIdentityValue(record.qrId);
-    if (qrId) return `qr:${qrId}`;
-
-    return null;
+    const key = getWorkerIdentityKey(record);
+    return key.startsWith('record:') ? null : key;
 };
 
 export function transformDashboardData(workerRecords: WorkerRecord[]): DashboardTransformedData {

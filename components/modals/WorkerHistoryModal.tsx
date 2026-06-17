@@ -8,60 +8,10 @@ import { SectionPanelCard } from '../shared/SectionPanelCard';
 import { StatusBadge, type StatusBadgeVariant } from '../shared/StatusBadge';
 import { SummaryMetricGrid } from '../shared/SummaryMetricGrid';
 import { BRAND_TONE } from '../../utils/brandToneTokens';
-
-const normalizeIdentityText = (value: unknown): string => typeof value === 'string' ? value.trim().toUpperCase().replace(/\s+/g, '') : '';
-
-const getWorkerUuidValue = (record: Partial<WorkerRecord>): string => normalizeIdentityText(record.worker_uuid || record.workerUuid);
-
-const normalizeJobIdentityText = (value: unknown): string => {
-    const raw = typeof value === 'string' ? value.trim().toUpperCase() : '';
-    if (!raw) return '';
-
-    const parts = raw
-        .split(/[,\s/·ㆍ+|]+/)
-        .map((part) => part.trim())
-        .filter(Boolean);
-
-    return parts.length > 1
-        ? Array.from(new Set(parts)).sort().join('+')
-        : raw.replace(/[,\s/·ㆍ+|]+/g, '');
-};
-
-const getWorkerNameIdentitySeed = (record: Partial<WorkerRecord>): string => {
-    const name = normalizeIdentityText(record.name);
-    if (!name) return '';
-
-    const genericNames = new Set(['식별대기', '이름없음', '이름미확인', '미상', '분석실패']);
-    if (genericNames.has(name)) return '';
-
-    const jobField = normalizeJobIdentityText(record.jobField);
-    if (!jobField) return '';
-
-    const nationality = normalizeIdentityText(record.nationality) || 'UNKNOWN';
-    return `${jobField}|${name}|${nationality}`;
-};
+import { isSameWorkerTimeline } from '../../utils/workerIdentity';
 
 const isSameWorkerHistory = (base: WorkerRecord, candidate: WorkerRecord): boolean => {
-    const baseNameSeed = getWorkerNameIdentitySeed(base);
-    const candidateNameSeed = getWorkerNameIdentitySeed(candidate);
-    if (baseNameSeed && candidateNameSeed) return baseNameSeed === candidateNameSeed;
-
-    const baseEmployeeId = normalizeIdentityText(base.employeeId);
-    const candidateEmployeeId = normalizeIdentityText(candidate.employeeId);
-    if (baseEmployeeId && candidateEmployeeId) return baseEmployeeId === candidateEmployeeId;
-
-    const baseQrId = normalizeIdentityText(base.qrId);
-    const candidateQrId = normalizeIdentityText(candidate.qrId);
-    if (baseQrId && candidateQrId) return baseQrId === candidateQrId;
-
-    const baseUuid = getWorkerUuidValue(base);
-    const candidateUuid = getWorkerUuidValue(candidate);
-    if (baseUuid && candidateUuid) return baseUuid === candidateUuid;
-
-    return normalizeIdentityText(base.name) === normalizeIdentityText(candidate.name)
-        && normalizeIdentityText(base.nationality) === normalizeIdentityText(candidate.nationality)
-        && normalizeIdentityText(base.teamLeader || '미지정') === normalizeIdentityText(candidate.teamLeader || '미지정')
-        && normalizeIdentityText(base.jobField) === normalizeIdentityText(candidate.jobField);
+    return isSameWorkerTimeline(base, candidate);
 };
 
 interface WorkerHistoryModalProps {

@@ -17,6 +17,15 @@ import { useOperationalMode } from './contexts/OperationalModeContext';
 import { isPageVisibleByOperationalMode } from './utils/operationalModeUtils';
 import { isRouteVisibleInMode } from './config/routeMeta';
 import { useUiAudienceMode } from './hooks/useUiAudienceMode';
+import {
+    buildNameBasedWorkerUuid as buildSharedNameBasedWorkerUuid,
+    getWorkerMatchScore as getSharedWorkerMatchScore,
+    getWorkerNameIdentitySeed as getSharedWorkerNameIdentitySeed,
+    getWorkerUuidValue as getSharedWorkerUuidValue,
+    isSameWorkerTimeline as isSharedSameWorkerTimeline,
+    normalizeWorkerIdentityText,
+    normalizeWorkerJobIdentityText,
+} from './utils/workerIdentity';
 // Removed checklist imports
 
 const DYNAMIC_IMPORT_RELOAD_KEY = 'psi_dynamic_import_reload_once';
@@ -293,7 +302,7 @@ const normalizeImage = (imgData: unknown): string | undefined => {
 };
 
 const normalizeIdentityText = (value: unknown): string => {
-    return typeof value === 'string' ? value.trim().toUpperCase() : '';
+    return normalizeWorkerIdentityText(value);
 };
 
 const stableWorkerHash = (seed: string): string => {
@@ -306,40 +315,19 @@ const stableWorkerHash = (seed: string): string => {
 };
 
 const getWorkerUuidValue = (record: Partial<WorkerRecord>): string => {
-    return normalizeIdentityText(record.worker_uuid || record.workerUuid);
+    return getSharedWorkerUuidValue(record);
 };
 
 const normalizeJobIdentityText = (value: unknown): string => {
-    const raw = typeof value === 'string' ? value.trim().toUpperCase() : '';
-    if (!raw) return '';
-
-    const parts = raw
-        .split(/[,\s/·ㆍ+|]+/)
-        .map((part) => part.trim())
-        .filter(Boolean);
-
-    return parts.length > 1
-        ? Array.from(new Set(parts)).sort().join('+')
-        : raw.replace(/[,\s/·ㆍ+|]+/g, '');
+    return normalizeWorkerJobIdentityText(value);
 };
 
 const getWorkerNameIdentitySeed = (record: Partial<WorkerRecord>): string => {
-    const normalizedName = normalizeIdentityText(record.name).replace(/\s+/g, '');
-    if (!normalizedName) return '';
-
-    const genericNames = new Set(['식별대기', '이름없음', '이름미확인', '미상', '분석실패']);
-    if (genericNames.has(normalizedName)) return '';
-
-    const normalizedJobField = normalizeJobIdentityText(record.jobField);
-    if (!normalizedJobField) return '';
-
-    const normalizedNationality = normalizeIdentityText(record.nationality).replace(/\s+/g, '') || 'UNKNOWN';
-    return `${normalizedJobField}|${normalizedName}|${normalizedNationality}`;
+    return getSharedWorkerNameIdentitySeed(record);
 };
 
 const buildNameBasedWorkerUuid = (record: Partial<WorkerRecord>): string => {
-    const seed = getWorkerNameIdentitySeed(record);
-    return seed ? `WN-${stableWorkerHash(seed).slice(0, 12)}` : '';
+    return buildSharedNameBasedWorkerUuid(record);
 };
 
 const hasUsableProfileImage = (record: Partial<WorkerRecord>): boolean => {
@@ -352,51 +340,7 @@ const getComparableDateValue = (date?: string): number => {
 };
 
 const getWorkerMatchScore = (target: Partial<WorkerRecord>, candidate: Partial<WorkerRecord>): number => {
-    const targetNameSeed = getWorkerNameIdentitySeed(target);
-    const candidateNameSeed = getWorkerNameIdentitySeed(candidate);
-    if (targetNameSeed && candidateNameSeed) {
-        return targetNameSeed === candidateNameSeed ? 130 : -1;
-    }
-
-    const targetUuid = getWorkerUuidValue(target);
-    const candidateUuid = getWorkerUuidValue(candidate);
-    if (targetUuid && candidateUuid && targetUuid === candidateUuid) return 120;
-
-    const targetEmployeeId = normalizeIdentityText(target.employeeId);
-    const candidateEmployeeId = normalizeIdentityText(candidate.employeeId);
-    if (targetEmployeeId && candidateEmployeeId && targetEmployeeId === candidateEmployeeId) return 110;
-
-    const targetQrId = normalizeIdentityText(target.qrId);
-    const candidateQrId = normalizeIdentityText(candidate.qrId);
-    if (targetQrId && candidateQrId && targetQrId === candidateQrId) return 100;
-
-    const targetName = normalizeIdentityText(target.name);
-    const candidateName = normalizeIdentityText(candidate.name);
-    if (!targetName || !candidateName || targetName !== candidateName) return -1;
-
-    const targetJob = normalizeJobIdentityText(target.jobField);
-    const candidateJob = normalizeJobIdentityText(candidate.jobField);
-    if (!targetJob || !candidateJob || targetJob !== candidateJob) return -1;
-
-    let score = 55;
-    const targetNationality = normalizeIdentityText(target.nationality);
-    const candidateNationality = normalizeIdentityText(candidate.nationality);
-    if (targetNationality && candidateNationality && targetNationality !== candidateNationality) return -1;
-    if (targetNationality && candidateNationality && targetNationality === candidateNationality) score += 15;
-
-    const targetTeam = normalizeIdentityText(target.teamLeader);
-    const candidateTeam = normalizeIdentityText(candidate.teamLeader);
-    if (targetTeam && candidateTeam && targetTeam === candidateTeam) score += 15;
-
-    const targetJobText = normalizeIdentityText(target.jobField);
-    const candidateJobText = normalizeIdentityText(candidate.jobField);
-    if (targetJobText && candidateJobText && targetJobText === candidateJobText) score += 15;
-
-    const targetRole = normalizeIdentityText(target.role);
-    const candidateRole = normalizeIdentityText(candidate.role);
-    if (targetRole && candidateRole && targetRole === candidateRole) score += 5;
-
-    return score >= 55 ? score : -1;
+    return getSharedWorkerMatchScore(target, candidate);
 };
 
 const findBestWorkerSource = (record: WorkerRecord, existingRecords: WorkerRecord[]): WorkerRecord | null => {
@@ -417,29 +361,7 @@ const findBestWorkerSource = (record: WorkerRecord, existingRecords: WorkerRecor
 };
 
 const isSameWorkerTimeline = (base: Partial<WorkerRecord>, candidate: Partial<WorkerRecord>): boolean => {
-    const baseNameSeed = getWorkerNameIdentitySeed(base);
-    const candidateNameSeed = getWorkerNameIdentitySeed(candidate);
-    if (baseNameSeed && candidateNameSeed) return baseNameSeed === candidateNameSeed;
-
-    const baseEmployeeId = normalizeIdentityText(base.employeeId);
-    const candidateEmployeeId = normalizeIdentityText(candidate.employeeId);
-    if (baseEmployeeId && candidateEmployeeId) return baseEmployeeId === candidateEmployeeId;
-
-    const baseQrId = normalizeIdentityText(base.qrId);
-    const candidateQrId = normalizeIdentityText(candidate.qrId);
-    if (baseQrId && candidateQrId) return baseQrId === candidateQrId;
-
-    const baseUuid = getWorkerUuidValue(base);
-    const candidateUuid = getWorkerUuidValue(candidate);
-    if (baseUuid && candidateUuid) return baseUuid === candidateUuid;
-
-    const baseName = normalizeIdentityText(base.name);
-    const candidateName = normalizeIdentityText(candidate.name);
-    const baseJob = normalizeJobIdentityText(base.jobField);
-    const candidateJob = normalizeJobIdentityText(candidate.jobField);
-    const baseNationality = normalizeIdentityText(base.nationality);
-    const candidateNationality = normalizeIdentityText(candidate.nationality);
-    return Boolean(baseJob && candidateJob && baseJob === candidateJob && baseName && candidateName && baseName === candidateName && baseNationality === candidateNationality);
+    return isSharedSameWorkerTimeline(base, candidate);
 };
 
 const ensureWorkerUuid = (record: WorkerRecord, existingRecords: WorkerRecord[] = []): WorkerRecord => {

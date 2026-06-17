@@ -12,6 +12,7 @@
 | **2** | [NEW-PSI_기술소개자료.pptx](file:///c:/Users/user/OneDrive/Desktop/개발실/NEW-PSI-github/docs/daewoo_deck/NEW-PSI_기술소개자료.pptx) | **발표 원본 (PPTX)** | MS PowerPoint 편집 및 발표용 12슬라이드 Widescreen 원본 파일 |
 | **3** | [NEW-PSI_기술소개자료.html](file:///c:/Users/user/OneDrive/Desktop/개발실/NEW-PSI-github/docs/daewoo_deck/NEW-PSI_기술소개자료.html) | **웹 뷰어 원본 (HTML)** | CSS Grid, Flexbox, HSL 컬러 팔레트가 적용된 반응형 프레젠테이션 웹 문서 |
 | **4** | [screenshots/](file:///c:/Users/user/OneDrive/Desktop/개발실/NEW-PSI-github/docs/daewoo_deck/screenshots) | **증빙 폴더** | 1920x1080 고해상도로 캡처된 실제 NEW-PSI 프로그램 구동 화면 (7종) |
+| **5** | [NEW-PSI_기술능력자료_실증반영본_2026-06-17.md](file:///c:/Users/user/OneDrive/Desktop/개발실/NEW-PSI-github/docs/daewoo_deck/NEW-PSI_기술능력자료_실증반영본_2026-06-17.md) | **대외공개용 기술능력자료 초안** | 2025.09~2026.06 현장 원천자료와 632건 분석 백업을 비식별 집계로 반영한 기술능력·상품성 판단 자료 |
 
 ---
 
@@ -57,3 +58,14 @@
   3. **Human-in-the-loop (최종 책임자):** AI는 OCR 판독 및 1차 초안 작성을 돕는 보조자일 뿐이며, AI의 오판 가능성을 걸러내고 자료를 배포하는 최종 검증의 권한은 현장 안전관리자(인간)가 가집니다.
   4. **기존 안전 시스템과의 보완:** 대우건설 기존 안전플랫폼을 대체하지 않으며, 전단계에서 종이 수기 데이터의 무결성과 질적 수준을 확실하게 향상시켜 주입하는 **Pre-Input 보완 모듈**입니다.
   5. **참고 시스템 경계 분리:** SMART TBM 및 SFCS 시스템은 이번 공모전 단독 제출 기술인 NEW-PSI의 범위에서 제외하고 별도 파일럿/참고 형태로만 경계를 명확히 분증하였습니다.
+
+---
+
+## 4. 추가 실증 반영 자료
+
+아래 2개 파일은 기존 발표형 기술자료와 별도로, 실제 현장 축적자료를 비식별 집계로 반영하여 NEW-PSI의 기술능력과 상품성을 다시 정리한 자료입니다. 대외 공개가 가능한 범위만 사용했으며, 근로자 이름·서명·원본 이미지·개별 점수·내부 경로는 포함하지 않았습니다.
+
+| 순번 | 파일명 및 경로 | 파일 구분 | 설명 |
+| :--- | :--- | :--- | :--- |
+| **5** | [NEW-PSI_기술능력자료_실증반영본_2026-06-17.md](file:///c:/Users/user/OneDrive/Desktop/개발실/NEW-PSI-github/docs/daewoo_deck/NEW-PSI_기술능력자료_실증반영본_2026-06-17.md) | **대외공개용 기술능력자료 초안** | 실증 집계, 상품성 판단, 공개 가능 문구, 보완 계획을 빠르게 검토할 수 있는 문서형 초안 |
+| **6** | [NEW-PSI_technical_capability_field_evidence_2026-06-17.docx](file:///c:/Users/user/OneDrive/Desktop/개발실/NEW-PSI-github/docs/daewoo_deck/NEW-PSI_technical_capability_field_evidence_2026-06-17.docx) | **대외공개용 기술능력자료 DOCX** | 공모 제출·내부 검토에 바로 활용하기 쉬운 Word 편집본 |

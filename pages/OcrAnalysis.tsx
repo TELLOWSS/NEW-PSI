@@ -39,6 +39,7 @@ import { useDevMode } from '../contexts/DevModeContext';
 import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils';
 import { useJudgmentTaggingQuality } from '../hooks/useJudgmentTaggingQuality';
+import { analyzeWorkerEvidenceReadiness, getWorkerIdentityKey } from '../utils/workerIdentity';
 
 const OCR_STATUS_COPY = {
     secondPassEmpty: {
@@ -891,40 +892,8 @@ const formatWorkerGroupMonth = (record: WorkerRecord): string => {
     });
 };
 
-const normalizeWorkerGroupText = (value: unknown): string => {
-    return String(value || '').trim().toLowerCase().replace(/\s+/g, '');
-};
-
-const normalizeWorkerJobGroupText = (value: unknown): string => {
-    const raw = String(value || '').trim().toLowerCase();
-    if (!raw) return '';
-
-    const parts = raw
-        .split(/[,\s/·ㆍ+|]+/)
-        .map((part) => part.trim())
-        .filter(Boolean);
-
-    return parts.length > 1
-        ? Array.from(new Set(parts)).sort().join('+')
-        : raw.replace(/[,\s/·ㆍ+|]+/g, '');
-};
-
 const getWorkerAccumulationKey = (record: WorkerRecord): string => {
-    const jobField = normalizeWorkerJobGroupText(record.jobField);
-    const name = normalizeWorkerGroupText(record.name);
-    const nationality = normalizeWorkerGroupText(record.nationality);
-    if (jobField && name) return `job:${jobField}|name:${name}|nationality:${nationality || 'unknown'}`;
-
-    const employeeId = normalizeWorkerGroupText(record.employeeId);
-    if (employeeId) return `employee:${employeeId}`;
-
-    const qrId = normalizeWorkerGroupText(record.qrId);
-    if (qrId) return `qr:${qrId}`;
-
-    const workerUuid = normalizeWorkerGroupText(record.worker_uuid || record.workerUuid);
-    if (workerUuid) return `worker:${workerUuid}`;
-
-    return `record:${record.id}`;
+    return getWorkerIdentityKey(record);
 };
 
 const formatComparisonValue = (value: unknown): string => {
@@ -1941,6 +1910,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
     const recordListRecords = useMemo(() => {
         return focusedWorkerGroup ? focusedWorkerGroup.records : filteredRecords;
     }, [focusedWorkerGroup, filteredRecords]);
+
+    const evidenceReadinessSummary = useMemo(() => {
+        return analyzeWorkerEvidenceReadiness(existingRecords);
+    }, [existingRecords]);
 
     const recordsWithImages = useMemo(() => {
         return existingRecords.filter(r => hasRetryableOriginalImage(r.originalImage) || hasRetryableOriginalImage(r.profileImage));
@@ -4571,6 +4544,86 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         link.click();
     };
 
+    const handleExportEvidenceSnapshot = () => {
+        const maskWorkerName = (name?: string) => {
+            const text = String(name || '').trim();
+            if (!text) return '미상';
+            if (text.length <= 1) return `${text}*`;
+            return `${text.slice(0, 1)}${'*'.repeat(Math.min(2, text.length - 1))}`;
+        };
+
+        const payload = {
+            snapshotType: 'NEW-PSI public evidence summary',
+            generatedAt: new Date().toISOString(),
+            privacyNotice: '원본 이미지, 서명, 전체 수기문장, 전화번호, 관리자 식별번호는 제외한 비식별 요약입니다.',
+            identityBasis: '동일인 기준은 공종+한글이름+국적입니다.',
+            viewScope: focusedWorkerGroup ? '선택 근로자 월별 보기' : '현재 필터 전체 보기',
+            activeFilters: {
+                searchApplied: searchTerm.trim().length > 0,
+                safetyLevel: filterLevel,
+                workType: filterField,
+                teamLeader: filterLeader,
+                trustState: filterTrust,
+                reason: filterReason,
+                ocrStatus: filterStatus,
+                secondPassStatus: secondPassStatusFilter,
+                secondPassEditedOnly,
+                secondPassExcludedOnly,
+                secondPassReason: secondPassReasonFilter,
+            },
+            counts: {
+                totalSavedRecords: existingRecords.length,
+                filteredRecords: filteredRecords.length,
+                visibleMonthlyRecords: recordListRecords.length,
+                workerGroups: workerAccumulationGroups.length,
+            },
+            evidenceReadinessSummary,
+            focusedWorker: focusedWorkerGroup
+                ? {
+                    workerLabel: maskWorkerName(focusedWorkerGroup.latestRecord.name),
+                    nationality: focusedWorkerGroup.latestRecord.nationality || '미확인',
+                    jobField: focusedWorkerGroup.latestRecord.jobField || '미확인',
+                    recordCount: focusedWorkerGroup.records.length,
+                    monthCount: focusedWorkerGroup.monthCount,
+                    dateRange: focusedWorkerGroup.dateRangeLabel,
+                }
+                : null,
+            workerGroups: workerAccumulationGroups.map((group, index) => ({
+                workerNo: `관리단위-${String(index + 1).padStart(3, '0')}`,
+                workerLabel: maskWorkerName(group.latestRecord.name),
+                nationality: group.latestRecord.nationality || '미확인',
+                jobFields: group.jobFields,
+                teamLeaderCount: group.teamLeaders.length,
+                recordCount: group.records.length,
+                monthCount: group.monthCount,
+                dateRange: group.dateRangeLabel,
+                averageScore: group.averageScore,
+                latestScore: group.latestScore,
+                previousScore: group.previousScore,
+                deltaScore: group.deltaScore,
+                failedCount: group.failedCount,
+                finalizedCount: group.finalizedCount,
+                monthlyScores: [...group.records].reverse().map((record) => ({
+                    month: formatWorkerGroupMonth(record),
+                    date: String(record.date || '').slice(0, 10) || '날짜 없음',
+                    score: Number.isFinite(Number(record.safetyScore)) ? Number(record.safetyScore) : null,
+                    level: record.safetyLevel || '미확인',
+                    reviewState: getReviewTrustState(record),
+                    status: isFailedRecord(record) ? '확인 필요' : '분석 완료',
+                })),
+            })),
+        };
+
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `NEW-PSI_검증용_비식별_요약_${new Date().toISOString().slice(0, 10)}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        alert('검증용 비식별 요약 JSON을 저장했습니다. 이 파일은 원본 이미지와 전체 수기문장을 포함하지 않습니다.');
+    };
+
     const handleExportReanalysisSummary = () => {
         const blob = new Blob([reanalysisSummaryText], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
@@ -5748,6 +5801,102 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 </div>
             )}
 
+            {existingRecords.length > 0 && (
+                <SectionPanelCard
+                    variant="indigoGradientSoft"
+                    className="mb-4"
+                    eyebrow="공개용 실증 증빙"
+                    title="실증 증빙 준비도"
+                    description="현재 브라우저에 누적된 기록이 기술자료·공모전 증빙으로 전환될 수 있는 상태인지 비식별 집계로 확인합니다."
+                    headerClassName="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between"
+                    titleClassName="mt-1 text-lg font-black text-slate-900"
+                    descriptionClassName="mt-1 text-xs font-bold leading-relaxed text-slate-600"
+                    headerAction={(
+                        <div className="flex flex-wrap gap-2 text-[11px] font-black">
+                            <span className="rounded-full border border-indigo-200 bg-white px-3 py-1 text-indigo-700">
+                                동일인 기준: 공종+한글이름+국적
+                            </span>
+                            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">
+                                개인명·서명·원본은 공개 제외
+                            </span>
+                            <button
+                                type="button"
+                                onClick={handleExportEvidenceSnapshot}
+                                className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700 hover:bg-emerald-100"
+                            >
+                                검증용 요약 저장
+                            </button>
+                        </div>
+                    )}
+                >
+                    <SummaryMetricGrid
+                        className="grid grid-cols-2 gap-2 lg:grid-cols-4"
+                        cardClassName="rounded-2xl border px-3 py-3"
+                        items={[
+                            {
+                                key: 'evidence-total',
+                                label: '전체 분석 기록',
+                                value: `${evidenceReadinessSummary.totalRecords}건`,
+                                helper: `근로자 관리 단위 ${evidenceReadinessSummary.workerGroups}명`,
+                                tone: BRAND_TONE.white,
+                                valueClassName: 'mt-1 text-xl font-black text-slate-900',
+                            },
+                            {
+                                key: 'evidence-repeat',
+                                label: '다월 추적 가능',
+                                value: `${evidenceReadinessSummary.multiMonthWorkerGroups}명`,
+                                helper: `반복 기록 ${evidenceReadinessSummary.repeatedWorkerGroups}명 · 최대 ${evidenceReadinessSummary.maxMonthsPerWorker}개월`,
+                                tone: BRAND_TONE.emeraldSoft,
+                                valueClassName: 'mt-1 text-xl font-black text-emerald-700',
+                            },
+                            {
+                                key: 'evidence-trend',
+                                label: '변화 추적',
+                                value: `개선 ${evidenceReadinessSummary.improvingWorkerGroups}명`,
+                                helper: `하락 ${evidenceReadinessSummary.decliningWorkerGroups}명 · 안정 ${evidenceReadinessSummary.stableWorkerGroups}명`,
+                                tone: BRAND_TONE.skySoft,
+                                valueClassName: 'mt-1 text-xl font-black text-sky-700',
+                            },
+                            {
+                                key: 'evidence-low-score',
+                                label: '보호 우선 대상',
+                                value: `${evidenceReadinessSummary.lowScoreRecords}건`,
+                                helper: '60점 미만 기록 기준',
+                                tone: evidenceReadinessSummary.lowScoreRecords > 0 ? BRAND_TONE.amberSoft : BRAND_TONE.slate,
+                                valueClassName: `mt-1 text-xl font-black ${evidenceReadinessSummary.lowScoreRecords > 0 ? 'text-amber-700' : 'text-slate-700'}`,
+                            },
+                        ]}
+                    />
+                    <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+                        {[
+                            ['원본 대조', evidenceReadinessSummary.imageCoverageRate],
+                            ['수기답변 구조화', evidenceReadinessSummary.handwrittenCoverageRate],
+                            ['AI 해석', evidenceReadinessSummary.aiInsightCoverageRate],
+                            ['모국어 환류', evidenceReadinessSummary.nativeGuidanceCoverageRate],
+                        ].map(([label, value]) => (
+                            <div key={String(label)} className="rounded-2xl border border-white bg-white/80 px-3 py-3">
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</p>
+                                    <p className="text-sm font-black text-indigo-700">{value}%</p>
+                                </div>
+                                <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                                    <div
+                                        className="h-full rounded-full bg-indigo-500"
+                                        style={{ width: `${Math.max(0, Math.min(100, Number(value)))}%` }}
+                                    />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                    {(evidenceReadinessSummary.futureDateRecords > 0 || evidenceReadinessSummary.invalidDateRecords > 0) && (
+                        <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold leading-relaxed text-amber-800">
+                            날짜 보정 필요: 미래일자 {evidenceReadinessSummary.futureDateRecords}건 · 날짜 해석 실패 {evidenceReadinessSummary.invalidDateRecords}건.
+                            공모전 제출 전에는 월별 집계에서 제외하거나 관리자 확인 후 수정하는 것이 안전합니다.
+                        </div>
+                    )}
+                </SectionPanelCard>
+            )}
+
             {/* 공종/팀장 일괄 수정 UI */}
             <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden mb-4">
                 <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 items-stretch sm:items-center p-4 border-b border-slate-100">
@@ -5956,22 +6105,25 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                                 type="button"
                                                 onClick={() => setFocusedWorkerGroupKey(group.key)}
                                                 className="rounded-xl bg-indigo-600 px-3 py-2 text-[11px] font-black text-white hover:bg-indigo-700"
+                                                title="아래 월별 기록 목록을 이 근로자 기록만 보이도록 좁힙니다."
                                             >
-                                                월별만 보기
+                                                이 근로자 월별 보기
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setSelectedIds(group.records.map((record) => record.id))}
                                                 className="rounded-xl bg-slate-900 px-3 py-2 text-[11px] font-black text-white hover:bg-black"
+                                                title="이 근로자의 누적 기록 전체를 선택해 일괄 수정, 삭제, 재분석에 사용합니다."
                                             >
-                                                이 근로자 기록 선택
+                                                기록 일괄 선택
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => onOpenReport(latest)}
                                                 className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black text-slate-700 hover:bg-slate-50"
+                                                title="이 근로자의 가장 최근 기록으로 관리자 분석 리포트를 엽니다."
                                             >
-                                                최신 리포트
+                                                최신 관리자 리포트
                                             </button>
                                         </div>
                                     </div>
@@ -5997,15 +6149,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     type="button"
                                     onClick={() => setSelectedIds(recordListRecords.map((record) => record.id))}
                                     className="rounded-xl bg-slate-900 px-3 py-2 text-[11px] font-black text-white hover:bg-black"
+                                    title="현재 보이는 이 근로자 월별 기록을 모두 선택합니다."
                                 >
-                                    이 근로자 기록 선택
+                                    현재 근로자 기록 일괄 선택
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => setFocusedWorkerGroupKey(null)}
                                     className="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-[11px] font-black text-indigo-700 hover:bg-indigo-50"
                                 >
-                                    전체 월별 목록 보기
+                                    전체 근로자 목록으로 돌아가기
                                 </button>
                             </div>
                         </div>
@@ -6026,7 +6179,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 {!focusedWorkerGroup && filteredRecords.length > 0 && (
                     <div className="border-b border-slate-100 bg-white px-4 py-3 sm:px-6">
                         <p className="text-[12px] font-bold text-slate-500">
-                            아래 월별 기록 목록은 전체 {filteredRecords.length}건을 표시합니다. 누적 카드에서 <span className="font-black text-indigo-700">월별만 보기</span>를 누르면 한 근로자 기록만 좁혀볼 수 있습니다.
+                            아래 월별 기록 목록은 전체 {filteredRecords.length}건을 표시합니다. 누적 카드에서 <span className="font-black text-indigo-700">이 근로자 월별 보기</span>를 누르면 한 근로자의 기록만 좁혀볼 수 있습니다.
                         </p>
                     </div>
                 )}

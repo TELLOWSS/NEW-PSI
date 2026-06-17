@@ -30,4 +30,5 @@ dist-ssr
 # Antigravity / Codex internal metadata & artifacts
 .codex-git/
 artifacts/
+.vercel/
 
