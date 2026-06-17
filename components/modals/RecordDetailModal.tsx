@@ -1846,6 +1846,91 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
         () => String(record.aiInsights_native || '').trim() || buildFallbackNativeGuidanceText(record),
         [record],
     );
+    const decisionBoardTone = useMemo(() => {
+        if (record.reviewStatus === 'REJECTED') {
+            return {
+                container: 'border-rose-200 bg-gradient-to-br from-rose-50 via-white to-white',
+                eyebrow: 'text-rose-500',
+                badge: 'roseSoft' as const,
+                accent: 'bg-rose-500',
+            };
+        }
+        if (isFinalizedRecord) {
+            return {
+                container: 'border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-white',
+                eyebrow: 'text-emerald-600',
+                badge: 'emeraldSoft' as const,
+                accent: 'bg-emerald-500',
+            };
+        }
+        if (hasChanges) {
+            return {
+                container: 'border-amber-200 bg-gradient-to-br from-amber-50 via-white to-white',
+                eyebrow: 'text-amber-600',
+                badge: 'amberSoft' as const,
+                accent: 'bg-amber-500',
+            };
+        }
+        return {
+            container: 'border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-white',
+            eyebrow: 'text-indigo-600',
+            badge: 'violetSoft' as const,
+            accent: 'bg-indigo-500',
+        };
+    }, [hasChanges, isFinalizedRecord, record.reviewStatus]);
+    const decisionQuickMetrics = useMemo(() => {
+        const confidenceValue = typeof record.ocrConfidence === 'number' ? record.ocrConfidence : null;
+        const confidenceLabel = confidenceValue !== null ? `${(confidenceValue * 100).toFixed(0)}%` : '확인 필요';
+        const confidenceTone = !hasOriginalImage
+            ? 'border-rose-200 bg-rose-50'
+            : confidenceValue === null
+                ? 'border-slate-200 bg-slate-50'
+                : confidenceValue >= 0.8
+                    ? 'border-emerald-200 bg-emerald-50'
+                    : 'border-amber-200 bg-amber-50';
+
+        return [
+            {
+                key: 'score',
+                label: '보호 점수',
+                value: `${Number(record.safetyScore || 0).toFixed(0)}점`,
+                helper: record.safetyLevel || '등급 확인 필요',
+                tone: 'border-slate-200 bg-white',
+                labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
+                valueClassName: 'mt-1 text-2xl font-black text-slate-900',
+            },
+            {
+                key: 'confidence',
+                label: 'OCR 신뢰',
+                value: confidenceLabel,
+                helper: hasOriginalImage ? '원본 이미지 있음' : '원본 이미지 없음',
+                tone: confidenceTone,
+                labelClassName: `text-[10px] font-black uppercase tracking-[0.18em] ${confidenceValue !== null && confidenceValue >= 0.8 ? 'text-emerald-600' : !hasOriginalImage ? 'text-rose-600' : 'text-amber-600'}`,
+                valueClassName: 'mt-1 text-2xl font-black text-slate-900',
+            },
+            {
+                key: 'audit',
+                label: '검증 판정',
+                value: finalAuditVerdict.label,
+                helper: finalAuditVerdict.reason,
+                tone: finalAuditVerdict.tone,
+                labelClassName: finalAuditVerdict.labelClassName,
+                valueClassName: finalAuditVerdict.valueClassName,
+                helperClassName: 'mt-1 line-clamp-2 text-[11px] font-bold leading-relaxed text-slate-600',
+            },
+            {
+                key: 'answers',
+                label: '문항 대조',
+                value: `${answerComparisonSummary.originalReady}/${answerComparisonSummary.translated}/${verificationAudit.nativeTranslatedAnswerCount ?? 0}`,
+                helper: '원문 / 한국어 / 모국어',
+                tone: verificationAudit.isComplete ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50',
+                labelClassName: verificationAudit.isComplete
+                    ? 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-600'
+                    : 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-600',
+                valueClassName: 'mt-1 text-2xl font-black text-slate-900',
+            },
+        ];
+    }, [answerComparisonSummary.originalReady, answerComparisonSummary.translated, finalAuditVerdict, hasOriginalImage, record.ocrConfidence, record.safetyLevel, record.safetyScore, verificationAudit.isComplete, verificationAudit.nativeTranslatedAnswerCount]);
     
     // Icon Display
     const isLeader = (record.role === 'leader') || (record.name === record.teamLeader);
@@ -1859,8 +1944,10 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                         <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><svg className="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg></button>
                         <div className="min-w-0">
-                            <h2 className="text-base sm:text-xl font-black text-slate-800 truncate">기록 상세 검증</h2>
-                            <p className="hidden sm:block text-[10px] text-indigo-500 font-bold tracking-widest uppercase">OCR Verification Mode</p>
+                            <h2 className="text-base sm:text-xl font-black text-slate-800 truncate">{record.name || '기록 상세 검증'} 상세 판단</h2>
+                            <p className="hidden sm:block text-[10px] text-indigo-500 font-bold tracking-widest uppercase">
+                                {record.jobField || '공종 미확인'} · {record.nationality || '국적 미확인'} · OCR Verification Mode
+                            </p>
                             {queueContext && (
                                 <p className="hidden sm:block text-[11px] font-black text-emerald-600 mt-1">사진 등록 작업 {queueContext.currentIndex} / {queueContext.total}{queueContext.nextRecordName ? ` · 다음 ${queueContext.nextRecordName}` : ' · 마지막 대상'}</p>
                             )}
@@ -1903,6 +1990,25 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                             </ActionButton>
                             <input type="file" ref={docInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'original')} />
                         </div>
+
+                        <div className="mb-4 w-full max-w-2xl rounded-2xl border border-white/10 bg-white/10 p-3 text-white shadow-xl backdrop-blur">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/55">원본 대조 기준</p>
+                                    <p className="mt-1 text-sm font-black text-white">{record.name || '근로자 미상'} · {record.jobField || '공종 미확인'}</p>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                    <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-slate-900">{Number(record.safetyScore || 0).toFixed(0)}점</span>
+                                    <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-black text-white">{finalAuditVerdict.label}</span>
+                                    <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-black text-white">
+                                        OCR {typeof record.ocrConfidence === 'number' ? `${(record.ocrConfidence * 100).toFixed(0)}%` : '확인 필요'}
+                                    </span>
+                                </div>
+                            </div>
+                            <p className="mt-2 text-[11px] font-semibold leading-relaxed text-white/70">
+                                원본의 이름, 공종, 수기 답변이 오른쪽 판단 보드와 맞는지 먼저 대조하세요.
+                            </p>
+                        </div>
                         
                         {hasOriginalImage ? (
                             <div className="w-full max-w-2xl bg-white shadow-2xl p-1 animate-fade-in group relative">
@@ -1931,81 +2037,130 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({ record: in
                     <div className="w-full lg:w-[50%] flex flex-col bg-slate-50 overflow-hidden">
                         <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-5 sm:space-y-8 custom-scrollbar">
                             
-                            <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm">
-                                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                                    <div>
-                                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-500">3초 판단 구조</p>
-                                        <h3 className="mt-2 text-lg font-black text-slate-900">{isCompactViewActive ? '핵심 판단 요약' : '원문 → AI 해석 → 관리자 판단을 한 번에 봅니다.'}</h3>
-                                        {!isCompactViewActive && <p className="mt-2 text-sm font-semibold text-slate-600">간단 보기에서는 승인 판단에 필요한 핵심만 보여줍니다.</p>}
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        {!isMobileViewport ? (
-                                            <>
-                                                <ActionButton
-                                                    variant={isCompactReviewView ? 'indigoSolid' : 'slateSoft'}
-                                                    onClick={() => setIsCompactReviewView(true)}
-                                                    className="px-3 py-2 text-xs border-0"
-                                                >
-                                                    간단 보기
-                                                </ActionButton>
-                                                <ActionButton
-                                                    variant={isCompactReviewView ? 'slateSoft' : 'indigoSolid'}
-                                                    onClick={() => setIsCompactReviewView(false)}
-                                                    className="px-3 py-2 text-xs border-0"
-                                                >
-                                                    상세 보기
-                                                </ActionButton>
-                                            </>
-                                        ) : (
-                                            <ActionButton
-                                                variant={isMobileDetailExpanded ? 'slateSoft' : 'indigoSolid'}
-                                                onClick={() => setIsMobileDetailExpanded((prev) => !prev)}
-                                                className="px-3 py-2 text-xs border-0"
-                                            >
-                                                {isMobileDetailExpanded ? '간단으로 복귀' : '상세 잠깐 보기'}
-                                            </ActionButton>
-                                        )}
-                                    </div>
-                                    <SummaryMetricGrid
-                                        className={isCompactViewActive ? 'grid grid-cols-1 gap-2' : 'grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-5'}
-                                        cardClassName="rounded-2xl border px-3 py-2"
-                                        items={(isCompactViewActive ? compactReviewMetaChips : reviewMetaChips).map((chip) => ({
-                                            key: chip.key,
-                                            label: chip.label,
-                                            value: chip.value,
-                                            tone: chip.key === 'history'
-                                                ? 'border-indigo-200 bg-indigo-50'
-                                                : chip.key === 'workflow'
-                                                    ? 'border-violet-200 bg-violet-50'
-                                                    : chip.key === 'risk'
-                                                        ? 'border-amber-200 bg-amber-50'
-                                                        : 'border-slate-200 bg-slate-50',
-                                            labelClassName: chip.key === 'history'
-                                                ? 'text-[10px] font-black uppercase tracking-[0.18em] text-indigo-400'
-                                                : chip.key === 'workflow'
-                                                    ? 'text-[10px] font-black uppercase tracking-[0.18em] text-violet-400'
-                                                    : chip.key === 'risk'
-                                                        ? 'text-[10px] font-black uppercase tracking-[0.18em] text-amber-500'
-                                                : 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-400',
-                                            valueClassName: chip.key === 'history'
-                                                ? 'mt-1 text-xs font-black text-indigo-700'
-                                                : chip.key === 'workflow'
-                                                    ? 'mt-1 text-xs font-black text-violet-700'
-                                                    : chip.key === 'risk'
-                                                        ? 'mt-1 text-xs font-black text-amber-700'
-                                                : 'mt-1 text-xs font-black text-slate-700',
-                                        }))}
-                                    />
-                                </div>
-                                {!isCompactViewActive && <p className="mt-3 text-xs font-semibold text-slate-500">{secondaryMetaText}</p>}
-                                <div className={`mt-4 grid ${isCompactViewActive ? 'grid-cols-1' : 'grid-cols-1 xl:grid-cols-3'} gap-3`}>
-                                    {(isCompactViewActive ? compactSourcePreviewPanels : sourcePreviewPanels).map((panel) => (
-                                            <div key={panel.key} className={`h-full ${isCompactViewActive ? 'min-h-[120px]' : 'min-h-[260px]'} rounded-2xl border ${isCompactViewActive ? 'p-3' : 'p-4'} ${panel.tone}`}>
-                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">{panel.eyebrow}</p>
-                                            <h4 className="mt-2 text-sm font-black">{panel.title}</h4>
-                                                <p className={`mt-2 ${isCompactViewActive ? 'text-xs max-h-[120px]' : 'text-sm max-h-[220px]'} font-semibold leading-relaxed whitespace-pre-wrap overflow-y-auto custom-scrollbar pr-1`}>{panel.body}</p>
+                            <div className={`overflow-hidden rounded-[28px] border shadow-sm ${decisionBoardTone.container}`}>
+                                <div className="relative p-5 sm:p-6">
+                                    <div className={`absolute inset-y-0 left-0 w-1.5 ${decisionBoardTone.accent}`} />
+                                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                                        <div className="min-w-0">
+                                            <p className={`text-[10px] font-black uppercase tracking-[0.22em] ${decisionBoardTone.eyebrow}`}>상세 판단 바로보기</p>
+                                            <h3 className="mt-2 text-xl font-black text-slate-950">
+                                                {record.name || '근로자 미상'} · {record.jobField || '공종 미확인'}
+                                            </h3>
+                                            <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">
+                                                원본 이미지, OCR 신호, AI 해석, 관리자 판단을 한 화면에서 맞춰보고 최종 보호 조치를 결정합니다.
+                                            </p>
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                <StatusBadge variant={decisionBoardTone.badge} className="px-3 py-1 text-[11px]">
+                                                    {isCompactViewActive ? '간단 판단 모드' : '상세 검증 모드'}
+                                                </StatusBadge>
+                                                <StatusBadge variant="slateSoft" className="px-3 py-1 text-[11px]">
+                                                    {record.nationality || '국적 미확인'}
+                                                </StatusBadge>
+                                                <StatusBadge variant="slateSoft" className="px-3 py-1 text-[11px]">
+                                                    {record.date || '일자 미확인'}
+                                                </StatusBadge>
+                                                {record.teamLeader && (
+                                                    <StatusBadge variant="slateSoft" className="px-3 py-1 text-[11px]">
+                                                        팀장 {record.teamLeader}
+                                                    </StatusBadge>
+                                                )}
+                                            </div>
                                         </div>
-                                    ))}
+                                        <div className="flex shrink-0 flex-wrap items-center gap-2">
+                                            {!isMobileViewport ? (
+                                                <>
+                                                    <ActionButton
+                                                        variant={isCompactReviewView ? 'indigoSolid' : 'slateSoft'}
+                                                        onClick={() => setIsCompactReviewView(true)}
+                                                        className="px-3 py-2 text-xs border-0"
+                                                    >
+                                                        간단 보기
+                                                    </ActionButton>
+                                                    <ActionButton
+                                                        variant={isCompactReviewView ? 'slateSoft' : 'indigoSolid'}
+                                                        onClick={() => setIsCompactReviewView(false)}
+                                                        className="px-3 py-2 text-xs border-0"
+                                                    >
+                                                        상세 보기
+                                                    </ActionButton>
+                                                </>
+                                            ) : (
+                                                <ActionButton
+                                                    variant={isMobileDetailExpanded ? 'slateSoft' : 'indigoSolid'}
+                                                    onClick={() => setIsMobileDetailExpanded((prev) => !prev)}
+                                                    className="px-3 py-2 text-xs border-0"
+                                                >
+                                                    {isMobileDetailExpanded ? '간단으로 복귀' : '상세 잠깐 보기'}
+                                                </ActionButton>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-5 grid grid-cols-1 gap-3 xl:grid-cols-3">
+                                        {reviewDecisionCards.map((card) => (
+                                            <div key={card.key} className={`rounded-2xl border px-4 py-4 ${card.tone}`}>
+                                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{card.eyebrow}</p>
+                                                <h4 className="mt-2 text-sm font-black text-slate-950">{card.title}</h4>
+                                                <p className="mt-2 text-xs font-semibold leading-relaxed text-slate-600">{card.description}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <SummaryMetricGrid
+                                        className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4"
+                                        cardClassName="rounded-2xl border px-3 py-3"
+                                        items={decisionQuickMetrics}
+                                    />
+
+                                    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                                        <ActionButton
+                                            variant="slateSoft"
+                                            onClick={() => setActiveTab('qna')}
+                                            className="justify-center px-4 py-2 text-xs border-0"
+                                        >
+                                            원문 비교 먼저 보기
+                                        </ActionButton>
+                                        <ActionButton
+                                            variant="indigoSolid"
+                                            onClick={() => setActiveTab('analysis')}
+                                            className="justify-center px-4 py-2 text-xs border-0"
+                                        >
+                                            AI 해석 확인
+                                        </ActionButton>
+                                        <ActionButton
+                                            variant={hasChanges ? 'indigoSolid' : 'emeraldSoft'}
+                                            onClick={hasChanges ? () => { void handleSave(); } : () => { void handleApprove('approved'); }}
+                                            disabled={!hasChanges && (isUpdatingAnalysis || (hasCriticalReviewEdits && approvalComment.trim().length === 0))}
+                                            className="justify-center px-4 py-2 text-xs border-0"
+                                        >
+                                            {hasChanges ? '수정 먼저 저장' : '보호 판단 확정'}
+                                        </ActionButton>
+                                    </div>
+
+                                    {!isCompactViewActive && (
+                                        <p className="mt-3 text-xs font-semibold text-slate-500">{secondaryMetaText}</p>
+                                    )}
+                                </div>
+
+                                <div className="border-t border-slate-200/80 bg-white/75 p-4 sm:p-5">
+                                    <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">판단 근거 비교</p>
+                                            <h4 className="mt-1 text-sm font-black text-slate-900">
+                                                {isCompactViewActive ? '관리자 판단 메모를 우선 확인합니다.' : '원문, AI 해석, 관리자 판단을 나란히 비교합니다.'}
+                                            </h4>
+                                        </div>
+                                        <p className="text-[11px] font-bold text-slate-500">필요하면 아래 탭에서 전체 원문과 문항별 답변을 확인하세요.</p>
+                                    </div>
+                                    <div className={`grid ${isCompactViewActive ? 'grid-cols-1' : 'grid-cols-1 xl:grid-cols-3'} gap-3`}>
+                                        {(isCompactViewActive ? compactSourcePreviewPanels : sourcePreviewPanels).map((panel) => (
+                                            <div key={panel.key} className={`h-full ${isCompactViewActive ? 'min-h-[120px]' : 'min-h-[240px]'} rounded-2xl border ${isCompactViewActive ? 'p-3' : 'p-4'} ${panel.tone}`}>
+                                                <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">{panel.eyebrow}</p>
+                                                <h4 className="mt-2 text-sm font-black">{panel.title}</h4>
+                                                <p className={`mt-2 ${isCompactViewActive ? 'text-xs max-h-[120px]' : 'text-sm max-h-[200px]'} font-semibold leading-relaxed whitespace-pre-wrap overflow-y-auto custom-scrollbar pr-1`}>{panel.body}</p>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 

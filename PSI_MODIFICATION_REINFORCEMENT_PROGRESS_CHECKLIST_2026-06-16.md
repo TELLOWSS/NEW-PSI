@@ -154,8 +154,11 @@
   - 모바일 카드와 PC 테이블 관리 영역에 상태 요약과 상세 판단 주 버튼을 추가
   - 기존 목록에서 바로 판단 화면으로 진입하는 흐름을 더 명확하게 표시
 
-- [ ] 상세 판단 화면 자체의 대대적 재구성
-  - 다음 단계에서 상세 판단 모달/화면 내부를 “원문 이미지, OCR 추출값, 관리자 수정, 판단 근거, 다음 조치” 순서로 재배치 예정
+- [x] 상세 판단 화면 자체의 대대적 재구성
+  - 상세 판단 모달 상단을 “상세 판단 바로보기” 의사결정 보드로 재구성
+  - 원본 이미지, OCR 신뢰도, 보호 점수, 검증 판정, 문항 대조 상태를 첫 화면에서 바로 확인하도록 개선
+  - “지금 상태 / 판단 근거 / 다음 행동” 3단 카드와 원문 비교·AI 해석·보호 판단 확정 빠른 이동 버튼 추가
+  - 왼쪽 원본 이미지 영역에도 원본 대조 기준 요약을 추가해 문서와 판단 보드를 함께 확인하도록 보강
 
 ## 3. 다음 대기 항목
 
@@ -169,6 +172,9 @@
 
 ## 4. 최신 반영 커밋
 
+- `latest` redesign record detail decision board
+- `05014db` improve ocr worker accumulation navigation
+- `0a6760e` refine worker identity by trade name nationality
 - `bf8cc5f` refine central storage status wording
 - `a5598c3` refine storage connection wording
 - `633dc1a` refine feedback storage wording
