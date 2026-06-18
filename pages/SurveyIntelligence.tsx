@@ -15,6 +15,30 @@ import {
     BarChart, Bar, ReferenceLine,
 } from 'recharts';
 import type { WorkerRecord } from '../types';
+import {
+    buildSurveyRiskGapRows,
+    formatSurveyMonth,
+    formatSurveyMonthShort,
+    getManagerRiskBaselineKey,
+    getRecordMonthKey,
+    getRiskGapDirectionLabel,
+    getRiskGapStatusLabel,
+    getTopComparableGap,
+    getWorkerRiskLevel,
+    MIN_COMPARABLE_SAMPLE,
+    readManagerRiskBaselines,
+    writeManagerRiskBaselines,
+    type ManagerRiskBaselineMap,
+    type SurveyRiskGapRow,
+    type SurveyRiskLevel,
+} from '../utils/surveyRiskGap';
+import { normalizeDashboardTrade } from '../utils/dashboardDataTransformer';
+import {
+    deleteSurveyRiskBaseline,
+    loadSurveyRiskBaselines,
+    persistSurveyRiskBaseline,
+    type SurveyRiskBaselineStorageMode,
+} from '../services/surveyRiskBaselineService';
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
 interface Props {
@@ -40,17 +64,11 @@ const TRADE_COLORS: Record<string, string> = {
 const tradeColor = (trade: string) => TRADE_COLORS[trade] ?? '#94a3b8';
 const QUERY_TRADE_KEY = 'siTrade';
 const QUERY_MONTH_KEY = 'siMonth';
+const ALL_TRADES = '전체 공종';
+const ALL_MONTHS = '전체 월';
+const normalizeSurveyTrade = (trade: string | undefined | null): string => normalizeDashboardTrade(trade) || '기타';
 
 // ─── 유틸 ────────────────────────────────────────────────────────────────────
-const getRiskLevel = (text: string): '상' | '중' | '하' | null => {
-    if (!text) return null;
-    const t = text.trim();
-    if (t.includes('상') || /high/i.test(t)) return '상';
-    if (t.includes('중') || /mid/i.test(t)) return '중';
-    if (t.includes('하') || /low/i.test(t)) return '하';
-    return null;
-};
-
 const specificityScore = (text: string): number => {
     if (!text || text.trim().length < 4) return 0;
     const t = text.trim();
@@ -65,20 +83,27 @@ const specificityScore = (text: string): number => {
 };
 
 // ─── 데이터 처리 훅 ───────────────────────────────────────────────────────────
-function useSurveyData(records: WorkerRecord[]) {
+function useSurveyData(records: WorkerRecord[], managerBaselines: ManagerRiskBaselineMap) {
     return useMemo(() => {
         const hasData = records.some(r => (r.handwrittenAnswers || []).length > 0);
 
         if (!hasData) {
             return {
                 isDemo: false,
-                gapData: [] as Array<{ trade: string; managerHigh: number; workerHigh: number; gap: number }>,
+                gapData: [] as SurveyRiskGapRow[],
                 radarData: [] as Array<{ trade: string; A: number; B: number }>,
                 keywordTrend: [] as Array<Record<string, number | string>>,
                 wordData: [] as Array<{ word: string; count: number }>,
                 specificityTrend: [] as Array<Record<string, number | string>>,
                 specificityTrades: [] as string[],
                 topGapTrade: '-',
+                topGapScore: null as number | null,
+                topGapDirection: '비교 가능한 관리자 기준이 없습니다.',
+                gapAvailabilityLabel: '기준 미등록',
+                gapAvailabilityDescription: '월·공종별 관리자 기준을 등록해 주세요.',
+                comparableResponseCount: 0,
+                totalRiskResponseCount: 0,
+                baselineCoverage: 0,
                 avgSpecificityLatest: 0,
                 avgSpecificityPrev: 0,
                 latestTopKeyword: '-',
@@ -89,48 +114,30 @@ function useSurveyData(records: WorkerRecord[]) {
         // ── 실데이터 처리 ──────────────────────────────────────────────────────
 
         // 공종 목록
-        const trades = Array.from(new Set(records.map(r => r.jobField || '기타')));
+        const trades = Array.from(new Set(records.map(r => normalizeSurveyTrade(r.jobField))));
 
         // 월 추출
-        const months = Array.from(new Set(records.map(r => {
-            const d = r.date ? new Date(r.date) : null;
-            return d ? `${d.getMonth() + 1}월` : '?';
-        }))).slice(-6);
+        const months = Array.from(new Set(records.map(r => getRecordMonthKey(r.date)).filter(Boolean) as string[]))
+            .sort((left, right) => left.localeCompare(right))
+            .slice(-6);
 
         // ── 지표 1: 갭 분석 ─────────────────────────────────────────────────
-        const gapData = trades.map(trade => {
-            const tradeRecords = records.filter(r => r.jobField === trade);
-            const q3Answers = tradeRecords.flatMap(r =>
-                (r.handwrittenAnswers || []).filter(a => a.questionNumber === '3' || a.questionNumber === 'Q3')
-            );
-            // 관리자 평가는 Q3 첫 줄 or 체크된 등급을 "상"으로 가정(서식상 관리자가 미리 체크)
-            // 근로자 체감은 동일 Q3에서 "하"로 체크한 비율
-            const total = q3Answers.length || 1;
-            const workerLow = q3Answers.filter(a => getRiskLevel(a.koreanTranslation || a.answerText) === '하').length;
-            const managerHigh = Math.round(
-                q3Answers.filter(a => getRiskLevel(a.koreanTranslation || a.answerText) === '상').length / total * 100
-            );
-            const workerHigh = 100 - Math.round(workerLow / total * 100);
-            return { trade, managerHigh, workerHigh, gap: Math.max(0, managerHigh - workerHigh) };
-        });
-
-        const radarData = trades.map(t => {
-            const d = gapData.find(g => g.trade === t);
-            return { trade: t, A: d?.managerHigh ?? 50, B: d?.workerHigh ?? 50 };
-        });
+        const gapData = buildSurveyRiskGapRows(records, managerBaselines, normalizeSurveyTrade);
+        const radarData = gapData
+            .filter(row => row.managerScore !== null && row.workerScore !== null)
+            .map(row => ({ trade: row.trade, A: row.managerScore as number, B: row.workerScore as number }));
 
         // ── 지표 2: 키워드 트렌드 ────────────────────────────────────────────
         const keywordTrend = months.map(month => {
             const monthRecords = records.filter(r => {
-                const d = r.date ? new Date(r.date) : null;
-                return d ? `${d.getMonth() + 1}월` === month : false;
+                return getRecordMonthKey(r.date) === month;
             });
             const texts = monthRecords.flatMap(r =>
                 (r.handwrittenAnswers || [])
                     .filter(a => a.questionNumber === '1' || a.questionNumber === '2')
                     .map(a => a.koreanTranslation || a.answerText)
             ).join(' ');
-            const obj: Record<string, number | string> = { month };
+            const obj: Record<string, number | string> = { month: formatSurveyMonthShort(month) };
             RISK_KEYWORDS.slice(0, 4).forEach(kw => {
                 obj[kw] = (texts.match(new RegExp(kw, 'g')) || []).length;
             });
@@ -150,11 +157,10 @@ function useSurveyData(records: WorkerRecord[]) {
         // ── 지표 3: 구체성 점수 추세 ─────────────────────────────────────────
         const topTrades = trades.slice(0, 3);
         const specificityTrend = months.map(month => {
-            const obj: Record<string, number | string> = { month };
+            const obj: Record<string, number | string> = { month: formatSurveyMonthShort(month) };
             topTrades.forEach(trade => {
                 const recs = records.filter(r => {
-                    const d = r.date ? new Date(r.date) : null;
-                    return r.jobField === trade && d ? `${d.getMonth() + 1}월` === month : false;
+                    return normalizeSurveyTrade(r.jobField) === trade && getRecordMonthKey(r.date) === month;
                 });
                 const scores = recs.flatMap(r =>
                     (r.handwrittenAnswers || [])
@@ -173,7 +179,10 @@ function useSurveyData(records: WorkerRecord[]) {
         const latestAvg = topTrades.reduce((s, t) => s + ((latest[t] as number) || 0), 0) / (topTrades.length || 1);
         const prevAvg = topTrades.reduce((s, t) => s + ((prev[t] as number) || 0), 0) / (topTrades.length || 1);
 
-        const topGap = [...gapData].sort((a, b) => b.gap - a.gap)[0];
+        const topGap = getTopComparableGap(gapData);
+        const hasLowSample = gapData.some(row => row.status === 'low-sample');
+        const comparableResponseCount = gapData.reduce((sum, row) => sum + row.comparableCount, 0);
+        const totalRiskResponseCount = gapData.reduce((sum, row) => sum + row.workerResponseCount, 0);
         const latestKwCounts = RISK_KEYWORDS.slice(0, 4).map(kw => ({
             kw,
             cur: (keywordTrend[keywordTrend.length - 1]?.[kw] as number) || 0,
@@ -189,6 +198,17 @@ function useSurveyData(records: WorkerRecord[]) {
             specificityTrend,
             specificityTrades: topTrades,
             topGapTrade: topGap?.trade ?? '-',
+            topGapScore: topGap?.absoluteGap ?? null,
+            topGapDirection: topGap ? getRiskGapDirectionLabel(topGap.direction) : '비교 가능한 관리자 기준이 없습니다.',
+            gapAvailabilityLabel: hasLowSample ? '표본 부족' : '기준 미등록',
+            gapAvailabilityDescription: hasLowSample
+                ? `공종별 비교 표본이 ${MIN_COMPARABLE_SAMPLE}건 이상 쌓이면 우선 공종을 판정합니다.`
+                : '월·공종별 관리자 기준을 등록해 주세요.',
+            comparableResponseCount,
+            totalRiskResponseCount,
+            baselineCoverage: totalRiskResponseCount > 0
+                ? Math.round((comparableResponseCount / totalRiskResponseCount) * 100)
+                : 0,
             avgSpecificityLatest: Math.round(latestAvg * 10) / 10,
             avgSpecificityPrev: Math.round(prevAvg * 10) / 10,
             latestTopKeyword: latestKwCounts.kw,
@@ -196,7 +216,7 @@ function useSurveyData(records: WorkerRecord[]) {
                 ? Math.round((latestKwCounts.cur - latestKwCounts.prev) / latestKwCounts.prev * 100)
                 : 0,
         };
-    }, [records]);
+    }, [records, managerBaselines]);
 }
 
 // ─── 공통 UI 컴포넌트 ──────────────────────────────────────────────────────────
@@ -300,50 +320,85 @@ const ChartTooltip = ({ active, payload, label }: any) => {
     );
 };
 
+const gapStatusClass = (status: SurveyRiskGapRow['status']): string => {
+    if (status === 'urgent') return 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300';
+    if (status === 'attention') return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300';
+    if (status === 'aligned') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300';
+    return 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300';
+};
+
+const gapValueClass = (row: SurveyRiskGapRow): string => {
+    if (row.status === 'urgent') return 'text-rose-600';
+    if (row.status === 'attention') return 'text-amber-600';
+    if (row.status === 'aligned') return 'text-emerald-600';
+    return 'text-slate-400';
+};
+
+const formatGapScore = (value: number | null): string => value === null ? '-' : `${value > 0 ? '+' : ''}${value}pt`;
+const formatRiskScore = (value: number | null): string => value === null ? '-' : `${value}점`;
+
 // ─── 메인 컴포넌트 ────────────────────────────────────────────────────────────
 const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
     const [selectedTrade, setSelectedTrade] = useState<string>(() => {
-        if (typeof window === 'undefined') return '전체 공종';
-        return new URLSearchParams(window.location.search).get(QUERY_TRADE_KEY) || '전체 공종';
+        if (typeof window === 'undefined') return ALL_TRADES;
+        return new URLSearchParams(window.location.search).get(QUERY_TRADE_KEY) || ALL_TRADES;
     });
     const [selectedMonth, setSelectedMonth] = useState<string>(() => {
-        if (typeof window === 'undefined') return '전체 월';
-        return new URLSearchParams(window.location.search).get(QUERY_MONTH_KEY) || '전체 월';
+        if (typeof window === 'undefined') return ALL_MONTHS;
+        return new URLSearchParams(window.location.search).get(QUERY_MONTH_KEY) || ALL_MONTHS;
     });
+    const [managerBaselines, setManagerBaselines] = useState<ManagerRiskBaselineMap>(() => readManagerRiskBaselines());
+    const [baselineStorageMode, setBaselineStorageMode] = useState<SurveyRiskBaselineStorageMode | 'loading'>('loading');
+    const [baselineStorageWarning, setBaselineStorageWarning] = useState('');
+    const [savingBaselineKey, setSavingBaselineKey] = useState('');
     const [activeKeywords] = useState<string[]>(['추락', '끼임', '감전', '충돌']);
 
     const monthOptions = useMemo(() => {
-        const months = Array.from(new Set(workerRecords.map((record) => {
-            const d = record.date ? new Date(record.date) : null;
-            return d ? `${d.getMonth() + 1}월` : '?';
-        })));
-        return ['전체 월', ...months];
+        const months = Array.from(new Set(
+            workerRecords.map(record => getRecordMonthKey(record.date)).filter(Boolean) as string[],
+        )).sort((left, right) => right.localeCompare(left));
+        return [ALL_MONTHS, ...months];
     }, [workerRecords]);
 
     const tradeOptions = useMemo(() => {
-        const trades = Array.from(new Set(workerRecords.map((record) => record.jobField || '기타')));
-        return ['전체 공종', ...trades];
+        const trades = Array.from(new Set(workerRecords.map((record) => normalizeSurveyTrade(record.jobField)))).sort();
+        return [ALL_TRADES, ...trades];
     }, [workerRecords]);
 
     useEffect(() => {
+        let cancelled = false;
+
+        void loadSurveyRiskBaselines().then((result) => {
+            if (cancelled) return;
+            setManagerBaselines(result.baselines);
+            setBaselineStorageMode(result.mode);
+            setBaselineStorageWarning(result.warning || '');
+        });
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
         if (!tradeOptions.includes(selectedTrade)) {
-            setSelectedTrade('전체 공종');
+            setSelectedTrade(ALL_TRADES);
         }
     }, [tradeOptions, selectedTrade]);
 
     useEffect(() => {
         if (!monthOptions.includes(selectedMonth)) {
-            setSelectedMonth('전체 월');
+            setSelectedMonth(ALL_MONTHS);
         }
     }, [monthOptions, selectedMonth]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
         const currentUrl = new URL(window.location.href);
-        if (selectedTrade === '전체 공종') currentUrl.searchParams.delete(QUERY_TRADE_KEY);
+        if (selectedTrade === ALL_TRADES) currentUrl.searchParams.delete(QUERY_TRADE_KEY);
         else currentUrl.searchParams.set(QUERY_TRADE_KEY, selectedTrade);
 
-        if (selectedMonth === '전체 월') currentUrl.searchParams.delete(QUERY_MONTH_KEY);
+        if (selectedMonth === ALL_MONTHS) currentUrl.searchParams.delete(QUERY_MONTH_KEY);
         else currentUrl.searchParams.set(QUERY_MONTH_KEY, selectedMonth);
 
         const nextUrl = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
@@ -352,18 +407,49 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
 
     const filteredRecords = useMemo(() => {
         return workerRecords.filter((record) => {
-            const trade = record.jobField || '기타';
-            const d = record.date ? new Date(record.date) : null;
-            const month = d ? `${d.getMonth() + 1}월` : '?';
-            const tradeMatch = selectedTrade === '전체 공종' || trade === selectedTrade;
-            const monthMatch = selectedMonth === '전체 월' || month === selectedMonth;
+            const trade = normalizeSurveyTrade(record.jobField);
+            const month = getRecordMonthKey(record.date);
+            const tradeMatch = selectedTrade === ALL_TRADES || trade === selectedTrade;
+            const monthMatch = selectedMonth === ALL_MONTHS || month === selectedMonth;
             return tradeMatch && monthMatch;
         });
     }, [workerRecords, selectedTrade, selectedMonth]);
 
-    const data = useSurveyData(filteredRecords);
+    const baselineTradeOptions = useMemo(() => (
+        Array.from(new Set(filteredRecords.map(record => normalizeSurveyTrade(record.jobField)))).sort()
+    ), [filteredRecords]);
+
+    const data = useSurveyData(filteredRecords, managerBaselines);
 
     const specificityDelta = data.avgSpecificityLatest - data.avgSpecificityPrev;
+    const canEditBaseline = selectedMonth !== ALL_MONTHS;
+
+    const handleBaselineChange = async (trade: string, level: SurveyRiskLevel | '') => {
+        if (!canEditBaseline) return;
+        const key = getManagerRiskBaselineKey(selectedMonth, trade);
+        const next = { ...managerBaselines };
+        if (!level) {
+            delete next[key];
+        } else {
+            next[key] = {
+                trade,
+                monthKey: selectedMonth,
+                level,
+                updatedAt: new Date().toISOString(),
+            };
+        }
+        setManagerBaselines(next);
+        writeManagerRiskBaselines(next);
+        setSavingBaselineKey(key);
+
+        const result = level
+            ? await persistSurveyRiskBaseline(next[key])
+            : await deleteSurveyRiskBaseline(selectedMonth, trade);
+
+        setBaselineStorageMode(result.mode);
+        setBaselineStorageWarning(result.warning || '');
+        setSavingBaselineKey('');
+    };
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors">
@@ -376,11 +462,15 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                             <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-black bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
                                 설문 인텔리전스
                             </span>
-                            {data.radarData.length === 0 && (
+                            {filteredRecords.length === 0 ? (
                                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                                    현장 데이터 대기
+                                    현장 데이터 없음
                                 </span>
-                            )}
+                            ) : data.radarData.length === 0 ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                                    관리자 기준 등록 대기
+                                </span>
+                            ) : null}
                         </div>
                         <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100">
                             위험성평가 설문 분석 대시보드
@@ -394,7 +484,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                     </div>
                     <div className="flex flex-col sm:items-end gap-2">
                         <p className="text-xs text-slate-400 dark:text-slate-500 shrink-0">
-                            기준: {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' })}
+                            조회 기준: {selectedMonth === ALL_MONTHS ? '전체 누적 기간' : formatSurveyMonth(selectedMonth)}
                         </p>
                         <div className="flex flex-wrap items-center gap-2">
                             <select
@@ -412,14 +502,16 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                                 className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200"
                             >
                                 {monthOptions.map((month) => (
-                                    <option key={month} value={month}>{month}</option>
+                                    <option key={month} value={month}>
+                                        {month === ALL_MONTHS ? month : formatSurveyMonth(month)}
+                                    </option>
                                 ))}
                             </select>
                             <button
                                 type="button"
                                 onClick={() => {
-                                    setSelectedTrade('전체 공종');
-                                    setSelectedMonth('전체 월');
+                                    setSelectedTrade(ALL_TRADES);
+                                    setSelectedMonth(ALL_MONTHS);
                                 }}
                                 className="px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-200 text-slate-600 bg-slate-100 hover:bg-slate-200 dark:border-slate-700 dark:text-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700"
                             >
@@ -432,9 +524,9 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                 {/* ── 상단 KPI 3개 ────────────────────────────────────────── */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <KpiCard
-                        label="최대 인지 갭 공종"
-                        value={data.topGapTrade}
-                        sub="관리자↔근로자 위험등급 인식 차이 최대"
+                        label="최대 인식 차이 공종"
+                        value={data.topGapScore === null ? data.gapAvailabilityLabel : data.topGapTrade}
+                        sub={data.topGapScore === null ? data.gapAvailabilityDescription : `${data.topGapScore}pt · ${data.topGapDirection}`}
                         color="bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-900/20 dark:border-rose-700 dark:text-rose-300"
                     />
                     <KpiCard
@@ -453,29 +545,139 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                     />
                 </div>
 
+                <div className="rounded-2xl border border-indigo-200 bg-white dark:bg-slate-800 dark:border-indigo-800/50 overflow-hidden shadow-sm">
+                    <div className="px-5 py-4 bg-indigo-50 dark:bg-indigo-900/20 border-b border-indigo-100 dark:border-indigo-800/40">
+                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-[0.16em] text-indigo-600 dark:text-indigo-300">처음 보는 분을 위한 읽는 법</p>
+                                <h2 className="mt-1 text-base font-black text-slate-900 dark:text-slate-100">같은 척도로 비교하되, 관리자 기준과 근로자 응답은 서로 다른 입력입니다.</h2>
+                            </div>
+                            <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300">
+                                비교 가능 {data.comparableResponseCount}/{data.totalRiskResponseCount}건 · 기준 연결률 {data.baselineCoverage}%
+                            </span>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-5">
+                        <div className="rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800/40 p-4">
+                            <p className="text-[11px] font-black text-rose-600 dark:text-rose-300">① 관리자 기준점수</p>
+                            <p className="mt-1 text-sm font-black text-slate-900 dark:text-slate-100">작업계획·TBM 기준 위험등급</p>
+                            <p className="mt-2 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">공종·월별로 관리자가 별도 등록합니다. 상=100점, 중=50점, 하=0점입니다.</p>
+                        </div>
+                        <div className="rounded-xl bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/40 p-4">
+                            <p className="text-[11px] font-black text-indigo-600 dark:text-indigo-300">② 근로자 체감점수</p>
+                            <p className="mt-1 text-sm font-black text-slate-900 dark:text-slate-100">Q3 자기평가 평균</p>
+                            <p className="mt-2 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">근로자가 선택한 상·중·하를 같은 점수로 바꾸어 공종별 평균을 계산합니다.</p>
+                        </div>
+                        <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/40 p-4">
+                            <p className="text-[11px] font-black text-emerald-600 dark:text-emerald-300">③ 인식 차이</p>
+                            <p className="mt-1 text-sm font-black text-slate-900 dark:text-slate-100">관리자 점수 - 근로자 점수</p>
+                            <p className="mt-2 text-xs font-semibold leading-5 text-slate-600 dark:text-slate-300">+값은 근로자가 위험을 낮게 본 경우, -값은 근로자가 더 높게 느낀 경우입니다.</p>
+                        </div>
+                    </div>
+                    <div className="px-5 pb-5">
+                        <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2">
+                                <div>
+                                    <p className="text-sm font-black text-slate-900 dark:text-slate-100">관리자 기준 위험도 등록</p>
+                                    <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                                        근로자 Q3와 별개의 값입니다. 월 필터를 선택한 뒤 해당 월 작업계획과 TBM을 기준으로 공종별 등급을 한 번 등록하세요.
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-black ${
+                                        baselineStorageMode === 'shared-db'
+                                            ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300'
+                                            : baselineStorageMode === 'local-fallback'
+                                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                                                : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+                                    }`}>
+                                        {baselineStorageMode === 'shared-db'
+                                            ? '팀 공유 DB'
+                                            : baselineStorageMode === 'local-fallback'
+                                                ? '현재 브라우저 저장'
+                                                : '저장소 확인 중'}
+                                    </span>
+                                    <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-black ${
+                                        canEditBaseline
+                                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+                                    }`}>
+                                        {canEditBaseline ? formatSurveyMonth(selectedMonth) : '월 선택 필요'}
+                                    </span>
+                                </div>
+                            </div>
+                            {baselineStorageWarning && (
+                                <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/20 dark:text-amber-300">
+                                    {baselineStorageWarning}
+                                </p>
+                            )}
+                            {canEditBaseline ? (
+                                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                    {baselineTradeOptions.map((trade) => {
+                                        const key = getManagerRiskBaselineKey(selectedMonth, trade);
+                                        const savedLevel = managerBaselines[key]?.level || '';
+                                        const responseCount = filteredRecords.filter(record => (
+                                            normalizeSurveyTrade(record.jobField) === trade && Boolean(getWorkerRiskLevel(record))
+                                        )).length;
+                                        return (
+                                            <label key={trade} className="rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 p-3">
+                                                <span className="flex items-center justify-between gap-2">
+                                                    <span className="text-xs font-black text-slate-800 dark:text-slate-200">{trade}</span>
+                                                    <span className="text-[10px] font-bold text-slate-400">{responseCount}건</span>
+                                                </span>
+                                                <select
+                                                    value={savedLevel}
+                                                    onChange={(event) => handleBaselineChange(trade, event.target.value as SurveyRiskLevel | '')}
+                                                    disabled={baselineStorageMode === 'loading' || savingBaselineKey === key}
+                                                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-black text-slate-700 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100"
+                                                >
+                                                    <option value="">기준 미등록</option>
+                                                    <option value="상">상 · 100점</option>
+                                                    <option value="중">중 · 50점</option>
+                                                    <option value="하">하 · 0점</option>
+                                                </select>
+                                                {savingBaselineKey === key && (
+                                                    <span className="mt-1 block text-[10px] font-bold text-sky-600 dark:text-sky-300">저장 중…</span>
+                                                )}
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <p className="mt-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-xs font-bold text-amber-800 dark:text-amber-300">
+                                    전체 월에서는 여러 달의 기준이 섞이므로 입력할 수 없습니다. 상단 월 필터에서 한 달을 선택해 주세요.
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
                 {/* ══════════════════════════════════════════════════════════
                     지표 1 : 근로자 체감 위험도 갭 차트
                 ══════════════════════════════════════════════════════════ */}
                 <SectionCard
                     badge="지표 1"
                     badgeColor="bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300"
-                    title="근로자 체감 위험도 갭 차트 (Risk Perception Gap)"
-                    subtitle="데이터 출처: Q3 위험등급(상/중/하) + 하단 공종 — 관리자 평가 vs 근로자 응답 비교"
-                    actionLabel="이번 달 교육 타겟"
-                    actionDesc={`'${data.topGapTrade}' 공종 갭이 가장 큼 → 해당 공종 위험 인식 교육 우선 실시 권고`}
+                    title="관리자 기준 위험도와 근로자 체감 비교"
+                    subtitle="관리자: 월·공종별 별도 등록값 / 근로자: Q3 자기평가 / 차이: 관리자점수 - 근로자점수"
+                    actionLabel={data.topGapScore === null ? '현재 상태' : '우선 확인 공종'}
+                    actionDesc={data.topGapScore === null
+                        ? data.gapAvailabilityDescription
+                        : `'${data.topGapTrade}' ${data.topGapScore}pt 차이 · ${data.topGapDirection}`}
                 >
+                    {data.radarData.length > 0 ? (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* 방사형 */}
                         <div>
                             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 text-center">
-                                공종별 '상(High)' 응답 비율 — 관리자 vs 근로자
+                                공종별 위험 인식 점수 · 100점에 가까울수록 높은 위험
                             </p>
                             <ResponsiveContainer width="100%" height={260}>
                                 <RadarChart data={data.radarData}>
                                     <PolarGrid stroke="#e2e8f0" />
                                     <PolarAngleAxis dataKey="trade" tick={{ fontSize: 11, fill: '#64748b' }} />
                                     <PolarRadiusAxis angle={30} domain={[0, 100]} tick={{ fontSize: 9, fill: '#94a3b8' }} />
-                                    <Radar name="관리자 평가" dataKey="A" stroke="#ef4444" fill="#ef4444" fillOpacity={0.25} strokeWidth={2} />
+                                    <Radar name="관리자 기준" dataKey="A" stroke="#ef4444" fill="#ef4444" fillOpacity={0.25} strokeWidth={2} />
                                     <Radar name="근로자 체감" dataKey="B" stroke="#6366f1" fill="#6366f1" fillOpacity={0.2} strokeWidth={2} />
                                     <Tooltip content={<ChartTooltip />} />
                                     <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
@@ -486,7 +688,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                         {/* 막대 갭 */}
                         <div>
                             <p className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 text-center">
-                                공종별 인지 갭 크기 (관리자점수 - 근로자점수)
+                                관리자 기준과 근로자 체감 점수 비교
                             </p>
                             <ResponsiveContainer width="100%" height={260}>
                                 <BarChart data={data.gapData} layout="vertical" margin={{ left: 16, right: 24 }}>
@@ -494,13 +696,19 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                                     <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 10, fill: '#94a3b8' }} />
                                     <YAxis type="category" dataKey="trade" tick={{ fontSize: 11, fill: '#64748b' }} width={36} />
                                     <Tooltip content={<ChartTooltip />} />
-                                    <Bar dataKey="managerHigh" name="관리자 평가" fill="#ef4444" radius={[0, 4, 4, 0]} opacity={0.8} />
-                                    <Bar dataKey="workerHigh" name="근로자 체감" fill="#6366f1" radius={[0, 4, 4, 0]} opacity={0.8} />
-                                    <ReferenceLine x={0} stroke="#e2e8f0" />
+                                    <Bar dataKey="managerScore" name="관리자 기준" fill="#ef4444" radius={[0, 4, 4, 0]} opacity={0.8} />
+                                    <Bar dataKey="workerScore" name="근로자 체감" fill="#6366f1" radius={[0, 4, 4, 0]} opacity={0.8} />
+                                    <ReferenceLine x={50} stroke="#cbd5e1" strokeDasharray="4 4" />
                                 </BarChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
+                    ) : (
+                        <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 p-6 text-center">
+                            <p className="text-sm font-black text-amber-800 dark:text-amber-300">비교 가능한 관리자 기준이 없습니다.</p>
+                            <p className="mt-2 text-xs font-semibold leading-5 text-amber-700 dark:text-amber-400">월을 선택하고 공종별 관리자 기준 위험도를 등록하면 차트가 표시됩니다. 기준이 없는 과거 자료를 자동으로 ‘양호’ 처리하지 않습니다.</p>
+                        </div>
+                    )}
 
                     {/* 갭 랭킹 테이블 */}
                     <div className="mt-4 overflow-x-auto">
@@ -508,38 +716,59 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                             <thead>
                                 <tr className="border-b border-slate-100 dark:border-slate-700">
                                     <th className="text-left py-2 px-3 font-bold text-slate-500">공종</th>
-                                    <th className="text-right py-2 px-3 font-bold text-slate-500">관리자(%)</th>
-                                    <th className="text-right py-2 px-3 font-bold text-slate-500">근로자(%)</th>
-                                    <th className="text-right py-2 px-3 font-bold text-slate-500">갭(Gap)</th>
-                                    <th className="text-left py-2 px-3 font-bold text-slate-500">위험도</th>
+                                    <th className="text-right py-2 px-3 font-bold text-slate-500">관리자 기준</th>
+                                    <th className="text-right py-2 px-3 font-bold text-slate-500">근로자 체감</th>
+                                    <th className="text-right py-2 px-3 font-bold text-slate-500">인식 차이</th>
+                                    <th className="text-left py-2 px-3 font-bold text-slate-500">해석</th>
+                                    <th className="text-right py-2 px-3 font-bold text-slate-500">표본</th>
+                                    <th className="text-left py-2 px-3 font-bold text-slate-500">판정</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {[...data.gapData].sort((a, b) => b.gap - a.gap).map(row => (
+                                {[...data.gapData].sort((a, b) => (b.absoluteGap ?? -1) - (a.absoluteGap ?? -1)).map(row => (
                                     <tr key={row.trade} className="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/30">
                                         <td className="py-2 px-3 font-semibold text-slate-700 dark:text-slate-300">
                                             <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ background: tradeColor(row.trade) }} />
                                             {row.trade}
                                         </td>
-                                        <td className="py-2 px-3 text-right text-rose-600 font-bold">{row.managerHigh}</td>
-                                        <td className="py-2 px-3 text-right text-indigo-600 font-bold">{row.workerHigh}</td>
+                                        <td className="py-2 px-3 text-right text-rose-600 font-bold">{formatRiskScore(row.managerScore)}</td>
+                                        <td className="py-2 px-3 text-right text-indigo-600 font-bold">{formatRiskScore(row.workerScore)}</td>
                                         <td className="py-2 px-3 text-right font-black">
-                                            <span className={row.gap >= 25 ? 'text-rose-600' : row.gap >= 10 ? 'text-amber-600' : 'text-emerald-600'}>
-                                                {row.gap}pt
+                                            <span className={gapValueClass(row)}>
+                                                {formatGapScore(row.signedGap)}
                                             </span>
                                         </td>
+                                        <td className="py-2 px-3 text-left text-slate-600 dark:text-slate-300 font-semibold">{getRiskGapDirectionLabel(row.direction)}</td>
+                                        <td className="py-2 px-3 text-right text-slate-500 font-bold">{row.comparableCount}/{row.workerResponseCount}</td>
                                         <td className="py-2 px-3">
-                                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-black ${
-                                                row.gap >= 25 ? 'bg-rose-100 text-rose-700' :
-                                                row.gap >= 10 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-                                            }`}>
-                                                {row.gap >= 25 ? '인지 사각지대' : row.gap >= 10 ? '주의' : '양호'}
+                                            <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-black ${gapStatusClass(row.status)}`}>
+                                                {getRiskGapStatusLabel(row.status)}
                                             </span>
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/40">
+                            <p className="text-xs font-black text-slate-800 dark:text-slate-200">판정은 차이의 절댓값으로 봅니다</p>
+                            <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                                25pt 이상 즉시 확인 · 10~24.9pt 주의 · 10pt 미만 인식 정렬입니다.
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/40">
+                            <p className="text-xs font-black text-slate-800 dark:text-slate-200">부호는 어느 쪽이 더 높게 봤는지 뜻합니다</p>
+                            <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                                +는 근로자가 낮게 인식, -는 근로자가 더 높게 체감했다는 뜻입니다.
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/40">
+                            <p className="text-xs font-black text-slate-800 dark:text-slate-200">표본 3건 미만은 결론을 내리지 않습니다</p>
+                            <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-500 dark:text-slate-400">
+                                예: 관리자 100점, 근로자 평균 33.3점이면 +66.7pt이며 즉시 확인 대상입니다.
+                            </p>
+                        </div>
                     </div>
                 </SectionCard>
 
@@ -708,8 +937,8 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                         {[
                             {
                                 icon: '🔴',
-                                condition: '갭지수 ≥ 20pt',
-                                action: '해당 공종 위험인식 집중교육 의무화',
+                                condition: '표본 ≥ 3 · |인식 차이| ≥ 25pt',
+                                action: '부호 확인 후 집중교육 또는 관리자 기준 재검토',
                                 cardClass: 'rounded-xl border border-rose-200 dark:border-rose-800/40 bg-rose-50 dark:bg-rose-900/20 p-3',
                                 titleClass: 'text-xs font-black text-rose-700 dark:text-rose-300',
                                 bodyClass: 'text-xs text-rose-600 dark:text-rose-400',

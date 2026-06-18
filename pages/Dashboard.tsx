@@ -39,6 +39,15 @@ import type { UiAudienceMode } from '../config/routeMeta';
 import { getUserRolePreset, mapUserRolePresetToDashboardAudience, USER_ROLE_PRESET_CHANGED_EVENT } from '../utils/userRolePresetUtils';
 import { getPhrase } from '../utils/phraseUtils';
 import { EmptyState, LoadingSkeleton, MetricCard, RiskBadge, SectionCard, WorkTypeBadge } from '../components/common';
+import {
+    buildSurveyRiskGapRows,
+    getRiskGapDirectionLabel,
+    getRiskGapStatusLabel,
+    getTopComparableGap,
+    readManagerRiskBaselines,
+    type ManagerRiskBaselineMap,
+} from '../utils/surveyRiskGap';
+import { loadSurveyRiskBaselines } from '../services/surveyRiskBaselineService';
 
 const NationalityChart = lazy(() => import('../components/charts/NationalityChart').then(module => ({ default: module.NationalityChart })));
 const TopWeaknessesChart = lazy(() => import('../components/charts/TopWeaknessesChart').then(module => ({ default: module.TopWeaknessesChart })));
@@ -235,15 +244,6 @@ const areSameTradeList = (left: string[], right: string[]): boolean => {
 
 const DASHBOARD_SURVEY_RISK_KEYWORDS = ['추락', '끼임', '감전', '충돌'];
 
-const parseSurveyRiskLevel = (text: string): '상' | '중' | '하' | null => {
-    const normalized = String(text || '').trim();
-    if (!normalized) return null;
-    if (normalized.includes('상') || /high/i.test(normalized)) return '상';
-    if (normalized.includes('중') || /mid/i.test(normalized)) return '중';
-    if (normalized.includes('하') || /low/i.test(normalized)) return '하';
-    return null;
-};
-
 const getSurveySpecificityScore = (text: string): number => {
     const normalized = String(text || '').trim();
     if (normalized.length < 4) return 0;
@@ -365,11 +365,22 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const { isDevMode } = useDevMode();
     const { mode: operationalMode } = useOperationalMode();
     const isImmediateOperationalMode = operationalMode === 'immediate';
+    const [managerRiskBaselines, setManagerRiskBaselines] = useState<ManagerRiskBaselineMap>(() => readManagerRiskBaselines());
     // 순수 근로자 데이터만 필터링 (관리 직군 제외)
 
     const workerOnlyRecords = useMemo(() => 
         workerRecords.filter(r => !isManagementRole(r.jobField))
     , [workerRecords]);
+
+    useEffect(() => {
+        let cancelled = false;
+        void loadSurveyRiskBaselines().then((result) => {
+            if (!cancelled) setManagerRiskBaselines(result.baselines);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     // 팀별 보기: 팀장 기준 유니크 팀 목록 추출
     const [selectedTeam, setSelectedTeam] = useState<string | 'ALL'>('ALL');
@@ -2449,26 +2460,24 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 risingKeywordDelta: 0,
                 latestSpecificity: 0,
                 specificityDelta: 0,
+                hasGapComparison: false,
+                topGapDirection: '관리자 기준 미등록',
+                topGapStatus: '비교 불가',
+                gapAvailabilityLabel: '데이터 없음',
+                baselineCoverage: 0,
                 hasData: false,
             };
         }
 
-        const tradeSet = Array.from(new Set(recordsWithAnswers.map((record) => normalizeDashboardTrade(record.jobField) || '기타')));
-        const tradeGapRows = tradeSet.map((trade) => {
-            const tradeRecords = recordsWithAnswers.filter((record) => (normalizeDashboardTrade(record.jobField) || '기타') === trade);
-            const q3Answers = tradeRecords.flatMap((record) => (record.handwrittenAnswers || [])
-                .filter((answer) => answer.questionNumber === '3' || answer.questionNumber === 'Q3')
-                .map((answer) => answer.koreanTranslation || answer.answerText));
-            const total = q3Answers.length || 1;
-            const managerHigh = Math.round((q3Answers.filter((text) => parseSurveyRiskLevel(text) === '상').length / total) * 100);
-            const workerLow = q3Answers.filter((text) => parseSurveyRiskLevel(text) === '하').length;
-            const workerHigh = 100 - Math.round((workerLow / total) * 100);
-            return {
-                trade,
-                gap: Math.max(0, managerHigh - workerHigh),
-            };
-        });
-        const topGap = [...tradeGapRows].sort((left, right) => right.gap - left.gap)[0] || { trade: '-', gap: 0 };
+        const tradeGapRows = buildSurveyRiskGapRows(
+            recordsWithAnswers,
+            managerRiskBaselines,
+            trade => normalizeDashboardTrade(trade) || '기타',
+        );
+        const topGap = getTopComparableGap(tradeGapRows);
+        const hasLowSample = tradeGapRows.some(row => row.status === 'low-sample');
+        const comparableCount = tradeGapRows.reduce((sum, row) => sum + row.comparableCount, 0);
+        const riskResponseCount = tradeGapRows.reduce((sum, row) => sum + row.workerResponseCount, 0);
 
         const monthKeys = (Array.from(new Set(recordsWithAnswers.map((record) => {
             const date = record.date ? new Date(record.date) : null;
@@ -2523,15 +2532,28 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         const previousSpecificity = getMonthSpecificityAverage(previousMonth);
 
         return {
-            topGapTrade: topGap.trade,
-            topGapScore: topGap.gap,
+            topGapTrade: topGap?.trade || '-',
+            topGapScore: topGap?.absoluteGap || 0,
+            hasGapComparison: Boolean(topGap),
+            topGapDirection: topGap
+                ? getRiskGapDirectionLabel(topGap.direction)
+                : hasLowSample
+                    ? '표본 3건 이상 필요'
+                    : '관리자 기준 미등록',
+            topGapStatus: topGap
+                ? getRiskGapStatusLabel(topGap.status)
+                : hasLowSample
+                    ? '표본 부족'
+                    : '비교 불가',
+            gapAvailabilityLabel: hasLowSample ? '표본 부족' : '기준 미등록',
+            baselineCoverage: riskResponseCount > 0 ? Math.round((comparableCount / riskResponseCount) * 100) : 0,
             risingKeyword: risingKeyword.keyword,
             risingKeywordDelta: risingKeyword.delta,
             latestSpecificity,
             specificityDelta: Math.round((latestSpecificity - previousSpecificity) * 10) / 10,
             hasData: true,
         };
-    }, [workerOnlyRecords]);
+    }, [managerRiskBaselines, workerOnlyRecords]);
 
     const mobileDashboardBadge =
         stats.highRiskWorkers > 0
@@ -3185,8 +3207,23 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                             <div className="rounded-xl border border-rose-200 dark:border-rose-800/50 bg-rose-50 dark:bg-rose-900/20 p-3">
                                 <p className="text-[11px] font-black text-rose-700 dark:text-rose-300">최대 인지 갭 공종</p>
-                                <p className="mt-1 text-xl font-black text-rose-800 dark:text-rose-200">{surveyDashboardSummary.topGapTrade}</p>
-                                <p className="mt-1 text-xs font-semibold text-rose-600 dark:text-rose-300">갭 {surveyDashboardSummary.topGapScore}pt</p>
+                                <p className="mt-1 text-xl font-black text-rose-800 dark:text-rose-200">
+                                    {surveyDashboardSummary.hasGapComparison
+                                        ? surveyDashboardSummary.topGapTrade
+                                        : surveyDashboardSummary.gapAvailabilityLabel}
+                                </p>
+                                <p className="mt-1 text-xs font-semibold text-rose-600 dark:text-rose-300">
+                                    {surveyDashboardSummary.hasGapComparison
+                                        ? `${surveyDashboardSummary.topGapScore}pt · ${surveyDashboardSummary.topGapStatus}`
+                                        : surveyDashboardSummary.topGapStatus === '표본 부족'
+                                            ? '공종별 Q3 비교 표본 3건 이상 필요'
+                                            : '설문 상세에서 월·공종별 관리자 기준 등록'}
+                                </p>
+                                <p className="mt-1 text-[10px] font-semibold text-rose-500 dark:text-rose-400">
+                                    {surveyDashboardSummary.hasGapComparison
+                                        ? surveyDashboardSummary.topGapDirection
+                                        : `기준 연결률 ${surveyDashboardSummary.baselineCoverage}%`}
+                                </p>
                             </div>
                             <div className="rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50 dark:bg-amber-900/20 p-3">
                                 <p className="text-[11px] font-black text-amber-700 dark:text-amber-300">이번 달 급증 위험어</p>
