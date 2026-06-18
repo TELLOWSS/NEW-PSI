@@ -66,7 +66,24 @@ const QUERY_TRADE_KEY = 'siTrade';
 const QUERY_MONTH_KEY = 'siMonth';
 const ALL_TRADES = '전체 공종';
 const ALL_MONTHS = '전체 월';
+const BASELINE_TRADE_OPTIONS = [
+    '형틀',
+    '철근',
+    '갱폼',
+    '알폼',
+    '시스템',
+    '바닥미장',
+    '할석미장견출',
+    '해체정리',
+    '직영',
+    '용역',
+    '콘크리트비계',
+];
 const normalizeSurveyTrade = (trade: string | undefined | null): string => normalizeDashboardTrade(trade) || '기타';
+const getCurrentMonthKey = (): string => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+};
 
 // ─── 유틸 ────────────────────────────────────────────────────────────────────
 const specificityScore = (text: string): number => {
@@ -354,14 +371,18 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
     const [activeKeywords] = useState<string[]>(['추락', '끼임', '감전', '충돌']);
 
     const monthOptions = useMemo(() => {
-        const months = Array.from(new Set(
-            workerRecords.map(record => getRecordMonthKey(record.date)).filter(Boolean) as string[],
-        )).sort((left, right) => right.localeCompare(left));
+        const months = Array.from(new Set([
+            getCurrentMonthKey(),
+            ...(workerRecords.map(record => getRecordMonthKey(record.date)).filter(Boolean) as string[]),
+        ])).sort((left, right) => right.localeCompare(left));
         return [ALL_MONTHS, ...months];
     }, [workerRecords]);
 
     const tradeOptions = useMemo(() => {
-        const trades = Array.from(new Set(workerRecords.map((record) => normalizeSurveyTrade(record.jobField)))).sort();
+        const trades = Array.from(new Set([
+            ...BASELINE_TRADE_OPTIONS,
+            ...workerRecords.map((record) => normalizeSurveyTrade(record.jobField)),
+        ])).sort();
         return [ALL_TRADES, ...trades];
     }, [workerRecords]);
 
@@ -415,9 +436,15 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
         });
     }, [workerRecords, selectedTrade, selectedMonth]);
 
-    const baselineTradeOptions = useMemo(() => (
-        Array.from(new Set(filteredRecords.map(record => normalizeSurveyTrade(record.jobField)))).sort()
-    ), [filteredRecords]);
+    const baselineTradeOptions = useMemo(() => {
+        const sourceTrades = selectedTrade === ALL_TRADES
+            ? BASELINE_TRADE_OPTIONS
+            : [selectedTrade];
+        return Array.from(new Set([
+            ...sourceTrades,
+            ...filteredRecords.map(record => normalizeSurveyTrade(record.jobField)),
+        ])).sort();
+    }, [filteredRecords, selectedTrade]);
 
     const data = useSurveyData(filteredRecords, managerBaselines);
 
