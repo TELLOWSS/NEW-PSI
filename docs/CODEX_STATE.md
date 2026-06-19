@@ -145,3 +145,18 @@ Vercel:
 - 브라우저 검증: 7/7 통과, 390px 가로 넘침 및 페이지 오류 없음.
 - 상세 결과: `artifacts/audit/manager-risk-baseline-review.md`
 - 브라우저 증거: `artifacts/audit/browser/survey-risk-baseline-verification.json`
+
+## 2026-06-19 관리자 기준 판단 근거·변경 이력
+
+- 1차 개선분 커밋 `a908ba1`을 GitHub `main`에 푸시했다.
+- Vercel 프로덕션 배포 `dpl_HJSJnp72SLyN81UKnZ1cvVN1hUJF`가 `READY` 상태이며 커밋 `a908ba1`과 일치한다.
+- 빠른 판정 3문항, 현장 근거 메모, 입력 방식, 규칙 버전, 작성자, 변경 전후 등급을 보존하도록 확장했다.
+- 직접 선택·빠른 판정·전월 복사를 구분하고 관리자 화면에 최근 변경 이력을 표시한다.
+- 기존 기준 테이블을 변경하지 않고 별도 `survey_risk_baseline_history` 테이블을 추가하는 무중단 마이그레이션을 작성했다.
+- 신규 이력 테이블은 RLS를 켜고 `anon`·`authenticated` 접근을 철회하며 서버 `service_role`만 조회·입력한다.
+- Supabase 접속 자격이 없는 환경에서는 기존 팀 기준 저장을 유지하고 변경 이력은 브라우저 로컬에 최대 500건 보존한다.
+- 전체 검사: 21개 파일 / 112개 테스트 통과.
+- `verify:release`: 통과, 프로덕션 빌드 903개 모듈 통과.
+- 브라우저 검증: 8/8 통과, 판단 근거 저장 요청·변경 이력 화면·390px 모바일·오류 0건 확인.
+- DB 마이그레이션: `supabase_survey_risk_baseline_history_migration.sql`
+- 상세 결과: `artifacts/audit/manager-risk-baseline-history-review.md`

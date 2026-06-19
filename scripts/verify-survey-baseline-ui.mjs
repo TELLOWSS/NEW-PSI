@@ -43,6 +43,7 @@ await page.route('**/api/admin/survey-risk-baselines', async (route) => {
             action,
             items: [],
             item: action === 'upsert' ? requestBody.payload : undefined,
+            historyAvailable: false,
         }),
     });
 });
@@ -73,6 +74,8 @@ try {
     await page.getByRole('button', { name: /중대/ }).click();
     await page.getByRole('button', { name: /반복/ }).click();
     await page.getByRole('button', { name: /^일부/ }).click();
+    const decisionReason = '금주 인양 작업 집중, 방호조치 추가 확인 필요';
+    await page.getByPlaceholder(/금주 타워크레인/).fill(decisionReason);
 
     recordCheck(
         '3문항 권고 계산',
@@ -105,6 +108,10 @@ try {
             && upsertRequest.payload?.monthKey === monthKey
             && upsertRequest.payload?.level === '중'
             && upsertRequest.payload?.trade
+            && upsertRequest.payload?.basis?.severity === 'serious'
+            && upsertRequest.payload?.basis?.exposure === 'repeated'
+            && upsertRequest.payload?.basis?.control === 'partial'
+            && upsertRequest.payload?.basis?.reason === decisionReason
         ),
         upsertRequest
             ? {
@@ -112,8 +119,14 @@ try {
                 monthKey: upsertRequest.payload?.monthKey,
                 trade: upsertRequest.payload?.trade,
                 level: upsertRequest.payload?.level,
+                basis: upsertRequest.payload?.basis,
             }
             : 'upsert 요청 없음',
+    );
+    recordCheck(
+        '판정 근거 변경 이력',
+        await page.getByText(decisionReason, { exact: true }).isVisible(),
+        '등급 변경 전후·판정 방식·작성자·근거 메모 표시',
     );
 
     await page.setViewportSize({ width: 390, height: 844 });

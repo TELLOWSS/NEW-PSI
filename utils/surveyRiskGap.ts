@@ -1,17 +1,47 @@
 import type { WorkerRecord } from '../types';
 
 export type SurveyRiskLevel = '상' | '중' | '하';
+export type BaselineSeverity = 'minor' | 'serious' | 'fatal';
+export type BaselineExposure = 'rare' | 'repeated' | 'continuous';
+export type BaselineControl = 'controlled' | 'partial' | 'weak';
+export type ManagerBaselineSource = 'wizard' | 'manual' | 'previous-month';
+export type ManagerBaselineHistoryAction = 'upsert' | 'delete' | 'copy';
 export type RiskGapDirection = 'under-recognition' | 'over-recognition' | 'aligned' | 'unavailable';
 export type RiskGapStatus = 'urgent' | 'attention' | 'aligned' | 'low-sample' | 'no-baseline' | 'no-worker-data';
+
+export interface ManagerBaselineWizardAnswers {
+    severity?: BaselineSeverity;
+    exposure?: BaselineExposure;
+    control?: BaselineControl;
+}
+
+export interface ManagerRiskBaselineBasis extends ManagerBaselineWizardAnswers {
+    reason: string;
+    source: ManagerBaselineSource;
+    ruleVersion: string;
+    updatedBy: string;
+}
 
 export interface ManagerRiskBaseline {
     trade: string;
     monthKey: string;
     level: SurveyRiskLevel;
     updatedAt: string;
+    basis?: ManagerRiskBaselineBasis;
 }
 
 export type ManagerRiskBaselineMap = Record<string, ManagerRiskBaseline>;
+
+export interface ManagerRiskBaselineHistoryEntry {
+    id: string;
+    monthKey: string;
+    trade: string;
+    action: ManagerBaselineHistoryAction;
+    previousLevel: SurveyRiskLevel | null;
+    nextLevel: SurveyRiskLevel | null;
+    basis: ManagerRiskBaselineBasis;
+    changedAt: string;
+}
 
 export interface SurveyRiskGapRow {
     trade: string;
@@ -27,7 +57,9 @@ export interface SurveyRiskGapRow {
 }
 
 export const MANAGER_RISK_BASELINES_STORAGE_KEY = 'psi_survey_manager_risk_baselines_v1';
+export const MANAGER_RISK_BASELINE_HISTORY_STORAGE_KEY = 'psi_survey_manager_risk_baseline_history_v1';
 export const MIN_COMPARABLE_SAMPLE = 3;
+export const MANAGER_BASELINE_RULE_VERSION = 'manager-baseline-wizard-v1';
 
 const round = (value: number): number => Math.round(value * 10) / 10;
 
@@ -94,6 +126,7 @@ export const readManagerRiskBaselines = (): ManagerRiskBaselineMap => {
                 monthKey: item.monthKey,
                 level: item.level as SurveyRiskLevel,
                 updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : '',
+                basis: normalizeManagerRiskBaselineBasis(item.basis),
             };
             return acc;
         }, {});
@@ -105,6 +138,97 @@ export const readManagerRiskBaselines = (): ManagerRiskBaselineMap => {
 export const writeManagerRiskBaselines = (baselines: ManagerRiskBaselineMap): void => {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(MANAGER_RISK_BASELINES_STORAGE_KEY, JSON.stringify(baselines));
+};
+
+const allowedSeverities = new Set<BaselineSeverity>(['minor', 'serious', 'fatal']);
+const allowedExposures = new Set<BaselineExposure>(['rare', 'repeated', 'continuous']);
+const allowedControls = new Set<BaselineControl>(['controlled', 'partial', 'weak']);
+const allowedSources = new Set<ManagerBaselineSource>(['wizard', 'manual', 'previous-month']);
+
+export const normalizeManagerRiskBaselineBasis = (
+    raw: unknown,
+): ManagerRiskBaselineBasis | undefined => {
+    if (!raw || typeof raw !== 'object') return undefined;
+    const input = raw as Partial<ManagerRiskBaselineBasis>;
+    const source = String(input.source || '') as ManagerBaselineSource;
+    if (!allowedSources.has(source)) return undefined;
+
+    const severity = String(input.severity || '') as BaselineSeverity;
+    const exposure = String(input.exposure || '') as BaselineExposure;
+    const control = String(input.control || '') as BaselineControl;
+
+    return {
+        severity: allowedSeverities.has(severity) ? severity : undefined,
+        exposure: allowedExposures.has(exposure) ? exposure : undefined,
+        control: allowedControls.has(control) ? control : undefined,
+        reason: String(input.reason || '').trim().slice(0, 500),
+        source,
+        ruleVersion: String(input.ruleVersion || '').trim().slice(0, 80) || 'manual-v1',
+        updatedBy: String(input.updatedBy || '').trim().slice(0, 80) || '관리자',
+    };
+};
+
+export const readManagerRiskBaselineHistory = (
+    filters: { monthKey?: string; trade?: string } = {},
+): ManagerRiskBaselineHistoryEntry[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+        const parsed = JSON.parse(
+            window.localStorage.getItem(MANAGER_RISK_BASELINE_HISTORY_STORAGE_KEY) || '[]',
+        ) as unknown;
+        if (!Array.isArray(parsed)) return [];
+
+        return parsed
+            .map((raw): ManagerRiskBaselineHistoryEntry | null => {
+                if (!raw || typeof raw !== 'object') return null;
+                const item = raw as Partial<ManagerRiskBaselineHistoryEntry>;
+                const basis = normalizeManagerRiskBaselineBasis(item.basis);
+                if (
+                    typeof item.id !== 'string'
+                    || typeof item.monthKey !== 'string'
+                    || typeof item.trade !== 'string'
+                    || !['upsert', 'delete', 'copy'].includes(String(item.action))
+                    || !basis
+                ) return null;
+                const previousLevel = ['상', '중', '하'].includes(String(item.previousLevel))
+                    ? item.previousLevel as SurveyRiskLevel
+                    : null;
+                const nextLevel = ['상', '중', '하'].includes(String(item.nextLevel))
+                    ? item.nextLevel as SurveyRiskLevel
+                    : null;
+                return {
+                    id: item.id,
+                    monthKey: item.monthKey,
+                    trade: item.trade,
+                    action: item.action as ManagerBaselineHistoryAction,
+                    previousLevel,
+                    nextLevel,
+                    basis,
+                    changedAt: typeof item.changedAt === 'string' ? item.changedAt : '',
+                };
+            })
+            .filter((item): item is ManagerRiskBaselineHistoryEntry => Boolean(item))
+            .filter((item) => !filters.monthKey || item.monthKey === filters.monthKey)
+            .filter((item) => !filters.trade || item.trade === filters.trade)
+            .sort((left, right) => right.changedAt.localeCompare(left.changedAt));
+    } catch {
+        return [];
+    }
+};
+
+export const appendManagerRiskBaselineHistory = (
+    entries: ManagerRiskBaselineHistoryEntry[],
+): void => {
+    if (typeof window === 'undefined' || entries.length === 0) return;
+    const current = readManagerRiskBaselineHistory();
+    const merged = [...entries, ...current]
+        .filter((entry, index, source) => source.findIndex((item) => item.id === entry.id) === index)
+        .sort((left, right) => right.changedAt.localeCompare(left.changedAt))
+        .slice(0, 500);
+    window.localStorage.setItem(
+        MANAGER_RISK_BASELINE_HISTORY_STORAGE_KEY,
+        JSON.stringify(merged),
+    );
 };
 
 export const getWorkerRiskLevel = (record: WorkerRecord): SurveyRiskLevel | null => {

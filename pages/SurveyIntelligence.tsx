@@ -26,9 +26,13 @@ import {
     getTopComparableGap,
     getWorkerRiskLevel,
     MIN_COMPARABLE_SAMPLE,
+    MANAGER_BASELINE_RULE_VERSION,
+    readManagerRiskBaselineHistory,
     readManagerRiskBaselines,
     riskLevelToScore,
     writeManagerRiskBaselines,
+    type ManagerRiskBaselineBasis,
+    type ManagerRiskBaselineHistoryEntry,
     type ManagerRiskBaselineMap,
     type SurveyRiskGapRow,
     type SurveyRiskLevel,
@@ -36,6 +40,7 @@ import {
 import { normalizeDashboardTrade } from '../utils/dashboardDataTransformer';
 import {
     deleteSurveyRiskBaseline,
+    loadSurveyRiskBaselineHistory,
     loadSurveyRiskBaselines,
     persistSurveyRiskBaseline,
     persistSurveyRiskBaselines,
@@ -105,6 +110,32 @@ const CONTROL_OPTIONS: Array<{ value: BaselineControl; label: string; descriptio
     { value: 'partial', label: '일부', description: '누락·추가 확인 필요' },
     { value: 'weak', label: '미흡', description: '없음·작동 불확실' },
 ];
+const BASELINE_SOURCE_LABELS: Record<ManagerRiskBaselineBasis['source'], string> = {
+    wizard: '3문항 빠른 판정',
+    manual: '관리자 직접 선택',
+    'previous-month': '전월 기준 복사',
+};
+const formatBaselineAuditTime = (value: string): string => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleString('ko-KR', {
+        month: 'numeric',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+};
+const getCurrentAdminActorName = (): string => {
+    try {
+        if (typeof window === 'undefined') return '관리자';
+        const raw = window.localStorage.getItem('psi_app_settings');
+        if (!raw) return '관리자';
+        const parsed = JSON.parse(raw) as { siteManager?: unknown };
+        return String(parsed.siteManager || '').trim().slice(0, 80) || '관리자';
+    } catch {
+        return '관리자';
+    }
+};
 const normalizeSurveyTrade = (trade: string | undefined | null): string => normalizeDashboardTrade(trade) || '기타';
 const getCurrentMonthKey = (): string => {
     const now = new Date();
@@ -396,8 +427,12 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
     const [savingBaselineKey, setSavingBaselineKey] = useState('');
     const [wizardTrade, setWizardTrade] = useState('');
     const [wizardAnswers, setWizardAnswers] = useState<ManagerBaselineWizardAnswers>({});
+    const [wizardReason, setWizardReason] = useState('');
+    const [baselineHistory, setBaselineHistory] = useState<ManagerRiskBaselineHistoryEntry[]>([]);
+    const [baselineHistoryWarning, setBaselineHistoryWarning] = useState('');
     const [isCopyingPreviousMonth, setIsCopyingPreviousMonth] = useState(false);
     const [activeKeywords] = useState<string[]>(['추락', '끼임', '감전', '충돌']);
+    const currentAdminActor = useMemo(() => getCurrentAdminActorName(), []);
 
     const monthOptions = useMemo(() => {
         const months = Array.from(new Set([
@@ -445,6 +480,27 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
     useEffect(() => {
         setWizardTrade('');
         setWizardAnswers({});
+        setWizardReason('');
+    }, [selectedMonth]);
+
+    useEffect(() => {
+        let cancelled = false;
+        if (selectedMonth === ALL_MONTHS) {
+            setBaselineHistory([]);
+            setBaselineHistoryWarning('');
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        void loadSurveyRiskBaselineHistory(selectedMonth).then((result) => {
+            if (cancelled) return;
+            setBaselineHistory(result.items);
+            setBaselineHistoryWarning(result.warning || '');
+        });
+        return () => {
+            cancelled = true;
+        };
     }, [selectedMonth]);
 
     useEffect(() => {
@@ -531,9 +587,24 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
     const specificityDelta = data.avgSpecificityLatest - data.avgSpecificityPrev;
     const canEditBaseline = selectedMonth !== ALL_MONTHS;
 
-    const handleBaselineChange = async (trade: string, level: SurveyRiskLevel | '') => {
+    const syncLocalBaselineHistory = () => {
+        setBaselineHistory(readManagerRiskBaselineHistory({ monthKey: selectedMonth }));
+    };
+
+    const handleBaselineChange = async (
+        trade: string,
+        level: SurveyRiskLevel | '',
+        basis?: ManagerRiskBaselineBasis,
+    ) => {
         if (!canEditBaseline) return;
         const key = getManagerRiskBaselineKey(selectedMonth, trade);
+        const previous = managerBaselines[key];
+        const resolvedBasis: ManagerRiskBaselineBasis = basis || {
+            reason: level ? '관리자가 공종별 기준 등급을 직접 선택했습니다.' : '관리자 기준을 삭제했습니다.',
+            source: 'manual',
+            ruleVersion: 'manual-v1',
+            updatedBy: currentAdminActor,
+        };
         const next = { ...managerBaselines };
         if (!level) {
             delete next[key];
@@ -543,6 +614,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                 monthKey: selectedMonth,
                 level,
                 updatedAt: new Date().toISOString(),
+                basis: resolvedBasis,
             };
         }
         setManagerBaselines(next);
@@ -550,23 +622,37 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
         setSavingBaselineKey(key);
 
         const result = level
-            ? await persistSurveyRiskBaseline(next[key])
-            : await deleteSurveyRiskBaseline(selectedMonth, trade);
+            ? await persistSurveyRiskBaseline(next[key], previous?.level || null)
+            : await deleteSurveyRiskBaseline(
+                selectedMonth,
+                trade,
+                previous?.level || null,
+                resolvedBasis,
+            );
 
         setBaselineStorageMode(result.mode);
         setBaselineStorageWarning(result.warning || '');
+        syncLocalBaselineHistory();
         setSavingBaselineKey('');
     };
 
     const openBaselineWizard = (trade: string) => {
         setWizardTrade(trade);
         setWizardAnswers({});
+        setWizardReason('');
     };
 
     const applyWizardRecommendation = async () => {
         if (!wizardTrade || !wizardRecommendation) return;
         const currentTrade = wizardTrade;
-        await handleBaselineChange(currentTrade, wizardRecommendation.level);
+        const basis: ManagerRiskBaselineBasis = {
+            ...wizardAnswers,
+            reason: wizardReason.trim() || wizardRecommendation.reasons.join(' '),
+            source: 'wizard',
+            ruleVersion: MANAGER_BASELINE_RULE_VERSION,
+            updatedBy: currentAdminActor,
+        };
+        await handleBaselineChange(currentTrade, wizardRecommendation.level, basis);
 
         const nextTrade = baselineTradeOptions.find((trade) => (
             trade !== currentTrade
@@ -574,6 +660,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
         ));
         setWizardTrade(nextTrade || '');
         setWizardAnswers({});
+        setWizardReason('');
     };
 
     const handleCopyPreviousMonth = async () => {
@@ -586,6 +673,15 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                 monthKey: selectedMonth,
                 level: previous!.level,
                 updatedAt: now,
+                basis: {
+                    severity: previous!.basis?.severity,
+                    exposure: previous!.basis?.exposure,
+                    control: previous!.basis?.control,
+                    reason: `${formatSurveyMonth(previousMonthKey)} 기준을 검토용으로 복사했습니다.`,
+                    source: 'previous-month' as const,
+                    ruleVersion: previous!.basis?.ruleVersion || 'previous-month-copy-v1',
+                    updatedBy: currentAdminActor,
+                },
             }));
             const next = { ...managerBaselines };
             copiedBaselines.forEach((baseline) => {
@@ -597,6 +693,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
             const result = await persistSurveyRiskBaselines(copiedBaselines);
             setBaselineStorageMode(result.mode);
             setBaselineStorageWarning(result.warning || '');
+            syncLocalBaselineHistory();
         } finally {
             setIsCopyingPreviousMonth(false);
         }
@@ -836,6 +933,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                                                     onClick={() => {
                                                         setWizardTrade('');
                                                         setWizardAnswers({});
+                                                        setWizardReason('');
                                                     }}
                                                     className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-black text-slate-500 dark:border-slate-700 dark:text-slate-300"
                                                 >
@@ -888,6 +986,20 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                                                 ))}
                                             </div>
 
+                                            <label className="mt-4 block">
+                                                <span className="text-xs font-black text-slate-800 dark:text-slate-200">
+                                                    현장 판단 근거 메모
+                                                </span>
+                                                <span className="ml-2 text-[10px] font-bold text-slate-400">선택 · 최대 500자</span>
+                                                <textarea
+                                                    value={wizardReason}
+                                                    onChange={(event) => setWizardReason(event.target.value.slice(0, 500))}
+                                                    rows={2}
+                                                    placeholder="예: 금주 타워크레인 인양 작업 집중, 개구부 덮개 일부 보완 필요"
+                                                    className="mt-2 w-full resize-y rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-semibold text-slate-700 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                                />
+                                            </label>
+
                                             <div className={`mt-4 rounded-xl border p-4 ${
                                                 wizardRecommendation?.level === '상'
                                                     ? 'border-rose-200 bg-rose-50 dark:border-rose-800 dark:bg-rose-900/20'
@@ -924,7 +1036,8 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                                         {baselineTradeOptions.map((trade) => {
                                             const key = getManagerRiskBaselineKey(selectedMonth, trade);
-                                            const savedLevel = managerBaselines[key]?.level || '';
+                                            const savedBaseline = managerBaselines[key];
+                                            const savedLevel = savedBaseline?.level || '';
                                             const previousLevel = managerBaselines[getManagerRiskBaselineKey(previousMonthKey, trade)]?.level;
                                             const tradeRecords = selectedMonthRecordsByTrade.get(trade) || [];
                                             const reference = buildTradeWorkerRiskReference(tradeRecords);
@@ -946,6 +1059,14 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                                                     {reference.topWeakAreas.length > 0 && (
                                                         <p className="mt-2 truncate text-[10px] font-semibold text-slate-500 dark:text-slate-400" title={reference.topWeakAreas.join(', ')}>
                                                             참고 취약점: {reference.topWeakAreas.join(', ')}
+                                                        </p>
+                                                    )}
+                                                    {savedBaseline?.basis && (
+                                                        <p
+                                                            className="mt-2 truncate text-[10px] font-semibold text-indigo-600 dark:text-indigo-300"
+                                                            title={savedBaseline.basis.reason}
+                                                        >
+                                                            근거: {BASELINE_SOURCE_LABELS[savedBaseline.basis.source]} · {savedBaseline.basis.updatedBy}
                                                         </p>
                                                     )}
                                                     <div className="mt-2 flex gap-2">
@@ -975,6 +1096,59 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                                                 </div>
                                             );
                                         })}
+                                    </div>
+
+                                    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <p className="text-sm font-black text-slate-900 dark:text-slate-100">기준 변경 이력</p>
+                                                <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                                                    등급 변경 전후, 판단 방식, 작성자와 근거를 최신 순으로 보존합니다.
+                                                </p>
+                                            </div>
+                                            <span className="text-[11px] font-black text-slate-400">
+                                                최근 {Math.min(baselineHistory.length, 10)}건
+                                            </span>
+                                        </div>
+                                        {baselineHistoryWarning && (
+                                            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+                                                {baselineHistoryWarning}
+                                            </p>
+                                        )}
+                                        {baselineHistory.length > 0 ? (
+                                            <div className="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
+                                                {baselineHistory.slice(0, 10).map((history) => (
+                                                    <div key={history.id} className="grid gap-1 py-3 text-xs sm:grid-cols-[120px_110px_1fr] sm:gap-3">
+                                                        <div>
+                                                            <p className="font-black text-slate-800 dark:text-slate-200">{history.trade}</p>
+                                                            <p className="mt-1 text-[10px] font-semibold text-slate-400">
+                                                                {formatBaselineAuditTime(history.changedAt)}
+                                                            </p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-black text-indigo-700 dark:text-indigo-300">
+                                                                {history.previousLevel || '미등록'} → {history.nextLevel || '삭제'}
+                                                            </p>
+                                                            <p className="mt-1 text-[10px] font-semibold text-slate-400">
+                                                                {BASELINE_SOURCE_LABELS[history.basis.source]}
+                                                            </p>
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <p className="truncate font-semibold text-slate-600 dark:text-slate-300" title={history.basis.reason}>
+                                                                {history.basis.reason || '근거 메모 없음'}
+                                                            </p>
+                                                            <p className="mt-1 text-[10px] font-bold text-slate-400">
+                                                                작성자 {history.basis.updatedBy} · 규칙 {history.basis.ruleVersion}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="mt-3 rounded-lg bg-slate-50 px-3 py-3 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                                선택한 월의 기준 변경 이력이 아직 없습니다.
+                                            </p>
+                                        )}
                                     </div>
                                 </div>
                             ) : (

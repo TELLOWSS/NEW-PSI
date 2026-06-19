@@ -1,15 +1,18 @@
 import type { WorkerRecord } from '../types';
-import { getWorkerRiskLevel, type SurveyRiskLevel } from './surveyRiskGap';
-
-export type BaselineSeverity = 'minor' | 'serious' | 'fatal';
-export type BaselineExposure = 'rare' | 'repeated' | 'continuous';
-export type BaselineControl = 'controlled' | 'partial' | 'weak';
-
-export interface ManagerBaselineWizardAnswers {
-    severity?: BaselineSeverity;
-    exposure?: BaselineExposure;
-    control?: BaselineControl;
-}
+import {
+    getWorkerRiskLevel,
+    type BaselineControl,
+    type BaselineExposure,
+    type BaselineSeverity,
+    type ManagerBaselineWizardAnswers,
+    type SurveyRiskLevel,
+} from './surveyRiskGap';
+export type {
+    BaselineControl,
+    BaselineExposure,
+    BaselineSeverity,
+    ManagerBaselineWizardAnswers,
+} from './surveyRiskGap';
 
 export interface ManagerBaselineRecommendation {
     level: SurveyRiskLevel;
@@ -99,4 +102,3 @@ export const buildTradeWorkerRiskReference = (
             .map(([area]) => area),
     };
 };
-
