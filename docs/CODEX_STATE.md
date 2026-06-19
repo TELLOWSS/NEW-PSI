@@ -160,3 +160,15 @@ Vercel:
 - 브라우저 검증: 8/8 통과, 판단 근거 저장 요청·변경 이력 화면·390px 모바일·오류 0건 확인.
 - DB 마이그레이션: `supabase_survey_risk_baseline_history_migration.sql`
 - 상세 결과: `artifacts/audit/manager-risk-baseline-history-review.md`
+
+## 2026-06-19 GitHub·Vercel 동기화 및 개발 공급망 정리
+
+- 관리자 기준 판단 근거·변경 이력 커밋 `50262be`를 GitHub `main`에 푸시했다.
+- Vercel 프로덕션 배포 `dpl_37A76kKehSjAHkh39AEV7sEZW4rK`가 `READY`이며 커밋 `50262be`와 일치한다.
+- 공개 프로덕션 주소가 HTTP 200으로 응답하며 최근 30분 오류·치명·경고 런타임 로그는 0건이다.
+- 운영 의존성 감사 결과는 취약점 0건이다.
+- Vitest를 4.1.9로 올려 기존 치명 개발 취약점을 제거했다.
+- Vercel Git 배포에서 사용하지 않는 로컬 Vercel CLI 의존성을 제거했다.
+- 로컬 API 개발은 `scripts/run-vercel-dev.cjs`가 전역 Vercel CLI를 확인한 뒤 실행한다.
+- 전체 운영·개발 의존성 감사 결과는 취약점 0건이다.
+- 업그레이드 후 21개 테스트 파일 / 112개 테스트와 TypeScript 검사를 재통과했다.

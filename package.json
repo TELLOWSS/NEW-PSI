@@ -7,7 +7,7 @@
     "predev": "node scripts/auto-daily-bootstrap.cjs",
     "dev": "vite",
     "dev:web": "vite",
-    "dev:api": "vercel dev --listen 3001",
+    "dev:api": "node scripts/run-vercel-dev.cjs",
     "dev:all": "concurrently -k -n WEB,API -c cyan,magenta \"npm:dev:web\" \"npm:dev:api\"",
     "check:context": "node scripts/check-repo-context.cjs",
     "check:hotspot": "node scripts/check-hotspot-syntax.cjs",
@@ -79,8 +79,7 @@
     "postcss": "^8.5.15",
     "tailwindcss": "^3.4.17",
     "typescript": "~5.8.2",
-    "vercel": "^39.4.0",
     "vite": "^6.2.0",
-    "vitest": "^2.1.8"
+    "vitest": "^4.1.9"
   }
 }
