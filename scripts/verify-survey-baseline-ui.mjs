@@ -12,6 +12,10 @@ const checks = [];
 const consoleErrors = [];
 const pageErrors = [];
 const baselineRequests = [];
+let resolveUpsertRequest;
+const upsertRequestPromise = new Promise((resolve) => {
+    resolveUpsertRequest = resolve;
+});
 
 page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text());
@@ -35,6 +39,7 @@ await page.route('**/api/admin/survey-risk-baselines', async (route) => {
     }
     baselineRequests.push(requestBody);
     const action = String(requestBody.action || '');
+    if (action === 'upsert') resolveUpsertRequest?.(requestBody);
     await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -53,6 +58,9 @@ const recordCheck = (name, passed, evidence) => {
 };
 
 try {
+    await page.addInitScript(() => {
+        window.sessionStorage.setItem('isAdminAuthenticated', 'true');
+    });
     await page.goto(baseUrl, { waitUntil: 'networkidle' });
     await page.getByText('근로자 의견 분석', { exact: true }).first().click();
     await page.getByText('관리자 기준 위험도 등록', { exact: false }).first().waitFor({ state: 'visible' });
@@ -98,9 +106,15 @@ try {
         fullPage: true,
     });
 
+    await page.evaluate(() => {
+        window.sessionStorage.setItem('isAdminAuthenticated', 'true');
+    });
     await page.getByRole('button', { name: '이 등급 적용하고 다음' }).click();
     await page.getByText(/등록 1\/\d+개 공종/).waitFor({ state: 'visible' });
-    const upsertRequest = baselineRequests.find((request) => request.action === 'upsert');
+    const upsertRequest = await Promise.race([
+        upsertRequestPromise,
+        new Promise((resolve) => setTimeout(() => resolve(null), 3000)),
+    ]);
     recordCheck(
         '저장 요청 연결',
         Boolean(
@@ -121,7 +135,10 @@ try {
                 level: upsertRequest.payload?.level,
                 basis: upsertRequest.payload?.basis,
             }
-            : 'upsert 요청 없음',
+            : {
+                message: 'upsert 요청 없음',
+                observedActions: baselineRequests.map((request) => request.action),
+            },
     );
     recordCheck(
         '판정 근거 변경 이력',

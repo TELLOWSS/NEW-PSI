@@ -66,7 +66,7 @@ limit 20;
 
 ### [x] 프로덕션 보안 헤더
 
-CSP, 클릭재킹 방지, MIME 스니핑 방지, Referrer·Permissions·Cross-Origin 정책을 Vercel 공통 응답에 적용하고 자동 검사한다.
+CSP, 클릭재킹 방지, MIME 스니핑 방지, Referrer·Permissions·Cross-Origin 정책을 Vercel 공통 응답에 적용했다. 프로덕션 실제 응답 7/7과 CSP 적용 후 핵심 브라우저 흐름 8/8을 확인했다.
 
 ### [ ] 현장×월×공종×세부작업 기준 모델
 

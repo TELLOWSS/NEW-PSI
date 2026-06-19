@@ -188,3 +188,7 @@ Vercel:
 - 선행 위험신호 화면의 오래된 `모바일 검증 2026-05-04` 배지를 `2026-06-19`로 수정했다.
 - 상품화 자동점검: `artifacts/audit/productization-status.json`, `artifacts/audit/productization-status.md`
 - 모바일 증거: `artifacts/mobile-qa/2026-06-19/`
+- GitHub `main` 커밋 `e1e6b13`과 Vercel 프로덕션 배포 `dpl_9tuUwbhJW1bGFrZPWiXigzJNrKgp`가 연결됐다.
+- 프로덕션 보안 헤더 실제 응답 검사 7/7, HTTP 200, 최근 30분 오류·경고·치명 로그 0건이다.
+- CSP 적용 상태에서 관리자 기준 위험도 브라우저 흐름 8/8을 재검증했다.
+- 프로덕션 브라우저 검증 중 관리자 세션 표시가 없는 테스트 격리 문제를 발견해, 서버 인증과 클라이언트 세션 경계를 모두 모의하도록 검증 스크립트를 보완했다.
