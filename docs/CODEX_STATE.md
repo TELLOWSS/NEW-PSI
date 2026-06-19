@@ -227,3 +227,7 @@ Vercel:
 - 화면 검증 결과: `artifacts/audit/browser/plain-language/plain-language-verification.json`
 - 시각 증거: `artifacts/audit/browser/plain-language/`
 - 다음 최우선 상품화 과제는 `case_id` 기반 위험 발견→조치→리포트→교육→서명→재평가 보호 폐루프다.
+- 개선 커밋 `f09b06f`를 GitHub `main`에 푸시했다.
+- Vercel 프로덕션 배포 `dpl_Adb58dskZpL92yxisGTekbimXtkE`가 같은 커밋으로 `READY` 상태가 됐다.
+- 프로덕션 주소 `https://new-psi-eta.vercel.app`는 HTTP 200, 현장 언어 검증 14/14, 보안 헤더 7/7을 통과했다.
+- 해당 배포의 최근 30분 오류·경고·치명 런타임 로그는 0건이다.
