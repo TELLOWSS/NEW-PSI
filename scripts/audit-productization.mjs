@@ -121,6 +121,17 @@ const items = [
         evidence: '현재 기준키는 월×공종',
         nextAction: '기존 데이터 호환을 유지하는 site_id·task_key 확장안 설계',
     },
+    {
+        id: 'baseline_decision_ux',
+        grade: '정상 확인',
+        status: sourceText.includes('저장 전 체감 비교 미리보기')
+            && sourceText.includes('getTradeDecisionCues')
+            ? 'completed'
+            : 'partial',
+        title: '관리자 기준 간편 등록·체감 비교 의사결정 UX',
+        evidence: '이번 달 원클릭 시작, 미등록 우선순위, 공종별 확인 힌트, 저장 전 체감 비교와 조치 안내',
+        nextAction: '현장 사용자 관찰을 통해 문항 이해 시간과 등록 완료율 측정',
+    },
 ];
 
 const counts = items.reduce((acc, item) => {

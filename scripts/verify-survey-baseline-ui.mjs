@@ -71,14 +71,23 @@ try {
     );
 
     const monthSelect = page.locator('select').nth(1);
-    const monthValues = await monthSelect.locator('option').evaluateAll((options) => (
-        options.map((option) => option.value)
-    ));
-    const monthKey = monthValues.find((value) => /^\d{4}-\d{2}$/.test(value));
-    if (!monthKey) throw new Error('선택 가능한 월이 없습니다.');
-    await monthSelect.selectOption(monthKey);
+    await page.getByRole('button', { name: '이번 달 기준 등록 시작' }).click();
+    const monthKey = await monthSelect.inputValue();
+    if (!/^\d{4}-\d{2}$/.test(monthKey)) throw new Error('이번 달 자동 선택에 실패했습니다.');
+    await page.getByText('빠른 판정 도우미', { exact: true }).waitFor({ state: 'visible' });
+    recordCheck(
+        '이번 달 원클릭 시작',
+        await page.getByText(/첫 미등록 공종이 자동 선택/).isHidden()
+            && /^\d{4}-\d{2}$/.test(monthKey),
+        { selectedMonth: monthKey, wizardOpened: true },
+    );
 
-    await page.getByRole('button', { name: '3문항 빠른 판정' }).click();
+    recordCheck(
+        '공종별 확인 힌트',
+        await page.getByText('이 공종에서 먼저 확인할 것', { exact: true }).isVisible()
+            && await page.getByText('자동 점수에는 사용하지 않습니다.', { exact: false }).isVisible(),
+        '공종별 현장 확인 항목과 계산 미사용 안내 표시',
+    );
     await page.getByRole('button', { name: /중대/ }).click();
     await page.getByRole('button', { name: /반복/ }).click();
     await page.getByRole('button', { name: /^일부/ }).click();
@@ -96,6 +105,12 @@ try {
         '관리자 기준과 근로자 체감의 순환 계산 방지 문구 표시',
     );
     recordCheck(
+        '저장 전 체감 비교',
+        await page.getByText('저장 전 체감 비교 미리보기', { exact: true }).isVisible()
+            && await page.getByText('근로자 응답은 권고 계산이 끝난 뒤 비교에만 사용합니다.', { exact: false }).isVisible(),
+        '관리자 권고가 확정된 뒤 근로자 체감과 예상 차이를 별도 표시',
+    );
+    recordCheck(
         '월별 등록 진행률',
         await page.getByText(/등록 0\/\d+개 공종/).isVisible(),
         '완료 공종과 전체 공종 수 표시',
@@ -105,6 +120,21 @@ try {
         path: resolve(outputDir, 'survey-risk-baseline-wizard.png'),
         fullPage: true,
     });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByText('빠른 판정 도우미', { exact: true }).scrollIntoViewIfNeeded();
+    await page.waitForTimeout(250);
+    await page.screenshot({
+        path: resolve(outputDir, 'survey-risk-baseline-mobile-decision.png'),
+        fullPage: false,
+    });
+    await page.getByText('저장 전 체감 비교 미리보기', { exact: true }).scrollIntoViewIfNeeded();
+    await page.waitForTimeout(250);
+    await page.screenshot({
+        path: resolve(outputDir, 'survey-risk-baseline-mobile-comparison.png'),
+        fullPage: false,
+    });
+    await page.setViewportSize({ width: 1440, height: 1000 });
 
     await page.evaluate(() => {
         window.sessionStorage.setItem('isAdminAuthenticated', 'true');
@@ -184,6 +214,8 @@ const result = {
     checks,
     screenshots: [
         'survey-risk-baseline-wizard.png',
+        'survey-risk-baseline-mobile-decision.png',
+        'survey-risk-baseline-mobile-comparison.png',
         'survey-risk-baseline-mobile.png',
     ],
 };

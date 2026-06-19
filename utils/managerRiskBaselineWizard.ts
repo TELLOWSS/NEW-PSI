@@ -1,10 +1,15 @@
 import type { WorkerRecord } from '../types';
 import {
+    buildSurveyRiskGapRows,
+    getManagerRiskBaselineKey,
+    getRecordMonthKey,
     getWorkerRiskLevel,
+    MIN_COMPARABLE_SAMPLE,
     type BaselineControl,
     type BaselineExposure,
     type BaselineSeverity,
     type ManagerBaselineWizardAnswers,
+    type SurveyRiskGapRow,
     type SurveyRiskLevel,
 } from './surveyRiskGap';
 export type {
@@ -24,6 +29,20 @@ export interface TradeWorkerRiskReference {
     levelCounts: Record<SurveyRiskLevel, number>;
     topWeakAreas: string[];
 }
+
+const TRADE_DECISION_CUES: Record<string, string[]> = {
+    형틀: ['개구부·단부 추락', '동바리·거푸집 붕괴', '자재 인양·낙하'],
+    철근: ['인양 중 낙하·충돌', '철근 돌출부 찔림', '결속·가공 중 끼임'],
+    갱폼: ['갱폼 인양·해체', '작업발판 추락', '고정·지지상태'],
+    알폼: ['패널 인양·낙하', '해체 중 충돌', '작업발판·개구부'],
+    시스템: ['비계 조립·해체 추락', '벽이음·가새 상태', '상하 동시작업 낙하'],
+    바닥미장: ['바닥 미끄러짐', '장시간 반복작업', '장비 전선·감전'],
+    할석미장견출: ['비래물·안면 손상', '분진 노출', '고소작업 추락'],
+    해체정리: ['해체물 낙하·비래', '불안정 구조물 붕괴', '혼재 작업 충돌'],
+    직영: ['당일 실제 작업내용', '타 공종 간섭', '임시 작업·예외상황'],
+    용역: ['당일 실제 작업내용', '작업 숙련도·전달상태', '타 공종 간섭'],
+    콘크리트비계: ['타설 중 붕괴', '비계·작업발판 추락', '펌프카·차량 충돌'],
+};
 
 const severityReasons: Record<BaselineSeverity, string> = {
     minor: '사고가 나도 응급처치 수준의 경미한 피해가 예상됩니다.',
@@ -101,4 +120,52 @@ export const buildTradeWorkerRiskReference = (
             .slice(0, 2)
             .map(([area]) => area),
     };
+};
+
+export const getTradeDecisionCues = (trade: string): string[] => (
+    TRADE_DECISION_CUES[String(trade || '').replace(/\s+/g, '')]
+    || ['당일 실제 작업내용', '사람·장비 동선 간섭', '안전조치 작동상태']
+);
+
+export const previewManagerWorkerRiskGap = (
+    records: WorkerRecord[],
+    monthKey: string,
+    trade: string,
+    managerLevel: SurveyRiskLevel,
+): SurveyRiskGapRow | null => {
+    const scopedRecords = records.filter((record) => getRecordMonthKey(record.date) === monthKey);
+    if (scopedRecords.length === 0) return null;
+
+    const key = getManagerRiskBaselineKey(monthKey, trade);
+    const rows = buildSurveyRiskGapRows(
+        scopedRecords,
+        {
+            [key]: {
+                trade,
+                monthKey,
+                level: managerLevel,
+                updatedAt: '',
+            },
+        },
+        () => trade,
+    );
+    return rows[0] || null;
+};
+
+export const getManagerWorkerComparisonAction = (
+    comparison: SurveyRiskGapRow | null,
+): string => {
+    if (!comparison || comparison.workerResponseCount === 0) {
+        return '근로자 응답이 쌓이면 관리자 기준과 자동 비교됩니다.';
+    }
+    if (comparison.status === 'low-sample') {
+        return `응답 ${comparison.workerResponseCount}건은 참고만 하고 ${Math.max(0, MIN_COMPARABLE_SAMPLE - comparison.workerResponseCount)}건 이상 추가 확보 후 재확인하세요.`;
+    }
+    if (comparison.direction === 'under-recognition') {
+        return '근로자가 위험을 낮게 보고 있습니다. TBM에서 핵심 위험과 작업중지 기준을 먼저 확인하세요.';
+    }
+    if (comparison.direction === 'over-recognition') {
+        return '근로자가 더 위험하게 느낍니다. 작업조건 변화와 방호조치의 실제 작동 여부를 다시 확인하세요.';
+    }
+    return '관리자 기준과 체감이 대체로 일치합니다. 현재 조치를 유지하고 변화를 관찰하세요.';
 };
