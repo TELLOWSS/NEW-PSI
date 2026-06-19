@@ -38,10 +38,21 @@ await page.route('**/api/admin/auth', async (route) => {
 });
 
 await page.route('**/api/admin/survey-risk-baselines', async (route) => {
+    let action = '';
+    try {
+        action = String(route.request().postDataJSON()?.action || '');
+    } catch {
+        action = '';
+    }
     await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ ok: true, baselines: [] }),
+        body: JSON.stringify({
+            ok: true,
+            action,
+            items: [],
+            item: action === 'upsert' ? {} : undefined,
+        }),
     });
 });
 
@@ -84,14 +95,27 @@ await page.route('**/api/admin/training', async (route) => {
 });
 
 await page.goto(baseUrl, { waitUntil: 'networkidle' });
-await page.waitForFunction(() => typeof window.__setCurrentPage === 'function');
+await page.getByText('현장 안전 관제센터', { exact: false }).first().waitFor({ state: 'visible' });
+await page.screenshot({ path: resolve(outputDir, 'initial-dashboard.png'), fullPage: true });
 
 const recordCheck = (name, passed, evidence) => {
     checks.push({ name, passed: Boolean(passed), evidence });
 };
 
 const openPage = async (pageName, expectedText, screenshotName) => {
-    await page.evaluate((name) => window.__setCurrentPage(name), pageName);
+    const hasDevNavigator = await page.evaluate(() => typeof window.__setCurrentPage === 'function');
+    if (hasDevNavigator) {
+        await page.evaluate((name) => window.__setCurrentPage(name), pageName);
+    } else {
+        const navigationLabels = {
+            'safety-checks': '위험 인지 점검',
+            'safety-behavior-management': '안전조치 및 개선관리',
+            'performance-analysis': '안전성과 분석',
+            'survey-intelligence': '근로자 의견 분석',
+            'admin-training': '다국어 교육 / QR',
+        };
+        await page.getByText(navigationLabels[pageName], { exact: true }).first().click();
+    }
     await page.getByText(expectedText, { exact: false }).first().waitFor({ state: 'visible' });
     await page.screenshot({ path: resolve(outputDir, screenshotName), fullPage: true });
 };
@@ -110,6 +134,20 @@ await openPage('performance-analysis', '근로자 안전 성과 심층 분석', 
 const threeMonthButton = page.getByRole('button', { name: '최근 3개월' });
 await threeMonthButton.click();
 recordCheck('성과 기간 선택 반영', (await threeMonthButton.getAttribute('class') || '').includes('bg-white'), '최근 3개월 버튼 활성 스타일');
+
+await openPage('survey-intelligence', '관리자 기준 위험도 등록', 'survey-risk-baseline-wizard.png');
+const monthSelects = page.locator('select');
+const monthSelect = monthSelects.nth(1);
+const monthOptions = await monthSelect.locator('option').evaluateAll((options) => options.map((option) => option.value));
+const specificMonth = monthOptions.find((value) => /^\d{4}-\d{2}$/.test(value));
+if (specificMonth) await monthSelect.selectOption(specificMonth);
+await page.getByRole('button', { name: '3문항 빠른 판정' }).click();
+await page.getByRole('button', { name: /중대/ }).click();
+await page.getByRole('button', { name: /반복/ }).click();
+await page.getByRole('button', { name: /일부/ }).click();
+recordCheck('관리자 기준 3문항 판정', await page.getByText('권고 기준: 중 · 50점', { exact: false }).isVisible(), '중대 피해·반복 노출·일부 방호 입력에 중등급 권고');
+recordCheck('관리자 기준 독립성 안내', await page.getByText('근로자 응답을 계산에 사용하지 않습니다.', { exact: false }).isVisible(), '근로자 체감은 참고자료로만 사용');
+recordCheck('관리자 기준 진행률 표시', await page.getByText(/등록 \d+\/\d+개 공종/).isVisible(), '월별 등록 완료/전체 공종 표시');
 
 await openPage('admin-training', '교육명', 'admin-training-targeting.png');
 recordCheck('교육명 입력 제공', await page.getByText('교육명', { exact: true }).isVisible(), '세션 생성 필수 필드');
@@ -152,6 +190,7 @@ const result = {
         'safety-checks-empty.png',
         'safety-behavior-empty.png',
         'performance-analysis.png',
+        'survey-risk-baseline-wizard.png',
         'admin-training-targeting.png',
         'admin-training-mobile.png',
     ],

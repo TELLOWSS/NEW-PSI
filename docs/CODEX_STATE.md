@@ -131,3 +131,17 @@ Vercel:
 
 - `artifacts/audit/product-readiness.md`
 - `artifacts/audit/browser/browser-verification.json`
+
+## 2026-06-19 관리자 기준 위험도 등록 개선
+
+- 기본 사이드바에서 `근로자 의견 분석`을 노출하고 기존 UI 구성 설정을 버전 3으로 이전했다.
+- 관리자 기준은 근로자 Q3 응답과 분리한 채 피해 규모·노출 빈도·방호 상태 3문항으로 권고한다.
+- 월별 등록 진행률, 미등록 공종 연속 처리, 전월 기준의 미등록 항목만 복사하는 기능을 추가했다.
+- 공종 카드에는 근로자 응답 분포와 주요 취약점을 참고자료로만 표시한다.
+- 전월 기준 일괄 저장 API를 추가하고 100건 초과·월/공종 중복을 차단했다.
+- 대용량 월 데이터는 공종별로 한 번만 분류해 카드별 반복 검색을 줄였다.
+- 전체 검사: 20개 파일 / 110개 테스트 통과.
+- `verify:release`: 통과, 프로덕션 빌드 903개 모듈 통과.
+- 브라우저 검증: 7/7 통과, 390px 가로 넘침 및 페이지 오류 없음.
+- 상세 결과: `artifacts/audit/manager-risk-baseline-review.md`
+- 브라우저 증거: `artifacts/audit/browser/survey-risk-baseline-verification.json`

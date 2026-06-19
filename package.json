@@ -31,6 +31,7 @@
     "qa:mobile:capture": "node scripts/capture-mobile-qa-evidence.cjs",
     "qa:mobile:autoflow": "npm run build && npm run qa:mobile:capture && npm run check:mobile-qa:evidence:report && npm run qa:mobile:finalize",
     "qa:mobile:ready": "npm run build && npm run qa:mobile:capture && npm run check:mobile-qa:evidence",
+    "qa:survey-baseline": "node scripts/verify-survey-baseline-ui.mjs",
     "sync:mobile-qa:status": "node scripts/sync-mobile-qa-status.cjs",
     "qa:mobile:refresh": "node scripts/refresh-mobile-qa-status.cjs",
     "qa:mobile:finalize": "node scripts/finalize-mobile-qa-status.cjs",

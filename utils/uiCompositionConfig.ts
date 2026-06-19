@@ -3,8 +3,10 @@ import type { Page } from '../types';
 export const UI_COMPOSITION_STORAGE_KEY = 'psi_ui_composition_v1';
 export const UI_COMPOSITION_SYNC_EVENT = 'psi-ui-composition-sync';
 export const UI_COMPOSITION_DEBUG_STORAGE_KEY = 'psi_sidebar_visibility_debug_v1';
-const UI_COMPOSITION_VERSION = 2;
+const UI_COMPOSITION_VERSION = 3;
+const PREVIOUS_UI_COMPOSITION_VERSION = 2;
 const OCR_ENTRY_PAGE: Page = 'ocr-analysis';
+const MANAGER_RISK_ENTRY_PAGE: Page = 'survey-intelligence';
 
 const DEFAULT_SIDEBAR_ORDER: Page[] = [
     'dashboard',
@@ -29,7 +31,6 @@ const DEFAULT_HIDDEN_SIDEBAR_PAGES: Page[] = [
     'site-issue-management',
     'worker-management',
     'safety-compliance-hub',
-    'survey-intelligence',
     'predictive-analysis',
     'safety-behavior-management',
 ];
@@ -96,6 +97,13 @@ export const loadUiCompositionConfig = (): UiCompositionConfig => {
         const raw = window.localStorage.getItem(UI_COMPOSITION_STORAGE_KEY);
         if (!raw) return getDefaultUiCompositionConfig();
         const parsed = JSON.parse(raw) as Partial<UiCompositionConfig>;
+        if (parsed.version === PREVIOUS_UI_COMPOSITION_VERSION) {
+            return normalizeUiCompositionConfig({
+                ...parsed,
+                hiddenSidebarPages: toUniquePages(parsed.hiddenSidebarPages)
+                    .filter((page) => page !== MANAGER_RISK_ENTRY_PAGE),
+            });
+        }
         if (parsed.version !== UI_COMPOSITION_VERSION) {
             return getDefaultUiCompositionConfig();
         }

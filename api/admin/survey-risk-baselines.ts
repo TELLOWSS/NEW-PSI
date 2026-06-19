@@ -137,6 +137,63 @@ async function handleUpsert(supabase: any, payload: any, res: any) {
     });
 }
 
+async function handleUpsertMany(supabase: any, payload: any, res: any) {
+    const rawItems = Array.isArray(payload?.items) ? payload.items : [];
+    if (rawItems.length > 100) {
+        return sendJsonError(res, 400, '한 번에 저장할 수 있는 관리자 위험 기준은 최대 100건입니다.');
+    }
+    const normalizedItems = rawItems.map((item: any) => ({
+        monthKey: normalizeMonthKey(item?.monthKey),
+        trade: normalizeTrade(item?.trade),
+        level: normalizeLevel(item?.level),
+    }));
+
+    if (normalizedItems.length === 0) {
+        return sendJsonError(res, 400, '저장할 관리자 위험 기준이 없습니다.');
+    }
+    if (normalizedItems.some((item) => !item.monthKey || !item.trade || !item.level)) {
+        return sendJsonError(res, 400, '월·공종·위험등급 형식을 확인해 주세요.');
+    }
+    const uniqueKeys = new Set(normalizedItems.map((item) => `${item.monthKey}::${item.trade}`));
+    if (uniqueKeys.size !== normalizedItems.length) {
+        return sendJsonError(res, 400, '같은 월과 공종의 관리자 위험 기준이 중복되어 있습니다.');
+    }
+
+    const updatedAt = new Date().toISOString();
+    const updatedBy = String(payload?.updatedBy || '').trim().slice(0, 80) || '관리자';
+    const rows = normalizedItems.map((item) => ({
+        month_key: item.monthKey,
+        trade: item.trade,
+        level: item.level,
+        updated_by: updatedBy,
+        updated_at: updatedAt,
+    }));
+
+    const result = await supabase
+        .from(TABLE_NAME)
+        .upsert(rows, {
+            onConflict: 'month_key,trade',
+            ignoreDuplicates: false,
+        })
+        .select('trade, month_key, level, updated_at');
+
+    if (result.error) {
+        if (isFallbackError(result.error)) return fallbackResponse(res, 'upsert-many');
+        throw new Error(result.error.message || '관리자 위험 기준 일괄 저장 실패');
+    }
+
+    return res.status(200).json({
+        ok: true,
+        action: 'upsert-many',
+        items: (result.data || []).map((row: any) => ({
+            trade: String(row?.trade || ''),
+            monthKey: String(row?.month_key || ''),
+            level: String(row?.level || ''),
+            updatedAt: row?.updated_at || updatedAt,
+        })),
+    });
+}
+
 async function handleDelete(supabase: any, payload: any, res: any) {
     const monthKey = normalizeMonthKey(payload?.monthKey);
     const trade = normalizeTrade(payload?.trade);
@@ -181,6 +238,7 @@ export default async function handler(req: any, res: any) {
         }
         if (action === 'list') return await handleList(supabase, res);
         if (action === 'upsert') return await handleUpsert(supabase, payload, res);
+        if (action === 'upsert-many') return await handleUpsertMany(supabase, payload, res);
         if (action === 'delete') return await handleDelete(supabase, payload, res);
 
         return sendJsonError(res, 400, '지원하지 않는 action입니다.');

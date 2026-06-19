@@ -27,6 +27,7 @@ import {
     getWorkerRiskLevel,
     MIN_COMPARABLE_SAMPLE,
     readManagerRiskBaselines,
+    riskLevelToScore,
     writeManagerRiskBaselines,
     type ManagerRiskBaselineMap,
     type SurveyRiskGapRow,
@@ -37,8 +38,18 @@ import {
     deleteSurveyRiskBaseline,
     loadSurveyRiskBaselines,
     persistSurveyRiskBaseline,
+    persistSurveyRiskBaselines,
     type SurveyRiskBaselineStorageMode,
 } from '../services/surveyRiskBaselineService';
+import {
+    buildTradeWorkerRiskReference,
+    getPreviousMonthKey,
+    recommendManagerRiskLevel,
+    type BaselineControl,
+    type BaselineExposure,
+    type BaselineSeverity,
+    type ManagerBaselineWizardAnswers,
+} from '../utils/managerRiskBaselineWizard';
 
 // ─── 타입 ────────────────────────────────────────────────────────────────────
 interface Props {
@@ -78,6 +89,21 @@ const BASELINE_TRADE_OPTIONS = [
     '직영',
     '용역',
     '콘크리트비계',
+];
+const SEVERITY_OPTIONS: Array<{ value: BaselineSeverity; label: string; description: string }> = [
+    { value: 'minor', label: '경미', description: '응급처치 수준' },
+    { value: 'serious', label: '중대', description: '치료·휴업 가능' },
+    { value: 'fatal', label: '치명', description: '사망·다수 부상 가능' },
+];
+const EXPOSURE_OPTIONS: Array<{ value: BaselineExposure; label: string; description: string }> = [
+    { value: 'rare', label: '드묾', description: '예외적·월 1회 이하' },
+    { value: 'repeated', label: '반복', description: '주기적·매일 일부' },
+    { value: 'continuous', label: '상시', description: '대부분 시간·다수 인원' },
+];
+const CONTROL_OPTIONS: Array<{ value: BaselineControl; label: string; description: string }> = [
+    { value: 'controlled', label: '충분', description: '설치·작동 확인' },
+    { value: 'partial', label: '일부', description: '누락·추가 확인 필요' },
+    { value: 'weak', label: '미흡', description: '없음·작동 불확실' },
 ];
 const normalizeSurveyTrade = (trade: string | undefined | null): string => normalizeDashboardTrade(trade) || '기타';
 const getCurrentMonthKey = (): string => {
@@ -368,6 +394,9 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
     const [baselineStorageMode, setBaselineStorageMode] = useState<SurveyRiskBaselineStorageMode | 'loading'>('loading');
     const [baselineStorageWarning, setBaselineStorageWarning] = useState('');
     const [savingBaselineKey, setSavingBaselineKey] = useState('');
+    const [wizardTrade, setWizardTrade] = useState('');
+    const [wizardAnswers, setWizardAnswers] = useState<ManagerBaselineWizardAnswers>({});
+    const [isCopyingPreviousMonth, setIsCopyingPreviousMonth] = useState(false);
     const [activeKeywords] = useState<string[]>(['추락', '끼임', '감전', '충돌']);
 
     const monthOptions = useMemo(() => {
@@ -414,6 +443,11 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
     }, [monthOptions, selectedMonth]);
 
     useEffect(() => {
+        setWizardTrade('');
+        setWizardAnswers({});
+    }, [selectedMonth]);
+
+    useEffect(() => {
         if (typeof window === 'undefined') return;
         const currentUrl = new URL(window.location.href);
         if (selectedTrade === ALL_TRADES) currentUrl.searchParams.delete(QUERY_TRADE_KEY);
@@ -446,6 +480,52 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
         ])).sort();
     }, [filteredRecords, selectedTrade]);
 
+    const selectedMonthRecords = useMemo(() => (
+        workerRecords.filter((record) => getRecordMonthKey(record.date) === selectedMonth)
+    ), [selectedMonth, workerRecords]);
+
+    const selectedMonthRecordsByTrade = useMemo(() => {
+        const recordsByTrade = new Map<string, WorkerRecord[]>();
+        selectedMonthRecords.forEach((record) => {
+            const trade = normalizeSurveyTrade(record.jobField);
+            const tradeRecords = recordsByTrade.get(trade) || [];
+            tradeRecords.push(record);
+            recordsByTrade.set(trade, tradeRecords);
+        });
+        return recordsByTrade;
+    }, [selectedMonthRecords]);
+
+    const previousMonthKey = useMemo(
+        () => selectedMonth === ALL_MONTHS ? '' : getPreviousMonthKey(selectedMonth),
+        [selectedMonth],
+    );
+
+    const baselineProgress = useMemo(() => {
+        const registered = baselineTradeOptions.filter((trade) => (
+            Boolean(managerBaselines[getManagerRiskBaselineKey(selectedMonth, trade)])
+        )).length;
+        return {
+            registered,
+            total: baselineTradeOptions.length,
+            remaining: Math.max(0, baselineTradeOptions.length - registered),
+        };
+    }, [baselineTradeOptions, managerBaselines, selectedMonth]);
+
+    const previousMonthCopyCandidates = useMemo(() => (
+        baselineTradeOptions
+            .map((trade) => ({
+                trade,
+                previous: managerBaselines[getManagerRiskBaselineKey(previousMonthKey, trade)],
+                current: managerBaselines[getManagerRiskBaselineKey(selectedMonth, trade)],
+            }))
+            .filter((item) => item.previous && !item.current)
+    ), [baselineTradeOptions, managerBaselines, previousMonthKey, selectedMonth]);
+
+    const wizardRecommendation = useMemo(
+        () => recommendManagerRiskLevel(wizardAnswers),
+        [wizardAnswers],
+    );
+
     const data = useSurveyData(filteredRecords, managerBaselines);
 
     const specificityDelta = data.avgSpecificityLatest - data.avgSpecificityPrev;
@@ -476,6 +556,50 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
         setBaselineStorageMode(result.mode);
         setBaselineStorageWarning(result.warning || '');
         setSavingBaselineKey('');
+    };
+
+    const openBaselineWizard = (trade: string) => {
+        setWizardTrade(trade);
+        setWizardAnswers({});
+    };
+
+    const applyWizardRecommendation = async () => {
+        if (!wizardTrade || !wizardRecommendation) return;
+        const currentTrade = wizardTrade;
+        await handleBaselineChange(currentTrade, wizardRecommendation.level);
+
+        const nextTrade = baselineTradeOptions.find((trade) => (
+            trade !== currentTrade
+            && !managerBaselines[getManagerRiskBaselineKey(selectedMonth, trade)]
+        ));
+        setWizardTrade(nextTrade || '');
+        setWizardAnswers({});
+    };
+
+    const handleCopyPreviousMonth = async () => {
+        if (!canEditBaseline || previousMonthCopyCandidates.length === 0) return;
+        setIsCopyingPreviousMonth(true);
+        try {
+            const now = new Date().toISOString();
+            const copiedBaselines = previousMonthCopyCandidates.map(({ trade, previous }) => ({
+                trade,
+                monthKey: selectedMonth,
+                level: previous!.level,
+                updatedAt: now,
+            }));
+            const next = { ...managerBaselines };
+            copiedBaselines.forEach((baseline) => {
+                next[getManagerRiskBaselineKey(selectedMonth, baseline.trade)] = baseline;
+            });
+            setManagerBaselines(next);
+            writeManagerRiskBaselines(next);
+
+            const result = await persistSurveyRiskBaselines(copiedBaselines);
+            setBaselineStorageMode(result.mode);
+            setBaselineStorageWarning(result.warning || '');
+        } finally {
+            setIsCopyingPreviousMonth(false);
+        }
     };
 
     return (
@@ -639,36 +763,219 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                                 </p>
                             )}
                             {canEditBaseline ? (
-                                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                                    {baselineTradeOptions.map((trade) => {
-                                        const key = getManagerRiskBaselineKey(selectedMonth, trade);
-                                        const savedLevel = managerBaselines[key]?.level || '';
-                                        const responseCount = filteredRecords.filter(record => (
-                                            normalizeSurveyTrade(record.jobField) === trade && Boolean(getWorkerRiskLevel(record))
-                                        )).length;
-                                        return (
-                                            <label key={trade} className="rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 p-3">
-                                                <span className="flex items-center justify-between gap-2">
-                                                    <span className="text-xs font-black text-slate-800 dark:text-slate-200">{trade}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400">{responseCount}건</span>
+                                <div className="mt-4 space-y-4">
+                                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto]">
+                                        <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3 dark:border-indigo-800/50 dark:bg-indigo-900/20">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div>
+                                                    <p className="text-xs font-black text-indigo-800 dark:text-indigo-200">
+                                                        {formatSurveyMonth(selectedMonth)} 등록 {baselineProgress.registered}/{baselineProgress.total}개 공종
+                                                    </p>
+                                                    <p className="mt-1 text-[11px] font-semibold text-indigo-600 dark:text-indigo-300">
+                                                        {baselineProgress.remaining > 0
+                                                            ? `미등록 ${baselineProgress.remaining}개를 빠른 판정으로 이어서 처리할 수 있습니다.`
+                                                            : '선택한 공종의 관리자 기준 등록이 완료됐습니다.'}
+                                                    </p>
+                                                </div>
+                                                <span className="text-sm font-black text-indigo-700 dark:text-indigo-200">
+                                                    {baselineProgress.total > 0
+                                                        ? Math.round((baselineProgress.registered / baselineProgress.total) * 100)
+                                                        : 0}%
                                                 </span>
-                                                <select
-                                                    value={savedLevel}
-                                                    onChange={(event) => handleBaselineChange(trade, event.target.value as SurveyRiskLevel | '')}
-                                                    disabled={baselineStorageMode === 'loading' || savingBaselineKey === key}
-                                                    className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-black text-slate-700 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100"
-                                                >
-                                                    <option value="">기준 미등록</option>
-                                                    <option value="상">상 · 100점</option>
-                                                    <option value="중">중 · 50점</option>
-                                                    <option value="하">하 · 0점</option>
-                                                </select>
-                                                {savingBaselineKey === key && (
-                                                    <span className="mt-1 block text-[10px] font-bold text-sky-600 dark:text-sky-300">저장 중…</span>
+                                            </div>
+                                            <div className="mt-2 h-2 overflow-hidden rounded-full bg-white dark:bg-slate-800">
+                                                <div
+                                                    className="h-full rounded-full bg-indigo-500 transition-all"
+                                                    style={{
+                                                        width: `${baselineProgress.total > 0
+                                                            ? (baselineProgress.registered / baselineProgress.total) * 100
+                                                            : 0}%`,
+                                                    }}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
+                                            <button
+                                                type="button"
+                                                onClick={() => openBaselineWizard(
+                                                    baselineTradeOptions.find((trade) => !managerBaselines[getManagerRiskBaselineKey(selectedMonth, trade)])
+                                                    || baselineTradeOptions[0],
                                                 )}
-                                            </label>
-                                        );
-                                    })}
+                                                disabled={baselineTradeOptions.length === 0}
+                                                className="rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-black text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                            >
+                                                3문항 빠른 판정
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleCopyPreviousMonth}
+                                                disabled={previousMonthCopyCandidates.length === 0 || isCopyingPreviousMonth}
+                                                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200"
+                                            >
+                                                {isCopyingPreviousMonth
+                                                    ? '복사 중…'
+                                                    : `전월 기준 불러오기${previousMonthCopyCandidates.length > 0 ? ` ${previousMonthCopyCandidates.length}건` : ''}`}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <p className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] font-semibold leading-5 text-slate-500 dark:bg-slate-900/50 dark:text-slate-400">
+                                        빠른 판정은 근로자 응답을 계산에 사용하지 않습니다. 관리자가 작업계획·TBM·현장 방호상태를 3문항으로 확인하면 권고 등급만 제시하며 최종 선택은 관리자가 확정합니다.
+                                    </p>
+
+                                    {wizardTrade && (
+                                        <div className="rounded-2xl border border-indigo-200 bg-white p-4 shadow-sm dark:border-indigo-700 dark:bg-slate-900">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-indigo-600 dark:text-indigo-300">빠른 판정 도우미</p>
+                                                    <h3 className="mt-1 text-base font-black text-slate-900 dark:text-slate-100">{wizardTrade} 공종</h3>
+                                                    <p className="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">현장 상태에 가장 가까운 항목을 하나씩 선택하세요.</p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setWizardTrade('');
+                                                        setWizardAnswers({});
+                                                    }}
+                                                    className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-black text-slate-500 dark:border-slate-700 dark:text-slate-300"
+                                                >
+                                                    닫기
+                                                </button>
+                                            </div>
+
+                                            <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
+                                                {[
+                                                    {
+                                                        title: '1. 사고가 나면 피해가 어느 정도입니까?',
+                                                        options: SEVERITY_OPTIONS,
+                                                        selected: wizardAnswers.severity,
+                                                        select: (value: string) => setWizardAnswers((prev) => ({ ...prev, severity: value as BaselineSeverity })),
+                                                    },
+                                                    {
+                                                        title: '2. 이 작업에 얼마나 자주 노출됩니까?',
+                                                        options: EXPOSURE_OPTIONS,
+                                                        selected: wizardAnswers.exposure,
+                                                        select: (value: string) => setWizardAnswers((prev) => ({ ...prev, exposure: value as BaselineExposure })),
+                                                    },
+                                                    {
+                                                        title: '3. 현재 안전조치가 실제로 작동합니까?',
+                                                        options: CONTROL_OPTIONS,
+                                                        selected: wizardAnswers.control,
+                                                        select: (value: string) => setWizardAnswers((prev) => ({ ...prev, control: value as BaselineControl })),
+                                                    },
+                                                ].map((question) => (
+                                                    <fieldset key={question.title}>
+                                                        <legend className="text-xs font-black text-slate-800 dark:text-slate-200">{question.title}</legend>
+                                                        <div className="mt-2 grid grid-cols-3 gap-2">
+                                                            {question.options.map((option) => (
+                                                                <button
+                                                                    key={option.value}
+                                                                    type="button"
+                                                                    onClick={() => question.select(option.value)}
+                                                                    aria-pressed={question.selected === option.value}
+                                                                    className={`rounded-xl border px-2 py-2.5 text-left transition ${
+                                                                        question.selected === option.value
+                                                                            ? 'border-indigo-500 bg-indigo-50 text-indigo-800 ring-2 ring-indigo-100 dark:bg-indigo-900/40 dark:text-indigo-200'
+                                                                            : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                                                    }`}
+                                                                >
+                                                                    <span className="block text-xs font-black">{option.label}</span>
+                                                                    <span className="mt-1 block text-[10px] font-semibold leading-4 opacity-80">{option.description}</span>
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </fieldset>
+                                                ))}
+                                            </div>
+
+                                            <div className={`mt-4 rounded-xl border p-4 ${
+                                                wizardRecommendation?.level === '상'
+                                                    ? 'border-rose-200 bg-rose-50 dark:border-rose-800 dark:bg-rose-900/20'
+                                                    : wizardRecommendation?.level === '하'
+                                                        ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20'
+                                                        : 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20'
+                                            }`}>
+                                                {wizardRecommendation ? (
+                                                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                                        <div>
+                                                            <p className="text-sm font-black text-slate-900 dark:text-slate-100">
+                                                                권고 기준: {wizardRecommendation.level} · {riskLevelToScore(wizardRecommendation.level)}점
+                                                            </p>
+                                                            <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-600 dark:text-slate-300">
+                                                                {wizardRecommendation.reasons.join(' ')}
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={applyWizardRecommendation}
+                                                            disabled={Boolean(savingBaselineKey)}
+                                                            className="shrink-0 rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-black text-white hover:bg-slate-700 disabled:opacity-50 dark:bg-white dark:text-slate-900"
+                                                        >
+                                                            이 등급 적용하고 다음
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300">세 문항을 모두 선택하면 권고 등급과 이유가 표시됩니다.</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                        {baselineTradeOptions.map((trade) => {
+                                            const key = getManagerRiskBaselineKey(selectedMonth, trade);
+                                            const savedLevel = managerBaselines[key]?.level || '';
+                                            const previousLevel = managerBaselines[getManagerRiskBaselineKey(previousMonthKey, trade)]?.level;
+                                            const tradeRecords = selectedMonthRecordsByTrade.get(trade) || [];
+                                            const reference = buildTradeWorkerRiskReference(tradeRecords);
+                                            return (
+                                                <div key={trade} className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-900/40">
+                                                    <div className="flex items-start justify-between gap-2">
+                                                        <div>
+                                                            <p className="text-xs font-black text-slate-800 dark:text-slate-200">{trade}</p>
+                                                            <p className="mt-1 text-[10px] font-bold text-slate-400">
+                                                                근로자 응답 {reference.responseCount}건 · 상 {reference.levelCounts.상} / 중 {reference.levelCounts.중} / 하 {reference.levelCounts.하}
+                                                            </p>
+                                                        </div>
+                                                        {previousLevel && (
+                                                            <span className="rounded-full bg-slate-200 px-2 py-1 text-[10px] font-black text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                                                                전월 {previousLevel}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {reference.topWeakAreas.length > 0 && (
+                                                        <p className="mt-2 truncate text-[10px] font-semibold text-slate-500 dark:text-slate-400" title={reference.topWeakAreas.join(', ')}>
+                                                            참고 취약점: {reference.topWeakAreas.join(', ')}
+                                                        </p>
+                                                    )}
+                                                    <div className="mt-2 flex gap-2">
+                                                        <select
+                                                            aria-label={`${trade} 관리자 기준 위험도`}
+                                                            value={savedLevel}
+                                                            onChange={(event) => handleBaselineChange(trade, event.target.value as SurveyRiskLevel | '')}
+                                                            disabled={baselineStorageMode === 'loading' || savingBaselineKey === key}
+                                                            className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs font-black text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                                                        >
+                                                            <option value="">기준 미등록</option>
+                                                            <option value="상">상 · 100점</option>
+                                                            <option value="중">중 · 50점</option>
+                                                            <option value="하">하 · 0점</option>
+                                                        </select>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openBaselineWizard(trade)}
+                                                            className="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-[11px] font-black text-indigo-700 hover:bg-indigo-50 dark:border-indigo-700 dark:bg-slate-800 dark:text-indigo-300"
+                                                        >
+                                                            도움받기
+                                                        </button>
+                                                    </div>
+                                                    {savingBaselineKey === key && (
+                                                        <span className="mt-1 block text-[10px] font-bold text-sky-600 dark:text-sky-300">저장 중…</span>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             ) : (
                                 <p className="mt-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-xs font-bold text-amber-800 dark:text-amber-300">

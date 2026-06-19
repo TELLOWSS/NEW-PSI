@@ -116,6 +116,45 @@ export const persistSurveyRiskBaseline = async (
     }
 };
 
+export const persistSurveyRiskBaselines = async (
+    baselines: ManagerRiskBaseline[],
+): Promise<{ mode: SurveyRiskBaselineStorageMode; warning?: string }> => {
+    if (baselines.length === 0) return { mode: 'shared-db' };
+
+    try {
+        const response = await postAdminJson<SurveyRiskBaselineApiResponse>(
+            '/api/admin/survey-risk-baselines',
+            {
+                action: 'upsert-many',
+                payload: {
+                    items: baselines.map((baseline) => ({
+                        trade: baseline.trade,
+                        monthKey: baseline.monthKey,
+                        level: baseline.level,
+                    })),
+                    updatedBy: '관리자',
+                },
+            },
+            { fallbackMessage: '관리자 위험 기준 일괄 저장 실패' },
+        );
+
+        if (response.mode === 'fallback-local') {
+            return {
+                mode: 'local-fallback',
+                warning: '공유 DB 스키마가 아직 적용되지 않아 이 브라우저에만 일괄 저장되었습니다.',
+            };
+        }
+        return { mode: 'shared-db' };
+    } catch (error) {
+        return {
+            mode: 'local-fallback',
+            warning: error instanceof Error
+                ? `공유 일괄 저장에 실패하여 이 브라우저에만 보관했습니다. (${error.message})`
+                : '공유 일괄 저장에 실패하여 이 브라우저에만 보관했습니다.',
+        };
+    }
+};
+
 export const deleteSurveyRiskBaseline = async (
     monthKey: string,
     trade: string,
