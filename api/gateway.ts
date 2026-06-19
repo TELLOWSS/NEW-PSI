@@ -8,6 +8,11 @@ import handleHarnessReanalyze from '../lib/server/harness/handlers/reanalyze.js'
 import handleHarnessWorkflowStatus from '../lib/server/harness/handlers/workflowStatus.js';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils.js';
 import { resolveGeminiOcrModelChain, type OcrEngineMode } from '../utils/aiEngineSettings.js';
+import {
+    buildWorkerAuthenticationProof,
+    verifyTrainingLinkToken,
+    verifyWorkerAuthenticationToken,
+} from '../lib/server/trainingLinkToken.js';
 
 type GatewayAction =
     | 'training.check-access'
@@ -95,6 +100,10 @@ type GatewayHttpError = Error & {
 };
 
 type AuthKeyType = 'phone' | 'birthDate' | 'passport';
+export type TrainingSubmissionAuthorization =
+    | { mode: 'admin'; workerId: string | null }
+    | { mode: 'training-link'; workerId: null }
+    | { mode: 'worker-auth'; workerId: string };
 
 class DuplicateSubmissionError extends Error {
     statusCode: number;
@@ -115,6 +124,80 @@ const createGatewayHttpError = (message: string, statusCode: number, code?: stri
         error.code = code;
     }
     return error;
+};
+
+export const resolveTrainingSubmissionAuthorization = (
+    req: any,
+    type: string,
+    payload: Record<string, unknown>,
+): TrainingSubmissionAuthorization => {
+    const isAdmin = isValidAdminAuthRequest(req);
+    const normalizedWorkerId = String(payload?.workerId || '').trim();
+
+    if (type === 'group') {
+        if (!isAdmin) {
+            throw createGatewayHttpError('단체 대리제출은 관리자 인증이 필요합니다.', 403, 'ADMIN_AUTH_REQUIRED');
+        }
+        return { mode: 'admin', workerId: null };
+    }
+
+    if (isAdmin) {
+        return { mode: 'admin', workerId: normalizedWorkerId || null };
+    }
+
+    const hasLinkProof = Boolean(
+        String(payload?.linkToken || '').trim()
+        || String(payload?.linkExpiresAt || '').trim(),
+    );
+    if (hasLinkProof) {
+        const linkVerification = verifyTrainingLinkToken(
+            String(payload?.sessionId || '').trim(),
+            payload?.linkExpiresAt,
+            payload?.linkToken,
+        );
+        if (!linkVerification.ok) {
+            const message = linkVerification.reason === 'expired'
+                ? '교육 링크가 만료되었습니다. 관리자에게 재발급을 요청해 주세요.'
+                : '서버에서 검증되지 않은 교육 링크입니다.';
+            throw createGatewayHttpError(message, 403, 'INVALID_TRAINING_LINK');
+        }
+        return { mode: 'training-link', workerId: null };
+    }
+
+    const hasWorkerAuthProof = Boolean(
+        normalizedWorkerId
+        || String(payload?.workerAuthToken || '').trim()
+        || String(payload?.workerAuthExpiresAt || '').trim(),
+    );
+    if (hasWorkerAuthProof) {
+        const workerVerification = verifyWorkerAuthenticationToken(
+            normalizedWorkerId,
+            payload?.workerAuthExpiresAt,
+            payload?.workerAuthToken,
+        );
+        if (!workerVerification.ok) {
+            const message = workerVerification.reason === 'expired'
+                ? '근로자 인증이 만료되었습니다. 다시 본인 확인해 주세요.'
+                : '검증되지 않은 근로자 인증입니다.';
+            throw createGatewayHttpError(message, 403, 'INVALID_WORKER_AUTH');
+        }
+        return { mode: 'worker-auth', workerId: normalizedWorkerId };
+    }
+
+    throw createGatewayHttpError(
+        '유효한 교육 링크 또는 검증된 근로자 인증이 필요합니다.',
+        403,
+        'TRAINING_SUBMISSION_AUTH_REQUIRED',
+    );
+};
+
+export const resolveAuthorizedWorkerId = (
+    authorization: TrainingSubmissionAuthorization,
+    payload: Record<string, unknown>,
+) => {
+    if (authorization.mode === 'training-link') return null;
+    if (authorization.mode === 'worker-auth') return authorization.workerId;
+    return authorization.workerId || String(payload?.workerId || '').trim() || null;
 };
 
 type RetryRequestBody = {
@@ -335,6 +418,21 @@ async function handleTrainingCheckAccess(req: any, res: any) {
     });
 }
 
+function sendWorkerAuthenticationSuccess(res: any, matched: any) {
+    const workerId = String(matched?.id || '').trim();
+    const proof = buildWorkerAuthenticationProof(workerId);
+
+    return res.status(200).json({
+        ok: true,
+        worker: {
+            worker_id: workerId,
+            name: String(matched?.name || ''),
+            nationality: String(matched?.nationality || ''),
+        },
+        ...proof,
+    });
+}
+
 async function handleWorkerAuthenticate(req: any, res: any) {
     const { keyType, keyValue } = req.body || {};
     const normalizedType = String(keyType || '').trim() as AuthKeyType;
@@ -364,14 +462,7 @@ async function handleWorkerAuthenticate(req: any, res: any) {
             return res.status(403).json({ ok: false, message: AUTH_FAIL_MESSAGE });
         }
 
-        return res.status(200).json({
-            ok: true,
-            worker: {
-                worker_id: String(matched.id || ''),
-                name: String(matched.name || ''),
-                nationality: String(matched.nationality || ''),
-            },
-        });
+        return sendWorkerAuthenticationSuccess(res, matched);
     }
 
     if (normalizedType === 'birthDate') {
@@ -385,14 +476,7 @@ async function handleWorkerAuthenticate(req: any, res: any) {
             return res.status(403).json({ ok: false, message: AUTH_FAIL_MESSAGE });
         }
 
-        return res.status(200).json({
-            ok: true,
-            worker: {
-                worker_id: String(matched.id || ''),
-                name: String(matched.name || ''),
-                nationality: String(matched.nationality || ''),
-            },
-        });
+        return sendWorkerAuthenticationSuccess(res, matched);
     }
 
     if (normalizedType === 'passport') {
@@ -406,23 +490,39 @@ async function handleWorkerAuthenticate(req: any, res: any) {
             return res.status(403).json({ ok: false, message: AUTH_FAIL_MESSAGE });
         }
 
-        return res.status(200).json({
-            ok: true,
-            worker: {
-                worker_id: String(matched.id || ''),
-                name: String(matched.name || ''),
-                nationality: String(matched.nationality || ''),
-            },
-        });
+        return sendWorkerAuthenticationSuccess(res, matched);
     }
 
     return res.status(400).json({ ok: false, message: '지원하지 않는 본인 확인 방식입니다.' });
 }
 
-async function handleSingleSignature(payload: any): Promise<any> {
+async function loadCanonicalWorker(supabase: any, workerId: string) {
+    const { data, error } = await supabase
+        .from('workers')
+        .select('id, name, nationality')
+        .eq('id', workerId)
+        .maybeSingle();
+
+    if (error) {
+        throw new Error(`workers 조회 실패: ${error.message}`);
+    }
+    if (!data?.id || !data?.name) {
+        throw createGatewayHttpError('인증된 근로자 정보를 찾을 수 없습니다.', 403, 'WORKER_NOT_FOUND');
+    }
+
+    return {
+        id: String(data.id).trim(),
+        name: String(data.name).trim(),
+        nationality: String(data.nationality || '').trim(),
+    };
+}
+
+async function handleSingleSignature(
+    payload: any,
+    authorization: TrainingSubmissionAuthorization,
+): Promise<any> {
     const {
         sessionId,
-        workerId,
         workerName,
         nationality,
         selectedLanguageCode,
@@ -436,13 +536,29 @@ async function handleSingleSignature(payload: any): Promise<any> {
         isManagerProxy,
     } = payload;
 
-    if (!sessionId || !workerId || !workerName || !nationality || !signatureDataUrl) {
+    if (!sessionId || !signatureDataUrl) {
         throw new Error('필수값 누락');
     }
 
-    const normalizedWorkerName = String(workerName).trim();
+    const supabase = getSupabaseClient();
+    const authorizedWorkerId = resolveAuthorizedWorkerId(authorization, payload);
+    let normalizedWorkerName = String(workerName || '').trim();
+    let normalizedNationality = String(nationality || '').trim();
+
+    if (authorization.mode !== 'training-link') {
+        if (!authorizedWorkerId) {
+            throw createGatewayHttpError('인증된 workerId가 필요합니다.', 403, 'WORKER_AUTH_REQUIRED');
+        }
+        const canonicalWorker = await loadCanonicalWorker(supabase, authorizedWorkerId);
+        normalizedWorkerName = canonicalWorker.name;
+        normalizedNationality = canonicalWorker.nationality;
+    }
+
     if (!normalizedWorkerName) {
         throw new Error('근로자 이름이 필요합니다.');
+    }
+    if (!normalizedNationality) {
+        throw new Error('근로자 국적 정보가 필요합니다.');
     }
 
     const match = String(signatureDataUrl).match(/^data:image\/png;base64,(.+)$/);
@@ -459,11 +575,9 @@ async function handleSingleSignature(payload: any): Promise<any> {
         throw new Error('위험성평가 숙지 체크가 필요합니다.');
     }
 
-    const supabase = getSupabaseClient();
-
     const isDuplicate = await hasExistingTrainingLog(supabase, {
         sessionId,
-        workerId: String(workerId).trim(),
+        workerId: authorizedWorkerId || undefined,
         workerName: normalizedWorkerName,
     });
     if (isDuplicate) {
@@ -482,17 +596,18 @@ async function handleSingleSignature(payload: any): Promise<any> {
 
     const pub = supabase.storage.from('signatures').getPublicUrl(path);
     const signatureUrl = pub.data.publicUrl;
+    const effectiveIsManagerProxy = authorization.mode === 'admin' && Boolean(isManagerProxy);
 
     await insertTrainingLogWithSchemaFallback(supabase, {
         session_id: sessionId,
-        worker_id: String(workerId).trim(),
+        worker_id: authorizedWorkerId,
         worker_name: normalizedWorkerName,
-        nationality,
+        nationality: normalizedNationality,
         signature_url: signatureUrl,
         audio_url: selectedAudioUrl || null,
         selected_language_code: selectedLanguageCode || null,
-        is_manager_proxy: Boolean(isManagerProxy),
-        signature_method: Boolean(isManagerProxy) ? 'manager_proxy' : 'worker_self',
+        is_manager_proxy: effectiveIsManagerProxy,
+        signature_method: effectiveIsManagerProxy ? 'manager_proxy' : 'worker_self',
         submitted_at: new Date().toISOString(),
     });
 
@@ -514,7 +629,11 @@ async function handleSingleSignature(payload: any): Promise<any> {
             acknowledgedRiskAssessment: Boolean(acknowledgedRiskAssessment),
         };
 
-    const comprehensionComplete = hasEngagementProof && Boolean(acknowledgedRiskAssessment);
+    const comprehensionComplete = !effectiveIsManagerProxy
+        && Boolean(reviewedGuidance)
+        && checklistPayload.riskReview
+        && checklistPayload.ppeConfirm
+        && checklistPayload.emergencyConfirm;
 
     const { error: ackError } = await supabase.from('training_acknowledgements').upsert({
         session_id: sessionId,
@@ -535,8 +654,29 @@ async function handleSingleSignature(payload: any): Promise<any> {
     return { signatureUrl, comprehensionComplete };
 }
 
+export const buildGroupProxyAcknowledgement = (payload: Record<string, unknown>) => {
+    const checklist = payload?.checklist && typeof payload.checklist === 'object'
+        ? payload.checklist as Record<string, unknown>
+        : {};
+
+    return {
+        reviewedGuidance: false,
+        checklist: {
+            riskReview: Boolean(checklist.riskReview),
+            ppeConfirm: Boolean(checklist.ppeConfirm),
+            emergencyConfirm: Boolean(checklist.emergencyConfirm),
+            audioPlayed: Boolean(payload?.audioPlayed),
+            scrolledToEnd: Boolean(payload?.scrolledToEnd),
+            acknowledgedRiskAssessment: Boolean(payload?.acknowledgedRiskAssessment),
+            proxySubmission: true,
+            selfAttested: false,
+        },
+        comprehensionComplete: false,
+    };
+};
+
 async function handleGroupSignatures(payload: any): Promise<any> {
-    const { sessionId, selectedLanguageCode, selectedAudioUrl, audioPlayed, isManagerProxy, checklist, signatures } = payload;
+    const { sessionId, selectedLanguageCode, selectedAudioUrl, signatures } = payload;
 
     if (!sessionId || typeof sessionId !== 'string') {
         throw new Error('sessionId가 필요합니다.');
@@ -583,23 +723,7 @@ async function handleGroupSignatures(payload: any): Promise<any> {
         throw new Error(`workers 테이블에 없는 근로자: ${missingWorkerIds.join(', ')}`);
     }
 
-    const checklistPayload = (checklist && typeof checklist === 'object')
-        ? {
-            riskReview: Boolean((checklist as any).riskReview),
-            ppeConfirm: Boolean((checklist as any).ppeConfirm),
-            emergencyConfirm: Boolean((checklist as any).emergencyConfirm),
-            audioPlayed: Boolean(audioPlayed),
-            scrolledToEnd: true,
-            acknowledgedRiskAssessment: true,
-        }
-        : {
-            riskReview: true,
-            ppeConfirm: true,
-            emergencyConfirm: true,
-            audioPlayed: Boolean(audioPlayed),
-            scrolledToEnd: true,
-            acknowledgedRiskAssessment: true,
-        };
+    const groupAcknowledgement = buildGroupProxyAcknowledgement(payload);
 
     const insertedWorkerIds: string[] = [];
     const skippedDuplicateWorkerIds: string[] = [];
@@ -647,7 +771,7 @@ async function handleGroupSignatures(payload: any): Promise<any> {
             signature_url: publicUrl,
             audio_url: selectedAudioUrl || null,
             selected_language_code: selectedLanguageCode || null,
-            is_manager_proxy: Boolean(isManagerProxy ?? true),
+            is_manager_proxy: true,
             signature_method: 'manager_group_proxy',
             submitted_at: new Date().toISOString(),
         });
@@ -656,9 +780,9 @@ async function handleGroupSignatures(payload: any): Promise<any> {
             session_id: sessionId,
             worker_name: worker.name,
             selected_language_code: selectedLanguageCode || null,
-            reviewed_guidance: true,
-            checklist: checklistPayload,
-            comprehension_complete: true,
+            reviewed_guidance: groupAcknowledgement.reviewedGuidance,
+            checklist: groupAcknowledgement.checklist,
+            comprehension_complete: groupAcknowledgement.comprehensionComplete,
             submitted_at: new Date().toISOString(),
         }, {
             onConflict: 'session_id,worker_name',
@@ -678,6 +802,7 @@ async function handleGroupSignatures(payload: any): Promise<any> {
         skippedDuplicateCount: skippedDuplicateWorkerIds.length,
         skippedDuplicateWorkerIds,
         signatureMethod: 'manager_group_proxy',
+        comprehensionComplete: false,
     };
 }
 
@@ -688,14 +813,18 @@ async function handleTrainingSubmit(req: any, res: any) {
         return res.status(400).json({ ok: false, message: 'type 필드 필수 (single|group)' });
     }
 
+    const normalizedPayload = payload && typeof payload === 'object'
+        ? payload as Record<string, unknown>
+        : {};
+    const authorization = resolveTrainingSubmissionAuthorization(req, String(type), normalizedPayload);
     let data;
 
     switch (type) {
         case 'single':
-            data = await handleSingleSignature(payload);
+            data = await handleSingleSignature(normalizedPayload, authorization);
             break;
         case 'group':
-            data = await handleGroupSignatures(payload);
+            data = await handleGroupSignatures(normalizedPayload);
             break;
         default:
             return res.status(400).json({ ok: false, message: `Unknown type: ${type}` });

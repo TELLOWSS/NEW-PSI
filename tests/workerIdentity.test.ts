@@ -2,22 +2,27 @@ import { describe, expect, it } from 'vitest';
 import type { WorkerRecord } from '../types';
 import {
     analyzeWorkerEvidenceReadiness,
+    applyWorkerUuidPolicy,
     buildNameBasedWorkerUuid,
+    buildWorkerTimelineGroups,
+    getWorkerMatchScore,
     getWorkerIdentityKey,
+    hasAmbiguousStableWorkerMatches,
     isSameWorkerTimeline,
+    mergeWorkerRegistrationRecords,
 } from '../utils/workerIdentity';
 
 const baseRecord = (patch: Partial<WorkerRecord>): WorkerRecord => ({
-    id: patch.id || 'r-1',
-    name: patch.name || '홍길동',
+    id: patch.id ?? 'r-1',
+    name: patch.name ?? '홍길동',
     employeeId: patch.employeeId,
     qrId: patch.qrId,
     worker_uuid: patch.worker_uuid,
     workerUuid: patch.workerUuid,
-    jobField: patch.jobField || '형틀',
-    teamLeader: patch.teamLeader || '김팀장',
-    nationality: patch.nationality || '대한민국',
-    date: patch.date || '2026-01-15',
+    jobField: patch.jobField ?? '형틀',
+    teamLeader: patch.teamLeader ?? '김팀장',
+    nationality: patch.nationality ?? '대한민국',
+    date: patch.date ?? '2026-01-15',
     safetyScore: patch.safetyScore ?? 70,
     safetyLevel: patch.safetyLevel || '중급',
     strengths: patch.strengths || [],
@@ -43,6 +48,22 @@ const baseRecord = (patch: Partial<WorkerRecord>): WorkerRecord => ({
 });
 
 describe('worker identity policy', () => {
+    it('preserves either input UUID alias instead of replacing it with a name-based UUID', () => {
+        const snakeCase = applyWorkerUuidPolicy(baseRecord({
+            worker_uuid: 'server-worker-001',
+        }));
+        const camelCase = applyWorkerUuidPolicy(baseRecord({
+            workerUuid: 'server-worker-002',
+        }));
+
+        expect(snakeCase.worker_uuid).toBe('server-worker-001');
+        expect(snakeCase.workerUuid).toBe('server-worker-001');
+        expect(camelCase.worker_uuid).toBe('server-worker-002');
+        expect(camelCase.workerUuid).toBe('server-worker-002');
+        expect(snakeCase.worker_uuid).not.toBe(buildNameBasedWorkerUuid(snakeCase));
+        expect(camelCase.workerUuid).not.toBe(buildNameBasedWorkerUuid(camelCase));
+    });
+
     it('uses job field, Korean-managed name, and nationality before volatile codes', () => {
         const january = baseRecord({
             id: 'jan',
@@ -64,6 +85,35 @@ describe('worker identity policy', () => {
         expect(getWorkerIdentityKey(january)).toBe(getWorkerIdentityKey(february));
         expect(buildNameBasedWorkerUuid(january)).toBe(buildNameBasedWorkerUuid(february));
         expect(isSameWorkerTimeline(january, february)).toBe(true);
+    });
+
+    it('keeps real same-name records separate when their stable UUIDs differ', () => {
+        const firstWorker = baseRecord({
+            id: 'same-name-a',
+            worker_uuid: 'f8762cd7-8a8b-4cb0-a6e2-000000000001',
+            name: '응우옌반안',
+            jobField: '형틀',
+            nationality: '베트남',
+        });
+        const secondWorker = baseRecord({
+            id: 'same-name-b',
+            workerUuid: 'f8762cd7-8a8b-4cb0-a6e2-000000000002',
+            name: '응우옌반안',
+            jobField: '형틀',
+            nationality: '베트남',
+        });
+        const legacyWorker = baseRecord({
+            id: 'same-name-legacy',
+            name: '응우옌반안',
+            jobField: '형틀',
+            nationality: '베트남',
+        });
+
+        expect(getWorkerIdentityKey(firstWorker)).not.toBe(getWorkerIdentityKey(secondWorker));
+        expect(getWorkerMatchScore(firstWorker, secondWorker)).toBe(-1);
+        expect(isSameWorkerTimeline(firstWorker, secondWorker)).toBe(false);
+        expect(buildWorkerTimelineGroups([firstWorker, secondWorker])).toHaveLength(2);
+        expect(hasAmbiguousStableWorkerMatches(legacyWorker, [firstWorker, secondWorker])).toBe(true);
     });
 
     it('does not merge same-name workers when job field or nationality differs', () => {
@@ -88,6 +138,83 @@ describe('worker identity policy', () => {
 
         expect(isSameWorkerTimeline(vietnamFormWorker, vietnamRebarWorker)).toBe(false);
         expect(isSameWorkerTimeline(vietnamFormWorker, chineseFormWorker)).toBe(false);
+    });
+
+    it('uses the name fallback only for legacy records with complete conservative identity fields', () => {
+        const january = baseRecord({
+            id: 'legacy-jan',
+            name: '응우옌반안',
+            jobField: '형틀',
+            nationality: '베트남',
+            date: '2026-01-10',
+        });
+        const february = baseRecord({
+            id: 'legacy-feb',
+            name: '응우옌반안',
+            jobField: '형틀',
+            nationality: '베트남',
+            date: '2026-02-10',
+        });
+        const unknownNationality = baseRecord({
+            id: 'legacy-unknown',
+            name: '응우옌반안',
+            jobField: '형틀',
+            nationality: '미상',
+        });
+
+        expect(isSameWorkerTimeline(january, february)).toBe(true);
+        expect(isSameWorkerTimeline(january, unknownNationality)).toBe(false);
+        expect(applyWorkerUuidPolicy(january).worker_uuid).toBe(buildNameBasedWorkerUuid(january));
+    });
+
+    it('does not merge personal data before server registration when stable UUIDs conflict', () => {
+        const records = [
+            {
+                ...baseRecord({
+                    id: 'server-a',
+                    worker_uuid: 'worker-a',
+                    name: '응우옌반안',
+                    jobField: '형틀',
+                    nationality: '베트남',
+                }),
+                phone_number: '01011112222',
+            },
+            {
+                ...baseRecord({
+                    id: 'server-b',
+                    workerUuid: 'worker-b',
+                    name: '응우옌반안',
+                    jobField: '형틀',
+                    nationality: '베트남',
+                }),
+                birth_date: '900101',
+            },
+        ];
+
+        const merged = mergeWorkerRegistrationRecords(records);
+
+        expect(merged).toHaveLength(2);
+        expect(merged[0].birth_date).toBeUndefined();
+        expect(merged[1].phone_number).toBeUndefined();
+    });
+
+    it('still merges complete UUID-less legacy registration rows conservatively', () => {
+        const records = [
+            {
+                ...baseRecord({ id: 'legacy-a', name: '레거시근로자' }),
+                phone_number: '01011112222',
+            },
+            {
+                ...baseRecord({ id: 'legacy-b', name: '레거시근로자' }),
+                birth_date: '900101',
+            },
+        ];
+
+        const merged = mergeWorkerRegistrationRecords(records);
+
+        expect(merged).toHaveLength(1);
+        expect(merged[0].phone_number).toBe('01011112222');
+        expect(merged[0].birth_date).toBe('900101');
     });
 
     it('summarizes public-safe evidence readiness without personal details', () => {

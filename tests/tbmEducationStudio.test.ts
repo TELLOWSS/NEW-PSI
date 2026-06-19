@@ -21,7 +21,8 @@ describe('TBM education studio', () => {
             workType: '철근',
         });
 
-        expect(draft.title).toContain('2026-07');
+        expect(draft.month).toBe('2026-07');
+        expect(draft.title).toContain('2026년 7월');
         expect(draft.risks[0].risk).toBe('추락');
         expect(draft.risks[0].evidenceLabels).toContain('다음 달 작업계획');
         expect(draft.risks).toHaveLength(3);

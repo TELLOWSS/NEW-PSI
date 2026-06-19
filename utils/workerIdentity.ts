@@ -1,6 +1,18 @@
 import type { WorkerRecord } from '../types';
 
 const GENERIC_WORKER_NAMES = new Set(['식별대기', '이름없음', '이름미확인', '미상', '분석실패']);
+const GENERIC_NATIONALITIES = new Set(['미상', '알수없음', 'UNKNOWN', 'UNSPECIFIED']);
+
+export type WorkerRegistrationIdentityRecord = Partial<WorkerRecord> & {
+    job_field?: unknown;
+    team_name?: unknown;
+    phone_number?: unknown;
+    phoneNumber?: unknown;
+    birth_date?: unknown;
+    birthDate?: unknown;
+    passport_number?: unknown;
+    passportNumber?: unknown;
+};
 
 export const normalizeWorkerIdentityText = (value: unknown): string => {
     return typeof value === 'string' ? value.trim().toUpperCase().replace(/\s+/g, '') : '';
@@ -29,8 +41,23 @@ export const stableWorkerHash = (seed: string): string => {
     return Math.abs(hash >>> 0).toString(36).toUpperCase();
 };
 
+const getRawWorkerUuidValue = (value: unknown): string => {
+    return typeof value === 'string' ? value.trim() : '';
+};
+
+export const getWorkerUuidValues = (record: Partial<WorkerRecord>): string[] => {
+    return Array.from(new Set([
+        normalizeWorkerIdentityText(record.worker_uuid),
+        normalizeWorkerIdentityText(record.workerUuid),
+    ].filter(Boolean)));
+};
+
 export const getWorkerUuidValue = (record: Partial<WorkerRecord>): string => {
-    return normalizeWorkerIdentityText(record.worker_uuid || record.workerUuid);
+    return getWorkerUuidValues(record)[0] || '';
+};
+
+export const hasWorkerUuidConflict = (record: Partial<WorkerRecord>): boolean => {
+    return getWorkerUuidValues(record).length > 1;
 };
 
 export const getWorkerNameIdentitySeed = (record: Partial<WorkerRecord>): string => {
@@ -40,7 +67,9 @@ export const getWorkerNameIdentitySeed = (record: Partial<WorkerRecord>): string
     const normalizedJobField = normalizeWorkerJobIdentityText(record.jobField);
     if (!normalizedJobField) return '';
 
-    const normalizedNationality = normalizeWorkerIdentityText(record.nationality) || 'UNKNOWN';
+    const normalizedNationality = normalizeWorkerIdentityText(record.nationality);
+    if (!normalizedNationality || GENERIC_NATIONALITIES.has(normalizedNationality)) return '';
+
     return `${normalizedJobField}|${normalizedName}|${normalizedNationality}`;
 };
 
@@ -49,7 +78,53 @@ export const buildNameBasedWorkerUuid = (record: Partial<WorkerRecord>): string 
     return seed ? `WN-${stableWorkerHash(seed).slice(0, 12)}` : '';
 };
 
+export const applyWorkerUuidPolicy = (
+    record: WorkerRecord,
+    inheritedUuid: unknown = '',
+): WorkerRecord => {
+    const snakeUuid = getRawWorkerUuidValue(record.worker_uuid);
+    const camelUuid = getRawWorkerUuidValue(record.workerUuid);
+
+    if (snakeUuid || camelUuid) {
+        return {
+            ...record,
+            worker_uuid: snakeUuid || camelUuid,
+            workerUuid: camelUuid || snakeUuid,
+        };
+    }
+
+    const employeeId = normalizeWorkerIdentityText(record.employeeId);
+    const qrId = normalizeWorkerIdentityText(record.qrId);
+    const inherited = getRawWorkerUuidValue(inheritedUuid);
+    const assignedUuid =
+        inherited ||
+        buildNameBasedWorkerUuid(record) ||
+        (employeeId ? `WU-${employeeId}` : '') ||
+        (qrId ? `WU-${qrId}` : '') ||
+        `WU-${stableWorkerHash([
+            normalizeWorkerIdentityText(record.id),
+            normalizeWorkerIdentityText(record.name),
+            normalizeWorkerIdentityText(record.nationality),
+            normalizeWorkerIdentityText(record.teamLeader),
+            normalizeWorkerIdentityText(record.jobField),
+            normalizeWorkerIdentityText(record.role),
+        ].join('|')).slice(0, 12)}`;
+
+    return {
+        ...record,
+        worker_uuid: assignedUuid,
+        workerUuid: assignedUuid,
+    };
+};
+
 export const getWorkerIdentityKey = (record: Partial<WorkerRecord>): string => {
+    if (hasWorkerUuidConflict(record)) {
+        return `record:${normalizeWorkerIdentityText(record.id) || 'UUID-CONFLICT'}`;
+    }
+
+    const workerUuid = getWorkerUuidValue(record);
+    if (workerUuid) return `worker:${workerUuid}`;
+
     const nameSeed = getWorkerNameIdentitySeed(record);
     if (nameSeed) return `job-name-nationality:${nameSeed}`;
 
@@ -59,13 +134,18 @@ export const getWorkerIdentityKey = (record: Partial<WorkerRecord>): string => {
     const qrId = normalizeWorkerIdentityText(record.qrId);
     if (qrId) return `qr:${qrId}`;
 
-    const workerUuid = getWorkerUuidValue(record);
-    if (workerUuid) return `worker:${workerUuid}`;
-
     return `record:${normalizeWorkerIdentityText(record.id) || 'UNKNOWN'}`;
 };
 
 export const getWorkerMatchScore = (target: Partial<WorkerRecord>, candidate: Partial<WorkerRecord>): number => {
+    const targetUuids = getWorkerUuidValues(target);
+    const candidateUuids = getWorkerUuidValues(candidate);
+
+    if (targetUuids.length > 1 || candidateUuids.length > 1) return -1;
+    if (targetUuids.length === 1 && candidateUuids.length === 1) {
+        return targetUuids[0] === candidateUuids[0] ? 160 : -1;
+    }
+
     const targetNameSeed = getWorkerNameIdentitySeed(target);
     const candidateNameSeed = getWorkerNameIdentitySeed(candidate);
     if (targetNameSeed && candidateNameSeed) {
@@ -80,41 +160,91 @@ export const getWorkerMatchScore = (target: Partial<WorkerRecord>, candidate: Pa
     const candidateQrId = normalizeWorkerIdentityText(candidate.qrId);
     if (targetQrId && candidateQrId && targetQrId === candidateQrId) return 100;
 
-    const targetUuid = getWorkerUuidValue(target);
-    const candidateUuid = getWorkerUuidValue(candidate);
-    if (targetUuid && candidateUuid && targetUuid === candidateUuid) return 90;
+    return -1;
+};
 
-    const targetName = normalizeWorkerIdentityText(target.name);
-    const candidateName = normalizeWorkerIdentityText(candidate.name);
-    const targetJob = normalizeWorkerJobIdentityText(target.jobField);
-    const candidateJob = normalizeWorkerJobIdentityText(candidate.jobField);
-    const targetNationality = normalizeWorkerIdentityText(target.nationality);
-    const candidateNationality = normalizeWorkerIdentityText(candidate.nationality);
+export const hasAmbiguousStableWorkerMatches = (
+    target: Partial<WorkerRecord>,
+    candidates: Partial<WorkerRecord>[],
+): boolean => {
+    if (getWorkerUuidValues(target).length > 0) return false;
 
-    if (!targetName || !candidateName || targetName !== candidateName) return -1;
-    if (!targetJob || !candidateJob || targetJob !== candidateJob) return -1;
-    if (targetNationality && candidateNationality && targetNationality !== candidateNationality) return -1;
+    const matchedStableUuids = new Set(
+        candidates
+            .filter((candidate) => getWorkerMatchScore(target, candidate) >= 55)
+            .map(getWorkerUuidValue)
+            .filter(Boolean),
+    );
 
-    let score = 55;
-    if (targetNationality && candidateNationality && targetNationality === candidateNationality) score += 15;
-
-    const targetTeam = normalizeWorkerIdentityText(target.teamLeader);
-    const candidateTeam = normalizeWorkerIdentityText(candidate.teamLeader);
-    if (targetTeam && candidateTeam && targetTeam === candidateTeam) score += 10;
-
-    const targetRole = normalizeWorkerIdentityText(target.role);
-    const candidateRole = normalizeWorkerIdentityText(candidate.role);
-    if (targetRole && candidateRole && targetRole === candidateRole) score += 5;
-
-    return score >= 55 ? score : -1;
+    return matchedStableUuids.size > 1;
 };
 
 export const isSameWorkerTimeline = (base: Partial<WorkerRecord>, candidate: Partial<WorkerRecord>): boolean => {
-    const baseNameSeed = getWorkerNameIdentitySeed(base);
-    const candidateNameSeed = getWorkerNameIdentitySeed(candidate);
-    if (baseNameSeed && candidateNameSeed) return baseNameSeed === candidateNameSeed;
-
     return getWorkerMatchScore(base, candidate) >= 55;
+};
+
+const getRegistrationIdentityKey = (
+    record: WorkerRegistrationIdentityRecord,
+    index: number,
+): string => {
+    const uuidValues = getWorkerUuidValues(record);
+    if (uuidValues.length === 1) return `worker:${uuidValues[0]}`;
+    if (uuidValues.length > 1) {
+        return `record:${normalizeWorkerIdentityText(record.id) || index}:uuid-conflict`;
+    }
+
+    const nameSeed = getWorkerNameIdentitySeed({
+        ...record,
+        jobField: String(record.jobField || record.job_field || ''),
+    });
+    const team = normalizeWorkerIdentityText(record.teamLeader || record.team_name);
+    if (nameSeed) return `legacy:${nameSeed}|${team || 'UNKNOWN-TEAM'}`;
+
+    return `record:${normalizeWorkerIdentityText(record.id) || index}`;
+};
+
+const firstNonEmptyRegistrationValue = (...values: unknown[]): unknown => {
+    return values.find((value) => String(value || '').trim().length > 0);
+};
+
+export const mergeWorkerRegistrationRecords = (
+    records: WorkerRegistrationIdentityRecord[],
+): WorkerRegistrationIdentityRecord[] => {
+    const merged = new Map<string, WorkerRegistrationIdentityRecord>();
+
+    records.forEach((record, index) => {
+        const key = getRegistrationIdentityKey(record, index);
+        const existing = merged.get(key);
+        if (!existing) {
+            merged.set(key, { ...record });
+            return;
+        }
+
+        existing.phone_number = firstNonEmptyRegistrationValue(
+            existing.phone_number,
+            existing.phoneNumber,
+            record.phone_number,
+            record.phoneNumber,
+        );
+        existing.birth_date = firstNonEmptyRegistrationValue(
+            existing.birth_date,
+            existing.birthDate,
+            record.birth_date,
+            record.birthDate,
+        );
+        existing.passport_number = firstNonEmptyRegistrationValue(
+            existing.passport_number,
+            existing.passportNumber,
+            record.passport_number,
+            record.passportNumber,
+        );
+        existing.nationality = firstNonEmptyRegistrationValue(
+            existing.nationality,
+            record.nationality,
+        ) as string | undefined;
+    });
+
+    return Array.from(merged.values());
 };
 
 const getRecordDateValue = (record: Partial<WorkerRecord>): number => {

@@ -2,11 +2,11 @@ import React from 'react';
 import { MOBILE_CARD_GRID_ITEM_CLASS } from './cardTokens';
 
 export interface InterpretationCardItem {
-    key: string;
+    key?: string;
     eyebrow: string;
     title: string;
     description: string;
-    tone: string;
+    tone?: string;
 }
 
 interface InterpretationCardGridProps {
@@ -29,7 +29,7 @@ export const InterpretationCardGrid: React.FC<InterpretationCardGridProps> = ({
     return (
         <div className={className}>
             {items.map((card) => (
-                <div key={card.key} className={`${cardClassName} ${card.tone}`}>
+                <div key={card.key || `${card.eyebrow}:${card.title}`} className={`${cardClassName} ${card.tone || ''}`}>
                     <p className={eyebrowClassName}>{card.eyebrow}</p>
                     <h5 className={titleClassName}>{card.title}</h5>
                     <p className={descriptionClassName}>{card.description}</p>

@@ -18,6 +18,49 @@ interface PerformanceAnalysisProps {
 }
 
 type PerformanceViewMode = 'full' | 'balanced' | 'essential';
+export type PerformanceTimeRange = '최근 3개월' | '최근 6개월' | '최근 1년';
+
+const PERFORMANCE_TIME_RANGE_MONTHS: Record<PerformanceTimeRange, number> = {
+    '최근 3개월': 3,
+    '최근 6개월': 6,
+    '최근 1년': 12,
+};
+
+const toLocalDateKey = (date: Date): string => (
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+);
+
+const getRecordDateKey = (value: string): string => {
+    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!match) return '';
+
+    const [, year, month, day] = match;
+    const date = new Date(Number(year), Number(month) - 1, Number(day));
+    if (
+        date.getFullYear() !== Number(year)
+        || date.getMonth() !== Number(month) - 1
+        || date.getDate() !== Number(day)
+    ) {
+        return '';
+    }
+    return `${year}-${month}-${day}`;
+};
+
+export const filterPerformanceRecordsByTimeRange = (
+    records: WorkerRecord[],
+    timeRange: PerformanceTimeRange,
+    now: Date = new Date(),
+): WorkerRecord[] => {
+    const monthCount = PERFORMANCE_TIME_RANGE_MONTHS[timeRange];
+    const startDate = new Date(now.getFullYear(), now.getMonth() - (monthCount - 1), 1);
+    const startKey = toLocalDateKey(startDate);
+    const endKey = toLocalDateKey(now);
+
+    return records.filter((record) => {
+        const recordDateKey = getRecordDateKey(record.date);
+        return recordDateKey >= startKey && recordDateKey <= endKey;
+    });
+};
 
 // 관리 직군 필터링 함수 (실무 공종인 '시스템', '할석' 등은 제외되지 않도록 유지)
 const isManagementRole = (field: string) => 
@@ -149,13 +192,13 @@ const calculateStandardDeviation = (scores: number[]) => {
 
 const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords }) => {
     const uiAudienceMode = useUiAudienceMode();
-    const [timeRange, setTimeRange] = useState('최근 6개월');
+    const [timeRange, setTimeRange] = useState<PerformanceTimeRange>('최근 6개월');
     const [compareMode, setCompareMode] = useState<'field' | 'team'>('field'); // New state for Radar Chart
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
     const [isViewModeManual, setIsViewModeManual] = useState<boolean>(() => getStoredPerformanceViewModeManual());
     const viewMetricSessionRef = useRef<string>(createMetricSessionId('performance-analysis'));
     const viewMetricStartRef = useRef<number>(Date.now());
-    const prevTimeRangeRef = useRef<string>('최근 6개월');
+    const prevTimeRangeRef = useRef<PerformanceTimeRange>('최근 6개월');
     const prevCompareModeRef = useRef<'field' | 'team'>('field');
     const [viewMode, setViewMode] = useState<PerformanceViewMode>(() => {
         const storedMode = getStoredPerformanceViewMode();
@@ -230,7 +273,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
         });
     };
 
-    const handleTimeRangeChange = (range: string) => {
+    const handleTimeRangeChange = (range: PerformanceTimeRange) => {
         setTimeRange(range);
         trackUIViewMetric('cta_click', 'performance-analysis', viewMetricSessionRef.current, {
             actionKey: 'time_range',
@@ -240,9 +283,10 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
     };
 
     // 1. 순수 근로자 데이터만 추출
-    const filteredBaseRecords = useMemo(() => 
-        workerRecords.filter(r => !isManagementRole(r.jobField))
-    , [workerRecords]);
+    const filteredBaseRecords = useMemo(() => {
+        const nonManagementRecords = workerRecords.filter((record) => !isManagementRole(record.jobField));
+        return filterPerformanceRecordsByTimeRange(nonManagementRecords, timeRange);
+    }, [timeRange, workerRecords]);
     const harnessSummary = useMemo(() => summarizeHarnessRecords(filteredBaseRecords), [filteredBaseRecords]);
     const monthlyTrendDashboards = useMemo(() => buildMonthlyTrendDashboards(filteredBaseRecords), [filteredBaseRecords]);
     const latestMonthlyTrend = monthlyTrendDashboards[monthlyTrendDashboards.length - 1];
@@ -285,7 +329,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
 
     const matrixData = useMemo(() => {
         const fields = Array.from(new Set(filteredBaseRecords.map(r => r.jobField || '미분류'))).sort();
-        const uniqueMonths = Array.from(new Set(filteredBaseRecords.map(r => r.date.substring(0, 7)))).sort().slice(-6);
+        const uniqueMonths = Array.from(new Set(filteredBaseRecords.map(r => r.date.substring(0, 7)))).sort();
         
         return {
             fields,
@@ -460,7 +504,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                         )}
                     </div>
                     <div className="flex items-center bg-slate-50 dark:bg-slate-900 rounded-lg p-1 border border-slate-200 dark:border-slate-700">
-                        {['최근 3개월', '최근 6개월', '최근 1년'].map(range => (
+                        {(['최근 3개월', '최근 6개월', '최근 1년'] as PerformanceTimeRange[]).map(range => (
                             <button 
                                 key={range}
                                 onClick={() => handleTimeRangeChange(range)}
@@ -620,7 +664,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                     <div className="bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
                         <div className="flex items-center justify-between mb-6">
                             <div>
-                                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 확인단계 분포 변화 (6개월)</h3>
+                                <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 확인단계 분포 변화 ({timeRange})</h3>
                                 <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">월별 근로자 확인단계 구성 비율의 변화를 추적합니다.</p>
                             </div>
                         </div>
@@ -772,7 +816,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                 <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-5 sm:p-8 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700">
                     <div className="mb-6 flex justify-between items-center">
                         <div>
-                            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 확인단계 분포 변화 (6개월)</h3>
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100">현장 확인단계 분포 변화 ({timeRange})</h3>
                             <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">월별 근로자 확인단계 구성 비율의 변화를 추적합니다. 추가 확인 구간 감소가 목표입니다.</p>
                         </div>
                         <div className="flex gap-3 text-xs font-bold">

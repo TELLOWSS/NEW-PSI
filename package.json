@@ -39,6 +39,7 @@
     "analyze:policy-impact:full": "npm run analyze:policy-impact && npm run analyze:policy-impact:onepager",
     "analyze:backfill-readiness": "node scripts/analyze-backfill-readiness.cjs --input reports/records-export.json --output-json reports/backfill-readiness.json --output-md reports/backfill-readiness.md",
     "analyze:backfill-readiness:tuned": "node scripts/analyze-backfill-readiness.cjs --input reports/records-export.json --output-json reports/backfill-readiness.json --output-md reports/backfill-readiness.md --est-input-tokens 900 --est-output-tokens 350 --ocr-input-tokens 1800 --ocr-output-tokens 250 --cost-input-1k 0.002 --cost-output-1k 0.006",
+    "audit:data": "node scripts/audit-data.mjs",
     "log:story": "node scripts/append-upgrade-story-log.cjs",
     "log:story:auto": "node scripts/append-upgrade-story-log.cjs --auto-from-reports",
     "log:story:auto:delta": "node scripts/append-upgrade-story-log.cjs --auto-from-reports",

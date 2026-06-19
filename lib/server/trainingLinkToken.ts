@@ -1,22 +1,37 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 const DEFAULT_LINK_TTL_MINUTES = 12 * 60;
+export const WORKER_AUTH_TTL_MINUTES = 10;
 
 const resolveTokenSecret = () => {
-    return (
-        process.env.TRAINING_LINK_SECRET ||
-        process.env.PSI_ADMIN_SECRET ||
-        process.env.VITE_PSI_ADMIN_SECRET ||
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-        'psi-training-link-dev-secret'
-    );
+    const secret = String(process.env.TRAINING_LINK_SECRET || '').trim();
+    if (!secret) {
+        throw new Error('TRAINING_LINK_SECRET 환경변수가 필요합니다.');
+    }
+    return secret;
 };
 
 const buildPayload = (sessionId: string, expiresAt: number) => `${sessionId}.${expiresAt}`;
+const buildWorkerAuthPayload = (workerId: string, expiresAt: number) => `worker-auth.${workerId}.${expiresAt}`;
 
 const signPayload = (payload: string) => {
     const secret = resolveTokenSecret();
     return createHmac('sha256', secret).update(payload).digest('hex');
+};
+
+const verifySignedPayload = (payload: string, token: string) => {
+    const expected = signPayload(payload);
+
+    try {
+        const expectedBuffer = Buffer.from(expected, 'utf8');
+        const tokenBuffer = Buffer.from(token, 'utf8');
+        if (expectedBuffer.length !== tokenBuffer.length) {
+            return false;
+        }
+        return timingSafeEqual(expectedBuffer, tokenBuffer);
+    } catch {
+        return false;
+    }
 };
 
 export const resolveLinkTtlMinutes = () => {
@@ -42,21 +57,50 @@ export const verifyTrainingLinkToken = (sessionId: string, expiresAtRaw: unknown
         return { ok: false as const, reason: 'expired' as const };
     }
 
-    const expected = generateTrainingLinkToken(sessionId, expiresAt);
+    return verifySignedPayload(buildPayload(sessionId, expiresAt), token)
+        ? { ok: true as const }
+        : { ok: false as const, reason: 'invalid' as const };
+};
 
-    try {
-        const expectedBuffer = Buffer.from(expected, 'utf8');
-        const tokenBuffer = Buffer.from(token, 'utf8');
-        if (expectedBuffer.length !== tokenBuffer.length) {
-            return { ok: false as const, reason: 'invalid' as const };
-        }
-        const match = timingSafeEqual(expectedBuffer, tokenBuffer);
-        return match
-            ? { ok: true as const }
-            : { ok: false as const, reason: 'invalid' as const };
-    } catch {
-        return { ok: false as const, reason: 'invalid' as const };
+export const generateWorkerAuthenticationToken = (workerId: string, expiresAt: number) => {
+    const normalizedWorkerId = String(workerId || '').trim();
+    if (!normalizedWorkerId || !Number.isFinite(expiresAt)) {
+        throw new Error('근로자 인증 토큰 입력값이 올바르지 않습니다.');
     }
+    return signPayload(buildWorkerAuthPayload(normalizedWorkerId, expiresAt));
+};
+
+export const verifyWorkerAuthenticationToken = (
+    workerId: string,
+    expiresAtRaw: unknown,
+    tokenRaw: unknown,
+) => {
+    const normalizedWorkerId = String(workerId || '').trim();
+    const expiresAt = Number(expiresAtRaw);
+    const token = typeof tokenRaw === 'string' ? tokenRaw.trim() : '';
+
+    if (!normalizedWorkerId || !Number.isFinite(expiresAt) || !token) {
+        return { ok: false as const, reason: 'missing' as const };
+    }
+
+    if (Date.now() > expiresAt) {
+        return { ok: false as const, reason: 'expired' as const };
+    }
+
+    return verifySignedPayload(buildWorkerAuthPayload(normalizedWorkerId, expiresAt), token)
+        ? { ok: true as const }
+        : { ok: false as const, reason: 'invalid' as const };
+};
+
+export const buildWorkerAuthenticationProof = (
+    workerId: string,
+    ttlMinutes = WORKER_AUTH_TTL_MINUTES,
+) => {
+    const expiresAt = Date.now() + ttlMinutes * 60 * 1000;
+    return {
+        workerAuthToken: generateWorkerAuthenticationToken(workerId, expiresAt),
+        workerAuthExpiresAt: expiresAt,
+    };
 };
 
 export const buildSignedTrainingMobileUrl = (baseUrl: string, sessionId: string, ttlMinutes = resolveLinkTtlMinutes()) => {

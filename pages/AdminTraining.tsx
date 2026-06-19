@@ -498,6 +498,37 @@ type TrainingSessionRow = {
     source_text_ko?: string;
     audio_urls?: Record<string, string | null>;
     created_at?: string;
+    training_title?: string | null;
+    training_category?: 'monthly_risk' | 'special_safety' | null;
+    target_mode?: 'submitted_only' | 'attendance_only' | null;
+    target_worker_names?: Array<string | { id?: string; name?: string }> | null;
+};
+
+export type TrainingTargetWorker = {
+    id: string;
+    name: string;
+    jobField: string;
+    teamName: string;
+};
+
+export const buildTrainingTargetSelectionPayload = (
+    targetMode: 'submitted_only' | 'attendance_only',
+    selectedTargetWorkerIds: string[],
+    targetWorkers: TrainingTargetWorker[],
+) => {
+    if (targetMode !== 'attendance_only') {
+        return { targetWorkerIds: [] as string[], targetWorkerNames: [] as string[] };
+    }
+
+    const workerMap = new Map(targetWorkers.map((worker) => [worker.id, worker]));
+    const selectedTargets = Array.from(new Set(selectedTargetWorkerIds))
+        .map((id) => workerMap.get(id))
+        .filter((worker): worker is TrainingTargetWorker => Boolean(worker));
+
+    return {
+        targetWorkerIds: selectedTargets.map((worker) => worker.id),
+        targetWorkerNames: selectedTargets.map((worker) => worker.name),
+    };
 };
 
 type LinkHistoryItem = {
@@ -511,10 +542,14 @@ type LinkHistoryItem = {
 type AwarenessStats = {
     submittedWorkers: number;
     confirmedWorkers: number;
-    unconfirmedWorkers: number;
-    confirmationRate: number;
+    targetWorkers: number | null;
+    targetScopeDefined: boolean;
+    unconfirmedWorkers: number | null;
+    confirmationRate: number | null;
     nationalityCount: number;
     ackDataSource: 'training_acknowledgements' | 'submission_gate';
+    unconfirmedTargetWorkerIds: string[];
+    unconfirmedTargetWorkerIdsTruncated: boolean;
 };
 
 type ActiveQrState = {
@@ -550,6 +585,14 @@ const AdminTraining: React.FC = () => {
     const [translatedTexts, setTranslatedTexts] = useState<Record<string, string>>({});
     const [pretranslatedTexts, setPretranslatedTexts] = useState<Record<string, string>>({});
     const [translationReports, setTranslationReports] = useState<Record<string, TranslationQualityReport>>({});
+    const [trainingTitle, setTrainingTitle] = useState('');
+    const [trainingCategory, setTrainingCategory] = useState<'monthly_risk' | 'special_safety'>('monthly_risk');
+    const [targetMode, setTargetMode] = useState<'submitted_only' | 'attendance_only'>('submitted_only');
+    const [targetWorkers, setTargetWorkers] = useState<TrainingTargetWorker[]>([]);
+    const [selectedTargetWorkerIds, setSelectedTargetWorkerIds] = useState<string[]>([]);
+    const [targetWorkerSearch, setTargetWorkerSearch] = useState('');
+    const [targetWorkersLoading, setTargetWorkersLoading] = useState(false);
+    const [targetWorkersError, setTargetWorkersError] = useState('');
     const [savedPreset, setSavedPreset] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
     const [selectedLanguages, setSelectedLanguages] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
     const [recentSessions, setRecentSessions] = useState<TrainingSessionRow[]>([]);
@@ -572,6 +615,20 @@ const AdminTraining: React.FC = () => {
             mobileUrl,
         ].join('\n')
         : '';
+
+    const filteredTargetWorkers = useMemo(() => {
+        const keyword = targetWorkerSearch.trim().toLocaleLowerCase('ko-KR');
+        if (!keyword) return targetWorkers;
+        return targetWorkers.filter((worker) =>
+            [worker.name, worker.jobField, worker.teamName, worker.id]
+                .some((value) => value.toLocaleLowerCase('ko-KR').includes(keyword))
+        );
+    }, [targetWorkerSearch, targetWorkers]);
+
+    const selectedTargetWorkerSet = useMemo(
+        () => new Set(selectedTargetWorkerIds),
+        [selectedTargetWorkerIds],
+    );
 
     const recentSessionInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
         const sessionsWithMissingAudio = recentSessions.filter((session) => Object.values(session.audio_urls || {}).some((url) => !url)).length;
@@ -615,11 +672,31 @@ const AdminTraining: React.FC = () => {
         }
 
         if (awarenessStats) {
+            if (!awarenessStats.targetScopeDefined) {
+                return [
+                    {
+                        eyebrow: '현재 상태',
+                        title: '교육 대상 범위가 아직 지정되지 않았습니다.',
+                        description: `${awarenessStats.submittedWorkers}명이 제출했지만, 전체 대상자 수가 없어 이수율은 계산하지 않습니다.`,
+                    },
+                    {
+                        eyebrow: '판단 근거',
+                        title: '제출자 수를 전체 대상자 수로 간주하지 않습니다.',
+                        description: '대상자를 지정한 새 세션부터 지정 인원 전체를 분모로 이수율을 계산합니다.',
+                    },
+                    {
+                        eyebrow: '다음 행동',
+                        title: '교육명·유형과 대상자를 선택해 세션을 다시 생성하세요.',
+                        description: '대상 미지정 세션은 100%로 오해되지 않도록 계속 범위 미정으로 표시됩니다.',
+                    },
+                ];
+            }
+
             return [
                 {
                     eyebrow: '지금 상태',
-                    title: `${awarenessStats.submittedWorkers}명 중 ${awarenessStats.confirmedWorkers}명이 이해·확약을 마쳤습니다.`,
-                    description: awarenessStats.unconfirmedWorkers > 0
+                    title: `지정 대상 ${awarenessStats.targetWorkers}명 중 ${awarenessStats.confirmedWorkers}명이 이해·확약을 마쳤습니다.`,
+                    description: Number(awarenessStats.unconfirmedWorkers) > 0
                         ? `${awarenessStats.unconfirmedWorkers}명은 아직 확인이 끝나지 않아 현장 후속 안내가 필요한 상태입니다.`
                         : '현재 세션에서는 미확약 인원이 없어 후속 추적 필요도가 낮습니다.',
                 },
@@ -632,7 +709,7 @@ const AdminTraining: React.FC = () => {
                 },
                 {
                     eyebrow: '다음 행동',
-                    title: awarenessStats.unconfirmedWorkers > 0
+                    title: Number(awarenessStats.unconfirmedWorkers) > 0
                         ? '미확약 인원을 다시 안내 대상에 포함해 QR 재접속 또는 직접 안내를 진행하세요.'
                         : '현재 세션은 유지하되, 링크 만료 전 재교육 필요 여부만 확인하면 됩니다.',
                     description: '확약률만 보는 대신 미확약 인원과 데이터 근거를 함께 보면, 추가 안내가 필요한 현장을 더 정확히 좁힐 수 있습니다.',
@@ -756,12 +833,18 @@ const AdminTraining: React.FC = () => {
             setAwarenessStats({
                 submittedWorkers: Number(data.submittedWorkers || 0),
                 confirmedWorkers: Number(data.confirmedWorkers || 0),
-                unconfirmedWorkers: Number(data.unconfirmedWorkers || 0),
-                confirmationRate: Number(data.confirmationRate || 0),
+                targetWorkers: typeof data.targetWorkers === 'number' ? data.targetWorkers : null,
+                targetScopeDefined: Boolean(data.targetScopeDefined),
+                unconfirmedWorkers: typeof data.unconfirmedWorkers === 'number' ? data.unconfirmedWorkers : null,
+                confirmationRate: typeof data.confirmationRate === 'number' ? data.confirmationRate : null,
                 nationalityCount: Number(data.nationalityCount || 0),
                 ackDataSource: data.ackDataSource === 'training_acknowledgements'
                     ? 'training_acknowledgements'
                     : 'submission_gate',
+                unconfirmedTargetWorkerIds: Array.isArray(data.unconfirmedTargetWorkerIds)
+                    ? data.unconfirmedTargetWorkerIds.map((id: unknown) => String(id || '')).filter(Boolean)
+                    : [],
+                unconfirmedTargetWorkerIdsTruncated: Boolean(data.unconfirmedTargetWorkerIdsTruncated),
             });
             setAwarenessLastFetchedAt(Date.now());
         } catch (error: any) {
@@ -848,12 +931,40 @@ const AdminTraining: React.FC = () => {
         return rows;
     };
 
+    const fetchTargetWorkers = async () => {
+        setTargetWorkersLoading(true);
+        setTargetWorkersError('');
+        try {
+            const response = await postAdminJson<{ ok: true; workers: TrainingTargetWorker[] }>(
+                '/api/admin/training',
+                { action: 'list-target-workers' },
+                { fallbackMessage: '교육 대상자 목록을 불러오지 못했습니다.' },
+            );
+            setTargetWorkers(Array.isArray(response.workers) ? response.workers : []);
+        } catch (error: any) {
+            setTargetWorkers([]);
+            setTargetWorkersError(error?.message || '교육 대상자 목록을 불러오지 못했습니다.');
+        } finally {
+            setTargetWorkersLoading(false);
+        }
+    };
+
     const hydrateSessionState = async (session: TrainingSessionRow, label: string) => {
         const signed = await requestSignedMobileUrl(String(session.id));
         setMobileUrl(signed.mobileUrl);
         setLinkExpiresAt(Number.isFinite(signed.linkExpiresAt) ? signed.linkExpiresAt : null);
         setCurrentSessionId(String(session.id));
         if (session.source_text_ko) setSourceTextKo(session.source_text_ko);
+        setTrainingTitle(String(session.training_title || ''));
+        setTrainingCategory(session.training_category === 'special_safety' ? 'special_safety' : 'monthly_risk');
+        setTargetMode(session.target_mode === 'attendance_only' ? 'attendance_only' : 'submitted_only');
+        setSelectedTargetWorkerIds(
+            Array.isArray(session.target_worker_names)
+                ? session.target_worker_names
+                    .map((target) => target && typeof target === 'object' ? String(target.id || '').trim() : '')
+                    .filter(Boolean)
+                : [],
+        );
 
         const restoredAudioUrls = session.audio_urls || {};
         setSessionAudioUrls(restoredAudioUrls);
@@ -870,6 +981,10 @@ const AdminTraining: React.FC = () => {
             setMessage(label);
         }
     };
+
+    useEffect(() => {
+        void fetchTargetWorkers();
+    }, []);
 
     useEffect(() => {
         const restoreLatestSession = async () => {
@@ -1003,6 +1118,11 @@ const AdminTraining: React.FC = () => {
     };
 
     const handleCreate = async () => {
+        if (!trainingTitle.trim()) {
+            alert('교육명을 입력해 주세요.');
+            return;
+        }
+
         if (!sourceTextKo.trim()) {
             alert(t.emptySourceAlert);
             return;
@@ -1010,6 +1130,22 @@ const AdminTraining: React.FC = () => {
 
         if (selectedLanguages.length === 0) {
             alert(t.minLangAlert);
+            return;
+        }
+
+        if (targetMode === 'attendance_only' && selectedTargetWorkerIds.length === 0) {
+            alert('지정 대상자 기준을 선택했다면 대상자를 1명 이상 선택해 주세요.');
+            return;
+        }
+
+        const targetSelectionPayload = buildTrainingTargetSelectionPayload(
+            targetMode,
+            selectedTargetWorkerIds,
+            targetWorkers,
+        );
+
+        if (targetMode === 'attendance_only' && targetSelectionPayload.targetWorkerIds.length !== selectedTargetWorkerIds.length) {
+            alert('대상자 목록이 변경되었습니다. 목록을 다시 불러온 뒤 대상자를 다시 선택해 주세요.');
             return;
         }
 
@@ -1034,6 +1170,10 @@ const AdminTraining: React.FC = () => {
                     sourceTextKo,
                     selectedLanguages,
                     pretranslatedTexts,
+                    trainingTitle: trainingTitle.trim(),
+                    trainingCategory,
+                    targetMode,
+                    ...targetSelectionPayload,
                 }),
             });
 
@@ -1285,6 +1425,137 @@ const AdminTraining: React.FC = () => {
                     </button>
                 </div>
 
+                <section className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <label className="block">
+                            <span className="text-xs font-black text-slate-700 dark:text-slate-200">교육명</span>
+                            <input
+                                type="text"
+                                value={trainingTitle}
+                                onChange={(event) => setTrainingTitle(event.target.value)}
+                                placeholder="예: 6월 추락·끼임 예방교육"
+                                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                            />
+                        </label>
+                        <label className="block">
+                            <span className="text-xs font-black text-slate-700 dark:text-slate-200">교육유형</span>
+                            <select
+                                value={trainingCategory}
+                                onChange={(event) => setTrainingCategory(event.target.value === 'special_safety' ? 'special_safety' : 'monthly_risk')}
+                                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                            >
+                                <option value="monthly_risk">월간 위험성평가 교육</option>
+                                <option value="special_safety">특별 안전교육</option>
+                            </select>
+                        </label>
+                    </div>
+
+                    <div className="mt-4">
+                        <p className="text-xs font-black text-slate-700 dark:text-slate-200">이수율 대상 범위</p>
+                        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                            <label className={`rounded-xl border p-3 ${targetMode === 'attendance_only' ? 'border-indigo-300 bg-indigo-50 dark:bg-indigo-900/30' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'}`}>
+                                <input
+                                    type="radio"
+                                    name="training-target-mode"
+                                    checked={targetMode === 'attendance_only'}
+                                    onChange={() => setTargetMode('attendance_only')}
+                                />
+                                <span className="ml-2 text-xs font-black text-slate-800 dark:text-slate-100">지정 대상자 전체 기준</span>
+                                <p className="mt-1 pl-5 text-[11px] font-bold text-slate-500 dark:text-slate-400">선택한 대상자 전체를 이수율 분모로 사용합니다.</p>
+                            </label>
+                            <label className={`rounded-xl border p-3 ${targetMode === 'submitted_only' ? 'border-amber-300 bg-amber-50 dark:bg-amber-900/20' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'}`}>
+                                <input
+                                    type="radio"
+                                    name="training-target-mode"
+                                    checked={targetMode === 'submitted_only'}
+                                    onChange={() => setTargetMode('submitted_only')}
+                                />
+                                <span className="ml-2 text-xs font-black text-slate-800 dark:text-slate-100">범위 미지정</span>
+                                <p className="mt-1 pl-5 text-[11px] font-bold text-slate-500 dark:text-slate-400">제출 현황만 집계하며 이수율은 표시하지 않습니다.</p>
+                            </label>
+                        </div>
+                    </div>
+
+                    {targetMode === 'attendance_only' && (
+                        <div className="mt-4 rounded-xl border border-indigo-200 bg-white p-3 dark:border-indigo-500/30 dark:bg-slate-800">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                    <p className="text-xs font-black text-slate-800 dark:text-slate-100">교육 대상자 선택</p>
+                                    <p className="mt-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                        선택 {selectedTargetWorkerIds.length}명 · 안정 ID와 이름만 세션에 저장합니다.
+                                    </p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedTargetWorkerIds(Array.from(new Set([
+                                            ...selectedTargetWorkerIds,
+                                            ...filteredTargetWorkers.map((worker) => worker.id),
+                                        ])))}
+                                        className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-[11px] font-black text-indigo-700"
+                                    >
+                                        검색 결과 전체 선택
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSelectedTargetWorkerIds([])}
+                                        className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-black text-slate-600"
+                                    >
+                                        선택 해제
+                                    </button>
+                                </div>
+                            </div>
+                            <input
+                                type="search"
+                                value={targetWorkerSearch}
+                                onChange={(event) => setTargetWorkerSearch(event.target.value)}
+                                placeholder="이름·공종·팀 검색"
+                                className="mt-3 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                            />
+                            {targetWorkersLoading ? (
+                                <p className="mt-3 text-xs font-bold text-slate-500">대상자 목록을 불러오는 중입니다.</p>
+                            ) : targetWorkersError ? (
+                                <div className="mt-3 flex flex-wrap items-center gap-2">
+                                    <p className="text-xs font-bold text-rose-700">{targetWorkersError}</p>
+                                    <button type="button" onClick={() => void fetchTargetWorkers()} className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-[11px] font-black text-rose-700">
+                                        다시 불러오기
+                                    </button>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
+                                        {filteredTargetWorkers.slice(0, 200).map((worker) => (
+                                            <label key={worker.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-700">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedTargetWorkerSet.has(worker.id)}
+                                                    onChange={() => setSelectedTargetWorkerIds((current) =>
+                                                        current.includes(worker.id)
+                                                            ? current.filter((id) => id !== worker.id)
+                                                            : [...current, worker.id]
+                                                    )}
+                                                />
+                                                <span className="min-w-0">
+                                                    <span className="block text-xs font-black text-slate-800 dark:text-slate-100">{worker.name}</span>
+                                                    <span className="block truncate text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                                                        {[worker.jobField, worker.teamName].filter(Boolean).join(' · ') || '공종·팀 미등록'}
+                                                    </span>
+                                                </span>
+                                            </label>
+                                        ))}
+                                        {filteredTargetWorkers.length === 0 && (
+                                            <p className="py-4 text-center text-xs font-bold text-slate-500">검색 결과가 없습니다.</p>
+                                        )}
+                                    </div>
+                                    {filteredTargetWorkers.length > 200 && (
+                                        <p className="mt-2 text-[10px] font-bold text-amber-700">화면에는 첫 200명만 표시됩니다. 검색 결과 전체 선택은 현재 검색된 {filteredTargetWorkers.length}명에 적용됩니다.</p>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    )}
+                </section>
+
                 <textarea
                     value={sourceTextKo}
                     onChange={(e) => {
@@ -1499,35 +1770,56 @@ const AdminTraining: React.FC = () => {
                 ) : awarenessError ? (
                     <p className="mt-3 text-sm font-bold text-rose-700">{t.statErrorPrefix}: {awarenessError}</p>
                 ) : awarenessStats ? (
-                    <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-                            <p className="text-[11px] font-black text-slate-500 dark:text-slate-400">{t.statSubmitted}</p>
-                            <p className="mt-1 text-xl font-black text-slate-900 dark:text-slate-100">{awarenessStats.submittedWorkers}</p>
+                    <div className="mt-4">
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                            <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                                <p className="text-[11px] font-black text-slate-500 dark:text-slate-400">{t.statSubmitted}</p>
+                                <p className="mt-1 text-xl font-black text-slate-900 dark:text-slate-100">{awarenessStats.submittedWorkers}</p>
+                            </div>
+                            <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                                <p className="text-[11px] font-black text-slate-500 dark:text-slate-400">지정 대상자</p>
+                                <p className="mt-1 text-xl font-black text-slate-900 dark:text-slate-100">
+                                    {awarenessStats.targetScopeDefined ? awarenessStats.targetWorkers : '범위 미정'}
+                                </p>
+                            </div>
+                            <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50">
+                                <p className="text-[11px] font-black text-emerald-700">{t.statConfirmed}</p>
+                                <p className="mt-1 text-xl font-black text-emerald-800">{awarenessStats.confirmedWorkers}</p>
+                            </div>
+                            <div className="p-3 rounded-xl border border-amber-200 bg-amber-50">
+                                <p className="text-[11px] font-black text-amber-700">{t.statUnconfirmed}</p>
+                                <p className="mt-1 text-xl font-black text-amber-800">
+                                    {awarenessStats.targetScopeDefined ? awarenessStats.unconfirmedWorkers : '범위 미정'}
+                                </p>
+                            </div>
+                            <div className="p-3 rounded-xl border border-indigo-200 bg-indigo-50">
+                                <p className="text-[11px] font-black text-indigo-700">{t.statRate}</p>
+                                <p className="mt-1 text-xl font-black text-indigo-800">
+                                    {awarenessStats.targetScopeDefined ? `${awarenessStats.confirmationRate}%` : '범위 미정'}
+                                </p>
+                            </div>
+                            <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                                <p className="text-[11px] font-black text-slate-500 dark:text-slate-400">{t.statNationalities}</p>
+                                <p className="mt-1 text-xl font-black text-slate-900 dark:text-slate-100">{awarenessStats.nationalityCount}</p>
+                            </div>
+                            <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                                <p className="text-[11px] font-black text-slate-500 dark:text-slate-400">{t.statDataSource}</p>
+                                <p className="mt-1 text-[12px] font-black text-slate-900 dark:text-slate-100">
+                                    {awarenessStats.ackDataSource === 'training_acknowledgements'
+                                        ? t.statSourceAckTable
+                                        : t.statSourceSubmissionGate}
+                                </p>
+                            </div>
                         </div>
-                        <div className="p-3 rounded-xl border border-emerald-200 bg-emerald-50">
-                            <p className="text-[11px] font-black text-emerald-700">{t.statConfirmed}</p>
-                            <p className="mt-1 text-xl font-black text-emerald-800">{awarenessStats.confirmedWorkers}</p>
-                        </div>
-                        <div className="p-3 rounded-xl border border-amber-200 bg-amber-50">
-                            <p className="text-[11px] font-black text-amber-700">{t.statUnconfirmed}</p>
-                            <p className="mt-1 text-xl font-black text-amber-800">{awarenessStats.unconfirmedWorkers}</p>
-                        </div>
-                        <div className="p-3 rounded-xl border border-indigo-200 bg-indigo-50">
-                            <p className="text-[11px] font-black text-indigo-700">{t.statRate}</p>
-                            <p className="mt-1 text-xl font-black text-indigo-800">{awarenessStats.confirmationRate}%</p>
-                        </div>
-                        <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-                            <p className="text-[11px] font-black text-slate-500 dark:text-slate-400">{t.statNationalities}</p>
-                            <p className="mt-1 text-xl font-black text-slate-900 dark:text-slate-100">{awarenessStats.nationalityCount}</p>
-                        </div>
-                        <div className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-                            <p className="text-[11px] font-black text-slate-500 dark:text-slate-400">{t.statDataSource}</p>
-                            <p className="mt-1 text-[12px] font-black text-slate-900 dark:text-slate-100">
-                                {awarenessStats.ackDataSource === 'training_acknowledgements'
-                                    ? t.statSourceAckTable
-                                    : t.statSourceSubmissionGate}
-                            </p>
-                        </div>
+                        {awarenessStats.unconfirmedTargetWorkerIds.length > 0 && (
+                            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+                                <p className="text-[11px] font-black text-amber-800">미확약 대상 안정 ID</p>
+                                <p className="mt-1 text-[11px] font-bold text-amber-700">
+                                    {awarenessStats.unconfirmedTargetWorkerIds.slice(0, 20).map((id) => id.slice(0, 8)).join(', ')}
+                                    {(awarenessStats.unconfirmedTargetWorkerIds.length > 20 || awarenessStats.unconfirmedTargetWorkerIdsTruncated) ? ' 외' : ''}
+                                </p>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <p className="mt-3 text-sm font-bold text-slate-500 dark:text-slate-400">{t.recentEmpty}</p>

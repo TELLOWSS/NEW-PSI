@@ -23,10 +23,29 @@ type TrainingAction =
     | 'create'
     | 'reissue-link'
     | 'list-sessions'
+    | 'list-target-workers'
     | 'dashboard-summary'
     | 'awareness-stats'
     | 'upload-audio'
     | 'delete-session';
+
+export type TrainingTargetEntry = {
+    id: string;
+    name: string;
+};
+
+type TrainingLogIdentityRow = {
+    worker_id?: unknown;
+    worker_name?: unknown;
+    nationality?: unknown;
+};
+
+type TrainingAcknowledgementRow = {
+    worker_name?: unknown;
+    reviewed_guidance?: unknown;
+    checklist?: unknown;
+    comprehension_complete?: unknown;
+};
 
 function safeGetEnv() {
     const supabaseUrl =
@@ -85,17 +104,66 @@ function sendJsonError(res: any, statusCode: number, message: string) {
 
 async function handleListSessions(res: any) {
     const supabase = getSupabaseClient();
-    const result = await supabase
+    let result: any = await supabase
         .from('training_sessions')
-        .select('id, source_text_ko, audio_urls, created_at')
+        .select('id, source_text_ko, audio_urls, created_at, training_title, training_category, target_mode, target_worker_names')
         .order('created_at', { ascending: false })
         .limit(10);
+
+    if (result.error) {
+        result = await supabase
+            .from('training_sessions')
+            .select('id, source_text_ko, audio_urls, created_at')
+            .order('created_at', { ascending: false })
+            .limit(10);
+    }
 
     if (result.error) {
         return sendJsonError(res, 500, formatSupabaseError(result.error));
     }
 
     return res.status(200).json({ ok: true, sessions: result.data || [] });
+}
+
+async function handleListTargetWorkers(res: any) {
+    const supabase = getSupabaseClient();
+    let result: any = await supabase
+        .from('workers')
+        .select('id, name, job_field, team_name, deleted_at')
+        .is('deleted_at', null)
+        .order('name', { ascending: true })
+        .limit(5000);
+
+    if (result.error) {
+        result = await supabase
+            .from('workers')
+            .select('id, name, job_field, team_name')
+            .order('name', { ascending: true })
+            .limit(5000);
+    }
+
+    if (result.error) {
+        result = await supabase
+            .from('workers')
+            .select('id, name')
+            .order('name', { ascending: true })
+            .limit(5000);
+    }
+
+    if (result.error) {
+        return sendJsonError(res, 500, formatSupabaseError(result.error));
+    }
+
+    const workers = (result.data || [])
+        .map((row: any) => ({
+            id: String(row?.id || '').trim(),
+            name: String(row?.name || '').trim(),
+            jobField: String(row?.job_field || '').trim(),
+            teamName: String(row?.team_name || '').trim(),
+        }))
+        .filter((row: { id: string; name: string }) => row.id && row.name);
+
+    return res.status(200).json({ ok: true, workers });
 }
 
 async function handleDashboardSummary(res: any) {
@@ -149,6 +217,170 @@ function resolveChecklistComplete(checklist: unknown): boolean {
     if (!checklist || typeof checklist !== 'object') return false;
     const value = checklist as Record<string, unknown>;
     return Boolean(value.riskReview) && Boolean(value.ppeConfirm) && Boolean(value.emergencyConfirm);
+}
+
+function normalizeIdentityValue(value: unknown): string {
+    return String(value || '').trim();
+}
+
+function normalizeNameKey(value: unknown): string {
+    return normalizeIdentityValue(value).toLocaleLowerCase('ko-KR').replace(/\s+/g, ' ');
+}
+
+function normalizeIdKey(value: unknown): string {
+    return normalizeIdentityValue(value).toLowerCase();
+}
+
+export function normalizeTrainingTargets(
+    targetWorkerIds: unknown,
+    targetWorkerNames: unknown,
+): TrainingTargetEntry[] {
+    const ids = Array.isArray(targetWorkerIds) ? targetWorkerIds : [];
+    const names = Array.isArray(targetWorkerNames) ? targetWorkerNames : [];
+    const seen = new Set<string>();
+    const targets: TrainingTargetEntry[] = [];
+
+    for (let index = 0; index < Math.max(ids.length, names.length); index += 1) {
+        const id = normalizeIdentityValue(ids[index]);
+        const name = normalizeIdentityValue(names[index]);
+        if (!id && !name) continue;
+
+        const key = id ? `id:${normalizeIdKey(id)}` : `name:${normalizeNameKey(name)}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        targets.push({ id, name });
+        if (targets.length >= 5000) break;
+    }
+
+    return targets;
+}
+
+export function parseStoredTrainingTargets(value: unknown): TrainingTargetEntry[] {
+    if (!Array.isArray(value)) return [];
+
+    const ids: string[] = [];
+    const names: string[] = [];
+
+    for (const item of value) {
+        if (item && typeof item === 'object') {
+            const record = item as Record<string, unknown>;
+            ids.push(normalizeIdentityValue(record.id ?? record.workerId ?? record.worker_id));
+            names.push(normalizeIdentityValue(record.name ?? record.workerName ?? record.worker_name));
+        } else {
+            ids.push('');
+            names.push(normalizeIdentityValue(item));
+        }
+    }
+
+    return normalizeTrainingTargets(ids, names);
+}
+
+export function calculateTrainingAwarenessStats(input: {
+    targetMode?: unknown;
+    storedTargets?: unknown;
+    logs?: TrainingLogIdentityRow[] | null;
+    acknowledgements?: TrainingAcknowledgementRow[] | null;
+    acknowledgementAvailable: boolean;
+}) {
+    const targets = parseStoredTrainingTargets(input.storedTargets);
+    const targetScopeDefined = targets.length > 0;
+    const workerIdentitySet = new Set<string>();
+    const nationalitySet = new Set<string>();
+    const submittedIds = new Set<string>();
+    const submittedNames = new Set<string>();
+    const submittedNamesById = new Map<string, Set<string>>();
+
+    for (const row of input.logs || []) {
+        const workerId = normalizeIdKey(row?.worker_id);
+        const workerName = normalizeNameKey(row?.worker_name);
+        const nationality = normalizeIdentityValue(row?.nationality);
+        const identityKey = workerId ? `id:${workerId}` : (workerName ? `name:${workerName}` : '');
+
+        if (identityKey) workerIdentitySet.add(identityKey);
+        if (workerId) submittedIds.add(workerId);
+        if (workerName) submittedNames.add(workerName);
+        if (workerId && workerName) {
+            const names = submittedNamesById.get(workerId) || new Set<string>();
+            names.add(workerName);
+            submittedNamesById.set(workerId, names);
+        }
+        if (nationality) nationalitySet.add(nationality);
+    }
+
+    const confirmedNames = new Set<string>();
+    if (input.acknowledgementAvailable) {
+        for (const row of input.acknowledgements || []) {
+            const workerName = normalizeNameKey(row?.worker_name);
+            if (!workerName) continue;
+
+            const reviewedGuidance = Boolean(row?.reviewed_guidance);
+            const checklistComplete = resolveChecklistComplete(row?.checklist);
+            const comprehensionComplete = Boolean(row?.comprehension_complete)
+                || (reviewedGuidance && checklistComplete);
+            if (comprehensionComplete) confirmedNames.add(workerName);
+        }
+    }
+
+    const isTargetSubmitted = (target: TrainingTargetEntry) => {
+        const idKey = normalizeIdKey(target.id);
+        const nameKey = normalizeNameKey(target.name);
+        return idKey ? submittedIds.has(idKey) : Boolean(nameKey && submittedNames.has(nameKey));
+    };
+    const isTargetConfirmed = (target: TrainingTargetEntry) => {
+        if (!isTargetSubmitted(target)) return false;
+        if (!input.acknowledgementAvailable) return true;
+
+        const idKey = normalizeIdKey(target.id);
+        const nameKey = normalizeNameKey(target.name);
+        if (idKey) {
+            const submittedTargetNames = submittedNamesById.get(idKey);
+            return Boolean(submittedTargetNames && Array.from(submittedTargetNames).some((name) => confirmedNames.has(name)));
+        }
+        return Boolean(nameKey && confirmedNames.has(nameKey));
+    };
+
+    const confirmedTargets = targets.filter(isTargetConfirmed);
+    let confirmedWorkers = confirmedTargets.length;
+
+    if (!targetScopeDefined) {
+        confirmedWorkers = input.acknowledgementAvailable
+            ? Array.from(submittedNames).filter((name) => confirmedNames.has(name)).length
+            : workerIdentitySet.size;
+    }
+
+    const targetWorkers = targetScopeDefined ? targets.length : null;
+    const unconfirmedWorkers = targetScopeDefined
+        ? Math.max(0, targets.length - confirmedTargets.length)
+        : null;
+    const confirmationRate = targetScopeDefined && targets.length > 0
+        ? Math.round((confirmedTargets.length / targets.length) * 100)
+        : null;
+    const unconfirmedTargetWorkerIds = targetScopeDefined
+        ? targets
+            .filter((target) => !isTargetConfirmed(target))
+            .map((target) => target.id)
+            .filter(Boolean)
+            .slice(0, 200)
+        : [];
+    const totalUnconfirmedTargetIds = targetScopeDefined
+        ? targets.filter((target) => !isTargetConfirmed(target) && Boolean(target.id)).length
+        : 0;
+
+    return {
+        submittedWorkers: workerIdentitySet.size,
+        confirmedWorkers,
+        targetWorkers,
+        targetScopeDefined,
+        unconfirmedWorkers,
+        confirmationRate,
+        nationalityCount: nationalitySet.size,
+        ackDataSource: input.acknowledgementAvailable
+            ? 'training_acknowledgements' as const
+            : 'submission_gate' as const,
+        targetMode: input.targetMode === 'attendance_only' ? 'attendance_only' as const : 'submitted_only' as const,
+        unconfirmedTargetWorkerIds,
+        unconfirmedTargetWorkerIdsTruncated: totalUnconfirmedTargetIds > unconfirmedTargetWorkerIds.length,
+    };
 }
 
 async function translateSingleLanguageSafe(
@@ -257,6 +489,7 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
     const trainingTitle = body.trainingTitle;
     const trainingCategory = body.trainingCategory;
     const targetMode = body.targetMode;
+    const targetWorkerIds = body.targetWorkerIds;
     const targetWorkerNames = body.targetWorkerNames;
     const pretranslatedTexts = body.pretranslatedTexts;
 
@@ -264,15 +497,7 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
     const normalizedTrainingTitle = typeof trainingTitle === 'string' ? trainingTitle.trim() : '';
     const normalizedTrainingCategory = trainingCategory === 'special_safety' ? 'special_safety' : 'monthly_risk';
     const normalizedTargetMode = targetMode === 'attendance_only' ? 'attendance_only' : 'submitted_only';
-    const normalizedTargetWorkerNames = Array.isArray(targetWorkerNames)
-        ? Array.from(
-            new Set(
-                targetWorkerNames
-                    .map((item: unknown) => String(item || '').trim())
-                    .filter((item: string) => item.length > 0)
-            )
-        ).slice(0, 5000)
-        : [];
+    const normalizedTargets = normalizeTrainingTargets(targetWorkerIds, targetWorkerNames);
 
     const providedTranslations = pretranslatedTexts && typeof pretranslatedTexts === 'object'
         ? Object.fromEntries(
@@ -320,7 +545,7 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
             training_title: normalizedTrainingTitle || null,
             training_category: normalizedTrainingCategory,
             target_mode: normalizedTargetMode,
-            target_worker_names: normalizedTargetWorkerNames,
+            target_worker_names: normalizedTargets,
         },
         {
             id: generatedId,
@@ -393,6 +618,10 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
         translationReports,
         failedLanguages,
         translationSkipped: shouldSkipTranslation,
+        trainingTitle: normalizedTrainingTitle,
+        trainingCategory: normalizedTrainingCategory,
+        targetMode: normalizedTargetMode,
+        targetWorkerCount: normalizedTargets.length,
     });
 }
 
@@ -433,28 +662,48 @@ async function handleAwarenessStats(res: any, body: Record<string, unknown>) {
 
     const supabase = getSupabaseClient();
 
-    const logsResult = await supabase
+    let sessionResult = await supabase
+        .from('training_sessions')
+        .select('id, target_mode, target_worker_names')
+        .eq('id', sessionId)
+        .single();
+
+    if (sessionResult.error) {
+        const fallbackSessionResult = await supabase
+            .from('training_sessions')
+            .select('id')
+            .eq('id', sessionId)
+            .single();
+        if (fallbackSessionResult.error || !fallbackSessionResult.data?.id) {
+            return sendJsonError(res, 404, '교육 세션을 찾을 수 없습니다.');
+        }
+        sessionResult = {
+            ...fallbackSessionResult,
+            data: {
+                ...fallbackSessionResult.data,
+                target_mode: 'submitted_only',
+                target_worker_names: [],
+            },
+        } as any;
+    }
+
+    let logsResult: any = await supabase
         .from('training_logs')
-        .select('worker_name, nationality')
+        .select('worker_id, worker_name, nationality')
         .eq('session_id', sessionId)
         .limit(5000);
 
     if (logsResult.error) {
+        logsResult = await supabase
+            .from('training_logs')
+            .select('worker_name, nationality')
+            .eq('session_id', sessionId)
+            .limit(5000);
+    }
+
+    if (logsResult.error) {
         throw new Error(logsResult.error.message);
     }
-
-    const workerSet = new Set<string>();
-    const nationalitySet = new Set<string>();
-
-    for (const row of logsResult.data || []) {
-        const workerName = String((row as any)?.worker_name || '').trim().toLowerCase();
-        const nationality = String((row as any)?.nationality || '').trim();
-        if (workerName) workerSet.add(workerName);
-        if (nationality) nationalitySet.add(nationality);
-    }
-
-    let confirmedWorkers = workerSet.size;
-    let ackDataSource: 'training_acknowledgements' | 'submission_gate' = 'submission_gate';
 
     const ackResult = await supabase
         .from('training_acknowledgements')
@@ -462,40 +711,18 @@ async function handleAwarenessStats(res: any, body: Record<string, unknown>) {
         .eq('session_id', sessionId)
         .limit(5000);
 
-    if (!ackResult.error && Array.isArray(ackResult.data)) {
-        const confirmedSet = new Set<string>();
-
-        for (const row of ackResult.data) {
-            const workerName = String((row as any)?.worker_name || '').trim().toLowerCase();
-            if (!workerName) continue;
-
-            const reviewedGuidance = Boolean((row as any)?.reviewed_guidance);
-            const checklistComplete = resolveChecklistComplete((row as any)?.checklist);
-            const comprehensionComplete = Boolean((row as any)?.comprehension_complete) || (reviewedGuidance && checklistComplete);
-
-            if (comprehensionComplete) {
-                confirmedSet.add(workerName);
-            }
-        }
-
-        confirmedWorkers = confirmedSet.size;
-        ackDataSource = 'training_acknowledgements';
-    }
-
-    const submittedWorkers = workerSet.size;
-    const confirmationRate = submittedWorkers > 0
-        ? Math.round((confirmedWorkers / submittedWorkers) * 100)
-        : 0;
+    const stats = calculateTrainingAwarenessStats({
+        targetMode: (sessionResult.data as any)?.target_mode,
+        storedTargets: (sessionResult.data as any)?.target_worker_names,
+        logs: logsResult.data || [],
+        acknowledgements: Array.isArray(ackResult.data) ? ackResult.data : [],
+        acknowledgementAvailable: !ackResult.error && Array.isArray(ackResult.data),
+    });
 
     return res.status(200).json({
         ok: true,
         sessionId,
-        submittedWorkers,
-        confirmedWorkers,
-        unconfirmedWorkers: Math.max(0, submittedWorkers - confirmedWorkers),
-        confirmationRate,
-        nationalityCount: nationalitySet.size,
-        ackDataSource,
+        ...stats,
     });
 }
 
@@ -629,8 +856,7 @@ export default async function handler(req: any, res: any) {
             return sendJsonError(res, 400, 'action이 필요합니다.');
         }
 
-        const allowWithoutAuth = action === 'awareness-stats';
-        if (!allowWithoutAuth && !isValidAdminAuthRequest(req)) {
+        if (!isValidAdminAuthRequest(req)) {
             return sendUnauthorizedAdminResponse(res);
         }
 
@@ -641,6 +867,8 @@ export default async function handler(req: any, res: any) {
                 return await handleReissue(req, res, body);
             case 'list-sessions':
                 return await handleListSessions(res);
+            case 'list-target-workers':
+                return await handleListTargetWorkers(res);
             case 'dashboard-summary':
                 return await handleDashboardSummary(res);
             case 'awareness-stats':

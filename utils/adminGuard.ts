@@ -1,5 +1,17 @@
 export const ADMIN_AUTH_STORAGE_KEY = 'isAdminAuthenticated';
 
+export const shouldBypassAdminGuardForWorkerTraining = (options: {
+    currentPage: string;
+    isWorkerKioskMode: boolean;
+    requestedMode: string;
+    sessionId: string;
+}): boolean => (
+    options.currentPage === 'worker-training'
+    && options.isWorkerKioskMode
+    && options.requestedMode === 'worker-kiosk'
+    && Boolean(options.sessionId)
+);
+
 const setCachedAdminState = (authenticated: boolean): void => {
     if (typeof window === 'undefined') return;
     if (authenticated) {

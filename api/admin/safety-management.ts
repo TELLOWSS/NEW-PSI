@@ -1825,7 +1825,7 @@ async function handleUpdateWorker(payload: any): Promise<any> {
 // -----------------------------------------------------------------------
 // 액션 7: 등록 근로자 삭제
 // -----------------------------------------------------------------------
-async function handleDeleteWorker(payload: any): Promise<any> {
+export async function handleDeleteWorker(payload: any): Promise<any> {
     const id = String(payload?.id || payload?.workerId || '').trim();
     if (!id) throw new Error('worker id 필수');
 
@@ -1837,7 +1837,10 @@ async function handleDeleteWorker(payload: any): Promise<any> {
         .select('id')
         .maybeSingle();
 
-    if (softDelete.error && !isDeletedAtColumnMissing(softDelete.error)) {
+    if (softDelete.error) {
+        if (isDeletedAtColumnMissing(softDelete.error)) {
+            throw new Error('근로자 삭제를 중단했습니다. workers.deleted_at 컬럼이 없어 안전한 소프트 삭제를 수행할 수 없습니다.');
+        }
         throw new Error(softDelete.error.message || 'workers 삭제 실패');
     }
 
@@ -1848,31 +1851,10 @@ async function handleDeleteWorker(payload: any): Promise<any> {
         };
     }
 
-    const fallbackHardDelete = await supabase
-        .from('workers')
-        .delete()
-        .eq('id', id)
-        .select('id')
-        .maybeSingle();
-
-    if (fallbackHardDelete.error) {
-        throw new Error(fallbackHardDelete.error.message || 'workers 삭제 실패');
-    }
-
-    // 에러가 없으면 삭제 성공으로 처리.
-    // 일부 Supabase RLS 환경에서는 delete 후 select 결과가 null로 반환될 수 있으므로
-    // data가 없어도 에러가 없으면 원래 id를 반환한다.
-    const hardDeletedId = fallbackHardDelete.data?.id
-        ? String(fallbackHardDelete.data.id).trim()
-        : id;
-
-    return {
-        deletedWorkerId: hardDeletedId,
-        softDeleted: false,
-    };
+    throw new Error('삭제 대상 근로자를 찾지 못했거나 이미 삭제되었습니다. 하드 삭제는 수행하지 않았습니다.');
 }
 
-async function handleDeleteWorkers(payload: any): Promise<any> {
+export async function handleDeleteWorkers(payload: any): Promise<any> {
     const ids = Array.from(new Set(
         (Array.isArray(payload?.ids) ? payload.ids : [])
             .map((value) => String(value || '').trim())
@@ -1889,7 +1871,10 @@ async function handleDeleteWorkers(payload: any): Promise<any> {
         .is('deleted_at', null)
         .select('id');
 
-    if (softDelete.error && !isDeletedAtColumnMissing(softDelete.error)) {
+    if (softDelete.error) {
+        if (isDeletedAtColumnMissing(softDelete.error)) {
+            throw new Error('근로자 일괄 삭제를 중단했습니다. workers.deleted_at 컬럼이 없어 안전한 소프트 삭제를 수행할 수 없습니다.');
+        }
         throw new Error(softDelete.error.message || 'workers 일괄삭제 실패');
     }
 
@@ -1900,28 +1885,7 @@ async function handleDeleteWorkers(payload: any): Promise<any> {
         };
     }
 
-    const fallbackHardDelete = await supabase
-        .from('workers')
-        .delete()
-        .in('id', ids)
-        .select('id');
-
-    if (fallbackHardDelete.error) {
-        throw new Error(fallbackHardDelete.error.message || 'workers 일괄삭제 실패');
-    }
-
-    // 에러가 없으면 삭제 성공으로 처리.
-    // 일부 Supabase RLS 환경에서는 delete 후 select 결과가 빈 배열로 반환될 수 있으므로
-    // data가 비어도 에러가 없으면 원래 ids를 반환한다.
-    const deletedWorkerIds =
-        Array.isArray(fallbackHardDelete.data) && fallbackHardDelete.data.length > 0
-            ? fallbackHardDelete.data.map((row: any) => String(row?.id || '').trim()).filter(Boolean)
-            : ids;
-
-    return {
-        deletedWorkerIds,
-        softDeleted: false,
-    };
+    throw new Error('삭제 대상 근로자를 찾지 못했거나 이미 삭제되었습니다. 하드 삭제는 수행하지 않았습니다.');
 }
 
 // -----------------------------------------------------------------------
@@ -2268,10 +2232,6 @@ export default async function handler(req: any, res: any) {
 
             case 'restore-worker':
                 data = await handleRestoreWorker(payload);
-                break;
-
-            case 'restore-workers':
-                data = await handleRestoreWorkers(payload);
                 break;
 
             case 'restore-workers':

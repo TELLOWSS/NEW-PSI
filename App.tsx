@@ -9,7 +9,13 @@ import { restoreRecordFromUrl } from './utils/qrUtils';
 import { extractMessage } from './utils/errorUtils';
 import { appendAuditTrail, appendCorrectionHistory, attachEvidenceHash, deriveCompetencyProfile, deriveIntegrityScore, enforceSafetyLevel } from './utils/evidenceUtils';
 import { applyIdentityPolicy } from './utils/identityUtils';
-import { isAdminAuthenticated, loginAdmin, logoutAdmin, refreshAdminAuthentication } from './utils/adminGuard';
+import {
+    isAdminAuthenticated,
+    loginAdmin,
+    logoutAdmin,
+    refreshAdminAuthentication,
+    shouldBypassAdminGuardForWorkerTraining,
+} from './utils/adminGuard';
 import { postAdminJson } from './utils/adminApiClient';
 import { getSafetyLevelThresholds } from './utils/safetyLevelUtils';
 import { appendBestPracticeSyncFailureLog, setBestPracticeSyncState } from './utils/bestPracticeSyncStatus';
@@ -18,13 +24,13 @@ import { isPageVisibleByOperationalMode } from './utils/operationalModeUtils';
 import { isRouteVisibleInMode } from './config/routeMeta';
 import { useUiAudienceMode } from './hooks/useUiAudienceMode';
 import {
-    buildNameBasedWorkerUuid as buildSharedNameBasedWorkerUuid,
+    applyWorkerUuidPolicy,
     getWorkerMatchScore as getSharedWorkerMatchScore,
-    getWorkerNameIdentitySeed as getSharedWorkerNameIdentitySeed,
     getWorkerUuidValue as getSharedWorkerUuidValue,
+    hasAmbiguousStableWorkerMatches,
     isSameWorkerTimeline as isSharedSameWorkerTimeline,
+    mergeWorkerRegistrationRecords,
     normalizeWorkerIdentityText,
-    normalizeWorkerJobIdentityText,
 } from './utils/workerIdentity';
 // Removed checklist imports
 
@@ -237,6 +243,19 @@ const saveRecordToDB = async (record: WorkerRecord) => {
     } catch (e) { console.error("Save Error:", e); }
 };
 
+const saveRecordsToDB = async (records: WorkerRecord[]): Promise<void> => {
+    if (records.length === 0) return;
+    const db = await initDB();
+    await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction([WORKER_STORE], 'readwrite');
+        const store = tx.objectStore(WORKER_STORE);
+        records.forEach((record) => store.put(record));
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error || new Error('백업 일괄 저장 실패'));
+        tx.onabort = () => reject(tx.error || new Error('백업 일괄 저장이 중단되었습니다.'));
+    });
+};
+
 const deleteRecordFromDB = async (id: string) => {
     try {
         const db = await initDB();
@@ -305,29 +324,8 @@ const normalizeIdentityText = (value: unknown): string => {
     return normalizeWorkerIdentityText(value);
 };
 
-const stableWorkerHash = (seed: string): string => {
-    let hash = 2166136261;
-    for (let index = 0; index < seed.length; index++) {
-        hash ^= seed.charCodeAt(index);
-        hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
-    }
-    return Math.abs(hash >>> 0).toString(36).toUpperCase();
-};
-
 const getWorkerUuidValue = (record: Partial<WorkerRecord>): string => {
     return getSharedWorkerUuidValue(record);
-};
-
-const normalizeJobIdentityText = (value: unknown): string => {
-    return normalizeWorkerJobIdentityText(value);
-};
-
-const getWorkerNameIdentitySeed = (record: Partial<WorkerRecord>): string => {
-    return getSharedWorkerNameIdentitySeed(record);
-};
-
-const buildNameBasedWorkerUuid = (record: Partial<WorkerRecord>): string => {
-    return buildSharedNameBasedWorkerUuid(record);
 };
 
 const hasUsableProfileImage = (record: Partial<WorkerRecord>): boolean => {
@@ -344,8 +342,10 @@ const getWorkerMatchScore = (target: Partial<WorkerRecord>, candidate: Partial<W
 };
 
 const findBestWorkerSource = (record: WorkerRecord, existingRecords: WorkerRecord[]): WorkerRecord | null => {
-    return existingRecords
-        .filter((candidate) => candidate.id !== record.id)
+    const candidates = existingRecords.filter((candidate) => candidate.id !== record.id);
+    if (hasAmbiguousStableWorkerMatches(record, candidates)) return null;
+
+    return candidates
         .map((candidate) => ({
             candidate,
             score: getWorkerMatchScore(record, candidate),
@@ -365,66 +365,15 @@ const isSameWorkerTimeline = (base: Partial<WorkerRecord>, candidate: Partial<Wo
 };
 
 const ensureWorkerUuid = (record: WorkerRecord, existingRecords: WorkerRecord[] = []): WorkerRecord => {
-    const employeeId = normalizeIdentityText(record.employeeId);
-    const qrId = normalizeIdentityText(record.qrId);
-    const nameBasedUuid = buildNameBasedWorkerUuid(record);
     const existingUuid = getWorkerUuidValue(record);
 
-    if (nameBasedUuid) {
-        return {
-            ...record,
-            worker_uuid: nameBasedUuid,
-            workerUuid: nameBasedUuid,
-        };
-    }
-
-    if (employeeId) {
-        return {
-            ...record,
-            worker_uuid: `WU-${employeeId}`,
-            workerUuid: `WU-${employeeId}`,
-        };
-    }
-
-    if (qrId) {
-        return {
-            ...record,
-            worker_uuid: `WU-${qrId}`,
-            workerUuid: `WU-${qrId}`,
-        };
-    }
-
     if (existingUuid) {
-        return {
-            ...record,
-            worker_uuid: existingUuid,
-            workerUuid: existingUuid,
-        };
+        return applyWorkerUuidPolicy(record);
     }
 
     const source = findBestWorkerSource(record, existingRecords);
     const sourceUuid = source ? getWorkerUuidValue(source) : '';
-    if (sourceUuid) {
-        return {
-            ...record,
-            worker_uuid: sourceUuid,
-            workerUuid: sourceUuid,
-        };
-    }
-
-    const generatedUuid = `WU-${stableWorkerHash([
-        normalizeIdentityText(record.name),
-        normalizeIdentityText(record.nationality),
-        normalizeIdentityText(record.teamLeader),
-        normalizeIdentityText(record.jobField),
-        normalizeIdentityText(record.role),
-    ].join('|')).slice(0, 12)}`;
-
-    return {
-        ...record,
-        worker_uuid: generatedUuid,
-        workerUuid: generatedUuid,
-    };
+    return applyWorkerUuidPolicy(record, sourceUuid);
 };
 
 const applyWorkerProfilePolicy = (record: WorkerRecord, existingRecords: WorkerRecord[]): WorkerRecord => {
@@ -433,8 +382,6 @@ const applyWorkerProfilePolicy = (record: WorkerRecord, existingRecords: WorkerR
 
     return ensureWorkerUuid({
         ...record,
-        worker_uuid: record.worker_uuid || source.worker_uuid,
-        workerUuid: record.workerUuid || source.workerUuid,
         employeeId: record.employeeId || source.employeeId,
         qrId: record.qrId || source.qrId,
         profileImage: record.profileImage || source.profileImage,
@@ -443,25 +390,7 @@ const applyWorkerProfilePolicy = (record: WorkerRecord, existingRecords: WorkerR
 
 const registerWorkersToServer = async (records: WorkerRecord[]) => {
     try {
-        const uniqueWorkersMap = new Map<string, any>();
-        for (const r of records) {
-            const rAny = r as any;
-            const name = String(rAny.name || '').trim();
-            const jobField = String(rAny.jobField || rAny.job_field || '').trim();
-            const teamName = String(rAny.teamLeader || rAny.team_name || '미지정').trim();
-            if (name && jobField) {
-                const key = `${name.toLowerCase()}|${jobField.toLowerCase()}|${teamName.toLowerCase()}`;
-                if (!uniqueWorkersMap.has(key)) {
-                    uniqueWorkersMap.set(key, { ...rAny });
-                } else {
-                    const existing = uniqueWorkersMap.get(key)!;
-                    existing.phone_number = existing.phone_number || existing.phoneNumber || rAny.phone_number || rAny.phoneNumber;
-                    existing.birth_date = existing.birth_date || existing.birthDate || rAny.birth_date || rAny.birthDate;
-                    existing.passport_number = existing.passport_number || existing.passportNumber || rAny.passport_number || rAny.passportNumber;
-                    existing.nationality = existing.nationality || rAny.nationality;
-                }
-            }
-        }
+        const registrationRecords = mergeWorkerRegistrationRecords(records);
 
         const ALLOWED_JOB_FIELDS_CLIENT = [
             '형틀', '철근', '갱폼', '알폼', '시스템', '관리', '바닥미장', '할석미장견출', '해체정리', '직영', '용역', '콘크리트비계'
@@ -479,23 +408,25 @@ const registerWorkersToServer = async (records: WorkerRecord[]) => {
             return ALLOWED_JOB_FIELDS_CLIENT.includes(resolved) ? resolved : '직영';
         };
 
-        const workersToRegister = Array.from(uniqueWorkersMap.values()).map(w => {
-            const phone = String(w.phone_number || w.phoneNumber || '').replace(/\D/g, '');
-            const birth = String(w.birth_date || w.birthDate || '').replace(/\D/g, '');
-            const passport = String(w.passport_number || w.passportNumber || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-            
-            const finalBirth = (!phone && !birth && !passport) ? '000000' : birth;
+        const workersToRegister = registrationRecords
+            .filter((w) => String(w.name || '').trim() && String(w.jobField || w.job_field || '').trim())
+            .map(w => {
+                const phone = String(w.phone_number || w.phoneNumber || '').replace(/\D/g, '');
+                const birth = String(w.birth_date || w.birthDate || '').replace(/\D/g, '');
+                const passport = String(w.passport_number || w.passportNumber || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 
-            return {
-                name: w.name,
-                nationality: w.nationality || '미상',
-                job_field: clientNormalizeJobField(w.jobField || w.job_field || ''),
-                team_name: w.teamLeader || w.team_name || '미지정',
-                phone_number: phone || null,
-                birth_date: finalBirth || null,
-                passport_number: passport || null
-            };
-        });
+                const finalBirth = (!phone && !birth && !passport) ? '000000' : birth;
+
+                return {
+                    name: w.name,
+                    nationality: w.nationality || '미상',
+                    job_field: clientNormalizeJobField(String(w.jobField || w.job_field || '')),
+                    team_name: w.teamLeader || w.team_name || '미지정',
+                    phone_number: phone || null,
+                    birth_date: finalBirth || null,
+                    passport_number: passport || null
+                };
+            });
 
         if (workersToRegister.length > 0) {
             await postAdminJson('/api/admin/safety-management', {
@@ -512,7 +443,10 @@ const registerWorkersToServer = async (records: WorkerRecord[]) => {
 };
 
 const reconcileWorkerProfiles = (records: WorkerRecord[]): { records: WorkerRecord[]; changedIds: string[] } => {
-    const sorted = [...records].sort((a, b) => getComparableDateValue(b.date) - getComparableDateValue(a.date));
+    const sorted = [...records].sort((a, b) => {
+        const stableIdentityDelta = Number(Boolean(getWorkerUuidValue(b))) - Number(Boolean(getWorkerUuidValue(a)));
+        return stableIdentityDelta || getComparableDateValue(b.date) - getComparableDateValue(a.date);
+    });
     const resolved: WorkerRecord[] = [];
     const changedIds: string[] = [];
 
@@ -684,6 +618,8 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
         const baseRecord: WorkerRecord = {
             ...r,
             id: uniqueId,
+            worker_uuid: toOptionalStringSafe(r.worker_uuid),
+            workerUuid: toOptionalStringSafe(r.workerUuid),
             name: toStringSafe(r.name, "식별 대기"),
             employeeId: toOptionalStringSafe(r.employeeId),
             qrId: toOptionalStringSafe(r.qrId),
@@ -754,7 +690,7 @@ const sanitizeRecords = (records: unknown[]): WorkerRecord[] => {
         };
 
         const withIdentity = applyIdentityPolicy(baseRecord);
-        return ensureWorkerUuid(withIdentity);
+        return withIdentity;
     }).map((record) => {
         const withIntegrity = {
             ...record,
@@ -915,11 +851,13 @@ const App: React.FC = () => {
     }, []);
 
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            (window as any).__setCurrentPage = (page: any) => {
-                setCurrentPage(page);
-            };
-        }
+        if (!import.meta.env.DEV || typeof window === 'undefined') return;
+        (window as any).__setCurrentPage = (page: Page) => {
+            setCurrentPage(page);
+        };
+        return () => {
+            delete (window as any).__setCurrentPage;
+        };
     }, []);
 
     useEffect(() => {
@@ -1215,7 +1153,10 @@ const App: React.FC = () => {
 
     const handleImport = useCallback(async (records: WorkerRecord[]): Promise<WorkerRecord[]> => {
         const sanitized = sanitizeRecords(records);
-        const identityContext = [...workerRecordsRef.current];
+        const identityContext = [
+            ...workerRecordsRef.current,
+            ...sanitized.filter((record) => getWorkerUuidValue(record)),
+        ];
         const importedIds = new Set<string>();
         const importedRecords: WorkerRecord[] = [];
         for (const record of sanitized) {
@@ -1232,16 +1173,14 @@ const App: React.FC = () => {
             const hashed = await attachEvidenceHash(enforced);
             importedIds.add(hashed.id);
             importedRecords.push(hashed);
-            await saveRecordToDB(hashed);
         }
+        await saveRecordsToDB(importedRecords);
         const allData = await loadWorkerRecordsFromDB();
         const mergedImportedData = [...importedRecords, ...allData]
             .filter((record, index, array) => array.findIndex((item) => item.id === record.id) === index);
         const reconciled = reconcileWorkerProfiles(sanitizeRecords(mergedImportedData));
         setWorkerRecords(reconciled.records);
-        for (const record of reconciled.records.filter((item) => reconciled.changedIds.includes(item.id))) {
-            await saveRecordToDB(record);
-        }
+        await saveRecordsToDB(reconciled.records.filter((item) => reconciled.changedIds.includes(item.id)));
         await registerWorkersToServer(records);
         const reviewRecords = reconciled.records.filter((item) => importedIds.has(item.id));
         return reviewRecords.length > 0 ? reviewRecords : importedRecords;
@@ -1255,7 +1194,10 @@ const App: React.FC = () => {
             note: '신규 OCR 분석 결과 저장',
         }));
         const finalRecords: WorkerRecord[] = [];
-        const identityContext = [...workerRecordsRef.current];
+        const identityContext = [
+            ...workerRecordsRef.current,
+            ...sanitized.filter((record) => getWorkerUuidValue(record)),
+        ];
         for (const record of sanitized) {
             const profileAwareRecord = applyWorkerProfilePolicy(record, identityContext);
             const normalizedIdentityRecord = applyIdentityPolicy(profileAwareRecord, identityContext);
@@ -1318,7 +1260,12 @@ const App: React.FC = () => {
         return null;
     }, [handleUpdateRecord]);
     
-    const shouldBypassAdminGuard = isWorkerKioskRequest || (currentPage === 'worker-training' && isWorkerKioskMode);
+    const shouldBypassAdminGuard = shouldBypassAdminGuardForWorkerTraining({
+        currentPage,
+        isWorkerKioskMode,
+        requestedMode: modeFromUrl,
+        sessionId: sessionIdFromUrl,
+    });
 
     if (!shouldBypassAdminGuard && isAdminAuthChecking) {
         return (

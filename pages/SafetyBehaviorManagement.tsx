@@ -17,6 +17,7 @@ import { InterpretationCardGrid, type InterpretationCardItem } from '../componen
 import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { BRAND_TONE } from '../utils/brandToneTokens';
+import { getWorkerIdentityKey as getStableWorkerIdentityKey } from '../utils/workerIdentity';
 
 // -----------------------------------------------------------------------
 // 상수 / 프리셋 목록 (API와 동기화)
@@ -156,7 +157,7 @@ interface IntegrityReviewRow {
     traffic_light: TrafficLight;
 }
 
-interface WorkerOption {
+export interface WorkerOption {
     id: string;
     name: string;
     label: string;
@@ -164,18 +165,6 @@ interface WorkerOption {
     nationality?: string;
     team?: string;
 }
-
-// -----------------------------------------------------------------------
-// 더미 근로자 목록 (실제 구현에서는 Supabase에서 조회)
-// -----------------------------------------------------------------------
-const DUMMY_WORKERS: WorkerOption[] = [
-    { id: 'w001', name: '김철수', label: '김철수 (철근/A팀)', trade: '철근', team: 'A팀' },
-    { id: 'w002', name: '이영희', label: '이영희 (거푸집/B팀)', trade: '거푸집', team: 'B팀' },
-    { id: 'w003', name: '박민준', label: '박민준 (콘크리트/C팀)', trade: '콘크리트', team: 'C팀' },
-    { id: 'w004', name: '최지아', label: '최지아 (배관/D팀)', trade: '배관', team: 'D팀' },
-    { id: 'w005', name: '정해진', label: '정해진 (전기/E팀)', trade: '전기', team: 'E팀' },
-    { id: 'w006', name: '한승우', label: '한승우 (도장/F팀)', trade: '도장', team: 'F팀' },
-];
 
 // -----------------------------------------------------------------------
 // 유틸
@@ -221,6 +210,49 @@ function buildWorkerOptionLabel(worker: Pick<WorkerRecord, 'name' | 'jobField' |
     return `${name} (${profileTag} · ${identityTag})`;
 }
 
+export const buildSafetyBehaviorWorkerOptions = (workerRecords: WorkerRecord[]): WorkerOption[] => {
+    const sorted = [...workerRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const seen = new Set<string>();
+    const options: WorkerOption[] = [];
+
+    for (const worker of sorted) {
+        const stableKey = getStableWorkerIdentityKey(worker);
+        if (seen.has(stableKey)) continue;
+        seen.add(stableKey);
+        options.push({
+            id: worker.id,
+            name: worker.name,
+            label: buildWorkerOptionLabel(worker),
+            trade: worker.jobField,
+            nationality: worker.nationality,
+            team: worker.teamLeader,
+        });
+    }
+
+    return options;
+};
+
+export const areAllVisibleWorkersSelected = (
+    selectedWorkers: ReadonlySet<string>,
+    visibleWorkerIds: string[],
+): boolean => visibleWorkerIds.length > 0 && visibleWorkerIds.every((id) => selectedWorkers.has(id));
+
+export const updateVisibleWorkerSelection = (
+    selectedWorkers: ReadonlySet<string>,
+    visibleWorkerIds: string[],
+): Set<string> => {
+    const uniqueVisibleIds = Array.from(new Set(visibleWorkerIds.filter(Boolean)));
+    const shouldClearVisible = areAllVisibleWorkersSelected(selectedWorkers, uniqueVisibleIds);
+
+    if (!shouldClearVisible) {
+        return new Set(uniqueVisibleIds);
+    }
+
+    const next = new Set(selectedWorkers);
+    uniqueVisibleIds.forEach((id) => next.delete(id));
+    return next;
+};
+
 // -----------------------------------------------------------------------
 // 공통 API 호출 헬퍼
 // -----------------------------------------------------------------------
@@ -253,6 +285,8 @@ const ObserveTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }>
             return matchesSearch && matchesTrade && matchesTeam;
         });
     }, [workers, search, filterTrade, filterTeam]);
+    const filteredWorkerIds = useMemo(() => filteredWorkers.map((worker) => worker.id), [filteredWorkers]);
+    const allFilteredWorkersSelected = areAllVisibleWorkersSelected(selectedWorkers, filteredWorkerIds);
     const [behaviorPreset, setBehaviorPreset] = useState<string | null>(null);
     const [severity, setSeverity] = useState<string>('보통');
     const [observerName, setObserverName] = useState('');
@@ -264,6 +298,19 @@ const ObserveTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }>
     const [actionDetail, setActionDetail] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+    useEffect(() => {
+        const allowedWorkerIds = new Set(workers.map((worker) => worker.id));
+        setSelectedWorkers((previous) => {
+            const next = new Set<string>();
+            let changed = false;
+            previous.forEach((id) => {
+                if (allowedWorkerIds.has(id)) next.add(id);
+                else changed = true;
+            });
+            return changed ? next : previous;
+        });
+    }, [workers]);
 
     const observeInterpretationCards = useMemo<InterpretationCardItem[]>(() => {
         return [
@@ -304,15 +351,13 @@ const ObserveTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }>
     };
 
     const toggleAll = () => {
-        if (selectedWorkers.size === workers.length) {
-            setSelectedWorkers(new Set());
-        } else {
-            setSelectedWorkers(new Set(workers.map((w) => w.id)));
-        }
+        setSelectedWorkers((previous) => updateVisibleWorkerSelection(previous, filteredWorkerIds));
     };
 
     const handleSubmit = async () => {
-        if (selectedWorkers.size === 0) return alert('관찰 대상 근로자를 1명 이상 선택하세요.');
+        const validWorkerIds = new Set(workers.map((worker) => worker.id));
+        const selectedWorkerIds = Array.from(selectedWorkers).filter((workerId) => validWorkerIds.has(workerId));
+        if (selectedWorkerIds.length === 0) return alert('관찰 대상 근로자를 1명 이상 선택하세요.');
         if (!behaviorPreset) return alert('불안전행동 유형을 선택하세요.');
         if (includeCoaching && !actionType) return alert('코칭 동시 등록 시 조치 유형을 선택하세요.');
 
@@ -320,7 +365,7 @@ const ObserveTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }>
         setResult(null);
         try {
             const nowIso = new Date().toISOString();
-            const records = Array.from(selectedWorkers).map((workerId) => ({
+            const records = selectedWorkerIds.map((workerId) => ({
                 worker_id: workerId,
                 assessment_month: assessmentMonth,
                 observed_at: nowIso,
@@ -404,14 +449,19 @@ const ObserveTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }>
                     </div>
                     <button
                         onClick={toggleAll}
+                        disabled={filteredWorkers.length === 0}
                         className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
                     >
-                        {selectedWorkers.size === filteredWorkers.length ? '전체 해제' : '전체 선택'}
+                        {allFilteredWorkersSelected ? '현재 결과 전체 해제' : '현재 결과 전체 선택'}
                     </button>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {filteredWorkers.length === 0 ? (
-                        <div className="col-span-2 sm:col-span-3 text-xs text-slate-400 py-4 text-center">검색/필터 결과가 없습니다.</div>
+                        <div className="col-span-2 sm:col-span-3 text-xs text-slate-400 py-4 text-center">
+                            {workers.length === 0
+                                ? '등록된 실제 근로자가 없습니다. 근로자 관리에서 대상을 먼저 등록해 주세요.'
+                                : '검색/필터 결과가 없습니다.'}
+                        </div>
                     ) : filteredWorkers.map((w) => (
                         <label
                             key={w.id}
@@ -580,7 +630,7 @@ const ObserveTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }>
             {/* 제출 버튼 */}
             <button
                 onClick={handleSubmit}
-                disabled={submitting || selectedWorkers.size === 0 || !behaviorPreset || (includeCoaching && !actionType)}
+                disabled={submitting || workers.length === 0 || selectedWorkers.size === 0 || !behaviorPreset || (includeCoaching && !actionType)}
                 className="w-full py-3 rounded-xl font-bold text-sm transition-all
                     bg-rose-600 text-white hover:bg-rose-700 active:scale-95
                     disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
@@ -601,7 +651,7 @@ const ObserveTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }>
 // -----------------------------------------------------------------------
 // 탭: 코칭 조치 등록
 // -----------------------------------------------------------------------
-const CoachingTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth }) => {
+const CoachingTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> = ({ assessmentMonth, workers }) => {
     const [selectedWorkers, setSelectedWorkers] = useState<Set<string>>(new Set());
     const [actionType, setActionType] = useState<string | null>(null);
     const [followupResult, setFollowupResult] = useState<string>('확인중');
@@ -693,7 +743,11 @@ const CoachingTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth })
             <div className="bg-white rounded-xl border border-slate-200 p-4">
                 <h3 className="font-bold text-slate-800 text-sm mb-3">코칭 대상 근로자</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {DUMMY_WORKERS.map((w) => (
+                    {workers.length === 0 ? (
+                        <div className="col-span-2 sm:col-span-3 py-4 text-center text-xs text-slate-400">
+                            등록된 실제 근로자가 없습니다. 근로자 관리에서 대상을 먼저 등록해 주세요.
+                        </div>
+                    ) : workers.map((w) => (
                         <label
                             key={w.id}
                             className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all select-none
@@ -782,7 +836,7 @@ const CoachingTab: React.FC<{ assessmentMonth: string }> = ({ assessmentMonth })
             {/* 제출 */}
             <button
                 onClick={handleSubmit}
-                disabled={submitting || selectedWorkers.size === 0 || !actionType}
+                disabled={submitting || workers.length === 0 || selectedWorkers.size === 0 || !actionType}
                 className="w-full py-3 rounded-xl font-bold text-sm transition-all
                     bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95
                     disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
@@ -810,6 +864,10 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
     const [lastEvaluated, setLastEvaluated] = useState<string | null>(null);
 
     const runEvaluation = useCallback(async () => {
+        if (workers.length === 0) {
+            setError('등록된 실제 근로자가 없어 자동 판정을 실행할 수 없습니다.');
+            return;
+        }
         setLoading(true);
         setError(null);
         try {
@@ -903,7 +961,7 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
                 </div>
                 <button
                     onClick={runEvaluation}
-                    disabled={loading}
+                    disabled={loading || workers.length === 0}
                     className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 active:scale-95 disabled:opacity-50 transition-all"
                 >
                     {loading ? '판정 중...' : '자동 판정 실행'}
@@ -992,6 +1050,12 @@ const ReviewTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }> 
                         </tbody>
                     </table>
                 </div>
+            ) : workers.length === 0 ? (
+                <div className="bg-slate-50 rounded-xl border border-dashed border-slate-300 p-8 text-center">
+                    <p className="text-sm text-slate-400 font-medium">
+                        등록된 실제 근로자가 없습니다. 근로자 관리에서 대상을 등록한 뒤 자동 판정을 실행해 주세요.
+                    </p>
+                </div>
             ) : !loading ? (
                 <div className="bg-slate-50 rounded-xl border border-dashed border-slate-300 p-8 text-center">
                     <p className="text-sm text-slate-400 font-medium">
@@ -1020,26 +1084,7 @@ const SafetyBehaviorManagement: React.FC<SafetyBehaviorManagementProps> = ({ wor
     const [assessmentMonth, setAssessmentMonth] = useState<string>(getCurrentMonth());
     const harnessSourceRecords = useMemo(() => workerRecords.filter((record) => !isManagementRole(record.jobField)), [workerRecords]);
     const harnessSummary = useMemo(() => summarizeHarnessRecords(harnessSourceRecords), [harnessSourceRecords]);
-    const workerOptions = useMemo(() => {
-        const sorted = [...workerRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        const seen = new Set<string>();
-        const options: WorkerOption[] = [];
-
-        for (const worker of sorted) {
-            if (seen.has(worker.id)) continue;
-            seen.add(worker.id);
-            options.push({
-                id: worker.id,
-                name: worker.name,
-                label: buildWorkerOptionLabel(worker),
-                trade: worker.jobField,
-                nationality: worker.nationality,
-                team: worker.teamLeader,
-            });
-        }
-
-        return options.length > 0 ? options : DUMMY_WORKERS;
-    }, [workerRecords]);
+    const workerOptions = useMemo(() => buildSafetyBehaviorWorkerOptions(workerRecords), [workerRecords]);
 
     const tabs: { id: Tab; label: string; icon: string }[] = [
         { id: 'observe', label: '점검+코칭 통합등록', icon: '⚠️' },
@@ -1198,6 +1243,19 @@ const SafetyBehaviorManagement: React.FC<SafetyBehaviorManagementProps> = ({ wor
                 className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
                 cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
             />
+
+            {workerOptions.length === 0 && (
+                <NoticeCallout
+                    variant="indigo"
+                    eyebrow="운영 대상 없음"
+                    title="등록된 실제 근로자가 없어 관찰·코칭·자동 판정을 실행할 수 없습니다."
+                    description="데모 대상은 운영/API 요청에 사용하지 않습니다. 근로자 관리에서 실제 근로자를 등록하면 이 화면의 대상 목록이 자동으로 활성화됩니다."
+                    className="mb-5 rounded-2xl border px-4 py-3 shadow-sm"
+                    bodyClassName="block"
+                    titleClassName="text-sm font-black"
+                    descriptionClassName="mt-1 text-xs font-semibold leading-relaxed"
+                />
+            )}
 
             {(harnessSummary.immediateAttention > 0 || harnessSummary.approvalBacklog > 0 || harnessSummary.fallback > 0) && (
                 <NoticeCallout

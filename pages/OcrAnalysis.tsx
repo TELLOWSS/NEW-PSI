@@ -40,6 +40,13 @@ import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils';
 import { useJudgmentTaggingQuality } from '../hooks/useJudgmentTaggingQuality';
 import { analyzeWorkerEvidenceReadiness, getWorkerIdentityKey } from '../utils/workerIdentity';
+import {
+    analyzeBackupImport,
+    BACKUP_HARD_FILE_LIMIT_BYTES,
+    BACKUP_LARGE_FILE_WARNING_BYTES,
+    createBackupEnvelope,
+    resolveBackupPayload,
+} from '../utils/backupDataQuality';
 
 const OCR_STATUS_COPY = {
     secondPassEmpty: {
@@ -4535,13 +4542,14 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
     const handleExport = () => {
         if(!confirm("경고: 이미지 데이터가 포함된 백업 파일은 용량이 매우 클 수 있습니다.\n계속하시겠습니까?")) return;
-        const dataStr = JSON.stringify(existingRecords, null, 2);
+        const dataStr = JSON.stringify(createBackupEnvelope(existingRecords), null, 2);
         const blob = new Blob([dataStr], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
         link.download = `PSI_Backup_${new Date().toISOString().slice(0,10)}.json`;
         link.click();
+        URL.revokeObjectURL(url);
     };
 
     const handleExportEvidenceSnapshot = () => {
@@ -4689,133 +4697,50 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         }
     }, []);
 
-    const extractImportRecords = (payload: unknown): unknown[] => {
-        if (Array.isArray(payload)) return payload;
-        if (!payload || typeof payload !== 'object') return [];
-
-        const obj = payload as Record<string, unknown>;
-        const candidates = [obj.records, obj.workerRecords, obj.data, obj.items];
-        for (const candidate of candidates) {
-            if (Array.isArray(candidate)) return candidate;
-        }
-        return [];
-    };
-
-    const analyzeImportSchema = (records: unknown[]) => {
-        const requiredStringFields = ['id', 'name', 'jobField', 'date', 'nationality', 'safetyLevel'];
-        const requiredArrayFields = ['strengths', 'weakAreas', 'suggestions'];
-        const requiredNumberFields = ['safetyScore'];
-
-        const missingFieldCounts: Record<string, number> = {};
-        const typeIssueCounts: Record<string, number> = {};
-        const sampleIssues: string[] = [];
-
-        const objectItems = records.filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null);
-        let itemsWithIssues = 0;
-        let validLikeItems = 0;
-
-        const addCount = (bucket: Record<string, number>, key: string) => {
-            bucket[key] = (bucket[key] || 0) + 1;
-        };
-
-        objectItems.forEach((item, idx) => {
-            const missingFields: string[] = [];
-            const typeFields: string[] = [];
-
-            for (const field of requiredStringFields) {
-                const val = item[field];
-                const valid = typeof val === 'string' && val.trim().length > 0;
-                if (!valid) {
-                    missingFields.push(field);
-                    addCount(missingFieldCounts, field);
-                }
-            }
-
-            for (const field of requiredArrayFields) {
-                const val = item[field];
-                if (!Array.isArray(val)) {
-                    typeFields.push(`${field}(array)`);
-                    addCount(typeIssueCounts, `${field}(array)`);
-                }
-            }
-
-            for (const field of requiredNumberFields) {
-                const val = item[field];
-                const validNumber = typeof val === 'number' && Number.isFinite(val);
-                if (!validNumber) {
-                    typeFields.push(`${field}(number)`);
-                    addCount(typeIssueCounts, `${field}(number)`);
-                }
-            }
-
-            if (missingFields.length > 0 || typeFields.length > 0) {
-                itemsWithIssues++;
-                if (sampleIssues.length < 8) {
-                    sampleIssues.push(`- #${idx + 1}: 누락[${missingFields.join(', ') || '-'}], 타입[${typeFields.join(', ') || '-'}]`);
-                }
-            } else {
-                validLikeItems++;
-            }
-        });
-
-        const invalidItems = records.length - objectItems.length;
-        const problematicItems = invalidItems + itemsWithIssues;
-
-        const sortedMissing = Object.entries(missingFieldCounts).sort((a, b) => b[1] - a[1]);
-        const sortedTypes = Object.entries(typeIssueCounts).sort((a, b) => b[1] - a[1]);
-
-        const summary = `검증 완료: 전체 ${records.length}건 / 객체형 ${objectItems.length}건 / 문제 항목 ${problematicItems}건`;
-        const details = [
-            `총 레코드: ${records.length}`,
-            `객체형 레코드: ${objectItems.length}`,
-            `구조 자체 오류(객체 아님): ${invalidItems}`,
-            `필드 오류 포함 레코드: ${itemsWithIssues}`,
-            `기준 필드 충족 레코드: ${validLikeItems}`,
-            '',
-            '[누락 필드 TOP]',
-            ...(sortedMissing.length > 0 ? sortedMissing.map(([k, v]) => `- ${k}: ${v}`) : ['- 없음']),
-            '',
-            '[타입 불일치 TOP]',
-            ...(sortedTypes.length > 0 ? sortedTypes.map(([k, v]) => `- ${k}: ${v}`) : ['- 없음']),
-            '',
-            '[샘플 오류]',
-            ...(sampleIssues.length > 0 ? sampleIssues : ['- 없음'])
-        ].join('\n');
-
-        return {
-            objectItems,
-            problematicItems,
-            summary,
-            details,
-        };
-    };
-
     const handleImportFile = (file: File) => {
+        if (file.size >= BACKUP_HARD_FILE_LIMIT_BYTES) {
+            alert(`백업 파일이 ${(file.size / (1024 * 1024)).toFixed(1)}MB로 브라우저 안전 한도 500MB를 초과했습니다.\n대용량 원본은 월별로 분리하거나 전용 마이그레이션 절차로 복원해 주세요.`);
+            if (importInputRef.current) importInputRef.current.value = '';
+            return;
+        }
+        if (
+            file.size >= BACKUP_LARGE_FILE_WARNING_BYTES
+            && !confirm(`대용량 백업 ${(file.size / (1024 * 1024)).toFixed(1)}MB입니다.\n복원 중 브라우저 메모리를 많이 사용할 수 있습니다. 계속하시겠습니까?`)
+        ) {
+            if (importInputRef.current) importInputRef.current.value = '';
+            return;
+        }
+
         const reader = new FileReader();
         reader.onload = async (re) => {
             try {
                 const data = JSON.parse(re.target?.result as string);
-                const records = extractImportRecords(data);
-                if (!Array.isArray(records) || records.length === 0) {
+                const resolved = resolveBackupPayload(data);
+                if (resolved.records.length === 0) {
                     alert('복구 가능한 근로자 기록을 찾지 못했습니다. (배열 또는 records/workerRecords 키 필요)');
                     return;
                 }
 
-                const validation = analyzeImportSchema(records);
+                const validation = analyzeBackupImport(resolved.records, existingRecords, {
+                    fileName: file.name,
+                    fileSize: file.size,
+                    schemaVersion: resolved.schemaVersion,
+                });
                 setImportValidationSummary(validation.summary);
                 setImportValidationDetails(validation.details);
 
-                if (validation.objectItems.length === 0) {
-                    alert('복구 가능한 객체형 근로자 기록이 없습니다. JSON 구조를 확인해주세요.');
+                if (validation.blocked) {
+                    alert(`백업을 안전하게 복원할 수 없습니다.\n\n${validation.warnings.join('\n') || '검증 통과 기록이 없습니다.'}\n\n화면의 사전검증 결과를 확인해 주세요.`);
                     return;
                 }
+                if (!confirm(validation.confirmationText)) return;
 
-                const importedRecords = await Promise.resolve(onImport(validation.objectItems as unknown as WorkerRecord[]));
+                const importedRecords = await Promise.resolve(onImport(validation.validRecords));
                 const reviewRecord = Array.isArray(importedRecords) && importedRecords.length > 0
                     ? importedRecords[0]
-                    : validation.objectItems[0] as unknown as WorkerRecord;
+                    : validation.validRecords[0];
                 resetWorkerSearchFiltersForImport();
-                alert(`백업 복구 완료\n- 원본: ${records.length}건\n- 복구 대상: ${validation.objectItems.length}건\n- 문제 항목: ${validation.problematicItems}건\n\n근로자 정보검색 필터를 전체 보기로 전환했습니다. 불러온 근로자는 아래 '근로자별 누적 보기'와 기록 목록에서 확인할 수 있습니다.\n\n첫 번째 복구 기록을 상세 판단 화면으로 열어 확인·수정할 수 있게 했습니다. 나머지는 OCR 분석 목록의 '상세 판단'에서 이어서 확인하세요.`);
+                alert(`백업 복구 완료\n- 원본: ${validation.rawRecordCount}건\n- 검증 통과: ${validation.validRecords.length}건\n- 제외: ${validation.problematicRecordCount + validation.invalidObjectCount}건\n- 신규 ID: ${validation.newRecordCount}건\n- 같은 ID 갱신: ${validation.existingIdCollisionCount}건\n- 예상 총계: ${validation.projectedTotalRecords}건\n\n근로자 정보검색 필터를 전체 보기로 전환했습니다. 불러온 근로자는 아래 '근로자별 누적 보기'와 기록 목록에서 확인할 수 있습니다.\n\n첫 번째 복구 기록을 상세 판단 화면으로 열어 확인·수정할 수 있게 했습니다. 나머지는 OCR 분석 목록의 '상세 판단'에서 이어서 확인하세요.`);
                 if (reviewRecord) {
                     onViewDetails(reviewRecord);
                 }
@@ -5293,7 +5218,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                     <div className="mt-6 pt-5 border-t border-white/10 animate-fade-in">
                         <div className="bg-black/20 border border-white/10 rounded-2xl p-4 sm:p-5">
                             <div className="flex items-center justify-between gap-3 mb-2">
-                                <h4 className="text-sm sm:text-base font-black text-indigo-300">복구 파일 스키마 검증 결과</h4>
+                                <h4 className="text-sm sm:text-base font-black text-indigo-300">백업 사전검증 및 합산 범위</h4>
                                 <button
                                     onClick={() => {
                                         setImportValidationSummary('');

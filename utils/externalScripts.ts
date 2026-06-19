@@ -8,7 +8,6 @@ type WindowWithExternalScripts = Window & typeof globalThis & {
 };
 
 const SCRIPT_URLS = {
-    chartjs: 'https://cdn.jsdelivr.net/npm/chart.js',
     html2canvas: 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js',
     jspdf: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
     qrcodejs: 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js',
@@ -60,8 +59,13 @@ export const ensureHtml2Canvas = async () => {
 };
 
 export const ensureChartJs = async () => {
-    await loadScriptOnce('chartjs', SCRIPT_URLS.chartjs, 'Chart');
-    return (window as WindowWithExternalScripts).Chart as any;
+    const win = window as WindowWithExternalScripts;
+    if (win.Chart) return win.Chart as any;
+
+    const chartModule = await import('chart.js/auto');
+    const Chart = chartModule.default || chartModule.Chart;
+    win.Chart = Chart;
+    return Chart as any;
 };
 
 export const ensureJsPdfConstructor = async () => {

@@ -9,6 +9,7 @@ import { InterpretationCardGrid, type InterpretationCardItem } from '../componen
 import { NoticeCallout } from '../components/shared/NoticeCallout';
 import { SummaryMetricGrid } from '../components/shared/SummaryMetricGrid';
 import { BRAND_TONE } from '../utils/brandToneTokens';
+import { getWorkerIdentityKey as getStableWorkerIdentityKey } from '../utils/workerIdentity';
 
 interface SafetyChecksProps {
     workerRecords: WorkerRecord[];
@@ -18,15 +19,9 @@ interface SafetyChecksProps {
 
 const isManagementRole = (field: string) => /관리|팀장|부장|과장|기사|공무|소장/.test(field);
 
-const getWorkerIdentityKey = (record: WorkerRecord): string => {
-    return String(
-        record.worker_uuid
-        || record.workerUuid
-        || record.employeeId
-        || record.qrId
-        || `${record.name || 'unknown'}::${record.teamLeader || '미지정'}::${record.jobField || '미분류'}`,
-    ).trim();
-};
+export const getLocalTodayDateValue = (date: Date = new Date()): string => (
+    `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+);
 
 const inferHarnessWorkflowState = (record: Partial<WorkerRecord>): string => {
     if (record.workflowState) return record.workflowState;
@@ -61,7 +56,7 @@ const getHarnessPersistenceState = (record: Partial<WorkerRecord>): 'connected' 
 const summarizeHarnessRecords = (records: WorkerRecord[]) => {
     const latestRecords = Array.from(
         records.reduce((map, record) => {
-            const key = getWorkerIdentityKey(record);
+            const key = getStableWorkerIdentityKey(record);
             const current = map.get(key);
             if (!current || new Date(record.date).getTime() >= new Date(current.date).getTime()) {
                 map.set(key, record);
@@ -97,10 +92,47 @@ const summarizeHarnessRecords = (records: WorkerRecord[]) => {
     });
 };
 
+export interface SafetyCheckWorkerOption {
+    id: string;
+    name: string;
+    label: string;
+}
+
+export const buildSafetyCheckWorkerOptions = (workerRecords: WorkerRecord[]): SafetyCheckWorkerOption[] => {
+    const sorted = [...workerRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const seen = new Set<string>();
+    const options: SafetyCheckWorkerOption[] = [];
+
+    for (const record of sorted) {
+        const stableKey = getStableWorkerIdentityKey(record);
+        if (seen.has(stableKey)) continue;
+        seen.add(stableKey);
+
+        const team = String(record.teamLeader || '').trim();
+        const field = String(record.jobField || '').trim();
+        const nationality = String(record.nationality || '').trim();
+        const employeeId = String(record.employeeId || '').trim();
+        const qrId = String(record.qrId || '').trim();
+        const identityTag = employeeId
+            ? `관리식별:${employeeId}`
+            : (qrId ? `QR:${qrId.slice(-6)}` : '식별보완필요');
+        const profileTag = field || team
+            ? `${field || '미분류'}${team ? `/${team}` : ''}`
+            : (nationality || '미상');
+
+        options.push({
+            id: record.id,
+            name: record.name,
+            label: `${record.name} (${profileTag} · ${identityTag})`,
+        });
+    }
+
+    return options;
+};
+
 const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords, onAddCheck }) => {
     const [selectedWorkerId, setSelectedWorkerId] = useState<string>('');
-    // [SIMULATION] Default date set to 2026-01-01
-    const [date, setDate] = useState<string>('2026-01-01');
+    const [date, setDate] = useState<string>(() => getLocalTodayDateValue());
     const [type, setType] = useState<'unsafe_action' | 'unsafe_condition'>('unsafe_action');
     const [riskType, setRiskType] = useState<string>('');
     const [details, setDetails] = useState<string>('');
@@ -112,36 +144,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
     const harnessSourceRecords = useMemo(() => workerRecords.filter((record) => !isManagementRole(record.jobField)), [workerRecords]);
     const harnessSummary = useMemo(() => summarizeHarnessRecords(harnessSourceRecords), [harnessSourceRecords]);
     
-    const workerOptions = useMemo(() => {
-        const sorted = [...workerRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        const seen = new Set<string>();
-        const options: Array<{ id: string; name: string; label: string }> = [];
-
-        for (const record of sorted) {
-            if (seen.has(record.id)) continue;
-            seen.add(record.id);
-
-            const team = String(record.teamLeader || '').trim();
-            const field = String(record.jobField || '').trim();
-            const nationality = String(record.nationality || '').trim();
-            const employeeId = String(record.employeeId || '').trim();
-            const qrId = String(record.qrId || '').trim();
-            const identityTag = employeeId
-                ? `관리식별:${employeeId}`
-                : (qrId ? `QR:${qrId.slice(-6)}` : '식별보완필요');
-            const profileTag = field || team
-                ? `${field || '미분류'}${team ? `/${team}` : ''}`
-                : (nationality || '미상');
-
-            options.push({
-                id: record.id,
-                name: record.name,
-                label: `${record.name} (${profileTag} · ${identityTag})`,
-            });
-        }
-
-        return options;
-    }, [workerRecords]);
+    const workerOptions = useMemo(() => buildSafetyCheckWorkerOptions(workerRecords), [workerRecords]);
 
     const selectedWorker = useMemo(
         () => workerOptions.find((option) => option.id === selectedWorkerId) || null,
@@ -275,6 +278,10 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (workerOptions.length === 0) {
+            alert('등록된 실제 근로자가 없습니다. 근로자 관리에서 대상을 먼저 등록해주세요.');
+            return;
+        }
         if(!selectedWorkerId || !riskType) {
             alert('근로자와 점검 유형을 입력해주세요.');
             return;
@@ -370,10 +377,15 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div>
                             <label htmlFor="workerId" className="block text-sm font-medium text-slate-700">근로자</label>
-                            <select id="workerId" value={selectedWorkerId} onChange={e => setSelectedWorkerId(e.target.value)} className="mt-1 block w-full border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                            <select id="workerId" value={selectedWorkerId} onChange={e => setSelectedWorkerId(e.target.value)} disabled={workerOptions.length === 0} className={`mt-1 block w-full rounded-md border shadow-sm focus:ring-indigo-500 focus:border-indigo-500 disabled:opacity-60 ${BRAND_TONE.slate}`}>
                                 <option value="">근로자 선택</option>
                                 {workerOptions.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
                             </select>
+                            {workerOptions.length === 0 && (
+                                <p className="mt-2 text-xs font-semibold text-amber-700">
+                                    등록된 실제 근로자가 없어 점검 대상을 선택할 수 없습니다.
+                                </p>
+                            )}
                         </div>
                         <div>
                             <label htmlFor="date" className="block text-sm font-medium text-slate-700">점검일</label>
@@ -432,7 +444,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
                         )}
                     </div>
                     <div>
-                        <button type="submit" disabled={isSubmitting} className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <button type="submit" disabled={isSubmitting || workerOptions.length === 0} className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                             {isSubmitting ? '등록 중...' : '기록 추가'}
                         </button>
                     </div>
