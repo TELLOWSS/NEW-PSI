@@ -208,3 +208,6 @@ Vercel:
 - 시각 증거: `artifacts/audit/browser/survey-risk-baseline-wizard.png`, `survey-risk-baseline-mobile-decision.png`, `survey-risk-baseline-mobile-comparison.png`
 - 상세 검토: `artifacts/audit/manager-risk-baseline-decision-ux-review.md`
 - 상품화 자동판정: 완료 4, 부분완료 1, 미시작 4, 외부권한 대기 1.
+- GitHub `main` 커밋 `4df1c52`와 Vercel 프로덕션 배포 `dpl_EwRV5tT54ogyuuD8qaP6G8udx78R`가 일치하며 `READY` 상태다.
+- 프로덕션 주소 `https://new-psi-eta.vercel.app`에서 관리자 기준 흐름 11/11과 실제 보안 헤더 7/7을 재통과했다.
+- 해당 배포의 최근 30분 오류·경고·치명 런타임 로그는 0건이다.
