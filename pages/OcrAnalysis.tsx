@@ -207,11 +207,11 @@ const getFailureCodeAction = (code: OcrFailureCode): string => {
         case 'QUOTA':
             return '호출량 급증 여부를 확인하고 냉각 후 재분석하거나 브라우저 대체 분석 성공률을 먼저 확인하세요.';
         case 'KEY':
-            return '서버 API 키와 권한, 배포 환경변수 누락 여부를 가장 먼저 확인하세요.';
+            return '서버 분석 연결키와 사용 권한, 운영 연결 정보 누락 여부를 가장 먼저 확인하세요.';
         case 'FORMAT':
             return '지원 형식(JPG/PNG/GIF/WebP/HEIC) 여부를 확인하고 원본 이미지를 다시 등록하세요.';
         case 'PARSE':
-            return 'OCR 응답 본문과 JSON 파싱 실패 여부를 확인하고 모델 출력 이상 징후를 기록하세요.';
+            return '문서 판독 결과를 읽을 수 있는지 확인하고 자동 분석 출력의 이상 징후를 기록하세요.';
         case 'PAYLOAD':
             return 'Base64 손상, 이미지 누락, 용량 초과 여부를 먼저 확인하세요.';
         case 'NETWORK':
@@ -236,7 +236,7 @@ const getFailureImmediateActions = (code: OcrFailureCode): FailureImmediateActio
             {
                 type: 'key-check',
                 label: '키 점검',
-                title: '서버 Gemini API 키/권한 상태 체크리스트를 복사합니다.',
+                title: '서버 Gemini 분석 연결키와 권한 점검 목록을 복사합니다.',
                 className: 'bg-rose-100 text-rose-700 hover:bg-rose-200',
             },
         ];
@@ -1248,7 +1248,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
     const handleOcrEngineChange = (nextEngine: OcrEngineMode) => {
         if (nextEngine === 'openai-precise') {
-            alert('ChatGPT Plus 구독은 프로그램용 OpenAI API 사용권과 별개입니다. 현재는 별도 OpenAI API 키가 연결되지 않아 선택할 수 없습니다.');
+            alert('ChatGPT Plus 구독과 프로그램 분석 연결 권한은 서로 다릅니다. 현재 OpenAI 분석 연결키가 없어 이 방식을 선택할 수 없습니다.');
             return;
         }
         setOcrEngine(nextEngine);
@@ -3275,7 +3275,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             : 0;
         
         if (forceReanalyze) {
-            console.log(`[강제 재분석] Preflight 검증 스킵, 직접 API 호출 모드`);
+            console.log(`[강제 재분석] 사전 점검 생략, 직접 분석 요청 모드`);
         }
         
         const storedCheckpoint = getStoredBatchCheckpoint();
@@ -3831,7 +3831,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             alert(
                                 `KEY/권한 실패가 연속 ${consecutiveKeyFailureCount}건 발생하여 일괄 재분석을 중단했습니다.\n\n` +
                                 `현재 모드의 실행 키와 권한/할당량 상태를 먼저 확인한 뒤 다시 실행해 주세요.\n` +
-                                `설정 화면의 OCR 실행 키 출처/모드가 실제 운영키와 일치하는지 점검이 필요합니다.`
+                                `설정 화면의 문서 분석 연결 정보가 실제 운영 설정과 일치하는지 점검이 필요합니다.`
                             );
                             break;
                         }
@@ -3905,7 +3905,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             alert(
                                 `KEY/권한 실패가 연속 ${consecutiveKeyFailureCount}건 발생하여 일괄 재분석을 중단했습니다.\n\n` +
                                 `현재 모드의 실행 키와 권한/할당량 상태를 먼저 확인한 뒤 다시 실행해 주세요.\n` +
-                                `설정 화면의 OCR 실행 키 출처/모드가 실제 운영키와 일치하는지 점검이 필요합니다.`
+                                `설정 화면의 문서 분석 연결 정보가 실제 운영 설정과 일치하는지 점검이 필요합니다.`
                             );
                             break;
                         }
@@ -3976,7 +3976,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         alert(
                             `KEY/권한 실패가 연속 ${consecutiveKeyFailureCount}건 발생하여 일괄 재분석을 중단했습니다.\n\n` +
                             `현재 모드의 실행 키와 권한/할당량 상태를 먼저 확인한 뒤 다시 실행해 주세요.\n` +
-                            `설정 화면의 OCR 실행 키 출처/모드가 실제 운영키와 일치하는지 점검이 필요합니다.`
+                            `설정 화면의 문서 분석 연결 정보가 실제 운영 설정과 일치하는지 점검이 필요합니다.`
                         );
                         break;
                     }
@@ -4040,7 +4040,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 alert(`${modeLabel} 분석이 중단되었습니다.\n(완료: ${successCount}, ${BRAND_STATUS_LABELS.attentionPending}: ${failCount})${reasonsReport}`);
             } else {
                 if (forceReanalyze) {
-                    alert(`${modeLabel} ${title} 완료.\n\n✅ 완료: ${successCount}\n⚠ ${BRAND_STATUS_LABELS.attentionPending}: ${failCount}${reasonsReport}\n\n※ Preflight 검증 스킵 모드로 실행되었습니다.\n※ ${BRAND_STATUS_LABELS.attentionPending} 건은 '${BRAND_ACTION_LABELS.directReanalyze}' 또는 '${BRAND_ACTION_LABELS.smartReanalyze}' 버튼으로 ${BRAND_ACTION_LABELS.recheck}할 수 있습니다.`);
+                    alert(`${modeLabel} ${title} 완료.\n\n✅ 완료: ${successCount}\n⚠ ${BRAND_STATUS_LABELS.attentionPending}: ${failCount}${reasonsReport}\n\n※ 사전 점검을 생략하는 방식으로 실행되었습니다.\n※ ${BRAND_STATUS_LABELS.attentionPending} 건은 '${BRAND_ACTION_LABELS.directReanalyze}' 또는 '${BRAND_ACTION_LABELS.smartReanalyze}' 버튼으로 ${BRAND_ACTION_LABELS.recheck}할 수 있습니다.`);
                 } else {
                     alert(`${title} 완료.\n완료: ${successCount}\n${BRAND_STATUS_LABELS.attentionPending}: ${failCount}${reasonsReport}\n\n* ${BRAND_STATUS_LABELS.attentionPending} 건은 '${BRAND_STATUS_LABELS.attentionHold} 건 재분석' 버튼으로 ${BRAND_ACTION_LABELS.recheck}할 수 있습니다.`);
                 }
@@ -4216,10 +4216,10 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         if (verified.ok) return true;
 
         const prefix = verified.failureCode === 'QUOTA'
-            ? 'OCR 실행 키는 확인되었지만 현재 할당량/호출 제한 상태입니다.'
+            ? '문서 분석 연결은 확인되었지만 현재 사용량 제한 상태입니다.'
             : verified.failureCode === 'KEY'
-                ? 'OCR 실행 키가 유효하지 않거나 권한이 없습니다.'
-                : 'OCR 실행 전 사전검증에 실패했습니다.';
+                ? '문서 분석 연결 정보가 유효하지 않거나 사용 권한이 없습니다.'
+                : '문서 분석 전 사전 점검에 실패했습니다.';
 
         alert(
             `${prefix}\n현재 모드: ${verified.modeLabel}\n키 출처: ${verified.sourceLabel}\n실패 코드: ${verified.failureCode || 'UNKNOWN'}\n\n${verified.message}`
@@ -4229,7 +4229,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
     const handleBatchReanalyze = async () => {
         if (!ocrExecutionKeyStatus.ready) {
-            alert(`OCR 실행 키가 설정되지 않았습니다.\n현재 모드: ${ocrExecutionKeyStatus.modeApiLabel}\n키 출처: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 API 키를 먼저 등록해 주세요.`);
+            alert(`문서 분석 연결 정보가 설정되지 않았습니다.\n현재 방식: ${ocrExecutionKeyStatus.modeApiLabel}\n연결 정보 위치: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 분석 서비스 연결키를 먼저 등록해 주세요.`);
             return;
         }
 
@@ -4267,7 +4267,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         }
 
         if (!ocrExecutionKeyStatus.ready) {
-            alert(`OCR 실행 키가 설정되지 않았습니다.\n현재 모드: ${ocrExecutionKeyStatus.modeApiLabel}\n키 출처: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 API 키를 먼저 등록해 주세요.`);
+            alert(`문서 분석 연결 정보가 설정되지 않았습니다.\n현재 방식: ${ocrExecutionKeyStatus.modeApiLabel}\n연결 정보 위치: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 분석 서비스 연결키를 먼저 등록해 주세요.`);
             return;
         }
 
@@ -4310,7 +4310,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
     const handleRetryFailed = async () => {
         if (!ocrExecutionKeyStatus.ready) {
-            alert(`OCR 실행 키가 설정되지 않았습니다.\n현재 모드: ${ocrExecutionKeyStatus.modeApiLabel}\n키 출처: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 API 키를 먼저 등록해 주세요.`);
+            alert(`문서 분석 연결 정보가 설정되지 않았습니다.\n현재 방식: ${ocrExecutionKeyStatus.modeApiLabel}\n연결 정보 위치: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 분석 서비스 연결키를 먼저 등록해 주세요.`);
             return;
         }
 
@@ -4329,7 +4329,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
     const handleForceReanalyze = async () => {
         if (!ocrExecutionKeyStatus.ready) {
-            alert(`OCR 실행 키가 설정되지 않았습니다.\n현재 모드: ${ocrExecutionKeyStatus.modeApiLabel}\n키 출처: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 API 키를 먼저 등록해 주세요.`);
+            alert(`문서 분석 연결 정보가 설정되지 않았습니다.\n현재 방식: ${ocrExecutionKeyStatus.modeApiLabel}\n연결 정보 위치: ${ocrExecutionKeyStatus.sourceLabel}\n\n설정 화면에서 분석 서비스 연결키를 먼저 등록해 주세요.`);
             return;
         }
 
@@ -4341,13 +4341,13 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
         }
 
         const confirm_msg = confirm(
-            `⚠️ ${BRAND_ACTION_LABELS.directReanalyze} 모드\n\n${BRAND_STATUS_LABELS.attentionPending} 건 ${failedRecords.length}건을 Preflight 검증을 우회하여\n` +
-            `직접 Gemini API로 재분석하시겠습니까?\n\n` +
-            `※ 유료 API를 사용하므로 재분석 결과가 나올 때까지 비용이 발생합니다.`
+            `⚠️ ${BRAND_ACTION_LABELS.directReanalyze} 모드\n\n${BRAND_STATUS_LABELS.attentionPending} ${failedRecords.length}건을 사전 점검 없이\n` +
+            `직접 유료 분석으로 다시 처리하시겠습니까?\n\n` +
+            `※ 유료 분석 서비스를 사용하므로 결과가 나올 때까지 비용이 발생합니다.`
         );
         
         if (confirm_msg) {
-            runBatchAnalysis(failedRecords, `${BRAND_ACTION_LABELS.directReanalyze} (Preflight 스킵)`, true);
+            runBatchAnalysis(failedRecords, `${BRAND_ACTION_LABELS.directReanalyze} (사전 점검 생략)`, true);
         }
     };
 
@@ -4746,7 +4746,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 }
             } catch (err) {
                 const message = extractMessage(err);
-                alert(`JSON 불러오기 처리 중 확인이 필요합니다.\n${message || '파일 형식 또는 저장 연결 상태를 확인해 주세요.'}`);
+                alert(`백업 파일 불러오기 중 확인이 필요합니다.\n${message || '파일 형식 또는 저장 연결 상태를 확인해 주세요.'}`);
             } finally {
                 if (importInputRef.current) importInputRef.current.value = '';
             }
@@ -4761,7 +4761,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
             {isStartChecklistIncomplete && (
                 <div role="status" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-950">
                     <p className="text-sm font-black">업무 시작 점검이 아직 완료되지 않았습니다.</p>
-                    <p className="mt-1 text-xs font-bold leading-5 text-amber-800">분석 화면과 파일 업로드는 사용할 수 있습니다. 실제 AI 분석 전 API 키, 현장 정보, 저장 연결 상태를 확인해 주세요.</p>
+                    <p className="mt-1 text-xs font-bold leading-5 text-amber-800">분석 화면과 파일 업로드는 사용할 수 있습니다. 실제 자동 분석 전 분석 연결키, 현장 정보, 저장 연결 상태를 확인해 주세요.</p>
                 </div>
             )}
             {/* Control Panel */}
@@ -4772,8 +4772,8 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3 sm:gap-4">
                             <div>
                                 <h3 className="text-xl sm:text-2xl font-black mb-1.5 sm:mb-2 flex items-center gap-2 sm:gap-3">
-                                    OCR 분석 운영 대시보드
-                                    <span className="text-xs bg-indigo-600 px-2 py-1 rounded-md font-bold uppercase tracking-widest">PRO</span>
+                                    위험성평가 문서 분석 현황
+                                    <span className="text-xs bg-indigo-600 px-2 py-1 rounded-md font-bold tracking-widest">운영</span>
                                 </h3>
                                 <p className="text-slate-300 font-medium max-w-3xl leading-relaxed">
                                     PC 화면은 <span className="text-indigo-300 font-bold">핵심 현황 → 긴급 조치</span> 순서로 바로 판단할 수 있도록 요약해 제공합니다.
@@ -4786,7 +4786,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 {!isCompactMobile && (
                                     <>
                                         <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-bold text-slate-200">
-                                            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 다국어 OCR 인식(한/영/중 포함) 지원</div>
+                                            <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 다국어 문서 글자 인식(OCR) 지원</div>
                                             <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 손글씨·저해상도 이미지 보정 분석</div>
                                             <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 오류 코드 기반 즉시 재시도 동선 제공</div>
                                             <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2">✓ 분석 후 위험 매핑/관리자 검토 연계</div>
@@ -4892,7 +4892,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                     },
                                     {
                                         key: 'overview-api-count',
-                                        label: '오늘 API 호출',
+                                        label: '오늘 분석 요청',
                                         value: dailyCounter.count,
                                         helper: (
                                             <div className="flex items-center justify-between gap-2">
@@ -5026,7 +5026,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 onClick={handleForceReanalyze}
                                 disabled={!ocrExecutionKeyStatus.ready}
                                 className={`w-full px-5 py-3 rounded-2xl font-black text-sm shadow-xl transition-all border flex items-center justify-center gap-2 group ${ocrExecutionKeyStatus.ready ? 'bg-red-700 hover:bg-red-800 border-red-600' : 'bg-slate-700 border-slate-600 text-slate-300 cursor-not-allowed'}`}
-                                title={`Preflight 검증을 우회하고 모든 ${BRAND_STATUS_LABELS.attentionPending} 건을 직접 API로 재분석합니다`}
+                                title={`사전 점검 없이 모든 ${BRAND_STATUS_LABELS.attentionPending} 건을 직접 다시 분석합니다`}
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                                 {BRAND_ACTION_LABELS.directReanalyze} (검증 스킵)
@@ -5063,7 +5063,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                                 bodyClassName="mt-3 grid grid-cols-1 gap-2.5"
                             >
                         <div className={`w-full px-3 py-2 rounded-xl border text-[11px] font-bold ${ocrExecutionKeyStatus.ready ? 'bg-emerald-900/30 border-emerald-500/30 text-emerald-200' : 'bg-rose-900/30 border-rose-500/30 text-rose-200'}`}>
-                            OCR 실행 키: {ocrExecutionKeyStatus.sourceLabel} · {ocrExecutionKeyStatus.modeApiLabel}
+                            문서 분석 연결: {ocrExecutionKeyStatus.sourceLabel} · {ocrExecutionKeyStatus.modeApiLabel}
                         </div>
                         
                         {recordsWithImages.length > 0 && !isAnalyzing && (
@@ -5094,7 +5094,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
                         {showQuickUtilityActions && (
                             <>
-                                <button onClick={() => importInputRef.current?.click()} className="w-full px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-sm transition-all">JSON 불러오기</button>
+                                <button onClick={() => importInputRef.current?.click()} className="w-full px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-sm transition-all">백업 파일 불러오기(JSON)</button>
                                 <input type="file" ref={importInputRef} className="hidden" accept=".json" onChange={(e) => {
                                      const file = e.target.files?.[0];
                                      if (file) handleImportFile(file);
@@ -5143,7 +5143,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             ></div>
                             {cooldownTime > 0 && (
                                 <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-black/50 uppercase tracking-widest">
-                                    API Cooling Down... {cooldownTime}s
+                                    분석 요청 대기 중... {cooldownTime}초
                                 </div>
                             )}
                         </div>
@@ -5263,7 +5263,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 <section className="mb-5 rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                            <p className="text-sm font-black text-indigo-950">OCR 분석 엔진</p>
+                            <p className="text-sm font-black text-indigo-950">문서 분석 방식</p>
                             <p className="mt-1 text-xs font-bold leading-5 text-indigo-700">현재 선택: {getOcrEngineLabel(ocrEngine)} · 신규 분석과 서버 재분석에 함께 적용됩니다.</p>
                         </div>
                         <span className="rounded-full bg-white px-3 py-1.5 text-[11px] font-black text-indigo-700 shadow-sm">상황별 전환</span>
@@ -5273,7 +5273,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             ['auto', '자동 추천', '일반 문서는 빠르게, 복잡한 경우 정밀 모델로 자동 전환'],
                             ['gemini-fast', 'Gemini 빠른 분석', '선명한 사진과 대량 처리에 적합'],
                             ['gemini-precise', 'Gemini 정밀 분석', '흐린 글씨, 복잡한 표, 외국어 혼합 문서에 적합'],
-                            ['openai-precise', 'OpenAI 정밀 분석', 'ChatGPT Plus와 별도인 OpenAI API 연결 필요'],
+                            ['openai-precise', 'OpenAI 정밀 분석', 'ChatGPT Plus와 별도인 개발자용 분석 연결 필요'],
                         ] as Array<[OcrEngineMode, string, string]>).map(([value, label, description]) => {
                             const unavailable = value === 'openai-precise';
                             const selected = ocrEngine === value;
@@ -5380,7 +5380,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 <div className="bg-rose-50 border-2 border-rose-200 rounded-3xl p-5 sm:p-6 shadow-lg">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div>
-                            <p className="text-xs font-black text-rose-600 uppercase tracking-widest">OCR 오류 자동 분류</p>
+                            <p className="text-xs font-black text-rose-600 tracking-widest">문서 판독 오류 자동 분류</p>
                             <h4 className="text-lg sm:text-xl font-black text-rose-800 mt-1">{primaryFailedRecord.name || '미상'} · {getOcrErrorTypeKoreanLabel(primaryFailedErrorType)}</h4>
                             <p className="text-sm font-bold text-rose-700 mt-2">{getOcrErrorGuideMessage(primaryFailedErrorType)}</p>
                             {primaryFailedPreflightReason && (

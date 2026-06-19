@@ -557,7 +557,7 @@ const verifyIssuanceReliability = (worker: WorkerRecord): IssuanceReliabilityRes
 
     if (!hasOriginalImage) reasons.push('OCR 원본 이미지 없음');
     if (!hasOcrAuditTrail) reasons.push('OCR 감사이력 없음');
-    if (!hasEvidenceHash) reasons.push('증빙 해시 없음');
+    if (!hasEvidenceHash) reasons.push('위변조 확인값 없음');
 
     const trusted = reasons.length === 0;
     return {
@@ -3146,7 +3146,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                 .flatMap((item) => item.reliability.reasons)
                 .slice(0, 3)
                 .join(', ');
-            return alert(`발급 가능한 신뢰 데이터가 없습니다.\n\n검증 기준: OCR 원본 이미지 + OCR 감사이력 + 증빙 해시\n참고 사유: ${sampleReasons || '데이터 누락'}`);
+            return alert(`발급 가능한 신뢰 데이터가 없습니다.\n\n확인 기준: 원본 이미지 + 문서 판독 이력 + 위변조 확인값\n참고 사유: ${sampleReasons || '데이터 누락'}`);
         }
 
         const nextPrintTrustMode: 'trusted' | 'fallback' = trustedPrintableWorkers.length === 0 ? 'fallback' : 'trusted';
@@ -5365,7 +5365,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     key={row.send_mode}
                                                     className={`rounded-2xl border px-4 py-4 ${row.send_mode === 'BULK' ? BRAND_TONE.violet : BRAND_TONE.sky}`}
                                                     title={row.send_mode === 'BULK' ? '선택 근로자 일괄 발송' : '개별 리포트 발송'}
-                                                    subtitle={<p className={`text-[10px] font-black ${row.send_mode === 'BULK' ? 'text-violet-700' : 'text-sky-700'}`}>{row.send_mode === 'BULK' ? 'BULK MODE' : 'INDIVIDUAL MODE'}</p>}
+                                                    subtitle={<p className={`text-[10px] font-black ${row.send_mode === 'BULK' ? 'text-violet-700' : 'text-sky-700'}`}>{row.send_mode === 'BULK' ? '여러 명 발송' : '개별 발송'}</p>}
                                                     titleClassName="mt-1 text-lg font-black text-slate-900"
                                                     subtitleClassName="text-[10px] font-black"
                                                     badge={<span className={`rounded-full px-3 py-1 text-[10px] font-black ${row.send_mode === 'BULK' ? 'bg-violet-100 text-violet-700' : 'bg-sky-100 text-sky-700'}`}>{row.total_count}건</span>}
@@ -5412,8 +5412,8 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                         {reportMessageDashboardSummary && !reportMessageDashboardSummary.schemaReady && (
                             <NoticeCallout
                                 className={`mb-4 rounded-2xl border px-4 py-4 text-amber-800 ${BRAND_TONE.amber}`}
-                                title="운영 집계 뷰가 아직 준비되지 않았습니다."
-                                description="최신 report_message_logs_migration.sql를 실행하면 월별/팀별/실패사유/발송방식 대시보드가 활성화됩니다."
+                                title="문자 발송 운영 현황판이 아직 준비되지 않았습니다."
+                                description="문자 발송 기록 저장 설정을 완료하면 월별·팀별·미발송 사유·발송 방식 현황을 확인할 수 있습니다."
                                 titleClassName="text-sm font-black"
                                 descriptionClassName="mt-1 text-xs font-bold"
                                 bodyClassName="block"
@@ -5424,8 +5424,8 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                 <NoticeCallout
                                     variant="indigo"
                                     className="rounded-2xl px-4 py-3"
-                                    title="Vercel 무료버전 API 절약 모드"
-                                    description="이 탭은 선택한 근로자 1명만 조회하고, 조회 결과를 5분간 캐시하여 불필요한 서버 호출을 줄입니다."
+                                    title="서버 조회 절약 모드"
+                                    description="선택한 근로자 1명만 조회하고 결과를 5분간 임시 보관해 불필요한 서버 조회를 줄입니다."
                                     titleClassName="text-xs font-black text-indigo-900"
                                     descriptionClassName="mt-1 text-[11px] font-bold text-indigo-700"
                                     bodyClassName="block"
@@ -5436,7 +5436,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     items={[
                                         {
                                             key: 'message-api-session-count',
-                                            label: '세션 API 호출',
+                                            label: '이번 화면 서버 조회',
                                             value: messageLogSessionApiCount,
                                             tone: '',
                                             labelClassName: 'text-[10px] font-black text-slate-500',
@@ -5444,7 +5444,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         },
                                         {
                                             key: 'message-api-cache-workers',
-                                            label: '캐시된 근로자',
+                                            label: '임시 보관된 근로자',
                                             value: Object.keys(messageLogCache).length,
                                             tone: '',
                                             labelClassName: 'text-[10px] font-black text-slate-500',
@@ -5485,7 +5485,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                                     subtitle={<p className="truncate">{worker.job_field || '미분류'} · {worker.team_name || '미지정'}</p>}
                                                     titleClassName="text-sm font-black text-slate-900"
                                                     subtitleClassName="mt-1 text-[11px] font-bold text-slate-500"
-                                                    badge={<span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black border ${cachedEntry ? `${BRAND_TONE.emerald} text-emerald-700` : `${BRAND_TONE.slate} text-slate-500`}`}>{cachedEntry ? '캐시됨' : '미조회'}</span>}
+                                                    badge={<span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-black border ${cachedEntry ? `${BRAND_TONE.emerald} text-emerald-700` : `${BRAND_TONE.slate} text-slate-500`}`}>{cachedEntry ? '임시 보관' : '미조회'}</span>}
                                                     body={<p>전화: {formatPhoneForDisplay(worker.phone_number) || '미등록'}</p>}
                                                     footer={<span className="truncate block">최근 발송: {lastLog ? `${formatMessageLogDateTime(lastLog.created_at)} · ${lastLog.status}` : '기록 없음'}</span>}
                                                     bodyClassName="mt-2 text-[11px] font-bold text-slate-500"
@@ -5500,7 +5500,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                                     <div>
-                                        <p className="text-xs font-black text-indigo-600 uppercase tracking-[0.2em]">MESSAGE HISTORY</p>
+                                        <p className="text-xs font-black text-indigo-600 tracking-[0.08em]">문자 발송 이력</p>
                                         <h4 className="mt-1 text-lg font-black text-slate-900">{selectedMessageHistoryWorker?.name || '근로자를 선택하세요'}</h4>
                                         <p className="mt-1 text-[11px] font-bold text-slate-500">
                                             {selectedMessageHistoryWorker ? `${selectedMessageHistoryWorker.job_field || '미분류'} · ${selectedMessageHistoryWorker.team_name || '미지정'} · ${formatPhoneForDisplay(selectedMessageHistoryWorker.phone_number) || '전화 미등록'}` : '좌측 목록에서 확인할 근로자를 선택하세요.'}
@@ -5581,7 +5581,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     items={[
                                         {
                                             key: 'message-history-success',
-                                            label: 'SUCCESS',
+                                            label: '성공',
                                             value: selectedMessageHistorySummary.successCount,
                                             tone: BRAND_TONE.emeraldSoft,
                                             labelClassName: 'text-[10px] font-black text-emerald-600 uppercase tracking-[0.18em]',
@@ -5589,7 +5589,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         },
                                         {
                                             key: 'message-history-failure',
-                                            label: 'CHECK / HOLD',
+                                            label: '확인 필요',
                                             value: selectedMessageHistorySummary.failureCount,
                                             tone: BRAND_TONE.roseSoft,
                                             labelClassName: 'text-[10px] font-black text-rose-600 uppercase tracking-[0.18em]',
@@ -5597,7 +5597,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         },
                                         {
                                             key: 'message-history-pages',
-                                            label: 'SENT PAGES',
+                                            label: '발송한 장수',
                                             value: selectedMessageHistorySummary.sentPageCount,
                                             tone: BRAND_TONE.skySoft,
                                             labelClassName: 'text-[10px] font-black text-sky-600 uppercase tracking-[0.18em]',
@@ -5605,7 +5605,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         },
                                         {
                                             key: 'message-history-success-rate',
-                                            label: 'SUCCESS RATE',
+                                            label: '성공률',
                                             value: `${selectedMessageHistorySummary.successRate}%`,
                                             tone: BRAND_TONE.amberSoft,
                                             labelClassName: 'text-[10px] font-black text-amber-600 uppercase tracking-[0.18em]',
@@ -5613,7 +5613,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                         },
                                         {
                                             key: 'message-history-provider',
-                                            label: 'TOP PROVIDER',
+                                            label: '주요 발송 서비스',
                                             value: selectedMessageHistorySummary.topProviderLabel,
                                             helper: `${selectedMessageHistorySummary.topProviderCount}건`,
                                             tone: BRAND_TONE.violetSoft,
@@ -5788,8 +5788,8 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                                     <NoticeCallout
                                         variant="amber"
                                         className="mt-4 rounded-2xl px-4 py-4"
-                                        title="문자 발송 로그 스키마가 아직 준비되지 않았습니다."
-                                        description="데이터 저장소 SQL 편집기에서 report_message_logs_migration.sql을 먼저 실행하면 관리자 이력 탭이 즉시 활성화됩니다."
+                                        title="문자 발송 기록 저장 구조가 아직 준비되지 않았습니다."
+                                        description="문자 발송 기록 저장 설정을 완료하면 관리자 발송 이력을 확인할 수 있습니다."
                                         bodyClassName="block"
                                     />
                                 )}

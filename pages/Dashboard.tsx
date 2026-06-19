@@ -1772,7 +1772,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             const activePinCount = previous.filter((preset) => preset.pinned).length;
             const isPinning = !target.pinned;
             if (isPinning && activePinCount >= 3) {
-                setTradePresetPinLimitNotice('공종 프리셋 고정은 최대 3개까지 가능합니다.');
+                setTradePresetPinLimitNotice('공종 저장 조건 고정은 최대 3개까지 가능합니다.');
                 return previous;
             }
 
@@ -1918,7 +1918,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             const activePinCount = previous.filter((preset) => preset.pinned).length;
             const isPinning = !target.pinned;
             if (isPinning && activePinCount >= 3) {
-                setPresetPinLimitNotice('프리셋 고정은 최대 3개까지 가능합니다.');
+                setPresetPinLimitNotice('비교 저장 조건 고정은 최대 3개까지 가능합니다.');
                 trackUIViewMetric('control_change', 'dashboard', viewMetricSessionRef.current, {
                     control: 'comparison_preset_pin',
                     presetId,
@@ -2594,7 +2594,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         { label: '근로자', value: stats.totalWorkers, tone: 'text-slate-200' },
                         { label: '응답품질', value: stats.averageScore.toFixed(1), tone: 'text-indigo-300' },
                         { label: '보호우선', value: stats.highRiskWorkers, tone: stats.highRiskWorkers > 0 ? 'text-rose-300' : 'text-slate-300' },
-                        { label: '백로그', value: harnessDashboardSummary.approvalBacklog, tone: harnessDashboardSummary.approvalBacklog > 0 ? 'text-amber-300' : 'text-slate-300' },
+                        { label: '검토 대기', value: harnessDashboardSummary.approvalBacklog, tone: harnessDashboardSummary.approvalBacklog > 0 ? 'text-amber-300' : 'text-slate-300' },
                     ].map((chip) => (
                         <div key={chip.label} className="rounded-xl border border-slate-700 bg-slate-900/60 px-1.5 py-2 text-center">
                             <p className="text-[9px] font-black text-slate-400">{chip.label}</p>
@@ -2664,7 +2664,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 <svg className="w-3 h-3 sm:w-4 sm:h-4 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 00-1.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                                 </svg>
-                                <span className="text-[10px] sm:text-xs font-bold text-emerald-300">AI 분석 엔진 정상</span>
+                                <span className="text-[10px] sm:text-xs font-bold text-emerald-300">자동 분석 정상</span>
                             </div>
                         </div>
                     </div>
@@ -2806,7 +2806,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         step: '10',
                                         label: '데이터 태깅 검증',
                                         page: 'ocr-analysis' as Page,
-                                        desc: 'AI OCR 자동 검증',
+                                        desc: '문서 자동 판독·검증',
                                         status: harnessDashboardSummary.approvalBacklog > 0 ? `승인 대기 ${harnessDashboardSummary.approvalBacklog}건` : '검증 완료',
                                         isWarning: harnessDashboardSummary.approvalBacklog > 0,
                                     },
@@ -3159,7 +3159,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         </svg>
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                        <p className="text-[10px] sm:text-xs font-bold text-indigo-200 mb-1 uppercase tracking-wide">AI 인사이트</p>
+                                        <p className="text-[10px] sm:text-xs font-bold text-indigo-200 mb-1 tracking-wide">자동 분석 의견</p>
                                         <p className="text-xs sm:text-sm text-white font-medium leading-relaxed">
                                             {audienceInsightMessage}
                                         </p>
@@ -3294,9 +3294,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         ? `즉시 보호 대상 ${harnessDashboardSummary.immediateAttention}명이 있어 승인·보완 우선순위를 먼저 정해야 합니다.`
                         : harnessDashboardSummary.fallback > 0
                             ? `안전 기록 저장 연결 보완 ${harnessDashboardSummary.fallback}명이 있어 저장 연결 여부를 함께 점검해야 합니다.`
-                            : `승인 백로그 ${harnessDashboardSummary.approvalBacklog}명이 남아 있어 관리자 검토 순서를 먼저 정리해야 합니다.`}
+                            : `관리자 검토 대기 ${harnessDashboardSummary.approvalBacklog}명이 남아 있어 검토 순서를 먼저 정리해야 합니다.`}
                     description={harnessDashboardSummary.fallback > 0
-                        ? '대시보드 단계에서 백로그를 읽고 OCR 분석, 리포트, 관리자 검토로 이어가면 보호 흐름이 끊기지 않습니다.'
+                        ? '대시보드에서 검토 대기 항목을 확인하고 서류 분석, 리포트, 관리자 검토로 이어가면 보호 흐름이 끊기지 않습니다.'
                         : '현장 보호 우선순위를 대시보드에서 먼저 읽고 세부 화면으로 내려가면 승인 누락과 설명 지연을 줄일 수 있습니다.'}
                     className={MOBILE_CARD_PANEL_COMPACT_CLASS}
                     bodyClassName="block"
@@ -3908,7 +3908,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                             disabled={tradeComparisonPresets.length === 0}
                                             className="px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-700 text-[11px] font-black enabled:hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
-                                            공종 프리셋 CSV
+                                            공종 저장 조건 표(CSV)
                                         </button>
                                     </div>
                                     <div className="mt-2">
@@ -3941,7 +3941,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                             <input
                                                 value={tradePresetSearchQuery}
                                                 onChange={(event) => setTradePresetSearchQuery(event.target.value)}
-                                                placeholder="공종 프리셋 검색"
+                                                placeholder="저장한 공종 조건 검색"
                                                 className="w-full sm:max-w-xs rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 placeholder:text-slate-400"
                                             />
                                         </div>
@@ -3952,7 +3952,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     )}
                                     {pinnedQuickTradePresets.length > 0 && (
                                         <div className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50/60 px-2.5 py-2">
-                                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">고정 공종 프리셋 · 최근 사용 순</p>
+                                            <p className="text-[10px] font-black tracking-[0.08em] text-emerald-700">고정한 공종 조건 · 최근 사용 순</p>
                                             <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
                                                 {pinnedQuickTradePresets.map((preset) => {
                                                     const recent7dApplyCount = getRecentPresetApplyCount(preset.appliedAtHistory, 7);
@@ -4301,7 +4301,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                         <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3 sm:p-4 space-y-3">
                             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
                                 <div>
-                                    <p className="text-xs font-black text-slate-700 dark:text-slate-100">팀 비교 프리셋</p>
+                                    <p className="text-xs font-black text-slate-700 dark:text-slate-100">저장한 팀 비교 조건</p>
                                     <p className="text-[11px] text-slate-500 dark:text-slate-300 mt-1">자주 보는 팀 조합을 저장해 평가 재현성과 실무 속도를 함께 높입니다. (상단 고정 최대 3개)</p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2">
@@ -4337,7 +4337,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                         disabled={teamComparisonPresets.length === 0}
                                         className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs font-bold enabled:hover:bg-slate-50 dark:enabled:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                     >
-                                        프리셋 CSV 내보내기
+                                        비교 조건 표로 내보내기(CSV)
                                     </button>
                                 </div>
                             </div>
@@ -4349,7 +4349,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     placeholder="예: 타설 핵심 3팀"
                                     className="w-full sm:max-w-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-100 placeholder:text-slate-400"
                                 />
-                                <p className="text-[11px] text-slate-500 dark:text-slate-300">프리셋 저장 시 이 이름이 사용됩니다.</p>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-300">비교 조건을 저장할 때 이 이름이 사용됩니다.</p>
                             </div>
 
                             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
@@ -4381,7 +4381,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 <input
                                     value={presetSearchQuery}
                                     onChange={(event) => setPresetSearchQuery(event.target.value)}
-                                    placeholder="프리셋/공종 검색"
+                                    placeholder="저장 조건 또는 공종 검색"
                                     className="w-full sm:max-w-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-100 placeholder:text-slate-400"
                                 />
                             </div>
@@ -4391,7 +4391,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
                             {pinnedQuickPresets.length > 0 && (
                                 <div className="rounded-xl border border-indigo-100 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/20 px-2.5 py-2">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-700 dark:text-indigo-200">고정 프리셋 빠른 실행</p>
+                                    <p className="text-[10px] font-black tracking-[0.08em] text-indigo-700 dark:text-indigo-200">고정한 비교 조건 빠른 실행</p>
                                     <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
                                         {pinnedQuickPresets.map((preset) => {
                                             const recent7dApplyCount = getRecentPresetApplyCount(preset.appliedAtHistory, 7);
@@ -4489,7 +4489,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                     })}
                                 </div>
                             ) : (
-                                <p className="text-[11px] text-slate-500 dark:text-slate-300">조건에 맞는 프리셋이 없습니다. 팀 2개 이상 선택 후 저장하거나 검색/공종 범위를 조정해 보세요.</p>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-300">조건에 맞는 저장 항목이 없습니다. 팀 2개 이상을 선택해 저장하거나 검색·공종 범위를 조정해 보세요.</p>
                             )}
                         </div>
 

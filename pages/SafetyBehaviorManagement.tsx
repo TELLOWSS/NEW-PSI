@@ -337,7 +337,7 @@ const ObserveTab: React.FC<{ assessmentMonth: string; workers: WorkerOption[] }>
                         : includeCoaching && !actionType
                             ? '코칭 조치 유형을 선택하면 통합 등록이 가능합니다.'
                             : '이제 통합 등록을 실행해 관찰과 코칭을 한 번에 남기세요.',
-                description: '현장 입력은 지적보다 보완 흐름을 빠르게 여는 것이 목적이므로, 같은 상황을 같은 프리셋 기준으로 남기는 것이 중요합니다.',
+                description: '현장 입력은 지적보다 보완 흐름을 빠르게 여는 것이 목적이므로, 같은 상황을 같은 빠른 선택 기준으로 남기는 것이 중요합니다.',
             },
         ];
     }, [actionType, behaviorPreset, followupResult, includeCoaching, selectedWorkers.size, severity]);
@@ -1102,7 +1102,7 @@ const SafetyBehaviorManagement: React.FC<SafetyBehaviorManagementProps> = ({ wor
                 eyebrow: '판단 근거',
                 title: activeTab === 'observe' ? '현재는 관찰·코칭 입력 흐름을 보고 있습니다.' : '현재는 무결성 판정 결과를 보고 있습니다.',
                 description: activeTab === 'observe'
-                    ? '프리셋과 일괄 선택을 이용하면 동일 현장 신호를 빠르게 기록해 입력 누락을 줄일 수 있습니다.'
+                    ? '빠른 선택과 일괄 선택을 이용하면 동일 현장 신호를 빠르게 기록해 입력 누락을 줄일 수 있습니다.'
                     : '트래픽라이트 결과를 이용하면 어느 근로자에게 후속 개입이 더 필요한지 즉시 가를 수 있습니다.',
             },
             {
@@ -1118,7 +1118,7 @@ const SafetyBehaviorManagement: React.FC<SafetyBehaviorManagementProps> = ({ wor
             key: 'behavior-harness-connected',
             label: '저장 연결',
             value: `${harnessSummary.connected}명`,
-            helper: `run 연결 ${harnessSummary.runLinked}명 / 전체 ${harnessSummary.total}명`,
+            helper: `처리 이력 연결 ${harnessSummary.runLinked}명 / 전체 ${harnessSummary.total}명`,
             tone: BRAND_TONE.emeraldSoft80,
             labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700',
             helperClassName: 'mt-1 text-xs font-bold text-emerald-700',
@@ -1183,7 +1183,7 @@ const SafetyBehaviorManagement: React.FC<SafetyBehaviorManagementProps> = ({ wor
                         <p className="text-sm font-black text-rose-300">{harnessSummary.immediateAttention}</p>
                     </div>
                     <div className="rounded-lg bg-slate-900 px-2 py-2">
-                        <p className="text-[10px] text-slate-400">백로그</p>
+                        <p className="text-[10px] text-slate-400">관리자 검토 대기</p>
                         <p className="text-sm font-black text-amber-300">{harnessSummary.approvalBacklog}</p>
                     </div>
                     <div className="rounded-lg bg-slate-900 px-2 py-2">
@@ -1267,7 +1267,7 @@ const SafetyBehaviorManagement: React.FC<SafetyBehaviorManagementProps> = ({ wor
                             ? `로컬 보관 ${harnessSummary.fallback}명이 있어 관찰 기록과 저장 연동 점검을 함께 진행해야 합니다.`
                             : `검토 대기 항목이 ${harnessSummary.approvalBacklog}명이 남아 있어 코칭 이후 결재 검토 순서를 먼저 정리해야 합니다.`}
                     description={activeTab === 'observe'
-                        ? '관찰·코칭 입력이 많아도 안전 이행 승인 및 저장 흐름이 끊기면 보호 조치가 닫히지 않습니다. 입력 전에 현재 백로그를 함께 읽어야 합니다.'
+                    ? '관찰·코칭 입력이 많아도 안전 이행 승인 및 저장 흐름이 끊기면 보호 조치가 닫히지 않습니다. 입력 전에 현재 검토 대기 항목을 함께 확인해야 합니다.'
                         : '무결성 판정 결과는 단독 점수로 끝나지 않고 이행 조치 승인 및 보완 흐름과 함께 닫혀야 실제 보호 루프가 완성됩니다.'}
                     className="mb-5 rounded-2xl border px-4 py-3 shadow-sm"
                     bodyClassName="block"

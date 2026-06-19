@@ -213,7 +213,7 @@ const formatCentralStorageMessage = (message?: string | null): string => {
     const raw = String(message || '').trim();
     if (!raw) return '';
     if (/Supabase.*환경변수|환경변수.*Supabase|SUPABASE/i.test(raw)) {
-        return '중앙 저장소 연결값이 아직 준비되지 않았습니다. Vercel 운영 환경 설정을 확인해 주세요.';
+        return '공동 저장소 연결 정보가 아직 준비되지 않았습니다. 서비스 운영 설정을 확인해 주세요.';
     }
     return raw
         .replace(/Supabase/g, '중앙 저장소')
@@ -249,7 +249,7 @@ const SettingsGuide: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             </button>
 
             <div className="text-center mb-10">
-                <span className="bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest mb-3 inline-block">Beginner's Guide</span>
+                <span className="bg-indigo-100 text-indigo-600 px-3 py-1 rounded-full text-xs font-black tracking-widest mb-3 inline-block">처음 설정하는 분을 위한 안내</span>
                 <h3 className="text-3xl font-black text-slate-900">3단계로 끝내는 시스템 설정</h3>
                 <p className="text-slate-500 mt-2 font-medium">복잡해 보이지만 아주 간단합니다. 아래 그림을 따라 순서대로 진행해보세요.</p>
             </div>
@@ -264,14 +264,14 @@ const SettingsGuide: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                     <h4 className="text-lg font-bold text-slate-800 mb-2">AI 두뇌 연결하기</h4>
                     <p className="text-xs text-slate-500 mb-6 leading-relaxed">
                         Google의 AI(Gemini)를 사용하려면<br/>
-                        <span className="text-indigo-600 font-bold">'전용 열쇠(API Key)'</span>가 필요합니다.
+                        <span className="text-indigo-600 font-bold">'분석 서비스 연결키(API 키)'</span>가 필요합니다.
                     </p>
                     
                     {/* Visual: Key -> Cloud */}
                     <div className="h-24 bg-slate-50 rounded-2xl flex items-center justify-center gap-4 border border-slate-100 mb-4 px-4">
                         <div className="flex flex-col items-center">
                             <div className="w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center text-white shadow-sm">🔑</div>
-                            <span className="text-[9px] font-bold text-slate-400 mt-1">Key 발급</span>
+                            <span className="text-[9px] font-bold text-slate-400 mt-1">연결키 발급</span>
                         </div>
                         <div className="flex-1 h-1 bg-slate-200 rounded-full relative overflow-hidden">
                             <div className="absolute top-0 left-0 h-full w-1/2 bg-indigo-400 animate-[shimmer_1s_infinite]"></div>
@@ -683,7 +683,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     };
 
     const handleResetData = () => {
-        if (confirm("⚠️ 경고: 모든 데이터가 삭제됩니다 (근로자 기록, 점검 일지 등).\n설정 정보(API 키 등)는 유지됩니다.\n\n정말 초기화 하시겠습니까?")) {
+        if (confirm("⚠️ 경고: 모든 데이터가 삭제됩니다 (근로자 기록, 점검 일지 등).\n분석 서비스 연결 정보는 유지됩니다.\n\n정말 초기화 하시겠습니까?")) {
             localStorage.removeItem('psi_safety_checks');
             localStorage.removeItem('psi_site_issues');
             alert("로컬 저장소 데이터가 정리되었습니다. 완벽한 초기화를 위해 브라우저의 '사이트 데이터 삭제'를 권장합니다.\n페이지를 새로고침합니다.");
@@ -745,13 +745,13 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             key: 'settings-status',
             eyebrow: '지금 상태',
             title: `${settings.siteName || '현장명 미입력'} 기준 시스템 구성을 조정 중입니다.`,
-            description: `현재 ${isPaidApiMode ? '유료 API 모드' : '무료 API 모드'}이며 공종 ${jobFieldInput.split(',').filter((s) => s.trim()).length}개, 기본 교육 언어 ${normalizeTrainingLanguagePreset(settings.trainingLanguagePreset).length}개가 설정되어 있습니다.`,
+            description: `현재 ${isPaidApiMode ? '유료 분석 모드' : '무료 분석 모드'}이며 공종 ${jobFieldInput.split(',').filter((s) => s.trim()).length}개, 기본 교육 언어 ${normalizeTrainingLanguagePreset(settings.trainingLanguagePreset).length}개가 설정되어 있습니다.`,
             tone: BRAND_TONE.indigoSoft70,
         },
         {
             key: 'settings-evidence',
             eyebrow: '판단 근거',
-            title: 'API, 현장 정보, 가중치, 컷오프, 배치 크기, 언어 세트가 운영 기준입니다.',
+            title: '분석 연결, 현장 정보, 평가 비중, 등급 기준점수, 한 번에 처리할 건수, 교육 언어가 운영 기준입니다.',
             description: '설정 화면은 단순 입력 폼이 아니라 현장 판단 기준을 고정하는 곳이므로, 저장 전 현재 기준이 어떤 운영 흐름을 만드는지 함께 읽을 수 있게 구성했습니다.',
             tone: BRAND_TONE.whiteSoft,
         },
@@ -769,15 +769,15 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             key: 'api-status',
             eyebrow: '지금 상태',
             title: activeApiKeyStatus.hasKey
-                ? `${activeApiKeyStatus.modeLabel} API 모드 실행 키가 준비되어 있습니다.`
-                : `${activeApiKeyStatus.modeLabel} API 모드 실행 키가 비어 있습니다.`,
-            description: `${freeApiKey ? '무료 로컬 키 입력됨' : '무료 로컬 키 미입력'} · ${paidApiKey ? '유료 로컬 키 입력됨' : '유료 로컬 키 미입력'} · 현재 모드 실행 키 출처: ${activeApiKeyStatus.sourceLabel}`,
+                ? `${activeApiKeyStatus.modeLabel} 분석 모드 연결키가 준비되어 있습니다.`
+                : `${activeApiKeyStatus.modeLabel} 분석 모드 연결키가 비어 있습니다.`,
+            description: `${freeApiKey ? '무료 연결키 입력됨' : '무료 연결키 미입력'} · ${paidApiKey ? '유료 연결키 입력됨' : '유료 연결키 미입력'} · 현재 연결 정보 위치: ${activeApiKeyStatus.sourceLabel}`,
             tone: isPaidApiMode ? 'border-rose-200 bg-rose-50/80' : 'border-slate-200 bg-slate-50',
         },
         {
             key: 'api-evidence',
             eyebrow: '판단 근거',
-            title: 'API 키와 운영자 확인이 처리 권한의 기준입니다.',
+            title: '분석 서비스 연결키와 운영자 확인이 처리 권한의 기준입니다.',
             description: '유료 모드는 전환 전 확인창을 거쳐 켜지도록 구성해 무분별한 비용 사용 대신 운영 책임이 남도록 만들었습니다.',
             tone: BRAND_TONE.whiteSoft,
         },
@@ -785,7 +785,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             key: 'api-action',
             eyebrow: '다음 행동',
             title: activeApiKeyStatus.hasKey ? '운영 모드에 맞는 실행 키를 유지하세요.' : '현재 모드의 실행 키를 먼저 설정하세요.',
-            description: '현장 규모와 처리량에 맞춰 무료/유료 모드를 선택하면 이후 OCR, 리포트, 대량 분석 흐름이 안정적으로 이어집니다.',
+            description: '현장 규모와 처리량에 맞춰 무료·유료 모드를 선택하면 이후 문서 판독, 리포트, 대량 분석 흐름이 안정적으로 이어집니다.',
             tone: activeApiKeyStatus.hasKey ? 'border-emerald-200 bg-emerald-50/80' : 'border-amber-200 bg-amber-50/80',
         },
     ], [activeApiKeyStatus, freeApiKey, isPaidApiMode, paidApiKey]);
@@ -801,15 +801,15 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         {
             key: 'policy-evidence',
             eyebrow: '판단 근거',
-            title: '가중치와 컷오프가 해석 기준을 만듭니다.',
-            description: `현재 w1~w5 합계는 ${weightSum.toFixed(2)}이며, 배치 크기는 ${settings.batchSplitSize ?? 50}건 기준입니다. 이 값들이 점수 해석과 대량 처리 체감에 직접 영향을 줍니다.`,
+            title: '평가항목 비중과 등급 기준점수가 해석 기준을 만듭니다.',
+            description: `현재 평가항목 비중 합계는 ${weightSum.toFixed(2)}이며, 한 번에 처리할 건수는 ${settings.batchSplitSize ?? 50}건입니다. 이 값들이 점수 해석과 대량 처리 속도에 직접 영향을 줍니다.`,
             tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'policy-action',
             eyebrow: '다음 행동',
             title: '현장 운영 언어와 평가 기준이 맞는지 마지막으로 확인하세요.',
-            description: '엄격 차단, 점수 컷오프, OCR 배치 크기는 실제 현장 보호 흐름을 바꾸므로, 저장 전 관리자와 현장 리듬에 맞는지 보는 것이 좋습니다.',
+            description: '엄격 차단, 등급 기준점수, 문서 분석 처리 건수는 실제 현장 보호 흐름을 바꾸므로 저장 전 관리자와 현장 상황에 맞는지 확인하세요.',
             tone: BRAND_TONE.indigoSoft70,
         },
     ], [normalizedAdvancedThreshold, normalizedIntermediateThreshold, settings.approvalPolicy?.strictRoleGate, settings.batchSplitSize, weightSum]);
@@ -818,7 +818,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         {
             key: 'theme-status',
             eyebrow: '지금 상태',
-            title: `테마 모드는 ${themeMode === 'system' ? '시스템 자동' : themeMode === 'dark' ? '다크' : '라이트'}이며 현재 화면은 ${resolvedTheme === 'dark' ? '다크' : '라이트'}로 렌더링 중입니다.`,
+            title: `화면 색상은 ${themeMode === 'system' ? '기기 설정 자동' : themeMode === 'dark' ? '어두운 화면' : '밝은 화면'}이며 현재 ${resolvedTheme === 'dark' ? '어두운 화면' : '밝은 화면'}으로 표시 중입니다.`,
             description: '평가 시점과 실사용 시점이 다를 수 있어 모드(선택값)와 실제 적용값을 분리해 보여줍니다.',
             tone: resolvedTheme === 'dark' ? BRAND_TONE.darkIndigoText : BRAND_TONE.indigoSoft70,
         },
@@ -846,28 +846,28 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         return [
             {
                 key: 'display-viewport',
-                label: '뷰포트',
+                label: '화면 크기',
                 value: viewportLabel,
                 helper: `${viewportWidth}px`,
                 tone: viewportWidth < 640 ? BRAND_TONE.indigoSoft70 : BRAND_TONE.whiteSoft,
             },
             {
                 key: 'display-touch',
-                label: '포인터',
+                label: '조작 방식',
                 value: isTouchPointer ? '터치 중심' : '마우스 중심',
                 helper: isTouchPointer ? '버튼 44px 이상 권장' : '밀집 정보 보기 최적',
                 tone: isTouchPointer ? BRAND_TONE.emeraldSoft80 : BRAND_TONE.whiteSoft,
             },
             {
                 key: 'display-motion',
-                label: '모션 선호',
+                label: '화면 움직임',
                 value: prefersReducedMotion ? '감소 모드' : '기본 모드',
                 helper: prefersReducedMotion ? '과한 애니메이션 억제 권장' : '시각 피드백 활성',
                 tone: prefersReducedMotion ? 'border-amber-200 bg-amber-50/80' : BRAND_TONE.whiteSoft,
             },
             {
                 key: 'display-theme-live',
-                label: '실적용 테마',
+                label: '현재 화면 색상',
                 value: resolvedTheme === 'dark' ? '다크' : '라이트',
                 helper: themeMode === 'system' ? '시스템 정책 연동' : '사용자 고정',
                 tone: resolvedTheme === 'dark' ? BRAND_TONE.darkIndigoText : BRAND_TONE.indigoSoft70,
@@ -950,30 +950,30 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
     const uiViewMetricCards = useMemo(() => [
         {
             key: 'ui-metric-total',
-            label: '수집 이벤트',
+            label: '사용 기록',
             value: uiViewMetricSummary.total,
-            helper: '최근 local KPI 로그 수',
+            helper: '최근 이 기기에 쌓인 사용 기록',
             tone: BRAND_TONE.whiteSoft,
         },
         {
             key: 'ui-metric-mode',
             label: '모드 변경',
             value: uiViewMetricSummary.modeChanges,
-            helper: 'view_mode_change',
+            helper: '화면 보기 방식 변경',
             tone: uiViewMetricSummary.modeChanges > 0 ? BRAND_TONE.indigoSoft70 : BRAND_TONE.whiteSoft,
         },
         {
             key: 'ui-metric-cta',
             label: '핵심 클릭',
             value: uiViewMetricSummary.ctaClicks,
-            helper: 'cta_click',
+            helper: '주요 버튼 선택',
             tone: uiViewMetricSummary.ctaClicks > 0 ? BRAND_TONE.emeraldSoft80 : BRAND_TONE.whiteSoft,
         },
         {
             key: 'ui-metric-preset',
-            label: '프리셋 적용',
+            label: '저장 조건 적용',
             value: uiViewMetricSummary.presetApplies,
-            helper: `저장 ${uiViewMetricSummary.presetSaves}건 · 내보내기 ${uiViewMetricSummary.presetExports}건 · 이름수정 ${uiViewMetricSummary.presetRenames}건 · 고정전환 ${uiViewMetricSummary.presetPinToggles}건 · 제한차단 ${uiViewMetricSummary.presetPinLimitBlocked}건 · 범위전환 ${uiViewMetricSummary.presetScopeChanges}건 · Dashboard 세션 적용률 ${uiViewMetricSummary.presetApplyRate}%`,
+            helper: `저장 ${uiViewMetricSummary.presetSaves}건 · 내보내기 ${uiViewMetricSummary.presetExports}건 · 이름수정 ${uiViewMetricSummary.presetRenames}건 · 고정전환 ${uiViewMetricSummary.presetPinToggles}건 · 제한차단 ${uiViewMetricSummary.presetPinLimitBlocked}건 · 범위전환 ${uiViewMetricSummary.presetScopeChanges}건 · 대시보드 사용 중 적용률 ${uiViewMetricSummary.presetApplyRate}%`,
             tone: uiViewMetricSummary.presetApplies > 0 ? BRAND_TONE.indigoSoft70 : BRAND_TONE.whiteSoft,
         },
         {
@@ -989,7 +989,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
         if (uiViewMetricSummary.presetApplies === 0) {
             return {
                 label: '데이터 수집 중',
-                description: '프리셋 적용 로그가 누적되면 빠른실행 사용률 목표(60%) 달성 여부를 평가합니다.',
+            description: '저장 조건 적용 기록이 누적되면 빠른 실행 사용률 목표(60%) 달성 여부를 평가합니다.',
                 toneClassName: 'text-slate-600',
             };
         }
@@ -1004,7 +1004,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
 
         return {
             label: '개선 필요',
-            description: `빠른실행 비중 ${uiViewMetricSummary.presetPinnedSourceRate}%로 목표 ${PRESET_PINNED_SOURCE_TARGET_RATE}% 미만입니다. 고정 프리셋 배치/이름을 점검하세요.`,
+            description: `빠른 실행 비중이 ${uiViewMetricSummary.presetPinnedSourceRate}%로 목표 ${PRESET_PINNED_SOURCE_TARGET_RATE}% 미만입니다. 고정한 저장 조건의 위치와 이름을 점검하세요.`,
             toneClassName: 'text-amber-700',
         };
     }, [uiViewMetricSummary.presetApplies, uiViewMetricSummary.presetPinnedSourceRate]);
@@ -1171,7 +1171,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
             key: 'settings-harness-connected',
             label: '저장 연결',
             value: `${harnessSummary.connected}명`,
-            helper: `run 연결 ${harnessSummary.runLinked}명 / 전체 ${harnessSummary.total}명`,
+            helper: `처리 이력 연결 ${harnessSummary.runLinked}명 / 전체 ${harnessSummary.total}명`,
             tone: BRAND_TONE.emeraldSoft80,
             labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700',
             helperClassName: 'mt-1 text-xs font-bold text-emerald-700',
@@ -1381,9 +1381,9 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 <div className="mt-3 grid grid-cols-4 gap-1.5">
                     {[
                         { label: '버전', value: PSI_APP_VERSION, tone: 'text-indigo-300' },
-                        { label: 'API', value: isPaidApiMode ? '유료' : '무료', tone: isPaidApiMode ? 'text-rose-300' : 'text-emerald-300' },
+                        { label: '분석 방식', value: isPaidApiMode ? '유료' : '무료', tone: isPaidApiMode ? 'text-rose-300' : 'text-emerald-300' },
                         { label: '인원', value: `${workerRecords.length}`, tone: 'text-slate-300' },
-                        { label: '헬스', value: harnessHealthState.status === 'success' ? '정상' : harnessHealthState.status === 'error' ? '오류' : '점검', tone: harnessHealthState.status === 'error' ? 'text-rose-300' : harnessHealthState.status === 'success' ? 'text-emerald-300' : 'text-amber-300' },
+                        { label: '저장 상태', value: harnessHealthState.status === 'success' ? '정상' : harnessHealthState.status === 'error' ? '오류' : '점검', tone: harnessHealthState.status === 'error' ? 'text-rose-300' : harnessHealthState.status === 'success' ? 'text-emerald-300' : 'text-amber-300' },
                     ].map((chip) => (
                         <div key={chip.label} className="rounded-xl border border-slate-700 bg-slate-900/60 px-1.5 py-2 text-center">
                             <p className="text-[9px] font-black text-slate-500">{chip.label}</p>
@@ -1404,13 +1404,13 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                         onClick={handleRunHarnessHealthCheck}
                         className="flex-1 min-h-[44px] rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-black text-slate-200 hover:bg-slate-700 transition-colors"
                     >
-                        헬스 점검
+                        저장 상태 점검
                     </button>
                 </div>
             </div>
             <div className="psi-industrial-panel hidden flex-col items-start justify-between gap-4 p-6 sm:flex md:flex-row md:items-center">
                 <div>
-                    <p className="psi-eyebrow">Operations Configuration</p>
+                    <p className="psi-eyebrow">현장 운영 기준</p>
                     <h2 className="mt-2 text-2xl font-black text-slate-900 dark:text-slate-100">현장 운영 설정</h2>
                     <p className="mt-2 max-w-xl text-sm font-semibold psi-copy-muted">현장 정보, 분석 방식, 교육 언어와 화면 구성을 한 곳에서 관리합니다.</p>
                 </div>
@@ -1440,7 +1440,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                     <button type="button" onClick={() => { trackQuickAction('open_beginner_guide', { uiVariant: 'v3-targeted-tuning-1', copyVariant: guideCopyVariant, copyLabel: guideCopyLabel }); setShowGuide(true); }} className="min-h-[44px] rounded-xl border border-indigo-200 bg-white px-3 py-2 text-left text-xs font-black text-indigo-700 hover:bg-indigo-50">{guideCopyLabel}</button>
                     <button type="button" onClick={() => { trackQuickAction('set_theme_system_mode', { currentThemeMode: themeMode }); handleThemeModeChange('system'); }} className="min-h-[44px] rounded-xl border border-indigo-200 bg-white px-3 py-2 text-left text-xs font-black text-indigo-700 hover:bg-indigo-50">테마 자동 모드</button>
                     <button type="button" onClick={() => { trackQuickAction('refresh_ui_metrics'); loadUIViewMetrics(); }} className="min-h-[44px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-left text-xs font-black text-slate-700 hover:bg-slate-50">UI 지표 새로고침</button>
-                    <button type="button" onClick={() => { trackQuickAction('run_harness_health_check'); handleRunHarnessHealthCheck(); }} className="min-h-[44px] rounded-xl border border-emerald-200 bg-white px-3 py-2 text-left text-xs font-black text-emerald-700 hover:bg-emerald-50">헬스체크 실행</button>
+                    <button type="button" onClick={() => { trackQuickAction('run_harness_health_check'); handleRunHarnessHealthCheck(); }} className="min-h-[44px] rounded-xl border border-emerald-200 bg-white px-3 py-2 text-left text-xs font-black text-emerald-700 hover:bg-emerald-50">저장 상태 확인</button>
                     <button type="button" onClick={() => { trackQuickAction('run_workflow_probe', { candidateCount: harnessCandidates.length }); handleRunHarnessProbe(); }} disabled={isHarnessProbeLoading || harnessCandidates.length === 0} className={`min-h-[44px] rounded-xl border border-violet-200 bg-white px-3 py-2 text-left text-xs font-black text-violet-700 ${isHarnessProbeLoading || harnessCandidates.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-violet-50'}`}>조치 흐름 진단 실행</button>
                     <button type="button" onClick={handleResetMenuComposition} className="min-h-[44px] rounded-xl border border-amber-200 bg-white px-3 py-2 text-left text-xs font-black text-amber-700 hover:bg-amber-50">메뉴 구성 기본값 복원</button>
                     <button type="button" onClick={() => { trackQuickAction('save_settings'); handleSave(); }} className="min-h-[44px] rounded-xl border border-sky-200 bg-white px-3 py-2 text-left text-xs font-black text-sky-700 hover:bg-sky-50">설정 저장/적용</button>
@@ -1543,10 +1543,10 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">세션 요약</p>
                     <p className="mt-2 text-sm font-bold text-slate-700">
-                        Dashboard 세션 {uiViewMetricSummary.dashboardSessions}건 · Performance 세션 {uiViewMetricSummary.performanceSessions}건 · 컨트롤 변경 {uiViewMetricSummary.controlChanges}건 · 프리셋 적용 세션 {uiViewMetricSummary.presetApplySessions}건
+                        대시보드 사용 {uiViewMetricSummary.dashboardSessions}회 · 성과 분석 사용 {uiViewMetricSummary.performanceSessions}회 · 설정 변경 {uiViewMetricSummary.controlChanges}건 · 저장 조건 적용 {uiViewMetricSummary.presetApplySessions}회
                     </p>
                     <p className="mt-1 text-xs font-semibold text-slate-600">
-                        프리셋 적용 소스 비중: 빠른실행 {uiViewMetricSummary.presetApplyFromPinnedLane}건({uiViewMetricSummary.presetPinnedSourceRate}%) · 리스트 {uiViewMetricSummary.presetApplyFromPresetList}건({uiViewMetricSummary.presetListSourceRate}%) · 기타 {uiViewMetricSummary.presetApplyFromUnknown}건
+                        저장 조건 적용 경로: 빠른 실행 {uiViewMetricSummary.presetApplyFromPinnedLane}건({uiViewMetricSummary.presetPinnedSourceRate}%) · 목록 {uiViewMetricSummary.presetApplyFromPresetList}건({uiViewMetricSummary.presetListSourceRate}%) · 기타 {uiViewMetricSummary.presetApplyFromUnknown}건
                     </p>
                     <p className={`mt-1 text-xs font-black ${presetSourceTargetStatus.toneClassName}`}>
                         빠른실행 사용률 목표(60%): {presetSourceTargetStatus.label} · {presetSourceTargetStatus.description}
@@ -1607,7 +1607,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                                     </div>
                                     <p className="mt-1 text-xs text-slate-500 break-all">session: {item.sessionId}</p>
                                     {item.payload ? (
-                                        <p className="mt-1 text-xs text-slate-600 break-all">payload: {JSON.stringify(item.payload)}</p>
+                                        <p className="mt-1 text-xs text-slate-600 break-all">기록 내용: {JSON.stringify(item.payload)}</p>
                                     ) : null}
                                 </div>
                             ))}
@@ -1756,7 +1756,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
 
                 {harnessCandidates.length === 0 ? (
                     <div className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm font-semibold text-slate-500">
-                        아직 `workflowRunId`가 연결된 최신 레코드가 없어 실환경 데이터 저장 진단 대상을 만들 수 없습니다. 먼저 문서 분석(OCR)/보고서 흐름에서 안전 이행 시스템 연결을 생성해야 합니다.
+                        아직 처리 이력이 연결된 최신 기록이 없어 실제 데이터 저장 상태를 확인할 수 없습니다. 먼저 문서 분석이나 보고서 화면에서 안전 이행 기록을 생성해 주세요.
                     </div>
                 ) : (
                     <div className="mt-4 space-y-3">
@@ -1829,37 +1829,37 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-8">
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-indigo-100">
-                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">1단계: Google Gemini API 연결</h3>
+                    <h3 className="text-lg sm:text-xl font-bold text-slate-900 mb-5 sm:mb-6">1단계: Google Gemini 분석 서비스 연결</h3>
                     <InterpretationCardGrid
                         items={apiInterpretationCards}
                         className="grid grid-cols-1 gap-3 mb-5"
                         cardClassName="rounded-2xl border p-4"
                     />
-                    <label className="block text-sm font-bold text-slate-600 mb-2">무료 API 키</label>
+                    <label className="block text-sm font-bold text-slate-600 mb-2">무료 분석 연결키(API 키)</label>
                     <div className="relative mb-4">
                         <input
                             type={showKey ? 'text' : 'password'}
                             value={freeApiKey}
                             onChange={(e) => handleFreeApiKeyChange(e.target.value)}
-                            placeholder="무료 API 키 입력"
+                            placeholder="무료 분석 연결키 입력"
                             className="w-full p-4 pr-12 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-500 font-mono text-sm transition-all"
                         />
                     </div>
 
-                    <label className="block text-sm font-bold text-slate-600 mb-2">유료 API 키</label>
+                    <label className="block text-sm font-bold text-slate-600 mb-2">유료 분석 연결키(API 키)</label>
                     <div className="relative mb-4">
                         <input
                             type={showKey ? 'text' : 'password'}
                             value={paidApiKey}
                             onChange={(e) => handlePaidApiKeyChange(e.target.value)}
-                            placeholder="유료 API 키 입력"
+                            placeholder="유료 분석 연결키 입력"
                             className="w-full p-4 pr-12 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-indigo-500 font-mono text-sm transition-all"
                         />
                         <button onClick={() => setShowKey(!showKey)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600">{showKey ? '숨김' : '보기'}</button>
                     </div>
 
                     <div className="relative mb-2 rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3 text-xs font-semibold leading-5 text-indigo-700">
-                        유료 API 전환은 별도 기억번호 방식이 아니라, 운영자가 비용 발생 가능성을 확인한 뒤 켜는 방식으로 정리했습니다.
+                        유료 분석 전환은 운영자가 비용 발생 가능성을 확인한 뒤 켜는 방식입니다.
                     </div>
                     <span className="text-xs text-indigo-500 font-normal cursor-pointer hover:underline" onClick={() => window.open('https://aistudio.google.com/app/apikey')}>키가 없으신가요?</span>
                     <div className="mt-5 flex items-center justify-between gap-3">
@@ -1870,14 +1870,14 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                             onChange={(e) => handlePaidApiModeToggle(e.target.checked)}
                             className="w-5 h-5 rounded border-slate-300 text-indigo-600"
                         />
-                        <span className="text-sm font-bold text-slate-700">🚀 대규모 고속 처리 모드 (유료 API)</span>
+                        <span className="text-sm font-bold text-slate-700">🚀 대규모 고속 처리 모드 (유료 분석)</span>
                         </label>
                         <span className={`text-xs font-black px-3 py-1 rounded-full ${isPaidApiMode ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                            {isPaidApiMode ? '현재: 유료 API' : '현재: 무료 API'}
+                            {isPaidApiMode ? '현재: 유료 분석' : '현재: 무료 분석'}
                         </span>
                     </div>
                     <div className={`mt-3 rounded-xl border px-3 py-2 text-xs font-semibold ${activeApiKeyStatus.hasKey ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800' : 'border-amber-200 bg-amber-50/80 text-amber-800'}`}>
-                        현재 모드 실행 키: {activeApiKeyStatus.hasKey ? '준비됨' : '미설정'} · 출처: {activeApiKeyStatus.sourceLabel}
+                        현재 분석 연결 상태: {activeApiKeyStatus.hasKey ? '준비됨' : '미설정'} · 연결 정보 위치: {activeApiKeyStatus.sourceLabel}
                     </div>
                 </div>
 
@@ -1943,7 +1943,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
 
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-emerald-200 lg:col-span-2">
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
-                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">확인단계 컷오프 설정</h3>
+                        <h3 className="text-lg sm:text-xl font-bold text-slate-900">확인단계 등급 기준점수</h3>
                         <button
                             type="button"
                             onClick={() => setSettings((prev) => ({
@@ -2012,8 +2012,8 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                 <div className="bg-white p-5 sm:p-8 rounded-3xl shadow-xl border border-violet-200 lg:col-span-2">
                     <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                         <div>
-                            <h3 className="text-lg sm:text-xl font-bold text-slate-900">OCR 일괄 분석 배치 크기</h3>
-                            <p className="text-xs text-slate-500 mt-1">전체 재분석 시 한 번에 처리할 최대 건수입니다. API 할당량 절약을 위해 50~100건을 권장합니다.</p>
+                            <h3 className="text-lg sm:text-xl font-bold text-slate-900">문서 일괄 분석 처리 건수</h3>
+                            <p className="text-xs text-slate-500 mt-1">전체 재분석 시 한 번에 처리할 최대 건수입니다. 서비스 사용량을 아끼려면 50~100건을 권장합니다.</p>
                         </div>
                         <button
                             type="button"
@@ -2110,7 +2110,7 @@ const Settings: React.FC<SettingsProps> = ({ workerRecords = [] }) => {
                             })}
                             className="w-5 h-5 rounded border-slate-300 text-indigo-600"
                         />
-                        <span className="text-sm font-bold text-slate-700">전송 시 현장/시간/버전 메타데이터 포함</span>
+                        <span className="text-sm font-bold text-slate-700">전송 시 현장·시간·버전 정보 포함</span>
                     </label>
                     <p className="text-xs text-slate-500 mt-3 leading-relaxed">
                         비워두면 피드백 탭은 미전송 보관 모드로 동작합니다. URL을 입력하면 실제 전송을 시도하고,

@@ -400,7 +400,7 @@ const RiskCheckTab: React.FC<{ workerRecords: WorkerRecord[] }> = ({ workerRecor
         {
             key: 'risk-evidence',
             eyebrow: '판단 근거',
-            title: items.length > 0 ? '버튼형 상태 입력으로 점검 근거가 쌓입니다.' : '기본 프리셋이 공종별 점검 기준이 됩니다.',
+            title: items.length > 0 ? '버튼형 상태 입력으로 점검 근거가 쌓입니다.' : '기본 빠른 선택 항목이 공종별 점검 기준이 됩니다.',
             description: items.length > 0
                 ? '이행·부분이행·미이행을 같은 높이의 버튼으로 정리해 현장 판단을 빠르게 남기고, 필요한 경우 사유 메모를 바로 이어서 기록합니다.'
                 : '등록된 공종과 근로자 데이터에서 공통 기준을 모아 점검 시작 전부터 판단 기준을 흔들리지 않게 유지합니다.',
@@ -1771,7 +1771,7 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
                         <p className="text-sm font-black text-emerald-300">{harnessSummary.connected}</p>
                     </div>
                     <div className="rounded-lg bg-slate-900 px-2 py-2">
-                        <p className="text-[10px] text-slate-400">백로그</p>
+                        <p className="text-[10px] text-slate-400">관리자 검토 대기</p>
                         <p className="text-sm font-black text-indigo-300">{harnessSummary.approvalBacklog}</p>
                     </div>
                     <div className="rounded-lg bg-slate-900 px-2 py-2">
@@ -1844,7 +1844,7 @@ const FieldSafetyComplianceHub: React.FC<FieldSafetyComplianceHubProps> = ({ wor
                             },
                             {
                                 key: 'hub-harness-backlog',
-                                label: '승인 백로그',
+                                label: '관리자 검토 대기',
                                 value: `${harnessSummary.approvalBacklog}명`,
                                 helper: `재확인 필요 ${harnessSummary.reviewNeeded}명을 포함합니다.`,
                                 tone: harnessSummary.approvalBacklog > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',

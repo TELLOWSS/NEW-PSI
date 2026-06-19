@@ -9,7 +9,7 @@ export type OcrExecutionKeyStatus = {
     ready: boolean;
     hasKey: boolean;
     modeLabel: '무료' | '유료';
-    modeApiLabel: '무료 API' | '유료 API';
+    modeApiLabel: '무료 분석' | '유료 분석';
     source: OcrExecutionKeySource;
     sourceLabel: string;
 };
@@ -63,7 +63,7 @@ export const resolveOcrExecutionKeyStatus = ({
         ready: hasKey,
         hasKey,
         modeLabel: isPaidApiMode ? '유료' : '무료',
-        modeApiLabel: isPaidApiMode ? '유료 API' : '무료 API',
+        modeApiLabel: isPaidApiMode ? '유료 분석' : '무료 분석',
         source,
         sourceLabel,
     };

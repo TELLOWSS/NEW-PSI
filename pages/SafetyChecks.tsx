@@ -226,7 +226,7 @@ const SafetyChecks: React.FC<SafetyChecksProps> = ({ workerRecords, checkRecords
             key: 'safety-checks-harness-connected',
             label: '저장 연결',
             value: `${harnessSummary.connected}명`,
-            helper: `run 연결 ${harnessSummary.runLinked}명 / 전체 ${harnessSummary.total}명`,
+            helper: `처리 이력 연결 ${harnessSummary.runLinked}명 / 전체 ${harnessSummary.total}명`,
             tone: BRAND_TONE.emeraldSoft80,
             labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700',
             helperClassName: 'mt-1 text-xs font-bold text-emerald-700',

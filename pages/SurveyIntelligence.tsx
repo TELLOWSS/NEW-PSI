@@ -911,9 +911,9 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                                                 : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
                                     }`}>
                                         {baselineStorageMode === 'shared-db'
-                                            ? '팀 공유 DB'
+                                            ? '팀 공동 저장소'
                                             : baselineStorageMode === 'local-fallback'
-                                                ? '현재 브라우저 저장'
+                                                ? '이 기기에 임시 저장'
                                                 : '저장소 확인 중'}
                                     </span>
                                     <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-black ${
@@ -1331,7 +1331,7 @@ const SurveyIntelligence: React.FC<Props> = ({ workerRecords }) => {
                                                                 {history.basis.reason || '근거 메모 없음'}
                                                             </p>
                                                             <p className="mt-1 text-[10px] font-bold text-slate-400">
-                                                                작성자 {history.basis.updatedBy} · 규칙 {history.basis.ruleVersion}
+                                                                작성자 {history.basis.updatedBy} · 판정 기준 {history.basis.ruleVersion}
                                                             </p>
                                                         </div>
                                                     </div>

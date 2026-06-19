@@ -440,7 +440,7 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                 label: isDev ? '저장 연결' : '기록 연동 완료',
                 value: `${harnessSummary.connected}명`,
                 helper: isDev 
-                    ? `run 연결 ${harnessSummary.runLinked}명 / 전체 ${harnessSummary.total}명` 
+                    ? `처리 이력 연결 ${harnessSummary.runLinked}명 / 전체 ${harnessSummary.total}명`
                     : `기록 연동 ${harnessSummary.connected}명 / 전체 ${harnessSummary.total}명`,
                 tone: BRAND_TONE.emeraldSoft80,
                 labelClassName: 'text-[10px] font-black uppercase tracking-[0.18em] text-emerald-700',

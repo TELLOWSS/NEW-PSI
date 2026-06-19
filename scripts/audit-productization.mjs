@@ -132,6 +132,14 @@ const items = [
         evidence: '이번 달 원클릭 시작, 미등록 우선순위, 공종별 확인 힌트, 저장 전 체감 비교와 조치 안내',
         nextAction: '현장 사용자 관찰을 통해 문항 이해 시간과 등록 완료율 측정',
     },
+    {
+        id: 'plain_language_ui',
+        grade: '정상 확인',
+        status: packageJson.scripts?.['check:ui-language'] ? 'completed' : 'partial',
+        title: '현장 친화 언어와 개발자 용어 자동 차단',
+        evidence: '주요 6개 화면의 내부 용어를 현장 언어로 전환하고 릴리스 검사에 사용자 언어 감사를 포함',
+        nextAction: '신규 기능마다 쉬운 표현을 먼저 쓰고 필요한 기술명은 괄호로 설명',
+    },
 ];
 
 const counts = items.reduce((acc, item) => {
