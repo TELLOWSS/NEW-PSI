@@ -172,3 +172,19 @@ Vercel:
 - 로컬 API 개발은 `scripts/run-vercel-dev.cjs`가 전역 Vercel CLI를 확인한 뒤 실행한다.
 - 전체 운영·개발 의존성 감사 결과는 취약점 0건이다.
 - 업그레이드 후 21개 테스트 파일 / 112개 테스트와 TypeScript 검사를 재통과했다.
+
+## 2026-06-19 상품화 백로그·보안 헤더·모바일 증거 개선
+
+- 미적용 Supabase 이력 테이블을 `docs/PRODUCTIZATION_BACKLOG.md`에 외부 권한 대기 항목으로 고정했다.
+- 적용 순서, RLS·권한 검증, API 확인, 완료 판정 SQL을 기록해 다음 작업에서 즉시 재개할 수 있다.
+- 상품화 상태 자동점검 `scripts/audit-productization.mjs`를 추가했다.
+- 현재 자동 판정은 완료 3, 부분완료 1, 미시작 4, 외부권한 대기 1이다.
+- P1 미진행은 `case_id` 폐루프, RBAC·현장/테넌트 RLS, 대용량 스트리밍 복원이며 지표 단일 기준은 부분완료다.
+- Vercel 공통 응답에 CSP, 클릭재킹 방지, MIME 스니핑 방지, Referrer, Permissions, COOP, CORP 7개 보안 헤더를 추가했다.
+- 보안 헤더 정적 검사와 Vitest 회귀검사를 릴리스 검사에 포함했다.
+- 모바일 QA 자동화의 오래된 메뉴 선택자와 Windows 프리뷰 종료 문제를 수정했다.
+- 320·360·375·390px에서 탐색·대시보드·OCR·선행 위험신호 16개 증거를 2026-06-19 기준으로 재생성했다.
+- 모바일 증거 자동검사 결과 16/16, 누락 0건이다.
+- 선행 위험신호 화면의 오래된 `모바일 검증 2026-05-04` 배지를 `2026-06-19`로 수정했다.
+- 상품화 자동점검: `artifacts/audit/productization-status.json`, `artifacts/audit/productization-status.md`
+- 모바일 증거: `artifacts/mobile-qa/2026-06-19/`

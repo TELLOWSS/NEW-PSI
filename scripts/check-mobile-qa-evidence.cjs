@@ -1,7 +1,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const baseDir = path.join(process.cwd(), 'artifacts', 'mobile-qa', '2026-05-04');
+const QA_RUN_ID = '2026-06-19';
+const baseDir = path.join(process.cwd(), 'artifacts', 'mobile-qa', QA_RUN_ID);
 const reportPath = path.join(process.cwd(), 'reports', 'mobile-qa-evidence-status.md');
 const shouldWriteReport = process.argv.includes('--write-report');
 const files = [
@@ -21,7 +22,7 @@ const existing = rows.filter((row) => row.exists).length;
 const missing = rows.length - existing;
 const nowIso = new Date().toISOString();
 
-console.log('\n[MOBILE-QA] Evidence Check (2026-05-04)');
+console.log(`\n[MOBILE-QA] Evidence Check (${QA_RUN_ID})`);
 console.log(`[MOBILE-QA] Base: ${baseDir}`);
 console.log('----------------------------------------');
 

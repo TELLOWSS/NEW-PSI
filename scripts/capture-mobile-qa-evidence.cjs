@@ -6,12 +6,14 @@ const { spawn } = require('node:child_process');
 const HOST = '127.0.0.1';
 const PORT = 4173;
 const BASE_URL = `http://${HOST}:${PORT}`;
-const OUTPUT_DIR = path.join(process.cwd(), 'artifacts', 'mobile-qa', '2026-05-04');
+const QA_RUN_ID = '2026-06-19';
+const OUTPUT_DIR = path.join(process.cwd(), 'artifacts', 'mobile-qa', QA_RUN_ID);
 const VIEWPORTS = [320, 360, 375, 390];
 const VIEWPORT_HEIGHT = 844;
 const ADMIN_PASSWORD = process.env.PSI_ADMIN_PASSWORD || process.env.ADMIN_LOGIN_PASSWORD || '';
+const USE_REAL_ADMIN_AUTH = process.env.PSI_MOBILE_QA_USE_REAL_AUTH === '1';
 
-if (!ADMIN_PASSWORD) {
+if (USE_REAL_ADMIN_AUTH && !ADMIN_PASSWORD) {
   throw new Error('Set PSI_ADMIN_PASSWORD or ADMIN_LOGIN_PASSWORD before running mobile QA capture.');
 }
 
@@ -80,6 +82,17 @@ const startPreviewServer = () => {
 
 const stopProcess = async (child) => {
   if (!child || child.killed) return;
+  if (process.platform === 'win32' && child.pid) {
+    await new Promise((resolve) => {
+      const killer = spawn('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], {
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+      killer.once('exit', resolve);
+      killer.once('error', resolve);
+    });
+    return;
+  }
   child.kill('SIGTERM');
   await Promise.race([
     new Promise((resolve) => child.once('exit', resolve)),
@@ -91,6 +104,7 @@ const stopProcess = async (child) => {
 };
 
 const ensureAdminUnlocked = async (page) => {
+  if (!USE_REAL_ADMIN_AUTH) return;
   const passwordInput = page.locator('input[placeholder="비밀번호 입력"]');
   if (await passwordInput.count() === 0) return;
 
@@ -112,24 +126,17 @@ const gotoDashboard = async (page) => {
 };
 
 const gotoPredictive = async (page) => {
-  const mobileNav = page.locator('nav[aria-label="모바일 하단 탐색"]');
-  await mobileNav.getByRole('button', { name: '분석' }).first().click();
+  await page.getByRole('button', { name: '메뉴 열기' }).click();
+  const mobileMenu = page.getByRole('dialog', { name: 'Navigation menu' });
+  await mobileMenu.waitFor({ state: 'visible' });
+  await mobileMenu.getByText('선행 위험신호 분석', { exact: true }).click();
   await page.waitForTimeout(900);
 };
 
 const gotoOcr = async (page) => {
-  const candidates = ['태깅 검증', 'OCR 분석', '신규 분석', 'OCR 운영'];
-  for (const name of candidates) {
-    const button = page.getByRole('button', { name }).first();
-    if (await button.count() === 0) continue;
-    const isDisabled = await button.isDisabled().catch(() => true);
-    if (isDisabled) continue;
-    await button.click();
-    await page.waitForTimeout(900);
-    return;
-  }
-
-  throw new Error('OCR 이동 버튼을 찾지 못했거나 모두 비활성화 상태입니다.');
+  const mobileNav = page.locator('nav[aria-label="모바일 하단 탐색"]');
+  await mobileNav.getByRole('button', { name: '위험분석' }).first().click();
+  await page.waitForTimeout(900);
 };
 
 const captureSet = async (page, width) => {
@@ -190,6 +197,33 @@ const main = async () => {
         deviceScaleFactor: 2,
       });
       const page = await context.newPage();
+      if (!USE_REAL_ADMIN_AUTH) {
+        await page.route('**/api/admin/auth', async (route) => {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ ok: true, authenticated: true }),
+          });
+        });
+        await page.addInitScript(() => {
+          window.sessionStorage.setItem('isAdminAuthenticated', 'true');
+          window.localStorage.setItem('psi_ui_composition_v1', JSON.stringify({
+            version: 3,
+            sidebarOrder: [
+              'dashboard',
+              'survey-intelligence',
+              'predictive-analysis',
+              'performance-analysis',
+              'monthly-guidance-report',
+              'admin-training',
+              'reports',
+              'ocr-analysis',
+              'settings',
+            ],
+            hiddenSidebarPages: [],
+          }));
+        });
+      }
       await page.goto(BASE_URL, { waitUntil: 'domcontentloaded', timeout: 45000 });
       await ensureAdminUnlocked(page);
       await waitForMobileNav(page);

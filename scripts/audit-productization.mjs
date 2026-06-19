@@ -1,0 +1,162 @@
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+
+const exists = async (path) => {
+    try {
+        await stat(path);
+        return true;
+    } catch {
+        return false;
+    }
+};
+
+const read = async (path) => {
+    try {
+        return await readFile(path, 'utf8');
+    } catch {
+        return '';
+    }
+};
+
+const vercelConfig = JSON.parse(await readFile('vercel.json', 'utf8'));
+const globalHeaders = new Map(
+    ((vercelConfig.headers || []).find((rule) => rule.source === '/(.*)')?.headers || [])
+        .map((item) => [String(item.key).toLowerCase(), String(item.value)]),
+);
+const sourceFiles = [
+    'pages/SurveyIntelligence.tsx',
+    'services/surveyRiskBaselineService.ts',
+    'api/admin/survey-risk-baselines.ts',
+    'utils/surveyRiskGap.ts',
+];
+const sourceText = (await Promise.all(sourceFiles.map(read))).join('\n');
+const packageJson = JSON.parse(await readFile('package.json', 'utf8'));
+
+const mobileFiles = [
+    '320-nav.png', '320-dashboard.png', '320-ocr.png', '320-predictive.png',
+    '360-nav.png', '360-dashboard.png', '360-ocr.png', '360-predictive.png',
+    '375-nav.png', '375-dashboard.png', '375-ocr.png', '375-predictive.png',
+    '390-nav.png', '390-dashboard.png', '390-ocr.png', '390-predictive.png',
+];
+const mobileExisting = (await Promise.all(
+    mobileFiles.map((file) => exists(resolve('artifacts/mobile-qa/2026-06-19', file))),
+)).filter(Boolean).length;
+
+const items = [
+    {
+        id: 'baseline_history_migration',
+        grade: '출시 전 수정',
+        status: 'blocked',
+        title: 'Supabase 관리자 기준 변경 이력 테이블 적용',
+        evidence: await exists('supabase_survey_risk_baseline_history_migration.sql')
+            ? '마이그레이션 파일 준비 완료, 원격 DB 접속 권한 대기'
+            : '마이그레이션 파일 없음',
+        nextAction: 'Supabase SQL Editor에서 마이그레이션 실행 후 list-history API와 RLS를 검증',
+    },
+    {
+        id: 'case_closed_loop',
+        grade: '출시 전 수정',
+        status: /\bcase[_A-Z]?id\b/i.test(sourceText) ? 'partial' : 'not_started',
+        title: 'case_id 기반 조치→교육→서명→재평가 폐루프',
+        evidence: /\bcase[_A-Z]?id\b/i.test(sourceText) ? '일부 소스에서 case ID 발견' : '핵심 흐름 소스에 공통 case_id 없음',
+        nextAction: '공통 사건 스키마와 상태 전이부터 설계',
+    },
+    {
+        id: 'tenant_rbac_rls',
+        grade: '출시 전 수정',
+        status: 'not_started',
+        title: '관리자 RBAC·현장/테넌트 격리·RLS',
+        evidence: '관리자 API 인증은 있으나 현장별 역할·행 범위 정책은 미확정',
+        nextAction: 'site_id, tenant_id, app_metadata 역할 모델과 RLS 회귀검사 설계',
+    },
+    {
+        id: 'metric_single_source',
+        grade: '출시 전 수정',
+        status: 'partial',
+        title: '지표 규칙 버전과 화면 전체 단일 계산 기준',
+        evidence: '점수 일관성 게이트와 관리자 기준 ruleVersion은 있으나 전체 화면 단일 계산 모듈은 미완료',
+        nextAction: '핵심 지표 카탈로그와 화면별 계산 소유권을 하나로 통합',
+    },
+    {
+        id: 'streaming_restore',
+        grade: '출시 전 수정',
+        status: 'not_started',
+        title: '대용량 서버 스트리밍 복원·중단 재개·롤백',
+        evidence: '감사 도구는 스트리밍이나 실제 복원은 브라우저 트랜잭션 중심',
+        nextAction: '업로드 세션·청크 체크포인트·재개 토큰·롤백 설계',
+    },
+    {
+        id: 'security_headers',
+        grade: '품질 개선',
+        status: globalHeaders.has('content-security-policy') ? 'completed' : 'not_started',
+        title: '프로덕션 보안 헤더',
+        evidence: globalHeaders.has('content-security-policy')
+            ? `${globalHeaders.size}개 공통 보안 헤더 구성`
+            : 'HSTS 외 주요 응답 보안 헤더 없음',
+        nextAction: '배포 후 실제 응답 헤더 자동 검증',
+    },
+    {
+        id: 'dependency_security',
+        grade: '정상 확인',
+        status: !packageJson.devDependencies?.vercel && String(packageJson.devDependencies?.vitest || '').includes('4.')
+            ? 'completed'
+            : 'partial',
+        title: '운영·개발 공급망 취약점',
+        evidence: 'Vitest 4 적용, 저장소 내 Vercel CLI 제거, 최근 npm audit 0건',
+        nextAction: '릴리스마다 npm audit 재실행',
+    },
+    {
+        id: 'mobile_evidence',
+        grade: '품질 개선',
+        status: mobileExisting === mobileFiles.length ? 'completed' : 'partial',
+        title: '모바일 QA 증거 16종',
+        evidence: `${mobileExisting}/${mobileFiles.length}개 증거 파일 확인`,
+        nextAction: mobileExisting === mobileFiles.length ? '릴리스별 재촬영 자동화' : '누락 화면 재촬영',
+    },
+    {
+        id: 'baseline_scope',
+        grade: '품질 개선',
+        status: 'not_started',
+        title: '현장×월×공종×세부작업 기준 모델',
+        evidence: '현재 기준키는 월×공종',
+        nextAction: '기존 데이터 호환을 유지하는 site_id·task_key 확장안 설계',
+    },
+];
+
+const counts = items.reduce((acc, item) => {
+    acc[item.status] = (acc[item.status] || 0) + 1;
+    return acc;
+}, {});
+const generatedAt = new Date().toISOString();
+const outputDir = resolve('artifacts/audit');
+await mkdir(outputDir, { recursive: true });
+
+const report = {
+    generatedAt,
+    counts,
+    items,
+};
+await writeFile(
+    resolve(outputDir, 'productization-status.json'),
+    `${JSON.stringify(report, null, 2)}\n`,
+    'utf8',
+);
+
+const markdown = [
+    '# NEW-PSI 상품화 상태 자동점검',
+    '',
+    `- 생성시각: ${generatedAt}`,
+    `- 완료: ${counts.completed || 0}`,
+    `- 부분완료: ${counts.partial || 0}`,
+    `- 미시작: ${counts.not_started || 0}`,
+    `- 외부권한 대기: ${counts.blocked || 0}`,
+    '',
+    '| 등급 | 상태 | 과제 | 증거 | 다음 행동 |',
+    '|---|---|---|---|---|',
+    ...items.map((item) => `| ${item.grade} | ${item.status} | ${item.title} | ${item.evidence} | ${item.nextAction} |`),
+    '',
+].join('\n');
+await writeFile(resolve(outputDir, 'productization-status.md'), markdown, 'utf8');
+
+console.log(`[productization] completed=${counts.completed || 0} partial=${counts.partial || 0} not_started=${counts.not_started || 0} blocked=${counts.blocked || 0}`);
+console.log(`[productization] output=${outputDir}`);
