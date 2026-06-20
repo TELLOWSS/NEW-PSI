@@ -268,3 +268,7 @@ Vercel:
 - 브라우저 검증 11/11을 통과했으며 3개월·총 3건·2026.04–2026.06·첫 평가 대비 +13점을 한 행에서 확인했다.
 - 상세 점검: `artifacts/audit/worker-report-grouping-regression.md`
 - 화면 증거: `artifacts/audit/browser/worker-report/worker-target-list.png`
+- 개선 커밋 `8156f46`을 GitHub `main`에 동기화했다.
+- Vercel 프로덕션 배포 `dpl_3zk5gvJeyN7QpSGf2xab5gH3ATcD`가 같은 커밋으로 `READY` 상태가 됐다.
+- 운영 주소 `https://new-psi-eta.vercel.app`에서 첫 진입·상이한 월별 식별번호·한 줄 통합·기간·기록 수·점수 변화 검증 11/11을 통과했다.
+- 운영 보안 헤더 7/7을 통과했고 해당 배포의 최근 30분 오류·경고·치명 로그는 0건이다.
