@@ -1,5 +1,11 @@
 import type { WorkerRecord } from '../types';
-import { buildWorkerTimelineGroups, type WorkerTimelineGroup } from './workerIdentity';
+import {
+    buildWorkerTimelineGroups,
+    getWorkerIdentityKey,
+    getWorkerNameIdentitySeed,
+    hasWorkerUuidConflict,
+    type WorkerTimelineGroup,
+} from './workerIdentity';
 
 const toDateValue = (value: string): number => {
     const date = new Date(value);
@@ -18,8 +24,17 @@ export interface WorkerReportTarget extends WorkerTimelineGroup {
     latestDateLabel: string;
 }
 
+export const getWorkerReportIdentityKey = (record: WorkerRecord): string => {
+    if (hasWorkerUuidConflict(record)) return getWorkerIdentityKey(record);
+
+    const businessIdentity = getWorkerNameIdentitySeed(record);
+    return businessIdentity
+        ? `report-job-name-nationality:${businessIdentity}`
+        : getWorkerIdentityKey(record);
+};
+
 export const buildWorkerReportTargets = (records: WorkerRecord[]): WorkerReportTarget[] => (
-    buildWorkerTimelineGroups(records)
+    buildWorkerTimelineGroups(records, getWorkerReportIdentityKey)
         .map((group) => ({
             ...group,
             recordCount: group.records.length,

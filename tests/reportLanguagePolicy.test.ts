@@ -119,15 +119,15 @@ describe('worker report language policy', () => {
 describe('worker report target grouping', () => {
     it('shows one target per worker with months, records, period, and score change', () => {
         const records = [
-            buildRecord({ id: 'a-1', worker_uuid: 'worker-a', workerUuid: 'worker-a', date: '2026-04-02', safetyScore: 70 }),
-            buildRecord({ id: 'a-2', worker_uuid: 'worker-a', workerUuid: 'worker-a', date: '2026-05-02', safetyScore: 75 }),
-            buildRecord({ id: 'a-3', worker_uuid: 'worker-a', workerUuid: 'worker-a', date: '2026-06-02', safetyScore: 82 }),
+            buildRecord({ id: 'a-1', worker_uuid: 'monthly-a-04', workerUuid: 'monthly-a-04', date: '2026-04-02', safetyScore: 70 }),
+            buildRecord({ id: 'a-2', worker_uuid: 'monthly-a-05', workerUuid: 'monthly-a-05', date: '2026-05-02', safetyScore: 75 }),
+            buildRecord({ id: 'a-3', worker_uuid: 'monthly-a-06', workerUuid: 'monthly-a-06', date: '2026-06-02', safetyScore: 82 }),
             buildRecord({ id: 'b-1', worker_uuid: 'worker-b', workerUuid: 'worker-b', name: '다른 근로자', date: '2026-06-03', safetyScore: 65 }),
         ];
 
         const targets = buildWorkerReportTargets(records);
         expect(targets).toHaveLength(2);
-        const workerA = targets.find((target) => target.latestRecord.worker_uuid === 'worker-a');
+        const workerA = targets.find((target) => target.latestRecord.name === '테스트 근로자');
         expect(workerA).toMatchObject({
             recordCount: 3,
             monthCount: 3,
@@ -135,5 +135,10 @@ describe('worker report target grouping', () => {
             deltaScore: 12,
         });
         expect(workerA?.latestRecord.id).toBe('a-3');
+    });
+
+    it('opens the report center on the grouped worker list by default', () => {
+        const source = readFileSync('pages/Reports.tsx', 'utf8');
+        expect(source).toContain("useState<ReportType>('worker-report')");
     });
 });

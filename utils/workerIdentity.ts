@@ -268,11 +268,14 @@ export interface WorkerTimelineGroup {
     deltaScore: number | null;
 }
 
-export const buildWorkerTimelineGroups = (records: WorkerRecord[]): WorkerTimelineGroup[] => {
+export const buildWorkerTimelineGroups = (
+    records: WorkerRecord[],
+    resolveIdentityKey: (record: WorkerRecord) => string = getWorkerIdentityKey,
+): WorkerTimelineGroup[] => {
     const groupMap = new Map<string, WorkerRecord[]>();
 
     records.forEach((record) => {
-        const key = getWorkerIdentityKey(record);
+        const key = resolveIdentityKey(record);
         const current = groupMap.get(key) || [];
         current.push(record);
         groupMap.set(key, current);

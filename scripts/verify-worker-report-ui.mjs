@@ -67,9 +67,9 @@ const record = (patch) => ({
 });
 
 const seedRecords = [
-    record({ id: 'kh-2026-04', date: '2026-04-20', safetyScore: 72, safetyLevel: '중급' }),
-    record({ id: 'kh-2026-05', date: '2026-05-20', safetyScore: 79, safetyLevel: '중급' }),
-    record({ id: 'kh-2026-06', date: '2026-06-20', safetyScore: 85, safetyLevel: '고급' }),
+    record({ id: 'kh-2026-04', worker_uuid: 'monthly-kh-04', workerUuid: 'monthly-kh-04', date: '2026-04-20', safetyScore: 72, safetyLevel: '중급' }),
+    record({ id: 'kh-2026-05', worker_uuid: 'monthly-kh-05', workerUuid: 'monthly-kh-05', date: '2026-05-20', safetyScore: 79, safetyLevel: '중급' }),
+    record({ id: 'kh-2026-06', worker_uuid: 'monthly-kh-06', workerUuid: 'monthly-kh-06', date: '2026-06-20', safetyScore: 85, safetyLevel: '고급' }),
     record({
         id: 'vi-2026-06',
         worker_uuid: 'worker-vi',
@@ -123,21 +123,25 @@ await seedDatabase();
 await page.reload({ waitUntil: 'networkidle' });
 await page.getByText('근로자 리포트 (관리자 분석)', { exact: true }).click();
 await page.getByRole('heading', { name: '안전 리포트 센터' }).last().waitFor({ state: 'visible' });
-await page.getByRole('button', { name: '개인별 안전보고서' }).click();
 await page.getByText('생성 대상 근로자 2명', { exact: false }).waitFor({ state: 'visible' });
 
 const listText = await page.locator('body').innerText();
-recordCheck('근로자별 한 줄 집계', listText.includes('생성 대상 근로자 2명') && listText.includes('3개월 · 3건'), {
-    expectedWorkers: 2,
-    expectedGroupedRecordText: '3개월 · 3건',
+const workerTabClass = await page.getByRole('button', { name: '개인별 안전보고서' }).getAttribute('class');
+recordCheck('첫 진입부터 개인별 통합목록 표시', workerTabClass?.includes('text-indigo-600') && listText.includes('생성 대상 근로자 2명'), {
+    activeTab: '개인별 안전보고서',
 });
-recordCheck('기간과 변화 표시', listText.includes('2026.04 - 2026.06') && listText.includes('첫 평가 대비 +13점'), {
+recordCheck('근로자별 한 줄 집계', listText.includes('생성 대상 근로자 2명') && listText.includes('3개월 · 총 3건'), {
+    expectedWorkers: 2,
+    expectedGroupedRecordText: '3개월 · 총 3건',
+});
+recordCheck('기간과 변화 표시', listText.includes('2026.04 - 2026.06') && listText.includes('+13점') && listText.includes('첫 평가 대비'), {
     period: '2026.04 - 2026.06',
     delta: '+13',
 });
 recordCheck('모국어 준비 상태 표시', listText.includes('크메르어') && listText.includes('전달 준비 완료'), {
     language: '크메르어',
 });
+await page.getByText('생성 대상 근로자 2명', { exact: false }).scrollIntoViewIfNeeded();
 await page.screenshot({ path: resolve(outputDir, 'worker-target-list.png'), fullPage: false });
 
 await page.getByText('SOVAN', { exact: true }).first().click();

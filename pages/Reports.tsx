@@ -278,7 +278,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const { isDevMode } = useDevMode();
     const { mode: operationalMode } = useOperationalMode();
     const isImmediateOperationalMode = operationalMode === 'immediate';
-    const [activeTab, setActiveTab] = useState<ReportType>('team-report');
+    const [activeTab, setActiveTab] = useState<ReportType>('worker-report');
     const [isGenerating, setIsGenerating] = useState(false);
     const [bulkProgress, setBulkProgress] = useState({ current: 0, total: 0 });
     const [isPackagingEvidence, setIsPackagingEvidence] = useState(false);
@@ -3293,7 +3293,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     <MetricCard
                         title="보고서 대상"
                         value={`${filteredRecords.length}`}
-                        unit="건"
+                        unit={activeTab === 'worker-report' ? '명' : '건'}
                         tone="neutral"
                         className="min-h-[104px]"
                     />
@@ -3605,19 +3605,19 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
             <div className="overflow-x-auto pb-2 -mb-2 shrink-0 no-print">
                 <div className="flex space-x-6 border-b border-slate-200 min-w-max">
-                    <button onClick={() => setActiveTab('team-report')} className={`pb-4 text-sm font-bold transition-colors relative ${activeTab === 'team-report' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}>
-                        팀·공종 요약
-                        {activeTab === 'team-report' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600"></div>}
-                    </button>
                     <button onClick={() => setActiveTab('worker-report')} className={`pb-4 text-sm font-bold transition-colors relative ${activeTab === 'worker-report' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}>
                         개인별 안전보고서
                         {activeTab === 'worker-report' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600"></div>}
+                    </button>
+                    <button onClick={() => setActiveTab('team-report')} className={`pb-4 text-sm font-bold transition-colors relative ${activeTab === 'team-report' ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}>
+                        팀·공종 요약
+                        {activeTab === 'team-report' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-indigo-600"></div>}
                     </button>
                 </div>
                 <p className="mt-2 text-xs font-semibold text-slate-500">
                     {activeTab === 'team-report'
                         ? '팀과 공종별 위험 현황을 회의·관리용으로 요약합니다.'
-                        : '근로자별 내용을 확인하고 개별 보고서를 출력합니다.'}
+                        : '같은 근로자의 월별 기록을 한 줄로 묶어 평가기간·기록 수·점수 변화를 확인합니다.'}
                 </p>
             </div>
 
@@ -4579,9 +4579,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                     <tr>
                                         <th className="px-6 py-3">이름</th>
                                         <th className="px-6 py-3">{activeTab === 'worker-report' ? '최근 평가' : '공종'}</th>
-                                        {activeTab === 'worker-report' && <th className="px-6 py-3">누적 평가</th>}
-                                        <th className="px-6 py-3">응답품질</th>
-                                        <th className="px-6 py-3">확인단계</th>
+                                        {activeTab === 'worker-report' && <th className="px-6 py-3">평가기간·기록</th>}
+                                        <th className="px-6 py-3">{activeTab === 'worker-report' ? '최근 점수' : '응답품질'}</th>
+                                        <th className="px-6 py-3">{activeTab === 'worker-report' ? '점수 변화' : '확인단계'}</th>
                                         {activeTab === 'worker-report' && <th className="px-6 py-3">모국어 리포트</th>}
                                         {isDevMode && <th className="px-6 py-3">안전 기록 상태</th>}
                                         <th className="px-6 py-3">주요 취약점</th>
@@ -4606,26 +4606,37 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                             </td>
                                             {activeTab === 'worker-report' && (
                                                 <td className="px-6 py-3">
-                                                    <p className="font-black text-slate-800 dark:text-slate-100">{reportTarget?.monthCount || 1}개월 · {reportTarget?.recordCount || 1}건</p>
-                                                    <p className="mt-0.5 text-[11px] font-semibold text-slate-500">{reportTarget?.periodLabel || r.date}</p>
-                                                    {reportTarget?.deltaScore !== null && reportTarget?.deltaScore !== undefined && (
-                                                        <p className={`mt-1 text-[11px] font-black ${reportTarget.deltaScore > 0 ? 'text-emerald-600' : reportTarget.deltaScore < 0 ? 'text-rose-600' : 'text-slate-500'}`}>
-                                                            첫 평가 대비 {reportTarget.deltaScore > 0 ? '+' : ''}{reportTarget.deltaScore}점
-                                                        </p>
-                                                    )}
+                                                    <p className="font-black text-slate-800 dark:text-slate-100">{reportTarget?.periodLabel || r.date}</p>
+                                                    <p className="mt-1 text-[11px] font-semibold text-slate-500">{reportTarget?.monthCount || 1}개월 · 총 {reportTarget?.recordCount || 1}건</p>
                                                 </td>
                                             )}
-                                            <td className="px-6 py-3 font-black text-indigo-600">{r.safetyScore}</td>
                                             <td className="px-6 py-3">
-                                                {(() => {
+                                                <p className="font-black text-indigo-600">{r.safetyScore}점</p>
+                                                {activeTab === 'worker-report' && (
+                                                    <p className="mt-0.5 text-[10px] font-bold text-slate-400">{getSafetyLevelFromScore(Number(r.safetyScore))}</p>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-3">
+                                                {activeTab === 'worker-report' ? (
+                                                    reportTarget?.deltaScore !== null && reportTarget?.deltaScore !== undefined ? (
+                                                        <>
+                                                            <p className={`text-sm font-black ${reportTarget.deltaScore > 0 ? 'text-emerald-600' : reportTarget.deltaScore < 0 ? 'text-rose-600' : 'text-slate-600'}`}>
+                                                                {reportTarget.deltaScore > 0 ? '+' : ''}{reportTarget.deltaScore}점
+                                                            </p>
+                                                            <p className="mt-0.5 text-[10px] font-semibold text-slate-400">첫 평가 대비</p>
+                                                        </>
+                                                    ) : (
+                                                        <p className="text-[11px] font-semibold text-slate-400">비교 기록 없음</p>
+                                                    )
+                                                ) : (() => {
                                                     const safetyLevel = getSafetyLevelFromScore(Number(r.safetyScore));
                                                     return (
-                                                <span className={`px-2 py-1 rounded text-xs font-bold ${
-                                                    safetyLevel === '고급' ? 'bg-green-100 text-green-700' :
-                                                    safetyLevel === '중급' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
-                                                }`}>
-                                                    {safetyLevel}
-                                                </span>
+                                                        <span className={`px-2 py-1 rounded text-xs font-bold ${
+                                                            safetyLevel === '고급' ? 'bg-green-100 text-green-700' :
+                                                            safetyLevel === '중급' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                                                        }`}>
+                                                            {safetyLevel}
+                                                        </span>
                                                     );
                                                 })()}
                                             </td>
@@ -4652,7 +4663,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                             <td className="px-6 py-3 text-slate-500 dark:text-slate-400 truncate max-w-xs">{r.weakAreas.join(', ')}</td>
                                             <td className="px-6 py-3 text-right">
                                                 <button onClick={(e) => { e.stopPropagation(); setViewMode('preview'); setPreviewIndex(idx); }} className="text-xs font-bold text-indigo-600 hover:underline">
-                                                    1건 미리보기
+                                                    {activeTab === 'worker-report' ? '통합 리포트 보기' : '기록 미리보기'}
                                                 </button>
                                             </td>
                                         </tr>
