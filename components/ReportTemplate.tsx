@@ -9,11 +9,14 @@ import { NextActionChecklist } from './shared/NextActionChecklist';
 import { StatusBadge } from './shared/StatusBadge';
 import { PSI_APP_VERSION } from '../lib/appInfo';
 import { buildFallbackNativeCoachingText, buildFallbackNativeGuidanceText, buildFallbackNativeVerdictText, isKoreanNationality, sanitizeOperationalNote } from '../utils/ocrVerificationLanguageUtils';
+import { getNativeJobFieldLabel, getNativeSafetyLevelLabel, getReportLanguagePolicy } from '../utils/reportLanguagePolicy';
+import { getWorkerIdentityKey, stableWorkerHash } from '../utils/workerIdentity';
 
 interface ReportTemplateProps {
     record: WorkerRecord;
     history?: WorkerRecord[];
     onPhotoClick?: () => void;
+    includeAdminAppendix?: boolean;
 }
 
 const SectionSearchIcon: React.FC = () => (
@@ -89,42 +92,42 @@ const SAFETY_SIGNS: SafetySignData[] = [
         icon: (
             <g><path d="M50 15 L15 85 H85 L50 15 Z" fill="#FACC15" stroke="black" strokeWidth="3" strokeLinejoin="round"/><path d="M50 35 L50 60" stroke="black" strokeWidth="4" strokeLinecap="round"/><circle cx="50" cy="70" r="3" fill="black"/><path d="M40 45 L30 55 L35 65 M45 45 L55 50 L60 40" stroke="black" strokeWidth="2" fill="none"/><circle cx="48" cy="40" r="3" fill="black"/></g>
         ),
-        labels: { ko: '추락 주의', cn: '当心坠落', vn: 'Chú ý rơi ngã', th: 'ระวังตก', my: 'ပြုတ်ကျမှု သတိ', uz: 'Yiqilish xavfi', kh: 'គ្រោះថ្នាក់នៃការធ្លាក់', id: 'Bahaya Jatuh', mn: 'Унах аюултай', ru: 'Опасность падения', en: 'Danger: Falling' }
+        labels: { ko: '추락 주의', cn: '当心坠落', vn: 'Chú ý rơi ngã', th: 'ระวังตก', my: 'ပြုတ်ကျမှု သတိ', uz: 'Yiqilish xavfi', kh: 'គ្រោះថ្នាក់នៃការធ្លាក់', id: 'Bahaya Jatuh', ms: 'Bahaya Jatuh', mn: 'Унах аюултай', ru: 'Опасность падения', kk: 'Құлау қаупі', ne: 'खस्ने जोखिम', en: 'Danger: Falling' }
     },
     {
         id: 'electric', type: 'warning', keywords: ['전기', '감전', '누전', '케이블', '전선', '접지'],
         icon: (
             <g><path d="M50 15 L15 85 H85 L50 15 Z" fill="#FACC15" stroke="black" strokeWidth="3" strokeLinejoin="round"/><path d="M50 30 L40 50 L55 50 L45 75" stroke="black" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"/></g>
         ),
-        labels: { ko: '감전 주의', cn: '当心触电', vn: 'Cẩn thận điện giật', th: 'ระวังไฟฟ้าดูด', my: 'လျှပ်စစ်အန္တရာယ် သတိ', uz: 'Elektr toki xavfi', kh: 'គ្រោះថ្នាក់ឆក់ខ្សែភ្លើង', id: 'Awas Listrik', mn: 'Цахилгаанд цохиулах', ru: 'Опасность поражения током', en: 'Danger: Electric Shock' }
+        labels: { ko: '감전 주의', cn: '当心触电', vn: 'Cẩn thận điện giật', th: 'ระวังไฟฟ้าดูด', my: 'လျှပ်စစ်အန္တရာယ် သတိ', uz: 'Elektr toki xavfi', kh: 'គ្រោះថ្នាក់ឆក់ខ្សែភ្លើង', id: 'Awas Listrik', ms: 'Awas Renjatan Elektrik', mn: 'Цахилгаанд цохиулах', ru: 'Опасность поражения током', kk: 'Электр тогы қаупі', ne: 'विद्युतीय झट्काको जोखिम', en: 'Danger: Electric Shock' }
     },
     {
         id: 'safety_belt', type: 'mandatory', keywords: ['안전대', '벨트', '고리', '체결', '생명줄'],
         icon: (
             <g><circle cx="50" cy="50" r="40" fill="#2563EB" /><circle cx="50" cy="50" r="36" fill="none" stroke="white" strokeWidth="2" strokeDasharray="4 2"/><path d="M30 50 Q50 80 70 50" stroke="white" strokeWidth="4" fill="none"/><rect x="45" y="45" width="10" height="10" fill="white"/><path d="M30 50 L30 30 M70 50 L70 30" stroke="white" strokeWidth="4"/></g>
         ),
-        labels: { ko: '안전대 착용 철저', cn: '必须系安全带', vn: 'Đeo dây an toàn', th: 'สวมเข็มขัดนิรภัย', my: 'လုံခြုံရေးခါးပတ် ဝတ်ဆင်ပါ', uz: 'Xavfsizlik kamarini taqing', kh: 'ពាក់ខ្សែក្រវ៉ាត់', id: 'Pakai Sabuk Pengaman', mn: 'Бүсээ зүүгээрэй', ru: 'Наденьте страховочный пояс', en: 'Wear Safety Belt' }
+        labels: { ko: '안전대 착용 철저', cn: '必须系安全带', vn: 'Đeo dây an toàn', th: 'สวมเข็มขัดนิรภัย', my: 'လုံခြုံရေးခါးပတ် ဝတ်ဆင်ပါ', uz: 'Xavfsizlik kamarini taqing', kh: 'ពាក់ខ្សែក្រវ៉ាត់', id: 'Pakai Sabuk Pengaman', ms: 'Pakai Tali Pinggang Keselamatan', mn: 'Бүсээ зүүгээрэй', ru: 'Наденьте страховочный пояс', kk: 'Қауіпсіздік белдігін тағыңыз', ne: 'सुरक्षा बेल्ट लगाउनुहोस्', en: 'Wear Safety Belt' }
     },
     {
         id: 'helmet', type: 'mandatory', keywords: ['안전모', '머리', '낙하', '보호구', '턱끈'],
         icon: (
             <g><circle cx="50" cy="50" r="40" fill="#2563EB" /><path d="M30 55 C30 40 40 35 50 35 C60 35 70 40 70 55 Z" fill="white"/><rect x="25" y="55" width="50" height="5" fill="white" rx="2"/></g>
         ),
-        labels: { ko: '안전모 착용', cn: '必须戴安全帽', vn: 'Đội mũ bảo hiểm', th: 'สวมหมวกนิรภัย', my: 'လုံခြုံရေးဦးထုပ် ဝတ်ဆင်ပါ', uz: 'Bosh kiyimini kiying', kh: 'ពាក់មួកសុវត្ថិភាព', id: 'Pakai Helm', mn: 'Малгай өмс', ru: 'Наденьте каску', en: 'Wear Hard Hat' }
+        labels: { ko: '안전모 착용', cn: '必须戴安全帽', vn: 'Đội mũ bảo hiểm', th: 'สวมหมวกนิรภัย', my: 'လုံခြုံရေးဦးထုပ် ဝတ်ဆင်ပါ', uz: 'Bosh kiyimini kiying', kh: 'ពាក់មួកសុវត្ថិភាព', id: 'Pakai Helm', ms: 'Pakai Topi Keselamatan', mn: 'Малгай өмс', ru: 'Наденьте каску', kk: 'Қорғаныс каскасын киіңіз', ne: 'सुरक्षा हेल्मेट लगाउनुहोस्', en: 'Wear Hard Hat' }
     },
     {
         id: 'fire', type: 'warning', keywords: ['화재', '불', '용접', '인화', '폭발'],
         icon: (
             <g><path d="M50 15 L15 85 H85 L50 15 Z" fill="#FACC15" stroke="black" strokeWidth="3" strokeLinejoin="round"/><path d="M50 70 Q40 70 40 60 Q40 50 50 40 Q60 50 60 60 Q60 70 50 70" fill="red"/></g>
         ),
-        labels: { ko: '화재 주의', cn: '当心火灾', vn: 'Cẩn thận hỏa hoạn', th: 'ระวังไฟไหม้', my: 'မီးအန္တရာယ် သတိ', uz: "Yong'in xavfi", kh: 'គ្រោះថ្នាក់អគ្គីភ័យ', id: 'Awas Api', mn: 'Галын аюул', ru: 'Пожарная опасность', en: 'Danger: Fire' }
+        labels: { ko: '화재 주의', cn: '当心火灾', vn: 'Cẩn thận hỏa hoạn', th: 'ระวังไฟไหม้', my: 'မီးအန္တရာယ် သတိ', uz: "Yong'in xavfi", kh: 'គ្រោះថ្នាក់អគ្គីភ័យ', id: 'Awas Api', ms: 'Bahaya Kebakaran', mn: 'Галын аюул', ru: 'Пожарная опасность', kk: 'Өрт қаупі', ne: 'आगलागीको जोखिम', en: 'Danger: Fire' }
     },
     {
         id: 'default_safety', type: 'mandatory', keywords: ['default'],
         icon: (
             <g><circle cx="50" cy="50" r="40" fill="#10B981" /><path d="M35 50 L45 60 L65 40" stroke="white" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none"/></g>
         ),
-        labels: { ko: '안전 수칙 준수', cn: '遵守安全规定', vn: 'Tuân thủ quy tắc an toàn', th: 'ปฏิบัติตามกฎความปลอดภัย', my: 'လုံခြုံရေးစည်းကမ်း လိုက်နာပါ', uz: 'Xavfsizlik qoidalariga rioya', kh: 'គោរពច្បាប់សុវត្ថិភាព', id: 'Patuhi Aturan', mn: 'Дүрэм мөрдөх', ru: 'Соблюдайте правила безопасности', en: 'Safety First' }
+        labels: { ko: '안전 수칙 준수', cn: '遵守安全规定', vn: 'Tuân thủ quy tắc an toàn', th: 'ปฏิบัติตามกฎความปลอดภัย', my: 'လုံခြုံရေးစည်းကမ်း လိုက်နာပါ', uz: 'Xavfsizlik qoidalariga rioya', kh: 'គោរពច្បាប់សុវត្ថិភាព', id: 'Patuhi Aturan', ms: 'Patuhi Peraturan Keselamatan', mn: 'Дүрэм мөрдөх', ru: 'Соблюдайте правила безопасности', kk: 'Қауіпсіздік ережесін сақтаңыз', ne: 'सुरक्षा नियम पालना गर्नुहोस्', en: 'Safety First' }
     }
 ];
 
@@ -143,18 +146,10 @@ const getRelevantSigns = (weakAreas: string[], jobField: string): SafetySignData
     return unique.slice(0, 2);
 };
 
-const getSignLabel = (sign: SafetySignData, nationality: string) => {
-    const n = (nationality || '').trim();
-    if (n.includes('중국')) return sign.labels.cn;
-    if (n.includes('베트남')) return sign.labels.vn;
-    if (n.includes('태국')) return sign.labels.th;
-    if (n.includes('미얀마') || n.toLowerCase().includes('myanmar') || n.toLowerCase().includes('burma')) return sign.labels.my;
-    if (n.includes('러시아') || n.toLowerCase().includes('russia') || n.toLowerCase().includes('russian') || n.toLowerCase().includes('росси')) return sign.labels.ru;
-    if (n.includes('우즈벡')) return sign.labels.uz;
-    if (n.includes('캄보디아')) return sign.labels.kh;
-    if (n.includes('인도네시아')) return sign.labels.id;
-    if (n.includes('몽골')) return sign.labels.mn;
-    return sign.labels.en;
+const getSignLabel = (sign: SafetySignData, nationality: string, language?: string) => {
+    const code = getReportLanguagePolicy(nationality, language).code;
+    const labelKey = code === 'zh' ? 'cn' : code === 'vi' ? 'vn' : code === 'km' ? 'kh' : code;
+    return sign.labels[labelKey] || sign.labels.en;
 };
 
 const LABELS: Record<string, Record<string, string>> = {
@@ -497,8 +492,8 @@ const shouldReplaceForeignNativeWithFallback = (nativeText: string, koreanText: 
 
     if (areEquivalentNarratives(normalizedNative, koreanText)) return true;
 
-    // Foreign-worker native section must not be Korean-dominant.
-    return detectHangulRatio(normalizedNative) >= 0.4;
+    // 근로자 전달면에는 한국어가 한 글자라도 섞이면 완전한 모국어 문장으로 교체한다.
+    return detectHangulRatio(normalizedNative) > 0;
 };
 
 const dedupeNarrativeEntries = (entries: NarrativeEntry[]): NarrativeEntry[] => {
@@ -824,17 +819,25 @@ const createLineClampStyle = (lines: number): React.CSSProperties => ({
     overflow: 'hidden',
 });
 
-export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>(({ record, history = [], onPhotoClick }, ref) => {
-    const labels = useMemo(() => getLabels(record.nationality), [record.nationality]);
-    const certificateTitleNative = useMemo(() => getCertificateTitleNative(record.nationality), [record.nationality]);
+export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplateProps>(({ record, history = [], onPhotoClick, includeAdminAppendix = true }, ref) => {
+    const languagePolicy = useMemo(() => getReportLanguagePolicy(record.nationality, record.language), [record.language, record.nationality]);
+    const labels = languagePolicy.labels;
+    const certificateTitleNative = labels.certificateTitle;
     const appendixTitleNative = useMemo(() => getAppendixTitleNative(record.nationality), [record.nationality]);
     const workerInfoNative = useMemo(() => getWorkerInfoNative(record.nationality), [record.nationality]);
-    const monthlyEduNativeTitle = useMemo(() => getMonthlyEduNativeTitle(record.nationality), [record.nationality]);
-    const sixMetricBilingualLabels = useMemo(() => getSixMetricBilingualLabels(record.nationality), [record.nationality]);
-    const isKorean = isKoreanNationality(record.nationality);
-    const isMyanmar = (record.nationality || '').includes('미얀마') || (record.nationality || '').toLowerCase().includes('myanmar') || (record.nationality || '').toLowerCase().includes('burma');
-    const isRussian = (record.nationality || '').includes('러시아') || (record.nationality || '').toLowerCase().includes('russia') || (record.nationality || '').toLowerCase().includes('russian') || (record.nationality || '').toLowerCase().includes('росси');
-    const timelineLocale = isKorean ? 'ko-KR' : isMyanmar ? 'my-MM' : isRussian ? 'ru-RU' : 'en-US';
+    const monthlyEduNativeTitle = labels.monthlyReportTitle;
+    const sixMetricBilingualLabels = useMemo(() => {
+        const ko = ['① 응답 충실도', '② 업무 이해도', '③ 위험평가 이해', '④ 작업 숙련도', '⑤ 개선 이행력', '⑥ 반복위반 패널티'];
+        return languagePolicy.metrics.map((native, index) => ({
+            ko: ko[index],
+            native,
+            max: index === 5 ? 20 : 100,
+            isPenalty: index === 5,
+        }));
+    }, [languagePolicy.metrics]);
+    const isKorean = languagePolicy.code === 'ko';
+    const isMyanmar = languagePolicy.code === 'my';
+    const timelineLocale = languagePolicy.locale;
     const timelineDateOptions: Intl.DateTimeFormatOptions = {
         timeZone: 'Asia/Seoul',
         year: 'numeric',
@@ -842,9 +845,9 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         day: '2-digit',
     };
     const safetySigns = useMemo(() => getRelevantSigns(record.weakAreas, record.jobField), [record.weakAreas, record.jobField]);
-    const reassessmentTitle = isKorean ? '재평가 타임라인' : isMyanmar ? 'ပြန်လည်အကဲဖြတ် အချိန်လိုင်း' : '재평가 타임라인';
-    const reassessmentFallback = isKorean ? '2차 재가공' : isMyanmar ? 'ထပ်မံ ပြန်လည်အကဲဖြတ်' : '2차 재가공';
-    const reassessmentTag = isKorean ? '[재평가]' : isMyanmar ? '[ပြန်လည်အကဲဖြတ်]' : '[재평가]';
+    const reassessmentTitle = labels.reassessment;
+    const reassessmentFallback = languagePolicy.genericCoaching;
+    const reassessmentTag = `[${labels.reassessment}]`;
     const reassessmentTrail = useMemo(
         () => (record.auditTrail || []).filter(entry => entry.stage === 'reassessment').slice(-2).reverse(),
         [record.auditTrail]
@@ -1065,6 +1068,35 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
         if (nameLength >= 10) return 'text-[22px] leading-[1.04]';
         return 'text-[24px] leading-[1.02]';
     }, [record.name]);
+    const nativeJobField = useMemo(
+        () => getNativeJobFieldLabel(record.jobField, languagePolicy),
+        [languagePolicy, record.jobField],
+    );
+    const nativeSafetyLevel = useMemo(
+        () => getNativeSafetyLevelLabel(record.safetyLevel, languagePolicy),
+        [languagePolicy, record.safetyLevel],
+    );
+    const radarAxisLabels = useMemo(
+        () => languagePolicy.metrics.map((_, index) => String(index + 1)),
+        [languagePolicy.metrics],
+    );
+    const reportHistory = useMemo(() => {
+        const source = history.length > 0 ? history : [record];
+        return [...source].sort((left, right) => new Date(left.date).getTime() - new Date(right.date).getTime());
+    }, [history, record]);
+    const assessmentMonthCount = useMemo(
+        () => new Set(reportHistory.map((item) => String(item.date || '').slice(0, 7)).filter(Boolean)).size,
+        [reportHistory],
+    );
+    const assessmentPeriod = useMemo(() => {
+        const first = reportHistory[0]?.date || record.date;
+        const last = reportHistory[reportHistory.length - 1]?.date || record.date;
+        return first === last ? formatDate(last) : `${formatDate(first)} - ${formatDate(last)}`;
+    }, [record.date, reportHistory]);
+    const documentId = useMemo(() => {
+        const dateKey = String(record.date || '').replace(/\D/g, '').slice(0, 8) || '00000000';
+        return `PSI-${dateKey}-${stableWorkerHash(getWorkerIdentityKey(record)).slice(0, 8)}`;
+    }, [record]);
 
     const getProfileImage = () => {
         if (record.profileImage && record.profileImage.length > 50) {
@@ -1076,12 +1108,12 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
     const getOriginalImage = () => (record.originalImage && record.originalImage.length > 50) ? (record.originalImage.startsWith('data:') ? record.originalImage : `data:image/jpeg;base64,${record.originalImage}`) : null;
 
     return (
-        <div ref={ref} data-report-template-root="true" className="w-[210mm] flex flex-col gap-0 text-slate-900 print:w-full">
-            <div data-report-page="true" className="bg-white w-[210mm] h-[297mm] relative shadow-2xl overflow-hidden text-slate-900 flex flex-col print:shadow-none print:m-0 print:w-full break-after-page">
+        <div ref={ref} data-report-template-root="true" className="w-[210mm] flex flex-col gap-0 text-slate-900 print:w-full" style={{ fontFamily: languagePolicy.fontFamily }}>
+            <div data-report-page="true" lang={languagePolicy.locale} className="bg-white w-[210mm] h-[297mm] relative shadow-2xl overflow-hidden text-slate-900 flex flex-col print:shadow-none print:m-0 print:w-full break-after-page">
                 <div className="absolute inset-0 z-0 pointer-events-none flex items-center justify-center opacity-[0.03] overflow-hidden">
                     <div className="w-[150%] h-[150%] -rotate-12 flex flex-wrap content-center justify-center gap-24 select-none">
                         {Array.from({ length: 20 }).map((_, i) => (
-                            <div key={i} className="text-4xl font-black text-slate-900 whitespace-nowrap">{isMyanmar ? 'PSI တရားဝင် လုံခြုံရေး မှတ်တမ်း' : 'PSI 공식 안전 기록'}</div>
+                            <div key={i} className="text-4xl font-black text-slate-900 whitespace-nowrap">PSI · {labels.officialRecord}</div>
                         ))}
                     </div>
                 </div>
@@ -1094,31 +1126,26 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                 <BrandPhilosophyLogo className="w-6 h-6" />
                             </div>
                         </div>
-                        <h1 className="text-base font-serif font-black text-slate-900 uppercase leading-tight">안전 역량 인증서</h1>
-                        <p className="text-[10px] font-black text-slate-700 tracking-[0.06em] break-keep leading-tight mt-0.5">{certificateTitleNative}</p>
-                        {!isKorean && (
-                            <p className="text-[8px] font-bold text-indigo-600 tracking-[0.04em] break-keep mt-0.5">{monthlyEduNativeTitle}</p>
-                        )}
-                        {isKorean && (
-                            <p className="text-[8px] font-bold text-slate-500 tracking-[0.04em] break-keep mt-0.5">{monthlyEduNativeTitle}</p>
-                        )}
+                        <p className="text-[7px] font-black uppercase tracking-[0.18em] text-indigo-600">{labels.officialRecord} · {labels.documentId} {documentId}</p>
+                        <h1 className="mt-0.5 text-base font-black text-slate-900 leading-tight">{certificateTitleNative}</h1>
+                        <p className="text-[8px] font-bold text-slate-500 tracking-[0.03em] break-keep mt-0.5">{monthlyEduNativeTitle}</p>
                     </div>
 
                     {isKorean ? (
                         <div className="grid h-[40mm] grid-cols-[20mm_minmax(0,1fr)_16mm_38mm] items-start gap-3 pb-2.5 border-b-2 border-slate-800 overflow-hidden">
                             <div className="w-[20mm] h-[28mm] bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
                                 {getProfileImage() ? (
-                                    <img src={getProfileImage()!} className="w-full h-full object-cover" alt={isMyanmar ? 'ကိုယ်ရေးဓာတ်ပုံ' : '프로필'} />
+                                    <img src={getProfileImage()!} className="w-full h-full object-cover" alt={labels.workerInfo} />
                                 ) : (
                                     <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-300 text-xs text-center">
                                         <PhotoPlaceholderIcon />
-                                        <span className="text-[9px]">{isMyanmar ? 'ဓာတ်ပုံ' : '사진'}</span>
+                                        <span className="text-[9px]">{isKorean ? '사진' : 'ID'}</span>
                                     </div>
                                 )}
                             </div>
 
                             <div className="min-w-0 pt-0.5">
-                                <h2 className={`${workerNameClassName} font-serif font-bold text-slate-900 mb-1.5 break-keep`}>{record.name}</h2>
+                                <h2 className={`${workerNameClassName} font-black text-slate-900 mb-1.5 break-keep`}>{record.name}</h2>
                                 <div className="flex flex-wrap gap-1.5 mb-1.5">
                                     <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[9px] font-bold rounded">{record.nationality}</span>
                                     <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[9px] font-bold rounded">{record.jobField}</span>
@@ -1152,26 +1179,26 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <div className="grid grid-cols-[19mm_minmax(0,1fr)_63mm] items-start gap-3 pb-2.5 border-b-2 border-slate-800 min-h-[38mm] overflow-hidden">
                             <div className="w-[19mm] h-[27mm] bg-white border border-slate-200 p-0.5 shadow-sm shrink-0 overflow-hidden flex items-center justify-center cursor-pointer" onClick={onPhotoClick}>
                                 {getProfileImage() ? (
-                                    <img src={getProfileImage()!} className="w-full h-full object-cover" alt={isMyanmar ? 'ကိုယ်ရေးဓာတ်ပုံ' : '프로필'} />
+                                    <img src={getProfileImage()!} className="w-full h-full object-cover" alt={labels.workerInfo} />
                                 ) : (
                                     <div className="w-full h-full flex flex-col items-center justify-center bg-slate-50 text-slate-300 text-xs text-center">
                                         <PhotoPlaceholderIcon />
-                                        <span className="text-[9px]">{isMyanmar ? 'ဓာတ်ပုံ' : '사진'}</span>
+                                        <span className="text-[9px]">{isKorean ? '사진' : 'ID'}</span>
                                     </div>
                                 )}
                             </div>
 
                             <div className="min-w-0 pt-0.5">
                                 <div className="min-w-0 max-w-[78mm]">
-                                    <h2 className={`${workerNameClassName} font-serif font-bold text-slate-900 mb-1.5 break-keep`}>{record.name}</h2>
+                                    <h2 className={`${workerNameClassName} font-black text-slate-900 mb-1.5 break-keep`}>{record.name}</h2>
                                     <div className="flex flex-wrap gap-1.5 mb-1.5">
-                                        <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[9px] font-bold rounded">{record.nationality}</span>
-                                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[9px] font-bold rounded">{record.jobField}</span>
-                                        {record.role === 'leader' && <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-[9px] font-black rounded">팀장</span>}
+                                        <span className="px-2 py-0.5 bg-slate-100 text-slate-600 text-[9px] font-bold rounded">{languagePolicy.countryName}</span>
+                                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[9px] font-bold rounded">{nativeJobField}</span>
                                     </div>
                                     <div className="space-y-0.5">
-                                        <p className="text-[9px] text-slate-400 font-medium leading-tight">{isMyanmar ? 'ရက်စွဲ' : '교육일'}: {formatDate(record.date)}</p>
-                                        {record.teamLeader && <p className="text-[9px] text-slate-400 font-medium leading-tight">팀장: {record.teamLeader}</p>}
+                                        <p className="text-[9px] text-slate-500 font-bold leading-tight">{labels.educationDate}: {formatDate(record.date)}</p>
+                                        <p className="text-[8px] text-slate-400 font-medium leading-tight">{labels.assessmentPeriod}: {assessmentPeriod}</p>
+                                        <p className="text-[8px] text-slate-400 font-medium leading-tight">{labels.recordCount}: {reportHistory.length} · {labels.monthCount}: {assessmentMonthCount}</p>
                                     </div>
                                 </div>
                             </div>
@@ -1183,19 +1210,19 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                             {record.safetyScore}
                                         </span>
                                     </div>
-                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.18em]">{isMyanmar ? 'စုစုပေါင်း ရမှတ်' : '총점'}</span>
+                                    <span className="text-[8px] font-black text-slate-400 tracking-[0.08em]">{labels.totalScore}</span>
                                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${record.safetyLevel === '고급' ? 'bg-emerald-100 text-emerald-800' : record.safetyLevel === '중급' ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'}`}>
-                                        {record.safetyLevel}
+                                        {nativeSafetyLevel}
                                     </span>
                                     <span className="text-[7px] font-bold text-slate-400 text-center leading-tight">
-                                        기준: 고급≥{safetyLevelThresholds.advancedMin} / 중급≥{safetyLevelThresholds.intermediateMin} / 초급&lt;{safetyLevelThresholds.intermediateMin}
+                                        {labels.scoreStandard}: {labels.advanced}≥{safetyLevelThresholds.advancedMin} / {labels.intermediate}≥{safetyLevelThresholds.intermediateMin}
                                     </span>
                                 </div>
                                 <div data-report-chart-box="true" className="flex h-[42mm] w-[40mm] shrink-0 flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white px-1 py-1 shadow-sm overflow-hidden">
                                     <div className="w-[36mm] h-[34mm] overflow-hidden">
-                                        <IndividualRadarChart record={record} />
+                                        <IndividualRadarChart record={record} labels={radarAxisLabels} />
                                     </div>
-                                    <span className="mt-0.5 text-[8px] font-black text-slate-500 tracking-[0.16em] uppercase">{isMyanmar ? 'ညွှန်းကိန်း ၆ ခု' : '6대 지표'}</span>
+                                    <span className="mt-0.5 text-[8px] font-black text-slate-500 tracking-[0.08em]">{labels.qualityBasis}</span>
                                 </div>
                             </div>
                         </div>
@@ -1242,7 +1269,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         <div className="grid h-[46mm] grid-cols-2 gap-2.5 overflow-hidden">
                             <div className="flex h-[46mm] flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
                                 <p className="text-[10px] font-black leading-none text-slate-700 mb-1.5 flex items-center gap-1">
-                                    <SectionSearchIcon /> 상세 품질 판단 근거
+                                    <SectionSearchIcon /> {labels.qualityBasis}
                                 </p>
                                 {frontScoreReasonEntries.length > 0 ? (
                                     <ul className="space-y-1 overflow-hidden">
@@ -1253,27 +1280,22 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                                     <p className="break-words" style={frontEntryLineClampStyle}>
                                                         <HighlightedText text={entry.nativeText || entry.text} />
                                                     </p>
-                                                    {entry.nativeText ? (
-                                                        <p className="mt-0.5 border-t border-slate-200 pt-0.5 text-[7px] font-bold text-slate-500 break-words" style={frontEntryLineClampStyle}>
-                                                            [KO] <HighlightedText text={entry.text} />
-                                                        </p>
-                                                    ) : null}
                                                 </div>
                                             </li>
                                         ))}
                                     </ul>
                                 ) : (
-                                    <p className="text-[10px] text-slate-400 italic">품질 판단 근거 없음</p>
+                                    <p className="text-[10px] text-slate-400 italic">{labels.noQualityBasis}</p>
                                 )}
                                 <p className="mt-1 text-[7px] text-slate-400 leading-tight border-t border-slate-200 pt-1.5">
-                                    상세 지표 막대 해설은 후면 부록에서 확인합니다.
+                                    {labels.metricDetailHint}
                                 </p>
                             </div>
 
                             <div className="flex h-[46mm] flex-col overflow-hidden rounded-xl border-2 border-amber-300 bg-amber-50 p-3 shadow-sm">
                                 <div className="mb-1.5">
                                     <p className="text-[10px] font-black text-amber-800 leading-none flex items-center gap-1">
-                                        <SectionCoachingIcon /> {coachingNativeParagraphs.length > 0 ? '모국어 코칭' : '코칭 요약'}
+                                        <SectionCoachingIcon /> {labels.coaching}
                                     </p>
                                 </div>
                                 <ul className="space-y-1 overflow-hidden text-[8.5px] leading-[1.35] text-amber-900">
@@ -1282,11 +1304,6 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                             <span className="mt-[2px] text-amber-500">•</span>
                                             <div className="min-w-0 flex-1">
                                                 <p style={frontCoachingLineClampStyle}><HighlightedText text={paragraph} /></p>
-                                                {coachingNativeParagraphs.length > 0 && coachingKoParagraphs[index] ? (
-                                                    <p className="mt-0.5 border-t border-amber-200 pt-0.5 text-[7px] font-bold text-amber-700" style={frontCoachingLineClampStyle}>
-                                                        [KO] <HighlightedText text={coachingKoParagraphs[index]} />
-                                                    </p>
-                                                ) : null}
                                             </div>
                                         </li>
                                     ))}
@@ -1356,7 +1373,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
 
                                 <div className="grid min-h-0 h-full gap-2.5 grid-rows-[25mm_minmax(0,1fr)]">
                                     <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-sm overflow-hidden flex flex-col h-full min-h-0">
-                                        <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trends} {isMyanmar ? '(၆ လ)' : '(6개월)'}</h4>
+                                        <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trend} · {labels.sixMonths}</h4>
                                         <div className="flex-1 w-full relative min-h-0">
                                             <TrendMiniChart history={history} record={record} />
                                         </div>
@@ -1412,11 +1429,6 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                                         <p className="break-words font-bold leading-[1.35]" style={frontEntryLineClampStyle}>
                                                             <HighlightedText text={entry.nativeText || entry.text} />
                                                         </p>
-                                                        {entry.nativeText ? (
-                                                            <p className="mt-0.5 border-t border-emerald-100 pt-0.5 text-[7px] font-bold text-emerald-700 break-words" style={frontEntryLineClampStyle}>
-                                                                [KO] <HighlightedText text={entry.text} />
-                                                            </p>
-                                                        ) : null}
                                                     </div>
                                                 </div>
                                             </li>
@@ -1438,11 +1450,6 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                                         <p className="break-words font-bold leading-[1.35]" style={frontEntryLineClampStyle}>
                                                             <HighlightedText text={entry.nativeText || entry.text} />
                                                         </p>
-                                                        {entry.nativeText ? (
-                                                            <p className="mt-0.5 border-t border-rose-200 pt-0.5 text-[7px] font-bold text-rose-700 break-words" style={frontEntryLineClampStyle}>
-                                                                [KO] <HighlightedText text={entry.text} />
-                                                            </p>
-                                                        ) : null}
                                                     </div>
                                                 </div>
                                             </li>
@@ -1458,14 +1465,8 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                     <p className="text-[8.5px] leading-relaxed text-slate-800 overflow-hidden whitespace-pre-line" style={frontVerdictLineClampStyle}>
                                         <HighlightedText text={frontVerdictPrimaryText} />
                                     </p>
-                                    {!isKorean && frontVerdictKoText ? (
-                                        <p className="mt-1 border-t border-slate-200 pt-1 text-[7px] leading-relaxed text-slate-600 overflow-hidden whitespace-pre-line" style={frontVerdictLineClampStyle}>
-                                            <span className="font-black text-slate-400">[KO] </span>
-                                            <HighlightedText text={frontVerdictKoText} />
-                                        </p>
-                                    ) : null}
                                     <NextActionChecklist
-                                        title={isMyanmar ? 'လုပ်ဆောင်ရန် စစ်ဆေးစာရင်း' : '실천 체크리스트'}
+                                        title={labels.actionChecklist}
                                         items={frontImprovementEntries.slice(0, 2).map((entry, i) => ({
                                             key: `action-${i}`,
                                             content: <span style={frontEntryLineClampStyle}><HighlightedText text={entry.nativeText || entry.text} /></span>,
@@ -1484,7 +1485,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
 
                                 <div className="min-h-0 h-full grid gap-2.5 grid-rows-[25mm_minmax(0,1fr)]">
                                     <div className="border border-slate-200 rounded-xl bg-white shadow-sm flex flex-col overflow-hidden p-2 h-full min-h-0">
-                                        <h4 className="text-[8px] font-bold text-slate-400 uppercase mb-1">{labels.trends} (6개월)</h4>
+                                        <h4 className="text-[8px] font-bold text-slate-400 mb-1">{labels.trend} · {labels.sixMonths}</h4>
                                         <div className="flex-1 w-full relative min-h-0">
                                             <TrendMiniChart history={history} record={record} />
                                         </div>
@@ -1502,7 +1503,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                                                             {sign.icon}
                                                         </svg>
                                                     </div>
-                                                    <p className="text-[6.8px] font-black text-slate-900 leading-tight break-keep">{getSignLabel(sign, record.nationality)}</p>
+                                                    <p className="text-[6.8px] font-black text-slate-900 leading-tight break-keep">{getSignLabel(sign, record.nationality, record.language)}</p>
                                                     <div className={`absolute top-0 right-0 w-2 h-2 ${sign.type === 'warning' ? 'bg-yellow-400' : 'bg-blue-600'} rounded-bl`}></div>
                                                 </div>
                                             ))}
@@ -1514,16 +1515,19 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                     )}
 
                     <div className="pt-1.5 border-t-2 border-slate-900 shrink-0 flex justify-between items-end">
-                        <div className="text-[8px] font-bold text-slate-500">PSI 안전 인텔리전스 시스템 {PSI_APP_VERSION} · 월간 안전보건정기교육</div>
+                        <div className="max-w-[105mm]">
+                            <div className="text-[7.5px] font-black text-slate-600">{labels.officialFooter} · {PSI_APP_VERSION}</div>
+                            <div className="mt-0.5 text-[5.8px] font-semibold leading-tight text-slate-400">{labels.scopeText}</div>
+                        </div>
                         <div className="flex gap-8 text-center">
-                            <div className="text-[9px] font-bold">안전관리자 박 성 훈</div>
-                            <div className="text-[9px] font-bold">현장관리자 정 용 현</div>
+                            <div className="text-[8px] font-bold">{labels.safetyManager}<br/><span className="text-[7px] text-slate-500">{isKorean ? '박 성 훈' : 'PARK SEONG HUN'}</span></div>
+                            <div className="text-[8px] font-bold">{labels.siteManager}<br/><span className="text-[7px] text-slate-500">{isKorean ? '정 용 현' : 'JEONG YONG HYEON'}</span></div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div data-report-page="true" className="bg-white w-[210mm] h-[297mm] relative shadow-2xl overflow-hidden text-slate-900 flex flex-col print:shadow-none print:m-0 print:w-full">
+            {includeAdminAppendix && <div data-report-page="true" lang="ko-KR" className="bg-white w-[210mm] h-[297mm] relative shadow-2xl overflow-hidden text-slate-900 flex flex-col print:shadow-none print:m-0 print:w-full" style={{ fontFamily: "'Pretendard', 'Noto Sans KR', 'Malgun Gothic', sans-serif" }}>
                 <div className="absolute inset-0 z-0 pointer-events-none bg-[radial-gradient(circle_at_top_right,_rgba(79,70,229,0.08),_transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.03),transparent_45%)]"></div>
                 <div className="absolute inset-0 m-4 border border-slate-200 z-10 pointer-events-none"></div>
                 <div className="relative z-10 px-[11mm] py-[9mm] flex h-full flex-col gap-2">
@@ -1534,13 +1538,13 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                             <StatusBadge variant="violetSoft" className="gap-2 px-3 py-1 text-[8px] uppercase tracking-[0.24em]">
                                 {isKorean ? '공식 부록' : `공식 부록 · ${appendixTitleNative}`}
                             </StatusBadge>
-                            <h2 className="mt-1.5 text-[18px] font-serif font-black text-slate-900">상세 해석 및 실행 노트</h2>
+                            <h2 className="mt-1.5 text-[18px] font-black text-slate-900">상세 해석 및 실행 노트</h2>
                             {!isKorean && <p className="mt-0.5 text-[9px] font-black text-indigo-700">{appendixTitleNative}</p>}
                             <p className="mt-0.5 text-[9px] font-bold text-slate-500">줄임 표현된 핵심 문구의 상세 해설과 실행 지침을 정식 문서 형식으로 정리한 부록입니다.</p>
                         </div>
                         <div className="shrink-0 rounded-2xl border border-slate-200 bg-white/90 px-3.5 py-2.5 text-right shadow-sm backdrop-blur-sm">
                             <p className="text-[7.5px] font-black uppercase tracking-[0.22em] text-slate-400">{isKorean ? '근로자 정보' : `근로자 정보 · ${workerInfoNative}`}</p>
-                            <p className="mt-1 text-[16px] font-serif font-bold text-slate-900">{record.name}</p>
+                            <p className="mt-1 text-[16px] font-black text-slate-900">{record.name}</p>
                             <p className="text-[8.5px] font-bold text-slate-500">{record.nationality} · {record.jobField}</p>
                             <p className="text-[7.5px] text-slate-400">{isMyanmar ? 'ထုတ်ပေးသည့်နေ့' : '발행일'} {formatDate(record.date)}</p>
                         </div>
@@ -1730,7 +1734,7 @@ export const ReportTemplate = React.forwardRef<HTMLDivElement, ReportTemplatePro
                         </div>
                     </div>
                 </div>
-            </div>
+            </div>}
         </div>
     );
 });

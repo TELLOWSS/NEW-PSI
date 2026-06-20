@@ -140,6 +140,16 @@ const items = [
         evidence: '주요 6개 화면의 내부 용어를 현장 언어로 전환하고 릴리스 검사에 사용자 언어 감사를 포함',
         nextAction: '신규 기능마다 쉬운 표현을 먼저 쓰고 필요한 기술명은 괄호로 설명',
     },
+    {
+        id: 'worker_report_product',
+        grade: '정상 확인',
+        status: packageJson.scripts?.['check:report-language'] && packageJson.scripts?.['qa:worker-report']
+            ? 'completed'
+            : 'partial',
+        title: '근로자 리포트 모국어·인증서·대상자 집계 상품화',
+        evidence: '14개 언어 정책, 근로자 전달본 1장/관리자 분석본 2장 분리, 근로자별 월·기록 집계와 PDF 검증 자동화',
+        nextAction: '실제 현장 사용자 관찰로 인증서 이해 시간과 전달 완료율 측정',
+    },
 ];
 
 const counts = items.reduce((acc, item) => {

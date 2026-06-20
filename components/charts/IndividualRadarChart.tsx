@@ -7,6 +7,7 @@ const RADAR_METRIC_MAX = [10, 20, 20, 30, 20, 30] as const;
 
 interface ChartProps {
     record: WorkerRecord;
+    labels?: string[];
 }
 
 const clampMetric = (value: number, max: number) => {
@@ -43,7 +44,8 @@ const buildRadarBreakdown = (record: WorkerRecord): SixMetricBreakdown => {
     };
 };
 
-export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
+export const IndividualRadarChart: React.FC<ChartProps> = ({ record, labels = RADAR_LABELS }) => {
+    const chartLabels = labels.length === RADAR_LABELS.length ? labels : RADAR_LABELS;
     const breakdown = buildRadarBreakdown(record);
     const metricValues = [
         breakdown.psychological,
@@ -61,7 +63,7 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
     const labelRadius = 56;
     const levels = [0.25, 0.5, 0.75, 1];
     const startAngle = -Math.PI / 2;
-    const step = (Math.PI * 2) / RADAR_LABELS.length;
+    const step = (Math.PI * 2) / chartLabels.length;
 
     const points = percentages.map((value, index) => {
         const angle = startAngle + step * index;
@@ -90,7 +92,7 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
             </defs>
 
             {levels.map((level) => {
-                const ringPoints = RADAR_LABELS.map((_, index) => {
+                const ringPoints = chartLabels.map((_, index) => {
                     const angle = startAngle + step * index;
                     return `${center + Math.cos(angle) * radius * level},${center + Math.sin(angle) * radius * level}`;
                 }).join(' ');
@@ -105,7 +107,7 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
                 );
             })}
 
-            {RADAR_LABELS.map((_, index) => {
+            {chartLabels.map((_, index) => {
                 const angle = startAngle + step * index;
                 return (
                     <line
@@ -123,13 +125,13 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record }) => {
             <polygon points={polygonPath} fill="url(#radar-fill-gradient)" stroke="#4F46E5" strokeWidth="2.2" strokeLinejoin="round" />
 
             {points.map((point, index) => (
-                <g key={`point-${RADAR_LABELS[index]}`}>
+                <g key={`point-${chartLabels[index]}`}>
                     <circle cx={point.x} cy={point.y} r="3.8" fill="#ffffff" />
                     <circle cx={point.x} cy={point.y} r="2.5" fill="#4F46E5" />
                 </g>
             ))}
 
-            {RADAR_LABELS.map((label, index) => {
+            {chartLabels.map((label, index) => {
                 const angle = startAngle + step * index;
                 const x = center + Math.cos(angle) * labelRadius;
                 const y = center + Math.sin(angle) * labelRadius;

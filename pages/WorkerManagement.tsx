@@ -6284,6 +6284,7 @@ const WorkerManagement: React.FC<WorkerManagementProps> = ({ workerRecords, onVi
                             <ReportTemplate
                                 record={bulkMessagePreviewRecord}
                                 history={bulkMessagePreviewHistory}
+                                includeAdminAppendix={false}
                             />
                         </div>
                     )}

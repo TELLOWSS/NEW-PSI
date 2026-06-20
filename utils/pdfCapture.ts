@@ -134,6 +134,17 @@ const loadHtmlToImage = () => {
     return htmlToImagePromise;
 };
 
+const canInlineCurrentStylesheets = (): boolean => {
+    return Array.from(document.styleSheets).every((sheet) => {
+        if (!sheet.href) return true;
+        try {
+            return new URL(sheet.href, window.location.href).origin === window.location.origin;
+        } catch {
+            return false;
+        }
+    });
+};
+
 const getElementLayoutSize = (target: HTMLElement): ElementLayoutSize => {
     const rect = target.getBoundingClientRect();
     const width = Math.max(
@@ -174,26 +185,28 @@ export const captureReportCanvases = async (
     const captureSingleCanvas = async (target: HTMLElement): Promise<HTMLCanvasElement> => {
         const { width, height } = getElementLayoutSize(target);
 
-        try {
-            const { toCanvas } = await loadHtmlToImage();
-            return await toCanvas(target, {
-                cacheBust: true,
-                pixelRatio: scale,
-                backgroundColor: '#ffffff',
-                width,
-                height,
-                canvasWidth: Math.round(width * scale),
-                canvasHeight: Math.round(height * scale),
-                style: {
-                    margin: '0',
-                    transform: 'none',
-                    transformOrigin: 'top left',
-                    boxShadow: 'none',
-                    background: '#ffffff',
-                },
-            });
-        } catch {
-            // html-to-image 실패 시 html2canvas로 폴백
+        if (canInlineCurrentStylesheets()) {
+            try {
+                const { toCanvas } = await loadHtmlToImage();
+                return await toCanvas(target, {
+                    cacheBust: true,
+                    pixelRatio: scale,
+                    backgroundColor: '#ffffff',
+                    width,
+                    height,
+                    canvasWidth: Math.round(width * scale),
+                    canvasHeight: Math.round(height * scale),
+                    style: {
+                        margin: '0',
+                        transform: 'none',
+                        transformOrigin: 'top left',
+                        boxShadow: 'none',
+                        background: '#ffffff',
+                    },
+                });
+            } catch {
+                // html-to-image 실패 시 html2canvas로 폴백
+            }
         }
 
         try {

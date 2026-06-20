@@ -51,6 +51,9 @@ import { useOperationalMode } from '../contexts/OperationalModeContext';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 import { useJudgmentTaggingQuality } from '../hooks/useJudgmentTaggingQuality';
 import { EmptyState, SectionCard, MetricCard, StatusPill } from '../components/common';
+import { evaluateOcrVerificationCompleteness, getNativeLanguageLabel } from '../utils/ocrVerificationLanguageUtils';
+import { isSameWorkerTimeline } from '../utils/workerIdentity';
+import { buildWorkerReportTargets } from '../utils/workerReportTargets';
 
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
 
@@ -800,8 +803,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const hasCustomDateRangeError = isInvalidCustomDateRange || isIncompleteCustomDateRange;
 
     // 필터링 로직
-    const filteredRecords = useMemo(() => {
-        let result = scoredRecords;
+    const filteredSourceRecords = useMemo(() => {
+        let result = [...scoredRecords];
         if (activeTab === 'team-report' && selectedTeam !== '전체') {
             result = result.filter(r => r.jobField === selectedTeam);
         }
@@ -818,8 +821,28 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             });
         }
         // 최신 데이터 기준 정렬 (이름순)
-        return result.sort((a,b) => a.name.localeCompare(b.name));
+        return result.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
     }, [scoredRecords, activeTab, selectedTeam, filterLevel, datePreset, resolvedDateRange]);
+    const workerReportTargets = useMemo(
+        () => buildWorkerReportTargets(filteredSourceRecords),
+        [filteredSourceRecords],
+    );
+    const workerReportTargetByRecordId = useMemo(
+        () => new Map(workerReportTargets.map((target) => [target.latestRecord.id, target])),
+        [workerReportTargets],
+    );
+    const filteredRecords = useMemo(
+        () => activeTab === 'worker-report'
+            ? workerReportTargets.map((target) => target.latestRecord)
+            : filteredSourceRecords,
+        [activeTab, filteredSourceRecords, workerReportTargets],
+    );
+    const filteredAssessmentRecordCount = useMemo(
+        () => activeTab === 'worker-report'
+            ? workerReportTargets.reduce((sum, target) => sum + target.recordCount, 0)
+            : filteredSourceRecords.length,
+        [activeTab, filteredSourceRecords.length, workerReportTargets],
+    );
 
     // 필터 변경 시 미리보기 인덱스 초기화
     useEffect(() => {
@@ -1014,13 +1037,17 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
 
     // 현재 미리보기 대상 데이터
     const currentPreviewRecord = filteredRecords[previewIndex];
+    const currentPreviewTarget = useMemo(
+        () => currentPreviewRecord
+            ? workerReportTargets.find((target) => target.latestRecord.id === currentPreviewRecord.id) || null
+            : null,
+        [currentPreviewRecord, workerReportTargets],
+    );
     const currentPreviewHistory = useMemo(() => {
         if (!currentPreviewRecord) return [];
-        return scoredRecords.filter(r => 
-            r.name === currentPreviewRecord.name && 
-            (r.teamLeader || '미지정') === (currentPreviewRecord.teamLeader || '미지정')
-        );
-    }, [currentPreviewRecord, scoredRecords]);
+        if (activeTab === 'worker-report' && currentPreviewTarget) return currentPreviewTarget.records;
+        return scoredRecords.filter((record) => isSameWorkerTimeline(currentPreviewRecord, record));
+    }, [activeTab, currentPreviewRecord, currentPreviewTarget, scoredRecords]);
 
     const harnessSummary = useMemo(() => {
         return filteredRecords.reduce((summary, record) => {
@@ -1835,7 +1862,10 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             'individual-img': '개별 이미지 파일 (ZIP 압축)'
         };
 
-        if (!confirm(`${selectedTeam === '전체' ? '전체 팀' : selectedTeam + ' 팀'}의 근로자 ${filteredRecords.length}명에 대해\n[${modeLabels[genMode]}] 생성을 시작하시겠습니까?\n\n* 주의: 생성 중에는 화면을 닫지 말고 기다려주세요.`)) return;
+        const targetSummary = activeTab === 'worker-report'
+            ? `근로자 ${filteredRecords.length}명 · 누적 평가기록 ${filteredAssessmentRecordCount}건`
+            : `${selectedTeam === '전체' ? '전체 팀' : selectedTeam + ' 팀'} 기록 ${filteredRecords.length}건`;
+        if (!confirm(`${targetSummary}에 대해\n[${modeLabels[genMode]}] 생성을 시작하시겠습니까?\n\n* 주의: 생성 중에는 화면을 닫지 말고 기다려주세요.`)) return;
 
         // 초기화
         setIsGenerating(true);
@@ -1868,10 +1898,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 if (abortRef.current) break;
 
                 const record = filteredRecords[i];
-                const workerHistory = scoredRecords.filter(r => 
-                    r.name === record.name && 
-                    (r.teamLeader || '미지정') === (record.teamLeader || '미지정')
-                );
+                const workerHistory = activeTab === 'worker-report'
+                    ? workerReportTargets.find((target) => target.latestRecord.id === record.id)?.records || [record]
+                    : scoredRecords.filter((candidate) => isSameWorkerTimeline(record, candidate));
 
                 // 상태 업데이트 -> 렌더링 트리거
                 setGeneratingRecord(record);
@@ -3189,7 +3218,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         <MetricCard
                             title="보고서 대상"
                             value={`${filteredRecords.length}`}
-                            unit="건"
+                            unit={activeTab === 'worker-report' ? '명' : '건'}
                             tone="neutral"
                             className="min-h-[108px]"
                         />
@@ -3599,6 +3628,20 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                         cardClassName="rounded-2xl border p-4"
                     />
                 </div>
+                {activeTab === 'worker-report' && (
+                    <div className="grid w-full grid-cols-1 gap-2 md:grid-cols-2">
+                        <div className="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-indigo-600">관리자 분석본 · 2장</p>
+                            <p className="mt-1 text-sm font-black text-slate-900">모국어 인증서 + 한국어 검증 부록</p>
+                            <p className="mt-1 text-[11px] font-semibold text-slate-600">현재 화면의 PDF·ZIP 출력은 관리자가 판단 근거를 함께 보관할 수 있도록 구성됩니다.</p>
+                        </div>
+                        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700">근로자 전달본 · 1장</p>
+                            <p className="mt-1 text-sm font-black text-slate-900">해당 근로자 모국어 전용 인증서</p>
+                            <p className="mt-1 text-[11px] font-semibold text-slate-600">개별 근로자 화면과 문자 발송에서는 한국어 부록 없이 읽기 쉬운 인증서만 전달됩니다.</p>
+                        </div>
+                    </div>
+                )}
                 {/* Filters */}
                 {activeTab === 'team-report' && (
                     <div>
@@ -3690,7 +3733,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 {/* Actions */}
                 <div className="flex gap-3 items-center">
                     <div className="flex items-center gap-2 text-xs font-bold text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 h-[42px]">
-                        <span>대상: {filteredRecords.length}명</span>
+                        <span>대상: {filteredRecords.length}{activeTab === 'worker-report' ? '명' : '건'}</span>
                     </div>
                     
                     {isPackagingEvidence ? (
@@ -4505,9 +4548,15 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                             <div>
                                 <h3 className="font-black text-slate-700 dark:text-slate-200 text-sm flex items-center gap-2">
                                     <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>
-                                    생성 대상 목록 ({filteredRecords.length}명)
+                                    {activeTab === 'worker-report'
+                                        ? `생성 대상 근로자 ${filteredRecords.length}명`
+                                        : `생성 대상 기록 ${filteredRecords.length}건`}
                                 </h3>
-                                <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">필터 조건에 맞는 대상을 확인하고 목록 또는 미리보기로 이어서 작업합니다.</p>
+                                <p className="mt-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                                    {activeTab === 'worker-report'
+                                        ? `같은 근로자의 ${filteredAssessmentRecordCount}개 평가기록을 한 줄로 묶었습니다. 기간과 변화 추이를 확인한 뒤 최신 인증서를 생성합니다.`
+                                        : '필터 조건에 맞는 평가기록을 확인하고 목록 또는 미리보기로 이어서 작업합니다.'}
+                                </p>
                             </div>
                         </div>
                         <div className="border-b border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
@@ -4529,9 +4578,11 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-300 font-bold uppercase text-xs sticky top-0 z-10 shadow-sm">
                                     <tr>
                                         <th className="px-6 py-3">이름</th>
-                                        <th className="px-6 py-3">직종 (Team)</th>
+                                        <th className="px-6 py-3">{activeTab === 'worker-report' ? '최근 평가' : '공종'}</th>
+                                        {activeTab === 'worker-report' && <th className="px-6 py-3">누적 평가</th>}
                                         <th className="px-6 py-3">응답품질</th>
                                         <th className="px-6 py-3">확인단계</th>
+                                        {activeTab === 'worker-report' && <th className="px-6 py-3">모국어 리포트</th>}
                                         {isDevMode && <th className="px-6 py-3">안전 기록 상태</th>}
                                         <th className="px-6 py-3">주요 취약점</th>
                                         <th className="px-6 py-3 text-right">작업</th>
@@ -4539,6 +4590,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
                                     {filteredRecords.map((r, idx) => {
+                                        const reportTarget = workerReportTargetByRecordId.get(r.id);
+                                        const nativeReadiness = evaluateOcrVerificationCompleteness(r);
                                         const workflowState = inferHarnessWorkflowState(r);
                                         const riskDecision = inferHarnessRiskDecision(r);
                                         const approvalState = inferHarnessApprovalState(r, workflowState);
@@ -4547,7 +4600,21 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                         return (
                                         <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors cursor-pointer" onClick={() => { setViewMode('preview'); setPreviewIndex(idx); }}>
                                             <td className="px-6 py-3 font-bold text-slate-800 dark:text-slate-100">{r.name}</td>
-                                            <td className="px-6 py-3 text-slate-600 dark:text-slate-300">{r.jobField}</td>
+                                            <td className="px-6 py-3 text-slate-600 dark:text-slate-300">
+                                                <p className="font-bold text-slate-700 dark:text-slate-200">{r.jobField}</p>
+                                                {activeTab === 'worker-report' && <p className="mt-0.5 text-[11px] text-slate-400">{r.date}</p>}
+                                            </td>
+                                            {activeTab === 'worker-report' && (
+                                                <td className="px-6 py-3">
+                                                    <p className="font-black text-slate-800 dark:text-slate-100">{reportTarget?.monthCount || 1}개월 · {reportTarget?.recordCount || 1}건</p>
+                                                    <p className="mt-0.5 text-[11px] font-semibold text-slate-500">{reportTarget?.periodLabel || r.date}</p>
+                                                    {reportTarget?.deltaScore !== null && reportTarget?.deltaScore !== undefined && (
+                                                        <p className={`mt-1 text-[11px] font-black ${reportTarget.deltaScore > 0 ? 'text-emerald-600' : reportTarget.deltaScore < 0 ? 'text-rose-600' : 'text-slate-500'}`}>
+                                                            첫 평가 대비 {reportTarget.deltaScore > 0 ? '+' : ''}{reportTarget.deltaScore}점
+                                                        </p>
+                                                    )}
+                                                </td>
+                                            )}
                                             <td className="px-6 py-3 font-black text-indigo-600">{r.safetyScore}</td>
                                             <td className="px-6 py-3">
                                                 {(() => {
@@ -4562,6 +4629,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                                     );
                                                 })()}
                                             </td>
+                                            {activeTab === 'worker-report' && (
+                                                <td className="px-6 py-3">
+                                                    <p className="text-xs font-black text-slate-700 dark:text-slate-200">{getNativeLanguageLabel(r.nationality, r.language)}</p>
+                                                    <StatusBadge variant={nativeReadiness.isComplete ? 'emeraldSoft' : 'amberSoft'} className="mt-1 px-2 py-1 text-[10px]">
+                                                        {nativeReadiness.isComplete ? '전달 준비 완료' : `보완 ${nativeReadiness.issues.length}건`}
+                                                    </StatusBadge>
+                                                </td>
+                                            )}
                                             {isDevMode && (
                                                 <td className="px-6 py-3">
                                                     <div className="flex flex-wrap gap-1.5">
@@ -4611,6 +4686,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                 <div className="text-center">
                                     <p className="text-sm font-black text-slate-800 dark:text-slate-100">{previewIndex + 1} / {filteredRecords.length}</p>
                                     <p className="text-xs text-slate-500 dark:text-slate-300 font-bold">{currentPreviewRecord?.name}</p>
+                                    {activeTab === 'worker-report' && currentPreviewTarget && (
+                                        <p className="mt-0.5 text-[10px] font-black text-indigo-600">{currentPreviewTarget.monthCount}개월 · {currentPreviewTarget.recordCount}건 · {currentPreviewTarget.periodLabel}</p>
+                                    )}
                                 </div>
                                 <button 
                                     onClick={handleNext} 

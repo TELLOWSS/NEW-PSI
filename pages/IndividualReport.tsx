@@ -567,7 +567,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         beginGenerationProgress('image');
         setIsGeneratingImage(true);
         try {
-            updateGenerationProgress(18, '양면 리포트 렌더링 중');
+            updateGenerationProgress(18, '근로자 전달용 인증서 렌더링 중');
             const { files } = await buildReportImageFiles();
             updateGenerationProgress(72, '공유용 이미지 준비 중');
 
@@ -609,7 +609,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         setMessageSendStatus('');
 
         try {
-            updateGenerationProgress(15, '문자용 양면 이미지 생성 중');
+            updateGenerationProgress(15, '문자용 모국어 인증서 생성 중');
             const reportImages = await buildReportMessageImages();
             updateGenerationProgress(70, '문자 발송 요청 중');
 
@@ -686,7 +686,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         try {
             updateGenerationProgress(15, '데이터 수집 중');
             const canvases = await captureReportCanvases(reportRef.current, html2canvas, { scale: 3 });
-            updateGenerationProgress(65, '양면 리포트 변환 중');
+            updateGenerationProgress(65, '근로자 전달용 인증서 변환 중');
             updateGenerationProgress(82, 'PDF 문서 구성 중');
             saveCanvasesAsA4Pdf(canvases, PDFCtor as new (orientation: string, unit: string, format: string) => {
                 addImage: (...args: unknown[]) => void;
@@ -722,7 +722,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
         try {
             updateGenerationProgress(20, '데이터 수집 중');
             const canvases = await captureReportCanvases(reportRef.current, html2canvas, { scale: 3 });
-            updateGenerationProgress(72, '양면 이미지 변환 중');
+            updateGenerationProgress(72, '모국어 인증서 이미지 변환 중');
             const zip = new JSZip();
             const pageBlobs = await Promise.all(canvases.map((canvas) => canvasToBlob(canvas, 'image/jpeg', 0.9)));
             pageBlobs.forEach((blob, index) => {
@@ -849,7 +849,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                             <p className="text-[11px] font-black uppercase tracking-[0.18em] text-indigo-500">PSI Direct Message</p>
                             <h3 className="mt-1 text-lg font-black text-slate-900">근로자 리포트 자동 문자 발송</h3>
                             <p className="mt-1 text-sm font-bold leading-relaxed text-slate-500">
-                                전화번호를 입력하면 앞면/뒷면 리포트를 각각 MMS로 자동 발송합니다. 입력한 번호는 동일 근로자 리포트에서 다시 불러옵니다.
+                                전화번호를 입력하면 근로자 전달용 모국어 인증서 1장을 MMS로 발송합니다. 입력한 번호는 동일 근로자 리포트에서 다시 불러옵니다.
                             </p>
                         </div>
                         <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
@@ -942,7 +942,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
             )}
 
             <div hidden className="w-full max-w-[210mm] rounded-2xl border border-fuchsia-100 bg-fuchsia-50 px-4 py-3 text-[12px] font-bold text-fuchsia-900 shadow-sm">
-                모바일에서는 문자공유 버튼으로 양면 리포트 이미지를 문자/MMS·메신저 앱에 바로 첨부할 수 있습니다. 자동문자 버튼은 서버에 연결된 문자 발송 계정으로 직접 MMS를 발송합니다.
+                모바일에서는 문자공유 버튼으로 근로자 전달용 모국어 인증서를 문자/MMS·메신저 앱에 바로 첨부할 수 있습니다. 자동문자 버튼은 서버에 연결된 문자 발송 계정으로 직접 MMS를 발송합니다.
             </div>
 
             {isQrScanMode && (
@@ -997,7 +997,7 @@ const IndividualReport: React.FC<IndividualReportProps> = ({ record, history = [
                     <div className="mx-auto flex min-w-fit justify-center">
                         <div className="min-w-[210mm] bg-white">
                             <Suspense fallback={<ReportTemplateFallback />}>
-                                <ReportTemplate record={record} history={history} onPhotoClick={startCamera} ref={reportRef} />
+                                <ReportTemplate record={record} history={history} onPhotoClick={startCamera} includeAdminAppendix={false} ref={reportRef} />
                             </Suspense>
                         </div>
                     </div>
