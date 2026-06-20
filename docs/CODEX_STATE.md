@@ -248,3 +248,10 @@ Vercel:
 - 언어 감사: `artifacts/audit/report-language-audit.md`
 - 언어 행렬: `artifacts/audit/report-language-matrix.csv`
 - 브라우저·PDF 증거: `artifacts/audit/browser/worker-report/`
+
+### 운영 배포 확인
+- 개선 커밋 `d4ce34e`를 GitHub `main`에 동기화했다.
+- Vercel 프로덕션 배포 `dpl_Fjy2VTSazkAHuraQcBreeWZ5cLUT`가 같은 커밋으로 `READY` 상태임을 확인했다.
+- 운영 주소 `https://new-psi-eta.vercel.app`에서 HTTP 200을 확인했다.
+- 운영 브라우저 근로자 리포트 검증 10/10, 현장 언어 검증 14/14, 보안 헤더 7/7을 통과했다.
+- 해당 배포의 최근 30분 오류·경고·치명 런타임 로그는 0건이다.
