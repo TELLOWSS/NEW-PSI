@@ -294,3 +294,10 @@ Vercel:
 - 상세 보고서: `artifacts/audit/safety-case-closed-loop-review.md`
 - 브라우저 증거: `artifacts/audit/browser/safety-case/`
 - 남은 외부 작업: `supabase_safety_case_closed_loop_migration.sql` 원격 적용과 실제 관리자·근로자 다기기 재접속 검증.
+
+### GitHub·Vercel 동기화
+
+- 기능 커밋 `f2f432c`를 GitHub `main`에 동기화했다.
+- Vercel 프로덕션 배포 `dpl_HGVQ9XW3aEVCSn4Lyc2uBk2UXR2L`이 같은 커밋으로 `READY` 상태가 됐다.
+- 운영 주소 `https://new-psi-eta.vercel.app`에서 보호사건 브라우저 검증 7/7을 다시 통과했다.
+- 해당 배포의 최근 30분 오류·경고·치명 로그는 0건이다.
