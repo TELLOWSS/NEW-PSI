@@ -30,6 +30,21 @@ const sourceFiles = [
     'utils/surveyRiskGap.ts',
 ];
 const sourceText = (await Promise.all(sourceFiles.map(read))).join('\n');
+const safetyCaseFiles = [
+    'utils/safetyCase.ts',
+    'api/admin/safety-cases.ts',
+    'services/safetyCaseService.ts',
+    'supabase_safety_case_closed_loop_migration.sql',
+    'pages/InterventionCoaching.tsx',
+    'pages/Reports.tsx',
+    'pages/AdminTraining.tsx',
+    'pages/WorkerTraining.tsx',
+];
+const safetyCaseText = (await Promise.all(safetyCaseFiles.map(read))).join('\n');
+const safetyCaseFilesReady = (await Promise.all(safetyCaseFiles.map(exists))).every(Boolean);
+const safetyCaseUiVerification = JSON.parse(
+    await read('artifacts/audit/browser/safety-case/safety-case-verification.json') || '{}',
+);
 const packageJson = JSON.parse(await readFile('package.json', 'utf8'));
 
 const mobileFiles = [
@@ -56,10 +71,16 @@ const items = [
     {
         id: 'case_closed_loop',
         grade: '출시 전 수정',
-        status: /\bcase[_A-Z]?id\b/i.test(sourceText) ? 'partial' : 'not_started',
+        status: safetyCaseFilesReady
+            && safetyCaseText.includes('awaiting-reassessment')
+            && safetyCaseUiVerification.passed === true
+            ? 'partial'
+            : 'not_started',
         title: 'case_id 기반 조치→교육→서명→재평가 폐루프',
-        evidence: /\bcase[_A-Z]?id\b/i.test(sourceText) ? '일부 소스에서 case ID 발견' : '핵심 흐름 소스에 공통 case_id 없음',
-        nextAction: '공통 사건 스키마와 상태 전이부터 설계',
+        evidence: safetyCaseUiVerification.passed === true
+            ? `6단계 모델·API·호환 마이그레이션 구현, 브라우저 ${safetyCaseUiVerification.passedCount}/${safetyCaseUiVerification.totalCount} 통과, 원격 DB 적용 대기`
+            : '보호사건 구현 또는 브라우저 증거가 불완전',
+        nextAction: 'Supabase 마이그레이션 적용 후 실제 근로자 서명→재평가 서버 재접속 회귀검사',
     },
     {
         id: 'tenant_rbac_rls',

@@ -12,6 +12,16 @@ import { MOBILE_CARD_GRID_COMPACT_CLASS, MOBILE_CARD_GRID_ITEM_CLASS, MOBILE_CAR
 import { BRAND_TONE } from '../utils/brandToneTokens';
 import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMetrics';
 import { useUiAudienceMode } from '../hooks/useUiAudienceMode';
+import {
+    buildSafetyCaseId,
+    completeSafetyCaseStage,
+    markSafetyCaseActionStarted,
+    readSafetyCases,
+    resolveSafetyCaseDueAt,
+    syncSafetyCasesFromPlans,
+    upsertSafetyCase,
+} from '../utils/safetyCase';
+import { saveSafetyCaseToServer } from '../services/safetyCaseService';
 
 const PREDICTIVE_STATUS_COPY = {
     syncReady: '현재 데이터 기준으로 AI 리스크 결과를 다시 정리할 수 있습니다.',
@@ -149,6 +159,9 @@ interface WorkerRiskInsight {
 
 interface ActionExecutionPlan {
     key: string;
+    caseId: string;
+    sourceRecordId: string;
+    workerId: string;
     priority: '즉시' | '고' | '중';
     owner: string;
     workerName: string;
@@ -157,6 +170,7 @@ interface ActionExecutionPlan {
     riskLabel: string;
     actionTitle: string;
     dueLabel: string;
+    dueAt?: string;
     checkItems: string[];
 }
 
@@ -967,6 +981,14 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
 
             return {
                 key: insight.key,
+                caseId: buildSafetyCaseId({
+                    planKey: insight.key,
+                    workerName: insight.name,
+                    jobField: insight.jobField,
+                    riskLabel,
+                }),
+                sourceRecordId: insight.latestRecord.id,
+                workerId: getWorkerIdentityKey(insight.latestRecord),
                 priority,
                 owner,
                 workerName: insight.name,
@@ -975,6 +997,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                 riskLabel,
                 actionTitle,
                 dueLabel,
+                dueAt: resolveSafetyCaseDueAt(dueLabel),
                 checkItems,
             };
         });
@@ -1228,6 +1251,9 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                 topRiskLabel: summary.topRiskLabel,
                 plans: executionPlans.map((plan) => ({
                     key: plan.key,
+                    caseId: plan.caseId,
+                    sourceRecordId: plan.sourceRecordId,
+                    workerId: plan.workerId,
                     priority: plan.priority,
                     owner: plan.owner,
                     workerName: plan.workerName,
@@ -1236,11 +1262,24 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                     riskLabel: plan.riskLabel,
                     actionTitle: plan.actionTitle,
                     dueLabel: plan.dueLabel,
+                    dueAt: plan.dueAt,
                     status: planStatusMap[plan.key] || 'not-started',
                     checkItems: plan.checkItems,
                 })),
             };
             window.localStorage.setItem(PREDICTIVE_INTERVENTION_HANDOFF_KEY, JSON.stringify(handoffPayload));
+            syncSafetyCasesFromPlans(executionPlans.map((plan) => ({
+                planKey: plan.key,
+                sourceRecordId: plan.sourceRecordId,
+                workerId: plan.workerId,
+                workerName: plan.workerName,
+                jobField: plan.jobField,
+                teamLeader: plan.teamLeader,
+                riskLabel: plan.riskLabel,
+                actionTitle: plan.actionTitle,
+                owner: plan.owner,
+                dueLabel: plan.dueLabel,
+            })));
             window.dispatchEvent(new Event(PREDICTIVE_INTERVENTION_HANDOFF_EVENT));
         } catch {
             // ignore storage failures
@@ -1459,6 +1498,29 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
         const plan = executionPlanMap.get(planKey);
         if (!plan || !isAdminAuthenticated()) return;
 
+        const linkedCase = readSafetyCases().find((record) => record.caseId === plan.caseId);
+        if (linkedCase && status !== 'not-started') {
+            const startedCase = markSafetyCaseActionStarted(
+                linkedCase,
+                currentAdminActor,
+                `${plan.actionTitle} 조치를 시작했습니다.`,
+                nowIso,
+            );
+            const nextCase = status === 'completed'
+                ? completeSafetyCaseStage(
+                    startedCase,
+                    'action',
+                    currentAdminActor,
+                    `${plan.actionTitle} 조치를 완료했습니다.`,
+                    { occurredAt: nowIso },
+                )
+                : startedCase;
+            upsertSafetyCase(nextCase);
+            void saveSafetyCaseToServer(nextCase).catch(() => {
+                // 원격 스키마 적용 전에도 로컬 보호사건 흐름은 유지한다.
+            });
+        }
+
         void postAdminJson<{ ok: boolean; item?: PlanStatusApiItem }>(
             '/api/admin/predictive-plan-status',
             {
@@ -1466,6 +1528,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                 payload: {
                     boardScope,
                     planKey,
+                    caseId: plan.caseId,
                     status,
                     updatedBy: currentAdminActor,
                     workerName: plan.workerName,

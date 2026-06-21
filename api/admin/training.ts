@@ -106,7 +106,7 @@ async function handleListSessions(res: any) {
     const supabase = getSupabaseClient();
     let result: any = await supabase
         .from('training_sessions')
-        .select('id, source_text_ko, audio_urls, created_at, training_title, training_category, target_mode, target_worker_names')
+        .select('id, source_text_ko, audio_urls, created_at, training_title, training_category, target_mode, target_worker_names, case_id')
         .order('created_at', { ascending: false })
         .limit(10);
 
@@ -485,6 +485,7 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
     });
 
     const sourceTextKo = body.sourceTextKo;
+    const caseId = body.caseId;
     const selectedLanguages = body.selectedLanguages;
     const trainingTitle = body.trainingTitle;
     const trainingCategory = body.trainingCategory;
@@ -494,6 +495,7 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
     const pretranslatedTexts = body.pretranslatedTexts;
 
     const normalizedSourceText = typeof sourceTextKo === 'string' ? sourceTextKo.trim() : '';
+    const normalizedCaseId = typeof caseId === 'string' ? caseId.trim() : '';
     const normalizedTrainingTitle = typeof trainingTitle === 'string' ? trainingTitle.trim() : '';
     const normalizedTrainingCategory = trainingCategory === 'special_safety' ? 'special_safety' : 'monthly_risk';
     const normalizedTargetMode = targetMode === 'attendance_only' ? 'attendance_only' : 'submitted_only';
@@ -538,6 +540,7 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
     const insertCandidates: Array<Record<string, unknown>> = [
         {
             id: generatedId,
+            case_id: normalizedCaseId || null,
             source_text_ko: normalizedSourceText,
             original_script: normalizedSourceText,
             audio_urls: {},
@@ -620,6 +623,7 @@ async function handleCreate(req: any, res: any, body: Record<string, unknown>) {
         translationSkipped: shouldSkipTranslation,
         trainingTitle: normalizedTrainingTitle,
         trainingCategory: normalizedTrainingCategory,
+        caseId: normalizedCaseId || null,
         targetMode: normalizedTargetMode,
         targetWorkerCount: normalizedTargets.length,
     });

@@ -54,6 +54,16 @@ import { EmptyState, SectionCard, MetricCard, StatusPill } from '../components/c
 import { evaluateOcrVerificationCompleteness, getNativeLanguageLabel } from '../utils/ocrVerificationLanguageUtils';
 import { isSameWorkerTimeline } from '../utils/workerIdentity';
 import { buildWorkerReportTargets } from '../utils/workerReportTargets';
+import {
+    completeSafetyCaseStage,
+    findSafetyCasesForWorker,
+    readSafetyCases,
+    SAFETY_CASE_FOCUS_KEY,
+    SAFETY_CASE_UPDATED_EVENT,
+    type SafetyCaseRecord,
+    upsertSafetyCase,
+} from '../utils/safetyCase';
+import { saveSafetyCaseToServer } from '../services/safetyCaseService';
 
 const ReportTemplate = lazy(() => import('../components/ReportTemplate').then(module => ({ default: module.ReportTemplate })));
 
@@ -312,6 +322,8 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const [viewMode, setViewMode] = useState<ViewMode>('list');
     const [previewIndex, setPreviewIndex] = useState(0);
     const previewRef = useRef<HTMLDivElement>(null); // For single capture in preview
+    const [safetyCases, setSafetyCases] = useState<SafetyCaseRecord[]>([]);
+    const [focusedSafetyCaseId, setFocusedSafetyCaseId] = useState('');
 
     // Bulk Generation State
     const [generatingRecord, setGeneratingRecord] = useState<WorkerRecord | null>(null);
@@ -359,6 +371,23 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
     const opsAlertLogsRequestInFlightRef = useRef(false);
     const previewStatusRequestInFlightRef = useRef(false);
     const quickActionMetricSessionRef = useRef<string>(createMetricSessionId('reports'));
+
+    useEffect(() => {
+        const readCaseState = () => {
+            setSafetyCases(readSafetyCases());
+            setFocusedSafetyCaseId(String(localStorage.getItem(SAFETY_CASE_FOCUS_KEY) || '').trim());
+        };
+        readCaseState();
+        const onStorage = (event: StorageEvent) => {
+            if (!event.key || event.key === 'psi_safety_cases_v1' || event.key === SAFETY_CASE_FOCUS_KEY) readCaseState();
+        };
+        window.addEventListener('storage', onStorage);
+        window.addEventListener(SAFETY_CASE_UPDATED_EVENT, readCaseState);
+        return () => {
+            window.removeEventListener('storage', onStorage);
+            window.removeEventListener(SAFETY_CASE_UPDATED_EVENT, readCaseState);
+        };
+    }, []);
 
     useEffect(() => {
         const readInterventionHandoff = () => {
@@ -843,6 +872,26 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             : filteredSourceRecords.length,
         [activeTab, filteredSourceRecords.length, workerReportTargets],
     );
+    const reportCaseMap = useMemo(() => {
+        const map = new Map<string, SafetyCaseRecord[]>();
+        workerReportTargets.forEach((target) => {
+            map.set(
+                target.latestRecord.id,
+                findSafetyCasesForWorker(safetyCases, target.latestRecord.name, target.latestRecord.jobField),
+            );
+        });
+        return map;
+    }, [safetyCases, workerReportTargets]);
+
+    useEffect(() => {
+        if (!focusedSafetyCaseId || activeTab !== 'worker-report') return;
+        const index = workerReportTargets.findIndex((target) => (
+            (reportCaseMap.get(target.latestRecord.id) || []).some((record) => record.caseId === focusedSafetyCaseId)
+        ));
+        if (index < 0) return;
+        setPreviewIndex(index);
+        setViewMode('preview');
+    }, [activeTab, focusedSafetyCaseId, reportCaseMap, workerReportTargets]);
 
     // 필터 변경 시 미리보기 인덱스 초기화
     useEffect(() => {
@@ -1048,6 +1097,14 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
         if (activeTab === 'worker-report' && currentPreviewTarget) return currentPreviewTarget.records;
         return scoredRecords.filter((record) => isSameWorkerTimeline(currentPreviewRecord, record));
     }, [activeTab, currentPreviewRecord, currentPreviewTarget, scoredRecords]);
+    const currentPreviewSafetyCase = useMemo(() => {
+        if (!currentPreviewRecord) return null;
+        const linked = reportCaseMap.get(currentPreviewRecord.id) || [];
+        return linked.find((record) => record.caseId === focusedSafetyCaseId)
+            || linked.find((record) => record.status === 'awaiting-report')
+            || linked[0]
+            || null;
+    }, [currentPreviewRecord, focusedSafetyCaseId, reportCaseMap]);
 
     const harnessSummary = useMemo(() => {
         return filteredRecords.reduce((summary, record) => {
@@ -1826,6 +1883,19 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 'JPEG',
                 0.88
             );
+            if (currentPreviewSafetyCase?.status === 'awaiting-report') {
+                const nextCase = completeSafetyCaseStage(
+                    currentPreviewSafetyCase,
+                    'report',
+                    '현장 관리자',
+                    '근로자 관리자 분석 리포트를 PDF로 발행했습니다.',
+                    { evidenceId: currentPreviewRecord.id },
+                );
+                setSafetyCases(upsertSafetyCase(nextCase));
+                void saveSafetyCaseToServer(nextCase).catch(() => {
+                    // 원격 스키마 적용 전에는 로컬 사건 이력을 유지한다.
+                });
+            }
         } catch (e) {
             console.error(e);
             alert('PDF 생성 중 오류가 발생했습니다.');
@@ -4583,6 +4653,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                         <th className="px-6 py-3">{activeTab === 'worker-report' ? '최근 점수' : '응답품질'}</th>
                                         <th className="px-6 py-3">{activeTab === 'worker-report' ? '점수 변화' : '확인단계'}</th>
                                         {activeTab === 'worker-report' && <th className="px-6 py-3">모국어 리포트</th>}
+                                        {activeTab === 'worker-report' && <th className="px-6 py-3">보호사건</th>}
                                         {isDevMode && <th className="px-6 py-3">안전 기록 상태</th>}
                                         <th className="px-6 py-3">주요 취약점</th>
                                         <th className="px-6 py-3 text-right">작업</th>
@@ -4608,6 +4679,21 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                                 <td className="px-6 py-3">
                                                     <p className="font-black text-slate-800 dark:text-slate-100">{reportTarget?.periodLabel || r.date}</p>
                                                     <p className="mt-1 text-[11px] font-semibold text-slate-500">{reportTarget?.monthCount || 1}개월 · 총 {reportTarget?.recordCount || 1}건</p>
+                                                </td>
+                                            )}
+                                            {activeTab === 'worker-report' && (
+                                                <td className="px-6 py-3">
+                                                    {(reportCaseMap.get(r.id) || []).length > 0 ? (
+                                                        <div className="space-y-1">
+                                                            {(reportCaseMap.get(r.id) || []).slice(0, 2).map((record) => (
+                                                                <p key={record.caseId} className="text-[10px] font-black text-indigo-700">
+                                                                    {record.caseId} · {record.status === 'closed' ? '완료' : '진행 중'}
+                                                                </p>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-[10px] font-semibold text-slate-400">연결 사건 없음</span>
+                                                    )}
                                                 </td>
                                             )}
                                             <td className="px-6 py-3">
@@ -4699,6 +4785,9 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                                     <p className="text-xs text-slate-500 dark:text-slate-300 font-bold">{currentPreviewRecord?.name}</p>
                                     {activeTab === 'worker-report' && currentPreviewTarget && (
                                         <p className="mt-0.5 text-[10px] font-black text-indigo-600">{currentPreviewTarget.monthCount}개월 · {currentPreviewTarget.recordCount}건 · {currentPreviewTarget.periodLabel}</p>
+                                    )}
+                                    {currentPreviewSafetyCase && (
+                                        <p className="mt-0.5 text-[10px] font-black text-violet-600">{currentPreviewSafetyCase.caseId} · 보호사건 연결</p>
                                     )}
                                 </div>
                                 <button 

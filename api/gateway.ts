@@ -290,11 +290,22 @@ function buildSignatureStoragePath(sessionId: string, options?: { prefix?: strin
 async function insertTrainingLogWithSchemaFallback(supabase: any, row: Record<string, unknown>) {
     const { audio_url, ...safeRow } = row;
 
-    const { data: insertedRows, error: insertError } = await supabase
+    let { data: insertedRows, error: insertError } = await supabase
         .from('training_logs')
         .insert(safeRow)
         .select('id')
         .limit(1);
+
+    if (insertError && 'case_id' in safeRow && String(insertError.message || '').toLowerCase().includes('case_id')) {
+        const { case_id: _caseId, ...legacyRow } = safeRow;
+        const fallback = await supabase
+            .from('training_logs')
+            .insert(legacyRow)
+            .select('id')
+            .limit(1);
+        insertedRows = fallback.data;
+        insertError = fallback.error;
+    }
 
     if (insertError) {
         if (String((insertError as any)?.code || '') === '23505') {
@@ -316,6 +327,95 @@ async function insertTrainingLogWithSchemaFallback(supabase: any, row: Record<st
             }
         }
     }
+}
+
+async function loadTrainingCaseId(supabase: any, sessionId: string): Promise<string | null> {
+    const result = await supabase
+        .from('training_sessions')
+        .select('case_id')
+        .eq('id', sessionId)
+        .maybeSingle();
+    if (result.error) return null;
+    return String(result.data?.case_id || '').trim() || null;
+}
+
+async function upsertTrainingAcknowledgementWithCaseFallback(supabase: any, row: Record<string, unknown>) {
+    let result = await supabase.from('training_acknowledgements').upsert(row, {
+        onConflict: 'session_id,worker_name',
+    });
+    if (result.error && 'case_id' in row && String(result.error.message || '').toLowerCase().includes('case_id')) {
+        const { case_id: _caseId, ...legacyRow } = row;
+        result = await supabase.from('training_acknowledgements').upsert(legacyRow, {
+            onConflict: 'session_id,worker_name',
+        });
+    }
+    return result;
+}
+
+async function completeSafetyCaseAcknowledgement(
+    supabase: any,
+    options: {
+        caseId: string | null;
+        sessionId: string;
+        workerName: string;
+        evidenceId?: string | null;
+    },
+) {
+    const caseId = String(options.caseId || '').trim();
+    if (!caseId) return;
+
+    const current = await supabase
+        .from('safety_cases')
+        .select('completed_stages,status')
+        .eq('case_id', caseId)
+        .maybeSingle();
+
+    if (current.error || !current.data) return;
+
+    const completedStages = current.data.completed_stages
+        && typeof current.data.completed_stages === 'object'
+        ? current.data.completed_stages as Record<string, string>
+        : {};
+
+    if (!completedStages.training || completedStages.acknowledgement) return;
+
+    const occurredAt = new Date().toISOString();
+    const nextCompletedStages = {
+        ...completedStages,
+        acknowledgement: occurredAt,
+    };
+
+    const update = await supabase
+        .from('safety_cases')
+        .update({
+            completed_stages: nextCompletedStages,
+            status: 'awaiting-reassessment',
+        })
+        .eq('case_id', caseId);
+
+    if (update.error) return;
+
+    const eventId = [
+        caseId,
+        'acknowledgement',
+        options.sessionId,
+        options.workerName,
+    ]
+        .join('-')
+        .replace(/[^a-zA-Z0-9가-힣_-]+/g, '-')
+        .slice(0, 240);
+
+    await supabase.from('safety_case_events').upsert({
+        event_id: eventId,
+        case_id: caseId,
+        stage: 'acknowledgement',
+        occurred_at: occurredAt,
+        actor: options.workerName,
+        note: '근로자 본인 확인 및 이해도 체크 완료',
+        evidence_id: options.evidenceId || options.sessionId,
+    }, {
+        onConflict: 'event_id',
+    });
 }
 
 async function hasExistingTrainingLog(
@@ -541,6 +641,7 @@ async function handleSingleSignature(
     }
 
     const supabase = getSupabaseClient();
+    const caseId = await loadTrainingCaseId(supabase, sessionId);
     const authorizedWorkerId = resolveAuthorizedWorkerId(authorization, payload);
     let normalizedWorkerName = String(workerName || '').trim();
     let normalizedNationality = String(nationality || '').trim();
@@ -600,6 +701,7 @@ async function handleSingleSignature(
 
     await insertTrainingLogWithSchemaFallback(supabase, {
         session_id: sessionId,
+        case_id: caseId,
         worker_id: authorizedWorkerId,
         worker_name: normalizedWorkerName,
         nationality: normalizedNationality,
@@ -635,20 +737,28 @@ async function handleSingleSignature(
         && checklistPayload.ppeConfirm
         && checklistPayload.emergencyConfirm;
 
-    const { error: ackError } = await supabase.from('training_acknowledgements').upsert({
+    const { error: ackError } = await upsertTrainingAcknowledgementWithCaseFallback(supabase, {
         session_id: sessionId,
+        case_id: caseId,
         worker_name: normalizedWorkerName,
         selected_language_code: selectedLanguageCode || null,
         reviewed_guidance: Boolean(reviewedGuidance),
         checklist: checklistPayload,
         comprehension_complete: comprehensionComplete,
         submitted_at: new Date().toISOString(),
-    }, {
-        onConflict: 'session_id,worker_name',
     });
 
     if (ackError) {
         console.warn('[submit-training] training_acknowledgements insert skipped:', ackError.message);
+    }
+
+    if (comprehensionComplete) {
+        await completeSafetyCaseAcknowledgement(supabase, {
+            caseId,
+            sessionId,
+            workerName: normalizedWorkerName,
+            evidenceId: signatureUrl,
+        });
     }
 
     return { signatureUrl, comprehensionComplete };
@@ -699,6 +809,7 @@ async function handleGroupSignatures(payload: any): Promise<any> {
     }
 
     const supabase = getSupabaseClient();
+    const caseId = await loadTrainingCaseId(supabase, sessionId);
     const workerIds = Array.from(new Set(normalizedSignatures.map((item) => item.workerId)));
 
     const { data: workerRows, error: workerError } = await supabase
@@ -765,6 +876,7 @@ async function handleGroupSignatures(payload: any): Promise<any> {
 
         await insertTrainingLogWithSchemaFallback(supabase, {
             session_id: sessionId,
+            case_id: caseId,
             worker_id: worker.id,
             worker_name: worker.name,
             nationality: worker.nationality || null,
@@ -776,16 +888,15 @@ async function handleGroupSignatures(payload: any): Promise<any> {
             submitted_at: new Date().toISOString(),
         });
 
-        const { error: ackErr } = await supabase.from('training_acknowledgements').upsert({
+        const { error: ackErr } = await upsertTrainingAcknowledgementWithCaseFallback(supabase, {
             session_id: sessionId,
+            case_id: caseId,
             worker_name: worker.name,
             selected_language_code: selectedLanguageCode || null,
             reviewed_guidance: groupAcknowledgement.reviewedGuidance,
             checklist: groupAcknowledgement.checklist,
             comprehension_complete: groupAcknowledgement.comprehensionComplete,
             submitted_at: new Date().toISOString(),
-        }, {
-            onConflict: 'session_id,worker_name',
         });
 
         if (ackErr) {

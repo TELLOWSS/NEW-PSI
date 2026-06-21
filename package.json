@@ -35,6 +35,7 @@
     "qa:survey-baseline": "node scripts/verify-survey-baseline-ui.mjs",
     "qa:plain-language": "node scripts/verify-plain-language-ui.mjs",
     "qa:worker-report": "node scripts/verify-worker-report-ui.mjs",
+    "qa:safety-case": "node scripts/verify-safety-case-closed-loop-ui.mjs",
     "sync:mobile-qa:status": "node scripts/sync-mobile-qa-status.cjs",
     "qa:mobile:refresh": "node scripts/refresh-mobile-qa-status.cjs",
     "qa:mobile:finalize": "node scripts/finalize-mobile-qa-status.cjs",

@@ -71,6 +71,12 @@ function isMissingTableError(error: any): boolean {
     );
 }
 
+function isMissingCaseIdColumnError(error: any): boolean {
+    const code = String(error?.code || '');
+    const message = String(error?.message || '').toLowerCase();
+    return code === '42703' || message.includes('case_id');
+}
+
 async function handleList(supabase: any, payload: any, res: any) {
     const boardScope = normalizeBoardScope(payload?.boardScope);
     if (!boardScope) return sendJsonError(res, 400, 'boardScope가 필요합니다.');
@@ -143,6 +149,7 @@ async function handleUpsert(supabase: any, payload: any, res: any) {
     const upsertPayload = {
         board_scope: boardScope,
         plan_key: planKey,
+        case_id: String(payload?.caseId || '').trim() || null,
         status,
         updated_by: String(payload?.updatedBy || '').trim() || '관리자',
         worker_name: String(payload?.workerName || '').trim() || null,
@@ -154,11 +161,20 @@ async function handleUpsert(supabase: any, payload: any, res: any) {
         updated_at: new Date().toISOString(),
     };
 
-    const result = await supabase
+    let result = await supabase
         .from('predictive_execution_plan_statuses')
         .upsert(upsertPayload, { onConflict: 'board_scope,plan_key', ignoreDuplicates: false })
         .select('plan_key, status, updated_at, updated_by')
         .single();
+
+    if (result.error && isMissingCaseIdColumnError(result.error)) {
+        const { case_id: _caseId, ...legacyPayload } = upsertPayload;
+        result = await supabase
+            .from('predictive_execution_plan_statuses')
+            .upsert(legacyPayload, { onConflict: 'board_scope,plan_key', ignoreDuplicates: false })
+            .select('plan_key, status, updated_at, updated_by')
+            .single();
+    }
 
     if (result.error) {
         if (isMissingTableError(result.error)) {
@@ -180,6 +196,7 @@ async function handleUpsert(supabase: any, payload: any, res: any) {
     const logPayload = {
         board_scope: boardScope,
         plan_key: planKey,
+        case_id: upsertPayload.case_id,
         status,
         previous_status: previousStatus,
         updated_by: upsertPayload.updated_by,
@@ -192,9 +209,16 @@ async function handleUpsert(supabase: any, payload: any, res: any) {
         created_at: new Date().toISOString(),
     };
 
-    const logInsertResult = await supabase
+    let logInsertResult = await supabase
         .from('predictive_execution_plan_status_logs')
         .insert(logPayload);
+
+    if (logInsertResult.error && isMissingCaseIdColumnError(logInsertResult.error)) {
+        const { case_id: _caseId, ...legacyLogPayload } = logPayload;
+        logInsertResult = await supabase
+            .from('predictive_execution_plan_status_logs')
+            .insert(legacyLogPayload);
+    }
 
     if (logInsertResult.error && !isMissingTableError(logInsertResult.error)) {
         console.warn('[predictive-plan-status] 히스토리 로그 저장 실패:', logInsertResult.error.message || logInsertResult.error);

@@ -6,10 +6,27 @@ import { InterpretationCardGrid, type InterpretationCardItem } from '../componen
 import { fetchWithTimeout, postAdminJson } from '../utils/adminApiClient';
 import { TBM_MONTHLY_PACKAGE_STORAGE_KEY } from '../utils/tbmEducationStudio';
 import type { TranslationQualityReport } from '../utils/constructionTrainingTranslation';
+import {
+    completeSafetyCaseStage,
+    readSafetyCases,
+    SAFETY_CASE_TRAINING_HANDOFF_KEY,
+    upsertSafetyCase,
+} from '../utils/safetyCase';
+import { saveSafetyCaseToServer } from '../services/safetyCaseService';
 
 type UiLocale = 'ko' | 'en' | 'vi' | 'zh';
 const LINK_HISTORY_STORAGE_KEY = 'psi_training_link_history';
 const ACTIVE_QR_STATE_STORAGE_KEY = 'psi_training_active_qr_state';
+
+type SafetyCaseTrainingHandoff = {
+    caseId: string;
+    workerId: string;
+    workerName: string;
+    jobField: string;
+    riskLabel: string;
+    actionTitle: string;
+    createdAt: string;
+};
 
 const loadMonthlyPackage = (): { sourceText: string; translatedTexts: Record<string, string> } => {
     try {
@@ -495,6 +512,7 @@ const normalizeLanguagePreset = (input?: string[]): string[] => {
 
 type TrainingSessionRow = {
     id: string;
+    case_id?: string | null;
     source_text_ko?: string;
     audio_urls?: Record<string, string | null>;
     created_at?: string;
@@ -596,6 +614,7 @@ const AdminTraining: React.FC = () => {
     const [savedPreset, setSavedPreset] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
     const [selectedLanguages, setSelectedLanguages] = useState<string[]>([...CURRENT_SITE_LANGUAGE_SET]);
     const [recentSessions, setRecentSessions] = useState<TrainingSessionRow[]>([]);
+    const [linkedSafetyCase, setLinkedSafetyCase] = useState<SafetyCaseTrainingHandoff | null>(null);
     const uiLocale = resolveAdminLocale();
     const t = UI_TEXT[uiLocale];
 
@@ -987,6 +1006,37 @@ const AdminTraining: React.FC = () => {
     }, []);
 
     useEffect(() => {
+        try {
+            const raw = localStorage.getItem(SAFETY_CASE_TRAINING_HANDOFF_KEY);
+            if (!raw) return;
+            const parsed = JSON.parse(raw) as SafetyCaseTrainingHandoff;
+            if (!parsed?.caseId || !parsed.workerName) return;
+
+            setLinkedSafetyCase(parsed);
+            setTrainingTitle(`${parsed.workerName} · ${parsed.riskLabel} 보호교육`);
+            setTrainingCategory('special_safety');
+            setSourceTextKo([
+                `[보호사건 ${parsed.caseId}]`,
+                `대상: ${parsed.workerName} · ${parsed.jobField}`,
+                `확인 위험: ${parsed.riskLabel}`,
+                `완료 조치: ${parsed.actionTitle}`,
+                '교육 후 작업 전 보호조치를 다시 설명하고, 본인확인과 전자서명을 완료합니다.',
+            ].join('\n'));
+
+            const matchedWorker = targetWorkers.find((worker) => (
+                (parsed.workerId && worker.id === parsed.workerId)
+                || worker.name.trim().toLocaleLowerCase('ko-KR') === parsed.workerName.trim().toLocaleLowerCase('ko-KR')
+            ));
+            if (matchedWorker) {
+                setTargetMode('attendance_only');
+                setSelectedTargetWorkerIds([matchedWorker.id]);
+            }
+        } catch {
+            setLinkedSafetyCase(null);
+        }
+    }, [targetWorkers]);
+
+    useEffect(() => {
         const restoreLatestSession = async () => {
             try {
                 const persistedRaw = localStorage.getItem(ACTIVE_QR_STATE_STORAGE_KEY);
@@ -1167,6 +1217,7 @@ const AdminTraining: React.FC = () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'create',
+                    caseId: linkedSafetyCase?.caseId || null,
                     sourceTextKo,
                     selectedLanguages,
                     pretranslatedTexts,
@@ -1217,6 +1268,24 @@ const AdminTraining: React.FC = () => {
                     action: 'create',
                     createdAt: new Date().toISOString(),
                 });
+            }
+            if (linkedSafetyCase?.caseId && data.sessionId) {
+                const caseRecord = readSafetyCases().find((record) => record.caseId === linkedSafetyCase.caseId);
+                if (caseRecord?.status === 'awaiting-training') {
+                    const nextCase = completeSafetyCaseStage(
+                        caseRecord,
+                        'training',
+                        '교육 관리자',
+                        '다국어 안전교육 세션을 생성하고 근로자에게 연결했습니다.',
+                        { evidenceId: String(data.sessionId) },
+                    );
+                    upsertSafetyCase(nextCase);
+                    void saveSafetyCaseToServer(nextCase).catch(() => {
+                        // 원격 스키마 적용 전에는 로컬 사건 이력을 유지한다.
+                    });
+                    localStorage.removeItem(SAFETY_CASE_TRAINING_HANDOFF_KEY);
+                    setLinkedSafetyCase(null);
+                }
             }
             const failed = Array.isArray(data.failedLanguages) ? data.failedLanguages : [];
             setFailedLanguages(failed);
@@ -1424,6 +1493,17 @@ const AdminTraining: React.FC = () => {
                         스튜디오 원문 불러오기
                     </button>
                 </div>
+
+                {linkedSafetyCase && (
+                    <div className="mt-4 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-700">보호사건 교육 연결</p>
+                        <p className="mt-1 text-sm font-black text-slate-900">{linkedSafetyCase.caseId}</p>
+                        <p className="mt-1 text-[11px] font-semibold text-slate-600">
+                            {linkedSafetyCase.workerName} · {linkedSafetyCase.jobField} · {linkedSafetyCase.riskLabel}
+                        </p>
+                        <p className="mt-1 text-[11px] font-bold text-violet-700">세션 생성이 완료되면 사건 타임라인의 교육 단계가 자동 완료됩니다.</p>
+                    </div>
+                )}
 
                 <section className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-900">
                     <div className="grid gap-4 md:grid-cols-2">

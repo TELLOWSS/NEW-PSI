@@ -12,6 +12,7 @@ interface WorkerTrainingProps {
 
 type SessionRow = {
     id: string;
+    case_id?: string | null;
     source_text_ko: string;
     audio_urls: unknown;
     translated_texts?: unknown;
@@ -1166,11 +1167,22 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
             setLoading(true);
             setMessage('');
 
-            const { data, error } = await supabase
+            let { data, error } = await supabase
                 .from('training_sessions')
-                .select('id, source_text_ko, audio_urls, translated_texts')
+                .select('id, case_id, source_text_ko, audio_urls, translated_texts')
                 .eq('id', activeSessionId)
                 .single();
+            if (error && String(error.message || '').toLowerCase().includes('case_id')) {
+                const fallback = await supabase
+                    .from('training_sessions')
+                    .select('id, source_text_ko, audio_urls, translated_texts')
+                    .eq('id', activeSessionId)
+                    .single();
+                data = fallback.data
+                    ? { ...fallback.data, case_id: null }
+                    : null;
+                error = fallback.error;
+            }
 
             if (error) {
                 if (isSupabasePermissionError(error)) {
@@ -1607,6 +1619,13 @@ const WorkerTraining: React.FC<WorkerTrainingProps> = ({ sessionId, simplifiedMo
                 </div>
             </div>
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                {sessionData.case_id && (
+                    <div className="mb-4 rounded-xl border border-violet-200 bg-violet-50 px-4 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-violet-700">보호사건 연결 교육</p>
+                        <p className="mt-1 text-sm font-black text-slate-900">{sessionData.case_id}</p>
+                        <p className="mt-1 text-[11px] font-bold text-violet-700">교육 확인과 전자서명이 같은 사건 타임라인에 기록됩니다.</p>
+                    </div>
+                )}
                 <h2 className="text-2xl font-black text-slate-900">{t.title}</h2>
                 <p className="text-sm font-bold text-slate-500 mt-2">{t.subtitle}</p>
                 {simplifiedMode && !submitted && (

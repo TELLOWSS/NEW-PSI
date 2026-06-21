@@ -1,8 +1,27 @@
 import React, { useMemo, useEffect, useState } from 'react';
-import type { WorkerRecord } from '../types';
+import type { Page, WorkerRecord } from '../types';
+import { postAdminJson } from '../utils/adminApiClient';
+import { loadSafetyCasesFromServer, saveSafetyCaseToServer } from '../services/safetyCaseService';
+import {
+  completeSafetyCaseStage,
+  getNextSafetyCaseStage,
+  isSafetyCaseOverdue,
+  markSafetyCaseActionStarted,
+  readSafetyCases,
+  SAFETY_CASE_FOCUS_KEY,
+  SAFETY_CASE_STAGE_LABELS,
+  SAFETY_CASE_STAGE_ORDER,
+  SAFETY_CASE_TRAINING_HANDOFF_KEY,
+  SAFETY_CASE_UPDATED_EVENT,
+  type SafetyCaseRecord,
+  type SafetyCaseStage,
+  upsertSafetyCase,
+  writeSafetyCases,
+} from '../utils/safetyCase';
 
 interface Intervention {
   key?: string;
+  caseId?: string;
   priority: 'immediate' | 'medium' | 'long-term';
   title: string;
   reason: string;
@@ -15,6 +34,9 @@ interface Intervention {
 
 type PredictiveHandoffPlan = {
   key: string;
+  caseId?: string;
+  sourceRecordId?: string;
+  workerId?: string;
   priority: '즉시' | '고' | '중';
   owner: string;
   workerName: string;
@@ -23,6 +45,7 @@ type PredictiveHandoffPlan = {
   riskLabel: string;
   actionTitle: string;
   dueLabel: string;
+  dueAt?: string;
   status: 'not-started' | 'in-progress' | 'completed';
   checkItems: string[];
 };
@@ -40,11 +63,14 @@ const INTERVENTION_FOCUS_EVENT = 'psi-intervention-focus-updated';
 
 interface InterventionCoachingProps {
   workerRecords?: WorkerRecord[];
+  onNavigateToPage?: (page: Page) => void;
 }
 
-export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ workerRecords = [] }) => {
+export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ workerRecords = [], onNavigateToPage }) => {
   const [handoffPlans, setHandoffPlans] = useState<PredictiveHandoffPlan[]>([]);
   const [focusedPlanKey, setFocusedPlanKey] = useState<string | null>(null);
+  const [safetyCases, setSafetyCases] = useState<SafetyCaseRecord[]>([]);
+  const [caseNotice, setCaseNotice] = useState('');
 
   useEffect(() => {
     const readHandoff = () => {
@@ -77,6 +103,50 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
   }, []);
 
   useEffect(() => {
+    let active = true;
+    const readCases = () => setSafetyCases(readSafetyCases());
+    const refreshCases = () => {
+      readCases();
+      void loadSafetyCasesFromServer()
+        .then((response) => {
+          if (!active || !response.schemaReady || !Array.isArray(response.items)) return;
+          const local = readSafetyCases();
+          const merged = new Map(local.map((record) => [record.caseId, record]));
+          response.items.forEach((serverRecord) => {
+            const localRecord = merged.get(serverRecord.caseId);
+            const serverTime = new Date(serverRecord.updatedAt).getTime();
+            const localTime = localRecord ? new Date(localRecord.updatedAt).getTime() : 0;
+            if (!localRecord || serverTime >= localTime) merged.set(serverRecord.caseId, serverRecord);
+          });
+          const next = Array.from(merged.values()).sort((left, right) => (
+            new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+          ));
+          writeSafetyCases(next);
+          setSafetyCases(next);
+        })
+        .catch(() => {
+          // 원격 스키마 적용 전에도 로컬 보호사건 흐름은 유지한다.
+        });
+    };
+    refreshCases();
+    const onStorage = (event: StorageEvent) => {
+      if (!event.key || event.key === 'psi_safety_cases_v1') readCases();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refreshCases();
+    };
+    window.addEventListener('storage', onStorage);
+    window.addEventListener(SAFETY_CASE_UPDATED_EVENT, readCases);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      active = false;
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(SAFETY_CASE_UPDATED_EVENT, readCases);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, []);
+
+  useEffect(() => {
     const readFocusedPlanKey = () => {
       try {
         const key = localStorage.getItem(INTERVENTION_FOCUS_PLAN_KEY);
@@ -105,6 +175,7 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
     if (handoffPlans.length === 0) return [];
     return handoffPlans.slice(0, 5).map((plan) => ({
       key: plan.key,
+      caseId: plan.caseId,
       priority: plan.priority === '즉시' ? 'immediate' : plan.priority === '고' ? 'medium' : 'long-term',
       title: plan.actionTitle,
       reason: `${plan.workerName} · ${plan.jobField} · ${plan.riskLabel}`,
@@ -117,6 +188,10 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
   }, [handoffPlans]);
 
   const interventions = liveInterventions;
+  const caseById = useMemo(
+    () => new Map(safetyCases.map((record) => [record.caseId, record])),
+    [safetyCases],
+  );
 
   useEffect(() => {
     if (!focusedPlanKey) return;
@@ -125,6 +200,50 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
       setFocusedPlanKey(null);
     }
   }, [focusedPlanKey, interventions]);
+
+  useEffect(() => {
+    const reassessmentCandidates = safetyCases.filter((record) => record.status === 'awaiting-reassessment');
+    if (reassessmentCandidates.length === 0 || workerRecords.length === 0) return;
+
+    reassessmentCandidates.forEach((caseRecord) => {
+      const acknowledgedAt = caseRecord.completedStages.acknowledgement;
+      if (!acknowledgedAt) return;
+      const acknowledgedTime = new Date(acknowledgedAt).getTime();
+      const matchingRecords = workerRecords
+        .filter((workerRecord) => {
+          const recordIdentity = String(
+            workerRecord.worker_uuid
+            || workerRecord.workerUuid
+            || workerRecord.employeeId
+            || workerRecord.id
+            || '',
+          ).trim();
+          if (caseRecord.workerId && recordIdentity === caseRecord.workerId) return true;
+          return workerRecord.name.trim() === caseRecord.workerName.trim()
+            && workerRecord.jobField.trim() === caseRecord.jobField.trim();
+        })
+        .filter((workerRecord) => {
+          const assessedTime = new Date(workerRecord.date).getTime();
+          return Number.isFinite(assessedTime) && assessedTime > acknowledgedTime;
+        })
+        .sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime());
+
+      const reassessment = matchingRecords[0];
+      if (!reassessment) return;
+
+      const next = completeSafetyCaseStage(
+        caseRecord,
+        'reassessment',
+        'PSI 후속 평가',
+        `${reassessment.date} 재평가 기록을 연결했습니다.`,
+        { evidenceId: reassessment.id },
+      );
+      setSafetyCases(upsertSafetyCase(next));
+      void saveSafetyCaseToServer(next).catch(() => {
+        // 원격 스키마 적용 전에도 로컬 보호사건 흐름은 유지한다.
+      });
+    });
+  }, [safetyCases, workerRecords]);
 
   const getNextStatus = (status?: Intervention['status']): NonNullable<Intervention['status']> => {
     if (status === 'in-progress') return 'completed';
@@ -136,6 +255,18 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
     const nextStatus = getNextStatus(intervention.status);
 
     if (!intervention.key) return;
+
+    const linkedCase = intervention.caseId ? caseById.get(intervention.caseId) : undefined;
+    if (linkedCase) {
+      const nextCase = nextStatus === 'completed'
+        ? completeSafetyCaseStage(linkedCase, 'action', '현장 관리자', `${intervention.title} 조치를 완료했습니다.`)
+        : markSafetyCaseActionStarted(linkedCase, '현장 관리자', `${intervention.title} 조치를 시작했습니다.`);
+      setSafetyCases(upsertSafetyCase(nextCase));
+      setCaseNotice(`${nextCase.caseId} · ${nextStatus === 'completed' ? '보호조치 완료' : '보호조치 시작'}`);
+      void saveSafetyCaseToServer(nextCase).catch(() => {
+        // 원격 스키마 적용 전에도 로컬 폐루프는 유지한다.
+      });
+    }
 
     setHandoffPlans((previous) => {
       const nextPlans = previous.map((plan) =>
@@ -160,6 +291,48 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
 
       return nextPlans;
     });
+
+    void postAdminJson<{ ok: boolean }>(
+      '/api/admin/predictive-plan-status',
+      {
+        action: 'upsert',
+        payload: {
+          boardScope: 'intervention-coaching',
+          planKey: intervention.key,
+          caseId: intervention.caseId || null,
+          status: nextStatus,
+          updatedBy: '현장 관리자',
+          workerName: intervention.workerName,
+          jobField: intervention.jobField,
+          actionTitle: intervention.title,
+          dueLabel: intervention.timescale,
+        },
+      },
+      { fallbackMessage: '보호조치 상태 저장 확인 필요' },
+    ).catch(() => {
+      // 서버 스키마 적용 전에는 로컬 사건 이력을 유지한다.
+    });
+  };
+
+  const openLinkedReport = (record: SafetyCaseRecord) => {
+    localStorage.setItem(SAFETY_CASE_FOCUS_KEY, record.caseId);
+    setCaseNotice(`${record.caseId} 리포트 연결 대상으로 이동합니다.`);
+    onNavigateToPage?.('reports');
+  };
+
+  const openLinkedTraining = (record: SafetyCaseRecord) => {
+    localStorage.setItem(SAFETY_CASE_FOCUS_KEY, record.caseId);
+    localStorage.setItem(SAFETY_CASE_TRAINING_HANDOFF_KEY, JSON.stringify({
+      caseId: record.caseId,
+      workerId: record.workerId || '',
+      workerName: record.workerName,
+      jobField: record.jobField,
+      riskLabel: record.riskLabel,
+      actionTitle: record.actionTitle,
+      createdAt: new Date().toISOString(),
+    }));
+    setCaseNotice(`${record.caseId} 교육자료 작성 화면으로 이동합니다.`);
+    onNavigateToPage?.('admin-training');
   };
 
   const priorityColors: Record<string, string> = {
@@ -176,8 +349,8 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
 
   const statusLabels: Record<NonNullable<Intervention['status']>, string> = {
     'not-started': '미착수',
-    'in-progress': '진행중',
-    completed: '완료',
+    'in-progress': '보호조치 중',
+    completed: '보호조치 완료',
   };
 
   const statusTone: Record<NonNullable<Intervention['status']>, string> = {
@@ -188,6 +361,10 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
 
   const completedCount = interventions.filter((item) => item.status === 'completed').length;
   const activeCount = interventions.filter((item) => item.status && item.status !== 'completed').length;
+  const linkedCaseCount = interventions.filter((item) => item.caseId && caseById.has(item.caseId)).length;
+  const closedCaseCount = interventions.filter((item) => (
+    item.caseId ? caseById.get(item.caseId)?.status === 'closed' : false
+  )).length;
   const topPriorityIntervention = useMemo(() => {
     const rank: Record<Intervention['priority'], number> = {
       immediate: 0,
@@ -205,7 +382,7 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
   }, [interventions]);
 
   const topPriorityActionLabel = topPriorityIntervention?.status === 'completed'
-    ? '완료됨'
+    ? '보호조치 완료'
     : topPriorityIntervention?.status === 'in-progress'
       ? '완료 처리'
       : '지정 및 기한 설정';
@@ -213,8 +390,10 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
   const mobileInterventionBadge =
     interventions.length === 0
       ? { label: '데이터 없음', tone: 'bg-slate-700/40 text-slate-400 border border-slate-600/40' }
-      : completedCount === interventions.length
-        ? { label: '✅ 전체 완료', tone: 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40' }
+      : linkedCaseCount > 0 && closedCaseCount === linkedCaseCount
+        ? { label: '✅ 보호 완료', tone: 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40' }
+        : completedCount > 0
+          ? { label: '🔄 후속 진행중', tone: 'bg-violet-500/20 text-violet-200 border border-violet-400/40' }
         : activeCount > 0
           ? { label: '🔵 진행중', tone: 'bg-blue-500/20 text-blue-200 border border-blue-400/40' }
           : { label: '🔴 대기중', tone: 'bg-rose-500/20 text-rose-200 border border-rose-400/40' };
@@ -233,8 +412,8 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
         <div className="mt-3 grid grid-cols-4 gap-1.5">
           {[
             { label: '예측 전달', value: liveInterventions.length, tone: liveInterventions.length > 0 ? 'text-indigo-300' : 'text-slate-400' },
-            { label: '완료', value: completedCount, tone: completedCount > 0 ? 'text-emerald-300' : 'text-slate-400' },
-            { label: '진행중', value: activeCount, tone: activeCount > 0 ? 'text-blue-300' : 'text-slate-400' },
+            { label: '조치완료', value: completedCount, tone: completedCount > 0 ? 'text-emerald-300' : 'text-slate-400' },
+            { label: '조치중', value: activeCount, tone: activeCount > 0 ? 'text-blue-300' : 'text-slate-400' },
             { label: '전체', value: interventions.length, tone: 'text-slate-300' },
           ].map((chip) => (
             <div key={chip.label} className="rounded-xl border border-slate-700 bg-slate-900/60 px-1.5 py-2 text-center">
@@ -283,7 +462,12 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
           </div>
         )}
 
-        <p className="mt-3 text-[11px] font-bold text-violet-700">진행 상태: 활성 {activeCount}건 · 완료 {completedCount}건</p>
+        <p className="mt-3 text-[11px] font-bold text-violet-700">보호조치 상태: 진행 {activeCount}건 · 조치완료 {completedCount}건 · 전체 보호완료 {closedCaseCount}건</p>
+        {caseNotice && (
+          <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-[11px] font-black text-indigo-700">
+            {caseNotice}
+          </div>
+        )}
         {focusedPlanKey && (
           <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
             <p className="text-[10px] font-black text-emerald-700">예측 화면에서 전달된 우선 개입 대상이 강조 표시되었습니다.</p>
@@ -298,7 +482,11 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
               </p>
             </div>
           )}
-          {interventions.map((intervention, idx) => (
+          {interventions.map((intervention, idx) => {
+            const linkedCase = intervention.caseId ? caseById.get(intervention.caseId) : undefined;
+            const nextStage = linkedCase ? getNextSafetyCaseStage(linkedCase) : null;
+            const overdue = linkedCase ? isSafetyCaseOverdue(linkedCase) : false;
+            return (
             <div
               key={intervention.key || idx}
               className={`rounded-xl border-2 px-4 py-3 ${priorityColors[intervention.priority]} ${focusedPlanKey && intervention.key === focusedPlanKey ? 'ring-2 ring-emerald-400 ring-offset-2' : ''}`}
@@ -317,19 +505,63 @@ export const InterventionCoaching: React.FC<InterventionCoachingProps> = ({ work
               {intervention.assignee && (
                 <p className="text-[10px] font-semibold opacity-75 mb-3">담당: {intervention.assignee}</p>
               )}
+              {linkedCase && (
+                <div className="mb-3 rounded-xl border border-white/70 bg-white/70 px-3 py-3 text-slate-700">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[10px] font-black text-indigo-700">{linkedCase.caseId}</p>
+                    <span className={`rounded-full px-2 py-1 text-[10px] font-black ${overdue ? 'bg-rose-100 text-rose-700' : linkedCase.status === 'closed' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                      {overdue ? '기한 초과' : linkedCase.status === 'closed' ? '보호 완료' : nextStage ? `${SAFETY_CASE_STAGE_LABELS[nextStage]} 대기` : '진행 중'}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-3 gap-1.5 sm:grid-cols-6">
+                    {SAFETY_CASE_STAGE_ORDER.map((stage) => {
+                      const done = Boolean(linkedCase.completedStages[stage]);
+                      return (
+                        <div key={stage} className={`rounded-lg border px-1.5 py-2 text-center text-[9px] font-black ${done ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-400'}`}>
+                          <span className="block">{done ? '✓' : '○'}</span>
+                          <span className="mt-0.5 block">{SAFETY_CASE_STAGE_LABELS[stage]}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {linkedCase.status === 'awaiting-report' && (
+                      <button type="button" onClick={() => openLinkedReport(linkedCase)} className="rounded-lg border border-indigo-200 bg-white px-3 py-2 text-[11px] font-black text-indigo-700 hover:bg-indigo-50">
+                        리포트 연결하기
+                      </button>
+                    )}
+                    {linkedCase.status === 'awaiting-training' && (
+                      <button type="button" onClick={() => openLinkedTraining(linkedCase)} className="rounded-lg border border-violet-200 bg-white px-3 py-2 text-[11px] font-black text-violet-700 hover:bg-violet-50">
+                        교육 연결하기
+                      </button>
+                    )}
+                    {linkedCase.status === 'awaiting-acknowledgement' && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-black leading-5 text-amber-700">
+                        근로자가 교육 내용을 직접 확인하고 서명하면 자동으로 완료됩니다.
+                      </div>
+                    )}
+                    {linkedCase.status === 'awaiting-reassessment' && (
+                      <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-[11px] font-black leading-5 text-emerald-700">
+                        근로자의 다음 평가 기록이 등록되면 자동으로 개선 여부를 연결합니다.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
               <button
                 onClick={() => handleAssignAction(intervention)}
                 disabled={intervention.status === 'completed'}
                 className="w-full px-3 py-2 bg-white/40 hover:bg-white/60 rounded-lg font-black text-xs transition-colors"
               >
                 {intervention.status === 'completed'
-                  ? '완료됨'
+                  ? '보호조치 완료'
                   : intervention.status === 'in-progress'
                     ? '완료 처리'
                     : '지정 및 기한 설정'}
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

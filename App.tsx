@@ -1348,7 +1348,7 @@ const App: React.FC = () => {
                         {currentPage === 'introduction' && <Introduction workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'settings' && <Settings workerRecords={workerRecords} />}
                         {currentPage === 'field-context-input' && <FieldContextInput />}
-                        {currentPage === 'intervention-coaching' && <InterventionCoaching workerRecords={workerRecords} />}
+                        {currentPage === 'intervention-coaching' && <InterventionCoaching workerRecords={workerRecords} onNavigateToPage={navigateToPage} />}
                         {currentPage === 'judgment-tagging-input' && <JudgmentTaggingInput />}
                     </Suspense>
                 </Layout>
