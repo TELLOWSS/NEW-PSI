@@ -10,6 +10,11 @@ import {
     setSidebarPageVisible,
     type UiCompositionConfig,
 } from '../utils/uiCompositionConfig';
+import {
+    buildMonthlyCoreMetricSeries,
+    calculateCoreMetricSnapshot,
+    isOperationalWorkerRecord,
+} from '../utils/coreMetrics';
 
 interface IntegratedWorkBoardProps {
     workerRecords: WorkerRecord[];
@@ -138,20 +143,16 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
     }, []);
 
     const summary = useMemo(() => {
-        const validScores = workerRecords.map((record) => record.safetyScore).filter(Number.isFinite);
-        const averageScore = validScores.length
-            ? Math.round(validScores.reduce((sum, value) => sum + value, 0) / validScores.length)
-            : 0;
-        const highRisk = workerRecords.filter((record) => record.safetyLevel === '초급' || record.safetyScore < 60).length;
-        const analyzed = workerRecords.filter((record) => Boolean(record.scoreBreakdown)).length;
-        const improvementValues = workerRecords
-            .map((record) => record.scoreBreakdown?.improvementExecution)
-            .filter((value): value is number => typeof value === 'number');
-        const improvement = improvementValues.length
-            ? Math.round(improvementValues.reduce((sum, value) => sum + value, 0) / improvementValues.length / 20 * 100)
-            : 0;
-        const workTypes = new Set(workerRecords.map((record) => record.jobField).filter(Boolean)).size;
-        return { averageScore, highRisk, analyzed, improvement, workTypes };
+        const metrics = calculateCoreMetricSnapshot(workerRecords.filter(isOperationalWorkerRecord));
+        return {
+            averageScore: metrics.averageScore,
+            highRisk: metrics.protectionPriorityCount,
+            analyzed: metrics.analyzedWorkerCount,
+            improvement: metrics.improvementExecutionRate,
+            workTypes: metrics.workTypeCount,
+            workerCount: metrics.totalWorkers,
+            metricRuleVersion: metrics.ruleVersion,
+        };
     }, [workerRecords]);
 
     const monthlyTrends = useMemo(() => {
@@ -159,17 +160,15 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
         const scoreValues: number[] = [];
         const improvementValues: number[] = [];
 
+        const monthlyMetrics = new Map(
+            buildMonthlyCoreMetricSeries(workerRecords.filter(isOperationalWorkerRecord))
+                .map((point) => [point.month, point]),
+        );
+
         monthKeys.forEach((monthKey) => {
-            const monthRecords = workerRecords.filter((record) => {
-                const date = new Date(record.date);
-                return !Number.isNaN(date.getTime()) && getMonthKey(date) === monthKey;
-            });
-            const scores = monthRecords.map((record) => record.safetyScore).filter(Number.isFinite);
-            const improvements = monthRecords
-                .map((record) => record.scoreBreakdown?.improvementExecution)
-                .filter((value): value is number => typeof value === 'number');
-            if (scores.length) scoreValues.push(Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length));
-            if (improvements.length) improvementValues.push(Math.round(improvements.reduce((sum, value) => sum + value, 0) / improvements.length / 20 * 100));
+            const point = monthlyMetrics.get(monthKey);
+            if (point?.validScoreRecordCount) scoreValues.push(point.averageScore);
+            if (point?.analyzedWorkerCount) improvementValues.push(point.improvementExecutionRate);
         });
 
         return { scoreValues, improvementValues };
@@ -218,6 +217,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                         <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-500">
                             <span className="inline-flex h-2 w-2 rounded-full bg-blue-500 animate-pulse" />
                             <span>분석 데이터 기준: 현재 브라우저에 누적된 현장 안전점검 데이터 ({workerRecords.length}건)</span>
+                            <span title={summary.metricRuleVersion}>· 공식 계산 기준: 근로자별 최신 기록</span>
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 shrink-0">

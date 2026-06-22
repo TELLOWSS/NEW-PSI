@@ -48,6 +48,7 @@ import {
     type ManagerRiskBaselineMap,
 } from '../utils/surveyRiskGap';
 import { loadSurveyRiskBaselines } from '../services/surveyRiskBaselineService';
+import { calculateCoreMetricSnapshot } from '../utils/coreMetrics';
 
 const NationalityChart = lazy(() => import('../components/charts/NationalityChart').then(module => ({ default: module.NationalityChart })));
 const TopWeaknessesChart = lazy(() => import('../components/charts/TopWeaknessesChart').then(module => ({ default: module.TopWeaknessesChart })));
@@ -402,24 +403,15 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             const first = records[0];
             const team = first.teamLeader?.trim() || '미지정 팀';
             const trade = normalizeDashboardTrade(first.jobField);
-            const uniqueWorkers = new Set(records.map((record) => record.name));
-            const latestRecords = Array.from(uniqueWorkers).map((name) => {
-                return records
-                    .filter((record) => record.name === name)
-                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-            });
-
-            const avgScore = latestRecords.length > 0
-                ? latestRecords.reduce((acc, record) => acc + record.safetyScore, 0) / latestRecords.length
-                : 0;
+            const teamMetrics = calculateCoreMetricSnapshot(records);
 
             return {
                 key,
                 team,
                 trade,
                 label: `${team} (${trade})`,
-                workerCount: uniqueWorkers.size,
-                avgScore,
+                workerCount: teamMetrics.totalWorkers,
+                avgScore: teamMetrics.averageScore,
             };
         }).sort((a, b) => a.avgScore - b.avgScore || a.label.localeCompare(b.label, 'ko'));
     }, [workerOnlyRecords]);
@@ -819,19 +811,15 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
 
     const stats = useMemo(() => {
-        const uniqueWorkers = new Set(filteredWorkerRecords.map(r => r.name));
-        const totalWorkers = uniqueWorkers.size;
-        const latestRecords = Array.from(uniqueWorkers).map(name => {
-            return filteredWorkerRecords
-                .filter(r => r.name === name)
-                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
-        });
-        const averageScore = latestRecords.length > 0
-            ? latestRecords.reduce((acc, r) => acc + r.safetyScore, 0) / latestRecords.length
-            : 0;
-        const highRiskWorkers = latestRecords.filter(r => r.safetyLevel === '초급').length;
+        const metrics = calculateCoreMetricSnapshot(filteredWorkerRecords);
         const totalChecks = safetyCheckRecords.length;
-        return { totalWorkers, averageScore, highRiskWorkers, totalChecks };
+        return {
+            totalWorkers: metrics.totalWorkers,
+            averageScore: metrics.averageScore,
+            highRiskWorkers: metrics.protectionPriorityCount,
+            totalChecks,
+            metricRuleVersion: metrics.ruleVersion,
+        };
     }, [filteredWorkerRecords, safetyCheckRecords]);
 
     useEffect(() => {
@@ -843,12 +831,13 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 averageScore: Number(stats.averageScore.toFixed(2)),
                 highRiskWorkers: stats.highRiskWorkers,
                 totalChecks: stats.totalChecks,
+                metricRuleVersion: stats.metricRuleVersion,
             };
             window.localStorage.setItem(DASHBOARD_LIVE_SYNC_SNAPSHOT_KEY, JSON.stringify(snapshot));
         } catch {
             // ignore localStorage write failures
         }
-    }, [stats.averageScore, stats.highRiskWorkers, stats.totalChecks, stats.totalWorkers]);
+    }, [stats.averageScore, stats.highRiskWorkers, stats.metricRuleVersion, stats.totalChecks, stats.totalWorkers]);
 
     const harnessDashboardSummary = useMemo(() => {
         const uniqueWorkers = new Set(filteredWorkerRecords.map((record) => record.name));

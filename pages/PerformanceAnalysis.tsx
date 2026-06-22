@@ -12,6 +12,12 @@ import { createMetricSessionId, trackUIViewMetric } from '../utils/uiViewModeMet
 import { buildMonthlyTrendDashboards } from '../utils/reportBuilders';
 import { useUiAudienceMode } from '../hooks/useUiAudienceMode';
 import type { UiAudienceMode } from '../config/routeMeta';
+import {
+    buildMonthlyCoreMetricSeries,
+    calculateCoreMetricSnapshot,
+    getCoreMetricWorkerKey,
+    selectLatestCoreMetricRecords,
+} from '../utils/coreMetrics';
 
 interface PerformanceAnalysisProps {
     workerRecords: WorkerRecord[];
@@ -289,43 +295,34 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
     }, [timeRange, workerRecords]);
     const harnessSummary = useMemo(() => summarizeHarnessRecords(filteredBaseRecords), [filteredBaseRecords]);
     const monthlyTrendDashboards = useMemo(() => buildMonthlyTrendDashboards(filteredBaseRecords), [filteredBaseRecords]);
+    const monthlyMetricSeries = useMemo(() => buildMonthlyCoreMetricSeries(filteredBaseRecords), [filteredBaseRecords]);
     const latestMonthlyTrend = monthlyTrendDashboards[monthlyTrendDashboards.length - 1];
 
     const kpiData = useMemo(() => {
         if (filteredBaseRecords.length === 0) return null;
         
-        const sorted = [...filteredBaseRecords].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        
-        const monthlyAvgs = Object.entries(sorted.reduce((acc, r) => {
-            const m = r.date.substring(0, 7);
-            if (!acc[m]) acc[m] = [];
-            acc[m].push(r.safetyScore);
-            return acc;
-        }, {} as Record<string, number[]>)).map(([m, scores]: [string, number[]]) => ({
-            month: m,
-            avg: scores.reduce((a, b) => a + b, 0) / scores.length
-        })).sort((a, b) => a.month.localeCompare(b.month));
-
-        const currentAvg = monthlyAvgs[monthlyAvgs.length - 1]?.avg || 0;
-        const prevAvg = monthlyAvgs[monthlyAvgs.length - 2]?.avg || 0;
+        const currentAvg = monthlyMetricSeries[monthlyMetricSeries.length - 1]?.averageScore || 0;
+        const prevAvg = monthlyMetricSeries[monthlyMetricSeries.length - 2]?.averageScore || 0;
         const trend = currentAvg - prevAvg;
 
-        const allScores = sorted.map(r => r.safetyScore);
+        const allScores = selectLatestCoreMetricRecords(filteredBaseRecords)
+            .map((record) => Number(record.safetyScore))
+            .filter(Number.isFinite);
         const volatility = calculateStandardDeviation(allScores);
 
-        const fieldScores = filteredBaseRecords.reduce((acc, r) => {
+        const fieldRecords = filteredBaseRecords.reduce((acc, r) => {
             const field = r.jobField || '미분류';
             if (!acc[field]) acc[field] = [];
-            acc[field].push(r.safetyScore);
+            acc[field].push(r);
             return acc;
-        }, {} as Record<string, number[]>);
+        }, {} as Record<string, WorkerRecord[]>);
         
-        const topField = Object.entries(fieldScores)
-            .map(([f, s]: [string, number[]]) => ({ field: f, avg: s.reduce((a,b)=>a+b,0)/s.length }))
+        const topField = (Object.entries(fieldRecords) as Array<[string, WorkerRecord[]]>)
+            .map(([field, records]) => ({ field, avg: calculateCoreMetricSnapshot(records).averageScore }))
             .sort((a, b) => b.avg - a.avg)[0];
 
         return { currentAvg, trend, volatility, topField };
-    }, [filteredBaseRecords]);
+    }, [filteredBaseRecords, monthlyMetricSeries]);
 
     const matrixData = useMemo(() => {
         const fields = Array.from(new Set(filteredBaseRecords.map(r => r.jobField || '미분류'))).sort();
@@ -339,8 +336,8 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
                     field,
                     scores: uniqueMonths.map(month => {
                         const records = filteredBaseRecords.filter(r => (r.jobField || '미분류') === field && r.date.startsWith(month));
-                        return records.length > 0 
-                            ? records.reduce((a, b) => a + b.safetyScore, 0) / records.length 
+                        return records.length > 0
+                            ? calculateCoreMetricSnapshot(records).averageScore
                             : null;
                     })
                 };
@@ -349,9 +346,15 @@ const PerformanceAnalysis: React.FC<PerformanceAnalysisProps> = ({ workerRecords
     }, [filteredBaseRecords]);
 
     const safetyHabitRanking = useMemo(() => {
-        const workers = Array.from(new Set(filteredBaseRecords.map(r => r.name)));
-        return workers.map(name => {
-            const records = filteredBaseRecords.filter(r => r.name === name);
+        const grouped = filteredBaseRecords.reduce((map, record) => {
+            const key = getCoreMetricWorkerKey(record);
+            const bucket = map.get(key) || [];
+            bucket.push(record);
+            map.set(key, bucket);
+            return map;
+        }, new Map<string, WorkerRecord[]>());
+        return (Array.from(grouped.values()) as WorkerRecord[][]).map(records => {
+            const name = records[0]?.name || '이름 미확인';
             const scores = records.map(r => r.safetyScore);
             const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
             const stdDev = calculateStandardDeviation(scores);

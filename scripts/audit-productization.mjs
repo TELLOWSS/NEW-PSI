@@ -45,6 +45,12 @@ const safetyCaseFilesReady = (await Promise.all(safetyCaseFiles.map(exists))).ev
 const safetyCaseUiVerification = JSON.parse(
     await read('artifacts/audit/browser/safety-case/safety-case-verification.json') || '{}',
 );
+const coreMetricOwnership = JSON.parse(
+    await read('artifacts/audit/core-metric-ownership.json') || '{}',
+);
+const coreMetricUiVerification = JSON.parse(
+    await read('artifacts/audit/browser/core-metrics/core-metrics-verification.json') || '{}',
+);
 const packageJson = JSON.parse(await readFile('package.json', 'utf8'));
 
 const mobileFiles = [
@@ -93,10 +99,17 @@ const items = [
     {
         id: 'metric_single_source',
         grade: '출시 전 수정',
-        status: 'partial',
+        status: await exists('utils/coreMetrics.ts')
+            && await exists('docs/METRIC_CATALOG.md')
+            && coreMetricOwnership.passed === true
+            && coreMetricUiVerification.passed === true
+            ? 'completed'
+            : 'partial',
         title: '지표 규칙 버전과 화면 전체 단일 계산 기준',
-        evidence: '점수 일관성 게이트와 관리자 기준 ruleVersion은 있으나 전체 화면 단일 계산 모듈은 미완료',
-        nextAction: '핵심 지표 카탈로그와 화면별 계산 소유권을 하나로 통합',
+        evidence: coreMetricOwnership.passed === true
+            ? `공식 지표 카탈로그와 계산 모듈 적용, 소유권 ${coreMetricOwnership.passedCount}/${coreMetricOwnership.totalCount}, 브라우저 ${coreMetricUiVerification.passedCount || 0}/${coreMetricUiVerification.totalCount || 0}`
+            : '공식 지표 카탈로그 또는 계산 소유권 검증이 불완전',
+        nextAction: '규칙 변경 시 버전·단위 테스트·화면 소유권 검사를 함께 갱신',
     },
     {
         id: 'streaming_restore',

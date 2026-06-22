@@ -3,6 +3,7 @@ import React, { useEffect, useRef } from 'react';
 import type { Chart } from 'chart.js/auto';
 import type { WorkerRecord } from '../../types';
 import { ensureChartJs } from '../../utils/externalScripts';
+import { buildMonthlyCoreMetricSeries } from '../../utils/coreMetrics';
 
 interface ChartProps {
     records: WorkerRecord[];
@@ -21,20 +22,10 @@ export const MonthlyTrendChart: React.FC<ChartProps> = ({ records }) => {
             const ChartLib = await ensureChartJs().catch(() => null);
             if (!ChartLib || disposed || !chartRef.current) return;
 
-        // Data Aggregation
-        const monthlyData = records.reduce((acc, record) => {
-            const month = record.date.substring(0, 7); // YYYY-MM
-            if (!acc[month]) {
-                acc[month] = { totalScore: 0, count: 0 };
-            }
-            acc[month].totalScore += record.safetyScore;
-            acc[month].count++;
-            return acc;
-        }, {} as { [key: string]: { totalScore: number; count: number } });
-        
+        const monthlySeries = buildMonthlyCoreMetricSeries(records);
         // 데이터가 없을 때는 가상 추세를 만들지 않고 대기 기준점만 표시합니다.
-        let sortedMonths = Object.keys(monthlyData).sort();
-        let dataPoints = sortedMonths.map(month => (monthlyData[month].totalScore / monthlyData[month].count));
+        let sortedMonths = monthlySeries.map((point) => point.month);
+        let dataPoints = monthlySeries.map((point) => point.averageScore);
 
         if (sortedMonths.length === 0) {
             const today = new Date();
