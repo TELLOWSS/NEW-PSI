@@ -4758,6 +4758,16 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
 
     return (
         <div className="space-y-6 sm:space-y-8 animate-fade-in-up">
+            <input
+                type="file"
+                ref={importInputRef}
+                className="hidden"
+                accept=".json"
+                onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleImportFile(file);
+                }}
+            />
             {isStartChecklistIncomplete && (
                 <div role="status" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-amber-950">
                     <p className="text-sm font-black">업무 시작 점검이 아직 완료되지 않았습니다.</p>
@@ -5095,10 +5105,6 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                         {showQuickUtilityActions && (
                             <>
                                 <button onClick={() => importInputRef.current?.click()} className="w-full px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/10 rounded-2xl font-black text-sm transition-all">백업 파일 불러오기(JSON)</button>
-                                <input type="file" ref={importInputRef} className="hidden" accept=".json" onChange={(e) => {
-                                     const file = e.target.files?.[0];
-                                     if (file) handleImportFile(file);
-                                }} />
                                 <button onClick={() => { void handleCopyReanalysisSummary(); }} className="w-full px-5 py-3 bg-slate-700 hover:bg-slate-800 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 복사</button>
                                 <button onClick={handleExportReanalysisSummary} className="w-full px-5 py-3 bg-cyan-600 hover:bg-cyan-700 rounded-2xl font-black text-sm shadow-xl transition-all">재분석 요약 내보내기</button>
                                 <button onClick={handleExport} className="w-full px-5 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-2xl font-black text-sm shadow-xl transition-all">백업 내보내기</button>
@@ -5726,7 +5732,7 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                 </div>
             )}
 
-            {existingRecords.length > 0 && (
+            {existingRecords.length >= 0 && (
                 <SectionPanelCard
                     variant="indigoGradientSoft"
                     className="mb-4"
@@ -5744,80 +5750,106 @@ const OcrAnalysis: React.FC<OcrAnalysisProps> = ({
                             <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-slate-600">
                                 개인명·서명·원본은 공개 제외
                             </span>
+                            {existingRecords.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={handleExportEvidenceSnapshot}
+                                    className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700 hover:bg-emerald-100"
+                                >
+                                    검증용 요약 저장
+                                </button>
+                            )}
                             <button
                                 type="button"
-                                onClick={handleExportEvidenceSnapshot}
-                                className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-700 hover:bg-emerald-100"
+                                onClick={() => importInputRef.current?.click()}
+                                className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-indigo-700 hover:bg-indigo-100 flex items-center gap-1"
                             >
-                                검증용 요약 저장
+                                📤 실증자료 불러오기 (JSON)
                             </button>
                         </div>
                     )}
                 >
-                    <SummaryMetricGrid
-                        className="grid grid-cols-2 gap-2 lg:grid-cols-4"
-                        cardClassName="rounded-2xl border px-3 py-3"
-                        items={[
-                            {
-                                key: 'evidence-total',
-                                label: '전체 분석 기록',
-                                value: `${evidenceReadinessSummary.totalRecords}건`,
-                                helper: `근로자 관리 단위 ${evidenceReadinessSummary.workerGroups}명`,
-                                tone: BRAND_TONE.white,
-                                valueClassName: 'mt-1 text-xl font-black text-slate-900',
-                            },
-                            {
-                                key: 'evidence-repeat',
-                                label: '다월 추적 가능',
-                                value: `${evidenceReadinessSummary.multiMonthWorkerGroups}명`,
-                                helper: `반복 기록 ${evidenceReadinessSummary.repeatedWorkerGroups}명 · 최대 ${evidenceReadinessSummary.maxMonthsPerWorker}개월`,
-                                tone: BRAND_TONE.emeraldSoft,
-                                valueClassName: 'mt-1 text-xl font-black text-emerald-700',
-                            },
-                            {
-                                key: 'evidence-trend',
-                                label: '변화 추적',
-                                value: `개선 ${evidenceReadinessSummary.improvingWorkerGroups}명`,
-                                helper: `하락 ${evidenceReadinessSummary.decliningWorkerGroups}명 · 안정 ${evidenceReadinessSummary.stableWorkerGroups}명`,
-                                tone: BRAND_TONE.skySoft,
-                                valueClassName: 'mt-1 text-xl font-black text-sky-700',
-                            },
-                            {
-                                key: 'evidence-low-score',
-                                label: '보호 우선 대상',
-                                value: `${evidenceReadinessSummary.lowScoreRecords}건`,
-                                helper: '60점 미만 기록 기준',
-                                tone: evidenceReadinessSummary.lowScoreRecords > 0 ? BRAND_TONE.amberSoft : BRAND_TONE.slate,
-                                valueClassName: `mt-1 text-xl font-black ${evidenceReadinessSummary.lowScoreRecords > 0 ? 'text-amber-700' : 'text-slate-700'}`,
-                            },
-                        ]}
-                    />
-                    <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
-                        {[
-                            ['원본 대조', evidenceReadinessSummary.imageCoverageRate],
-                            ['수기답변 구조화', evidenceReadinessSummary.handwrittenCoverageRate],
-                            ['AI 해석', evidenceReadinessSummary.aiInsightCoverageRate],
-                            ['모국어 환류', evidenceReadinessSummary.nativeGuidanceCoverageRate],
-                        ].map(([label, value]) => (
-                            <div key={String(label)} className="rounded-2xl border border-white bg-white/80 px-3 py-3">
-                                <div className="flex items-center justify-between gap-2">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</p>
-                                    <p className="text-sm font-black text-indigo-700">{value}%</p>
-                                </div>
-                                <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
-                                    <div
-                                        className="h-full rounded-full bg-indigo-500"
-                                        style={{ width: `${Math.max(0, Math.min(100, Number(value)))}%` }}
-                                    />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    {(evidenceReadinessSummary.futureDateRecords > 0 || evidenceReadinessSummary.invalidDateRecords > 0) && (
-                        <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold leading-relaxed text-amber-800">
-                            날짜 보정 필요: 미래일자 {evidenceReadinessSummary.futureDateRecords}건 · 날짜 해석 실패 {evidenceReadinessSummary.invalidDateRecords}건.
-                            공모전 제출 전에는 월별 집계에서 제외하거나 관리자 확인 후 수정하는 것이 안전합니다.
+                    {existingRecords.length === 0 ? (
+                        <div className="mt-4 rounded-2xl border-2 border-dashed border-slate-200 bg-white p-6 text-center">
+                            <svg className="mx-auto h-12 w-12 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                            <h3 className="mt-2 text-sm font-black text-slate-900">현장 데이터가 비어 있습니다</h3>
+                            <p className="mt-1 text-xs font-bold text-slate-500">실증자료(JSON)를 불러오거나 OCR 분석을 진행하면 실증 증빙 준비도가 활성화됩니다.</p>
+                            <button
+                                type="button"
+                                onClick={() => importInputRef.current?.click()}
+                                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 text-xs font-black text-white shadow-md transition-all"
+                            >
+                                📤 실증자료 불러오기 (JSON)
+                            </button>
                         </div>
+                    ) : (
+                        <>
+                            <SummaryMetricGrid
+                                className="grid grid-cols-2 gap-2 lg:grid-cols-4"
+                                cardClassName="rounded-2xl border px-3 py-3"
+                                items={[
+                                    {
+                                        key: 'evidence-total',
+                                        label: '전체 분석 기록',
+                                        value: `${evidenceReadinessSummary.totalRecords}건`,
+                                        helper: `근로자 관리 단위 ${evidenceReadinessSummary.workerGroups}명`,
+                                        tone: BRAND_TONE.white,
+                                        valueClassName: 'mt-1 text-xl font-black text-slate-900',
+                                    },
+                                    {
+                                        key: 'evidence-repeat',
+                                        label: '다월 추적 가능',
+                                        value: `${evidenceReadinessSummary.multiMonthWorkerGroups}명`,
+                                        helper: `반복 기록 ${evidenceReadinessSummary.repeatedWorkerGroups}명 · 최대 ${evidenceReadinessSummary.maxMonthsPerWorker}개월`,
+                                        tone: BRAND_TONE.emeraldSoft,
+                                        valueClassName: 'mt-1 text-xl font-black text-emerald-700',
+                                    },
+                                    {
+                                        key: 'evidence-trend',
+                                        label: '변화 추적',
+                                        value: `개선 ${evidenceReadinessSummary.improvingWorkerGroups}명`,
+                                        helper: `하락 ${evidenceReadinessSummary.decliningWorkerGroups}명 · 안정 ${evidenceReadinessSummary.stableWorkerGroups}명`,
+                                        tone: BRAND_TONE.skySoft,
+                                        valueClassName: 'mt-1 text-xl font-black text-sky-700',
+                                    },
+                                    {
+                                        key: 'evidence-low-score',
+                                        label: '보호 우선 대상',
+                                        value: `${evidenceReadinessSummary.lowScoreRecords}건`,
+                                        helper: '60점 미만 기록 기준',
+                                        tone: evidenceReadinessSummary.lowScoreRecords > 0 ? BRAND_TONE.amberSoft : BRAND_TONE.slate,
+                                        valueClassName: `mt-1 text-xl font-black ${evidenceReadinessSummary.lowScoreRecords > 0 ? 'text-amber-700' : 'text-slate-700'}`,
+                                    },
+                                ]}
+                            />
+                            <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+                                {[
+                                    ['원본 대조', evidenceReadinessSummary.imageCoverageRate],
+                                    ['수기답변 구조화', evidenceReadinessSummary.handwrittenCoverageRate],
+                                    ['AI 해석', evidenceReadinessSummary.aiInsightCoverageRate],
+                                    ['모국어 환류', evidenceReadinessSummary.nativeGuidanceCoverageRate],
+                                ].map(([label, value]) => (
+                                    <div key={String(label)} className="rounded-2xl border border-white bg-white/80 px-3 py-3">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">{label}</p>
+                                            <p className="text-sm font-black text-indigo-700">{value}%</p>
+                                        </div>
+                                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                                            <div
+                                                className="h-full rounded-full bg-indigo-500"
+                                                style={{ width: `${Math.max(0, Math.min(100, Number(value)))}%` }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            {(evidenceReadinessSummary.futureDateRecords > 0 || evidenceReadinessSummary.invalidDateRecords > 0) && (
+                                <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold leading-relaxed text-amber-800">
+                                    날짜 보정 필요: 미래일자 {evidenceReadinessSummary.futureDateRecords}건 · 날짜 해석 실패 {evidenceReadinessSummary.invalidDateRecords}건.
+                                    공모전 제출 전에는 월별 집계에서 제외하거나 관리자 확인 후 수정하는 것이 안전합니다.
+                                </div>
+                            )}
+                        </>
                     )}
                 </SectionPanelCard>
             )}

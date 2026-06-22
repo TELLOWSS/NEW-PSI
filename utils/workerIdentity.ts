@@ -3,6 +3,76 @@ import type { WorkerRecord } from '../types';
 const GENERIC_WORKER_NAMES = new Set(['식별대기', '이름없음', '이름미확인', '미상', '분석실패']);
 const GENERIC_NATIONALITIES = new Set(['미상', '알수없음', 'UNKNOWN', 'UNSPECIFIED']);
 
+export const NATIONALITY_MAP: Record<string, string> = {
+    '대한민국': '대한민국', '한국': '대한민국', 'korea': '대한민국', 'south korea': '대한민국', 'rok': '대한민국', '남한': '대한민국', 'ko': '대한민국',
+    '베트남': '베트남', 'vietnam': '베트남', 'viet nam': '베트남', 'việt nam': '베트남', 'việt': '베트남', 'vi': '베트남', 'vn': '베트남', '越南': '베트남',
+    '중국': '중국', 'china': '중국', '중화': '중국', 'zh': '중국', 'cn': '중국', '中国': '중국',
+    '태국': '태국', 'thailand': '태국', 'thai': '태국', 'th': '태국', 'ประเทศไทย': '태국',
+    '우즈베키스탄': '우즈베키스탄', '우즈벡': '우즈베키스탄', 'uzbekistan': '우즈베키스탄', 'uzbek': '우즈베키스탄', 'uz': '우즈베키스탄', 'Ўзбекистон': '우즈베키스탄',
+    '인도네시아': '인도네시아', 'indonesia': '인도네시아', 'indonesian': '인도네시아', 'id': '인도네시아',
+    '캄보디아': '캄보디아', 'cambodia': '캄보디아', 'cambodian': '캄보디아', 'khmer': '캄보디아', 'kh': '캄보디아', 'កម្ពុជា': '캄보디아',
+    '몽골': '몽골', 'mongolia': '몽골', 'mongolian': '몽골', 'mn': '몽골', 'монгол': '몽골',
+    '필리핀': '필리핀', 'philippines': '필리핀', 'filipino': '필리핀', 'ph': '필리핀',
+    '카자흐스탄': '카자흐스탄', '카자흐': '카자흐스탄', 'kazakhstan': '카자흐스탄', 'kazakh': '카자흐스탄', 'kz': '카자흐스탄',
+    '러시아': '러시아', 'russia': '러시아', 'russian': '러시아', 'ru': '러시아', 'россия': '러시아',
+    '네팔': '네팔', 'nepal': '네팔', 'nepalese': '네팔', 'np': '네팔',
+    '미얀마': '미얀마', 'myanmar': '미얀마', 'burma': '미얀마', 'mm': '미얀마', 'မြန်မာ': '미얀마',
+};
+
+export const JOB_FIELD_MAP: Record<string, string> = {
+    '형틀': '형틀', '형틀목수': '형틀', '형틀공': '형틀', '목수': '형틀', '목공': '형틀',
+    '철근': '철근', '철근공': '철근', '철근조립': '철근',
+    '비계': '비계', '비계공': '비계', '시스템비계': '비계', '강관비계': '비계',
+    '골조': '골조', '골조공': '골조',
+    '배관': '배관', '배관공': '배관',
+    '전기': '전기', '전공': '전기', '전기공': '전기',
+    '미장': '미장', '미장공': '미장',
+    '도장': '도장', '도장공': '도장', '페인트': '도장',
+    '용역': '용역', '보통인부': '용역', '잡부': '용역', '일반인부': '용역', '조접': '용역',
+    '조적': '조적', '조적공': '조적', '벽돌': '조적',
+    '타일': '타일', '타일공': '타일',
+    '석공': '석공', '석공사': '석공',
+    '방수': '방수', '방수공': '방수',
+    '해체': '해체', '철거': '해체', '해체공': '해체',
+    '신호수': '신호수', '화재감시': '신호수', '안전감시': '신호수', '감시원': '신호수',
+    '굴착': '굴착', '토공': '굴착', '토공사': '굴착',
+    '배체정리': '배체정리', '배체': '배체정리',
+};
+
+export const normalizeNationality = (rawNationality: string): string => {
+    if (!rawNationality) return '미상';
+    const clean = rawNationality.trim().toLowerCase();
+    
+    if (NATIONALITY_MAP[clean]) {
+        return NATIONALITY_MAP[clean];
+    }
+    
+    for (const [key, val] of Object.entries(NATIONALITY_MAP)) {
+        if (clean.includes(key)) {
+            return val;
+        }
+    }
+    
+    return rawNationality.trim() || '미상';
+};
+
+export const normalizeJobField = (rawJobField: string): string => {
+    if (!rawJobField) return '미분류';
+    const clean = rawJobField.trim().toLowerCase().replace(/\s+/g, '');
+    
+    if (JOB_FIELD_MAP[clean]) {
+        return JOB_FIELD_MAP[clean];
+    }
+    
+    for (const [key, val] of Object.entries(JOB_FIELD_MAP)) {
+        if (clean.includes(key)) {
+            return val;
+        }
+    }
+    
+    return rawJobField.trim() || '미분류';
+};
+
 export type WorkerRegistrationIdentityRecord = Partial<WorkerRecord> & {
     job_field?: unknown;
     team_name?: unknown;
@@ -24,12 +94,12 @@ export const normalizeWorkerJobIdentityText = (value: unknown): string => {
 
     const parts = raw
         .split(/[,\s/·ㆍ+|]+/)
-        .map((part) => part.trim())
+        .map((part) => normalizeJobField(part.trim()))
         .filter(Boolean);
 
     return parts.length > 1
         ? Array.from(new Set(parts)).sort().join('+')
-        : raw.replace(/[,\s/·ㆍ+|]+/g, '');
+        : normalizeJobField(raw);
 };
 
 export const stableWorkerHash = (seed: string): string => {
@@ -268,6 +338,7 @@ export interface WorkerTimelineGroup {
     deltaScore: number | null;
 }
 
+
 export const buildWorkerTimelineGroups = (
     records: WorkerRecord[],
     resolveIdentityKey: (record: WorkerRecord) => string = getWorkerIdentityKey,
@@ -368,4 +439,50 @@ export const analyzeWorkerEvidenceReadiness = (
         futureDateRecords,
         invalidDateRecords,
     };
+};
+
+/**
+ * 이름과 국적은 동일하지만 공종이 달라 자동 병합되지 않는 수동 매칭 제안 대상인지 여부
+ */
+export const isPotentialSameWorkerManualReviewTarget = (
+    base: Partial<WorkerRecord>,
+    candidate: Partial<WorkerRecord>
+): boolean => {
+    const baseName = normalizeWorkerIdentityText(base.name);
+    const candidateName = normalizeWorkerIdentityText(candidate.name);
+    if (!baseName || GENERIC_WORKER_NAMES.has(baseName) || baseName !== candidateName) return false;
+
+    const baseNation = normalizeWorkerIdentityText(base.nationality);
+    const candidateNation = normalizeWorkerIdentityText(candidate.nationality);
+    if (!baseNation || GENERIC_NATIONALITIES.has(baseNation) || baseNation !== candidateNation) return false;
+
+    const baseJob = normalizeWorkerJobIdentityText(base.jobField);
+    const candidateJob = normalizeWorkerJobIdentityText(candidate.jobField);
+    
+    // 이름, 국적은 같으나 공종이 다른 경우 수동 검토 제안
+    return baseJob !== candidateJob;
+};
+
+/**
+ * 특정 타임라인 그룹 내에서 월별 공종 불일치가 발생하는지 감지하는 지표
+ */
+export const hasMonthlyJobFieldMismatch = (records: WorkerRecord[]): boolean => {
+    if (records.length <= 1) return false;
+    
+    const monthlyJobMap = new Map<string, string>();
+    for (const record of records) {
+        const monthKey = getRecordMonthKey(record);
+        const jobField = normalizeWorkerJobIdentityText(record.jobField);
+        if (!monthKey || !jobField) continue;
+        
+        if (monthlyJobMap.has(monthKey) && monthlyJobMap.get(monthKey) !== jobField) {
+            return true; // 한 달 내에 공종이 달라짐
+        }
+        monthlyJobMap.set(monthKey, jobField);
+    }
+    
+    // 전체 타임라인 내에서 서로 다른 월 사이에 공종이 달라졌는지 확인
+    const jobFields = Array.from(monthlyJobMap.values());
+    const uniqueJobs = new Set(jobFields);
+    return uniqueJobs.size > 1;
 };

@@ -1,5 +1,6 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { normalizeNationality as importedNormalizeNationality } from '../utils/workerIdentity';
 import { getWindowProp } from '../utils/windowUtils';
 import type { WorkerRecord, BriefingData, RiskForecastData, SafetyCheckRecord, HandwrittenAnswer, OcrErrorType, OcrFailureCode } from '../types';
 import { extractMessage } from '../utils/errorUtils';
@@ -1155,7 +1156,7 @@ const SIX_METRIC_ANCHOR_RUBRIC = `
  * LANGUAGE_POLICY 준수: AI 분석 결과의 국적 필드를 표준화된 형식으로 변환
  * Normalizes nationality to standard format per LANGUAGE_POLICY
  */
-function normalizeNationality(rawNationality: string): string {
+function normalizeNationality(rawNationality: string): string { return importedNormalizeNationality(rawNationality); } function _old_normalizeNationality_unused(rawNationality: string): string {
     if (!rawNationality) return '미상';
     
     const nation = (rawNationality || '').trim().toLowerCase();

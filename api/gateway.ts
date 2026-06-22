@@ -8,6 +8,7 @@ import handleHarnessReanalyze from '../lib/server/harness/handlers/reanalyze.js'
 import handleHarnessWorkflowStatus from '../lib/server/harness/handlers/workflowStatus.js';
 import { evaluateOcrVerificationCompleteness } from '../utils/ocrVerificationLanguageUtils.js';
 import { resolveGeminiOcrModelChain, type OcrEngineMode } from '../utils/aiEngineSettings.js';
+import { normalizeNationality as importedNormalizeNationality } from '../utils/workerIdentity.js';
 import {
     buildWorkerAuthenticationProof,
     verifyTrainingLinkToken,
@@ -944,7 +945,7 @@ async function handleTrainingSubmit(req: any, res: any) {
     return res.status(200).json({ ok: true, type, data });
 }
 
-const normalizeNationality = (rawNationality: string): string => {
+const normalizeNationality = (rawNationality: string): string => { return importedNormalizeNationality(rawNationality); }; const _old_normalizeNationality_unused = (rawNationality: string): string => {
     if (!rawNationality) return '미상';
 
     const nation = rawNationality.trim().toLowerCase();

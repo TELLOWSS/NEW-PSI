@@ -10,6 +10,8 @@ import {
     hasAmbiguousStableWorkerMatches,
     isSameWorkerTimeline,
     mergeWorkerRegistrationRecords,
+    isPotentialSameWorkerManualReviewTarget,
+    hasMonthlyJobFieldMismatch,
 } from '../utils/workerIdentity';
 
 const baseRecord = (patch: Partial<WorkerRecord>): WorkerRecord => ({
@@ -253,5 +255,25 @@ describe('worker identity policy', () => {
         expect(summary.improvingWorkerGroups).toBe(1);
         expect(summary.lowScoreRecords).toBe(1);
         expect(summary.imageCoverageRate).toBe(66.7);
+    });
+
+    it('detects potential same worker manual matching targets (same name & nation, different job)', () => {
+        const workerA = baseRecord({ name: '김민수', nationality: '대한민국', jobField: '형틀' });
+        const workerB = baseRecord({ name: '김민수', nationality: '대한민국', jobField: '철근' });
+        const workerC = baseRecord({ name: '김민수', nationality: '베트남', jobField: '형틀' });
+        const workerD = baseRecord({ name: '이민수', nationality: '대한민국', jobField: '형틀' });
+
+        expect(isPotentialSameWorkerManualReviewTarget(workerA, workerB)).toBe(true);
+        expect(isPotentialSameWorkerManualReviewTarget(workerA, workerC)).toBe(false); // 국적 다름
+        expect(isPotentialSameWorkerManualReviewTarget(workerA, workerD)).toBe(false); // 이름 다름
+    });
+
+    it('detects monthly job field mismatch in a timeline group', () => {
+        const recordJan = baseRecord({ name: '김민수', date: '2026-01-10', jobField: '형틀' });
+        const recordFebSameJob = baseRecord({ name: '김민수', date: '2026-02-10', jobField: '형틀' });
+        const recordFebDiffJob = baseRecord({ name: '김민수', date: '2026-02-10', jobField: '철근' });
+
+        expect(hasMonthlyJobFieldMismatch([recordJan, recordFebSameJob])).toBe(false);
+        expect(hasMonthlyJobFieldMismatch([recordJan, recordFebDiffJob])).toBe(true);
     });
 });
