@@ -325,3 +325,10 @@ Vercel:
 - 상세 검증: `artifacts/audit/core-metric-single-source-review.md`
 - 화면 증거: `artifacts/audit/browser/core-metrics/`
 - 다음 내부 우선과제는 관리자 역할·현장·테넌트 격리와 RLS 회귀검사다.
+
+### GitHub·Vercel 동기화
+
+- 기능 커밋 `74b3755`를 GitHub `main`에 동기화했다.
+- 운영 주소 `https://new-psi-eta.vercel.app`에서 핵심 지표 화면 검증 9/9을 통과해 Git 연동 프로덕션 반영을 확인했다.
+- Vercel 관리 연결의 인증 토큰이 만료되어 배포 ID와 런타임 로그 조회는 이번 회차에 확인하지 못했다.
+- 브라우저 실행 오류와 콘솔 오류는 0건이며, Vercel 연결 재로그인 후 배포 메타데이터·최근 30분 로그 확인을 보완한다.
