@@ -204,9 +204,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
             window.setTimeout(() => {
                 const element = document.getElementById('mobile-sync-hub');
                 if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
-            }, 180);
+            }, 400);
         }
     };
 

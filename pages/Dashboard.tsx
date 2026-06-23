@@ -622,8 +622,8 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             const element = document.getElementById('mobile-sync-hub');
             if (element) {
                 window.setTimeout(() => {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 180);
+                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 400);
             }
         }
     }, []);
