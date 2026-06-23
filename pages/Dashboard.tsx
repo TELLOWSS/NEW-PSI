@@ -617,6 +617,17 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
         };
     }, []);
 
+    useEffect(() => {
+        if (typeof window !== 'undefined' && window.location.hash === '#mobile-sync-hub') {
+            const element = document.getElementById('mobile-sync-hub');
+            if (element) {
+                window.setTimeout(() => {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 180);
+            }
+        }
+    }, []);
+
     const handleDashboardViewModeChange = (mode: DashboardViewMode) => {
         setIsDashboardViewModeManual(true);
         setDashboardViewMode(mode);
@@ -2701,7 +2712,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                             </div>
                         </section>
 
-                        <section className="rounded-3xl border border-white/10 bg-slate-950/45 p-4 sm:p-5 backdrop-blur-md shadow-2xl transition-all duration-300 hover:border-white/15">
+                        <section id="mobile-sync-hub" className="rounded-3xl border border-white/10 bg-slate-950/45 p-4 sm:p-5 backdrop-blur-md shadow-2xl transition-all duration-300 hover:border-white/15">
                             <div className="flex items-center justify-between gap-2 border-b border-white/5 pb-3">
                                 <div>
                                     <div className="flex items-center gap-1.5">

@@ -197,6 +197,19 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         setIsMobileMenuOpen(false); // Close mobile menu on navigation
     };
 
+    const handleGoToMobileHub = () => {
+        handlePageChange('dashboard');
+        if (typeof window !== 'undefined') {
+            window.location.hash = 'mobile-sync-hub';
+            window.setTimeout(() => {
+                const element = document.getElementById('mobile-sync-hub');
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }, 180);
+        }
+    };
+
     const handleToggleTheme = () => {
         const next = toggleTheme();
         setThemeMode(next);
@@ -407,6 +420,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                     themeMode={themeMode}
                     onToggleTheme={handleToggleTheme}
                     onGoToDashboard={currentPage !== 'dashboard' ? () => handlePageChange('dashboard') : undefined}
+                    onGoToMobileHub={currentPage !== 'dashboard' ? handleGoToMobileHub : undefined}
                     controls={
                         <div className="flex items-center gap-1">
                             {isSettingsPage && (
