@@ -224,6 +224,53 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
         return { scoreValues, improvementValues };
     }, [workerRecords]);
 
+    const priorityTrade = useMemo(() => {
+        const tradeScores = new Map<string, { sum: number; count: number }>();
+        workerRecords.filter(isOperationalWorkerRecord).forEach((r) => {
+            const score = Number(r.safetyScore);
+            const trade = String(r.jobField || '').trim();
+            if (trade && Number.isFinite(score)) {
+                const current = tradeScores.get(trade) || { sum: 0, count: 0 };
+                tradeScores.set(trade, { sum: current.sum + score, count: current.count + 1 });
+            }
+        });
+        
+        let worstTrade = '대기 중';
+        let worstAvg = 100;
+        tradeScores.forEach((val, key) => {
+            const avg = val.sum / val.count;
+            if (avg < worstAvg) {
+                worstAvg = avg;
+                worstTrade = key;
+            }
+        });
+        
+        return { name: worstTrade, score: worstTrade === '대기 중' ? 0 : Math.round(worstAvg * 10) / 10 };
+    }, [workerRecords]);
+
+    const trendDelta = useMemo(() => {
+        if (monthlyTrends.scoreValues.length >= 2) {
+            const latest = monthlyTrends.scoreValues[monthlyTrends.scoreValues.length - 1];
+            const previous = monthlyTrends.scoreValues[monthlyTrends.scoreValues.length - 2];
+            return latest - previous;
+        }
+        return 0;
+    }, [monthlyTrends]);
+
+    const aiInsightText = useMemo(() => {
+        const score = summary.averageScore;
+        const imp = summary.improvement;
+        if (score === 0) return '현장 데이터 수집이 시작되었습니다. 축적 데이터에 따라 실시간 AI 관제 소견이 활성화됩니다.';
+        
+        if (score < 75 && imp < 60) {
+            return `평균 응답품질(${score}점)과 개선율(${imp}%)이 정체 중입니다. ${priorityTrade.name} 공종을 중심으로 밀착 지도가 필요합니다.`;
+        } else if (imp < 60) {
+            return `근로자 안전 이해도(${score}점)에 비해 개선 이행률(${imp}%)이 낮습니다. 지적 사항 보강 상태를 점검하세요.`;
+        } else {
+            return `전체 지표가 우수하게 유지 중입니다. 다국어 근로자 TBM 전파율을 점검하며 현재의 흐름을 보존하십시오.`;
+        }
+    }, [summary, priorityTrade]);
+
     const topRisks = useMemo(() => {
         const counts = new Map<string, number>();
         workerRecords.forEach((record) => {
@@ -431,6 +478,42 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                                     <TrendChart values={monthlyTrends.improvementValues} color="#059669" label="최근 개선 이행 추세" />
                                 </>
                             )}
+                        </div>
+
+                        {/* 신규: AI 안전 소견 및 실시간 지표 분석 */}
+                        <div className="mt-3 space-y-2.5">
+                            <div className="rounded-xl border border-indigo-100/70 bg-indigo-50/30 p-2.5 dark:border-indigo-950/40 dark:bg-indigo-950/20">
+                                <div className="flex items-center gap-1 text-[10px] font-black text-indigo-900 dark:text-indigo-300">
+                                    <span className="flex h-1.5 w-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                                    AI 실시간 관제 소견
+                                </div>
+                                <p className="mt-1 text-[10px] font-bold text-slate-600 dark:text-slate-450 leading-relaxed font-sans">
+                                    {aiInsightText}
+                                </p>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-left">
+                                <div className="rounded-xl border border-slate-100 bg-white p-2 dark:border-slate-800 dark:bg-slate-900/40">
+                                    <span className="text-[9px] font-black text-slate-400 block uppercase tracking-wider">중점 계도 공종</span>
+                                    <div className="mt-1 flex items-center justify-between">
+                                        <b className="text-xs font-black text-slate-700 dark:text-slate-300">{priorityTrade.name}</b>
+                                        {priorityTrade.name !== '대기 중' && (
+                                            <span className="rounded-full bg-rose-50 px-1.5 py-0.5 text-[9px] font-black text-rose-700 dark:bg-rose-955/20 dark:text-rose-300">
+                                                {priorityTrade.score}점
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="rounded-xl border border-slate-100 bg-white p-2 dark:border-slate-800 dark:bg-slate-900/40">
+                                    <span className="text-[9px] font-black text-slate-400 block uppercase tracking-wider">전월 대비 추세</span>
+                                    <div className="mt-1 flex items-center justify-between">
+                                        <b className="text-xs font-black text-slate-700 dark:text-slate-300">평균 응답품질</b>
+                                        <span className={`text-[10px] font-black flex items-center gap-0.5 ${trendDelta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                            {trendDelta >= 0 ? '▲' : '▼'} {Math.abs(trendDelta).toFixed(1)}점
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
