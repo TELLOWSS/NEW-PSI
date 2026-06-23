@@ -1,8 +1,8 @@
-
 import React, { useEffect, useRef } from 'react';
 import type { Chart } from 'chart.js/auto';
 import type { WorkerRecord } from '../../types';
 import { ensureChartJs } from '../../utils/externalScripts';
+import { useResolvedTheme } from '../../hooks/useResolvedTheme';
 
 interface ChartProps {
     records: WorkerRecord[];
@@ -18,6 +18,8 @@ const backgroundColors = [
 ];
 
 export const WeaknessPieChart: React.FC<ChartProps> = ({ records }) => {
+    const theme = useResolvedTheme();
+    const isDark = theme === 'dark';
     const chartRef = useRef<HTMLCanvasElement>(null);
     const chartInstance = useRef<Chart | null>(null);
 
@@ -30,57 +32,70 @@ export const WeaknessPieChart: React.FC<ChartProps> = ({ records }) => {
             const ChartLib = await ensureChartJs().catch(() => null);
             if (!ChartLib || disposed || !chartRef.current) return;
 
-        const weaknessCounts = records.flatMap(r => r.weakAreas).reduce((acc, area) => {
-            acc[area] = (acc[area] || 0) + 1;
-            return acc;
-        }, {} as { [key: string]: number });
-        
-        if (chartInstance.current) {
-            chartInstance.current.destroy();
-            chartInstance.current = null;
-        }
+            const weaknessCounts = records.flatMap(r => r.weakAreas).reduce((acc, area) => {
+                acc[area] = (acc[area] || 0) + 1;
+                return acc;
+            }, {} as { [key: string]: number });
+            
+            if (chartInstance.current) {
+                chartInstance.current.destroy();
+                chartInstance.current = null;
+            }
 
-        const ctx = chartRef.current.getContext('2d');
-        if (!ctx) return;
+            const ctx = chartRef.current.getContext('2d');
+            if (!ctx) return;
 
-        if (Object.keys(weaknessCounts).length === 0) {
-            ctx.clearRect(0, 0, chartRef.current.width, chartRef.current.height);
-            ctx.save();
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = "700 13px 'Noto Sans KR', sans-serif";
-            ctx.textAlign = 'center';
-            ctx.fillText('취약 분야 데이터 대기 중', chartRef.current.width / 2, chartRef.current.height / 2);
-            ctx.restore();
-            return;
-        }
+            if (disposed) return;
 
-        const labels = Object.keys(weaknessCounts);
-        const data = Object.values(weaknessCounts);
+            if (Object.keys(weaknessCounts).length === 0) {
+                ctx.clearRect(0, 0, chartRef.current.width, chartRef.current.height);
+                ctx.save();
+                ctx.fillStyle = isDark ? '#94a3b8' : '#64748b';
+                ctx.font = "700 13px 'Pretendard', sans-serif";
+                ctx.textAlign = 'center';
+                ctx.fillText('취약 분야 데이터 대기 중', chartRef.current.width / 2, chartRef.current.height / 2);
+                ctx.restore();
+                return;
+            }
+
+            const labels = Object.keys(weaknessCounts);
+            const data = Object.values(weaknessCounts);
+
+            const surfaceColor = isDark ? '#111827' : 'rgba(255, 255, 255, 0.8)';
+            const legendColor = isDark ? '#cbd5e1' : '#475569';
+            const tooltipBg = isDark ? 'rgba(17, 24, 39, 0.95)' : 'rgba(15, 23, 42, 0.9)';
 
             try {
                 chartInstance.current = new ChartLib(ctx, {
-                type: 'pie',
-                data: {
-                    labels,
-                    datasets: [{
-                        label: '취약 분야',
-                        data,
-                        backgroundColor: backgroundColors,
-                        borderColor: 'rgba(255, 255, 255, 0.7)',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                        },
+                    type: 'pie',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: '취약 분야',
+                            data,
+                            backgroundColor: backgroundColors,
+                            borderColor: surfaceColor,
+                            borderWidth: 1
+                        }]
                     },
-                }
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    color: legendColor,
+                                    font: { family: "'Pretendard', sans-serif", size: 11 }
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: tooltipBg
+                            }
+                        },
+                    }
                 });
-            } catch(e) {
+            } catch (e) {
                 console.error("Pie Chart error:", e);
             }
         };
@@ -94,7 +109,7 @@ export const WeaknessPieChart: React.FC<ChartProps> = ({ records }) => {
                 chartInstance.current = null;
             }
         };
-    }, [records]);
+    }, [records, theme, isDark]);
 
     return <canvas ref={chartRef} />;
 };

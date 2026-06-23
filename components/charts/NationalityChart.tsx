@@ -1,21 +1,21 @@
-
 import React, { useEffect, useRef } from 'react';
 import type { Chart, ChartConfiguration } from 'chart.js/auto';
 import type { WorkerRecord } from '../../types';
 import { ensureChartJs } from '../../utils/externalScripts';
+import { useResolvedTheme } from '../../hooks/useResolvedTheme';
 
 interface ChartProps {
     records: WorkerRecord[];
 }
 
 const backgroundColors = [
-    'rgba(239, 68, 68, 0.8)',   // Vietnam (Red)
-    'rgba(59, 130, 246, 0.8)',  // South Korea (Blue)
-    'rgba(239, 68, 68, 0.8)',   // China (Red)
-    'rgba(249, 115, 22, 0.8)',  // Thailand (Orange-ish for chart)
-    'rgba(34, 197, 94, 0.8)',   // Cambodia (Green)
-    'rgba(219, 39, 119, 0.8)', // Mongolia (Pink-ish)
-    'rgba(20, 184, 166, 0.8)', // Kazakhstan (Teal)
+    'rgba(239, 68, 68, 0.8)',
+    'rgba(59, 130, 246, 0.8)',
+    'rgba(239, 68, 68, 0.8)',
+    'rgba(249, 115, 22, 0.8)',
+    'rgba(34, 197, 94, 0.8)',
+    'rgba(219, 39, 119, 0.8)',
+    'rgba(20, 184, 166, 0.8)',
 ];
 
 const getFlagEmoji = (nationality: string): string => {
@@ -36,8 +36,9 @@ const getFlagEmoji = (nationality: string): string => {
     return flags[nationality] || '🏳️';
 };
 
-
 export const NationalityChart: React.FC<ChartProps> = ({ records }) => {
+    const theme = useResolvedTheme();
+    const isDark = theme === 'dark';
     const chartRef = useRef<HTMLCanvasElement>(null);
     const chartInstance = useRef<Chart | null>(null);
 
@@ -53,98 +54,100 @@ export const NationalityChart: React.FC<ChartProps> = ({ records }) => {
             const uniqueWorkers = new Map<string, string>();
             records.forEach(r => uniqueWorkers.set(r.name, r.nationality));
         
-        const nationalityCounts = Array.from(uniqueWorkers.values()).reduce((acc, nationality) => {
-            acc[nationality] = (acc[nationality] || 0) + 1;
-            return acc;
-        }, {} as Record<string, number>);
+            const nationalityCounts = Array.from(uniqueWorkers.values()).reduce((acc, nationality) => {
+                acc[nationality] = (acc[nationality] || 0) + 1;
+                return acc;
+            }, {} as Record<string, number>);
 
-        const sortedNationalities = Object.entries(nationalityCounts).sort((a, b) => b[1] - a[1]);
+            const sortedNationalities = Object.entries(nationalityCounts).sort((a, b) => b[1] - a[1]);
 
-        const labels = sortedNationalities.map(([nationality]) => `${getFlagEmoji(nationality)} ${nationality}`);
-        const data = sortedNationalities.map(([, count]) => count);
-        
-        if (chartInstance.current) {
-            chartInstance.current.destroy();
-        }
+            const labels = sortedNationalities.map(([nationality]) => `${getFlagEmoji(nationality)} ${nationality}`);
+            const data = sortedNationalities.map(([, count]) => count);
+            
+            if (chartInstance.current) {
+                chartInstance.current.destroy();
+            }
 
-        const ctx = chartRef.current.getContext('2d');
-        if (!ctx) return;
+            const ctx = chartRef.current.getContext('2d');
+            if (!ctx) return;
 
-        const config: ChartConfiguration = {
-            type: 'bar',
-            data: {
-                labels,
-                datasets: [{
-                    label: '근로자 수',
-                    data,
-                    backgroundColor: backgroundColors,
-                    borderWidth: 0,
-                    borderRadius: 4,
-                    barPercentage: 0.6,
-                }]
-            },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        grid: {
-                            drawOnChartArea: false,
+            const config: ChartConfiguration = {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: '근로자 수',
+                        data,
+                        backgroundColor: backgroundColors,
+                        borderWidth: 0,
+                        borderRadius: 4,
+                        barPercentage: 0.6,
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                            ticks: {
+                                display: false
+                            }
                         },
-                        ticks: {
-                           display: false
+                        y: {
+                            grid: {
+                                display: false,
+                            },
+                            ticks: {
+                                color: isDark ? '#94a3b8' : '#475569',
+                                font: {
+                                    size: 13,
+                                    weight: 500,
+                                    family: "'Pretendard', sans-serif"
+                                }
+                            }
                         }
                     },
-                    y: {
-                        grid: {
+                    plugins: {
+                        legend: {
                             display: false,
                         },
-                        ticks: {
-                           font: {
-                               size: 14,
-                               weight: 500
-                           }
+                        tooltip: {
+                            enabled: true,
+                            backgroundColor: isDark ? 'rgba(17, 24, 39, 0.95)' : 'rgba(15, 23, 42, 0.9)'
+                        },
+                    },
+                },
+            };
+            
+            // @ts-ignore
+            config.options.animation = {
+                onComplete: (context) => {
+                    const chart = context.chart;
+                    const ctx = chart.ctx;
+                    ctx.font = 'bold 12px "Pretendard"';
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'middle';
+                    
+                    const meta = chart.getDatasetMeta(0);
+                    meta.data.forEach((bar, index) => {
+                        const barElement = bar as unknown as { x: number; y: number; width: number };
+                        const data = chart.data.datasets[0].data[index] as number;
+                        ctx.fillStyle = '#fff';
+                        const labelPosition = barElement.x - 30;
+                        if (barElement.width > 40) {
+                            ctx.fillText(`${data}명`, labelPosition, barElement.y);
+                        } else {
+                            ctx.fillStyle = isDark ? '#94a3b8' : '#64748b';
+                            ctx.fillText(`${data}명`, barElement.x + 5, barElement.y);
                         }
-                    }
-                },
-                plugins: {
-                    legend: {
-                        display: false,
-                    },
-                    tooltip: {
-                        enabled: true
-                    },
-                },
-            },
-        };
-        
-        // This is a bit of a hack to get data labels without a plugin
-        // @ts-ignore
-        config.options.animation = {
-            onComplete: (context) => {
-                const chart = context.chart;
-                const ctx = chart.ctx;
-                ctx.font = 'bold 12px "Noto Sans KR"';
-                ctx.textAlign = 'left';
-                ctx.textBaseline = 'middle';
-                
-                const meta = chart.getDatasetMeta(0);
-                meta.data.forEach((bar, index) => {
-                    const barElement = bar as unknown as { x: number; y: number; width: number };
-                    const data = chart.data.datasets[0].data[index] as number;
-                    ctx.fillStyle = '#fff';
-                    const labelPosition = barElement.x - 30; // position inside bar
-                    if(barElement.width > 40) { // only show if bar is wide enough
-                        ctx.fillText(`${data}명`, labelPosition, barElement.y);
-                    } else {
-                        ctx.fillStyle = '#64748b'; // show outside
-                         ctx.fillText(`${data}명`, barElement.x + 5, barElement.y);
-                    }
-                });
-            }
-        };
+                    });
+                }
+            };
 
             try {
                 chartInstance.current = new ChartLib(ctx, config);
@@ -162,7 +165,7 @@ export const NationalityChart: React.FC<ChartProps> = ({ records }) => {
                 chartInstance.current = null;
             }
         };
-    }, [records]);
+    }, [records, theme, isDark]);
 
     return <canvas ref={chartRef} />;
 };

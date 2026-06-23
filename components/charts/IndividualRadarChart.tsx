@@ -101,7 +101,7 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record, labels = RA
                         key={`ring-${level}`}
                         points={ringPoints}
                         fill="none"
-                        stroke="rgba(71,85,105,0.12)"
+                        stroke="var(--psi-border)"
                         strokeWidth="1"
                     />
                 );
@@ -116,8 +116,8 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record, labels = RA
                         y1={center}
                         x2={center + Math.cos(angle) * radius}
                         y2={center + Math.sin(angle) * radius}
-                        stroke="rgba(71,85,105,0.14)"
-                        strokeWidth="1"
+                        stroke="var(--psi-border-strong)"
+                        strokeWidth="0.8"
                     />
                 );
             })}
@@ -126,7 +126,7 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record, labels = RA
 
             {points.map((point, index) => (
                 <g key={`point-${chartLabels[index]}`}>
-                    <circle cx={point.x} cy={point.y} r="3.8" fill="#ffffff" />
+                    <circle cx={point.x} cy={point.y} r="3.8" fill="var(--psi-surface)" />
                     <circle cx={point.x} cy={point.y} r="2.5" fill="#4F46E5" />
                 </g>
             ))}
@@ -143,9 +143,9 @@ export const IndividualRadarChart: React.FC<ChartProps> = ({ record, labels = RA
                         y={y}
                         textAnchor={anchor}
                         dominantBaseline="middle"
-                        fontSize="8"
+                        fontSize="8.5"
                         fontWeight="700"
-                        fill="#334155"
+                        fill="var(--psi-text-muted)"
                     >
                         {label}
                     </text>

@@ -35,17 +35,17 @@
         --psi-surface-muted: #0d1524;
         --psi-surface-inset: #202c40;
         --psi-text: #f8fafc;
-        --psi-text-muted: #e2e8f0;
-        --psi-text-subtle: #cbd5e1;
-        --psi-border: #334155;
-        --psi-border-strong: #475569;
+        --psi-text-muted: #cbd5e1;
+        --psi-text-subtle: #94a3b8;
+        --psi-border: #1e293b;
+        --psi-border-strong: #334155;
         --psi-focus: #60a5fa;
         --psi-brand: #60a5fa;
         --psi-brand-strong: #bfdbfe;
         --psi-accent: #fb923c;
         --psi-success: #34d399;
-        --psi-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
-        --psi-shadow-raised: 0 18px 44px rgba(0, 0, 0, 0.4);
+        --psi-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.02);
+        --psi-shadow-raised: 0 20px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04);
     }
 
     body {

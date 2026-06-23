@@ -44,7 +44,7 @@ const METRIC_MAX: Record<SixMetricKey, number> = {
     riskAssessmentUnderstanding:20,
     proficiency:                30,
     improvementExecution:       20,
-    repeatViolationPenalty:     30, // 절댓값 표시
+    repeatViolationPenalty:     30,
 };
 
 const CustomTooltip = ({ active, payload }: any) => {
@@ -64,16 +64,16 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 const RISK_BADGE = (score: number) => {
-    if (score < 60) return { label: '추가 확인', color: 'bg-red-100 text-red-700' };
-    if (score < 75) return { label: '주의',   color: 'bg-amber-100 text-amber-700' };
-    return { label: '양호', color: 'bg-emerald-100 text-emerald-700' };
+    if (score < 60) return { label: '추가 확인', color: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200/20' };
+    if (score < 75) return { label: '주의',   color: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/20' };
+    return { label: '양호', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/20' };
 };
 
 export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageMetrics }) => {
     if (!targetGroup) {
         return (
-            <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-6 flex items-center justify-center min-h-[320px]">
-                <p className="text-slate-400 text-sm">위 그래프에서 분석할 작업조를 클릭하세요.</p>
+            <div className="psi-industrial-panel p-6 flex items-center justify-center min-h-[320px]">
+                <p className="text-[var(--psi-text-subtle)] text-sm">위 그래프에서 분석할 작업조를 클릭하세요.</p>
             </div>
         );
     }
@@ -88,7 +88,6 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
         현장평균: Math.abs(siteAverageMetrics[key]),
     }));
 
-    // 지표별 취약도 순위 (타겟 점수 / 최대점수 비율)
     const weakMetrics = SIX_METRIC_KEYS
         .map(k => ({
             label: SIX_METRIC_LABELS[k],
@@ -98,30 +97,30 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
         .slice(0, 3);
 
     return (
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-100 p-4 sm:p-6">
+        <div className="psi-industrial-panel p-4 sm:p-6">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
                 <div>
-                    <h3 className="text-base sm:text-lg font-bold text-slate-800">
+                    <h3 className="text-base sm:text-lg font-bold text-[var(--psi-text)]">
                         팀 기준 6대 지표 분석
                     </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-[var(--psi-text-subtle)] mt-0.5">
                         {isIntegratedNationality
                             ? '선택 팀의 국적 통합 기준으로 현장 평균 대비 취약 지점을 확인합니다.'
                             : `선택 팀 내부 ${targetGroup.nationality} 세부 기준으로 현장 평균 대비 취약 지점을 확인합니다.`}
                     </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                    <span className="px-3 py-1.5 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold">
+                    <span className="px-3 py-1.5 bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200/20 rounded-lg text-xs font-bold">
                         {targetGroup.trade} 팀
                     </span>
-                    <span className="px-3 py-1.5 bg-violet-50 text-violet-700 rounded-lg text-xs font-bold">
+                    <span className="px-3 py-1.5 bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300 border border-violet-200/20 rounded-lg text-xs font-bold">
                         {isIntegratedNationality ? '국적 통합' : `국적 ${targetGroup.nationality}`}
                     </span>
                     <span className={`px-3 py-1.5 rounded-lg text-xs font-bold ${badge.color}`}>
                         {badge.label} {targetGroup.compositeScore}점
                     </span>
-                    <span className="text-xs text-slate-500 font-medium">{targetGroup.workerCount}명</span>
+                    <span className="text-xs text-[var(--psi-text-subtle)] font-medium">{targetGroup.workerCount}명</span>
                 </div>
             </div>
 
@@ -130,14 +129,14 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
                 <div className="w-full">
                     <ResponsiveContainer width="100%" height={250}>
                         <RadarChart data={chartData} margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
-                            <PolarGrid stroke="#e2e8f0" />
+                            <PolarGrid stroke="var(--psi-border)" />
                             <PolarAngleAxis
                                 dataKey="metric"
-                                tick={{ fontSize: 10, fontWeight: 600, fill: '#475569' }}
+                                tick={{ fontSize: 10, fontWeight: 600, fill: 'var(--psi-text-muted)' }}
                             />
                             <PolarRadiusAxis
                                 angle={90}
-                                tick={{ fontSize: 9, fill: '#94a3b8' }}
+                                tick={{ fontSize: 9, fill: 'var(--psi-text-subtle)' }}
                                 tickCount={4}
                             />
                             <Tooltip content={<CustomTooltip />} />
@@ -149,8 +148,8 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
                             <Radar
                                 name="현장 평균"
                                 dataKey="현장평균"
-                                stroke="#cbd5e1"
-                                fill="#e2e8f0"
+                                stroke="var(--psi-border-strong)"
+                                fill="var(--psi-border)"
                                 fillOpacity={0.4}
                                 dot={false}
                             />
@@ -159,7 +158,7 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
                                 dataKey="타겟"
                                 stroke="#f59e0b"
                                 fill="#fef3c7"
-                                fillOpacity={0.6}
+                                fillOpacity={isIntegratedNationality ? 0.35 : 0.55}
                                 dot={{ fill: '#f59e0b', r: 4 }}
                                 activeDot={{ r: 6, fill: '#d97706' }}
                             />
@@ -169,22 +168,22 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
 
                 {/* 취약 지표 요약 */}
                 <div className="space-y-3">
-                    <p className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                    <p className="text-xs font-bold text-[var(--psi-text-muted)] uppercase tracking-wide">
                         ⚡ 취약 지표 TOP 3 (TBM 교육 타겟)
                     </p>
                     {weakMetrics.map((m, i) => (
                         <div key={m.label} className="flex items-center gap-3">
                             <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
-                                i === 0 ? 'bg-red-100 text-red-600' :
-                                i === 1 ? 'bg-amber-100 text-amber-600' :
-                                'bg-yellow-50 text-yellow-600'
+                                i === 0 ? 'bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-300' :
+                                i === 1 ? 'bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300' :
+                                'bg-yellow-50 text-yellow-600 dark:bg-yellow-950/40 dark:text-yellow-300'
                             }`}>{i + 1}</span>
                             <div className="flex-1">
-                                <div className="flex justify-between text-xs font-medium text-slate-700 mb-1">
+                                <div className="flex justify-between text-xs font-medium text-[var(--psi-text-muted)] mb-1">
                                     <span>{m.label}</span>
                                     <span>{Math.round(m.ratio * 100)}%</span>
                                 </div>
-                                <div className="w-full bg-slate-100 rounded-full h-1.5">
+                                <div className="w-full bg-[var(--psi-surface-muted)] border border-[var(--psi-border)] rounded-full h-1.5">
                                     <div
                                         className={`h-1.5 rounded-full transition-all duration-500 ${
                                             m.ratio < 0.6 ? 'bg-red-400' :
@@ -198,11 +197,11 @@ export const TradeSixMetricRadar: React.FC<Props> = ({ targetGroup, siteAverageM
                     ))}
 
                     {/* 6대 지표 전체 점수표 */}
-                    <div className="mt-4 rounded-xl bg-slate-50 p-3">
-                        <p className="text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wide">전체 지표 점수</p>
+                    <div className="mt-4 rounded-xl bg-[var(--psi-surface-muted)] border border-[var(--psi-border)] p-3">
+                        <p className="text-[10px] font-bold text-[var(--psi-text-subtle)] mb-2 uppercase tracking-wide">전체 지표 점수</p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
                             {SIX_METRIC_KEYS.map(k => (
-                                <div key={k} className="flex justify-between text-slate-600">
+                                <div key={k} className="flex justify-between text-[var(--psi-text-muted)]">
                                     <span className="truncate mr-1">{SIX_METRIC_LABELS[k]}</span>
                                     <span className="font-bold shrink-0">
                                         {Math.abs(targetGroup.metrics[k])}/{METRIC_MAX[k]}
