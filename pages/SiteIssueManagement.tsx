@@ -434,63 +434,63 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
             )}
 
             {/* 모바일/PC 경보 진행도 카드 */}
-            <div className="rounded-2xl border border-orange-200 bg-gradient-to-br from-amber-50 to-orange-50 p-5 shadow-md sm:p-6">
+            <div className="rounded-2xl border border-orange-200 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20 dark:border-orange-900/35 p-5 shadow-md sm:p-6">
                 <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
                     {/* 원형 진행도 */}
                     <div className="flex-shrink-0 flex items-center justify-center">
                         <div className="relative w-32 h-32 sm:w-40 sm:h-40">
                             <svg className="absolute inset-0 transform -rotate-90 w-full h-full" viewBox="0 0 140 140" aria-hidden="true">
-                                <circle cx="70" cy="70" r="60" fill="none" stroke="#fed7aa" strokeWidth="12" />
+                                <circle cx="70" cy="70" r="60" fill="none" className="stroke-orange-200 dark:stroke-orange-950" strokeWidth="12" />
                                 <circle
                                     cx="70"
                                     cy="70"
                                     r="60"
                                     fill="none"
-                                    stroke="#ea580c"
+                                    className="stroke-orange-600 dark:stroke-orange-500"
                                     strokeWidth="12"
                                     strokeDasharray={`${Math.round(((issueSummary.completedCount) / (issues.length || 1)) * 376)} 376`}
                                     strokeLinecap="round"
                                 />
                             </svg>
                             <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                <p className="text-3xl sm:text-4xl font-black text-orange-700">{issues.length > 0 ? Math.round((issueSummary.completedCount / issues.length) * 100) : 0}%</p>
-                                <p className="text-[10px] sm:text-[11px] font-bold text-orange-600 mt-0.5">진행도</p>
+                                <p className="text-3xl sm:text-4xl font-black text-orange-700 dark:text-orange-300">{issues.length > 0 ? Math.round((issueSummary.completedCount / issues.length) * 100) : 0}%</p>
+                                <p className="text-[10px] sm:text-[11px] font-bold text-orange-600 dark:text-orange-400 mt-0.5">진행도</p>
                             </div>
                         </div>
                     </div>
                     
                     {/* 상태 정보 */}
                     <div className="flex-1 w-full">
-                        <h3 className="text-base sm:text-lg font-black text-amber-900">2. 경보 알림 진행 현황</h3>
-                        <p className="mt-1 text-[10px] sm:text-[11px] font-semibold text-amber-700">현장 지적사항 처리 현황을 실시간 추적합니다</p>
+                        <h3 className="text-base sm:text-lg font-black text-amber-900 dark:text-amber-100">2. 경보 알림 진행 현황</h3>
+                        <p className="mt-1 text-[10px] sm:text-[11px] font-semibold text-amber-700 dark:text-amber-300">현장 지적사항 처리 현황을 실시간 추적합니다</p>
                         <div className="mt-3 sm:mt-4 grid grid-cols-3 gap-2 sm:gap-3">
-                            <div className="rounded-xl bg-white/70 px-3 py-2.5 sm:py-3 text-center border border-orange-100 shadow-sm">
-                                <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] text-orange-700">미검토</p>
-                                <p className="mt-1.5 text-lg sm:text-2xl font-black text-orange-800">{issueSummary.pendingCount}</p>
-                                <p className="text-[8px] sm:text-[9px] text-orange-600 font-semibold">검토 필요</p>
+                            <div className="rounded-xl bg-white/70 dark:bg-slate-900/60 px-3 py-2.5 sm:py-3 text-center border border-orange-100 dark:border-orange-900/30 shadow-sm">
+                                <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] text-orange-700 dark:text-orange-400">미검토</p>
+                                <p className="mt-1.5 text-lg sm:text-2xl font-black text-orange-800 dark:text-orange-300">{issueSummary.pendingCount}</p>
+                                <p className="text-[8px] sm:text-[9px] text-orange-600 dark:text-orange-400 font-semibold">검토 필요</p>
                             </div>
-                            <div className="rounded-xl bg-white/70 px-3 py-2.5 sm:py-3 text-center border border-amber-100 shadow-sm">
-                                <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] text-amber-700">처리중</p>
-                                <p className="mt-1.5 text-lg sm:text-2xl font-black text-amber-800">{issueSummary.inProgressCount}</p>
-                                <p className="text-[8px] sm:text-[9px] text-amber-600 font-semibold">조치 진행</p>
+                            <div className="rounded-xl bg-white/70 dark:bg-slate-900/60 px-3 py-2.5 sm:py-3 text-center border border-amber-100 dark:border-amber-900/30 shadow-sm">
+                                <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] text-amber-700 dark:text-amber-400">처리중</p>
+                                <p className="mt-1.5 text-lg sm:text-2xl font-black text-amber-800 dark:text-amber-300">{issueSummary.inProgressCount}</p>
+                                <p className="text-[8px] sm:text-[9px] text-amber-600 dark:text-amber-400 font-semibold">조치 진행</p>
                             </div>
-                            <div className="rounded-xl bg-emerald-50/70 px-3 py-2.5 sm:py-3 text-center border border-emerald-100 shadow-sm">
-                                <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] text-emerald-700">완료</p>
-                                <p className="mt-1.5 text-lg sm:text-2xl font-black text-emerald-700">{issueSummary.completedCount}</p>
-                                <p className="text-[8px] sm:text-[9px] text-emerald-600 font-semibold">처리 완료</p>
+                            <div className="rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 px-3 py-2.5 sm:py-3 text-center border border-emerald-100 dark:border-emerald-900/30 shadow-sm">
+                                <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.1em] text-emerald-700 dark:text-emerald-400">완료</p>
+                                <p className="mt-1.5 text-lg sm:text-2xl font-black text-emerald-700 dark:text-emerald-300">{issueSummary.completedCount}</p>
+                                <p className="text-[8px] sm:text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold">처리 완료</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div className="bg-white p-8 rounded-2xl shadow-lg border border-slate-100">
+            <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-lg border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-indigo-50 rounded-lg">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                        <div className="p-2 bg-indigo-50 dark:bg-indigo-950/40 rounded-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                         </div>
-                        <h2 className="text-2xl font-bold text-slate-900">현장 지적사항 관리</h2>
+                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">현장 지적사항 관리</h2>
                     </div>
                     <div className="flex items-center gap-2">
                         <input
@@ -511,15 +511,15 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                         </button>
                     </div>
                 </div>
-                <p className="text-slate-500">현장 순회 중 발견된 불안전 요소나 시정 조치가 필요한 사항을 기록하고 추적 관리합니다.</p>
+                <p className="text-slate-500 dark:text-slate-400">현장 순회 중 발견된 불안전 요소나 시정 조치가 필요한 사항을 기록하고 추적 관리합니다.</p>
 
-                <div className="mt-4 md:hidden sticky top-2 z-20 rounded-2xl border border-amber-200 bg-amber-50/95 backdrop-blur p-4 shadow-sm">
-                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">모바일 핵심 경보</p>
+                <div className="mt-4 md:hidden sticky top-2 z-20 rounded-2xl border border-amber-200 dark:border-amber-900/30 bg-amber-50/95 dark:bg-amber-950/90 backdrop-blur p-4 shadow-sm">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700 dark:text-amber-400">모바일 핵심 경보</p>
                     {priorityIssue ? (
                         <>
-                            <p className="mt-1 text-sm font-black text-slate-900">{priorityIssue.location} · {priorityIssue.type}</p>
-                            <p className="mt-1 text-xs font-semibold text-slate-700">위험도 {priorityIssue.riskLevel || 'Medium'} · 상태 {getStatusLabel(priorityIssue.status)}</p>
-                            <p className="mt-2 line-clamp-2 text-xs font-medium text-slate-600">{priorityIssue.description}</p>
+                            <p className="mt-1 text-sm font-black text-slate-900 dark:text-white">{priorityIssue.location} · {priorityIssue.type}</p>
+                            <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-300">위험도 {priorityIssue.riskLevel || 'Medium'} · 상태 {getStatusLabel(priorityIssue.status)}</p>
+                            <p className="mt-2 line-clamp-2 text-xs font-medium text-slate-600 dark:text-slate-400">{priorityIssue.description}</p>
                             <button
                                 type="button"
                                 onClick={() => updateStatus(priorityIssue.id, '조치 중')}
@@ -529,17 +529,17 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                             </button>
                         </>
                     ) : (
-                        <p className="mt-2 text-xs font-semibold text-slate-600">현재 즉시 처리할 경보가 없습니다.</p>
+                        <p className="mt-2 text-xs font-semibold text-slate-600 dark:text-slate-400">현재 즉시 처리할 경보가 없습니다.</p>
                     )}
                 </div>
 
                 <InterpretationCardGrid
                     items={managementInterpretationCards}
                     className="mt-4 grid-cols-1 xl:grid-cols-3"
-                    cardClassName="border-slate-200 bg-slate-50"
-                    eyebrowClassName="text-slate-500"
-                    titleClassName="text-slate-900"
-                    descriptionClassName="text-slate-600"
+                    cardClassName="border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50"
+                    eyebrowClassName="text-slate-500 dark:text-slate-400"
+                    titleClassName="text-slate-900 dark:text-white"
+                    descriptionClassName="text-slate-600 dark:text-slate-300"
                 />
                 <div className="mt-4 space-y-4">
                     <SummaryMetricGrid
@@ -549,32 +549,32 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                                 label: '안전 기록 저장 상태',
                                 value: `${harnessSummary.connected}명`,
                                 helper: '관제 시스템 연동 완료',
-                                tone: BRAND_TONE.emeraldSoft80,
+                                tone: `${BRAND_TONE.emeraldSoft80} dark:bg-emerald-950/20 dark:border-emerald-900/30`,
                             },
                             {
                                 key: 'site-issue-system-backlog',
                                 label: '검토 대기 항목',
                                 value: `${harnessSummary.approvalBacklog}명`,
                                 helper: `재확인 필요 ${harnessSummary.reviewNeeded}명을 포함합니다.`,
-                                tone: harnessSummary.approvalBacklog > 0 ? 'border-violet-200 bg-violet-50/80' : 'border-slate-200 bg-slate-50',
+                                tone: harnessSummary.approvalBacklog > 0 ? 'border-violet-200 bg-violet-50/80 dark:border-violet-900/30 dark:bg-violet-950/20' : 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50',
                             },
                             {
                                 key: 'site-issue-harness-risk',
                                 label: '즉시 보호 대상',
                                 value: `${harnessSummary.immediateAttention}명`,
                                 helper: '현장 지적 등록보다 먼저 설명·보완 순서를 정할 대상입니다.',
-                                tone: harnessSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80' : 'border-slate-200 bg-slate-50',
+                                tone: harnessSummary.immediateAttention > 0 ? 'border-rose-200 bg-rose-50/80 dark:border-rose-900/30 dark:bg-rose-950/20' : 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50',
                             },
                             {
                                 key: 'site-issue-system-fallback',
                                 label: '로컬 보관/저장 대기',
                                 value: `${harnessSummary.fallback + harnessSummary.pending}명`,
                                 helper: `로컬 보관 ${harnessSummary.fallback}명 · 저장 대기 ${harnessSummary.pending}명`,
-                                tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80' : 'border-slate-200 bg-slate-50',
+                                tone: harnessSummary.fallback > 0 ? 'border-amber-200 bg-amber-50/80 dark:border-amber-900/30 dark:bg-amber-950/20' : 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-900/50',
                             },
                         ]}
                         columnsClassName="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3"
-                        cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100"
+                        cardClassName="rounded-2xl border p-4 shadow-sm shadow-slate-100 dark:shadow-none"
                     />
                     {(harnessSummary.approvalBacklog > 0 || harnessSummary.immediateAttention > 0 || harnessSummary.fallback > 0) && (
                         <NoticeCallout
@@ -594,25 +594,25 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                 </div>
             </div>
 
-            <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-100">
+            <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-800">
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-lg font-bold text-slate-800">지적사항 목록 <span className="text-slate-500 font-normal text-sm ml-2">총 {filteredIssues.length}건</span></h3>
+                    <h3 className="text-lg font-bold text-slate-800 dark:text-white">지적사항 목록 <span className="text-slate-500 dark:text-slate-400 font-normal text-sm ml-2">총 {filteredIssues.length}건</span></h3>
                     <div className="flex space-x-2">
-                        <button onClick={() => setFilter('all')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${filter === 'all' ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>전체</button>
-                        <button onClick={() => setFilter('pending')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${filter === 'pending' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{BRAND_STATUS_LABELS.actionNeeded}</button>
-                        <button onClick={() => setFilter('completed')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${filter === 'completed' ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{BRAND_STATUS_LABELS.actionCompleted}</button>
+                        <button onClick={() => setFilter('all')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${filter === 'all' ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}>전체</button>
+                        <button onClick={() => setFilter('pending')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${filter === 'pending' ? 'bg-red-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}>{BRAND_STATUS_LABELS.actionNeeded}</button>
+                        <button onClick={() => setFilter('completed')} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${filter === 'completed' ? 'bg-green-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'}`}>{BRAND_STATUS_LABELS.actionCompleted}</button>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-6">
                     {filteredIssues.length > 0 ? filteredIssues.map((issue) => (
-                        <div key={issue.id} className="flex flex-col md:flex-row gap-6 border border-slate-200 rounded-xl p-6 hover:border-indigo-300 hover:shadow-md transition-all bg-white">
+                        <div key={issue.id} className="flex flex-col md:flex-row gap-6 border border-slate-200 dark:border-slate-800 rounded-xl p-6 hover:border-indigo-300 dark:hover:border-indigo-800 hover:shadow-md transition-all bg-white dark:bg-slate-900">
                             {/* Image Placeholder */}
-                            <div className="w-full md:w-48 h-48 bg-slate-100 rounded-lg flex items-center justify-center shrink-0 border border-slate-200">
+                            <div className="w-full md:w-48 h-48 bg-slate-100 dark:bg-slate-950 rounded-lg flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-800">
                                 {issue.image ? (
                                     <img src={issue.image} alt="Issue" className="w-full h-full object-cover rounded-lg"/>
                                 ) : (
-                                    <div className="text-center text-slate-400">
+                                    <div className="text-center text-slate-400 dark:text-slate-600">
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                         <span className="text-xs">사진 없음</span>
                                     </div>
@@ -625,20 +625,20 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                                         <div className="flex items-center gap-2 mb-1">
                                             <span className={`px-2 py-0.5 text-xs font-bold rounded ${getStatusBadge(issue.status)}`}>{getStatusLabel(issue.status)}</span>
                                             <span className={`px-2 py-0.5 text-xs font-bold rounded ${getRiskBadge(issue.riskLevel)}`}>위험도 {issue.riskLevel || 'Medium'}</span>
-                                            <span className="text-xs text-slate-500 font-medium">{issue.date} {issue.time}</span>
+                                            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">{issue.date} {issue.time}</span>
                                         </div>
-                                        <h4 className="text-lg font-bold text-slate-900">{issue.location} - {issue.type}</h4>
+                                        <h4 className="text-lg font-bold text-slate-900 dark:text-white">{issue.location} - {issue.type}</h4>
                                     </div>
                                     <button onClick={() => deleteIssue(issue.id)} className="text-slate-400 hover:text-red-500"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg></button>
                                 </div>
                                 
-                                <p className="text-slate-700 font-medium mb-4 flex-1">{issue.description}</p>
+                                <p className="text-slate-700 dark:text-slate-300 font-medium mb-4 flex-1">{issue.description}</p>
 
                                 <StatusEvidenceActionPanel
                                     className="mb-4 grid grid-cols-1 gap-2 xl:grid-cols-3"
-                                    cardClassName="rounded-xl border px-3 py-3"
-                                    titleClassName="mt-1 text-[11px] font-black text-slate-900"
-                                    descriptionClassName="mt-1 text-[11px] font-bold text-slate-600"
+                                    cardClassName="rounded-xl border border-slate-200 dark:border-slate-800 px-3 py-3"
+                                    titleClassName="mt-1 text-[11px] font-black text-slate-900 dark:text-white"
+                                    descriptionClassName="mt-1 text-[11px] font-bold text-slate-600 dark:text-slate-400"
                                     items={[
                                         {
                                             key: `${issue.id}-status`,
@@ -648,8 +648,8 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                                                 : issue.status === '조치 중'
                                                     ? '현재 보완이 진행 중이라 후속 확인이 필요한 상태입니다.'
                                                     : '아직 검토와 담당자 연결이 더 필요한 상태입니다.',
-                                            tone: issue.status === '조치 완료' ? 'border-emerald-200 bg-emerald-50' : issue.status === '조치 중' ? 'border-sky-200 bg-sky-50' : 'border-rose-200 bg-rose-50',
-                                            eyebrowClassName: `text-[10px] font-black uppercase tracking-[0.16em] ${issue.status === '조치 완료' ? 'text-emerald-700' : issue.status === '조치 중' ? 'text-sky-700' : 'text-rose-700'}`,
+                                            tone: issue.status === '조치 완료' ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-900/30 dark:bg-emerald-950/20' : issue.status === '조치 중' ? 'border-sky-200 bg-sky-50 dark:border-sky-900/30 dark:bg-sky-950/20' : 'border-rose-200 bg-rose-50 dark:border-rose-900/30 dark:bg-rose-950/20',
+                                            eyebrowClassName: `text-[10px] font-black uppercase tracking-[0.16em] ${issue.status === '조치 완료' ? 'text-emerald-700 dark:text-emerald-400' : issue.status === '조치 중' ? 'text-sky-700 dark:text-sky-400' : 'text-rose-700 dark:text-rose-400'}`,
                                             description: `${issue.date} ${issue.time}`,
                                         },
                                         {
@@ -658,7 +658,7 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                                             title: `위험도 ${issue.riskLevel || 'Medium'} · 담당자 ${issue.responsiblePerson || '미지정'}`,
                                             description: issue.actionRequired || '조치 요구 문구가 아직 정리되지 않았습니다.',
                                             tone: BRAND_TONE.slate,
-                                            eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-slate-500',
+                                            eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400',
                                         },
                                         {
                                             key: `${issue.id}-action`,
@@ -669,20 +669,20 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                                                     ? '조치 요구가 실제로 반영됐는지 완료 처리 전 한 번 더 확인하세요.'
                                                     : '담당자 지정과 조치 시작을 먼저 연결해 현장 대기 시간을 줄이세요.',
                                             tone: BRAND_TONE.indigo,
-                                            eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700',
+                                            eyebrowClassName: 'text-[10px] font-black uppercase tracking-[0.16em] text-indigo-700 dark:text-indigo-400',
                                         },
                                     ]}
                                 />
                                 
                                 {issue.actionRequired && (
-                                    <div className="bg-slate-50 p-3 rounded-md text-sm text-slate-600 mb-4 border border-slate-200">
-                                        <span className="font-bold text-slate-800 mr-2">조치 요구:</span> {issue.actionRequired}
+                                    <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-md text-sm text-slate-600 dark:text-slate-300 mb-4 border border-slate-200 dark:border-slate-800">
+                                        <span className="font-bold text-slate-800 dark:text-slate-200 mr-2">조치 요구:</span> {issue.actionRequired}
                                     </div>
                                 )}
 
-                                <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-100">
-                                    <div className="text-sm text-slate-500">
-                                        담당자: <span className="font-semibold text-slate-800">{issue.responsiblePerson || '미지정'}</span>
+                                <div className="flex items-center justify-between mt-auto pt-4 border-t border-slate-100 dark:border-slate-800">
+                                    <div className="text-sm text-slate-500 dark:text-slate-400">
+                                        담당자: <span className="font-semibold text-slate-800 dark:text-slate-200">{issue.responsiblePerson || '미지정'}</span>
                                     </div>
                                     <div className="flex gap-2">
                                         {issue.status !== '조치 완료' && (
@@ -691,7 +691,7 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                                             </button>
                                         )}
                                         {issue.status === '검토 필요' && (
-                                            <button onClick={() => updateStatus(issue.id, '조치 중')} className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 text-sm font-bold rounded hover:bg-slate-50 transition-colors shadow-sm">
+                                            <button onClick={() => updateStatus(issue.id, '조치 중')} className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold rounded hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm">
                                                 {BRAND_STATUS_LABELS.actionInProgress} 시작
                                             </button>
                                         )}
@@ -700,12 +700,12 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                             </div>
                         </div>
                     )) : (
-                        <div className="text-center py-16 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                        <div className="text-center py-16 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
                             <div className="flex justify-center mb-4">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                             </div>
-                            <p className="text-slate-500 font-medium text-lg">등록된 지적사항이 없습니다.</p>
-                            <p className="text-sm text-slate-400 mt-1">위험성 평가 기록 분석 외 별도의 현장 지적사항을 관리해보세요.</p>
+                            <p className="text-slate-500 dark:text-slate-400 font-medium text-lg">등록된 지적사항이 없습니다.</p>
+                            <p className="text-sm text-slate-400 dark:text-slate-500 mt-1">위험성 평가 기록 분석 외 별도의 현장 지적사항을 관리해보세요.</p>
                         </div>
                     )}
                 </div>
@@ -714,28 +714,28 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
             {/* Add Issue Modal */}
             {showAddModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-fade-in-up">
-                        <h3 className="text-xl font-bold text-slate-900 mb-4">새 지적사항 등록</h3>
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl w-full max-w-md p-6 animate-fade-in-up">
+                        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">새 지적사항 등록</h3>
                         <InterpretationCardGrid
                             items={draftInterpretationCards}
                             className="mb-4 grid-cols-1"
-                            cardClassName="border-slate-200 bg-slate-50"
-                            eyebrowClassName="text-slate-500"
-                            titleClassName="text-slate-900"
-                            descriptionClassName="text-slate-600"
+                            cardClassName="border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950"
+                            eyebrowClassName="text-slate-500 dark:text-slate-400"
+                            titleClassName="text-slate-900 dark:text-white"
+                            descriptionClassName="text-slate-600 dark:text-slate-300"
                         />
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">발견 일자</label>
-                                <input type="date" value={newIssue.date} onChange={e => setNewIssue({...newIssue, date: e.target.value})} className="w-full border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"/>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">발견 일자</label>
+                                <input type="date" value={newIssue.date} onChange={e => setNewIssue({...newIssue, date: e.target.value})} className="w-full border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"/>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">위치 (구역/층)</label>
-                                <input type="text" placeholder="예: 103동 5층 슬라브" value={newIssue.location || ''} onChange={e => setNewIssue({...newIssue, location: e.target.value})} className="w-full border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"/>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">위치 (구역/층)</label>
+                                <input type="text" placeholder="예: 103동 5층 슬라브" value={newIssue.location || ''} onChange={e => setNewIssue({...newIssue, location: e.target.value})} className="w-full border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"/>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">유형</label>
-                                <select value={newIssue.type} onChange={e => setNewIssue({...newIssue, type: e.target.value})} className="w-full border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">유형</label>
+                                <select value={newIssue.type} onChange={e => setNewIssue({...newIssue, type: e.target.value})} className="w-full border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
                                     <option value="추락 위험">추락 위험</option>
                                     <option value="낙하물 위험">낙하물 위험</option>
                                     <option value="화재 위험">화재 위험</option>
@@ -745,19 +745,19 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">위험 등급</label>
-                                <select value={newIssue.riskLevel || 'Medium'} onChange={e => setNewIssue({...newIssue, riskLevel: e.target.value as Issue['riskLevel']})} className="w-full border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">위험 등급</label>
+                                <select value={newIssue.riskLevel || 'Medium'} onChange={e => setNewIssue({...newIssue, riskLevel: e.target.value as Issue['riskLevel']})} className="w-full border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500">
                                     <option value="High">High</option>
                                     <option value="Medium">Medium</option>
                                     <option value="Low">Low</option>
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">지적 내용</label>
-                                <textarea rows={3} placeholder="상세 내용을 입력하세요" value={newIssue.description || ''} onChange={e => setNewIssue({...newIssue, description: e.target.value})} className="w-full border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">지적 내용</label>
+                                <textarea rows={3} placeholder="상세 내용을 입력하세요" value={newIssue.description || ''} onChange={e => setNewIssue({...newIssue, description: e.target.value})} className="w-full border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"></textarea>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">사진 첨부</label>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">사진 첨부</label>
                                 <input
                                     ref={issueImageInputRef}
                                     type="file"
@@ -769,20 +769,20 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                                 <button
                                     type="button"
                                     onClick={() => issueImageInputRef.current?.click()}
-                                    className="px-3 py-2 bg-slate-100 border border-slate-300 text-slate-700 text-sm font-medium rounded-md hover:bg-slate-200"
+                                    className="px-3 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium rounded-md hover:bg-slate-200 dark:hover:bg-slate-700"
                                 >
                                     📷 사진 첨부(카메라/갤러리)
                                 </button>
                                 {newIssue.image && (
                                     <div className="mt-3 flex items-center gap-3">
-                                        <img src={`data:image/jpeg;base64,${newIssue.image}`} alt="지적사항 첨부" className="w-20 h-20 object-cover rounded-md border border-slate-200" />
+                                        <img src={`data:image/jpeg;base64,${newIssue.image}`} alt="지적사항 첨부" className="w-20 h-20 object-cover rounded-md border border-slate-200 dark:border-slate-700" />
                                         <button
                                             type="button"
                                             onClick={() => {
                                                 setNewIssue({ ...newIssue, image: undefined });
                                                 if (issueImageInputRef.current) issueImageInputRef.current.value = '';
                                             }}
-                                            className="text-xs text-red-600 hover:text-red-700 font-medium"
+                                            className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 font-medium"
                                         >
                                             첨부 삭제
                                         </button>
@@ -790,16 +790,16 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
                                 )}
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">조치 요구 사항</label>
-                                <input type="text" placeholder="예: 즉시 난간 설치 요망" value={newIssue.actionRequired || ''} onChange={e => setNewIssue({...newIssue, actionRequired: e.target.value})} className="w-full border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"/>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">조치 요구 사항</label>
+                                <input type="text" placeholder="예: 즉시 난간 설치 요망" value={newIssue.actionRequired || ''} onChange={e => setNewIssue({...newIssue, actionRequired: e.target.value})} className="w-full border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"/>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">담당자</label>
-                                <input type="text" placeholder="담당자 이름" value={newIssue.responsiblePerson || ''} onChange={e => setNewIssue({...newIssue, responsiblePerson: e.target.value})} className="w-full border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"/>
+                                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">담당자</label>
+                                <input type="text" placeholder="담당자 이름" value={newIssue.responsiblePerson || ''} onChange={e => setNewIssue({...newIssue, responsiblePerson: e.target.value})} className="w-full border-slate-300 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"/>
                             </div>
                         </div>
-                        <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-slate-100">
-                            <button onClick={closeAddModal} className="px-4 py-2 text-slate-600 bg-slate-100 font-semibold rounded-lg hover:bg-slate-200">취소</button>
+                        <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-slate-100 dark:border-slate-800">
+                            <button onClick={closeAddModal} className="px-4 py-2 text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 font-semibold rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700">취소</button>
                             <button onClick={handleAddIssue} className="px-4 py-2 text-white bg-indigo-600 font-semibold rounded-lg hover:bg-indigo-700">등록</button>
                         </div>
                     </div>
@@ -808,9 +808,9 @@ const SiteIssueManagement: React.FC<SiteIssueManagementProps> = ({ workerRecords
 
             {isAiAnalyzing && (
                 <div className="fixed inset-0 bg-black bg-opacity-40 z-[60] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl shadow-2xl p-6 flex flex-col items-center">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl p-6 flex flex-col items-center">
                         <Spinner />
-                        <p className="text-sm font-medium text-slate-700 mt-2">외부 지적사항 문서를 AI가 분석 중입니다...</p>
+                        <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mt-2">외부 지적사항 문서를 AI가 분석 중입니다...</p>
                     </div>
                 </div>
             )}

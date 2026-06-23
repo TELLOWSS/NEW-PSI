@@ -3275,7 +3275,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                 <SectionCard
                     title="리포트 운영 요약"
                     subtitle="생성 상태와 최근 검증 결과를 한눈에 확인하고 바로 조치 화면으로 이동합니다."
-                    className="rounded-3xl border-indigo-200 bg-gradient-to-br from-indigo-50 via-white to-slate-100"
+                    className="rounded-3xl border-indigo-200 dark:border-indigo-900/30 bg-gradient-to-br from-indigo-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-900/60 dark:to-slate-950"
                     action={
                         <StatusPill
                             variant={summaryStatusVariant}
@@ -3320,7 +3320,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
                     </div>
                 </SectionCard>
 
-                <section className="rounded-3xl border border-violet-200 bg-violet-50 px-4 py-4 shadow-sm">
+                <section className="rounded-3xl border border-violet-200 dark:border-violet-900/30 bg-violet-50 dark:bg-violet-950/20 px-4 py-4 shadow-sm">
                     <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-700">MOBILE ACTION FLOW</p>
                     <div className="mt-2 flex items-center justify-between gap-2">
                         <div>
@@ -3355,7 +3355,7 @@ const Reports: React.FC<ReportsProps> = ({ workerRecords = [], safetyCheckRecord
             <SectionCard
                 title="11) 리포트 생성 상태"
                 subtitle="현재 필터 기준으로 생성 진행 상태를 확인합니다."
-                className="border-indigo-200 bg-indigo-50 no-print"
+                className="border-indigo-200 dark:border-indigo-900/30 bg-indigo-50 dark:bg-indigo-950/20 no-print"
                 compact
                 action={<StatusPill variant={generationStatusVariant} label={generationStatusLabel} />}
             >
