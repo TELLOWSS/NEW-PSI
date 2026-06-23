@@ -208,11 +208,18 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
         handlePageChange('dashboard');
         if (typeof window !== 'undefined') {
             window.setTimeout(() => {
+                const mainElement = mainRef.current;
                 const element = document.getElementById('mobile-sync-hub');
-                if (element) {
+                if (mainElement && element) {
+                    const offsetTop = element.offsetTop;
+                    mainElement.scrollTo({
+                        top: offsetTop - 24,
+                        behavior: 'smooth'
+                    });
+                } else if (element) {
                     element.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
-            }, 300);
+            }, 450);
         }
     };
 

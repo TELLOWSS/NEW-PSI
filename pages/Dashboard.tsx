@@ -632,10 +632,17 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
             setDashboardUIMode('advanced');
             window.setTimeout(() => {
                 const element = document.getElementById('mobile-sync-hub');
-                if (element) {
+                const mainElement = document.querySelector('main');
+                if (mainElement && element) {
+                    const offsetTop = element.offsetTop;
+                    mainElement.scrollTo({
+                        top: offsetTop - 24,
+                        behavior: 'smooth'
+                    });
+                } else if (element) {
                     element.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
-            }, 300);
+            }, 450);
         }
     }, []);
 
