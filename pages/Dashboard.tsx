@@ -480,11 +480,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     // 기본/고급 모드 토글 (첫 로딩 및 리셋 시에는 항상 'basic' 통합 보드 노출)
     const [dashboardUIMode, setDashboardUIMode] = useState<'basic' | 'advanced'>(() => {
         if (typeof window !== 'undefined') {
-            try {
-                if (window.location.hash === '#mobile-sync-hub') return 'advanced';
-                const saved = window.localStorage.getItem(DASHBOARD_UI_MODE_STORAGE_KEY);
-                if (saved === 'basic' || saved === 'advanced') return saved;
-            } catch {}
+            if (window.location.hash === '#mobile-sync-hub') return 'advanced';
         }
         return 'basic';
     });
@@ -562,16 +558,12 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     }, [dashboardViewMode, isDashboardViewModeManual]);
 
     useEffect(() => {
-        if (typeof window !== 'undefined' && window.location.hash === '#mobile-sync-hub') {
-            return;
-        }
         try {
-            window.localStorage.setItem(DASHBOARD_UI_MODE_STORAGE_KEY, dashboardUIMode);
             window.localStorage.setItem(DASHBOARD_UI_MODE_LOCK_KEY, isDashboardUIModeLocked ? 'true' : 'false');
         } catch {
             // ignore localStorage write failures
         }
-    }, [dashboardUIMode, isDashboardUIModeLocked]);
+    }, [isDashboardUIModeLocked]);
 
     useEffect(() => {
         if (isDashboardViewModeManual) return;
@@ -630,6 +622,10 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     }, []);
 
     useEffect(() => {
+        try {
+            window.localStorage.removeItem(DASHBOARD_UI_MODE_STORAGE_KEY);
+        } catch {}
+
         if (typeof window !== 'undefined' && window.location.hash === '#mobile-sync-hub') {
             setIsDashboardUIModeLocked(false);
             setDashboardUIMode('advanced');
@@ -2680,9 +2676,6 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                                 type="button"
                                 onClick={() => {
                                     setDashboardUIMode('basic');
-                                    try {
-                                        window.localStorage.setItem(DASHBOARD_UI_MODE_STORAGE_KEY, 'basic');
-                                    } catch {}
                                 }}
                                 className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-black rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white transition duration-200"
                             >
