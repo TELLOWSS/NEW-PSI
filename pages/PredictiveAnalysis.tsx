@@ -2403,7 +2403,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                                 <p className="text-[10px] font-black text-amber-700">우선 확인 공종</p>
                                 <div className="mt-2 flex flex-wrap gap-1.5">
                                     {jobActionRateSummary.focusLabels.map((label) => (
-                                        <span key={label} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-black text-slate-700 border border-amber-200">
+                                        <span key={label} className="rounded-full bg-white dark:bg-slate-900 px-2.5 py-1 text-[10px] font-black text-slate-700 dark:text-slate-200 border border-amber-200 dark:border-amber-900/40">
                                             {label}
                                         </span>
                                     ))}

@@ -716,4 +716,137 @@
     html.dark .psi-work-board .text-rose-700 {
         color: #fda4af;
     }
+
+    /* 다크모드 전역 파스텔톤 배경/보더/텍스트 가독성 오버라이드 */
+    html.dark .bg-blue-50,
+    html.dark .bg-blue-50\/10,
+    html.dark .bg-blue-50\/20,
+    html.dark .bg-blue-50\/30,
+    html.dark .bg-blue-50\/50,
+    html.dark .bg-blue-50\/70,
+    html.dark .bg-blue-50\/80 {
+        background-color: rgba(30, 64, 175, 0.2) !important;
+    }
+
+    html.dark .bg-orange-50,
+    html.dark .bg-orange-50\/10,
+    html.dark .bg-orange-50\/20,
+    html.dark .bg-orange-50\/30,
+    html.dark .bg-orange-50\/50,
+    html.dark .bg-orange-50\/70,
+    html.dark .bg-orange-50\/80 {
+        background-color: rgba(154, 52, 18, 0.22) !important;
+    }
+
+    html.dark .bg-emerald-50,
+    html.dark .bg-emerald-50\/10,
+    html.dark .bg-emerald-50\/20,
+    html.dark .bg-emerald-50\/30,
+    html.dark .bg-emerald-50\/50,
+    html.dark .bg-emerald-50\/60,
+    html.dark .bg-emerald-50\/70,
+    html.dark .bg-emerald-50\/80 {
+        background-color: rgba(6, 95, 70, 0.22) !important;
+    }
+
+    html.dark .bg-amber-50,
+    html.dark .bg-amber-50\/10,
+    html.dark .bg-amber-50\/20,
+    html.dark .bg-amber-50\/30,
+    html.dark .bg-amber-50\/50,
+    html.dark .bg-amber-50\/60,
+    html.dark .bg-amber-50\/70,
+    html.dark .bg-amber-50\/80 {
+        background-color: rgba(146, 64, 14, 0.22) !important;
+    }
+
+    html.dark .bg-rose-50,
+    html.dark .bg-rose-50\/10,
+    html.dark .bg-rose-50\/20,
+    html.dark .bg-rose-50\/30,
+    html.dark .bg-rose-50\/40,
+    html.dark .bg-rose-50\/50,
+    html.dark .bg-rose-50\/70,
+    html.dark .bg-rose-50\/80 {
+        background-color: rgba(159, 18, 57, 0.2) !important;
+    }
+
+    html.dark .bg-sky-50,
+    html.dark .bg-sky-50\/10,
+    html.dark .bg-sky-50\/20,
+    html.dark .bg-sky-50\/30,
+    html.dark .bg-sky-50\/50,
+    html.dark .bg-sky-50\/70,
+    html.dark .bg-sky-50\/80 {
+        background-color: rgba(7, 89, 133, 0.2) !important;
+    }
+
+    html.dark .border-blue-100,
+    html.dark .border-blue-200,
+    html.dark .border-blue-300 {
+        border-color: rgba(147, 197, 253, 0.2) !important;
+    }
+
+    html.dark .border-emerald-100,
+    html.dark .border-emerald-200,
+    html.dark .border-emerald-300 {
+        border-color: rgba(52, 211, 153, 0.2) !important;
+    }
+
+    html.dark .border-amber-100,
+    html.dark .border-amber-200,
+    html.dark .border-amber-300 {
+        border-color: rgba(251, 191, 36, 0.2) !important;
+    }
+
+    html.dark .border-rose-100,
+    html.dark .border-rose-200,
+    html.dark .border-rose-300 {
+        border-color: rgba(248, 113, 113, 0.2) !important;
+    }
+
+    html.dark .border-sky-100,
+    html.dark .border-sky-200,
+    html.dark .border-sky-300 {
+        border-color: rgba(125, 211, 252, 0.2) !important;
+    }
+
+    html.dark .text-blue-600,
+    html.dark .text-blue-700,
+    html.dark .text-blue-800,
+    html.dark .text-blue-900 {
+        color: #93c5fd !important;
+    }
+
+    html.dark .text-orange-700,
+    html.dark .text-orange-850,
+    html.dark .text-orange-800,
+    html.dark .text-orange-900 {
+        color: #fdba74 !important;
+    }
+
+    html.dark .text-emerald-700,
+    html.dark .text-emerald-800,
+    html.dark .text-emerald-900 {
+        color: #6ee7b7 !important;
+    }
+
+    html.dark .text-amber-700,
+    html.dark .text-amber-800,
+    html.dark .text-amber-900 {
+        color: #fcd34d !important;
+    }
+
+    html.dark .text-rose-700,
+    html.dark .text-rose-800,
+    html.dark .text-rose-900 {
+        color: #fda4af !important;
+    }
+
+    html.dark .text-sky-700,
+    html.dark .text-sky-800,
+    html.dark .text-sky-900 {
+        color: #7dd3fc !important;
+    }
 }
+

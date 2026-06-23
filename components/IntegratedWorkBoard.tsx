@@ -603,7 +603,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                 {/* [3열] 전파 교육 및 설정 (TBM 교육자료 및 다국어 QR 전파) */}
                 <div className="flex flex-col gap-4 text-left">
                     {/* 4번 + 5번 과업 통합: 전파 교육 & 다국어 QR 배포 스튜디오 */}
-                    <div className="psi-interactive-card flex-1 p-4 bg-gradient-to-br from-white to-emerald-50/10 hover:shadow-lg transition flex flex-col justify-between">
+                    <div className="psi-interactive-card flex-1 p-4 bg-gradient-to-br from-white to-emerald-50/10 dark:from-slate-900 dark:to-emerald-950/20 hover:shadow-lg transition flex flex-col justify-between">
                         <div>
                             <div className="flex items-center justify-between">
                                 <div className="flex gap-1.5">
@@ -650,7 +650,7 @@ export const IntegratedWorkBoard: React.FC<IntegratedWorkBoardProps> = ({
                     </div>
 
                     {/* 7번 과업: 환경 설정 */}
-                    <div className="psi-interactive-card p-4 flex flex-col justify-between bg-slate-50/35">
+                    <div className="psi-interactive-card p-4 flex flex-col justify-between bg-slate-50/35 dark:bg-slate-900/35">
                         <div>
                             <div className="flex items-center justify-between">
                                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-700 text-xs font-black text-slate-200">06</span>
