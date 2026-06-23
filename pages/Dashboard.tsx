@@ -56,6 +56,7 @@ const SafetyCheckDonutChart = lazy(() => import('../components/charts/SafetyChec
 const TradeNationalityCrossChart = lazy(() => import('../components/charts/TradeNationalityCrossChart').then(module => ({ default: module.TradeNationalityCrossChart })));
 const TradeSixMetricRadar = lazy(() => import('../components/charts/TradeSixMetricRadar').then(module => ({ default: module.TradeSixMetricRadar })));
 const WorkerTrendPanel = lazy(() => import('../components/charts/WorkerTrendPanel').then(module => ({ default: module.WorkerTrendPanel })));
+const MonthlyTrendChart = lazy(() => import('../components/charts/MonthlyTrendChart').then(module => ({ default: module.MonthlyTrendChart })));
 
 interface DashboardProps {
     workerRecords: WorkerRecord[];
@@ -464,6 +465,7 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     const [isAudienceManual, setIsAudienceManual] = useState<boolean>(false);
     const [viewportWidth, setViewportWidth] = useState<number>(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
     const [isDashboardViewModeManual, setIsDashboardViewModeManual] = useState<boolean>(() => getStoredDashboardViewModeManual());
+    const [trendTab, setTrendTab] = useState<'average' | 'check'>('average');
     const viewMetricSessionRef = useRef<string>(createMetricSessionId('dashboard'));
     const viewMetricStartRef = useRef<number>(Date.now());
     const teamComparisonSectionRef = useRef<HTMLDivElement | null>(null);
@@ -3264,11 +3266,41 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                     </div>
                 </div>
                       <div className={`bg-white dark:bg-slate-800 p-3 sm:p-4 lg:p-5 rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-slate-100 dark:border-slate-700 ${audienceView === 'executive' ? 'md:order-1' : 'md:order-2'}`}>
-                          <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4 text-slate-800 dark:text-slate-100">최근 2주간 안전 점검 동향</h3>
+                          <div className="flex items-center justify-between mb-3 sm:mb-4 flex-wrap gap-2">
+                              <h3 className="text-base sm:text-lg font-bold text-slate-800 dark:text-slate-100">현장 안전 트렌드</h3>
+                              <div className="flex bg-slate-100 dark:bg-slate-700 p-0.5 rounded-lg text-xs">
+                                  <button
+                                      type="button"
+                                      onClick={() => setTrendTab('average')}
+                                      className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                                          trendTab === 'average'
+                                              ? 'bg-white dark:bg-slate-650 text-indigo-650 dark:text-indigo-200 shadow-sm'
+                                              : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                                      }`}
+                                  >
+                                      최근 평균 추세
+                                  </button>
+                                  <button
+                                      type="button"
+                                      onClick={() => setTrendTab('check')}
+                                      className={`px-2.5 py-1 rounded-md font-medium transition-all ${
+                                          trendTab === 'check'
+                                              ? 'bg-white dark:bg-slate-650 text-indigo-650 dark:text-indigo-200 shadow-sm'
+                                              : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                                      }`}
+                                  >
+                                      최근 점검 동향
+                                  </button>
+                              </div>
+                          </div>
                     <div className="h-52 sm:h-56">
                         <DeferredSection fallback={<ChartSkeleton minHeight="16rem" />} rootMargin="160px">
                             <Suspense fallback={<ChartSkeleton minHeight="16rem" />}>
-                                <SafetyCheckDonutChart records={safetyCheckRecords} />
+                                {trendTab === 'average' ? (
+                                    <MonthlyTrendChart records={workerOnlyRecords} />
+                                ) : (
+                                    <SafetyCheckDonutChart records={safetyCheckRecords} />
+                                )}
                             </Suspense>
                         </DeferredSection>
                     </div>
