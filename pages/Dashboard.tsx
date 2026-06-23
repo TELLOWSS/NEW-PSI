@@ -562,6 +562,9 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     }, [dashboardViewMode, isDashboardViewModeManual]);
 
     useEffect(() => {
+        if (typeof window !== 'undefined' && window.location.hash === '#mobile-sync-hub') {
+            return;
+        }
         try {
             window.localStorage.setItem(DASHBOARD_UI_MODE_STORAGE_KEY, dashboardUIMode);
             window.localStorage.setItem(DASHBOARD_UI_MODE_LOCK_KEY, isDashboardUIModeLocked ? 'true' : 'false');
@@ -642,6 +645,14 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
                 } else if (element) {
                     element.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
+
+                try {
+                    if (window.history.pushState) {
+                        window.history.pushState('', document.title, window.location.pathname + window.location.search);
+                    } else {
+                        window.location.hash = '';
+                    }
+                } catch {}
             }, 450);
         }
     }, []);

@@ -199,10 +199,6 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
 
     const handleGoToMobileHub = () => {
         if (typeof window !== 'undefined') {
-            try {
-                window.localStorage.setItem('psi_dashboard_ui_mode_v2', 'advanced');
-                window.localStorage.setItem('psi_dashboard_ui_mode_lock_v2', 'false');
-            } catch {}
             window.location.hash = 'mobile-sync-hub';
         }
         handlePageChange('dashboard');
@@ -220,6 +216,30 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                     element.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
             }, 450);
+        }
+    };
+
+    const handleGoToDashboard = () => {
+        if (typeof window !== 'undefined') {
+            try {
+                if (window.history.pushState) {
+                    window.history.pushState('', document.title, window.location.pathname + window.location.search);
+                } else {
+                    window.location.hash = '';
+                }
+            } catch {}
+        }
+        handlePageChange('dashboard');
+        if (typeof window !== 'undefined') {
+            window.setTimeout(() => {
+                const mainElement = mainRef.current;
+                if (mainElement) {
+                    mainElement.scrollTo({
+                        top: 0,
+                        behavior: 'smooth'
+                    });
+                }
+            }, 100);
         }
     };
 
@@ -432,7 +452,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
                     isDark={isDark}
                     themeMode={themeMode}
                     onToggleTheme={handleToggleTheme}
-                    onGoToDashboard={currentPage !== 'dashboard' ? () => handlePageChange('dashboard') : undefined}
+                    onGoToDashboard={currentPage !== 'dashboard' ? handleGoToDashboard : undefined}
                     onGoToMobileHub={currentPage !== 'dashboard' ? handleGoToMobileHub : undefined}
                     controls={
                         <div className="flex items-center gap-1">
