@@ -478,7 +478,16 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
     });
 
     // 기본/고급 모드 토글 (첫 로딩 및 리셋 시에는 항상 'basic' 통합 보드 노출)
-    const [dashboardUIMode, setDashboardUIMode] = useState<'basic' | 'advanced'>('basic');
+    const [dashboardUIMode, setDashboardUIMode] = useState<'basic' | 'advanced'>(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                if (window.location.hash === '#mobile-sync-hub') return 'advanced';
+                const saved = window.localStorage.getItem(DASHBOARD_UI_MODE_STORAGE_KEY);
+                if (saved === 'basic' || saved === 'advanced') return saved;
+            } catch {}
+        }
+        return 'basic';
+    });
     const [isDashboardUIModeLocked, setIsDashboardUIModeLocked] = useState<boolean>(() => {
         try {
             const saved = window.localStorage.getItem(DASHBOARD_UI_MODE_LOCK_KEY);
@@ -619,12 +628,14 @@ const Dashboard: React.FC<DashboardProps> = ({ workerRecords, safetyCheckRecords
 
     useEffect(() => {
         if (typeof window !== 'undefined' && window.location.hash === '#mobile-sync-hub') {
-            const element = document.getElementById('mobile-sync-hub');
-            if (element) {
-                window.setTimeout(() => {
+            setIsDashboardUIModeLocked(false);
+            setDashboardUIMode('advanced');
+            window.setTimeout(() => {
+                const element = document.getElementById('mobile-sync-hub');
+                if (element) {
                     element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 400);
-            }
+                }
+            }, 300);
         }
     }, []);
 

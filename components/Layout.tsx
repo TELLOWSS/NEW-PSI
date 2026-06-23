@@ -198,15 +198,21 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurren
     };
 
     const handleGoToMobileHub = () => {
+        if (typeof window !== 'undefined') {
+            try {
+                window.localStorage.setItem('psi_dashboard_ui_mode_v2', 'advanced');
+                window.localStorage.setItem('psi_dashboard_ui_mode_lock_v2', 'false');
+            } catch {}
+            window.location.hash = 'mobile-sync-hub';
+        }
         handlePageChange('dashboard');
         if (typeof window !== 'undefined') {
-            window.location.hash = 'mobile-sync-hub';
             window.setTimeout(() => {
                 const element = document.getElementById('mobile-sync-hub');
                 if (element) {
                     element.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }
-            }, 400);
+            }, 300);
         }
     };
 
