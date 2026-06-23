@@ -27,10 +27,10 @@ export const SummaryMetricGrid: React.FC<SummaryMetricGridProps> = ({
         <div className={className}>
             {items.map((item) => (
                 <div key={item.key} className={`${cardClassName} ${item.tone}`}>
-                    <p className={item.labelClassName || 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-500'}>{item.label}</p>
-                    <div className={item.valueClassName || 'mt-1 text-2xl font-black text-slate-900'}>{item.value}</div>
+                    <p className={item.labelClassName || 'text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400'}>{item.label}</p>
+                    <div className={item.valueClassName || 'mt-1 text-2xl font-black text-slate-900 dark:text-slate-100'}>{item.value}</div>
                     {item.helper ? (
-                        <div className={item.helperClassName || 'mt-1 text-xs font-bold text-slate-600'}>{item.helper}</div>
+                        <div className={item.helperClassName || 'mt-1 text-xs font-bold text-slate-650 dark:text-slate-350'}>{item.helper}</div>
                     ) : null}
                 </div>
             ))}

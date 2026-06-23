@@ -13,9 +13,9 @@ interface EmptyStateProps {
 }
 
 const toneClassMap: Record<EmptyStateTone, string> = {
-    neutral: 'border-slate-700/60 bg-slate-900/60 text-slate-100',
-    info: 'border-sky-500/35 bg-sky-500/10 text-slate-100',
-    warning: 'border-orange-500/40 bg-orange-500/10 text-slate-100',
+    neutral: 'border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-700/60 dark:bg-slate-900/60 dark:text-slate-100',
+    info: 'border-sky-200 bg-sky-50/50 text-slate-800 dark:border-sky-500/35 dark:bg-sky-500/10 dark:text-slate-100',
+    warning: 'border-orange-200 bg-orange-50/50 text-slate-800 dark:border-orange-500/40 dark:bg-orange-500/10 dark:text-slate-100',
 };
 
 export const EmptyState: React.FC<EmptyStateProps> = ({
@@ -31,23 +31,23 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
     return (
         <section
-            className={`rounded-2xl border px-5 py-6 text-center shadow-sm shadow-slate-950/20 sm:px-6 ${toneClassMap[tone]} ${className}`}
+            className={`rounded-2xl border px-5 py-6 text-center shadow-sm dark:shadow-slate-950/20 sm:px-6 ${toneClassMap[tone]} ${className}`}
             aria-label={title}
         >
             {icon ? (
-                <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-200">
+                <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-650 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
                     {icon}
                 </div>
             ) : null}
 
             <h3 className="text-base font-extrabold tracking-tight sm:text-lg">{title}</h3>
-            {description ? <p className="mx-auto mt-2 max-w-xl text-sm font-medium text-slate-300">{description}</p> : null}
+            {description ? <p className="mx-auto mt-2 max-w-xl text-sm font-medium text-slate-500 dark:text-slate-300">{description}</p> : null}
 
             {showAction ? (
                 <button
                     type="button"
                     onClick={onAction}
-                    className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-500 bg-slate-800 px-4 text-sm font-bold text-slate-100 transition-colors hover:bg-slate-700"
+                    className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:border-slate-500 dark:bg-slate-850 dark:text-slate-100 dark:hover:bg-slate-750 transition-colors"
                 >
                     {actionLabel}
                 </button>

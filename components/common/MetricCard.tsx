@@ -55,8 +55,8 @@ export const MetricCard: React.FC<MetricCardProps> = ({
             <div className="flex items-start justify-between gap-3">
                 <p className={`text-xs font-bold tracking-wide ${titleColor} sm:text-sm`}>{title}</p>
                 {icon ? (
-                    <span className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border bg-white ${
-                        darkBg ? 'border-white/10 bg-white/5 text-indigo-250' : 'border-slate-200 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-200'
+                    <span className={`inline-flex h-8 w-8 items-center justify-center rounded-lg border ${
+                        darkBg ? 'border-white/10 bg-white/5 text-indigo-250' : 'border-slate-200 bg-white text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-200'
                     }`}>
                         {icon}
                     </span>

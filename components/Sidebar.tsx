@@ -191,8 +191,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <nav className="flex-1 px-3 py-4 overflow-y-auto custom-scrollbar">
                 {compositionEditMode && onCompositionConfigChange && (
                     <section className="mb-4 rounded-xl border border-slate-200 bg-white/80 p-3 dark:border-slate-700/80 dark:bg-slate-900/70">
-                        <h3 className="text-xs font-black tracking-[0.08em] text-slate-200">메뉴 구성 편집</h3>
-                        <p className="mt-1 text-[11px] text-slate-400">표시 여부와 순서를 저장합니다. 문서 분석 관리는 보호 규칙으로 항상 유지됩니다.</p>
+                        <h3 className="text-xs font-black tracking-[0.08em] text-slate-700 dark:text-slate-200">메뉴 구성 편집</h3>
+                        <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">표시 여부와 순서를 저장합니다. 문서 분석 관리는 보호 규칙으로 항상 유지됩니다.</p>
                         <div className="mt-3 space-y-2">
                             {editRows.map((item, index) => {
                                 const isHidden = hiddenSet.has(item.id);
@@ -200,7 +200,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 const isLast = index === editRows.length - 1;
                                 return (
                                     <div key={`edit-${item.id}`} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 dark:border-slate-700/70 dark:bg-slate-950/40">
-                                        <label className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+                                        <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
                                             <input
                                                 type="checkbox"
                                                 checked={!isHidden}
@@ -209,7 +209,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                                         setSidebarPageVisible(compositionConfig, item.id, event.target.checked),
                                                     )
                                                 }
-                                                className="h-3.5 w-3.5 rounded border-slate-500 bg-slate-800 text-orange-500 focus:ring-orange-500"
+                                                className="h-3.5 w-3.5 rounded border-slate-350 dark:border-slate-500 bg-white dark:bg-slate-800 text-orange-500 focus:ring-orange-500"
                                             />
                                             <span>{getRouteLabel(item.id, resolvedUiMode)}</span>
                                         </label>
@@ -218,7 +218,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                                 type="button"
                                                 disabled={isFirst}
                                                 onClick={() => onCompositionConfigChange(reorderSidebarPage(compositionConfig, item.id, 'up'))}
-                                                className="rounded border border-slate-600 px-1.5 py-0.5 text-[10px] font-bold text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+                                                className="rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-650 dark:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
                                                 aria-label={`${getRouteLabel(item.id, resolvedUiMode)} 위로 이동`}
                                             >
                                                 ▲
@@ -227,7 +227,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                                 type="button"
                                                 disabled={isLast}
                                                 onClick={() => onCompositionConfigChange(reorderSidebarPage(compositionConfig, item.id, 'down'))}
-                                                className="rounded border border-slate-600 px-1.5 py-0.5 text-[10px] font-bold text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+                                                className="rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-bold text-slate-650 dark:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700"
                                                 aria-label={`${getRouteLabel(item.id, resolvedUiMode)} 아래로 이동`}
                                             >
                                                 ▼

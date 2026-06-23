@@ -10,8 +10,8 @@ interface WorkTypeBadgeProps {
 }
 
 const emphasisClassMap: Record<WorkTypeBadgeEmphasis, string> = {
-    default: 'border-slate-600/70 bg-slate-800/70 text-slate-200',
-    strong: 'border-sky-400/45 bg-sky-500/20 text-sky-100',
+    default: 'border-slate-350 bg-slate-100 text-slate-700 dark:border-slate-600/70 dark:bg-slate-800/70 dark:text-slate-200',
+    strong: 'border-sky-300 bg-sky-50 text-sky-700 dark:border-sky-400/45 dark:bg-sky-500/20 dark:text-sky-100',
 };
 
 export const WorkTypeBadge: React.FC<WorkTypeBadgeProps> = ({
