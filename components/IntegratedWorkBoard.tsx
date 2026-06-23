@@ -79,9 +79,60 @@ const getRecentMonthKeys = (count: number): string[] => {
 };
 
 const TrendChart = ({ values, color = '#2563eb', label }: { values: number[]; color?: string; label: string }) => {
-    if (values.length < 2) {
-        return <p className="mt-2.5 rounded-lg bg-slate-50 px-2 py-3 text-center text-[10px] font-bold text-slate-400 dark:bg-slate-800/20">데이터가 축적되는 중입니다.</p>;
+    const gradId = `grad-${color.replace('#', '')}`;
+
+    // 1. 데이터가 아예 없을 때 (0개)
+    if (values.length === 0) {
+        return (
+            <div className="relative flex flex-col justify-center items-center mt-1 h-8 w-full bg-slate-50/50 dark:bg-slate-800/10 rounded-lg">
+                <svg viewBox="0 0 120 42" className="absolute inset-0 h-full w-full opacity-20" role="img" aria-label={label}>
+                    <line x1="0" y1="25" x2="120" y2="25" stroke={color} strokeWidth="1" strokeDasharray="3,3" />
+                </svg>
+                <span className="relative z-10 text-[9px] font-bold text-slate-400">안전 분석 데이터 대기 중</span>
+            </div>
+        );
     }
+
+    // 2. 단일 데이터 포인트만 있을 때 (1개)
+    if (values.length === 1) {
+        const val = values[0];
+        // 0~100 점수 기준 정규화 (y 좌표 범위는 12 ~ 38)
+        const cy = 38 - (Math.min(100, Math.max(0, val)) / 100) * 26;
+        
+        // 단일 포인트 기준 그라데이션 채우기 (가운데에 솟은 형태)
+        const fillPoints = `0,42 60,${cy} 120,42`;
+
+        return (
+            <svg viewBox="0 0 120 42" className="mt-1 h-8 w-full" role="img" aria-label={label}>
+                <defs>
+                    <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+                        <stop offset="100%" stopColor={color} stopOpacity="0.0" />
+                    </linearGradient>
+                </defs>
+                {/* 은은한 가이드라인 */}
+                <line x1="0" y1={cy} x2="120" y2={cy} stroke={color} strokeWidth="0.8" strokeDasharray="2,2" className="opacity-40" />
+                
+                {/* 영역 채우기 */}
+                <polygon points={fillPoints} fill={`url(#${gradId})`} />
+                
+                {/* 추세선 대용 (중앙 연결선) */}
+                <line x1="0" y1="38" x2="60" y2={cy} stroke={color} strokeWidth="1" className="opacity-30" />
+                <line x1="60" y1={cy} x2="120" y2="38" stroke={color} strokeWidth="1" className="opacity-30" />
+
+                {/* 중앙 강조 단일 점 */}
+                <circle cx="60" cy={cy} r="2.5" fill={color} />
+                <circle cx="60" cy={cy} r="4.5" stroke={color} strokeWidth="1" fill="none" className="animate-ping opacity-75" style={{ animationDuration: '3s' }} />
+                
+                {/* 값 텍스트 */}
+                <text x="60" y={cy - 4} textAnchor="middle" fill={color} fontSize="5" fontWeight="bold" className="font-sans">
+                    {val.toFixed(1)}{label.includes('개선') ? '%' : '점'}
+                </text>
+            </svg>
+        );
+    }
+
+    // 3. 2개 이상의 데이터 포인트가 있을 때 (정상 추세선 렌더링)
     const min = Math.min(...values);
     const max = Math.max(...values);
     const range = Math.max(1, max - min);
@@ -90,7 +141,6 @@ const TrendChart = ({ values, color = '#2563eb', label }: { values: number[]; co
         .join(' ');
     
     const fillPoints = `${points} 120,42 0,42`;
-    const gradId = `grad-${color.replace('#', '')}`;
 
     return (
         <svg viewBox="0 0 120 42" className="mt-1 h-8 w-full" role="img" aria-label={label}>
