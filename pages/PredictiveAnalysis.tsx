@@ -27,7 +27,7 @@ const PREDICTIVE_STATUS_COPY = {
     syncReady: '현재 데이터 기준으로 AI 리스크 결과를 다시 정리할 수 있습니다.',
     syncNoData: '재계산할 OCR/평가 데이터가 아직 없어 버튼이 비활성화됩니다.',
     syncLoading: '실행 계획 상태와 최근 변경 사항을 다시 불러오는 중입니다.',
-    syncError: '상태 동기화에 실패했습니다. 관리자 로그인 후 재시도를 실행하세요.',
+    syncError: '실행 계획 조회 지연 (네트워크 연결 혹은 관리자 로그인을 확인해 주세요)',
     syncSuccess: '최신 실행 계획 상태를 반영했습니다.',
     riskInsightEmpty: {
         title: '예측 결과를 만들 데이터가 아직 충분하지 않습니다.',
@@ -1049,7 +1049,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                         planKeys: executionPlans.map((plan) => plan.key),
                     },
                 },
-                { fallbackMessage: '실행 계획 상태 조회 실패' }
+                { fallbackMessage: '실행 계획 조회 지연 (잠시 후 다시 시도해 주세요)' }
             );
 
             const serverMap: Record<string, PlanStatus> = {};
@@ -1584,7 +1584,7 @@ const PredictiveAnalysis: React.FC<PredictiveAnalysisProps> = ({ workerRecords, 
                         limit: 5,
                     },
                 },
-                { fallbackMessage: '실행 계획 상태 이력 조회 실패' }
+                { fallbackMessage: '실행 계획 이력 조회 지연 (잠시 후 다시 시도해 주세요)' }
             );
 
             setPlanHistoryMap((previous) => ({
